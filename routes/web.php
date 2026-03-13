@@ -46,3 +46,7 @@ Route::get('/onboarding-Step2-AddProductVariations', [DashboardController::class
 Route::get('/onboarding-Step2-VariationsPopup', [DashboardController::class,'onboarding_AddProduct_VariationsPopup'])->name(  'onboarding_AddProduct_VariationsPopup');
 
 Route::get('/onboarding-Step3-StoreReady', [DashboardController::class,'onboarding_StoreReady'])->name('onboarding_StoreReady');
+
+Route::get('/admin-dashboard', [App\Http\Controllers\AdminController::class, 'admin_dashboard'])->name('admin-dashboard');
+
+Route::get('/admin-tenant', [App\Http\Controllers\AdminController::class, 'admin_tenant'])->name('admin-tenant');

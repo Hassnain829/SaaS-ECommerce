@@ -1,4 +1,4 @@
-﻿@extends('layouts.sidebar')
+﻿@extends('layouts.user.user-Sidebar')
 
 @section('title', 'Profile Settings | BaaS Core')
 

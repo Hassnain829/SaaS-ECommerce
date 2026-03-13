@@ -1,4 +1,4 @@
-﻿@extends('layouts.sidebar')
+﻿@extends('layouts.user.user-Sidebar')
 
 @section('title', 'Shipping Automation Settings | BaaS Core')
 @section('sidebar_brand_title', 'BaaS Platform')
