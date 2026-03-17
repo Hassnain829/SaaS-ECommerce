@@ -97,7 +97,7 @@
             <span class="text-sm {{ request()->routeIs('profileSettings') ? 'font-semibold' : 'font-medium' }}">Profile</span></a> -->
     </nav>
 
-    <div class="border-t border-gray-200 p-4">
+    <div class="border-t border-gray-200 p-4 space-y-2">
         <a href="{{ route('profileSettings') }}" class="flex items-center gap-3 rounded-xl p-2 transition-colors {{ request()->routeIs('profileSettings') ? 'bg-[#0052CC]/10' : 'hover:bg-[#0052CC]/5' }}">
             <div class="w-8 h-8 rounded-full bg-[#E2E8F0] overflow-hidden shrink-0">
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -109,6 +109,12 @@
                 <div class="text-sm font-semibold text-[#0F172A] truncate">Alex Rivers</div>
                 <div class="text-xs {{ request()->routeIs('profileSettings') ? 'text-[#0052CC]' : 'text-[#64748B]' }}">Admin Account</div>
             </div>
+        </a>
+        <a href="{{ route('register') }}" class="flex items-center justify-center gap-2 rounded-xl p-2.5 text-sm font-semibold text-[#BA1A1A] border border-[#FFDAD6] bg-[#FFF6F5] hover:bg-[#FFEDEC] transition-colors">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M6 14C4.33333 14 2.91667 13.4167 1.75 12.25C0.583333 11.0833 0 9.66667 0 8C0 6.33333 0.583333 4.91667 1.75 3.75C2.91667 2.58333 4.33333 2 6 2H9V4H6C4.9 4 3.95833 4.39167 3.175 5.175C2.39167 5.95833 2 6.9 2 8C2 9.1 2.39167 10.0417 3.175 10.825C3.95833 11.6083 4.9 12 6 12H9V14H6ZM11 11L9.625 9.55L11.175 8H5V6H11.175L9.625 4.45L11 3L15 7L11 11Z" fill="currentColor"/>
+            </svg>
+            <span>Logout</span>
         </a>
     </div>
 </aside>
@@ -124,6 +130,82 @@
 </main>
 
 <script>
+    function closeAllProfileMenus() {
+      document.querySelectorAll('.profileMenu').forEach(function (menu) {
+        menu.classList.add('hidden');
+      });
+    }
+
+    function initTopbarProfileMenu(profileSettingsUrl, logoutUrl) {
+      var headers = document.querySelectorAll('header');
+      headers.forEach(function (header) {
+        var avatar = header.querySelector('div.rounded-full.overflow-hidden');
+        if (avatar && avatar.closest('aside')) return;
+        if (avatar && avatar.closest('.profile-menu-wrapper')) return;
+
+        function createProfileWrapper() {
+          var wrapper = document.createElement('div');
+          wrapper.className = 'relative profile-menu-wrapper shrink-0';
+
+          var trigger = document.createElement('button');
+          trigger.type = 'button';
+          trigger.className = 'w-9 h-9 rounded-full bg-[#E2E8F0] border border-[#CBD5E1] overflow-hidden shrink-0 profileMenuToggle';
+          trigger.setAttribute('aria-haspopup', 'true');
+          trigger.setAttribute('aria-expanded', 'false');
+          trigger.setAttribute('aria-label', 'Open profile menu');
+          trigger.innerHTML =
+            '<svg width=\"36\" height=\"36\" viewBox=\"0 0 36 36\" fill=\"none\">' +
+            '<circle cx=\"18\" cy=\"13\" r=\"6\" fill=\"#94A3B8\"/>' +
+            '<path d=\"M28 28C28 24 24 22 18 22C12 22 8 24 8 28\" fill=\"#94A3B8\"/>' +
+            '</svg>';
+
+          var menu = document.createElement('div');
+          menu.className = 'profileMenu hidden absolute right-0 mt-2 w-44 bg-white border border-[#E2E8F0] rounded-xl shadow-[0_10px_30px_rgba(2,6,23,0.12)] py-1 z-50';
+          menu.innerHTML =
+            '<a href=\"' + profileSettingsUrl + '\" class=\"block px-4 py-2 text-sm text-[#0F172A] hover:bg-[#F8FAFC]\">Profile Settings</a>' +
+            '<a href=\"' + logoutUrl + '\" class=\"block px-4 py-2 text-sm text-[#BA1A1A] hover:bg-[#FFF1F1]\">Logout</a>';
+
+          wrapper.appendChild(trigger);
+          wrapper.appendChild(menu);
+          return { wrapper: wrapper, trigger: trigger, menu: menu };
+        }
+
+        var parts = createProfileWrapper();
+        var wrapper = parts.wrapper;
+        var trigger = parts.trigger;
+        var menu = parts.menu;
+
+        if (avatar) {
+          trigger.className = avatar.className + ' profileMenuToggle';
+          trigger.innerHTML = avatar.innerHTML;
+          avatar.replaceWith(wrapper);
+        } else {
+          var rightActions = header.querySelector('.flex.items-center.gap-3.shrink-0, .flex.items-center.gap-4.shrink-0, .flex.items-center.gap-2.shrink-0');
+          if (rightActions) {
+            rightActions.appendChild(wrapper);
+          } else {
+            header.appendChild(wrapper);
+          }
+        }
+
+        trigger.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var isOpen = !menu.classList.contains('hidden');
+          closeAllProfileMenus();
+          if (!isOpen) {
+            menu.classList.remove('hidden');
+            trigger.setAttribute('aria-expanded', 'true');
+          } else {
+            trigger.setAttribute('aria-expanded', 'false');
+          }
+        });
+      });
+
+      document.addEventListener('click', function () {
+        closeAllProfileMenus();
+      });
+    }
+
     function openSidebar() {
       var sidebar = document.getElementById('sidebar');
       var overlay = document.getElementById('sidebarOverlay');
@@ -148,6 +230,10 @@
         if (overlay) overlay.classList.add('hidden');
         document.body.classList.remove('overflow-hidden');
       }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+      initTopbarProfileMenu("{{ route('profileSettings') }}", "{{ route('register') }}");
     });
 </script>
 </body>

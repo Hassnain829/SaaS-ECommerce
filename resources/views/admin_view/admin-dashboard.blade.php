@@ -1,9 +1,9 @@
-@extends('layouts.admin.admin-Sidebar')
+﻿@extends('layouts.admin.admin-sidebar')
 
 @section('title', 'Admin Dashboard')
 
 @section('topbar')
-<header class="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
+<header class="font-inter sticky top-0 z-30 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
     <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
         <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
             <path d="M0 14V12H20V14H0ZM0 7V5H20V7H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
@@ -53,7 +53,7 @@
 @endsection
 
 @section('content')
-<div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
+<div class="font-inter flex flex-col md:flex-row md:justify-between md:items-center gap-3">
     <div>
         <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Platform Command Center</h1>
         <p class="text-sm text-[#64748B]">Real-time aggregate data across all clusters.</p>

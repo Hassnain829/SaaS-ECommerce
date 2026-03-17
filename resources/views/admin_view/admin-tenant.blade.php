@@ -1,9 +1,9 @@
-@extends('layouts.admin.admin-Sidebar')
+﻿@extends('layouts.admin.admin-sidebar')
 
 @section('title', 'Managed Stores')
 
 @section('topbar')
-<header class="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
+<header class="font-inter sticky top-0 z-30 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
     <!-- mobile toggle -->
     <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
         <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
@@ -111,7 +111,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Fashion</span>
                 </div>
-                <h3 class="text-lg font-bold text-[#0F172A] mt-3">Velvet & Vine</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">Velvet & Vine</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none">
                         <use href="#link-icon" />
@@ -151,7 +151,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Digital Goods</span>
                 </div>
-                <h3 class="text-lg font-bold text-[#0F172A] mt-3 leading-tight">Pixel Perfect<br>Assets</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3 leading-tight font-poppins">Pixel Perfect<br>Assets</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none"><use href="#link-icon" /></svg>
                     <span>pixel-perfect.baas-core.com</span>
@@ -175,7 +175,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Food & Drink</span>
                 </div>
-                <h3 class="text-lg font-bold text-[#0F172A] mt-3">Crave & Co</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">Crave & Co</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none"><use href="#link-icon" /></svg>
                     <span>crave-co.baas-core.com</span>
@@ -199,7 +199,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Fitness</span>
                 </div>
-                <h3 class="text-lg font-bold text-[#0F172A] mt-3">Apex Activewear</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">Apex Activewear</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none"><use href="#link-icon" /></svg>
                     <span>apex-active.baas-core.com</span>
@@ -223,7 +223,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Education</span>
                 </div>
-                <h3 class="text-lg font-bold text-[#0F172A] mt-3 leading-tight">The Knowledge<br>Hub</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3 leading-tight font-poppins">The Knowledge<br>Hub</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none"><use href="#link-icon" /></svg>
                     <span>k-hub.baas-core.com</span>
@@ -243,7 +243,7 @@
                     <path d="M6 8H0V6H6V0H8V6H14V8H8V14H6V8Z" fill="#94A3B8"/>
                 </svg>
             </div>
-            <h4 class="text-base font-bold text-[#0F172A]">Provision New Tenant</h4>
+            <h4 class="text-base font-medium text-[#0F172A] font-poppins">Provision New Tenant</h4>
             <p class="text-xs text-[#94A3B8] mt-1 max-w-[180px]">Spin up a new dedicated store instance in seconds.</p>
         </div>
     </div>
