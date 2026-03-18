@@ -49,7 +49,7 @@
 @endsection
 
 @section('content')
-    <div class="max-w-[1120px] mx-auto space-y-5">
+    <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
         <section class="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
             <div>
                 <h1 class="text-2xl text-[#0F172A]">Billing & Subscription</h1>

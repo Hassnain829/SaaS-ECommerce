@@ -22,7 +22,7 @@
 @endsection
 
 @section('content')
-    <div class="max-w-[1120px] mx-auto space-y-5">
+    <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
         <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-[#F1F5F9]">
                 <h2 class="text-2xl">Store Profile</h2>

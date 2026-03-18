@@ -33,7 +33,7 @@
 @endsection
 
 @section('content')
-<div class="max-w-[1180px] mx-auto space-y-6">
+<div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
   <section>
     <h1 class="text-3xl text-[#0F172A]">Security Settings</h1>
     <p class="text-[#64748B] text-sm md:text-base">Manage your account protection and data privacy preferences.</p>
