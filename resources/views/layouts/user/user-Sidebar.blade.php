@@ -37,13 +37,6 @@
             </svg>
             <span class="text-sm font-medium">Dashboard</span></a>
 
-        <a href="{{ route('store-management') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('store-management') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M2 7L3.75 2.625C3.9 2.24167 4.12917 1.9375 4.4375 1.7125C4.74583 1.4875 5.1 1.375 5.5 1.375H14.5C14.9 1.375 15.2542 1.4875 15.5625 1.7125C15.8708 1.9375 16.1 2.24167 16.25 2.625L18 7V16.25C18 16.7333 17.8292 17.1458 17.4875 17.4875C17.1458 17.8292 16.7333 18 16.25 18H3.75C3.26667 18 2.85417 17.8292 2.5125 17.4875C2.17083 17.1458 2 16.7333 2 16.25V7ZM4.05 7H15.95L14.625 3.75H5.375L4.05 7ZM7.5 10.75V14.5H12.5V10.75H7.5Z" fill="currentColor"/>
-            </svg>
-            <span class="text-sm {{ request()->routeIs('store-management') ? 'font-semibold' : 'font-medium' }}">Store</span>
-        </a>
-
         <a href="{{ route('products') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('products') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M3 20C2.45 20 1.97917 19.8042 1.5875 19.4125C1.19583 19.0208 1 18.55 1 18V6.725C0.7 6.54167 0.458333 6.30417 0.275 6.0125C0.0916667 5.72083 0 5.38333 0 5V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H18C18.55 0 19.0208 0.195833 19.4125 0.5875C19.8042 0.979167 20 1.45 20 2V5C20 5.38333 19.9083 5.72083 19.725 6.0125C19.5417 6.30417 19.3 6.54167 19 6.725V18C19 18.55 18.8042 19.0208 18.4125 19.4125C18.0208 19.8042 17.55 20 17 20H3ZM3 7V18H17V7H3ZM2 5H18V2H2V5ZM7 12H13V10H7V12Z" fill="currentColor"/>
             </svg>
@@ -117,7 +110,7 @@
                 <div class="text-xs {{ request()->routeIs('profileSettings') ? 'text-[#0052CC]' : 'text-[#64748B]' }}">Admin Account</div>
             </div>
         </a>
-        <a href="{{ route('logout') }}" class="flex items-center justify-center gap-2 rounded-xl p-2.5 text-sm font-semibold text-[#BA1A1A] border border-[#FFDAD6] bg-[#FFF6F5] hover:bg-[#FFEDEC] transition-colors">
+        <a href="{{ route('register') }}" class="flex items-center justify-center gap-2 rounded-xl p-2.5 text-sm font-semibold text-[#BA1A1A] border border-[#FFDAD6] bg-[#FFF6F5] hover:bg-[#FFEDEC] transition-colors">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M6 14C4.33333 14 2.91667 13.4167 1.75 12.25C0.583333 11.0833 0 9.66667 0 8C0 6.33333 0.583333 4.91667 1.75 3.75C2.91667 2.58333 4.33333 2 6 2H9V4H6C4.9 4 3.95833 4.39167 3.175 5.175C2.39167 5.95833 2 6.9 2 8C2 9.1 2.39167 10.0417 3.175 10.825C3.95833 11.6083 4.9 12 6 12H9V14H6ZM11 11L9.625 9.55L11.175 8H5V6H11.175L9.625 4.45L11 3L15 7L11 11Z" fill="currentColor"/>
             </svg>
@@ -240,7 +233,7 @@
     });
 
     document.addEventListener('DOMContentLoaded', function () {
-      initTopbarProfileMenu("{{ route('profileSettings') }}", "{{ route('logout') }}");
+      initTopbarProfileMenu("{{ route('profileSettings') }}", "{{ route('register') }}");
     });
 </script>
 </body>

@@ -106,7 +106,7 @@
                 <div class="text-xs {{ $isAdminProfile ? 'text-[#0052CC]' : 'text-[#64748B]' }}">Administrator</div>
             </div>
         </a>
-        <a href="{{ route('logout') }}" class="flex items-center justify-center gap-2 rounded-xl p-2.5 text-sm font-semibold text-[#BA1A1A] border border-[#FFDAD6] bg-[#FFF6F5] hover:bg-[#FFEDEC] transition-colors">
+        <a href="{{ route('register') }}" class="flex items-center justify-center gap-2 rounded-xl p-2.5 text-sm font-semibold text-[#BA1A1A] border border-[#FFDAD6] bg-[#FFF6F5] hover:bg-[#FFEDEC] transition-colors">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M6 14C4.33333 14 2.91667 13.4167 1.75 12.25C0.583333 11.0833 0 9.66667 0 8C0 6.33333 0.583333 4.91667 1.75 3.75C2.91667 2.58333 4.33333 2 6 2H9V4H6C4.9 4 3.95833 4.39167 3.175 5.175C2.39167 5.95833 2 6.9 2 8C2 9.1 2.39167 10.0417 3.175 10.825C3.95833 11.6083 4.9 12 6 12H9V14H6ZM11 11L9.625 9.55L11.175 8H5V6H11.175L9.625 4.45L11 3L15 7L11 11Z" fill="currentColor"/>
             </svg>
@@ -206,7 +206,7 @@
     });
 
     document.addEventListener('DOMContentLoaded', function () {
-      initTopbarProfileMenu("{{ route('admin-settings') }}", "{{ route('logout') }}");
+      initTopbarProfileMenu("{{ route('admin-settings') }}", "{{ route('register') }}");
     });
 </script>
 </body>
