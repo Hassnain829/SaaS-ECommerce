@@ -23,7 +23,7 @@
 
     <!-- Right icons -->
     <div class="flex items-center gap-3 shrink-0">
-        <a href="{{ route('onboarding-StoreDetails-1') }}" class="hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
+        <a href="{{ route('onboarding-StoreDetails-1', ['fresh' => 1]) }}" class="hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
             </svg>
@@ -67,212 +67,112 @@
     <!-- Tab Navigation -->
     <div class="border-b border-[#C3C6D6]/30 overflow-x-auto">
         <nav class="flex gap-8 min-w-max">
-            <button class="pb-4 border-b-2 border-[#003D9B] text-[#003D9B] font-bold text-sm">All Stores (12)</button>
-            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-medium text-sm">Live (8)</button>
-            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-medium text-sm">Maintenance (2)</button>
-            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-medium text-sm">Drafts (2)</button>
+            <button class="pb-4 border-b-2 border-[#003D9B] text-[#003D9B] font-bold text-sm">All Stores ({{ count($stores) }})</button>
+            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-medium text-sm">Live ({{ $stores->where('onboarding_completed', true)->count() }})</button>
+            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-medium text-sm">Drafts ({{ $stores->where('onboarding_completed', false)->count() }})</button>
         </nav>
     </div>
 
     <!-- Stores Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        <!-- Store Card 1: Modern Marketplace -->
-        <div class="bg-white rounded-xl shadow-sm border border-transparent p-6">
-            <div class="flex justify-between items-start">
-                <div class="flex gap-4">
-                    <div class="w-12 h-12 bg-[#DCE9FF] rounded-lg flex items-center justify-center">
-                        <svg width="21" height="18" viewBox="0 0 21 18" fill="none">
-                            <path d="M4.48333 7.95L3.48333 8.5C3.25 8.63333 3 8.66667 2.73333 8.6C2.46667 8.53333 2.26667 8.38333 2.13333 8.15L0.133333 4.65C0 4.41667 -0.0333333 4.16667 0.0333333 3.9C0.1 3.63333 0.25 3.43333 0.483333 3.3L6.23333 0H7.98333C8.13333 0 8.25417 0.0458333 8.34583 0.1375C8.4375 0.229167 8.48333 0.35 8.48333 0.5V1C8.48333 1.55 8.67917 2.02083 9.07083 2.4125C9.4625 2.80417 9.93333 3 10.4833 3C11.0333 3 11.5042 2.80417 11.8958 2.4125C12.2875 2.02083 12.4833 1.55 12.4833 1V0.5C12.4833 0.35 12.5292 0.229167 12.6208 0.1375C12.7125 0.0458333 12.8333 0 12.9833 0H14.7333L20.4833 3.3C20.7167 3.43333 20.8667 3.63333 20.9333 3.9C21 4.16667 20.9667 4.41667 20.8333 4.65L18.8333 8.15C18.7 8.38333 18.5042 8.52917 18.2458 8.5875C17.9875 8.64583 17.7333 8.60833 17.4833 8.475L16.4833 7.975V17C16.4833 17.2833 16.3875 17.5208 16.1958 17.7125C16.0042 17.9042 15.7667 18 15.4833 18H5.48333C5.2 18 4.9625 17.9042 4.77083 17.7125C4.57917 17.5208 4.48333 17.2833 4.48333 17V7.95M6.48333 4.6V16H14.4833V4.6L17.5833 6.3L18.6333 4.55L14.3333 2.05C14.0833 2.9 13.6125 3.60417 12.9208 4.1625C12.2292 4.72083 11.4167 5 10.4833 5C9.55 5 8.7375 4.72083 8.04583 4.1625C7.35417 3.60417 6.88333 2.9 6.63333 2.05L2.33333 4.55L3.38333 6.3L6.48333 4.6Z" fill="#003D9B"/>
-                        </svg>
+        @forelse ($stores as $store)
+            <!-- Dynamic Store Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-transparent p-6">
+                <div class="flex justify-between items-start">
+                    <div class="flex gap-4">
+                        <div class="w-12 h-12 bg-[#DCE9FF] rounded-lg flex items-center justify-center">
+                            <svg width="21" height="18" viewBox="0 0 21 18" fill="none">
+                                <path d="M4.48333 7.95L3.48333 8.5C3.25 8.63333 3 8.66667 2.73333 8.6C2.46667 8.53333 2.26667 8.38333 2.13333 8.15L0.133333 4.65C0 4.41667 -0.0333333 4.16667 0.0333333 3.9C0.1 3.63333 0.25 3.43333 0.483333 3.3L6.23333 0H7.98333C8.13333 0 8.25417 0.0458333 8.34583 0.1375C8.4375 0.229167 8.48333 0.35 8.48333 0.5V1C8.48333 1.55 8.67917 2.02083 9.07083 2.4125C9.4625 2.80417 9.93333 3 10.4833 3C11.0333 3 11.5042 2.80417 11.8958 2.4125C12.2875 2.02083 12.4833 1.55 12.4833 1V0.5C12.4833 0.35 12.5292 0.229167 12.6208 0.1375C12.7125 0.0458333 12.8333 0 12.9833 0H14.7333L20.4833 3.3C20.7167 3.43333 20.8667 3.63333 20.9333 3.9C21 4.16667 20.9667 4.41667 20.8333 4.65L18.8333 8.15C18.7 8.38333 18.5042 8.52917 18.2458 8.5875C17.9875 8.64583 17.7333 8.60833 17.4833 8.475L16.4833 7.975V17C16.4833 17.2833 16.3875 17.5208 16.1958 17.7125C16.0042 17.9042 15.7667 18 15.4833 18H5.48333C5.2 18 4.9625 17.9042 4.77083 17.7125C4.57917 17.5208 4.48333 17.2833 4.48333 17V7.95M6.48333 4.6V16H14.4833V4.6L17.5833 6.3L18.6333 4.55L14.3333 2.05C14.0833 2.9 13.6125 3.60417 12.9208 4.1625C12.2292 4.72083 11.4167 5 10.4833 5C9.55 5 8.7375 4.72083 8.04583 4.1625C7.35417 3.60417 6.88333 2.9 6.63333 2.05L2.33333 4.55L3.38333 6.3L6.48333 4.6Z" fill="#003D9B"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-[#0B1C30]">{{ $store->name }}</h3>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="px-2 py-0.5 bg-[#DCE9FF] text-[#434654] text-[10px] font-bold uppercase rounded-full">{{ ucfirst($store->category ?? 'General') }}</span>
+                                @if ($store->onboarding_completed)
+                                    <span class="flex items-center gap-1 px-2 py-0.5 bg-[#4EDEA3]/20 text-[#005236] text-[10px] font-bold uppercase rounded-full">
+                                        <span class="w-1.5 h-1.5 bg-[#4EDEA3] rounded-full"></span>
+                                        Live
+                                    </span>
+                                @else
+                                    <span class="flex items-center gap-1 px-2 py-0.5 bg-[#C3C6D6]/30 text-[#434654] text-[10px] font-bold uppercase rounded-full">
+                                        <span class="w-1.5 h-1.5 bg-[#737685] rounded-full"></span>
+                                        Draft
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <h3 class="text-base font-bold text-[#0B1C30]">Modern Marketplace</h3>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="px-2 py-0.5 bg-[#DCE9FF] text-[#434654] text-[10px] font-bold uppercase rounded-full">Fashion</span>
-                            <span class="flex items-center gap-1 px-2 py-0.5 bg-[#4EDEA3]/20 text-[#005236] text-[10px] font-bold uppercase rounded-full">
-                                <span class="w-1.5 h-1.5 bg-[#4EDEA3] rounded-full"></span>
-                                Live
-                            </span>
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="text-[#434654] cursor-pointer">
+                        <path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H9V2H2V2V2V16V16V16H16V16V16V9H18V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2ZM6.7 12.7L5.3 11.3L14.6 2H11V0H18V7H16V3.4L6.7 12.7Z" fill="currentColor"/>
+                    </svg>
+                </div>
+
+                <!-- Store Details -->
+                <div class="mt-4 border-y border-[#C3C6D6]/10 py-4">
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-[#64748B]">Slug:</span>
+                            <span class="font-medium text-[#0F172A]">{{ $store->slug }}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-[#64748B]">Created:</span>
+                            <span class="font-medium text-[#0F172A]">{{ $store->created_at->format('M d, Y') }}</span>
                         </div>
                     </div>
                 </div>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="text-[#434654]">
-                    <path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H9V2H2V2V2V16V16V16H16V16V16V9H18V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2ZM6.7 12.7L5.3 11.3L14.6 2H11V0H18V7H16V3.4L6.7 12.7Z" fill="currentColor"/>
-                </svg>
-            </div>
 
-            <!-- Metrics row -->
-            <div class="mt-4 border-y border-[#C3C6D6]/10 py-4 flex justify-between">
-                <div>
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Sales</div>
-                    <div class="text-lg font-bold text-[#0B1C30]">$12.4k</div>
-                    <div class="text-[10px] font-bold text-[#4EDEA3]">+8.2%</div>
-                </div>
-                <div>
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Orders</div>
-                    <div class="text-lg font-bold text-[#0B1C30]">1,240</div>
-                    <div class="text-[10px] font-bold text-[#4EDEA3]">+12%</div>
-                </div>
-                <div class="self-end">
-                    <!-- sparkline mockup -->
-                    <div class="w-16 h-8 bg-[#DCE9FF] relative overflow-hidden rounded">
-                        <div class="absolute bottom-0 left-0 w-4 h-4 bg-[#4EDEA3]"></div>
-                        <div class="absolute bottom-0 left-4 w-4 h-6 bg-[#4EDEA3]"></div>
-                        <div class="absolute bottom-0 left-8 w-4 h-8 bg-[#4EDEA3]"></div>
-                        <div class="absolute bottom-0 left-12 w-4 h-5 bg-[#4EDEA3]"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="flex items-center gap-3 mt-4">
-                <button class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg">Manage Dashboard</button>
-                <button class="p-2 rounded-lg hover:bg-gray-100">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                        <path d="M2 16H3.425L13.2 6.225L11.775 4.8L2 14.575V16ZM0 18V13.75L13.2 0.575C13.4 0.391667 13.6208 0.25 13.8625 0.15C14.1042 0.05 14.3583 0 14.625 0C14.8917 0 15.15 0.05 15.4 0.15C15.65 0.25 15.8667 0.4 16.05 0.6L17.425 2C17.625 2.18333 17.7708 2.4 17.8625 2.65C17.9542 2.9 18 3.15 18 3.4C18 3.66667 17.9542 3.92083 17.8625 4.1625C17.7708 4.40417 17.625 4.625 17.425 4.825L4.25 18H0Z" fill="#434654"/>
-                    </svg>
-                </button>
-                <button class="p-2 rounded-lg hover:bg-gray-100">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M10.0125 20C8.6375 20 7.34167 19.7375 6.125 19.2125C4.90833 18.6875 3.84583 17.9708 2.9375 17.0625C2.02917 16.1542 1.3125 15.0917 0.7875 13.875C0.2625 12.6583 0 11.3625 0 9.9875C0 8.6125 0.2625 7.32083 0.7875 6.1125C1.3125 4.90417 2.02917 3.84583 2.9375 2.9375C3.84583 2.02917 4.90833 1.3125 6.125 0.7875C7.34167 0.2625 8.6375 0 10.0125 0C11.3875 0 12.6792 0.2625 13.8875 0.7875C15.0958 1.3125 16.1542 2.02917 17.0625 2.9375C17.9708 3.84583 18.6875 4.90417 19.2125 6.1125C19.7375 7.32083 20 8.6125 20 9.9875C20 11.3625 19.7375 12.6583 19.2125 13.875C18.6875 15.0917 17.9708 16.1542 17.0625 17.0625C16.1542 17.9708 15.0958 18.6875 13.8875 19.2125C12.6792 19.7375 11.3875 20 10.0125 20Z" fill="#434654"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <!-- Store Card 2: Electro Hub -->
-        <div class="bg-white rounded-xl shadow-sm border border-transparent p-6">
-            <div class="flex justify-between items-start">
-                <div class="flex gap-4">
-                    <div class="w-12 h-12 bg-[#DCE9FF] rounded-lg flex items-center justify-center">
-                        <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
-                            <path d="M10 6.5V6.5M0 16V14H10V16H0ZM3 13C2.45 13 1.97917 12.8042 1.5875 12.4125C1.19583 12.0208 1 11.55 1 11V2C1 1.45 1.19583 0.979167 1.5875 0.5875C1.97917 0.195833 2.45 0 3 0H17C17.55 0 18.0208 0.195833 18.4125 0.5875C18.8042 0.979167 19 1.45 19 2H3V2V2V11V11V11H10V13H3ZM18 14V6H14V14H18ZM13.5 16C13.0833 16 12.7292 15.8542 12.4375 15.5625C12.1458 15.2708 12 14.9167 12 14.5V5.5C12 5.08333 12.1458 4.72917 12.4375 4.4375C12.7292 4.14583 13.0833 4 13.5 4H18.5C18.9167 4 19.2708 4.14583 19.5625 4.4375C19.8542 4.72917 20 5.08333 20 5.5V14.5C20 14.9167 19.8542 15.2708 19.5625 15.5625C19.2708 15.8542 18.9167 16 18.5 16H13.5ZM16 8.5C16.2167 8.5 16.3958 8.425 16.5375 8.275C16.6792 8.125 16.75 7.95 16.75 7.75C16.75 7.53333 16.6792 7.35417 16.5375 7.2125C16.3958 7.07083 16.2167 7 16 7C15.8 7 15.625 7.07083 15.475 7.2125C15.325 7.35417 15.25 7.53333 15.25 7.75C15.25 7.95 15.325 8.125 15.475 8.275C15.625 8.425 15.8 8.5 16 8.5Z" fill="#003D9B"/>
+                <!-- Actions -->
+                <div class="flex items-center gap-3 mt-4">
+                    <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg hover:bg-[#0042a3] transition text-center">View Products</a>
+                    <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" title="Add Products" class="p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                            <path d="M8 16H10V10H16V8H10V2H8V8H2V10H8V16Z" fill="#434654"/>
                         </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-base font-bold text-[#0B1C30]">Electro Hub</h3>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="px-2 py-0.5 bg-[#DCE9FF] text-[#434654] text-[10px] font-bold uppercase rounded-full">Electronics</span>
-                            <span class="flex items-center gap-1 px-2 py-0.5 bg-[#D5E3FC]/50 text-[#57657A] text-[10px] font-bold uppercase rounded-full">
-                                <span class="w-1.5 h-1.5 bg-[#515F74] rounded-full"></span>
-                                Maintenance
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="text-[#434654]">
-                    <path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H9V2H2V2V2V16V16V16H16V16V16V9H18V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="currentColor"/>
-                    <path d="M6.7 12.7L5.3 11.3L14.6 2H11V0H18V7H16V3.4L6.7 12.7Z" fill="currentColor"/>
-                </svg>
-            </div>
-
-            <div class="mt-4 border-y border-[#C3C6D6]/10 py-4 flex justify-between">
-                <div>
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Sales</div>
-                    <div class="text-lg font-bold text-[#0B1C30]">$8.2k</div>
-                    <div class="text-[10px] font-bold text-[#BA1A1A]">-2.1%</div>
-                </div>
-                <div>
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Orders</div>
-                    <div class="text-lg font-bold text-[#0B1C30]">412</div>
-                    <div class="text-[10px] font-bold text-[#434654]">0.0%</div>
-                </div>
-                <div class="self-end">
-                    <div class="w-16 h-8 bg-[#DCE9FF] relative overflow-hidden rounded">
-                        <div class="absolute bottom-0 left-0 w-4 h-3 bg-[#515F74]"></div>
-                        <div class="absolute bottom-0 left-4 w-4 h-4 bg-[#515F74]"></div>
-                        <div class="absolute bottom-0 left-8 w-4 h-6 bg-[#515F74]"></div>
-                        <div class="absolute bottom-0 left-12 w-4 h-5 bg-[#515F74]"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex items-center gap-3 mt-4">
-                <button class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg">Manage Dashboard</button>
-                <button class="p-2 rounded-lg hover:bg-gray-100">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                        <path d="M2 16H3.425L13.2 6.225L11.775 4.8L2 14.575V16ZM0 18V13.75L13.2 0.575C13.4 0.391667 13.6208 0.25 13.8625 0.15C14.1042 0.05 14.3583 0 14.625 0C14.8917 0 15.15 0.05 15.4 0.15C15.65 0.25 15.8667 0.4 16.05 0.6L17.425 2C17.625 2.18333 17.7708 2.4 17.8625 2.65C17.9542 2.9 18 3.15 18 3.4C18 3.66667 17.9542 3.92083 17.8625 4.1625C17.7708 4.40417 17.625 4.625 17.425 4.825L4.25 18H0Z" fill="#434654"/>
-                    </svg>
-                </button>
-                <button class="p-2 rounded-lg hover:bg-gray-100">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M10.0125 20C8.6375 20 7.34167 19.7375 6.125 19.2125C4.90833 18.6875 3.84583 17.9708 2.9375 17.0625C2.02917 16.1542 1.3125 15.0917 0.7875 13.9C0.2625 12.6583 0 11.3625 0 9.9875C0 8.6125 0.2625 7.32083 0.7875 6.1125C1.3125 4.90417 2.02917 3.84583 2.9375 2.9375C3.84583 2.02917 4.90833 1.3125 6.125 0.7875C7.34167 0.2625 8.6375 0 10.0125 0C11.3875 0 12.6792 0.2625 13.8875 0.7875C15.0958 1.3125 16.1542 2.02917 17.0625 2.9375C17.9708 3.84583 18.6875 4.90417 19.2125 6.1125C19.7375 7.32083 20 8.6125 20 9.9875C20 11.3625 19.7375 12.6583 19.2125 13.9C18.6875 15.0917 17.9708 16.1542 17.0625 17.0625C16.1542 17.9708 15.0958 18.6875 13.8875 19.2125C12.6792 19.7375 11.3875 20 10.0125 20Z" fill="#434654"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <!-- Store Card 3: Organic Living -->
-        <div class="bg-white rounded-xl shadow-sm border border-transparent p-6">
-            <div class="flex justify-between items-start">
-                <div class="flex gap-4">
-                    <div class="w-12 h-12 bg-[#DCE9FF] rounded-lg flex items-center justify-center">
-                        <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
-                            <path d="M2.4 14.5923C1.65 13.8423 1.0625 12.9756 0.6375 11.9923C0.2125 11.009 0 9.99231 0 8.94231C0 7.89231 0.2 6.85481 0.6 5.82981C1 4.80481 1.65 3.84231 2.55 2.94231C3.13333 2.35897 3.85417 1.85897 4.7125 1.44231C5.57083 1.02564 6.5875 0.696474 7.7625 0.454808C8.9375 0.213141 10.2792 0.0673077 11.7875 0.0173077C13.2958 -0.0326923 14.9833 0.025641 16.85 0.192308C16.9833 1.95897 17.025 3.58397 16.975 5.06731C16.925 6.55064 16.7875 7.88814 16.5625 9.07981C16.3375 10.2715 16.0208 11.3131 15.6125 12.2048C15.2042 13.0965 14.7 13.8423 14.1 14.4423C13.2167 15.3256 12.2792 15.9715 11.2875 16.3798C10.2958 16.7881 9.28333 16.9923 8.25 16.9923C7.16667 16.9923 6.10833 16.7798 5.075 16.3548C4.04167 15.9298 3.15 15.3423 2.4 14.5923ZM5.2 14.1923C5.68333 14.4756 6.17917 14.6798 6.6875 14.8048C7.19583 14.9298 7.71667 14.9923 8.25 14.9923C9.01667 14.9923 9.775 14.8381 10.525 14.5298C11.275 14.2215 11.9917 13.7256 12.675 13.0423C12.975 12.7423 13.2792 12.3215 13.5875 11.7798C13.8958 11.2381 14.1625 10.5298 14.3875 9.65481C14.6125 8.77981 14.7833 7.72147 14.9 6.47981C15.0167 5.23814 15.0333 3.75897 14.95 2.04231C14.1333 2.00897 13.2125 1.99647 12.1875 2.00481C11.1625 2.01314 10.1417 2.09231 9.125 2.24231C8.10833 2.39231 7.14167 2.63397 6.225 2.96731C5.30833 3.30064 4.55833 3.75897 3.975 4.34231C3.225 5.09231 2.70833 5.83397 2.425 6.56731C2.14167 7.30064 2 8.00897 2 8.69231C2 9.67564 2.1875 10.5381 2.5625 11.2798C2.9375 12.0215 3.26667 12.5423 3.55 12.8423C4.25 11.509 5.175 10.2298 6.325 9.00481C7.475 7.77981 8.81667 6.77564 10.35 5.99231C9.15 7.04231 8.10417 8.22981 7.2125 9.55481C6.32083 10.8798 5.65 12.4256 5.2 14.1923Z" fill="#003D9B"/>
+                    </a>
+                    <button class="p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                            <path d="M2 16H3.425L13.2 6.225L11.775 4.8L2 14.575V16ZM0 18V13.75L13.2 0.575C13.4 0.391667 13.6208 0.25 13.8625 0.15C14.1042 0.05 14.3583 0 14.625 0C14.8917 0 15.15 0.05 15.4 0.15C15.65 0.25 15.8667 0.4 16.05 0.6L17.425 2C17.625 2.18333 17.7708 2.4 17.8625 2.65C17.9542 2.9 18 3.15 18 3.4C18 3.66667 17.9542 3.92083 17.8625 4.1625C17.7708 4.40417 17.625 4.625 17.425 4.825L4.25 18H0Z" fill="#434654"/>
                         </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-base font-bold text-[#0B1C30]">Organic Living</h3>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="px-2 py-0.5 bg-[#DCE9FF] text-[#434654] text-[10px] font-bold uppercase rounded-full">Lifestyle</span>
-                            <span class="flex items-center gap-1 px-2 py-0.5 bg-[#C3C6D6]/30 text-[#434654] text-[10px] font-bold uppercase rounded-full">
-                                <span class="w-1.5 h-1.5 bg-[#737685] rounded-full"></span>
-                                Draft
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="text-[#434654]">
-                    <path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H9V2H2V2V2V16V16V16H16V16V16V9H18V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="currentColor"/>
-                    <path d="M6.7 12.7L5.3 11.3L14.6 2H11V0H18V7H16V3.4L6.7 12.7Z" fill="currentColor"/>
-                </svg>
-            </div>
-
-            <div class="mt-4 border-y border-[#C3C6D6]/10 py-4 flex justify-between">
-                <div>
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Sales</div>
-                    <div class="text-lg font-bold text-[#0B1C30]">$0.00</div>
-                    <div class="text-[10px] font-bold text-[#434654]">N/A</div>
-                </div>
-                <div>
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Orders</div>
-                    <div class="text-lg font-bold text-[#0B1C30]">0</div>
-                    <div class="text-[10px] font-bold text-[#434654]">N/A</div>
-                </div>
-                <div class="self-end">
-                    <div class="w-16 h-8 bg-[#DCE9FF]/50 rounded flex items-center justify-center">
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <path d="M5.83333 11.6375C5.02639 11.6375 4.26806 11.4844 3.55833 11.1781C2.84861 10.8719 2.23125 10.4538 1.70625 9.92396C1.18125 9.3941 0.765625 8.77431 0.459375 8.06458C0.153125 7.35486 0 6.60139 0 5.80417C0 4.27778 0.505556 2.96528 1.51667 1.86667C2.52778 0.768056 3.77222 0.145833 5.25 0V1.75C4.24861 1.88611 3.41493 2.33576 2.74896 3.09896C2.08299 3.86215 1.75 4.76389 1.75 5.80417C1.75 6.93194 2.14861 7.89444 2.94583 8.69167C3.74306 9.48889 4.70556 9.8875 5.83333 9.8875C6.475 9.8875 7.07535 9.75139 7.63438 9.47917C8.1934 9.20694 8.6625 8.8375 9.04167 8.37083L10.5583 9.24583C10.0333 9.975 9.35764 10.5559 8.53125 10.9885C7.70486 11.4212 6.80556 11.6375 5.83333 11.6375ZM11.1708 8.16667L9.65417 7.29167C9.74167 7.05833 9.80729 6.81771 9.85104 6.56979C9.89479 6.32188 9.91667 6.06667 9.91667 5.80417C9.91667 4.76389 9.58368 3.86215 8.91771 3.09896C8.25174 2.33576 7.41806 1.88611 6.41667 1.75V0C7.89444 0.145833 9.13889 0.768056 10.15 1.86667C11.1611 2.96528 11.6667 4.27778 11.6667 5.80417C11.6667 6.23194 11.6278 6.64514 11.55 7.04375C11.4722 7.44236 11.3458 7.81667 11.1708 8.16667Z" fill="#434654" fill-opacity="0.3"/>
+                    </button>
+                    <button class="p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                            <path d="M10.0125 20C8.6375 20 7.34167 19.7375 6.125 19.2125C4.90833 18.6875 3.84583 17.9708 2.9375 17.0625C2.02917 16.1542 1.3125 15.0917 0.7875 13.9C0.2625 12.6583 0 11.3625 0 9.9875C0 8.6125 0.2625 7.32083 0.7875 6.1125C1.3125 4.90417 2.02917 3.84583 2.9375 2.9375C3.84583 2.02917 4.90833 1.3125 6.125 0.7875C7.34167 0.2625 8.6375 0 10.0125 0C11.3875 0 12.6792 0.2625 13.8875 0.7875C15.0958 1.3125 16.1542 2.02917 17.0625 2.9375C17.9708 3.84583 18.6875 4.90417 19.2125 6.1125C19.7375 7.32083 20 8.6125 20 9.9875C20 11.3625 19.7375 12.6583 19.2125 13.9C18.6875 15.0917 17.9708 16.1542 17.0625 17.0625C16.1542 17.9708 15.0958 18.6875 13.8875 19.2125C12.6792 19.7375 11.3875 20 10.0125 20Z" fill="#434654"/>
                         </svg>
-                    </div>
+                    </button>
                 </div>
             </div>
-
-            <div class="flex items-center gap-3 mt-4">
-                <button class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg">Resume Setup</button>
-                <button class="p-2 rounded-lg hover:bg-gray-100">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                        <path d="M2 16H3.425L13.2 6.225L11.775 4.8L2 14.575V16ZM0 18V13.75L13.2 0.575C13.4 0.391667 13.6208 0.25 13.8625 0.15C14.1042 0.05 14.3583 0 14.625 0C14.8917 0 15.15 0.05 15.4 0.15C15.65 0.25 15.8667 0.4 16.05 0.6L17.425 2C17.625 2.18333 17.7708 2.4 17.8625 2.65C17.9542 2.9 18 3.15 18 3.4C18 3.66667 17.9542 3.92083 17.8625 4.1625C17.7708 4.40417 17.625 4.625 17.425 4.825L4.25 18H0Z" fill="#434654"/>
+        @empty
+            <!-- Empty State -->
+            <div class="lg:col-span-3 text-center py-12">
+                <div class="w-16 h-16 bg-[#DCE9FF] rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg width="28" height="24" viewBox="0 0 28 24" fill="none">
+                        <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#003D9B"/>
                     </svg>
-                </button>
-                <button class="p-2 rounded-lg hover:bg-gray-100">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <path d="M10.0125 20C8.6375 20 7.34167 19.7375 6.125 19.2125C4.90833 18.6875 3.84583 17.9708 2.9375 17.0625C2.02917 16.1542 1.3125 15.0917 0.7875 13.9C0.2625 12.6583 0 11.3625 0 9.9875C0 8.6125 0.2625 7.32083 0.7875 6.1125C1.3125 4.90417 2.02917 3.84583 2.9375 2.9375C3.84583 2.02917 4.90833 1.3125 6.125 0.7875C7.34167 0.2625 8.6375 0 10.0125 0C11.3875 0 12.6792 0.2625 13.8875 0.7875C15.0958 1.3125 16.1542 2.02917 17.0625 2.9375C17.9708 3.84583 18.6875 4.90417 19.2125 6.1125C19.7375 7.32083 20 8.6125 20 9.9875C20 11.3625 19.7375 12.6583 19.2125 13.9C18.6875 15.0917 17.9708 16.1542 17.0625 17.0625C16.1542 17.9708 15.0958 18.6875 13.8875 19.2125C12.6792 19.7375 11.3875 20 10.0125 20Z" fill="#434654"/>
+                </div>
+                <h3 class="text-lg font-bold text-[#0B1C30] mb-2">No Stores Yet</h3>
+                <p class="text-[#434654] mb-6">Create your first store to get started</p>
+                <a href="{{ route('onboarding-StoreDetails-1', ['fresh' => 1]) }}" class="inline-flex items-center gap-2 bg-[#0052CC] text-white font-bold px-6 py-3 rounded-lg hover:bg-[#0042a3] transition">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
                     </svg>
-                </button>
+                    Create First Store
+                </a>
             </div>
-        </div>
+        @endforelse
 
-        <!-- Add Another Store Card -->
-        <div class="border-2 border-dashed border-[#C3C6D6]/50 rounded-xl p-6 flex flex-col items-center justify-center text-center">
-            <div class="w-14 h-14 bg-[#DCE9FF] rounded-full flex items-center justify-center">
-                <svg width="28" height="24" viewBox="0 0 28 24" fill="none">
-                    <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#434654"/>
-                </svg>
-            </div>
-            <h3 class="text-base font-bold text-[#0B1C30] mt-4">Add Another Store</h3>
-            <p class="text-xs text-[#434654] mt-1">Scale your business ecosystem</p>
-        </div>
+        <!-- Add Another Store Card (visible when stores exist) -->
+        @if (count($stores) > 0)
+            <a href="{{ route('onboarding-StoreDetails-1', ['fresh' => 1]) }}" class="border-2 border-dashed border-[#C3C6D6]/50 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-[#0052CC] hover:bg-[#F8FAFC] transition">
+                <div class="w-14 h-14 bg-[#DCE9FF] rounded-full flex items-center justify-center">
+                    <svg width="28" height="24" viewBox="0 0 28 24" fill="none">
+                        <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#434654"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-[#0B1C30] mt-4">Add Another Store</h3>
+                <p class="text-xs text-[#434654] mt-1">Scale your business ecosystem</p>
+            </a>
+        @endif
     </div>
 
     <!-- Platform Overview + Recent Activity (two column layout) -->

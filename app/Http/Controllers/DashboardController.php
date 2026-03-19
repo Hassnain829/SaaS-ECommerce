@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Store;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -155,7 +156,25 @@ class DashboardController extends Controller
     {
         return view('user_view.onboarding-Step3-StoreReady');
     }
-    public function store_management(){
-        return view('user_view.store_management');
+    public function store_management()
+    {
+        $stores = Store::where('user_id', Auth::id())
+            ->latest('id')
+            ->get();
+
+        return view('user_view.store_management', compact('stores'));
+    }
+
+    public function store_products($storeId)
+    {
+        $store = Store::where('id', $storeId)
+            ->where('user_id', Auth::id())
+            ->with('products')
+            ->firstOrFail();
+
+        return view('user_view.store_products', [
+            'store' => $store,
+            'products' => $store->products()->latest('id')->get(),
+        ]);
     }
 }

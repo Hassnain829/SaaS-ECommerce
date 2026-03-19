@@ -2,10 +2,11 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\OnboardingController;
 use Illuminate\Support\Facades\Route;
 // 
 Route::get('/', function () {
-    return view('welcome');
+    return view('user_view.welcome');
 });
 
 Route::middleware('guest')->group(function () {
@@ -36,12 +37,20 @@ Route::middleware(['auth', 'role:user'])->group(function () {
     Route::get('/security', [DashboardController::class, 'security'])->name('security');
     Route::get('/profileSettings', [DashboardController::class, 'profileSettings'])->name('profileSettings');
 
-    Route::get('/onboarding-StoreDetails-1', [DashboardController::class, 'onboarding_StoreDetails_1'])->name('onboarding-StoreDetails-1');
-    Route::get('/AddCustomCategoryOverlay', [DashboardController::class, 'onboarding_AddCustom_Category'])->name('AddCustomCategoryOverlay');
-    Route::get('/onboarding-Step2-AddProductVariations', [DashboardController::class, 'onboarding_AddProduct_Variations'])->name('onboarding-Step2-AddProductVariations');
-    Route::get('/onboarding-Step2-VariationsPopup', [DashboardController::class, 'onboarding_AddProduct_VariationsPopup'])->name('onboarding_AddProduct_VariationsPopup');
-    Route::get('/onboarding-Step3-StoreReady', [DashboardController::class, 'onboarding_StoreReady'])->name('onboarding_StoreReady');
+    Route::get('/onboarding-StoreDetails-1', [OnboardingController::class, 'step1'])->name('onboarding-StoreDetails-1');
+    Route::post('/onboarding-StoreDetails-1', [OnboardingController::class, 'storeStep1'])->name('onboarding-StoreDetails-1.store');
+    Route::get('/AddCustomCategoryOverlay', [OnboardingController::class, 'customCategoryOverlay'])->name('AddCustomCategoryOverlay');
+    Route::post('/AddCustomCategoryOverlay', [OnboardingController::class, 'storeCustomCategoryOverlay'])->name('AddCustomCategoryOverlay.store');
+    Route::get('/onboarding-Step2-AddProductVariations', [OnboardingController::class, 'step2'])->name('onboarding-Step2-AddProductVariations');
+    Route::post('/onboarding-Step2-AddProductVariations', [OnboardingController::class, 'storeStep2'])->name('onboarding-Step2-AddProductVariations.store');
+    Route::get('/onboarding-Step2-VariationsPopup', [OnboardingController::class, 'variationPopup'])->name('onboarding_AddProduct_VariationsPopup');
+    Route::post('/onboarding-Step2-VariationsPopup', [OnboardingController::class, 'storeVariationPopup'])->name('onboarding_AddProduct_VariationsPopup.store');
+    Route::get('/onboarding-Step3-StoreReady', [OnboardingController::class, 'step3'])->name('onboarding_StoreReady');
+    Route::post('/onboarding-Step3-StoreReady', [OnboardingController::class, 'completeStep3'])->name('onboarding_StoreReady.complete');
     Route::get('/store-management', [DashboardController::class, 'store_management'])->name('store-management');
+    Route::get('/store/{storeId}/products', [DashboardController::class, 'store_products'])->name('store.products');
+    Route::get('/store/{storeId}/add-product', [OnboardingController::class, 'addProductFromStore'])->name('store.add-product');
+    Route::post('/store/{storeId}/add-product', [OnboardingController::class, 'storeProductFromStore'])->name('store.add-product.store');
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {

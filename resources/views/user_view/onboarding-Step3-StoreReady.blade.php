@@ -111,15 +111,15 @@
                         <div class="p-6 space-y-4">
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-[#64748B]">Store Name</span>
-                                <span class="text-sm font-medium text-[#0F172A] text-right">Lumina Lifestyle Boutique</span>
+                                <span class="text-sm font-medium text-[#0F172A] text-right">{{ $store->name }}</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-[#64748B]">First Product</span>
-                                <span class="text-sm font-medium text-[#0F172A] text-right">Minimalist Ceramic Vase</span>
+                                <span class="text-sm font-medium text-[#0F172A] text-right">{{ $product?->name ?? 'Not Added Yet' }}</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-[#64748B]">Category</span>
-                                <span class="text-sm font-medium text-[#0F172A] text-right">Home & Living</span>
+                                <span class="text-sm font-medium text-[#0F172A] text-right">{{ ucfirst((string) $store->category) }}</span>
                             </div>
                             <!-- status line with green icon + live url -->
                             <div class="flex items-start gap-3 pt-4 border-t border-[#F1F5F9]">
@@ -130,38 +130,42 @@
                                 </div>
                                 <div>
                                     <span class="text-xs font-bold uppercase tracking-wide text-[#64748B]">STATUS</span>
-                                    <p class="text-sm font-bold text-[#16A34A]">Live at lumina-lifestyle.baas.com</p>
+                                    <p class="text-sm font-bold text-[#16A34A]">Live at {{ $store->slug }}.baas.com</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- action buttons (448px max) -->
-                <div class="w-full max-w-[448px] flex flex-col gap-4">
-                    <a href="{{ route('dashboard') }}" class="w-full bg-[#0052CC] text-white font-bold py-4 px-8 rounded-xl shadow-lg shadow-[#0052CC]/20 flex items-center justify-center gap-2 hover:bg-[#0042a3] transition">
-                        <span>Go to Dashboard</span>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12.175 9H0V7H12.175L6.575 1.4L8 0L16 8L8 16L6.575 14.6L12.175 9Z" fill="white"/>
-                        </svg>
-                    </a>
-                    <button class="w-full bg-white border border-[#E2E8F0] text-[#334155] font-semibold py-3 px-8 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition">
-                        <!-- play icon (triangle) -->
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M6.66667 14.1667L14.1667 10L6.66667 5.83333V14.1667ZM10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20Z" fill="#334155"/>
-                        </svg>
-                        <span>Take a quick tour</span>
-                    </button>
-                </div>
+                <form method="POST" action="{{ route('onboarding_StoreReady.complete') }}" class="w-full max-w-[448px]">
+                    @csrf
+                    <!-- action buttons (448px max) -->
+                    <div class="w-full flex flex-col gap-4">
+                        <button type="submit" class="w-full bg-[#0052CC] text-white font-bold py-4 px-8 rounded-xl shadow-lg shadow-[#0052CC]/20 flex items-center justify-center gap-2 hover:bg-[#0042a3] transition">
+                            <span>Go to Dashboard</span>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12.175 9H0V7H12.175L6.575 1.4L8 0L16 8L8 16L6.575 14.6L12.175 9Z" fill="white"/>
+                            </svg>
+                        </button>
+                        <a href="{{ route('onboarding-Step2-AddProductVariations', ['fresh' => 1]) }}" class="w-full bg-white border border-[#E2E8F0] text-[#334155] font-semibold py-3 px-8 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition">
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="#334155"/>
+                            </svg>
+                            <span>Add Another Product</span>
+                        </a>
+                    </div>
+                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6.66667 14.1667L14.1667 10L6.66667 5.83333V14.1667ZM10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20Z" fill="#334155"/>
+                            </svg>
+                            <span>Take a quick tour</span>
+                        </button>
+                    </div>
 
-                <!-- checkbox "Don't show again" -->
-                <div class="flex items-center gap-2 mt-8">
-                    <!-- unchecked square (like PNG) -->
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="0.5" y="0.5" width="17" height="17" rx="2.5" fill="white" stroke="#CBD5E1"/>
-                    </svg>
-                    <span class="text-sm text-[#64748B]">Don't show this screen again</span>
-                </div>
+                    <label class="flex items-center gap-2 mt-8 cursor-pointer">
+                        <input type="checkbox" name="dont_show_again" value="1" class="h-4 w-4 rounded border-[#CBD5E1] text-[#0052CC] focus:ring-[#0052CC]/20">
+                        <span class="text-sm text-[#64748B]">Don't show this screen again</span>
+                    </label>
+                </form>
             </div>
         </main>
 
@@ -174,5 +178,3 @@
     </div>
 </body>
 </html>
-
-
