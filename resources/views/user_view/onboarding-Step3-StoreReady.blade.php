@@ -27,10 +27,10 @@
             <!-- right: navigation + avatar -->
             <div class="flex items-center gap-3 sm:gap-6">
                 <nav class="hidden md:flex items-center gap-4 lg:gap-8 text-sm">
-                    <a href="{{ route('dashboard') }}" class="text-[#475569] font-medium">Dashboard</a>
+                    <a href="{{ route('dashboard') }}" class="text-[#475569] font-inter font-medium">Dashboard</a>
                     <a href="{{ route('products') }}" class="text-[#0052CC] font-semibold">Products</a>
-                    <a href="{{ route('orders') }}" class="text-[#475569] font-medium">Orders</a>
-                    <a href="{{ route('generalSettings') }}" class="text-[#475569] font-medium">Settings</a>
+                    <a href="{{ route('orders') }}" class="text-[#475569] font-inter font-medium">Orders</a>
+                    <a href="{{ route('generalSettings') }}" class="text-[#475569] font-inter font-medium">Settings</a>
                 </nav>
                 <div class="flex items-center gap-3 sm:gap-4">
                     <a href="{{ route('dashboard') }}" class="hidden sm:inline-flex bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">Go to Dashboard</a>
@@ -104,22 +104,22 @@
                                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M4 14H6V9H4V14ZM12 14H14V4H12V14ZM8 14H10V11H8V14ZM8 9H10V7H8V9ZM2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2ZM2 16H16V2H2V16ZM2 2V16V2Z" fill="#0052CC"/>
                                 </svg>
-                                <span class="text-base font-medium text-[#1E293B] font-[Poppins]">Store Summary</span>
+                                <span class="text-base font-medium font-poppins text-[#1E293B]">Store Summary</span>
                             </div>
                         </div>
                         <!-- content -->
                         <div class="p-6 space-y-4">
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-[#64748B]">Store Name</span>
-                                <span class="text-sm font-medium text-[#0F172A] text-right">{{ $store->name }}</span>
+                                <span class="text-sm font-inter font-medium text-[#0F172A] text-right">{{ $store->name }}</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-[#64748B]">First Product</span>
-                                <span class="text-sm font-medium text-[#0F172A] text-right">{{ $product?->name ?? 'Not Added Yet' }}</span>
+                                <span class="text-sm font-inter font-medium text-[#0F172A] text-right">{{ $product?->name ?? 'Not Added Yet' }}</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-[#64748B]">Category</span>
-                                <span class="text-sm font-medium text-[#0F172A] text-right">{{ ucfirst((string) $store->category) }}</span>
+                                <span class="text-sm font-inter font-medium text-[#0F172A] text-right">{{ ucfirst((string) $store->category) }}</span>
                             </div>
                             <!-- status line with green icon + live url -->
                             <div class="flex items-start gap-3 pt-4 border-t border-[#F1F5F9]">

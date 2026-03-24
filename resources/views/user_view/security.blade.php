@@ -35,7 +35,7 @@
 @section('content')
 <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
   <section>
-    <h1 class="text-3xl text-[#0F172A]">Security Settings</h1>
+    <h1 class="text-3xl font-poppins text-[#0F172A]">Security Settings</h1>
     <p class="text-[#64748B] text-sm md:text-base">Manage your account protection and data privacy preferences.</p>
   </section>
 
@@ -44,7 +44,7 @@
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="p-6 border-b border-[#E2E8F0] flex items-center gap-3">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 1.66667C10.9167 1.66667 11.7014 1.99306 12.3542 2.64583C13.0069 3.29861 13.3333 4.08333 13.3333 5V6.66667H15C15.4583 6.66667 15.8507 6.82986 16.1771 7.15625C16.5035 7.48264 16.6667 7.875 16.6667 8.33333V16.6667C16.6667 17.125 16.5035 17.5174 16.1771 17.8438C15.8507 18.1701 15.4583 18.3333 15 18.3333H5C4.54167 18.3333 4.14931 18.1701 3.82292 17.8438C3.49653 17.5174 3.33333 17.125 3.33333 16.6667V8.33333C3.33333 7.875 3.49653 7.48264 3.82292 7.15625C4.14931 6.82986 4.54167 6.66667 5 6.66667H6.66667V5C6.66667 4.08333 6.99306 3.29861 7.64583 2.64583C8.29861 1.99306 9.08333 1.66667 10 1.66667ZM8.33333 6.66667H11.6667V5C11.6667 4.54167 11.5035 4.14931 11.1771 3.82292C10.8507 3.49653 10.4583 3.33333 10 3.33333C9.54167 3.33333 9.14931 3.49653 8.82292 3.82292C8.49653 4.14931 8.33333 4.54167 8.33333 5V6.66667ZM10 15C10.4583 15 10.8507 14.8368 11.1771 14.5104C11.5035 14.184 11.6667 13.7917 11.6667 13.3333C11.6667 12.875 11.5035 12.4826 11.1771 12.1562C10.8507 11.8299 10.4583 11.6667 10 11.6667C9.54167 11.6667 9.14931 11.8299 8.82292 12.1562C8.49653 12.4826 8.33333 12.875 8.33333 13.3333C8.33333 13.7917 8.49653 14.184 8.82292 14.5104C9.14931 14.8368 9.54167 15 10 15Z" fill="#0052CC"/></svg>
-          <h2 class="text-2xl">Account Security</h2>
+          <h2 class="text-2xl font-poppins">Account Security</h2>
         </div>
         <div class="p-6 space-y-6">
           <div class="flex items-start justify-between gap-4"><div><h3 class="text-lg font-semibold">Two-Factor Authentication (2FA)</h3><p class="text-sm text-[#64748B]">Add an extra layer of security to your account.</p><div class="mt-2 inline-flex items-center gap-2 rounded-full bg-[#D1FAE5] px-3 py-1 text-xs font-bold text-[#059669]"><span class="h-2 w-2 rounded-full bg-[#10B981]"></span><span>STATUS: ACTIVE</span></div></div><button class="mt-2 inline-flex h-8 w-14 rounded-full bg-[#0052CC] p-1 items-center justify-end"><span class="h-6 w-6 rounded-full bg-[#3B82F6] text-white text-xs flex items-center justify-center">ok</span></button></div>

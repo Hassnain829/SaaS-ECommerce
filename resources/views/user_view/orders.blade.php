@@ -58,7 +58,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
             <div class="h-11 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] px-4 flex items-center text-[#64748B]">Search by Order ID, Customer...</div>
-            <button class="h-11 px-4 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-[#475569] text-sm font-medium">Oct 12, 2023 - Oct 19, 2023</button>
+            <button class="h-11 px-4 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-[#475569] text-sm font-inter font-medium">Oct 12, 2023 - Oct 19, 2023</button>
         </div>
     </section>
 

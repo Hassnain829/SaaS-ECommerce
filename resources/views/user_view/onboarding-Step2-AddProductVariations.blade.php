@@ -26,10 +26,10 @@
 
             <div class="flex items-center gap-3 sm:gap-6">
                 <nav class="hidden md:flex items-center gap-4 lg:gap-8 text-sm">
-                    <a href="{{ route('dashboard') }}" class="text-[#475569] font-medium">Dashboard</a>
+                    <a href="{{ route('dashboard') }}" class="text-[#475569] font-inter font-medium">Dashboard</a>
                     <a href="{{ route('products') }}" class="text-[#0052CC] font-semibold">Products</a>
-                    <a href="{{ route('orders') }}" class="text-[#475569] font-medium">Orders</a>
-                    <a href="{{ route('generalSettings') }}" class="text-[#475569] font-medium">Settings</a>
+                    <a href="{{ route('orders') }}" class="text-[#475569] font-inter font-medium">Orders</a>
+                    <a href="{{ route('generalSettings') }}" class="text-[#475569] font-inter font-medium">Settings</a>
                 </nav>
                 <div class="flex items-center gap-3 sm:gap-4">
                     <button form="product-onboarding-form" type="submit"
@@ -41,7 +41,7 @@
         </header>
 
         <main class="px-6 md:px-10 py-8 max-w-[1024px] w-full mx-auto">
-            <nav class="flex items-center gap-2 text-sm font-medium mb-6">
+            <nav class="flex items-center gap-2 text-sm font-inter font-medium mb-6">
                 <a href="{{ route('onboarding-StoreDetails-1') }}"
                     class="text-[#0052CC] opacity-70 hover:opacity-100">Onboarding</a>
                 <svg width="5" height="7" viewBox="0 0 5 7" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -53,14 +53,14 @@
 
             <div class="mb-8">
                 <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm font-medium text-[#64748B] uppercase tracking-wider">Step 2 of 3</span>
+                    <span class="text-sm font-inter font-medium text-[#64748B] uppercase tracking-wider">Step 2 of 3</span>
                     <span class="text-xs text-[#64748B]">Setup Progress: 55% Complete</span>
                 </div>
                 <div class="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
                     <div class="h-2 w-[55%] bg-[#0052CC] rounded-full"></div>
                 </div>
                 <div class="flex justify-end mt-1">
-                    <span class="text-xs text-[#0052CC] font-medium">Next: Launch</span>
+                    <span class="text-xs text-[#0052CC] font-inter font-medium">Next: Launch</span>
                 </div>
             </div>
 
@@ -76,7 +76,7 @@
                     @endif
                 </div>
                 <button
-                    class="bg-[#E2E8F0] text-[#64748B] text-sm font-medium px-4 py-2 rounded border border-[#E2E8F0]"
+                    class="bg-[#E2E8F0] text-[#64748B] text-sm font-inter font-medium px-4 py-2 rounded border border-[#E2E8F0]"
                     type="button">Upload CSV</button>
             </div>
 

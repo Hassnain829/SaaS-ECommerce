@@ -13,7 +13,7 @@
         <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
             <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
         </button>
-        <h1 class="text-lg md:text-xl font-semibold">General Settings</h1>
+        <h1 class="text-lg md:text-xl font-poppins font-semibold">General Settings</h1>
         <div class="flex items-center gap-2 md:gap-3 ml-auto">
             <button class="h-10 px-4 rounded-lg text-sm font-semibold text-[#475569] hover:bg-[#F1F5F9]">Discard</button>
             <button class="h-10 px-5 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Save Changes</button>
@@ -25,7 +25,7 @@
     <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
         <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl">Store Profile</h2>
+                <h2 class="text-2xl font-poppins">Store Profile</h2>
                 <p class="text-sm text-[#64748B]">Public identity and appearance of your storefront.</p>
             </div>
             <div class="p-5 space-y-6">
@@ -57,7 +57,7 @@
 
                 <hr class="border-[#F1F5F9]" />
                 <div>
-                    <h3 class="text-sm uppercase tracking-[0.7px] font-bold mb-3">Branding</h3>
+                    <h3 class="text-sm uppercase font-poppins tracking-[0.7px] font-bold mb-3">Branding</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4 flex items-center gap-4">
                             <div class="p-2 rounded-lg bg-white border border-[#E2E8F0]"><div class="w-7 h-6 bg-[#0052CC] rounded-[2px]"></div></div>
@@ -74,7 +74,7 @@
 
         <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl">Regional & Financials</h2>
+                <h2 class="text-2xl font-poppins">Regional & Financials</h2>
                 <p class="text-sm text-[#64748B]">Localization, currency, and tax configurations.</p>
             </div>
             <div class="p-5 space-y-6">
@@ -85,7 +85,7 @@
                 </div>
                 <hr class="border-[#F1F5F9]" />
                 <div class="space-y-3">
-                    <h3 class="text-sm uppercase tracking-[0.7px] font-bold">Taxes & VAT</h3>
+                    <h3 class="text-sm uppercase font-poppins tracking-[0.7px] font-bold">Taxes & VAT</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <label class="space-y-1.5">
                             <span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Tax ID / VAT Number</span>
@@ -102,7 +102,7 @@
 
         <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl">Business Configuration</h2>
+                <h2 class="text-2xl font-poppins">Business Configuration</h2>
                 <p class="text-sm text-[#64748B]">Operational status and market placement.</p>
             </div>
             <div class="p-5">
@@ -153,7 +153,7 @@
 
         <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl">Compliance & Legal</h2>
+                <h2 class="text-2xl font-poppins">Compliance & Legal</h2>
                 <p class="text-sm text-[#64748B]">Manage policies and regulatory requirements.</p>
             </div>
             <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">

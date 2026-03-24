@@ -34,7 +34,7 @@
         <span>&gt;</span>
         <a href="{{ route('orders') }}" class="hover:text-[#0F172A]">Orders</a>
         <span>&gt;</span>
-        <span class="text-[#0F172A] font-medium">Order #1024</span>
+        <span class="text-[#0F172A] font-inter font-medium">Order #1024</span>
     </div>
 
     <section class="space-y-4">

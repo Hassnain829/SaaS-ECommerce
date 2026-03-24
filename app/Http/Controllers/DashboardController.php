@@ -174,7 +174,7 @@ class DashboardController extends Controller
 
         return view('user_view.store_products', [
             'store' => $store,
-            'products' => $store->products()->latest('id')->get(),
+            'products' => $store->products()->with('variants')->latest('id')->get(),
         ]);
     }
 }

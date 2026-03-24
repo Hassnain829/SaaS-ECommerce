@@ -3,7 +3,7 @@
 @section('title', 'Add Product to ' . $store->name . ' | BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
+<header class="sticky top-0 z-30 bg-white border-b border-[#E2E8F0] px-4 lg:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
     <!-- Mobile sidebar toggle -->
     <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
         <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
@@ -34,14 +34,14 @@
 @endsection
 
 @section('content')
-<div class="max-w-4xl mx-auto px-4 lg:px-0 space-y-6">
+<div class="px-6 md:px-10 py-8 max-w-[1024px] w-full mx-auto">
     <!-- Back button -->
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-4 mb-6">
         <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex items-center gap-2 text-[#64748B] hover:text-[#0052CC] transition-colors">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M13 10L6 3M13 10L6 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="font-medium">Back to Products</span>
+            <span class="font-inter font-medium">Back to Products</span>
         </a>
     </div>
 
@@ -106,10 +106,10 @@
         }
     @endphp
 
-    <form id="product-form" action="{{ route('store.add-product.store', ['storeId' => $store->id]) }}" method="POST" class="space-y-6">
+    <form id="product-form" action="{{ route('store.add-product.store', ['storeId' => $store->id]) }}" method="POST">
         @csrf
-        <input id="base-price-hidden" type="hidden" name="base_price" value="{{ $formData['base_price'] ?? '' }}">
-        <input id="default-stock-hidden" type="hidden" name="default_stock" value="{{ $formData['default_stock'] ?? '' }}">
+        <input id="bulk-price-hidden" type="hidden" name="bulk_price" value="{{ $formData['bulk_price'] ?? '' }}">
+        <input id="bulk-stock-hidden" type="hidden" name="bulk_stock" value="{{ $formData['bulk_stock'] ?? '' }}">
         <input type="hidden" name="stock_alert" value="{{ $formData['stock_alert'] ?? 5 }}">
         <input type="hidden" name="product_type" value="{{ $formData['product_type'] ?? 'physical' }}">
 
@@ -124,95 +124,61 @@
         </div>
 
         <!-- Basic Information Section -->
-        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6">
-            <h2 class="text-lg font-bold text-[#0B1C30] mb-6">Basic Information</h2>
+        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
+            <div class="flex items-center gap-2 mb-6">
+                <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Basic Information</h2>
+            </div>
 
-            <div class="space-y-4">
+            <div class="grid grid-cols-1 gap-6 mb-6">
                 <div>
-                    <label for="name" class="block text-sm font-medium text-[#334155] mb-2">Product Name</label>
-                    <input id="name" name="name" type="text" placeholder="e.g. Premium Cotton T-Shirt" value="{{ $formData['name'] ?? '' }}"
+                    <label for="name" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Product Name</label>
+                    <input id="name" name="name" type="text" placeholder="e.g. Premium Cotton T-Shirt"
+                        value="{{ $formData['name'] ?? '' }}"
                         class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                    @error('name')<span class="text-xs text-red-500">{{ $message }}</span>@enderror
-                </div>
-
-                <div>
-                    <label for="description" class="block text-sm font-medium text-[#334155] mb-2">Description</label>
-                    <textarea id="description" name="description" rows="3" placeholder="Describe your product's key features and benefits..."
-                        class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ $formData['description'] ?? '' }}</textarea>
-                    @error('description')<span class="text-xs text-red-500">{{ $message }}</span>@enderror
-                </div>
-
-                <div>
-                    <label for="sku" class="block text-sm font-medium text-[#334155] mb-2">Base SKU (optional)</label>
-                    <input id="sku" name="sku" type="text" value="{{ $formData['sku'] ?? '' }}"
-                        class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                    @error('sku')<span class="text-xs text-red-500">{{ $message }}</span>@enderror
                 </div>
             </div>
-        </div>
 
-        <!-- Pricing & Stock Section -->
-        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6">
-            <h2 class="text-lg font-bold text-[#0B1C30] mb-6">Pricing & Stock</h2>
+            <div>
+                <label for="description" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Description</label>
+                <textarea id="description" name="description" rows="3"
+                    placeholder="Describe your product's key features and benefits..."
+                    class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ $formData['description'] ?? '' }}</textarea>
+            </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label for="bulk-price" class="block text-sm font-medium text-[#334155] mb-2">Base Price</label>
-                    <input id="bulk-price" name="bulk_price" type="number" min="0" step="0.01" value="{{ $formData['base_price'] ?? '' }}"
-                        class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                    @error('base_price')<span class="text-xs text-red-500">{{ $message }}</span>@enderror
-                </div>
-
-                <div>
-                    <label for="bulk-stock" class="block text-sm font-medium text-[#334155] mb-2">Default Stock</label>
-                    <input id="bulk-stock" name="bulk_stock" type="number" min="0" step="1" value="{{ $formData['default_stock'] ?? '' }}"
-                        class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                    @error('default_stock')<span class="text-xs text-red-500">{{ $message }}</span>@enderror
-                </div>
-
-                <div>
-                    <label for="stock-alert" class="block text-sm font-medium text-[#334155] mb-2">Stock Alert Level</label>
-                    <input id="stock-alert" name="stock_alert" type="number" min="0" step="1" value="{{ $formData['stock_alert'] ?? 5 }}"
-                        class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                </div>
+            <div class="mt-4">
+                <label for="sku" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Base SKU (optional)</label>
+                <input id="sku" name="sku" type="text" value="{{ $formData['sku'] ?? '' }}"
+                    class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
             </div>
         </div>
 
         <!-- Product Variations Section -->
-        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-lg font-bold text-[#0B1C30]">Product Variations</h2>
-                <button id="openVariationModal" type="button" class="flex items-center gap-2 text-[#0052CC] text-sm font-medium hover:text-[#0047B3]">
-                    Add Variation Type
-                </button>
+                <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Product Variations</h2>
+                <button id="openVariationModal" type="button"
+                    class="flex items-center gap-2 text-[#0052CC] text-sm font-inter font-medium">Add Variation
+                    Type</button>
             </div>
 
-            <div id="no-variation-state" class="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B] {{ empty($variationTypes) ? '' : 'hidden' }}">
-                No variation type added yet. Click <span class="font-semibold text-[#0052CC]">Add Variation Type</span> to start.
+            <div id="no-variation-state"
+                class="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B] {{ empty($variationTypes) ? '' : 'hidden' }}">
+                No variation type added yet. Click <span class="font-semibold text-[#0052CC]">Add Variation
+                    Type</span> to start.
             </div>
-
-            <div id="variation-hidden-inputs">
-                @foreach ($variationTypes as $variationIndex => $variationType)
-                    <input type="hidden" name="variation_types[{{ $variationIndex }}][name]" value="{{ $variationType['name'] ?? '' }}">
-                    <input type="hidden" name="variation_types[{{ $variationIndex }}][type]" value="{{ $variationType['type'] ?? 'select' }}">
-                    @foreach (($variationType['options'] ?? []) as $optionIndex => $option)
-                        <input type="hidden" name="variation_types[{{ $variationIndex }}][options][{{ $optionIndex }}]" value="{{ $option }}">
-                    @endforeach
-                @endforeach
-            </div>
-
             <div id="variation-types-list" class="space-y-4 {{ empty($variationTypes) ? 'hidden' : '' }}">
                 @foreach ($variationTypes as $index => $variationType)
                     <div class="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5">
                         <div class="flex items-center justify-between mb-3">
-                            <span class="text-base text-[#0F172A] font-medium">Variation {{ $index + 1 }}: {{ $variationType['name'] ?? 'Variation' }}</span>
+                            <span class="text-base text-[#0F172A] font-poppins">Variation {{ $index + 1 }}: {{ $variationType['name'] ?? 'Variation' }}</span>
                             <span class="text-xs text-[#94A3B8] uppercase">{{ $variationType['type'] ?? 'select' }}</span>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             @foreach (($variationType['options'] ?? []) as $optionIndex => $option)
-                                <span class="bg-white border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-sm font-medium inline-flex items-center gap-2">
+                                <span class="bg-white border border-[#E2E8F0] rounded-lg px-3 py-1.5 text-sm font-inter font-medium inline-flex items-center gap-2">
                                     {{ $option }}
-                                    <button type="button" class="remove-variation-option text-[#94A3B8] hover:text-[#B42318] leading-none" data-variation-index="{{ $index }}" data-option-index="{{ $optionIndex }}" aria-label="Remove option {{ $option }}">×</button>
+                                    <button type="button" class="remove-variation-option text-[#94A3B8] hover:text-[#B42318] leading-none"
+                                        data-variation-index="{{ $index }}" data-option-index="{{ $optionIndex }}" aria-label="Remove option">×</button>
                                 </span>
                             @endforeach
                         </div>
@@ -222,12 +188,12 @@
         </div>
 
         <!-- Variants Section -->
-        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold text-[#0B1C30]">Variants</h2>
-                <button id="add-variant-row" type="button" class="px-3 py-2 rounded-lg border border-[#0052CC] text-[#0052CC] text-sm font-semibold {{ empty($variationTypes) ? 'opacity-50 cursor-not-allowed' : '' }}" {{ empty($variationTypes) ? 'disabled' : '' }}>
-                    Add Variant
-                </button>
+                <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants</h2>
+                <button id="add-variant-row" type="button"
+                    class="px-3 py-2 rounded-lg border border-[#0052CC] text-[#0052CC] text-sm font-semibold {{ empty($variationTypes) ? 'opacity-50 cursor-not-allowed' : '' }}"
+                    {{ empty($variationTypes) ? 'disabled' : '' }}>Add Variant</button>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 p-4 border border-[#E2E8F0] rounded-xl bg-[#F8FAFC]">
@@ -237,12 +203,16 @@
                 </div>
                 <div>
                     <label for="bulk-price" class="block text-xs font-semibold text-[#64748B] mb-1">Price</label>
-                    <input id="bulk-price" type="number" min="0" step="0.01" value="{{ $formData['base_price'] ?? '' }}" class="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                    <input id="bulk-price" type="number" min="0" step="0.01"
+                        value="{{ $formData['base_price'] ?? '' }}"
+                        class="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                 </div>
                 <div class="flex gap-2 items-end">
                     <div class="flex-1">
                         <label for="bulk-stock" class="block text-xs font-semibold text-[#64748B] mb-1">Stock</label>
-                        <input id="bulk-stock" type="number" min="0" step="1" value="{{ $formData['default_stock'] ?? '' }}" class="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                        <input id="bulk-stock" type="number" min="0" step="1"
+                            value="{{ $formData['default_stock'] ?? '' }}"
+                            class="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                     </div>
                     <button id="apply-bulk-values" type="button" class="px-3 py-2 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Apply</button>
                 </div>
@@ -254,9 +224,9 @@
         </div>
 
         <!-- Variants Matrix Preview Section -->
-        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
             <div class="flex flex-wrap justify-between items-center mb-6">
-                <h2 class="text-lg font-bold text-[#0B1C30]">Variants Matrix Preview</h2>
+                <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants Matrix Preview</h2>
                 <span id="preview-count" class="text-sm text-[#94A3B8]">{{ count($previewRows) }} variant row(s)</span>
             </div>
 
@@ -273,7 +243,7 @@
                     <tbody id="preview-table-body" class="divide-y divide-[#F1F5F9]">
                         @foreach ($previewRows as $row)
                             <tr>
-                                <td class="py-4 px-2 font-medium text-[#0F172A]">{{ $row['label'] }}</td>
+                                <td class="py-4 px-2 font-inter font-medium text-[#0F172A]">{{ $row['label'] }}</td>
                                 <td class="py-4 px-2 text-[#475569]">{{ $row['sku'] ?: 'Auto-generated' }}</td>
                                 <td class="py-4 px-2 text-[#475569]">{{ $row['price'] }}</td>
                                 <td class="py-4 px-2 text-[#475569]">{{ $row['stock'] }}</td>
@@ -285,18 +255,17 @@
         </div>
 
         <!-- Form Actions -->
-        <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="text-[#64748B] hover:text-[#0052CC] font-medium transition-colors">
-                Cancel
-            </a>
-            <button type="submit" class="w-full sm:w-auto bg-[#0052CC] text-white font-bold px-8 py-3 rounded-lg hover:bg-[#0047B3] transition-colors">
-                Save Product
-            </button>
+        <div class="flex justify-between items-center pt-6 border-t border-[#E2E8F0]">
+            <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="text-[#475569] font-bold">Back to Products</a>
+            <div class="flex items-center gap-4">
+                <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="text-[#475569] font-bold px-6 py-2">Cancel</a>
+                <button type="submit" class="bg-[#0052CC] text-white font-bold px-8 py-3 rounded-lg shadow-lg shadow-[#0052CC]/20">Save Product</button>
+            </div>
         </div>
     </form>
 </div>
 
-<!-- Variation Type Modal -->
+<!-- Variation Type Modal (Embedded) -->
 <div id="variationModal" class="fixed inset-0 bg-[#0F172A]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50 hidden">
     <div class="w-full max-w-[512px] bg-white rounded-xl shadow-2xl border border-[#E2E8F0] overflow-hidden">
         <!-- Header -->
@@ -352,33 +321,33 @@
                     <div class="bg-[#F8FAFC] border border-[#F1F5F9] rounded-lg p-4">
                         <div class="text-[#0052CC]/70 text-[10px] font-bold uppercase tracking-[1px] mb-2">Fashion</div>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Size</button>
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Color</button>
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Material</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Size</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Color</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Material</button>
                         </div>
                     </div>
 
                     <div class="bg-[#F8FAFC] border border-[#F1F5F9] rounded-lg p-4">
                         <div class="text-[#0052CC]/70 text-[10px] font-bold uppercase tracking-[1px] mb-2">Digital</div>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">License Type</button>
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Resolution</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">License Type</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Resolution</button>
                         </div>
                     </div>
 
                     <div class="bg-[#F8FAFC] border border-[#F1F5F9] rounded-lg p-4">
                         <div class="text-[#0052CC]/70 text-[10px] font-bold uppercase tracking-[1px] mb-2">Food & Beverage</div>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Add-ons</button>
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Dietary</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Add-ons</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Dietary</button>
                         </div>
                     </div>
 
                     <div class="bg-[#F8FAFC] border border-[#F1F5F9] rounded-lg p-4">
                         <div class="text-[#0052CC]/70 text-[10px] font-bold uppercase tracking-[1px] mb-2">Subscriptions</div>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Tier</button>
-                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Billing Interval</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Tier</button>
+                            <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm hover:border-[#0052CC] transition">Billing Interval</button>
                         </div>
                     </div>
                 </div>
@@ -417,8 +386,8 @@
         const variationTypesList = document.getElementById('variation-types-list');
         const noVariationState = document.getElementById('no-variation-state');
         const variationHiddenInputs = document.getElementById('variation-hidden-inputs');
-        const basePriceHiddenInput = document.getElementById('base-price-hidden');
-        const defaultStockHiddenInput = document.getElementById('default-stock-hidden');
+        const bulkPriceHiddenInput = document.getElementById('bulk-price-hidden');
+        const bulkStockHiddenInput = document.getElementById('bulk-stock-hidden');
         const openVariationModal = document.getElementById('openVariationModal');
 
         const escapeHtml = (value) => String(value)
@@ -609,17 +578,45 @@
                     e.preventDefault();
                     const variationIndex = parseInt(btn.dataset.variationIndex);
                     const optionIndex = parseInt(btn.dataset.optionIndex);
-                    if (variationTypes[variationIndex]) {
-                        variationTypes[variationIndex].options.splice(optionIndex, 1);
-                        rows = [];
-                        renderVariationTypeCards();
-                        renderVariationHiddenInputs();
-                        renderVariantRows();
-                        updatePreview();
+                    
+                    if (!Number.isInteger(variationIndex) || !Number.isInteger(optionIndex) || !variationTypes[variationIndex]) {
+                        return;
                     }
+
+                    variationTypes[variationIndex].options.splice(optionIndex, 1);
+                    
+                    // If variation has no options left, remove the entire variation
+                    if ((variationTypes[variationIndex].options || []).length === 0) {
+                        variationTypes.splice(variationIndex, 1);
+                    }
+                    
+                    // Clear all variants when variations change
+                    if (!variationTypes.length) {
+                        rows = [];
+                    } else {
+                        rows = rows.map((row) => ({
+                            ...row,
+                            option_map: Object.fromEntries(
+                                Object.entries(row.option_map || {}).filter(([key]) => Number(key) < variationTypes.length)
+                            ),
+                        }));
+                    }
+                    
+                    renderVariationHiddenInputs();
+                    renderVariationTypeCards();
+                    renderVariantRows();
+                    updatePreview();
                 });
             });
         };
+
+        // Initialize hidden inputs with default values
+        if (bulkPriceHiddenInput && !bulkPriceHiddenInput.value) {
+            bulkPriceHiddenInput.value = defaultPrice;
+        }
+        if (bulkStockHiddenInput && !bulkStockHiddenInput.value) {
+            bulkStockHiddenInput.value = defaultStock;
+        }
 
         // Event listeners
         if (addRowButton) {
@@ -644,18 +641,42 @@
         }
 
         if (bulkPriceInput) {
+            bulkPriceInput.addEventListener('input', () => {
+                defaultPrice = bulkPriceInput.value;
+                if (bulkPriceHiddenInput) bulkPriceHiddenInput.value = defaultPrice;
+                updatePreview();
+            });
+            
             bulkPriceInput.addEventListener('change', () => {
                 defaultPrice = bulkPriceInput.value;
-                basePriceHiddenInput.value = defaultPrice;
+                if (bulkPriceHiddenInput) bulkPriceHiddenInput.value = defaultPrice;
                 updatePreview();
             });
         }
 
         if (bulkStockInput) {
+            bulkStockInput.addEventListener('input', () => {
+                defaultStock = bulkStockInput.value;
+                if (bulkStockHiddenInput) bulkStockHiddenInput.value = defaultStock;
+                updatePreview();
+            });
+            
             bulkStockInput.addEventListener('change', () => {
                 defaultStock = bulkStockInput.value;
-                defaultStockHiddenInput.value = defaultStock;
+                if (bulkStockHiddenInput) bulkStockHiddenInput.value = defaultStock;
                 updatePreview();
+            });
+        }
+
+        // Sync hidden inputs before form submission
+        if (productForm) {
+            productForm.addEventListener('submit', (e) => {
+                if (bulkPriceInput && bulkPriceHiddenInput) {
+                    bulkPriceHiddenInput.value = bulkPriceInput.value || defaultPrice;
+                }
+                if (bulkStockInput && bulkStockHiddenInput) {
+                    bulkStockHiddenInput.value = bulkStockInput.value || defaultStock;
+                }
             });
         }
 

@@ -64,12 +64,7 @@
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M13 10L6 3M13 10L6 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="font-medium">Back to Store Management</span>
-        </a>
-    </div>
-
-    <!-- Store Header -->
-    <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6">
+            <span class="font-inter font-medium">Back to Store Management</span>
         <div class="flex items-start justify-between">
             <div class="flex items-start gap-4">
                 <div class="w-16 h-16 bg-[#DCE9FF] rounded-lg flex items-center justify-center">
@@ -78,7 +73,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h1 class="text-3xl font-black text-[#0B1C30]">{{ $store->name }}</h1>
+                    <h1 class="text-3xl font-black font-poppins text-[#0B1C30]">{{ $store->name }}</h1>
                     <div class="flex items-center gap-3 mt-2">
                         <span class="px-3 py-1 bg-[#DCE9FF] text-[#434654] text-xs font-bold uppercase rounded-full">{{ ucfirst($store->category ?? 'General') }}</span>
                         @if ($store->onboarding_completed)
@@ -107,15 +102,15 @@
     <!-- Store Statistics -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-white rounded-lg border border-[#E2E8F0] p-4">
-            <div class="text-sm text-[#64748B] font-medium">Total Products</div>
+            <div class="text-sm text-[#64748B] font-inter font-medium">Total Products</div>
             <div class="text-2xl font-bold text-[#0B1C30] mt-1">{{ count($products) }}</div>
         </div>
         <div class="bg-white rounded-lg border border-[#E2E8F0] p-4">
-            <div class="text-sm text-[#64748B] font-medium">Store Created</div>
+            <div class="text-sm text-[#64748B] font-inter font-medium">Store Created</div>
             <div class="text-2xl font-bold text-[#0B1C30] mt-1">{{ $store->created_at->format('M d, Y') }}</div>
         </div>
         <div class="bg-white rounded-lg border border-[#E2E8F0] p-4">
-            <div class="text-sm text-[#64748B] font-medium">Slug</div>
+            <div class="text-sm text-[#64748B] font-inter font-medium">Slug</div>
             <div class="text-lg font-bold text-[#0B1C30] mt-1">{{ $store->slug }}</div>
         </div>
     </div>
@@ -155,7 +150,7 @@
                         @foreach ($products as $product)
                             <tr class="border-b border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors">
                                 <td class="py-3 px-4">
-                                    <div class="text-sm font-medium text-[#0B1C30]">{{ $product->name }}</div>
+                                    <div class="text-sm font-inter font-medium text-[#0B1C30]">{{ $product->name }}</div>
                                     @if ($product->sku)
                                         <div class="text-xs text-[#64748B]">SKU: {{ $product->sku }}</div>
                                     @endif
@@ -164,10 +159,10 @@
                                     <span class="text-sm text-[#434654]">{{ ucfirst($product->product_type) }}</span>
                                 </td>
                                 <td class="py-3 px-4">
-                                    <span class="text-sm font-medium text-[#0B1C30]">${{ number_format($product->base_price, 2) }}</span>
+                                    <span class="text-sm font-inter font-medium text-[#0B1C30]">${{ number_format($product->base_price, 2) }}</span>
                                 </td>
                                 <td class="py-3 px-4">
-                                    <span class="text-sm text-[#434654]">{{ $product->default_stock }}</span>
+                                    <span class="text-sm text-[#434654]">{{ $product->variants->sum('stock') }}</span>
                                 </td>
                                 <td class="py-3 px-4">
                                     <span class="text-sm text-[#64748B]">{{ $product->created_at->format('M d, Y') }}</span>

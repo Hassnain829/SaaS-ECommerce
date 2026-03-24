@@ -13,7 +13,7 @@
             <div class="border-b border-[#F1F5F9] px-6 pb-4 pt-6">
                 <div class="flex items-start justify-between gap-4">
                     <div>
-                        <h2 class="text-[26px] font-medium leading-tight text-[#0F172A]" style="font-family: 'Poppins', sans-serif;">Browse All Categories</h2>
+                        <h2 class="text-[26px] font-medium leading-tight text-[#0F172A] font-poppins">Browse All Categories</h2>
                         <p class="mt-2 text-sm text-[#94A3B8]">Select the categories that best describe your business to tailor your dashboard.</p>
                     </div>
                     <a href="{{ route('onboarding-StoreDetails-1') }}" target="_top" class="text-[#94A3B8] transition hover:text-[#64748B]" aria-label="Close overlay">
@@ -220,7 +220,7 @@
 
             <div class="border-t border-[#F1F5F9] bg-[#F8FAFC] px-6 py-4">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <a href="{{ route('onboarding-StoreDetails-1') }}" target="_top" class="text-sm font-medium text-[#94A3B8] transition hover:text-[#64748B]">Cancel and close</a>
+                    <a href="{{ route('onboarding-StoreDetails-1') }}" target="_top" class="text-sm font-inter font-medium text-[#94A3B8] transition hover:text-[#64748B]">Cancel and close</a>
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-[22px]">
                         <span id="selectedCountText" class="text-sm text-[#94A3B8]">0 category selected</span>
                         <button type="submit" class="inline-flex h-[46px] min-w-[170px] items-center justify-center whitespace-nowrap rounded-xl bg-[#0052CC] px-6 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042A3]">

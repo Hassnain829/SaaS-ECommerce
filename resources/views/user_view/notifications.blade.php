@@ -24,7 +24,7 @@
 
     <div class="flex items-center gap-4 shrink-0">
         <div class="hidden lg:flex w-64 h-11 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] items-center px-3 text-sm text-[#64748B]">Search notifications...</div>
-        <button class="text-[#E11D48] text-sm font-medium">Clear All</button>
+        <button class="text-[#E11D48] text-sm font-inter font-medium">Clear All</button>
     </div>
 </header>
 @endsection

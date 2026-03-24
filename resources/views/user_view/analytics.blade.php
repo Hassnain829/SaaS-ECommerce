@@ -190,21 +190,21 @@
                     <h3 class="text-2xl mb-5 font-poppins">Store Category Health</h3>
                     <div class="space-y-4">
                         <div>
-                            <div class="flex justify-between text-sm mb-1"><span class="font-medium">Electronics &amp;
+                            <div class="flex justify-between text-sm mb-1"><span class="font-inter font-medium">Electronics &amp;
                                     Hardware</span><span class="text-[#64748B]">92% Health</span></div>
                             <div class="h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
                                 <div class="h-2 w-[92%] bg-[#10B981]"></div>
                             </div>
                         </div>
                         <div>
-                            <div class="flex justify-between text-sm mb-1"><span class="font-medium">Fashion &amp;
+                            <div class="flex justify-between text-sm mb-1"><span class="font-inter font-medium">Fashion &amp;
                                     Apparel</span><span class="text-[#64748B]">74% Health</span></div>
                             <div class="h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
                                 <div class="h-2 w-[74%] bg-[#F59E0B]"></div>
                             </div>
                         </div>
                         <div>
-                            <div class="flex justify-between text-sm mb-1"><span class="font-medium">Food &amp;
+                            <div class="flex justify-between text-sm mb-1"><span class="font-inter font-medium">Food &amp;
                                     Beverage</span><span class="text-[#64748B]">81% Health</span></div>
                             <div class="h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
                                 <div class="h-2 w-[81%] bg-[#10B981]"></div>

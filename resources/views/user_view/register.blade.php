@@ -25,7 +25,7 @@
         </a>
 
         <div class="mb-8">
-          <h1 class="text-[#0F172A] text-3xl font-[Poppins] font-medium leading-9">Create your<br>workspace</h1>
+          <h1 class="text-[#0F172A] text-3xl font-poppins font-medium leading-9">Create your<br>workspace</h1>
           <p class="text-[#64748B] text-base leading-6 mt-1">Join the enterprise platform for modern e-commerce and multi-tenant services.</p>
         </div>
 
@@ -72,7 +72,7 @@
       <div class="relative z-10 max-w-[580px] mx-auto text-white space-y-10">
         <div>
           <span class="inline-flex rounded-full bg-[#0052CC]/25 px-3 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#1D78FF]">Built for scale</span>
-          <h2 class="mt-6 text-4xl leading-[1.15]">Empowering the next generation of digital commerce.</h2>
+          <h2 class="mt-6 text-4xl font-poppins leading-[1.15]">Empowering the next generation of digital commerce.</h2>
           <p class="mt-6 text-[#94A3B8] text-xl leading-8">Our unified backend service handles the complexity, so you can focus on building world-class customer experiences.</p>
         </div>
 
@@ -82,7 +82,7 @@
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none"><path d="M4 20L5 13H0L9 0H11L10 8H16L6 20H4Z" fill="currentColor"/></svg>
             </div>
             <div>
-              <h3 class="text-2xl font-semibold">Instant Setup</h3>
+              <h3 class="text-2xl font-poppins font-semibold">Instant Setup</h3>
               <p class="mt-1 text-base leading-7 text-[#94A3B8]">Deploy a production-ready multi-tenant environment in seconds with automated environment provisioning.</p>
             </div>
           </div>
@@ -92,7 +92,7 @@
               <svg width="20" height="18" viewBox="0 0 20 18" fill="none"><path d="M3 18C2.16667 18 1.45833 17.7083 0.875 17.125C0.291667 16.5417 0 15.8333 0 15C0 14.1667 0.291667 13.4583 0.875 12.875C1.45833 12.2917 2.16667 12 3 12H17C17.8333 12 18.5417 12.2917 19.125 12.875C19.7083 13.4583 20 14.1667 20 15C20 15.8333 19.7083 16.5417 19.125 17.125C18.5417 17.7083 17.8333 18 17 18H3ZM8 10C7.71667 10 7.47917 9.90417 7.2875 9.7125C7.09583 9.52083 7 9.28333 7 9V1C7 0.716667 7.09583 0.479167 7.2875 0.2875C7.47917 0.0958333 7.71667 0 8 0H16C16.2833 0 16.5208 0.0958333 16.7125 0.2875C16.9042 0.479167 17 0.716667 17 1V9C17 9.28333 16.9042 9.52083 16.7125 9.7125C16.5208 9.90417 16.2833 10 16 10H8Z" fill="currentColor"/></svg>
             </div>
             <div>
-              <h3 class="text-2xl font-[Poppins] font-medium">Automated Logistics</h3>
+              <h3 class="text-2xl font-poppins font-medium">Automated Logistics</h3>
               <p class="mt-1 text-base leading-7 text-[#94A3B8]">Seamlessly integrate with major fulfillment providers. Real-time tracking and automated route optimization built-in.</p>
             </div>
           </div>
@@ -102,7 +102,7 @@
               <svg width="19" height="20" viewBox="0 0 19 20" fill="none"><path d="M3.5 9L9 0L14.5 9H3.5ZM14.5 20C13.25 20 12.1875 19.5625 11.3125 18.6875C10.4375 17.8125 10 16.75 10 15.5C10 14.25 10.4375 13.1875 11.3125 12.3125C12.1875 11.4375 13.25 11 14.5 11C15.75 11 16.8125 11.4375 17.6875 12.3125C18.5625 13.1875 19 14.25 19 15.5C19 16.75 18.5625 17.8125 17.6875 18.6875C16.8125 19.5625 15.75 20 14.5 20ZM0 19.5V11.5H8V19.5H0Z" fill="currentColor"/></svg>
             </div>
             <div>
-              <h3 class="text-2xl font-semibold">Multi-category support</h3>
+              <h3 class="text-2xl font-poppins font-semibold">Multi-category support</h3>
               <p class="mt-1 text-base leading-7 text-[#94A3B8]">From digital products to physical goods and professional services. One platform to manage all your business verticals.</p>
             </div>
           </div>
@@ -125,7 +125,7 @@
     </section>
   </div>
 
-  <footer class="border-t border-gray-200 py-5 px-4 text-center text-sm text-[#94A3B8] font-medium">
+  <footer class="border-t border-gray-200 py-5 px-4 text-center text-sm text-[#94A3B8] font-inter font-medium">
     <div class="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-x-4 gap-y-1">
       <span>&copy; 2024 BaaS Core Enterprise. All rights reserved.</span>
     </div>

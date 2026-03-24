@@ -19,7 +19,7 @@
             <!-- header with title and close icon -->
             <div class="flex justify-between items-center px-6 py-4 border-b border-[#F1F5F9]">
                 <div>
-                    <h3 class="text-lg font-[Poppins] font-medium text-[#0F172A]">Add Variation Type</h3>
+                    <h3 class="text-lg font-poppins font-medium text-[#0F172A]">Add Variation Type</h3>
                     <p class="text-xs text-[#64748B] mt-0.5">Define how customers will differentiate your items</p>
                 </div>
                 <a href="{{ route('onboarding-Step2-AddProductVariations') }}" target="_top" class="text-[#94A3B8] hover:text-[#64748B]">
@@ -87,9 +87,9 @@
                         <div class="bg-[#F8FAFC] border border-[#F1F5F9] rounded-lg p-4">
                             <div class="text-[#0052CC]/70 text-[10px] font-bold uppercase tracking-[1px] mb-2">Fashion</div>
                             <div class="flex flex-wrap gap-2">
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">Size</button>
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">Color</button>
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">Material</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">Size</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">Color</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">Material</button>
                             </div>
                         </div>
 
@@ -97,8 +97,8 @@
                         <div class="bg-[#F8FAFC] border border-[#F1F5F9] rounded-lg p-4">
                             <div class="text-[#0052CC]/70 text-[10px] font-bold uppercase tracking-[1px] mb-2">Digital</div>
                             <div class="flex flex-wrap gap-2">
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">License Type</button>
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">Resolution</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">License Type</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">Resolution</button>
                             </div>
                         </div>
 
@@ -106,8 +106,8 @@
                         <div class="bg-[#F8FAFC] border border-[#F1F5F9] rounded-lg p-4">
                             <div class="text-[#0052CC]/70 text-[10px] font-bold uppercase tracking-[1px] mb-2">Food & Beverage</div>
                             <div class="flex flex-wrap gap-2">
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">Add-ons</button>
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">Dietary</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">Add-ons</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">Dietary</button>
                             </div>
                         </div>
 
@@ -115,8 +115,8 @@
                         <div class="bg-[#F8FAFC] border border-[#F1F5F9] rounded-lg p-4">
                             <div class="text-[#0052CC]/70 text-[10px] font-bold uppercase tracking-[1px] mb-2">Subscriptions</div>
                             <div class="flex flex-wrap gap-2">
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">Tier</button>
-                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-medium text-[#475569] shadow-sm">Billing Interval</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">Tier</button>
+                                <button type="button" class="suggestion-btn bg-white border border-[#E2E8F0] rounded-md px-3 py-1.5 text-xs font-inter font-medium text-[#475569] shadow-sm">Billing Interval</button>
                             </div>
                         </div>
                     </div>

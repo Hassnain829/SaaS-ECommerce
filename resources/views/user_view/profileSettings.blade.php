@@ -80,8 +80,8 @@
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="p-6 border-b border-[#E2E8F0]"><h3 class="text-xl">Connected Accounts</h3></div>
         <div class="p-6 space-y-4">
-          <div class="p-3 rounded-lg border border-[#F1F5F9] flex items-center justify-between"><div class="flex items-center gap-3"><div class="h-8 w-8 bg-[#F8FAFC] rounded flex items-center justify-center text-sm">G</div><span class="font-medium">Google</span></div><span class="px-2 py-1 rounded bg-[#ECFDF5] text-[#059669] text-[10px] font-bold uppercase">Connected</span></div>
-          <div class="p-3 rounded-lg border border-[#F1F5F9] flex items-center justify-between opacity-70"><div class="flex items-center gap-3"><div class="h-8 w-8 bg-[#F8FAFC] rounded flex items-center justify-center text-sm">M</div><span class="font-medium">Microsoft</span></div><button class="text-[#0052CC] text-[10px] font-bold uppercase">Link Account</button></div>
+          <div class="p-3 rounded-lg border border-[#F1F5F9] flex items-center justify-between"><div class="flex items-center gap-3"><div class="h-8 w-8 bg-[#F8FAFC] rounded flex items-center justify-center text-sm">G</div><span class="font-inter font-medium">Google</span></div><span class="px-2 py-1 rounded bg-[#ECFDF5] text-[#059669] text-[10px] font-bold uppercase">Connected</span></div>
+          <div class="p-3 rounded-lg border border-[#F1F5F9] flex items-center justify-between opacity-70"><div class="flex items-center gap-3"><div class="h-8 w-8 bg-[#F8FAFC] rounded flex items-center justify-center text-sm">M</div><span class="font-inter font-medium">Microsoft</span></div><button class="text-[#0052CC] text-[10px] font-bold uppercase">Link Account</button></div>
         </div>
       </section>
     </div>

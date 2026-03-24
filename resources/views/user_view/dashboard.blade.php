@@ -59,9 +59,9 @@
                     <p class="text-sm text-[#64748B]">Welcome back, here's what's happening with your store today.</p>
                 </div>
                 <div class="bg-white border border-[#E2E8F0] rounded-lg p-1 flex gap-1" role="tablist" aria-label="Time period">
-                    <button type="button" class="period-btn px-4 py-1.5 text-sm font-medium text-[#64748B] rounded-md hover:bg-gray-100" data-period="daily">Daily</button>
-                    <button type="button" class="period-btn px-4 py-1.5 text-sm font-medium bg-[#0052CC] text-white rounded-md" data-period="weekly" aria-selected="true">Weekly</button>
-                    <button type="button" class="period-btn px-4 py-1.5 text-sm font-medium text-[#64748B] rounded-md hover:bg-gray-100" data-period="monthly">Monthly</button>
+                    <button type="button" class="period-btn px-4 py-1.5 text-sm font-inter font-medium text-[#64748B] rounded-md hover:bg-gray-100" data-period="daily">Daily</button>
+                    <button type="button" class="period-btn px-4 py-1.5 text-sm font-inter font-medium bg-[#0052CC] text-white rounded-md" data-period="weekly" aria-selected="true">Weekly</button>
+                    <button type="button" class="period-btn px-4 py-1.5 text-sm font-inter font-medium text-[#64748B] rounded-md hover:bg-gray-100" data-period="monthly">Monthly</button>
                 </div>
             </div>
 
@@ -239,12 +239,12 @@
                                     <div class="w-10 h-10 bg-[#F1F5F9] rounded-lg flex items-center justify-center">
                                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="#64748B"/></svg>
                                     </div>
-                                    <span class="font-medium text-[#0F172A]">UltraPro Wireless Headphones</span>
+                                    <span class="font-inter font-medium text-[#0F172A]">UltraPro Wireless Headphones</span>
                                 </div>
                             </td>
                             <td class="py-4 px-6"><span class="bg-[#F1F5F9] text-[#475569] px-2 py-1 rounded text-xs">Accessories</span></td>
-                            <td class="py-4 px-6 text-right font-medium">1,204</td>
-                            <td class="py-4 px-6 text-right font-medium">$12,040.50</td>
+                            <td class="py-4 px-6 text-right font-inter font-medium">1,204</td>
+                            <td class="py-4 px-6 text-right font-inter font-medium">$12,040.50</td>
                             <td class="py-4 px-6">
                                 <span class="inline-flex items-center gap-1 bg-green-50 text-green-600 text-xs font-bold px-2 py-1 rounded-full">
                                     <svg width="12" height="7" viewBox="0 0 12 7" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0.816667 7L0 6.18333L4.31667 1.8375L6.65 4.17083L9.68333 1.16667H8.16667V0H11.6667V3.5H10.5V1.98333L6.65 5.83333L4.31667 3.5L0.816667 7Z" fill="#059669"/></svg>
@@ -258,12 +258,12 @@
                                     <div class="w-10 h-10 bg-[#F1F5F9] rounded-lg flex items-center justify-center">
                                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="#64748B"/></svg>
                                     </div>
-                                    <span class="font-medium text-[#0F172A]">Minimalist Leather Wallet</span>
+                                    <span class="font-inter font-medium text-[#0F172A]">Minimalist Leather Wallet</span>
                                 </div>
                             </td>
                             <td class="py-4 px-6"><span class="bg-[#F1F5F9] text-[#475569] px-2 py-1 rounded text-xs">Accessories</span></td>
-                            <td class="py-4 px-6 text-right font-medium">856</td>
-                            <td class="py-4 px-6 text-right font-medium">$4,280.00</td>
+                            <td class="py-4 px-6 text-right font-inter font-medium">856</td>
+                            <td class="py-4 px-6 text-right font-inter font-medium">$4,280.00</td>
                             <td class="py-4 px-6">
                                 <span class="inline-flex items-center gap-1 bg-green-50 text-green-600 text-xs font-bold px-2 py-1 rounded-full">
                                     <svg width="12" height="7" viewBox="0 0 12 7" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0.816667 7L0 6.18333L4.31667 1.8375L6.65 4.17083L9.68333 1.16667H8.16667V0H11.6667V3.5H10.5V1.98333L6.65 5.83333L4.31667 3.5L0.816667 7Z" fill="#059669"/></svg>
@@ -277,12 +277,12 @@
                                     <div class="w-10 h-10 bg-[#F1F5F9] rounded-lg flex items-center justify-center">
                                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="#64748B"/></svg>
                                     </div>
-                                    <span class="font-medium text-[#0F172A]">Organic Cotton T-Shirt Pack</span>
+                                    <span class="font-inter font-medium text-[#0F172A]">Organic Cotton T-Shirt Pack</span>
                                 </div>
                             </td>
                             <td class="py-4 px-6"><span class="bg-[#F1F5F9] text-[#475569] px-2 py-1 rounded text-xs">Apparel</span></td>
-                            <td class="py-4 px-6 text-right font-medium">412</td>
-                            <td class="py-4 px-6 text-right font-medium">$3,502.00</td>
+                            <td class="py-4 px-6 text-right font-inter font-medium">412</td>
+                            <td class="py-4 px-6 text-right font-inter font-medium">$3,502.00</td>
                             <td class="py-4 px-6">
                                 <span class="inline-flex items-center gap-1 bg-red-50 text-red-600 text-xs font-bold px-2 py-1 rounded-full">
                                     <svg width="12" height="7" viewBox="0 0 12 7" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.16667 7V5.83333H9.68333L6.65 2.82917L4.31667 5.1625L0 0.816667L0.816667 0L4.31667 3.5L6.65 1.16667L10.5 5.01667V3.5H11.6667V7H8.16667Z" fill="#E11D48"/></svg>

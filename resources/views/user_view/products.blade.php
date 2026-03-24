@@ -188,15 +188,15 @@
                 </svg>
             </button>
             <button
-                class="flex items-center gap-1.5 border border-[#E2E8F0] text-[#475569] text-sm font-medium px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">
+                class="flex items-center gap-1.5 border border-[#E2E8F0] text-[#475569] text-sm font-inter font-medium px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">
                 Low Stock
                 <span
                     class="bg-[#F97316] text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">12</span>
             </button>
             <button
-                class="border border-[#E2E8F0] text-[#475569] text-sm font-medium px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">Published</button>
+                class="border border-[#E2E8F0] text-[#475569] text-sm font-inter font-medium px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">Published</button>
             <button
-                class="border border-[#E2E8F0] text-[#475569] text-sm font-medium px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">Drafts</button>
+                class="border border-[#E2E8F0] text-[#475569] text-sm font-inter font-medium px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">Drafts</button>
             <div class="ml-auto flex gap-2">
                 <button
                     class="w-9 h-9 flex items-center justify-center border border-[#E2E8F0] rounded-lg hover:bg-gray-50">
@@ -249,7 +249,7 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <div class="font-medium text-[#0F172A] text-sm">Wireless Noise ...</div>
+                                    <div class="font-inter font-medium text-[#0F172A] text-sm">Wireless Noise ...</div>
                                     <div class="text-[#94A3B8] text-xs">SKU: WH-1000XM4</div>
                                 </div>
                             </div>
@@ -265,7 +265,7 @@
                                 In Stock
                             </span>
                         </td>
-                        <td class="px-4 py-4 font-medium text-[#0F172A] text-sm">$349.00</td>
+                        <td class="px-4 py-4 font-inter font-medium text-[#0F172A] text-sm">$349.00</td>
                         <td class="px-4 py-4 w-28">
                             <div class="bg-[#F1F5F9] rounded-full h-1.5 min-w-20 overflow-hidden">
                                 <div class="h-full rounded-full bg-[#3B82F6]" style="width:85%"></div>
@@ -291,7 +291,7 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <div class="font-medium text-[#0F172A] text-sm">Premium Leather ...</div>
+                                    <div class="font-inter font-medium text-[#0F172A] text-sm">Premium Leather ...</div>
                                     <div class="text-[#94A3B8] text-xs">SKU: ACC-LWL-01</div>
                                 </div>
                             </div>
@@ -307,7 +307,7 @@
                                 Low Stock
                             </span>
                         </td>
-                        <td class="px-4 py-4 font-medium text-[#0F172A] text-sm">$59.00</td>
+                        <td class="px-4 py-4 font-inter font-medium text-[#0F172A] text-sm">$59.00</td>
                         <td class="px-4 py-4 w-28">
                             <div class="bg-[#F1F5F9] rounded-full h-1.5 min-w-20 overflow-hidden">
                                 <div class="h-full rounded-full bg-[#F97316]" style="width:12%"></div>
@@ -333,7 +333,7 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <div class="font-medium text-[#0F172A] text-sm">Organic Cotton ...</div>
+                                    <div class="font-inter font-medium text-[#0F172A] text-sm">Organic Cotton ...</div>
                                     <div class="text-[#94A3B8] text-xs">SKU: TS-ORG-WHT</div>
                                 </div>
                             </div>
@@ -349,7 +349,7 @@
                                 Out of Stock
                             </span>
                         </td>
-                        <td class="px-4 py-4 font-medium text-[#0F172A] text-sm">$25.00</td>
+                        <td class="px-4 py-4 font-inter font-medium text-[#0F172A] text-sm">$25.00</td>
                         <td class="px-4 py-4 w-28">
                             <div class="bg-[#F1F5F9] rounded-full h-1.5 min-w-20 overflow-hidden">
                                 <div class="h-full rounded-full bg-[#E2E8F0]" style="width:2%"></div>
@@ -375,7 +375,7 @@
                                     </svg>
                                 </div>
                                 <div>
-                                    <div class="font-medium text-[#0F172A] text-sm">Smart Fitness ...</div>
+                                    <div class="font-inter font-medium text-[#0F172A] text-sm">Smart Fitness ...</div>
                                     <div class="text-[#94A3B8] text-xs">SKU: EL-FIT-V2</div>
                                 </div>
                             </div>
@@ -391,7 +391,7 @@
                                 In Stock
                             </span>
                         </td>
-                        <td class="px-4 py-4 font-medium text-[#0F172A] text-sm">$129.00</td>
+                        <td class="px-4 py-4 font-inter font-medium text-[#0F172A] text-sm">$129.00</td>
                         <td class="px-4 py-4 w-28">
                             <div class="bg-[#F1F5F9] rounded-full h-1.5 min-w-20 overflow-hidden">
                                 <div class="h-full rounded-full bg-[#3B82F6]" style="width:42%"></div>
@@ -414,18 +414,18 @@
                     class="font-semibold text-[#0F172A]">120</span> results</span>
             <div class="flex items-center gap-1.5">
                 <button
-                    class="px-3 py-1.5 text-sm font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50 transition-colors">Previous</button>
+                    class="px-3 py-1.5 text-sm font-inter font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50 transition-colors">Previous</button>
                 <button
                     class="w-8 h-8 flex items-center justify-center text-sm font-bold bg-[#0052CC] text-white rounded-lg">1</button>
                 <button
-                    class="w-8 h-8 flex items-center justify-center text-sm font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50">2</button>
+                    class="w-8 h-8 flex items-center justify-center text-sm font-inter font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50">2</button>
                 <button
-                    class="w-8 h-8 flex items-center justify-center text-sm font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50">3</button>
+                    class="w-8 h-8 flex items-center justify-center text-sm font-inter font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50">3</button>
                 <span class="text-[#94A3B8] text-sm px-0.5">...</span>
                 <button
-                    class="w-8 h-8 flex items-center justify-center text-sm font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50">30</button>
+                    class="w-8 h-8 flex items-center justify-center text-sm font-inter font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50">30</button>
                 <button
-                    class="px-3 py-1.5 text-sm font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50 transition-colors">Next</button>
+                    class="px-3 py-1.5 text-sm font-inter font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50 transition-colors">Next</button>
             </div>
         </div>
 

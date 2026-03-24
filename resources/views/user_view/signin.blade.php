@@ -26,7 +26,7 @@
                 </div>
 
                 <div class="mb-8">
-                    <h1 class="text-[#0F172A] text-3xl font-[Poppins] font-medium leading-9">Welcome back</h1>
+                    <h1 class="text-[#0F172A] text-3xl font-poppins font-medium leading-9">Welcome back</h1>
                     <p class="text-[#64748B] text-base leading-6 mt-1">Enter your credentials to access your marketplace dashboard.</p>
                 </div>
 
@@ -91,7 +91,7 @@
                     <span class="text-[#0052CC] text-xs font-bold uppercase tracking-[0.3px]">Scalable Infrastructure</span>
                 </div>
 
-                <h2 class="text-4xl md:text-5xl font-bold leading-tight text-[#0F172A]">
+                <h2 class="text-4xl md:text-5xl font-bold font-poppins leading-tight text-[#0F172A]">
                     Powering the next<br>generation of <span class="text-[#0052CC]">multi-tenant</span><br><span class="text-[#0052CC]">marketplaces</span>.
                 </h2>
 
@@ -117,7 +117,7 @@
         </div>
     </div>
 
-    <footer class="border-t border-gray-200 py-5 px-4 text-center text-sm text-[#94A3B8] font-medium">
+    <footer class="border-t border-gray-200 py-5 px-4 text-center text-sm text-[#94A3B8] font-inter font-medium">
         <div class="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-x-4 gap-y-1">
             <span>&copy; 2024 BaaS Core Systems</span>
             <span class="hidden sm:inline">&middot;</span>

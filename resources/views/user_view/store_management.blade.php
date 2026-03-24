@@ -60,16 +60,16 @@
 <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
     <!-- Hero Header -->
     <div>
-        <h1 class="text-3xl font-black text-[#0B1C30]">Store Management Hub</h1>
-        <p class="text-base text-[#434654] max-w-2xl mt-2">Orchestrate your commerce ecosystem. Monitor real-time performance, manage deployment nodes, and scale your global footprint.</p>
+        <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Store Management Hub</h1>
+        <p class="text-base font-inter text-[#434654] max-w-2xl mt-2">Orchestrate your commerce ecosystem. Monitor real-time performance, manage deployment nodes, and scale your global footprint.</p>
     </div>
 
     <!-- Tab Navigation -->
     <div class="border-b border-[#C3C6D6]/30 overflow-x-auto">
         <nav class="flex gap-8 min-w-max">
             <button class="pb-4 border-b-2 border-[#003D9B] text-[#003D9B] font-bold text-sm">All Stores ({{ count($stores) }})</button>
-            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-medium text-sm">Live ({{ $stores->where('onboarding_completed', true)->count() }})</button>
-            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-medium text-sm">Drafts ({{ $stores->where('onboarding_completed', false)->count() }})</button>
+            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-inter font-medium text-sm">Live ({{ $stores->where('onboarding_completed', true)->count() }})</button>
+            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-inter font-medium text-sm">Drafts ({{ $stores->where('onboarding_completed', false)->count() }})</button>
         </nav>
     </div>
 
@@ -86,7 +86,7 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="text-base font-bold text-[#0B1C30]">{{ $store->name }}</h3>
+                            <h3 class="font-inter font-medium text-[#0F172A]">{{ $store->name }}</h3>
                             <div class="flex items-center gap-2 mt-1">
                                 <span class="px-2 py-0.5 bg-[#DCE9FF] text-[#434654] text-[10px] font-bold uppercase rounded-full">{{ ucfirst($store->category ?? 'General') }}</span>
                                 @if ($store->onboarding_completed)
@@ -113,11 +113,11 @@
                     <div class="space-y-2">
                         <div class="flex justify-between items-center text-sm">
                             <span class="text-[#64748B]">Slug:</span>
-                            <span class="font-medium text-[#0F172A]">{{ $store->slug }}</span>
+                            <span class="font-inter font-medium text-[#0F172A]">{{ $store->slug }}</span>
                         </div>
                         <div class="flex justify-between items-center text-sm">
                             <span class="text-[#64748B]">Created:</span>
-                            <span class="font-medium text-[#0F172A]">{{ $store->created_at->format('M d, Y') }}</span>
+                            <span class="font-inter font-medium text-[#0F172A]">{{ $store->created_at->format('M d, Y') }}</span>
                         </div>
                     </div>
                 </div>
@@ -150,7 +150,7 @@
                         <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#003D9B"/>
                     </svg>
                 </div>
-                <h3 class="text-lg font-bold text-[#0B1C30] mb-2">No Stores Yet</h3>
+                <h3 class="text-lg font-bold font-poppins text-[#0B1C30] mb-2">No Stores Yet</h3>
                 <p class="text-[#434654] mb-6">Create your first store to get started</p>
                 <a href="{{ route('onboarding-StoreDetails-1', ['fresh' => 1]) }}" class="inline-flex items-center gap-2 bg-[#0052CC] text-white font-bold px-6 py-3 rounded-lg hover:bg-[#0042a3] transition">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -169,7 +169,7 @@
                         <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#434654"/>
                     </svg>
                 </div>
-                <h3 class="text-base font-bold text-[#0B1C30] mt-4">Add Another Store</h3>
+                <h3 class="text-base font-bold font-poppins text-[#0B1C30] mt-4">Add Another Store</h3>
                 <p class="text-xs text-[#434654] mt-1">Scale your business ecosystem</p>
             </a>
         @endif
@@ -183,8 +183,8 @@
             <div class="grid grid-cols-2 gap-5">
                 <!-- Active Stores -->
                 <div class="bg-[#EFF4FF] rounded-xl p-4 border-l-4 border-l-[#003D9B]">
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Active Stores</div>
-                    <div class="text-xl font-black text-[#0B1C30]">12</div>
+                    <div class="text-[10px] font-bold uppercase font-poppins text-[#434654]">Active Stores</div>
+                    <div class="text-xl font-black font-poppins text-[#0B1C30]">12</div>
                     <div class="flex items-center gap-1 text-[10px] font-bold text-[#4EDEA3] mt-1">
                         <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
                             <path d="M0.7 6L0 5.3L3.7 1.575L5.7 3.575L8.3 1H7V0H10V3H9V1.7L5.7 5L3.7 3L0.7 6Z" fill="#4EDEA3"/>
@@ -194,8 +194,8 @@
                 </div>
                 <!-- Total Sales -->
                 <div class="bg-[#EFF4FF] rounded-xl p-4 border-l-4 border-l-[#003D9B]">
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Total Sales</div>
-                    <div class="text-xl font-black text-[#0B1C30]">$20.6k</div>
+                    <div class="text-[10px] font-bold uppercase font-poppins text-[#434654]">Total Sales</div>
+                    <div class="text-xl font-black font-poppins text-[#0B1C30]">$20.6k</div>
                     <div class="flex items-center gap-1 text-[10px] font-bold text-[#4EDEA3] mt-1">
                         <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
                             <path d="M0.7 6L0 5.3L3.7 1.575L5.7 3.575L8.3 1H7V0H10V3H9V1.7L5.7 5L3.7 3L0.7 6Z" fill="#4EDEA3"/>
@@ -260,7 +260,7 @@
                         </svg>
                     </div>
                     <div>
-                        <div class="text-sm font-medium text-[#0B1C30]">New Order: #8942</div>
+                        <div class="text-sm font-inter font-medium text-[#0B1C30]">New Order: #8942</div>
                         <div class="text-xs text-[#434654]">Modern Marketplace • 2m ago</div>
                     </div>
                 </div>
@@ -272,7 +272,7 @@
                         </svg>
                     </div>
                     <div>
-                        <div class="text-sm font-medium text-[#0B1C30]">Theme Updated: V2.4</div>
+                        <div class="text-sm font-inter font-medium text-[#0B1C30]">Theme Updated: V2.4</div>
                         <div class="text-xs text-[#434654]">Electro Hub • 45m ago</div>
                     </div>
                 </div>
@@ -284,7 +284,7 @@
                         </svg>
                     </div>
                     <div>
-                        <div class="text-sm font-medium text-[#0B1C30]">New Domain Linked</div>
+                        <div class="text-sm font-inter font-medium text-[#0B1C30]">New Domain Linked</div>
                         <div class="text-xs text-[#434654]">Organic Living • 2h ago</div>
                     </div>
                 </div>
@@ -296,7 +296,7 @@
                         </svg>
                     </div>
                     <div>
-                        <div class="text-sm font-medium text-[#0B1C30]">Inventory Alert: Low Stock</div>
+                        <div class="text-sm font-inter font-medium text-[#0B1C30]">Inventory Alert: Low Stock</div>
                         <div class="text-xs text-[#434654]">Modern Marketplace • 5h ago</div>
                     </div>
                 </div>

@@ -22,10 +22,10 @@
 
             <div class="flex items-center gap-3 sm:gap-6">
                 <nav class="hidden md:flex items-center gap-4 lg:gap-8 text-sm">
-                    <a href="{{ route('dashboard') }}" class="text-[#475569] font-medium">Dashboard</a>
+                    <a href="{{ route('dashboard') }}" class="text-[#475569] font-inter font-medium">Dashboard</a>
                     <a href="{{ route('products') }}" class="text-[#0052CC] font-semibold">Products</a>
-                    <a href="{{ route('orders') }}" class="text-[#475569] font-medium">Orders</a>
-                    <a href="{{ route('generalSettings') }}" class="text-[#475569] font-medium">Settings</a>
+                    <a href="{{ route('orders') }}" class="text-[#475569] font-inter font-medium">Orders</a>
+                    <a href="{{ route('generalSettings') }}" class="text-[#475569] font-inter font-medium">Settings</a>
                 </nav>
                 <div class="flex items-center gap-3 sm:gap-4">
                     <button form="store-onboarding-form" type="submit" class="hidden sm:inline-flex bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">Save & Continue</button>
@@ -41,7 +41,7 @@
         </header>
 
         <main class="w-full max-w-5xl mx-auto px-6 py-8 sm:px-10">
-            <nav class="flex items-center gap-2 text-sm font-medium mb-6">
+            <nav class="flex items-center gap-2 text-sm font-inter font-medium mb-6">
                 <a href="{{ route('onboarding-StoreDetails-1') }}" class="text-[#0052CC] opacity-70 hover:opacity-100">Onboarding</a>
                 <svg width="5" height="7" viewBox="0 0 5 7" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M2.68333 3.5L0 0.816667L0.816667 0L4.31667 3.5L0.816667 7L0 6.18333L2.68333 3.5Z" fill="#94A3B8"/>
@@ -51,14 +51,14 @@
 
             <div class="mb-8">
                 <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm font-medium text-[#64748B] uppercase tracking-wider">Step 1 of 3</span>
+                    <span class="text-sm font-inter font-medium text-[#64748B] uppercase tracking-wider">Step 1 of 3</span>
                     <span class="text-xs text-[#64748B]">Setup Progress: 33% Complete</span>
                 </div>
                 <div class="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
                     <div class="w-1/3 h-2 bg-[#0052CC] rounded-full"></div>
                 </div>
                 <div class="flex justify-end mt-1">
-                    <span class="text-xs text-[#0052CC] font-medium">Next: Add First Product</span>
+                    <span class="text-xs text-[#0052CC] font-inter font-medium">Next: Add First Product</span>
                 </div>
             </div>
 
@@ -172,7 +172,7 @@
                     <div class="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-sm font-semibold text-[#334155]">Business Model & Category</h3>
-                            <span class="text-xs text-[#94A3B8] font-medium">Select one or more</span>
+                            <span class="text-xs text-[#94A3B8] font-inter font-medium">Select one or more</span>
                         </div>
                         <input id="categoryInput" type="hidden" name="category" value="{{ $selectedCategory }}">
                         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

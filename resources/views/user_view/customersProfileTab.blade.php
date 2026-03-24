@@ -31,7 +31,7 @@
 
           <div class="flex-1 min-w-0">
             <div class="flex flex-wrap items-center gap-3">
-              <h1 class="text-4xl lg:text-5xl leading-tight text-[#0F172A]">Sarah Jenkins</h1>
+              <h1 class="text-4xl lg:text-5xl font-poppins leading-tight text-[#0F172A]">Sarah Jenkins</h1>
               <span class="inline-flex rounded-full bg-[#D1FAE5] px-2.5 py-1 text-[11px] font-semibold text-[#059669]">VIP CUSTOMER</span>
             </div>
 
@@ -69,7 +69,7 @@
         <div class="p-5 border-b border-[#E2E8F0] flex items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 15.5L6.2 11.3L9.3 14.4L14.8 8.9L18 12.1" stroke="#0052CC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 4H18V9" stroke="#0052CC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <h2 class="text-2xl">Customer Insights</h2>
+            <h2 class="text-2xl font-poppins">Customer Insights</h2>
           </div>
           <span class="rounded-md bg-[#F1F5F9] px-3 py-1 text-[11px] font-bold text-[#64748B] uppercase tracking-[1px]">Model: aASeion Retail</span>
         </div>
