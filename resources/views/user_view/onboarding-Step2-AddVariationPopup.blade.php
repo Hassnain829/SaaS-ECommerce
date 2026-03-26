@@ -19,7 +19,7 @@
             <!-- header with title and close icon -->
             <div class="flex justify-between items-center px-6 py-4 border-b border-[#F1F5F9]">
                 <div>
-                    <h3 class="text-lg font-poppins font-medium text-[#0F172A]">Add Variation Type</h3>
+                    <h3 class="text-lg font-poppins font-medium text-[#0F172A]">{{ $editingVariation ? 'Edit Variation Type' : 'Add Variation Type' }}</h3>
                     <p class="text-xs text-[#64748B] mt-0.5">Define how customers will differentiate your items</p>
                 </div>
                 <a href="{{ route('onboarding-Step2-AddProductVariations') }}" target="_top" class="text-[#94A3B8] hover:text-[#64748B]">
@@ -45,32 +45,21 @@
             <!-- body: category & variation name -->
             <div class="p-6 space-y-6">
                 <!-- two column grid for category & name -->
-                <div class="grid grid-cols-2 gap-4">
-                    <!-- category dropdown -->
-                    <div>
-                        <label class="block text-sm font-semibold text-[#334155] mb-2">Input Type</label>
-                        <div class="relative">
-                            <select name="type" class="w-full appearance-none border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm text-[#0F172A] bg-white focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                                <option value="select" @selected(old('type', 'select') === 'select')>Select</option>
-                                <option value="radio" @selected(old('type') === 'radio')>Radio</option>
-                                <option value="checkbox" @selected(old('type') === 'checkbox')>Checkbox</option>
-                            </select>
-                            <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-                    <!-- variation name input -->
-                    <div>
-                        <label class="block text-sm font-semibold text-[#334155] mb-2">Variation Name</label>
-                        <input id="variationName" name="name" type="text" placeholder="e.g., Fabric" value="{{ old('name', 'Fabric') }}"
-                               class="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                    </div>
+                <input type="hidden" name="type" value="select">
+                <input type="hidden" name="variation_index" value="{{ $editingVariationIndex ?? '' }}">
+                <div>
+                    <label class="block text-sm font-semibold text-[#334155] mb-2">Variation Name</label>
+                    <input id="variationName" name="name" type="text" placeholder="e.g., Fabric" value="{{ old('name', $editingVariation['name'] ?? 'Fabric') }}"
+                           class="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                 </div>
 
                 <div>
                     <label class="block text-sm font-semibold text-[#334155] mb-2">Option Values</label>
-                    <textarea id="variationOptions" name="options" rows="3" placeholder="S, M, L" class="w-full border border-[#E2E8F0] rounded-lg px-4 py-2.5 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ old('options') }}</textarea>
+                    <div class="rounded-lg border border-[#E2E8F0] px-3 py-3">
+                        <div id="variationOptionChips" class="mb-2 flex flex-wrap gap-2"></div>
+                        <input id="variationOptionInput" type="text" placeholder="Type a value and press Enter" class="w-full border-0 p-0 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-0">
+                    </div>
+                    <textarea id="variationOptions" name="options" rows="3" placeholder="S, M, L" class="hidden">{{ old('options', isset($editingVariation['options']) ? implode(', ', $editingVariation['options']) : '') }}</textarea>
                 </div>
 
                 <!-- Type-Specific Suggestions section -->
@@ -127,7 +116,7 @@
             <div class="bg-[#F8FAFC] border-t border-[#F1F5F9] px-6 py-4 flex justify-end items-center gap-3">
                 <a href="{{ route('onboarding-Step2-AddProductVariations') }}" target="_top" class="px-4 py-2 text-sm font-semibold text-[#475569] hover:text-[#1E293B]">Cancel</a>
                 <button type="submit" class="bg-[#0052CC] text-white text-sm font-bold px-5 py-2 rounded-lg shadow-md shadow-[#0052CC]/20 flex items-center gap-2 hover:bg-[#0042a3] transition">
-                    <span>Add Variation</span>
+                    <span>{{ $editingVariation ? 'Update Variation' : 'Add Variation' }}</span>
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 5.33333H0V4H4V0H5.33333V4H9.33333V5.33333H5.33333V9.33333H4V5.33333Z" fill="white"/>
                     </svg>
@@ -142,15 +131,70 @@
         (() => {
             const nameInput = document.getElementById('variationName');
             const optionsInput = document.getElementById('variationOptions');
+            const optionInput = document.getElementById('variationOptionInput');
+            const optionChips = document.getElementById('variationOptionChips');
+            let optionTags = optionsInput.value.split(',').map((value) => value.trim()).filter(Boolean);
+
+            const escapeHtml = (value) => String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+
+            const syncOptions = () => {
+                optionsInput.value = optionTags.join(', ');
+            };
+
+            const renderOptionTags = () => {
+                optionChips.innerHTML = optionTags.map((tag, index) => `<span class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-sm font-medium text-[#0F172A]">${escapeHtml(tag)}<button type="button" class="remove-option-tag leading-none text-[#94A3B8] hover:text-[#B42318]" data-index="${index}">&times;</button></span>`).join('');
+                optionChips.querySelectorAll('.remove-option-tag').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        optionTags = optionTags.filter((_, index) => index !== Number(button.dataset.index));
+                        syncOptions();
+                        renderOptionTags();
+                    });
+                });
+            };
+
+            const addOptionTags = (rawValue) => {
+                const nextTags = String(rawValue || '').split(',').map((value) => value.trim()).filter(Boolean);
+                if (!nextTags.length) return;
+                optionTags = [...optionTags, ...nextTags];
+                syncOptions();
+                renderOptionTags();
+                optionInput.value = '';
+            };
+
             document.querySelectorAll('.suggestion-btn').forEach((button) => {
                 button.addEventListener('click', () => {
                     const value = button.textContent.trim();
                     nameInput.value = value;
-                    if (!optionsInput.value.trim()) {
-                        optionsInput.value = value;
+                    if (!optionTags.length) {
+                        addOptionTags(value);
                     }
                 });
             });
+
+            optionInput?.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ',') {
+                    event.preventDefault();
+                    addOptionTags(optionInput.value);
+                }
+            });
+
+            optionInput?.addEventListener('blur', () => {
+                if (optionInput.value.trim()) {
+                    addOptionTags(optionInput.value);
+                }
+            });
+
+            document.getElementById('variation-popup-form')?.addEventListener('submit', () => {
+                addOptionTags(optionInput?.value || '');
+            });
+
+            syncOptions();
+            renderOptionTags();
         })();
     </script>
 </body>

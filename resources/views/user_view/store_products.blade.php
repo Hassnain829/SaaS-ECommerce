@@ -115,13 +115,6 @@
         </div>
     </div>
 
-    <!-- Success Message -->
-    @if (session('success'))
-        <div class="rounded-lg border border-[#CBE8D1] bg-[#ECFDF3] px-4 py-3 text-sm text-[#05603A]">
-            {{ session('success') }}
-        </div>
-    @endif
-
     <!-- Products Section -->
     <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6">
         <div class="flex items-center justify-between mb-6">

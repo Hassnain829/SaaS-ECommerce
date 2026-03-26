@@ -13,6 +13,7 @@
 </head>
 <body class="min-h-screen bg-[#F5F7F8] flex flex-col md:flex-row md:overflow-hidden md:h-screen overflow-x-hidden font-[Inter]">
 <div id="sidebarOverlay" class="hidden fixed inset-0 z-40 bg-black/30 md:hidden" onclick="closeSidebar()"></div>
+@include('user_view.partials.flash_success')
 
 <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-white border-r border-[#E2E8F0] flex flex-col transform -translate-x-full transition-transform duration-300 md:static md:translate-x-0 md:z-auto w-64 bg-white border-r border-gray-200 h-full">
     <div class="p-6 flex items-center gap-3">

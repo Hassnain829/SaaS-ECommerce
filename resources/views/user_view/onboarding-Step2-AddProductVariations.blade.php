@@ -12,6 +12,8 @@
 </head>
 
 <body class="bg-[#F5F7F8] antialiased text-[#0F172A] min-h-screen flex flex-col overflow-x-hidden font-[Inter]">
+    @include('user_view.partials.flash_success')
+
     <div class="w-full bg-[#F5F7F8] flex flex-col">
         <header
             class="flex justify-between items-center px-4 sm:px-6 lg:px-16 py-3 bg-white border-b border-[#E2E8F0] w-full">
@@ -80,12 +82,6 @@
                     type="button">Upload CSV</button>
             </div>
 
-            @if (session('success'))
-                <div class="mb-6 rounded-lg border border-[#CBE8D1] bg-[#ECFDF3] px-4 py-3 text-sm text-[#05603A]">
-                    {{ session('success') }}
-                </div>
-            @endif
-
             @if ($errors->any())
                 <div class="mb-6 rounded-lg border border-[#F4B8BF] bg-[#FFF1F2] px-4 py-3 text-sm text-[#B42318]">
                     <ul class="list-disc ml-5">
@@ -101,6 +97,12 @@
                 if (empty($step2Data)) {
                     $step2Data = $draft ?? [];
                 }
+
+                $defaultProductTypes = ['physical', 'digital', 'service', 'subscription', 'virtual'];
+                $rawStep2ProductType = (string) ($step2Data['product_type'] ?? 'physical');
+                $usesCustomStep2ProductType = $rawStep2ProductType !== '' && !in_array($rawStep2ProductType, $defaultProductTypes, true);
+                $selectedStep2ProductType = $usesCustomStep2ProductType ? 'custom' : $rawStep2ProductType;
+                $customStep2ProductType = $usesCustomStep2ProductType ? $rawStep2ProductType : (string) ($step2Data['custom_product_type'] ?? '');
 
                 $variationTypes = $step2Data['variation_types'] ?? ($draft['variation_types'] ?? []);
                 $customVariants = $step2Data['variants'] ?? ($draft['variants'] ?? []);
@@ -141,7 +143,7 @@
             @endphp
 
             <form id="product-onboarding-form" action="{{ route('onboarding-Step2-AddProductVariations.store') }}"
-                method="POST">
+                method="POST" enctype="multipart/form-data">
                 @csrf
                 {{-- Determine if this is a new product creation or editing --}}
                 <input type="hidden" name="mode" value="{{ !empty($draft) && isset($draft['name']) ? 'edit' : 'create' }}">
@@ -150,7 +152,7 @@
                 <input id="default-stock-hidden" type="hidden" name="default_stock"
                     value="{{ $step2Data['default_stock'] ?? '' }}">
                 <input type="hidden" name="stock_alert" value="{{ $step2Data['stock_alert'] ?? 5 }}">
-                <input type="hidden" name="product_type" value="{{ $step2Data['product_type'] ?? 'physical' }}">
+                <input id="step2-product-type-value" type="hidden" name="product_type" value="{{ $selectedStep2ProductType === 'custom' ? $customStep2ProductType : $selectedStep2ProductType }}">
 
                 <div id="variation-hidden-inputs">
                     @foreach ($variationTypes as $variationIndex => $variationType)
@@ -170,7 +172,27 @@
                         <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Basic Information</h2>
                     </div>
 
-                    <div class="grid grid-cols-1 gap-6 mb-6">
+                    <div class="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2">
+                        <div>
+                            <label for="step2-product-type" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Product Type</label>
+                            <div class="relative">
+                                <select id="step2-product-type"
+                                    class="w-full appearance-none px-4 py-3 pr-10 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                                    @foreach ($defaultProductTypes as $productType)
+                                        <option value="{{ $productType }}" @selected($selectedStep2ProductType === $productType)>{{ ucfirst($productType) }}</option>
+                                    @endforeach
+                                    <option value="custom" @selected($selectedStep2ProductType === 'custom')>Custom Type</option>
+                                </select>
+                                <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                    <path d="M7 9L3 5H11L7 9Z" fill="#64748B"/>
+                                </svg>
+                            </div>
+                            <div id="step2-custom-product-type-wrap" class="mt-3 {{ $selectedStep2ProductType === 'custom' ? '' : 'hidden' }}">
+                                <input id="step2-custom-product-type" name="custom_product_type" type="text"
+                                    value="{{ $customStep2ProductType }}" placeholder="e.g. Home Decor"
+                                    class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                            </div>
+                        </div>
                         <div>
                             <label for="name" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Product
                                 Name</label>
@@ -193,6 +215,14 @@
                             (optional)</label>
                         <input id="sku" name="sku" type="text" value="{{ $step2Data['sku'] ?? '' }}"
                             class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                    </div>
+
+                    <div class="mt-4">
+                        <label for="step2-product-image" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Product Images</label>
+                        <input id="step2-product-image" name="product_images[]" type="file" accept=".jpg,.jpeg,.png,.webp" multiple
+                            class="w-full px-4 py-3 border border-dashed border-[#CBD5E1] rounded-lg text-sm text-[#475569] bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                        <p class="mt-2 text-xs text-[#64748B]">You can upload multiple images. They will be stored in your project storage.</p>
+                        <div id="step2-product-image-preview" class="mt-3 flex flex-wrap gap-3"></div>
                     </div>
                 </div>
 
@@ -238,9 +268,7 @@
                 <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
                     <div class="flex justify-between items-center mb-4">
                         <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants</h2>
-                        <button id="add-variant-row" type="button"
-                            class="px-3 py-2 rounded-lg border border-[#0052CC] text-[#0052CC] text-sm font-semibold {{ empty($variationTypes) ? 'opacity-50 cursor-not-allowed' : '' }}"
-                            {{ empty($variationTypes) ? 'disabled' : '' }}>Add Variant</button>
+                        <span class="text-sm font-medium text-[#64748B]">Rows are created automatically from variation options</span>
                     </div>
 
                     <div
@@ -271,8 +299,7 @@
 
                     <div id="variant-rows" class="space-y-4"></div>
 
-                    <p class="mt-3 text-xs text-[#64748B]">Each row is one variant. Select one option from each
-                        variation type.</p>
+                    <p class="mt-3 text-xs text-[#64748B]">Each row is created automatically from your variation options.</p>
                 </div>
 
                 <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
@@ -324,9 +351,46 @@
         </main>
     </div>
 
-    <div id="variationModal" class="fixed inset-0 z-50 hidden">
-        <iframe id="variationModalFrame" src="{{ route('onboarding_AddProduct_VariationsPopup') }}"
-            class="h-full w-full border-0 bg-transparent" title="Add Variation Type"></iframe>
+    <div id="variationModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#0F172A]/60 p-4 backdrop-blur-[2px]">
+        <div class="w-full max-w-[512px] overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-2xl">
+            <div class="flex items-center justify-between border-b border-[#F1F5F9] px-6 py-4">
+                <div>
+                    <h3 id="variationModalTitle" class="text-lg font-semibold text-[#0F172A]">Add Variation Type</h3>
+                    <p class="mt-0.5 text-xs text-[#64748B]">Define how customers will differentiate your items</p>
+                </div>
+                <button type="button" id="closeVariationModal" class="text-[#94A3B8] hover:text-[#64748B]">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M1.4 14L0 12.6L5.6 7L0 1.4L1.4 0L7 5.6L12.6 0L14 1.4L8.4 7L14 12.6L12.6 14L7 8.4L1.4 14Z" fill="currentColor"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="variationForm" class="space-y-6 p-6">
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-[#334155]">Variation Name</label>
+                    <input id="variationName" type="text" placeholder="e.g., Size" class="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                </div>
+
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-[#334155]">Option Values</label>
+                    <div class="rounded-lg border border-[#E2E8F0] px-3 py-3 focus-within:ring-2 focus-within:ring-[#0052CC]/20">
+                        <div id="variationOptionChips" class="mb-2 flex flex-wrap gap-2"></div>
+                        <input id="variationOptionInput" type="text" placeholder="Type a value and press Enter" class="w-full border-0 p-0 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-0">
+                    </div>
+                    <textarea id="variationOptions" rows="3" placeholder="S, M, L, XL" class="hidden"></textarea>
+                </div>
+            </form>
+
+            <div class="flex items-center justify-end gap-3 border-t border-[#F1F5F9] bg-[#F8FAFC] px-6 py-4">
+                <button type="button" id="cancelVariationModal" class="px-4 py-2 text-sm font-semibold text-[#475569] hover:text-[#1E293B]">Cancel</button>
+                <button type="button" id="submitVariationModal" class="flex items-center gap-2 rounded-lg bg-[#0052CC] px-5 py-2 text-sm font-bold text-white shadow-md shadow-[#0052CC]/20 transition hover:bg-[#0047B3]">
+                    <span id="submitVariationModalLabel">Add Variation</span>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M4 5.33333H0V4H4V0H5.33333V4H9.33333V5.33333H5.33333V9.33333H4V5.33333Z" fill="white"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -342,9 +406,15 @@
             const nameInput = document.getElementById('name');
             const descriptionInput = document.getElementById('description');
             const skuInput = document.getElementById('sku');
+            const productTypeSelect = document.getElementById('step2-product-type');
+            const productTypeValueInput = document.getElementById('step2-product-type-value');
+            const customProductTypeWrap = document.getElementById('step2-custom-product-type-wrap');
+            const customProductTypeInput = document.getElementById('step2-custom-product-type');
+            const productImageInput = document.getElementById('step2-product-image');
+            const productImagePreview = document.getElementById('step2-product-image-preview');
+            let selectedStep2Images = Array.from(productImageInput?.files || []);
 
             const rowsContainer = document.getElementById('variant-rows');
-            const addRowButton = document.getElementById('add-variant-row');
             const bulkPriceInput = document.getElementById('bulk-price');
             const bulkStockInput = document.getElementById('bulk-stock');
             const applyBulkButton = document.getElementById('apply-bulk-values');
@@ -357,6 +427,17 @@
             const openVariationModal = document.getElementById('openVariationModal');
             const basePriceHiddenInput = document.getElementById('base-price-hidden');
             const defaultStockHiddenInput = document.getElementById('default-stock-hidden');
+            const closeVariationModalButton = document.getElementById('closeVariationModal');
+            const cancelVariationModalButton = document.getElementById('cancelVariationModal');
+            const submitVariationModalButton = document.getElementById('submitVariationModal');
+            const submitVariationModalLabel = document.getElementById('submitVariationModalLabel');
+            const variationModalTitle = document.getElementById('variationModalTitle');
+            const variationNameInput = document.getElementById('variationName');
+            const variationOptionInput = document.getElementById('variationOptionInput');
+            const variationOptionChips = document.getElementById('variationOptionChips');
+            const variationOptionsTextarea = document.getElementById('variationOptions');
+            let variationOptionTags = [];
+            let editingVariationIndex = null;
 
             if (!rowsContainer) {
                 return;
@@ -368,6 +449,90 @@
                 .replaceAll('>', '&gt;')
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
+            const getRowKey = (optionMap) => Object.entries(optionMap || {}).sort(([left], [right]) => Number(left) - Number(right)).map(([variationIndex, optionIndex]) => `${variationIndex}:${optionIndex}`).join('|');
+            const buildRowsFromVariationTypes = (existingRows = []) => {
+                if (!variationTypes.length || variationTypes.some((variationType) => !(variationType.options || []).length)) {
+                    return [];
+                }
+
+                const existingRowsByKey = new Map(existingRows.map((row) => [getRowKey(row.option_map || {}), row]));
+                const combinations = [];
+
+                const walk = (variationIndex, optionMap) => {
+                    if (variationIndex >= variationTypes.length) {
+                        combinations.push({ ...optionMap });
+                        return;
+                    }
+
+                    (variationTypes[variationIndex].options || []).forEach((_, optionIndex) => {
+                        walk(variationIndex + 1, {
+                            ...optionMap,
+                            [variationIndex]: optionIndex,
+                        });
+                    });
+                };
+
+                walk(0, {});
+
+                return combinations.map((optionMap) => {
+                    const existingRow = existingRowsByKey.get(getRowKey(optionMap));
+
+                    return {
+                        option_map: optionMap,
+                        sku: existingRow?.sku ?? '',
+                        price: existingRow?.price ?? defaultPrice,
+                        stock: existingRow?.stock ?? defaultStock,
+                        stock_alert: existingRow?.stock_alert ?? defaultStockAlert,
+                    };
+                });
+            };
+
+            const syncProductTypeState = () => {
+                const isCustomType = productTypeSelect?.value === 'custom';
+                customProductTypeWrap?.classList.toggle('hidden', !isCustomType);
+                if (customProductTypeInput) {
+                    customProductTypeInput.required = Boolean(isCustomType);
+                }
+                if (productTypeValueInput) {
+                    productTypeValueInput.value = isCustomType
+                        ? (customProductTypeInput?.value.trim() || 'custom')
+                        : (productTypeSelect?.value || 'physical');
+                }
+            };
+
+            const syncSelectedFiles = (input, files) => {
+                if (!input) {
+                    return;
+                }
+
+                const transfer = new DataTransfer();
+                files.forEach((file) => transfer.items.add(file));
+                input.files = transfer.files;
+            };
+
+            const renderSelectedImages = () => {
+                if (!productImagePreview || !productImageInput) {
+                    return;
+                }
+
+                if (!selectedStep2Images.length) {
+                    productImagePreview.innerHTML = '';
+                    return;
+                }
+
+                productImagePreview.innerHTML = selectedStep2Images.map((file, index) => {
+                    const objectUrl = URL.createObjectURL(file);
+                    return `<div class="group relative overflow-hidden rounded-2xl border border-[#D9E2EC] bg-white p-2 shadow-sm"><img src="${objectUrl}" alt="${escapeHtml(file.name)}" class="h-20 w-20 rounded-xl object-cover"><button type="button" class="remove-step2-image absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#0F172A]/70 text-xs font-bold text-white" data-index="${index}" aria-label="Remove image">&times;</button><p class="mt-2 max-w-[80px] truncate text-[11px] text-[#64748B]">${escapeHtml(file.name)}</p></div>`;
+                }).join('');
+
+                productImagePreview.querySelectorAll('.remove-step2-image').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        selectedStep2Images = selectedStep2Images.filter((_, index) => index !== Number(button.dataset.index));
+                        syncSelectedFiles(productImageInput, selectedStep2Images);
+                        renderSelectedImages();
+                    });
+                });
+            };
 
             const renderVariationHiddenInputs = () => {
                 if (!variationHiddenInputs) {
@@ -392,8 +557,15 @@
                     name: nameInput ? nameInput.value : '',
                     description: descriptionInput ? descriptionInput.value : '',
                     sku: skuInput ? skuInput.value : '',
+                    product_type: productTypeSelect ? productTypeSelect.value : 'physical',
+                    custom_product_type: customProductTypeInput ? customProductTypeInput.value : '',
                     base_price: bulkPriceInput ? bulkPriceInput.value : '',
                     default_stock: bulkStockInput ? bulkStockInput.value : '',
+                    variation_types: variationTypes.map((variationType) => ({
+                        name: variationType.name ?? '',
+                        type: variationType.type ?? 'select',
+                        options: [...(variationType.options || [])],
+                    })),
                     rows: rows.map((row) => ({
                         option_map: { ...(row.option_map || {}) },
                         sku: row.sku ?? '',
@@ -433,6 +605,14 @@
                     skuInput.value = savedState.sku;
                 }
 
+                if (productTypeSelect && typeof savedState.product_type === 'string') {
+                    productTypeSelect.value = savedState.product_type || 'physical';
+                }
+
+                if (customProductTypeInput && typeof savedState.custom_product_type === 'string') {
+                    customProductTypeInput.value = savedState.custom_product_type;
+                }
+
                 if (bulkPriceInput && typeof savedState.base_price === 'string') {
                     bulkPriceInput.value = savedState.base_price;
                     defaultPrice = savedState.base_price;
@@ -441,6 +621,14 @@
                 if (bulkStockInput && typeof savedState.default_stock === 'string') {
                     bulkStockInput.value = savedState.default_stock;
                     defaultStock = savedState.default_stock;
+                }
+
+                if (Array.isArray(savedState.variation_types)) {
+                    variationTypes = savedState.variation_types.map((variationType) => ({
+                        name: variationType.name ?? '',
+                        type: variationType.type ?? 'select',
+                        options: [...(variationType.options || [])],
+                    }));
                 }
 
                 if (basePriceHiddenInput) {
@@ -460,6 +648,8 @@
                         stock_alert: row.stock_alert ?? defaultStockAlert,
                     }));
                 }
+
+                syncProductTypeState();
             };
 
             const clearSavedStep2State = () => {
@@ -474,12 +664,89 @@
                 const parts = variationTypes.map((variation, variationIndex) => {
                     const selectedIndex = rowData.option_map?.[variationIndex];
                     if (selectedIndex === undefined || selectedIndex === null || selectedIndex === '') {
-                        return variation.name;
+                        return '';
                     }
                     return variation.options?.[selectedIndex] ?? variation.name;
-                });
+                }).filter(Boolean);
 
-                return parts.join(' / ');
+                return parts.length ? parts.join(' / ') : 'Default Variant';
+            };
+
+            const syncVariationOptionTextarea = () => {
+                if (variationOptionsTextarea) {
+                    variationOptionsTextarea.value = variationOptionTags.join(', ');
+                }
+            };
+
+            const renderVariationOptionTags = () => {
+                if (!variationOptionChips) {
+                    return;
+                }
+
+                variationOptionChips.innerHTML = variationOptionTags.map((tag, index) => `
+                    <span class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-sm font-medium text-[#0F172A]">
+                        ${escapeHtml(tag)}
+                        <button type="button" class="remove-variation-tag leading-none text-[#94A3B8] hover:text-[#B42318]" data-index="${index}">&times;</button>
+                    </span>
+                `).join('');
+
+                variationOptionChips.querySelectorAll('.remove-variation-tag').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        variationOptionTags = variationOptionTags.filter((_, index) => index !== Number(button.dataset.index));
+                        syncVariationOptionTextarea();
+                        renderVariationOptionTags();
+                    });
+                });
+            };
+
+            const addVariationOptionTags = (rawValue) => {
+                const nextTags = String(rawValue || '').split(',').map((value) => value.trim()).filter(Boolean);
+                if (!nextTags.length) {
+                    return;
+                }
+
+                variationOptionTags = [...variationOptionTags, ...nextTags];
+                syncVariationOptionTextarea();
+                renderVariationOptionTags();
+                if (variationOptionInput) {
+                    variationOptionInput.value = '';
+                }
+            };
+
+            const openVariationDialog = (variationIndex = null) => {
+                editingVariationIndex = variationIndex;
+                const variation = variationIndex === null ? null : variationTypes[variationIndex];
+                if (variationNameInput) {
+                    variationNameInput.value = variation?.name || '';
+                }
+                variationOptionTags = [...(variation?.options || [])];
+                syncVariationOptionTextarea();
+                renderVariationOptionTags();
+                if (variationModalTitle) {
+                    variationModalTitle.textContent = variation ? 'Edit Variation Type' : 'Add Variation Type';
+                }
+                if (submitVariationModalLabel) {
+                    submitVariationModalLabel.textContent = variation ? 'Update Variation' : 'Add Variation';
+                }
+                showVariationModal();
+                variationNameInput?.focus();
+            };
+
+            const closeVariationDialog = () => {
+                editingVariationIndex = null;
+                if (variationNameInput) {
+                    variationNameInput.value = '';
+                }
+                variationOptionTags = [];
+                syncVariationOptionTextarea();
+                renderVariationOptionTags();
+                if (variationModalTitle) {
+                    variationModalTitle.textContent = 'Add Variation Type';
+                }
+                if (submitVariationModalLabel) {
+                    submitVariationModalLabel.textContent = 'Add Variation';
+                }
+                hideVariationModal();
             };
 
             const renderVariationTypeCards = () => {
@@ -511,61 +778,69 @@
 
                     return `
                         <div class="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5">
-                            <div class="flex items-center justify-between mb-3">
-                                <span class="text-base text-[#0F172A] font-poppins">Variation ${variationIndex + 1}: ${escapeHtml(variationType.name || 'Variation')}</span>
-                                <span class="text-xs text-[#94A3B8] uppercase">${escapeHtml(variationType.type || 'select')}</span>
+                            <div class="flex items-center justify-between mb-3 gap-3">
+                                <div>
+                                    <span class="text-base text-[#0F172A] font-poppins">Variation ${variationIndex + 1}: ${escapeHtml(variationType.name || 'Variation')}</span>
+                                    <div class="mt-1 text-xs text-[#94A3B8] uppercase">${escapeHtml(variationType.type || 'select')}</div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button type="button" class="edit-variation-type text-xs font-semibold text-[#0052CC]" data-variation-index="${variationIndex}">Edit</button>
+                                    <button type="button" class="remove-variation-type text-xs font-semibold text-[#B42318]" data-variation-index="${variationIndex}">Delete</button>
+                                </div>
                             </div>
                             <div class="flex flex-wrap gap-2">${chips}</div>
                         </div>
                     `;
                 }).join('');
-            };
 
-            const syncAddVariantButtonState = () => {
-                if (!addRowButton) {
-                    return;
-                }
+                variationTypesList.querySelectorAll('.edit-variation-type').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const variationIndex = Number(button.dataset.variationIndex);
+                        if (!Number.isInteger(variationIndex) || !variationTypes[variationIndex]) {
+                            return;
+                        }
 
-                if (!variationTypes.length) {
-                    addRowButton.disabled = true;
-                    addRowButton.classList.add('opacity-50', 'cursor-not-allowed');
-                } else {
-                    addRowButton.disabled = false;
-                    addRowButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                }
-            };
-
-            const createSelect = (rowIndex, variationIndex, variation, selectedValue) => {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'flex-1 min-w-[160px]';
-
-                const label = document.createElement('label');
-                label.className = 'block text-xs font-semibold text-[#64748B] mb-1';
-                label.textContent = variation.name;
-
-                const select = document.createElement('select');
-                select.name = `variants[${rowIndex}][option_map][${variationIndex}]`;
-                select.className = 'w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20';
-
-                const emptyOption = document.createElement('option');
-                emptyOption.value = '';
-                emptyOption.textContent = 'Select option';
-                select.appendChild(emptyOption);
-
-                (variation.options || []).forEach((optionValue, optionIndex) => {
-                    const option = document.createElement('option');
-                    option.value = String(optionIndex);
-                    option.textContent = optionValue;
-                    if (String(selectedValue ?? '') === String(optionIndex)) {
-                        option.selected = true;
-                    }
-                    select.appendChild(option);
+                        saveStep2StateToSession();
+                        openVariationDialog(variationIndex);
+                    });
                 });
 
-                wrapper.appendChild(label);
-                wrapper.appendChild(select);
+                variationTypesList.querySelectorAll('.remove-variation-type').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const variationIndex = Number(button.dataset.variationIndex);
+                        if (!Number.isInteger(variationIndex) || !variationTypes[variationIndex]) {
+                            return;
+                        }
 
-                return wrapper;
+                        variationTypes.splice(variationIndex, 1);
+                        renderVariationHiddenInputs();
+                        renderVariationTypeCards();
+                        rows = buildRowsFromVariationTypes(rows);
+                        renderRows(rows);
+                        saveStep2StateToSession();
+                    });
+                });
+
+                variationTypesList.querySelectorAll('.remove-variation-option').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const variationIndex = Number(button.dataset.variationIndex);
+                        const optionIndex = Number(button.dataset.optionIndex);
+
+                        if (!Number.isInteger(variationIndex) || !Number.isInteger(optionIndex) || !variationTypes[variationIndex]) {
+                            return;
+                        }
+
+                        variationTypes[variationIndex].options.splice(optionIndex, 1);
+                        if ((variationTypes[variationIndex].options || []).length === 0) {
+                            variationTypes.splice(variationIndex, 1);
+                        }
+                        renderVariationHiddenInputs();
+                        renderVariationTypeCards();
+                        rows = buildRowsFromVariationTypes(rows);
+                        renderRows(rows);
+                        saveStep2StateToSession();
+                    });
+                });
             };
 
             const renderRows = (rows) => {
@@ -575,33 +850,25 @@
                     const card = document.createElement('div');
                     card.className = 'border border-[#E2E8F0] rounded-xl p-4 bg-[#F8FAFC]';
 
-                    const top = document.createElement('div');
-                    top.className = 'flex items-center justify-between mb-3';
-
-                    const title = document.createElement('p');
-                    title.className = 'text-sm font-semibold text-[#0F172A]';
-                    title.textContent = `Variant ${rowIndex + 1}: ${buildOptionLabel(rowData)}`;
-
-                    const removeBtn = document.createElement('button');
-                    removeBtn.type = 'button';
-                    removeBtn.className = 'text-xs font-semibold text-[#B42318]';
-                    removeBtn.textContent = 'Remove';
-                    removeBtn.addEventListener('click', () => {
-                        rows.splice(rowIndex, 1);
-                        renderRows(rows);
-                    });
-
-                    top.appendChild(title);
-                    top.appendChild(removeBtn);
-                    card.appendChild(top);
-
                     if (variationTypes.length) {
-                        const selectsWrap = document.createElement('div');
-                        selectsWrap.className = 'flex flex-wrap gap-3 mb-3';
-                        variationTypes.forEach((variation, variationIndex) => {
-                            selectsWrap.appendChild(createSelect(rowIndex, variationIndex, variation, rowData.option_map?.[variationIndex]));
+                        const optionsWrap = document.createElement('div');
+                        optionsWrap.className = 'flex flex-wrap gap-2 mb-3';
+                        Object.entries(rowData.option_map || {}).forEach(([variationIndex, optionIndex]) => {
+                            const variation = variationTypes[Number(variationIndex)];
+                            const optionValue = variation?.options?.[Number(optionIndex)] ?? '';
+
+                            const badge = document.createElement('span');
+                            badge.className = 'inline-flex items-center rounded-lg border border-[#DDE7F3] bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A]';
+                            badge.textContent = `${variation?.name || 'Variation'}: ${optionValue}`;
+                            optionsWrap.appendChild(badge);
+
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = `variants[${rowIndex}][option_map][${variationIndex}]`;
+                            hiddenInput.value = String(optionIndex);
+                            optionsWrap.appendChild(hiddenInput);
                         });
-                        card.appendChild(selectsWrap);
+                        card.appendChild(optionsWrap);
                     }
 
                     const inputsWrap = document.createElement('div');
@@ -676,23 +943,15 @@
             let rows = existingVariants.length ? existingVariants : [];
 
             restoreStep2StateFromSession();
+            if (!rows.length && variationTypes.length) {
+                rows = buildRowsFromVariationTypes(rows);
+            }
 
             renderRows(rows);
             renderVariationHiddenInputs();
             renderVariationTypeCards();
-            syncAddVariantButtonState();
-
-            if (addRowButton) {
-                addRowButton.addEventListener('click', () => {
-                    if (!variationTypes.length) {
-                        return;
-                    }
-
-                    rows.push({ option_map: {}, sku: '', price: '', stock: '', stock_alert: defaultStockAlert });
-                    renderRows(rows);
-                    saveStep2StateToSession();
-                });
-            }
+            syncProductTypeState();
+            renderSelectedImages();
 
             if (applyBulkButton) {
                 applyBulkButton.addEventListener('click', () => {
@@ -738,6 +997,25 @@
                 });
             }
 
+            productTypeSelect?.addEventListener('change', () => {
+                syncProductTypeState();
+                saveStep2StateToSession();
+            });
+
+            customProductTypeInput?.addEventListener('input', () => {
+                syncProductTypeState();
+                saveStep2StateToSession();
+            });
+
+            productImageInput?.addEventListener('change', () => {
+                const incomingFiles = Array.from(productImageInput.files || []);
+                if (incomingFiles.length) {
+                    selectedStep2Images = [...selectedStep2Images, ...incomingFiles];
+                    syncSelectedFiles(productImageInput, selectedStep2Images);
+                }
+                renderSelectedImages();
+            });
+
             rowsContainer.addEventListener('input', (event) => {
                 const target = event.target;
                 if (!(target instanceof HTMLInputElement)) {
@@ -761,67 +1039,6 @@
                 saveStep2StateToSession();
             });
 
-            rowsContainer.addEventListener('change', (event) => {
-                const target = event.target;
-                if (!(target instanceof HTMLSelectElement)) {
-                    return;
-                }
-                const match = target.name.match(/^variants\[(\d+)]\[option_map]\[(\d+)]$/);
-                if (!match) {
-                    return;
-                }
-
-                const rowIndex = Number(match[1]);
-                const variationIndex = Number(match[2]);
-                if (!rows[rowIndex]) {
-                    return;
-                }
-
-                rows[rowIndex].option_map = rows[rowIndex].option_map || {};
-                rows[rowIndex].option_map[variationIndex] = target.value;
-
-                renderRows(rows);
-                saveStep2StateToSession();
-            });
-
-            if (variationTypesList) {
-                variationTypesList.addEventListener('click', (event) => {
-                    const target = event.target;
-                    if (!(target instanceof HTMLButtonElement) || !target.classList.contains('remove-variation-option')) {
-                        return;
-                    }
-
-                    const variationIndex = Number(target.dataset.variationIndex);
-                    const optionIndex = Number(target.dataset.optionIndex);
-
-                    if (!Number.isInteger(variationIndex) || !Number.isInteger(optionIndex) || !variationTypes[variationIndex]) {
-                        return;
-                    }
-
-                    variationTypes[variationIndex].options.splice(optionIndex, 1);
-                    if ((variationTypes[variationIndex].options || []).length === 0) {
-                        variationTypes.splice(variationIndex, 1);
-                    }
-                    renderVariationHiddenInputs();
-                    renderVariationTypeCards();
-                    syncAddVariantButtonState();
-
-                    if (!variationTypes.length) {
-                        rows = [];
-                    } else {
-                        rows = rows.map((row) => ({
-                            ...row,
-                            option_map: Object.fromEntries(
-                                Object.entries(row.option_map || {}).filter(([key]) => Number(key) < variationTypes.length)
-                            ),
-                        }));
-                    }
-
-                    renderRows(rows);
-                    saveStep2StateToSession();
-                });
-            }
-
             const showVariationModal = () => {
                 if (!variationModal) {
                     return;
@@ -841,9 +1058,56 @@
             if (openVariationModal) {
                 openVariationModal.addEventListener('click', () => {
                     saveStep2StateToSession();
-                    showVariationModal();
+                    openVariationDialog();
                 });
             }
+
+            variationOptionInput?.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ',') {
+                    event.preventDefault();
+                    addVariationOptionTags(variationOptionInput.value);
+                }
+            });
+
+            variationOptionInput?.addEventListener('blur', () => {
+                if (variationOptionInput.value.trim()) {
+                    addVariationOptionTags(variationOptionInput.value);
+                }
+            });
+
+            [closeVariationModalButton, cancelVariationModalButton].forEach((button) => {
+                button?.addEventListener('click', closeVariationDialog);
+            });
+
+            submitVariationModalButton?.addEventListener('click', () => {
+                addVariationOptionTags(variationOptionInput?.value || '');
+                const variationName = variationNameInput?.value.trim() || '';
+                const options = (variationOptionsTextarea?.value || '').split(',').map((option) => option.trim()).filter(Boolean);
+
+                if (!variationName || !options.length) {
+                    alert('Please add a variation name and at least one option.');
+                    return;
+                }
+
+                const variationPayload = {
+                    name: variationName,
+                    type: 'select',
+                    options,
+                };
+
+                if (editingVariationIndex === null) {
+                    variationTypes.push(variationPayload);
+                } else {
+                    variationTypes[editingVariationIndex] = variationPayload;
+                }
+
+                rows = buildRowsFromVariationTypes(rows);
+                renderVariationHiddenInputs();
+                renderVariationTypeCards();
+                renderRows(rows);
+                saveStep2StateToSession();
+                closeVariationDialog();
+            });
 
             [nameInput, descriptionInput, skuInput, bulkPriceInput, bulkStockInput].forEach((field) => {
                 if (!field) {
@@ -857,15 +1121,22 @@
             if (variationModal) {
                 variationModal.addEventListener('click', (event) => {
                     if (event.target === variationModal) {
-                        hideVariationModal();
+                        closeVariationDialog();
                     }
                 });
             }
             if (productForm) {
-                productForm.addEventListener('submit', () => {
+                productForm.addEventListener('submit', (event) => {
+                    syncProductTypeState();
+                    if (productTypeSelect?.value === 'custom' && !customProductTypeInput?.value.trim()) {
+                        event.preventDefault();
+                        customProductTypeInput?.focus();
+                        return;
+                    }
                     clearSavedStep2State();
                 });
             }
+            renderVariationOptionTags();
         })();
     </script>
 </body>

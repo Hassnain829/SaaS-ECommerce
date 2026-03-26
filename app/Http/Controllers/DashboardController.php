@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Product;
 use App\Models\Store;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
 {
@@ -72,9 +75,158 @@ class DashboardController extends Controller
         return view('user_view.dashboard');
     }
 
-    public function product()
+    public function product(Request $request): \Illuminate\View\View|StreamedResponse
     {
-        return view('user_view.products');
+        $stores = Store::where('user_id', Auth::id())
+            ->orderBy('name')
+            ->get();
+
+        $selectedStore = null;
+        $storeId = $request->query('storeId');
+
+        if ($storeId) {
+            $selectedStore = $stores->firstWhere('id', (int) $storeId);
+            abort_if(!$selectedStore, 404);
+        }
+
+        $search = trim((string) $request->query('q', ''));
+        $category = trim((string) $request->query('category', ''));
+        $status = trim((string) $request->query('status', ''));
+        $stockFilter = trim((string) $request->query('stock', ''));
+        $sort = trim((string) $request->query('sort', 'latest'));
+
+        $baseQuery = Product::query()
+            ->whereHas('store', fn($query) => $query->where('user_id', Auth::id()))
+            ->with([
+                'store:id,name,currency',
+                'variationTypes.options:id,variation_type_id,value,sort_order',
+                'variants.options:id,variation_type_id,value',
+                'variants:id,product_id,sku,price,stock,stock_alert',
+            ])
+            ->withSum('variants', 'stock')
+            ->withMax('variants', 'stock_alert');
+
+        if ($selectedStore) {
+            $baseQuery->where('store_id', $selectedStore->id);
+        }
+
+        if ($search !== '') {
+            $baseQuery->where(function ($query) use ($search) {
+                $query->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('sku', 'like', '%' . $search . '%');
+            });
+        }
+
+        if ($category !== '') {
+            $baseQuery->where('product_type', $category);
+        }
+
+        if ($status === 'published') {
+            $baseQuery->where('status', true);
+        } elseif ($status === 'draft') {
+            $baseQuery->where('status', false);
+        }
+
+        if ($stockFilter === 'low') {
+            $baseQuery->whereHas('variants', function ($query) {
+                $query->whereColumn('stock', '<=', 'stock_alert')
+                    ->where('stock', '>', 0);
+            });
+        } elseif ($stockFilter === 'out') {
+            $baseQuery->where(function ($query) {
+                $query->whereDoesntHave('variants')
+                    ->orWhereHas('variants', fn($variantQuery) => $variantQuery->selectRaw('product_id')->groupBy('product_id')->havingRaw('SUM(stock) = 0'));
+            });
+        }
+
+        $productsQuery = clone $baseQuery;
+
+        switch ($sort) {
+            case 'name':
+                $productsQuery->orderBy('name');
+                break;
+            case 'price_high':
+                $productsQuery->orderByDesc('base_price');
+                break;
+            case 'price_low':
+                $productsQuery->orderBy('base_price');
+                break;
+            case 'stock_high':
+                $productsQuery->orderByDesc('variants_sum_stock');
+                break;
+            case 'stock_low':
+                $productsQuery->orderBy('variants_sum_stock');
+                break;
+            default:
+                $productsQuery->latest('id');
+                break;
+        }
+
+        if ($request->query('export') === 'csv') {
+            $exportProducts = $productsQuery->get();
+
+            return response()->streamDownload(function () use ($exportProducts) {
+                $handle = fopen('php://output', 'w');
+                fputcsv($handle, ['Store', 'Product', 'SKU', 'Category', 'Status', 'Base Price', 'Inventory']);
+
+                foreach ($exportProducts as $product) {
+                    $inventory = (int) ($product->variants_sum_stock ?? 0);
+                    fputcsv($handle, [
+                        $product->store?->name,
+                        $product->name,
+                        $product->sku,
+                        ucfirst($product->product_type),
+                        $product->status ? 'Published' : 'Draft',
+                        number_format((float) $product->base_price, 2, '.', ''),
+                        $inventory,
+                    ]);
+                }
+
+                fclose($handle);
+            }, 'products-export.csv');
+        }
+
+        $statsQuery = clone $baseQuery;
+        $statsProducts = $statsQuery->get();
+        $availableCategories = $statsProducts
+            ->pluck('product_type')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->mapWithKeys(fn(string $type): array => [$type => Str::title(str_replace(['-', '_'], ' ', $type))])
+            ->all();
+
+        $products = $productsQuery->paginate(10)->withQueryString();
+
+        $totalProducts = $statsProducts->count();
+        $outOfStockCount = $statsProducts->filter(fn(Product $product) => (int) ($product->variants_sum_stock ?? 0) === 0)->count();
+        $lowStockCount = $statsProducts->filter(function (Product $product): bool {
+            $inventory = (int) ($product->variants_sum_stock ?? 0);
+            $alertLevel = (int) ($product->variants_max_stock_alert ?? ($product->meta['stock_alert'] ?? 0));
+
+            return $inventory > 0 && $inventory <= max($alertLevel, 0);
+        })->count();
+        $activeCategoriesCount = $statsProducts->pluck('product_type')->filter()->unique()->count();
+
+        return view('user_view.products', [
+            'selectedStore' => $selectedStore,
+            'stores' => $stores,
+            'products' => $products,
+            'filters' => [
+                'q' => $search,
+                'category' => $category,
+                'status' => $status,
+                'stock' => $stockFilter,
+                'sort' => $sort !== '' ? $sort : 'latest',
+            ],
+            'stats' => [
+                'total_products' => $totalProducts,
+                'out_of_stock' => $outOfStockCount,
+                'low_stock' => $lowStockCount,
+                'active_categories' => $activeCategoriesCount,
+            ],
+            'categories' => $availableCategories,
+        ]);
     }
 
     public function orders()

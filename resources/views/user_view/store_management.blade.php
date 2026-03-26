@@ -23,12 +23,12 @@
 
     <!-- Right icons -->
     <div class="flex items-center gap-3 shrink-0">
-        <a href="{{ route('onboarding-StoreDetails-1', ['fresh' => 1]) }}" class="hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
+        <button type="button" class="js-open-create-store-modal hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
             </svg>
             <span>Create Store</span>
-        </a>
+        </button>
 
         <div class="w-px h-6 bg-[#E2E8F0] hidden sm:block"></div>
 
@@ -76,6 +76,21 @@
     <!-- Stores Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         @forelse ($stores as $store)
+            @php
+                $storeActionPayload = [
+                    'id' => $store->id,
+                    'name' => $store->name,
+                    'primary_market' => $store->settings['primary_market'] ?? 'Global Market',
+                    'currency' => $store->currency,
+                    'timezone' => $store->timezone,
+                    'address' => $store->address,
+                    'category' => $store->category,
+                    'custom_category' => $store->settings['custom_category'] ?? '',
+                    'business_models' => $store->settings['business_models'] ?? [],
+                    'update_url' => route('store.update', ['storeId' => $store->id]),
+                    'delete_url' => route('store.destroy', ['storeId' => $store->id]),
+                ];
+            @endphp
             <!-- Dynamic Store Card -->
             <div class="bg-white rounded-xl shadow-sm border border-transparent p-6">
                 <div class="flex justify-between items-start">
@@ -124,13 +139,18 @@
 
                 <!-- Actions -->
                 <div class="flex items-center gap-3 mt-4">
-                    <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg hover:bg-[#0042a3] transition text-center">View Products</a>
+                    <a href="{{ route('products', ['storeId' => $store->id]) }}" class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg hover:bg-[#0042a3] transition text-center">View Products</a>
                     <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" title="Add Products" class="p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]">
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             <path d="M8 16H10V10H16V8H10V2H8V8H2V10H8V16Z" fill="#434654"/>
                         </svg>
                     </a>
-                    <button class="p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]">
+                    <button
+                        type="button"
+                        class="js-open-edit-store-modal p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]"
+                        data-store='@json($storeActionPayload)'
+                        title="Edit Store"
+                    >
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             <path d="M2 16H3.425L13.2 6.225L11.775 4.8L2 14.575V16ZM0 18V13.75L13.2 0.575C13.4 0.391667 13.6208 0.25 13.8625 0.15C14.1042 0.05 14.3583 0 14.625 0C14.8917 0 15.15 0.05 15.4 0.15C15.65 0.25 15.8667 0.4 16.05 0.6L17.425 2C17.625 2.18333 17.7708 2.4 17.8625 2.65C17.9542 2.9 18 3.15 18 3.4C18 3.66667 17.9542 3.92083 17.8625 4.1625C17.7708 4.40417 17.625 4.625 17.425 4.825L4.25 18H0Z" fill="#434654"/>
                         </svg>
@@ -152,18 +172,18 @@
                 </div>
                 <h3 class="text-lg font-bold font-poppins text-[#0B1C30] mb-2">No Stores Yet</h3>
                 <p class="text-[#434654] mb-6">Create your first store to get started</p>
-                <a href="{{ route('onboarding-StoreDetails-1', ['fresh' => 1]) }}" class="inline-flex items-center gap-2 bg-[#0052CC] text-white font-bold px-6 py-3 rounded-lg hover:bg-[#0042a3] transition">
+                <button type="button" class="js-open-create-store-modal inline-flex items-center gap-2 bg-[#0052CC] text-white font-bold px-6 py-3 rounded-lg hover:bg-[#0042a3] transition">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                         <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
                     </svg>
                     Create First Store
-                </a>
+                </button>
             </div>
         @endforelse
 
         <!-- Add Another Store Card (visible when stores exist) -->
         @if (count($stores) > 0)
-            <a href="{{ route('onboarding-StoreDetails-1', ['fresh' => 1]) }}" class="border-2 border-dashed border-[#C3C6D6]/50 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-[#0052CC] hover:bg-[#F8FAFC] transition">
+            <button type="button" class="js-open-create-store-modal border-2 border-dashed border-[#C3C6D6]/50 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-[#0052CC] hover:bg-[#F8FAFC] transition">
                 <div class="w-14 h-14 bg-[#DCE9FF] rounded-full flex items-center justify-center">
                     <svg width="28" height="24" viewBox="0 0 28 24" fill="none">
                         <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#434654"/>
@@ -171,7 +191,7 @@
                 </div>
                 <h3 class="text-base font-bold font-poppins text-[#0B1C30] mt-4">Add Another Store</h3>
                 <p class="text-xs text-[#434654] mt-1">Scale your business ecosystem</p>
-            </a>
+            </button>
         @endif
     </div>
 
@@ -308,4 +328,7 @@
         </div>
     </div>
 </div>
+
+@include('user_view.partials.store_create_modal')
+@include('user_view.partials.store_edit_modal')
 @endsection

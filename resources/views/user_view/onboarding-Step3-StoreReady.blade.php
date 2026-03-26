@@ -10,6 +10,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen flex flex-col overflow-x-hidden font-[Inter] bg-[#F5F7F8]">
+    @include('user_view.partials.flash_success')
 
     <!-- main container (full width) -->
     <div class="w-full flex flex-col relative overflow-hidden">

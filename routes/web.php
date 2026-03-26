@@ -48,6 +48,10 @@ Route::middleware(['auth', 'role:user'])->group(function () {
     Route::get('/onboarding-Step3-StoreReady', [OnboardingController::class, 'step3'])->name('onboarding_StoreReady');
     Route::post('/onboarding-Step3-StoreReady', [OnboardingController::class, 'completeStep3'])->name('onboarding_StoreReady.complete');
     Route::get('/store-management', [DashboardController::class, 'store_management'])->name('store-management');
+    Route::put('/store/{storeId}', [OnboardingController::class, 'updateStoreFromManagement'])->name('store.update');
+    Route::delete('/store/{storeId}', [OnboardingController::class, 'destroyStoreFromManagement'])->name('store.destroy');
+    Route::put('/product/{productId}', [OnboardingController::class, 'updateProductFromManagement'])->name('product.update');
+    Route::delete('/product/{productId}', [OnboardingController::class, 'destroyProductFromManagement'])->name('product.destroy');
     Route::get('/store/{storeId}/products', [DashboardController::class, 'store_products'])->name('store.products');
     Route::get('/store/{storeId}/add-product', [OnboardingController::class, 'addProductFromStore'])->name('store.add-product');
     Route::post('/store/{storeId}/add-product', [OnboardingController::class, 'storeProductFromStore'])->name('store.add-product.store');

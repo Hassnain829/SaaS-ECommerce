@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -111,9 +112,19 @@ class OnboardingController extends Controller
             'custom_category',
         ]));
 
+        if ($request->boolean('_open_create_store_modal')) {
+            return redirect()
+                ->route('store-management')
+                ->with('success', "Store '{$store->name}' created successfully.")
+                ->with('success_title', 'Store created')
+                ->with('success_meta', 'Store management updated');
+        }
+
         return redirect()
             ->route('onboarding-Step2-AddProductVariations')
-            ->with('success', 'Store details saved. Continue to product setup.');
+            ->with('success', "Store '{$store->name}' saved. You're ready to add your first product.")
+            ->with('success_title', 'Store draft ready')
+            ->with('success_meta', 'Step 1 of 3 completed');
     }
 
     public function step2(Request $request): RedirectResponse|View
@@ -169,7 +180,10 @@ class OnboardingController extends Controller
             'description' => ['nullable', 'string', 'max:4000'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
-            'product_type' => ['required', 'in:physical,digital,service,subscription,virtual'],
+            'product_type' => ['required', 'string', 'max:80'],
+            'custom_product_type' => ['nullable', 'string', 'max:80', 'required_if:product_type,custom'],
+            'product_images' => ['nullable', 'array', 'max:8'],
+            'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'default_stock' => ['required', 'integer', 'min:0'],
             'stock_alert' => ['required', 'integer', 'min:0'],
             'variation_types' => ['nullable', 'array'],
@@ -185,6 +199,19 @@ class OnboardingController extends Controller
             'variants.*.option_map' => ['nullable', 'array'],
             'mode' => ['nullable', 'string', 'in:create,edit'],
         ]);
+
+        if (($validated['product_type'] ?? '') === 'custom') {
+            $validated['product_type'] = trim((string) ($validated['custom_product_type'] ?? ''));
+        } else {
+            $validated['product_type'] = trim((string) $validated['product_type']);
+        }
+
+        if ($validated['product_type'] === '') {
+            return back()
+                ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
+                ->withInput();
+        }
+
         $normalizedVariants = $this->normalizeCustomVariants(
             $request->input('variants', []),
             $validated['variation_types'] ?? [],
@@ -200,7 +227,12 @@ class OnboardingController extends Controller
         $validated['variants'] = $normalizedVariants['variants'];
         $request->session()->put('onboarding_product_draft', $validated);
 
-        DB::transaction(function () use ($validated, $store, $request): void {
+        $imagePaths = [];
+        foreach ($request->file('product_images', []) as $imageFile) {
+            $imagePaths[] = $imageFile->store('product-images', 'public');
+        }
+
+        DB::transaction(function () use ($validated, $store, $request, $imagePaths): void {
             // Only look for existing product if in edit mode
             $product = ($validated['mode'] === 'edit') ? $this->resolveSessionProduct($request, $store) : null;
             $productPayload = [
@@ -213,6 +245,8 @@ class OnboardingController extends Controller
                 'meta' => [
                     'default_stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
+                    'image_path' => $imagePaths[0] ?? null,
+                    'image_paths' => $imagePaths,
                     'onboarding_created' => true,
                 ],
             ];
@@ -331,7 +365,9 @@ class OnboardingController extends Controller
 
         return redirect()
             ->route('onboarding_StoreReady')
-            ->with('success', 'Product details saved. Complete final launch step.');
+            ->with('success', "Product '{$validated['name']}' saved. Complete the final launch step.")
+            ->with('success_title', 'Product added')
+            ->with('success_meta', 'Step 2 of 3 completed');
     }
 
     public function variationPopup(Request $request): RedirectResponse|View
@@ -344,9 +380,19 @@ class OnboardingController extends Controller
                 ->withErrors(['store' => 'Please create a store first.']);
         }
 
+        $draft = $request->session()->get('onboarding_product_draft', []);
+        $variationTypes = $draft['variation_types'] ?? [];
+        $variationIndexInput = $request->query('variation_index');
+        $variationIndex = is_numeric($variationIndexInput) ? (int) $variationIndexInput : null;
+        $editingVariation = $variationIndex !== null && array_key_exists($variationIndex, $variationTypes)
+            ? $variationTypes[$variationIndex]
+            : null;
+
         return view('user_view.onboarding-Step2-AddVariationPopup', [
             'store' => $store,
             'variationInputTypes' => ['select', 'radio', 'checkbox'],
+            'editingVariation' => $editingVariation,
+            'editingVariationIndex' => $editingVariation ? $variationIndex : null,
         ]);
     }
 
@@ -361,12 +407,14 @@ class OnboardingController extends Controller
         }
 
         $payload = [
+            'variation_index' => $request->input('variation_index'),
             'variation_name' => $request->input('variation_name', $request->input('name')),
             'variation_type' => $request->input('variation_type', $request->input('type')),
             'variation_options' => $request->input('variation_options', $request->input('options')),
         ];
 
         $validated = validator($payload, [
+            'variation_index' => ['nullable', 'integer', 'min:0'],
             'variation_name' => ['required', 'string', 'max:100'],
             'variation_type' => ['required', 'in:select,radio,checkbox'],
             'variation_options' => ['required', 'string', 'max:1000'],
@@ -386,18 +434,27 @@ class OnboardingController extends Controller
         $draft = $request->session()->get('onboarding_product_draft', []);
         $variationTypes = $draft['variation_types'] ?? [];
 
-        $variationTypes[] = [
+        $variationData = [
             'name' => $validated['variation_name'],
             'type' => $validated['variation_type'],
             'options' => $parsedOptions,
         ];
+
+        $variationIndex = $validated['variation_index'] ?? null;
+        if ($variationIndex !== null && array_key_exists($variationIndex, $variationTypes)) {
+            $variationTypes[$variationIndex] = $variationData;
+        } else {
+            $variationTypes[] = $variationData;
+        }
 
         $draft['variation_types'] = $variationTypes;
         $request->session()->put('onboarding_product_draft', $draft);
 
         return redirect()
             ->route('onboarding-Step2-AddProductVariations')
-            ->with('success', 'Variation added to product draft.');
+            ->with('success', $variationIndex !== null ? 'Variation updated in your product draft.' : 'Variation added to your product draft.')
+            ->with('success_title', $variationIndex !== null ? 'Variation updated' : 'Variation added')
+            ->with('success_meta', 'Product options refreshed');
     }
 
     public function customCategoryOverlay(Request $request): View
@@ -651,7 +708,7 @@ class OnboardingController extends Controller
         return $slug;
     }
 
-    private function uniqueProductSlug(int $storeId, string $name): string
+    private function uniqueProductSlug(int $storeId, string $name, ?int $ignoreProductId = null): string
     {
         $base = Str::slug($name);
         $base = $base !== '' ? $base : 'product';
@@ -659,7 +716,10 @@ class OnboardingController extends Controller
         $slug = $base;
         $counter = 1;
 
-        while (Product::where('store_id', $storeId)->where('slug', $slug)->exists()) {
+        while (Product::where('store_id', $storeId)
+            ->where('slug', $slug)
+            ->when($ignoreProductId, fn($query) => $query->where('id', '!=', $ignoreProductId))
+            ->exists()) {
             $slug = $base . '-' . $counter;
             $counter++;
         }
@@ -743,11 +803,6 @@ class OnboardingController extends Controller
                 $rawOptionIndex = $optionMapInput[$variationIndex] ?? null;
 
                 if ($rawOptionIndex === null || $rawOptionIndex === '') {
-                    $errors["variants.$rowIndex.option_map.$variationIndex"] = sprintf(
-                        'Variant %d is missing a value for %s.',
-                        $rowIndex + 1,
-                        $variationType['name']
-                    );
                     continue;
                 }
 
@@ -774,11 +829,16 @@ class OnboardingController extends Controller
             }
 
             if (!empty($variationTypes)) {
-                $combinationKey = implode('|', $optionMap);
-
-                if ($combinationKey === '' || count($optionMap) !== count($variationTypes)) {
+                if (count($optionMap) === 0) {
                     continue;
                 }
+
+                ksort($optionMap);
+                $combinationKey = implode('|', array_map(
+                    static fn(int $variationIndex, int $optionIndex): string => $variationIndex . ':' . $optionIndex,
+                    array_keys($optionMap),
+                    $optionMap
+                ));
 
                 if (isset($seenCombinationKeys[$combinationKey])) {
                     $errors["variants.$rowIndex.option_map"] = sprintf(
@@ -812,14 +872,313 @@ class OnboardingController extends Controller
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
 
-        $draft = [];
-
-        return view('user_view.add_product_to_store', [
-            'store' => $store,
-            'draft' => $draft,
-            'productTypes' => ['physical', 'digital', 'service', 'subscription', 'virtual'],
-            'variationInputTypes' => ['select', 'radio', 'checkbox'],
+        return redirect()->route('products', [
+            'storeId' => $store->id,
+            'openAddProduct' => 1,
         ]);
+    }
+
+    public function updateStoreFromManagement(Request $request, $storeId): RedirectResponse
+    {
+        $store = Store::where('id', $storeId)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'primary_market' => ['required', 'string', 'max:80'],
+            'address' => ['nullable', 'string', 'max:1000'],
+            'currency' => ['required', 'string', 'max:8'],
+            'timezone' => ['required', 'string', 'max:100'],
+            'category' => ['nullable', 'string', 'max:80', 'required_without:custom_category'],
+            'business_models' => ['nullable', 'array'],
+            'business_models.*' => ['string', 'max:80'],
+            'custom_category' => ['nullable', 'string', 'max:80', 'required_without:category'],
+            'store_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,svg', 'max:2048'],
+        ]);
+
+        $normalizedCategory = $validated['category'] ?? null;
+        if (!$normalizedCategory && !empty($validated['custom_category'])) {
+            $normalizedCategory = 'custom';
+        }
+
+        $logoPath = $store->logo;
+        if ($request->hasFile('store_logo')) {
+            $logoPath = $request->file('store_logo')->store('store-logos', 'public');
+        }
+
+        $store->update([
+            'name' => $validated['name'],
+            'logo' => $logoPath,
+            'address' => $validated['address'] ?? null,
+            'currency' => $validated['currency'],
+            'timezone' => $validated['timezone'],
+            'category' => $normalizedCategory,
+            'settings' => $this->mergeStoreSettings($store->settings, [
+                'primary_market' => $validated['primary_market'],
+                'business_models' => $validated['business_models'] ?? [],
+                'custom_category' => $validated['custom_category'] ?? null,
+            ]),
+        ]);
+
+        return redirect()
+            ->route('store-management')
+            ->with('success', "Store '{$store->name}' updated successfully.")
+            ->with('success_title', 'Store updated')
+            ->with('success_meta', 'Changes are now live');
+    }
+
+    public function destroyStoreFromManagement(Request $request, $storeId): RedirectResponse
+    {
+        $store = Store::where('id', $storeId)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $deletedStoreName = $store->name;
+        $store->delete();
+
+        if ((int) $request->session()->get('onboarding_store_id') === (int) $storeId) {
+            $request->session()->forget([
+                'onboarding_store_draft',
+                'onboarding_store_id',
+                'onboarding_last_store_id',
+                'onboarding_product_draft',
+                'onboarding_product_id',
+                'onboarding_last_product_id',
+            ]);
+        }
+
+        return redirect()
+            ->route('store-management')
+            ->with('success', "Store '{$deletedStoreName}' deleted successfully.")
+            ->with('success_title', 'Store removed')
+            ->with('success_meta', 'Store list refreshed');
+    }
+
+    public function updateProductFromManagement(Request $request, $productId): RedirectResponse
+    {
+        $product = Product::query()
+            ->where('id', $productId)
+            ->whereHas('store', fn($query) => $query->where('user_id', $request->user()->id))
+            ->firstOrFail();
+
+        $validated = $request->validate([
+            'store_id' => ['required', 'integer'],
+            'name' => ['required', 'string', 'max:180'],
+            'description' => ['nullable', 'string', 'max:4000'],
+            'base_price' => ['required', 'numeric', 'min:0'],
+            'sku' => ['nullable', 'string', 'max:120'],
+            'product_type' => ['required', 'string', 'max:80'],
+            'custom_product_type' => ['nullable', 'string', 'max:80', 'required_if:product_type,custom'],
+            'existing_image_paths' => ['nullable', 'array', 'max:8'],
+            'existing_image_paths.*' => ['string', 'max:255'],
+            'stock_alert' => ['required', 'integer', 'min:0'],
+            'product_images' => ['nullable', 'array', 'max:8'],
+            'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'variation_types' => ['nullable', 'array'],
+            'variation_types.*.name' => ['required', 'string', 'max:100'],
+            'variation_types.*.type' => ['required', 'in:select,radio,checkbox'],
+            'variation_types.*.options' => ['required', 'array', 'min:1'],
+            'variation_types.*.options.*' => ['required', 'string', 'max:80'],
+            'variants' => ['nullable', 'array'],
+            'variants.*.sku' => ['nullable', 'string', 'max:120'],
+            'variants.*.price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.stock' => ['nullable', 'integer', 'min:0'],
+            'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
+            'variants.*.option_map' => ['nullable', 'array'],
+        ]);
+
+        $targetStore = Store::query()
+            ->where('id', (int) $validated['store_id'])
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        if (($validated['product_type'] ?? '') === 'custom') {
+            $validated['product_type'] = trim((string) ($validated['custom_product_type'] ?? ''));
+        } else {
+            $validated['product_type'] = trim((string) $validated['product_type']);
+        }
+
+        if ($validated['product_type'] === '') {
+            return back()
+                ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
+                ->withInput();
+        }
+
+        $normalizedVariants = $this->normalizeCustomVariants(
+            $request->input('variants', []),
+            $validated['variation_types'] ?? [],
+            (float) $validated['base_price'],
+            0,
+            (int) $validated['stock_alert']
+        );
+
+        if (!empty($normalizedVariants['errors'])) {
+            return back()->withErrors($normalizedVariants['errors'])->withInput();
+        }
+
+        $validated['variants'] = $normalizedVariants['variants'];
+
+        $meta = $product->meta ?? [];
+        $currentImagePaths = collect($meta['image_paths'] ?? array_filter([$meta['image_path'] ?? null]))
+            ->filter()
+            ->values();
+        $retainedImagePaths = collect($validated['existing_image_paths'] ?? [])
+            ->filter(fn($path) => $currentImagePaths->contains($path))
+            ->values();
+
+        foreach ($currentImagePaths->diff($retainedImagePaths) as $removedImagePath) {
+            Storage::disk('public')->delete($removedImagePath);
+        }
+
+        $newImagePaths = [];
+        foreach ($request->file('product_images', []) as $imageFile) {
+            $newImagePaths[] = $imageFile->store('product-images', 'public');
+        }
+
+        $finalImagePaths = $retainedImagePaths->merge($newImagePaths)->values()->all();
+        $meta['image_paths'] = $finalImagePaths;
+        $meta['image_path'] = $finalImagePaths[0] ?? null;
+
+        $meta['default_stock'] = $meta['default_stock'] ?? 0;
+        $meta['stock_alert'] = (int) $validated['stock_alert'];
+
+        DB::transaction(function () use ($product, $targetStore, $validated, $meta): void {
+            $product->update([
+                'store_id' => $targetStore->id,
+                'name' => $validated['name'],
+                'slug' => $this->uniqueProductSlug($targetStore->id, $validated['name'], $product->id),
+                'description' => $validated['description'] ?? null,
+                'base_price' => $validated['base_price'],
+                'sku' => $validated['sku'] ?? null,
+                'product_type' => $validated['product_type'],
+                'meta' => $meta,
+            ]);
+
+            $product->variationTypes()->delete();
+            $product->variants()->delete();
+
+            $variationOptionSets = [];
+            $variationOptionMap = [];
+
+            foreach (($validated['variation_types'] ?? []) as $variationIndex => $variationData) {
+                $variationType = ProductVariationType::create([
+                    'product_id' => $product->id,
+                    'name' => $variationData['name'],
+                    'type' => $variationData['type'],
+                ]);
+
+                $options = [];
+
+                foreach ($variationData['options'] as $optionIndex => $optionValue) {
+                    $option = ProductVariationOption::create([
+                        'variation_type_id' => $variationType->id,
+                        'value' => $optionValue,
+                        'sort_order' => $optionIndex,
+                    ]);
+
+                    $options[] = $option;
+                    $variationOptionMap[$variationIndex][$optionIndex] = $option;
+                }
+
+                if (!empty($options)) {
+                    $variationOptionSets[] = [
+                        'index' => $variationIndex,
+                        'variation_name' => $variationType->name,
+                        'options' => $options,
+                    ];
+                }
+            }
+
+            $combinations = $this->generateCombinations($variationOptionSets);
+            $customVariants = $validated['variants'] ?? [];
+
+            if (!empty($customVariants)) {
+                foreach ($customVariants as $variantData) {
+                    $selectedOptions = [];
+
+                    foreach (($variantData['option_map'] ?? []) as $variationIndex => $optionIndex) {
+                        if (isset($variationOptionMap[$variationIndex][$optionIndex])) {
+                            $selectedOptions[] = $variationOptionMap[$variationIndex][$optionIndex];
+                        }
+                    }
+
+                    $suffix = implode('-', array_map(
+                        static fn(ProductVariationOption $option): string => $option->value,
+                        $selectedOptions
+                    ));
+
+                    $variant = ProductVariant::create([
+                        'product_id' => $product->id,
+                        'sku' => $variantData['sku'] ?: $this->buildSku($targetStore->name, $product->name, $suffix),
+                        'price' => $variantData['price'],
+                        'stock' => $variantData['stock'],
+                        'stock_alert' => $variantData['stock_alert'],
+                    ]);
+
+                    $variant->options()->sync(array_map(
+                        static fn(ProductVariationOption $option): int => $option->id,
+                        $selectedOptions
+                    ));
+                }
+            } elseif (empty($combinations)) {
+                $defaultVariant = ProductVariant::create([
+                    'product_id' => $product->id,
+                    'sku' => $this->buildSku($targetStore->name, $product->name),
+                    'price' => $validated['base_price'],
+                    'stock' => 0,
+                    'stock_alert' => $validated['stock_alert'],
+                ]);
+
+                $defaultVariant->options()->sync([]);
+            } else {
+                foreach ($combinations as $combination) {
+                    $variant = ProductVariant::create([
+                        'product_id' => $product->id,
+                        'sku' => $this->buildSku(
+                            $targetStore->name,
+                            $product->name,
+                            implode('-', array_map(static fn($entry) => $entry['option']->value, $combination))
+                        ),
+                        'price' => $validated['base_price'],
+                        'stock' => 0,
+                        'stock_alert' => $validated['stock_alert'],
+                    ]);
+
+                    $variant->options()->sync(array_map(static fn($entry) => $entry['option']->id, $combination));
+                }
+            }
+        });
+
+        return redirect()
+            ->route('products', ['storeId' => $targetStore->id])
+            ->with('success', "Product '{$product->name}' updated successfully.")
+            ->with('success_title', 'Product updated')
+            ->with('success_meta', "Store: {$targetStore->name}");
+    }
+
+    public function destroyProductFromManagement(Request $request, $productId): RedirectResponse
+    {
+        $product = Product::query()
+            ->where('id', $productId)
+            ->whereHas('store', fn($query) => $query->where('user_id', $request->user()->id))
+            ->firstOrFail();
+
+        $redirectStoreId = (int) ($request->input('store_id') ?: $product->store_id);
+        $imagePaths = $product->meta['image_paths'] ?? array_filter([$product->meta['image_path'] ?? null]);
+
+        $deletedProductName = $product->name;
+        $product->delete();
+
+        foreach ($imagePaths as $imagePath) {
+            Storage::disk('public')->delete($imagePath);
+        }
+
+        return redirect()
+            ->route('products', ['storeId' => $redirectStoreId ?: null])
+            ->with('success', "Product '{$deletedProductName}' deleted successfully.")
+            ->with('success_title', 'Product removed')
+            ->with('success_meta', 'Catalog updated');
     }
 
     public function storeProductFromStore(Request $request, $storeId): RedirectResponse
@@ -833,7 +1192,10 @@ class OnboardingController extends Controller
             'description' => ['nullable', 'string', 'max:4000'],
             'bulk_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
-            'product_type' => ['required', 'in:physical,digital,service,subscription,virtual'],
+            'product_type' => ['required', 'string', 'max:80'],
+            'custom_product_type' => ['nullable', 'string', 'max:80', 'required_if:product_type,custom'],
+            'product_images' => ['nullable', 'array', 'max:8'],
+            'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'bulk_stock' => ['required', 'integer', 'min:0'],
             'stock_alert' => ['required', 'integer', 'min:0'],
             'variation_types' => ['nullable', 'array'],
@@ -848,6 +1210,18 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
         ]);
+
+        if (($validated['product_type'] ?? '') === 'custom') {
+            $validated['product_type'] = trim((string) ($validated['custom_product_type'] ?? ''));
+        } else {
+            $validated['product_type'] = trim((string) $validated['product_type']);
+        }
+
+        if ($validated['product_type'] === '') {
+            return back()
+                ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
+                ->withInput();
+        }
 
         // Map bulk_price and bulk_stock to base_price and default_stock for processing
         $validated['base_price'] = $validated['bulk_price'];
@@ -866,8 +1240,12 @@ class OnboardingController extends Controller
         }
 
         $validated['variants'] = $normalizedVariants['variants'];
+        $imagePaths = [];
+        foreach ($request->file('product_images', []) as $imageFile) {
+            $imagePaths[] = $imageFile->store('product-images', 'public');
+        }
 
-        DB::transaction(function () use ($validated, $store): void {
+        DB::transaction(function () use ($validated, $store, $imagePaths): void {
             $productPayload = [
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -878,6 +1256,8 @@ class OnboardingController extends Controller
                 'meta' => [
                     'default_stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
+                    'image_path' => $imagePaths[0] ?? null,
+                    'image_paths' => $imagePaths,
                 ],
             ];
 
@@ -906,48 +1286,82 @@ class OnboardingController extends Controller
                     ]);
 
                     $options[] = $option;
+                    $variationOptionMap[$variationIndex][$optionIndex] = $option;
                 }
 
-                $variationOptionSets[] = [
-                    'index' => $variationIndex,
-                    'variation_name' => $variationData['name'],
-                    'options' => $options,
-                ];
-                $variationOptionMap[$variationIndex] = $variationData['name'];
+                if (!empty($options)) {
+                    $variationOptionSets[] = [
+                        'index' => $variationIndex,
+                        'variation_name' => $variationType->name,
+                        'options' => $options,
+                    ];
+                }
             }
 
             $combinations = $this->generateCombinations($variationOptionSets);
+            $customVariants = $validated['variants'] ?? [];
 
-            foreach (($validated['variants'] ?? []) as $variantData) {
-                $combination = [];
-                $variantLabel = [];
+            if (!empty($customVariants)) {
+                foreach ($customVariants as $variantData) {
+                    $selectedOptions = [];
 
-                foreach ($variantData['option_map'] as $variationIndex => $selectedOptionIndex) {
-                    /** @var ProductVariationOption $option */
-                    $option = $variationOptionSets[$variationIndex]['options'][$selectedOptionIndex] ?? null;
-
-                    if ($option) {
-                        $combination[] = $option->id;
-                        $variantLabel[] = $option->value;
+                    foreach (($variantData['option_map'] ?? []) as $variationIndex => $optionIndex) {
+                        if (isset($variationOptionMap[$variationIndex][$optionIndex])) {
+                            $selectedOptions[] = $variationOptionMap[$variationIndex][$optionIndex];
+                        }
                     }
-                }
 
-                if (!empty($combination)) {
-                    ProductVariant::create([
+                    $suffix = implode('-', array_map(
+                        static fn(ProductVariationOption $option): string => $option->value,
+                        $selectedOptions
+                    ));
+
+                    $variant = ProductVariant::create([
                         'product_id' => $product->id,
-                        'variation_option_ids' => $combination,
-                        'sku' => $variantData['sku'],
+                        'sku' => $variantData['sku'] ?: $this->buildSku($store->name, $product->name, $suffix),
                         'price' => $variantData['price'],
                         'stock' => $variantData['stock'],
                         'stock_alert' => $variantData['stock_alert'],
                     ]);
+
+                    $variant->options()->sync(array_map(
+                        static fn(ProductVariationOption $option): int => $option->id,
+                        $selectedOptions
+                    ));
+                }
+            } elseif (empty($combinations)) {
+                $defaultVariant = ProductVariant::create([
+                    'product_id' => $product->id,
+                    'sku' => $this->buildSku($store->name, $product->name),
+                    'price' => $validated['base_price'],
+                    'stock' => $validated['default_stock'],
+                    'stock_alert' => $validated['stock_alert'],
+                ]);
+
+                $defaultVariant->options()->sync([]);
+            } else {
+                foreach ($combinations as $combination) {
+                    $variant = ProductVariant::create([
+                        'product_id' => $product->id,
+                        'sku' => $this->buildSku(
+                            $store->name,
+                            $product->name,
+                            implode('-', array_map(static fn($entry) => $entry['option']->value, $combination))
+                        ),
+                        'price' => $validated['base_price'],
+                        'stock' => $validated['default_stock'],
+                        'stock_alert' => $validated['stock_alert'],
+                    ]);
+
+                    $variant->options()->sync(array_map(static fn($entry) => $entry['option']->id, $combination));
                 }
             }
         });
 
         return redirect()
-            ->route('store.products', ['storeId' => $store->id])
-            ->with('success', 'Product added successfully!');
+            ->route('products', ['storeId' => $store->id])
+            ->with('success', "Product '{$validated['name']}' added to {$store->name}.")
+            ->with('success_title', 'Product added')
+            ->with('success_meta', 'Catalog updated');
     }
 }
-

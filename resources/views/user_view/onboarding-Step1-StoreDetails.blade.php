@@ -8,6 +8,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-[#F5F7F8] antialiased text-[#0F172A] min-h-screen flex flex-col overflow-x-hidden font-[Inter]">
+    @include('user_view.partials.flash_success')
 
     <div class="w-full bg-[#F5F7F8] flex flex-col">
         <header class="flex justify-between items-center px-4 sm:px-6 lg:px-16 py-3 bg-white border-b border-[#E2E8F0] w-full">
@@ -83,12 +84,6 @@
                     $businessModelOld = old('business_models', $storeDraft['business_models'] ?? []);
                     $customCategoryOld = old('custom_category', $storeDraft['custom_category'] ?? '');
                 @endphp
-
-                @if (session('success'))
-                    <div class="mb-6 rounded-lg border border-[#CBE8D1] bg-[#ECFDF3] px-4 py-3 text-sm text-[#05603A]">
-                        {{ session('success') }}
-                    </div>
-                @endif
 
                 <form id="store-onboarding-form" action="{{ route('onboarding-StoreDetails-1.store') }}" method="POST" enctype="multipart/form-data" class="space-y-8">
                     @csrf
