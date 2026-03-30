@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-transparent font-sans text-[#0F172A] antialiased" style="font-family: 'Inter', system-ui, sans-serif;">
+<body class="user-typography min-h-screen bg-transparent font-sans text-[#0F172A] antialiased" style="font-family: 'Inter', system-ui, sans-serif;">
     <div class="flex min-h-screen items-center justify-center bg-slate-700/80 px-5 py-7 backdrop-blur-sm">
         <div class="w-full max-w-4xl overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-2xl">
             <div class="border-b border-[#F1F5F9] px-6 pb-4 pt-6">

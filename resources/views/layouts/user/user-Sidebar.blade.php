@@ -11,7 +11,7 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
-<body class="min-h-screen bg-[#F5F7F8] flex flex-col md:flex-row md:overflow-hidden md:h-screen overflow-x-hidden font-[Inter]">
+<body class="user-typography min-h-screen bg-[#F5F7F8] flex flex-col md:flex-row md:overflow-hidden md:h-screen overflow-x-hidden font-[Inter]">
 <div id="sidebarOverlay" class="hidden fixed inset-0 z-40 bg-black/30 md:hidden" onclick="closeSidebar()"></div>
 @include('user_view.partials.flash_success')
 
@@ -132,7 +132,7 @@
         @yield('topbar')
     @endif
 
-    <div class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+    <div class="user-dashboard flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
         @yield('content')
     </div>
 </main>

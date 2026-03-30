@@ -10,7 +10,7 @@
   @vite(['resources/css/app.css', 'resources/js/app.js'])
 
 </head>
-<body class="bg-white antialiased min-h-screen flex flex-col overflow-x-hidden font-[Inter]">
+<body class="user-typography bg-white antialiased min-h-screen flex flex-col overflow-x-hidden font-[Inter]">
   <div class="flex-1 flex flex-col md:flex-row">
     <section class="w-full md:w-1/2 bg-white px-6 py-8 md:px-12 lg:px-16 xl:px-20 flex flex-col justify-center items-center">
       <div class="w-full max-w-[448px]">

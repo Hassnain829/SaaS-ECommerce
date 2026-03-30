@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link href='https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap' rel='stylesheet'>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-<body class="min-h-screen flex items-center justify-center p-4 overflow-x-hidden font-[Inter]">
+<body class="user-typography min-h-screen flex items-center justify-center p-4 overflow-x-hidden font-[Inter]">
 
     <!-- semiâ€‘transparent overlay (mimics the popup background) -->
     <div class="fixed inset-0 bg-[#0F172A]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
