@@ -75,18 +75,16 @@ class DashboardController extends Controller
         return view('user_view.dashboard');
     }
 
-    public function product(Request $request): \Illuminate\View\View|StreamedResponse
+    public function product(Request $request): \Illuminate\View\View|RedirectResponse|StreamedResponse
     {
-        $stores = Store::where('user_id', Auth::id())
-            ->orderBy('name')
-            ->get();
+        $stores = $request->attributes->get('availableStores')
+            ?? $request->user()->memberStores()->orderBy('stores.name')->get();
+        $selectedStore = $request->attributes->get('currentStore');
 
-        $selectedStore = null;
-        $storeId = $request->query('storeId');
-
-        if ($storeId) {
-            $selectedStore = $stores->firstWhere('id', (int) $storeId);
-            abort_if(!$selectedStore, 404);
+        if (! $selectedStore) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No accessible store was found for your account. Create a store or ask for access first.']);
         }
 
         $search = trim((string) $request->query('q', ''));
@@ -96,7 +94,7 @@ class DashboardController extends Controller
         $sort = trim((string) $request->query('sort', 'latest'));
 
         $baseQuery = Product::query()
-            ->whereHas('store', fn($query) => $query->where('user_id', Auth::id()))
+            ->where('store_id', $selectedStore->id)
             ->with([
                 'store:id,name,currency',
                 'variationTypes.options:id,variation_type_id,value,sort_order',
@@ -105,10 +103,6 @@ class DashboardController extends Controller
             ])
             ->withSum('variants', 'stock')
             ->withMax('variants', 'stock_alert');
-
-        if ($selectedStore) {
-            $baseQuery->where('store_id', $selectedStore->id);
-        }
 
         if ($search !== '') {
             $baseQuery->where(function ($query) use ($search) {
@@ -310,23 +304,23 @@ class DashboardController extends Controller
     }
     public function store_management()
     {
-        $stores = Store::where('user_id', Auth::id())
-            ->latest('id')
+        $stores = request()->user()->memberStores()
+            ->orderBy('stores.name')
             ->get();
 
         return view('user_view.store_management', compact('stores'));
     }
 
-    public function store_products($storeId)
+    public function store_products(Request $request, $storeId)
     {
-        $store = Store::where('id', $storeId)
-            ->where('user_id', Auth::id())
-            ->with('products')
+        $store = $request->user()->memberStores()
+            ->where('stores.id', $storeId)
             ->firstOrFail();
 
-        return view('user_view.store_products', [
-            'store' => $store,
-            'products' => $store->products()->with('variants')->latest('id')->get(),
-        ]);
+        $request->session()->put('current_store_id', $store->id);
+        $request->attributes->set('currentStore', $store);
+        view()->share('currentStore', $store);
+
+        return redirect()->route('products');
     }
 }

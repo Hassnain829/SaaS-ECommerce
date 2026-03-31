@@ -11,9 +11,8 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
-<body class="user-typography min-h-screen bg-[#F5F7F8] flex flex-col md:flex-row md:overflow-hidden md:h-screen overflow-x-hidden font-[Inter]">
+<body class="min-h-screen bg-[#F5F7F8] flex flex-col md:flex-row md:overflow-hidden md:h-screen overflow-x-hidden font-[Inter]">
 <div id="sidebarOverlay" class="hidden fixed inset-0 z-40 bg-black/30 md:hidden" onclick="closeSidebar()"></div>
-@include('user_view.partials.flash_success')
 
 <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-white border-r border-[#E2E8F0] flex flex-col transform -translate-x-full transition-transform duration-300 md:static md:translate-x-0 md:z-auto w-64 bg-white border-r border-gray-200 h-full">
     <div class="p-6 flex items-center gap-3">
@@ -31,6 +30,44 @@
             <div class="text-xs text-[#64748B]">@yield('sidebar_brand_subtitle', 'Enterprise Admin')</div>
         </div>
     </div>
+
+    @if (!empty($availableStores) && count($availableStores) > 0)
+        <div class="px-4 pb-4">
+            <form method="POST" action="{{ route('current-store.update') }}">
+                @csrf
+                <label for="sidebar-store-switcher" class="mb-2 block px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748B]">
+                    Current Store
+                </label>
+                <div class="relative">
+                    <select
+                        id="sidebar-store-switcher"
+                        name="store_id"
+                        onchange="this.form.submit()"
+                        class="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 pr-10 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"
+                    >
+                        @foreach ($availableStores as $storeOption)
+                            <option value="{{ $storeOption->id }}" @selected(optional($currentStore)->id === $storeOption->id)>
+                                {{ $storeOption->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                        <path d="M7 9L3 5H11L7 9Z" fill="#64748B" />
+                    </svg>
+                </div>
+            </form>
+        </div>
+    @elseif (request()->user()?->hasRole('user'))
+        <div class="px-4 pb-4">
+            <div class="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
+                <p class="text-sm font-semibold text-[#92400E]">No stores available</p>
+                <p class="mt-1 text-xs text-[#B45309]">Create a store or seed the demo merchant stores to enable switching.</p>
+                <a href="{{ route('store-management') }}" class="mt-3 inline-flex items-center text-xs font-semibold text-[#0052CC] hover:underline">
+                    Open Store Management
+                </a>
+            </div>
+        </div>
+    @endif
 
     <nav class="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
         <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('dashboard') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -132,7 +169,7 @@
         @yield('topbar')
     @endif
 
-    <div class="user-dashboard flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+    <div class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
         @yield('content')
     </div>
 </main>
@@ -143,6 +180,7 @@
         menu.classList.add('hidden');
       });
     }
+    
 
     function initTopbarProfileMenu(profileSettingsUrl, logoutUrl) {
       var headers = document.querySelectorAll('header');

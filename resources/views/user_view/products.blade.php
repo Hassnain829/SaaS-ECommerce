@@ -11,7 +11,6 @@
 
 @php
     $baseFilters = [
-        'storeId' => $selectedStore?->id,
         'q' => $filters['q'] ?? '',
         'category' => $filters['category'] ?? '',
         'status' => $filters['status'] ?? '',
@@ -31,9 +30,6 @@
         </button>
 
         <form method="GET" action="{{ route('products') }}" class="relative flex-1 max-w-xs sm:max-w-sm md:max-w-md">
-            @if ($selectedStore)
-                <input type="hidden" name="storeId" value="{{ $selectedStore->id }}">
-            @endif
             <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
             <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
             <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
@@ -83,32 +79,12 @@
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
             <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Products</h1>
-            <p class="text-sm text-[#64748B] mt-0.5">Manage your inventory and product listings across all channels.</p>
+            <p class="text-sm text-[#64748B] mt-0.5">Manage your inventory and product listings for the active store.</p>
             @if ($selectedStore)
                 <p class="mt-1 text-sm font-medium text-[#0052CC]">Viewing store: {{ $selectedStore->name }}</p>
             @endif
         </div>
-
         <div class="flex flex-col sm:items-end gap-3">
-            <form method="GET" action="{{ route('products') }}">
-                <div class="relative min-w-[220px]">
-                    <select name="storeId" onchange="this.form.submit()" class="w-full appearance-none rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 pr-10 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                        <option value="">All Stores</option>
-                        @foreach ($stores as $store)
-                            <option value="{{ $store->id }}" @selected(($selectedStore?->id) === $store->id)>{{ $store->name }}</option>
-                        @endforeach
-                    </select>
-                    <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
-                    <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
-                    <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
-                    <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
-                    <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
-                    <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 14 14" fill="none">
-                        <path d="M7 9L3 5H11L7 9Z" fill="#64748B" />
-                    </svg>
-                </div>
-            </form>
-
             <button type="button" data-open-product-modal class="sm:hidden flex items-center justify-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2.5 rounded-lg">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
@@ -144,9 +120,6 @@
     <div class="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
         <div class="flex flex-wrap items-center gap-2 px-4 lg:px-5 py-4 border-b border-[#E2E8F0]">
             <form method="GET" action="{{ route('products') }}" class="contents">
-                @if ($selectedStore)
-                    <input type="hidden" name="storeId" value="{{ $selectedStore->id }}">
-                @endif
                 <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
                 <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
                 <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
@@ -173,9 +146,6 @@
 
             <div class="ml-auto flex gap-2">
                 <form method="GET" action="{{ route('products') }}" class="relative">
-                    @if ($selectedStore)
-                        <input type="hidden" name="storeId" value="{{ $selectedStore->id }}">
-                    @endif
                     <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
                     <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
                     <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
@@ -199,7 +169,7 @@
                         <path d="M2 14H14V12H2V14ZM14 6H11V2H5V6H2L8 12L14 6Z" fill="#475569" />
                     </svg>
                 </a>
-                <a href="{{ route('products', array_filter(['storeId' => $selectedStore?->id])) }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] hover:bg-gray-50">Reset</a>
+                <a href="{{ route('products') }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] hover:bg-gray-50">Reset</a>
             </div>
         </div>
 
@@ -288,7 +258,7 @@
                                     @endif
                                     <div>
                                         <div class="font-inter font-medium text-[#0F172A] text-sm">{{ $product->name }}</div>
-                                        <div class="text-[#94A3B8] text-xs">SKU: {{ $product->sku ?: 'Auto-generated' }} @if (!$selectedStore) | {{ $product->store?->name }} @endif</div>
+                                        <div class="text-[#94A3B8] text-xs">SKU: {{ $product->sku ?: 'Auto-generated' }}</div>
                                     </div>
                                 </div>
                             </td>

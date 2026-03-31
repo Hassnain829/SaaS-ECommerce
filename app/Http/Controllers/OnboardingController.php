@@ -98,9 +98,14 @@ class OnboardingController extends Controller
                 'user_id' => $request->user()->id,
                 'slug' => $this->uniqueSlug(Store::class, $validated['name']),
             ]);
+
         }
 
-        $request->session()->put('onboarding_store_id', $store->id);
+        $store->members()->syncWithoutDetaching([
+            $request->user()->id => ['role' => 'owner'],
+        ]);
+
+        $this->syncActiveStoreSessions($request, $store);
         $request->session()->put('onboarding_store_draft', Arr::only($validated, [
             'name',
             'primary_market',
@@ -129,17 +134,7 @@ class OnboardingController extends Controller
 
     public function step2(Request $request): RedirectResponse|View
     {
-        // Allow direct access to a specific store via store_id parameter for adding products
-        $storeId = $request->query('store_id');
-        if ($storeId) {
-            $store = Store::where('id', $storeId)
-                ->where('user_id', $request->user()->id)
-                ->firstOrFail();
-            // Set session store ID for this flow
-            $request->session()->put('onboarding_store_id', $store->id);
-        } else {
-            $store = $this->resolveOnboardingStore($request);
-        }
+        $store = $this->resolveOnboardingStore($request);
 
         if (!$store) {
             return redirect()
@@ -567,19 +562,39 @@ class OnboardingController extends Controller
 
     private function resolveSessionStore(Request $request): ?Store
     {
-        $storeId = $request->session()->get('onboarding_store_id');
-
-        if (!$storeId) {
-            return null;
-        }
-
-        return Store::where('id', $storeId)
-            ->where('user_id', $request->user()->id)
-            ->first();
+        return $this->resolveAccessibleStoreFromSession($request, 'onboarding_store_id');
     }
+
     private function resolveOnboardingStore(Request $request): ?Store
     {
-        return $this->resolveSessionStore($request);
+        return $this->resolveAccessibleStoreFromSession($request, 'onboarding_store_id', 'current_store_id');
+    }
+
+    private function resolveAccessibleStoreFromSession(Request $request, string ...$sessionKeys): ?Store
+    {
+        foreach ($sessionKeys as $sessionKey) {
+            $storeId = (int) $request->session()->get($sessionKey);
+
+            if (! $storeId) {
+                continue;
+            }
+
+            $store = $request->user()->memberStores()
+                ->where('stores.id', $storeId)
+                ->first();
+
+            if ($store) {
+                return $store;
+            }
+        }
+
+        return null;
+    }
+
+    private function syncActiveStoreSessions(Request $request, Store $store): void
+    {
+        $request->session()->put('current_store_id', $store->id);
+        $request->session()->put('onboarding_store_id', $store->id);
     }
 
     private function resolveSessionProduct(Request $request, Store $store): ?Product
@@ -868,20 +883,21 @@ class OnboardingController extends Controller
 
     public function addProductFromStore(Request $request, $storeId): View|RedirectResponse
     {
-        $store = Store::where('id', $storeId)
-            ->where('user_id', $request->user()->id)
+        $store = $request->user()->memberStores()
+            ->where('stores.id', $storeId)
             ->firstOrFail();
 
+        $this->syncActiveStoreSessions($request, $store);
+
         return redirect()->route('products', [
-            'storeId' => $store->id,
             'openAddProduct' => 1,
         ]);
     }
 
     public function updateStoreFromManagement(Request $request, $storeId): RedirectResponse
     {
-        $store = Store::where('id', $storeId)
-            ->where('user_id', $request->user()->id)
+        $store = $request->user()->memberStores()
+            ->where('stores.id', $storeId)
             ->firstOrFail();
 
         $validated = $request->validate([
@@ -921,6 +937,12 @@ class OnboardingController extends Controller
             ]),
         ]);
 
+        $store->members()->syncWithoutDetaching([
+            $request->user()->id => ['role' => 'owner'],
+        ]);
+
+        $this->syncActiveStoreSessions($request, $store->refresh());
+
         return redirect()
             ->route('store-management')
             ->with('success', "Store '{$store->name}' updated successfully.")
@@ -930,8 +952,8 @@ class OnboardingController extends Controller
 
     public function destroyStoreFromManagement(Request $request, $storeId): RedirectResponse
     {
-        $store = Store::where('id', $storeId)
-            ->where('user_id', $request->user()->id)
+        $store = $request->user()->memberStores()
+            ->where('stores.id', $storeId)
             ->firstOrFail();
 
         $deletedStoreName = $store->name;
@@ -948,6 +970,10 @@ class OnboardingController extends Controller
             ]);
         }
 
+        if ((int) $request->session()->get('current_store_id') === (int) $storeId) {
+            $request->session()->forget('current_store_id');
+        }
+
         return redirect()
             ->route('store-management')
             ->with('success', "Store '{$deletedStoreName}' deleted successfully.")
@@ -959,7 +985,7 @@ class OnboardingController extends Controller
     {
         $product = Product::query()
             ->where('id', $productId)
-            ->whereHas('store', fn($query) => $query->where('user_id', $request->user()->id))
+            ->whereHas('store.members', fn($query) => $query->where('users.id', $request->user()->id))
             ->firstOrFail();
 
         $validated = $request->validate([
@@ -989,8 +1015,8 @@ class OnboardingController extends Controller
         ]);
 
         $targetStore = Store::query()
+            ->whereIn('id', $request->user()->memberStores()->pluck('stores.id'))
             ->where('id', (int) $validated['store_id'])
-            ->where('user_id', $request->user()->id)
             ->firstOrFail();
 
         if (($validated['product_type'] ?? '') === 'custom') {
@@ -1150,8 +1176,10 @@ class OnboardingController extends Controller
             }
         });
 
+        $this->syncActiveStoreSessions($request, $targetStore);
+
         return redirect()
-            ->route('products', ['storeId' => $targetStore->id])
+            ->route('products')
             ->with('success', "Product '{$product->name}' updated successfully.")
             ->with('success_title', 'Product updated')
             ->with('success_meta', "Store: {$targetStore->name}");
@@ -1161,10 +1189,9 @@ class OnboardingController extends Controller
     {
         $product = Product::query()
             ->where('id', $productId)
-            ->whereHas('store', fn($query) => $query->where('user_id', $request->user()->id))
+            ->whereHas('store.members', fn($query) => $query->where('users.id', $request->user()->id))
             ->firstOrFail();
 
-        $redirectStoreId = (int) ($request->input('store_id') ?: $product->store_id);
         $imagePaths = $product->meta['image_paths'] ?? array_filter([$product->meta['image_path'] ?? null]);
 
         $deletedProductName = $product->name;
@@ -1175,7 +1202,7 @@ class OnboardingController extends Controller
         }
 
         return redirect()
-            ->route('products', ['storeId' => $redirectStoreId ?: null])
+            ->route('products')
             ->with('success', "Product '{$deletedProductName}' deleted successfully.")
             ->with('success_title', 'Product removed')
             ->with('success_meta', 'Catalog updated');
@@ -1183,9 +1210,11 @@ class OnboardingController extends Controller
 
     public function storeProductFromStore(Request $request, $storeId): RedirectResponse
     {
-        $store = Store::where('id', $storeId)
-            ->where('user_id', $request->user()->id)
+        $store = $request->user()->memberStores()
+            ->where('stores.id', $storeId)
             ->firstOrFail();
+
+        $this->syncActiveStoreSessions($request, $store);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
@@ -1359,7 +1388,7 @@ class OnboardingController extends Controller
         });
 
         return redirect()
-            ->route('products', ['storeId' => $store->id])
+            ->route('products')
             ->with('success', "Product '{$validated['name']}' added to {$store->name}.")
             ->with('success_title', 'Product added')
             ->with('success_meta', 'Catalog updated');

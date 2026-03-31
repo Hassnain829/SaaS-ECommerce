@@ -1,6 +1,7 @@
 ﻿<?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnboardingController;
 use Illuminate\Support\Facades\Route;
@@ -19,7 +20,7 @@ Route::get('/logout', [DashboardController::class, 'logout'])
     ->middleware('auth')
     ->name('logout');
 
-Route::middleware(['auth', 'role:user'])->group(function () {
+Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
@@ -48,6 +49,7 @@ Route::middleware(['auth', 'role:user'])->group(function () {
     Route::get('/onboarding-Step3-StoreReady', [OnboardingController::class, 'step3'])->name('onboarding_StoreReady');
     Route::post('/onboarding-Step3-StoreReady', [OnboardingController::class, 'completeStep3'])->name('onboarding_StoreReady.complete');
     Route::get('/store-management', [DashboardController::class, 'store_management'])->name('store-management');
+    Route::post('/current-store', [CurrentStoreController::class, 'update'])->name('current-store.update');
     Route::put('/store/{storeId}', [OnboardingController::class, 'updateStoreFromManagement'])->name('store.update');
     Route::delete('/store/{storeId}', [OnboardingController::class, 'destroyStoreFromManagement'])->name('store.destroy');
     Route::put('/product/{productId}', [OnboardingController::class, 'updateProductFromManagement'])->name('product.update');

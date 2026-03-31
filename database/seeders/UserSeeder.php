@@ -29,7 +29,7 @@ class UserSeeder extends Seeder
         User::query()->updateOrCreate(
             ['email' => 'user@erdcore.test'],
             [
-                'name' => 'Demo User',
+                'name' => 'Demo Merchant',
                 'password' => Hash::make('password'),
                 'role_id' => $userRoleId,
             ]

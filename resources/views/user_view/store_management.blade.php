@@ -139,7 +139,7 @@
 
                 <!-- Actions -->
                 <div class="flex items-center gap-3 mt-4">
-                    <a href="{{ route('products', ['storeId' => $store->id]) }}" class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg hover:bg-[#0042a3] transition text-center">View Products</a>
+                    <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg hover:bg-[#0042a3] transition text-center">View Products</a>
                     <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" title="Add Products" class="p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]">
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             <path d="M8 16H10V10H16V8H10V2H8V8H2V10H8V16Z" fill="#434654"/>

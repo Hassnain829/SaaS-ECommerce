@@ -68,7 +68,7 @@
 
             <div class="flex justify-between items-start mb-8">
                 <div>
-                    @if ($store->products->count() > 0 || request()->filled('store_id'))
+                    @if ($store->products->count() > 0)
                         <h1 class="text-3xl font-medium text-[#0F172A] font-[Poppins]">Add Product to {{ $store->name }}</h1>
                         <p class="text-base text-[#64748B] mt-1">Expand your store catalog. Define product basics, add variation types, then add variant rows by selecting options.</p>
                     @else
