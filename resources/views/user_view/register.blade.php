@@ -29,29 +29,51 @@
           <p class="text-[#64748B] text-base leading-6 mt-1">Join the enterprise platform for modern e-commerce and multi-tenant services.</p>
         </div>
 
-        <form class="space-y-5" method="GET" action="{{ route('dashboard') }}">
+        <form class="space-y-5" method="POST" action="{{ route('register.store') }}">
+          @csrf
+
+          @if ($errors->any())
+            <div class="rounded-xl border border-[#FFDAD6] bg-[#FFF6F5] p-3 text-sm text-[#BA1A1A]">
+              <ul class="space-y-1">
+                @foreach ($errors->all() as $error)
+                  <li>{{ $error }}</li>
+                @endforeach
+              </ul>
+            </div>
+          @endif
+
           <label class="block">
             <span class="mb-2 block text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Full Name</span>
-            <input type="text" placeholder="Alex Rivers" class="h-12 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
+            <input type="text" name="name" value="{{ old('name') }}" placeholder="Alex Rivers" class="h-12 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
           </label>
 
           <label class="block">
             <span class="mb-2 block text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Work Email</span>
-            <input type="email" placeholder="alex@company.com" class="h-12 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
+            <input type="email" name="email" value="{{ old('email') }}" placeholder="alex@company.com" class="h-12 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
           </label>
 
           <label class="block">
             <span class="mb-2 block text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Password</span>
             <div class="relative">
-              <input type="password" placeholder="********" class="h-12 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 pr-10 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
+              <input type="password" name="password" placeholder="********" class="h-12 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 pr-10 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
               <button type="button" class="absolute inset-y-0 right-3 text-[#94A3B8]" aria-label="Toggle password visibility">
                 <svg width="17" height="12" viewBox="0 0 17 12" fill="none"><path d="M8.25 9C9.1875 9 9.98438 8.67188 10.6406 8.01562C11.2969 7.35938 11.625 6.5625 11.625 5.625C11.625 4.6875 11.2969 3.89062 10.6406 3.23438C9.98438 2.57812 9.1875 2.25 8.25 2.25C7.3125 2.25 6.51562 2.57812 5.85938 3.23438C5.20312 3.89062 4.875 4.6875 4.875 5.625C4.875 6.5625 5.20312 7.35938 5.85938 8.01562C6.51562 8.67188 7.3125 9 8.25 9ZM8.25 7.65C7.6875 7.65 7.20938 7.45312 6.81563 7.05937C6.42188 6.66562 6.225 6.1875 6.225 5.625C6.225 5.0625 6.42188 4.58438 6.81563 4.19063C7.20938 3.79688 7.6875 3.6 8.25 3.6C8.8125 3.6 9.29062 3.79688 9.68437 4.19063C10.0781 4.58438 10.275 5.0625 10.275 5.625C10.275 6.1875 10.0781 6.66562 9.68437 7.05937C9.29062 7.45312 8.8125 7.65 8.25 7.65ZM8.25 11.25C6.425 11.25 4.7625 10.7406 3.2625 9.72188C1.7625 8.70312 0.675 7.3375 0 5.625C0.675 3.9125 1.7625 2.54688 3.2625 1.52813C4.7625 0.509375 6.425 0 8.25 0C10.075 0 11.7375 0.509375 13.2375 1.52813C14.7375 2.54688 15.825 3.9125 16.5 5.625C15.825 7.3375 14.7375 8.70312 13.2375 9.72188C11.7375 10.7406 10.075 11.25 8.25 11.25Z" fill="currentColor"/></svg>
               </button>
             </div>
           </label>
 
+          <label class="block">
+            <span class="mb-2 block text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Confirm Password</span>
+            <div class="relative">
+              <input type="password" name="password_confirmation" placeholder="********" class="h-12 w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 pr-10 text-sm placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
+              <button type="button" class="absolute inset-y-0 right-3 text-[#94A3B8]" aria-label="Toggle password confirmation visibility">
+                <svg width="17" height="12" viewBox="0 0 17 12" fill="none"><path d="M8.25 9C9.1875 9 9.98438 8.67188 10.6406 8.01562C11.2969 7.35938 11.625 6.5625 11.625 5.625C11.625 4.6875 11.2969 3.89062 10.6406 3.23438C9.98438 2.57812 9.1875 2.25 8.25 2.25C7.3125 2.25 6.51562 2.57812 5.85938 3.23438C5.20312 3.89062 4.875 4.6875 4.875 5.625C4.875 6.5625 5.20312 7.35938 5.85938 8.01562C6.51562 8.67188 7.3125 9 8.25 9ZM8.25 7.65C7.6875 7.65 7.20938 7.45312 6.81563 7.05937C6.42188 6.66562 6.225 6.1875 6.225 5.625C6.225 5.0625 6.42188 4.58438 6.81563 4.19063C7.20938 3.79688 7.6875 3.6 8.25 3.6C8.8125 3.6 9.29062 3.79688 9.68437 4.19063C10.0781 4.58438 10.275 5.0625 10.275 5.625C10.275 6.1875 10.0781 6.66562 9.68437 7.05937C9.29062 7.45312 8.8125 7.65 8.25 7.65ZM8.25 11.25C6.425 11.25 4.7625 10.7406 3.2625 9.72188C1.7625 8.70312 0.675 7.3375 0 5.625C0.675 3.9125 1.7625 2.54688 3.2625 1.52813C4.7625 0.509375 6.425 0 8.25 0C10.075 0 11.7375 0.509375 13.2375 1.52813C14.7375 2.54688 15.825 3.9125 16.5 5.625C15.825 7.3375 14.7375 8.70312 13.2375 9.72188C11.7375 10.7406 10.075 11.25 8.25 11.25Z" fill="currentColor"/></svg>
+              </button>
+            </div>
+          </label>
+
           <label class="flex items-start gap-3 pt-1">
-            <input type="checkbox" class="mt-0.5 h-4 w-4 rounded border-[#CBD5E1] text-[#0052CC] focus:ring-[#0052CC]" />
+            <input type="checkbox" name="terms" value="1" class="mt-0.5 h-4 w-4 rounded border-[#CBD5E1] text-[#0052CC] focus:ring-[#0052CC]" />
             <span class="text-sm leading-5 text-[#64748B]">By creating an account, you agree to our <a href="#" class="font-semibold text-[#0052CC]">Terms of Service</a> and <a href="#" class="font-semibold text-[#0052CC]">Privacy Policy</a>.</span>
           </label>
 

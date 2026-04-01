@@ -34,5 +34,23 @@ class UserSeeder extends Seeder
                 'role_id' => $userRoleId,
             ]
         );
+
+        User::query()->updateOrCreate(
+            ['email' => 'manager@erdcore.test'],
+            [
+                'name' => 'Demo Store Manager',
+                'password' => Hash::make('password'),
+                'role_id' => $userRoleId,
+            ]
+        );
+
+        User::query()->updateOrCreate(
+            ['email' => 'staff@erdcore.test'],
+            [
+                'name' => 'Demo Store Staff',
+                'password' => Hash::make('password'),
+                'role_id' => $userRoleId,
+            ]
+        );
     }
 }

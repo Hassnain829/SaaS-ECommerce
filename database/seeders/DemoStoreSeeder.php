@@ -16,8 +16,14 @@ class DemoStoreSeeder extends Seeder
         $merchant = User::query()
             ->where('email', 'user@erdcore.test')
             ->firstOrFail();
+        $manager = User::query()
+            ->where('email', 'manager@erdcore.test')
+            ->firstOrFail();
+        $staff = User::query()
+            ->where('email', 'staff@erdcore.test')
+            ->firstOrFail();
 
-        Store::query()->updateOrCreate(
+        $fashionStore = Store::query()->updateOrCreate(
             ['slug' => 'demo-fashion'],
             [
                 'user_id' => $merchant->id,
@@ -35,7 +41,7 @@ class DemoStoreSeeder extends Seeder
             ]
         );
 
-        Store::query()->updateOrCreate(
+        $digitalStore = Store::query()->updateOrCreate(
             ['slug' => 'demo-digital'],
             [
                 'user_id' => $merchant->id,
@@ -53,14 +59,14 @@ class DemoStoreSeeder extends Seeder
             ]
         );
 
-        $stores = Store::query()
-            ->whereIn('slug', ['demo-fashion', 'demo-digital'])
-            ->get();
+        $fashionStore->members()->syncWithoutDetaching([
+            $merchant->id => ['role' => Store::ROLE_OWNER],
+            $manager->id => ['role' => Store::ROLE_MANAGER],
+            $staff->id => ['role' => Store::ROLE_STAFF],
+        ]);
 
-        foreach ($stores as $store) {
-            $store->members()->syncWithoutDetaching([
-                $merchant->id => ['role' => 'owner'],
-            ]);
-        }
+        $digitalStore->members()->syncWithoutDetaching([
+            $merchant->id => ['role' => Store::ROLE_OWNER],
+        ]);
     }
 }

@@ -23,7 +23,7 @@ class StoreMembershipSeeder extends Seeder
                     return [
                         'store_id' => $store->id,
                         'user_id' => $store->user_id,
-                        'role' => 'owner',
+                        'role' => Store::ROLE_OWNER,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];

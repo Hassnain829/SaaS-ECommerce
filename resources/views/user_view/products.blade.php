@@ -197,7 +197,6 @@
                             $productImageUrl = $productImagePath ? asset('storage/' . $productImagePath) : null;
                             $productActionPayload = [
                                 'id' => $product->id,
-                                'store_id' => $product->store_id,
                                 'name' => $product->name,
                                 'description' => $product->description,
                                 'sku' => $product->sku,
@@ -327,12 +326,11 @@
     </div>
 
     @include('user_view.partials.product_create_modal', [
-        'productModalStores' => $stores,
         'productModalSelectedStore' => $selectedStore,
         'productModalIsOpen' => $openProductModal,
         'productModalOpenQuery' => 'openAddProduct',
     ])
-    @include('user_view.partials.product_edit_modal', ['stores' => $stores])
+    @include('user_view.partials.product_edit_modal')
 
     <script>
         (() => {

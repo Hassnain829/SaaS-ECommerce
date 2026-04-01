@@ -14,6 +14,7 @@ Route::middleware('guest')->group(function () {
     Route::get('/signin', [DashboardController::class, 'signin'])->name('signin');
     Route::post('/signin', [DashboardController::class, 'authenticate'])->name('signin.attempt');
     Route::get('/register', [DashboardController::class, 'register'])->name('register');
+    Route::post('/register', [DashboardController::class, 'storeRegistration'])->name('register.store');
 });
 
 Route::get('/logout', [DashboardController::class, 'logout'])
@@ -52,8 +53,15 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/current-store', [CurrentStoreController::class, 'update'])->name('current-store.update');
     Route::put('/store/{storeId}', [OnboardingController::class, 'updateStoreFromManagement'])->name('store.update');
     Route::delete('/store/{storeId}', [OnboardingController::class, 'destroyStoreFromManagement'])->name('store.destroy');
-    Route::put('/product/{productId}', [OnboardingController::class, 'updateProductFromManagement'])->name('product.update');
-    Route::delete('/product/{productId}', [OnboardingController::class, 'destroyProductFromManagement'])->name('product.destroy');
+    Route::post('/products', [OnboardingController::class, 'storeProductFromCurrentStore'])
+        ->middleware('store.role:owner,manager')
+        ->name('product.store');
+    Route::put('/product/{productId}', [OnboardingController::class, 'updateProductFromManagement'])
+        ->middleware('store.role:owner,manager')
+        ->name('product.update');
+    Route::delete('/product/{productId}', [OnboardingController::class, 'destroyProductFromManagement'])
+        ->middleware('store.role:owner,manager')
+        ->name('product.destroy');
     Route::get('/store/{storeId}/products', [DashboardController::class, 'store_products'])->name('store.products');
     Route::get('/store/{storeId}/add-product', [OnboardingController::class, 'addProductFromStore'])->name('store.add-product');
     Route::post('/store/{storeId}/add-product', [OnboardingController::class, 'storeProductFromStore'])->name('store.add-product.store');

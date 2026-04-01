@@ -1,9 +1,7 @@
 @php
-    $productModalStores = $productModalStores ?? ($stores ?? collect());
     $productModalSelectedStore = $productModalSelectedStore ?? ($selectedStore ?? ($store ?? null));
     $productModalIsOpen = (bool) ($productModalIsOpen ?? false);
     $productModalOpenQuery = $productModalOpenQuery ?? 'openAddProduct';
-    $productModalActionTemplate = route('store.add-product.store', ['storeId' => '__STORE_ID__']);
     $productFormData = old();
 
     if (empty($productFormData) && isset($draft) && is_array($draft)) {
@@ -46,7 +44,6 @@
         ];
     }
 
-    $initialProductStoreId = old('product_store_id', $productModalSelectedStore?->id);
     $defaultProductTypes = ['physical', 'digital', 'service', 'subscription', 'virtual'];
     $rawSelectedProductType = (string) ($productFormData['product_type'] ?? 'physical');
     $usesCustomProductType = $rawSelectedProductType !== '' && !in_array($rawSelectedProductType, $defaultProductTypes, true);
@@ -54,7 +51,7 @@
     $customProductType = $usesCustomProductType ? $rawSelectedProductType : (string) ($productFormData['custom_product_type'] ?? '');
 @endphp
 
-<div id="productCreateModal" data-open-query="{{ $productModalOpenQuery }}" data-action-template="{{ $productModalActionTemplate }}" class="fixed inset-0 z-[70] {{ $productModalIsOpen ? '' : 'hidden' }}">
+<div id="productCreateModal" data-open-query="{{ $productModalOpenQuery }}" class="fixed inset-0 z-[70] {{ $productModalIsOpen ? '' : 'hidden' }}">
     <div id="productCreateModalBackdrop" class="absolute inset-0 bg-[#0F172A]/70 backdrop-blur-[3px]"></div>
     <div class="relative flex min-h-full items-center justify-center px-3 py-3 sm:px-5 sm:py-5">
         <div class="relative w-full max-w-[980px] overflow-hidden rounded-[28px] border border-[#D9E2EC] bg-[#F8FBFF] shadow-[0_30px_80px_rgba(15,23,42,0.28)]">
@@ -81,10 +78,9 @@
                     </div>
                 @endif
 
-                <form id="product-create-form" action="{{ $initialProductStoreId ? route('store.add-product.store', ['storeId' => $initialProductStoreId]) : '#' }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+                <form id="product-create-form" action="{{ route('product.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                     @csrf
                     <input type="hidden" name="_open_add_product_modal" value="1">
-                    <input type="hidden" name="product_store_id" id="product-store-id-hidden" value="{{ $initialProductStoreId }}">
                     <input id="bulk-price-hidden" type="hidden" name="bulk_price" value="{{ $productFormData['bulk_price'] ?? '' }}">
                     <input id="bulk-stock-hidden" type="hidden" name="bulk_stock" value="{{ $productFormData['bulk_stock'] ?? '' }}">
                     <input type="hidden" name="stock_alert" value="{{ $productFormData['stock_alert'] ?? 5 }}">
@@ -96,19 +92,11 @@
 
                         <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                             <div>
-                                <label for="product-store-id-select" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Store</label>
-                                <div class="relative">
-                                    <select id="product-store-id-select" class="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pr-10 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" @disabled($productModalStores->isEmpty())>
-                                        <option value="">Choose a store</option>
-                                        @foreach ($productModalStores as $modalStore)
-                                            <option value="{{ $modalStore->id }}" @selected((string) $initialProductStoreId === (string) $modalStore->id)>{{ $modalStore->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 14 14" fill="none">
-                                        <path d="M7 9L3 5H11L7 9Z" fill="#64748B"/>
-                                    </svg>
+                                <label class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Active Store</label>
+                                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#0F172A]">
+                                    {{ $productModalSelectedStore?->name ?? 'No active store selected' }}
                                 </div>
-                                <p class="mt-2 text-xs text-[#64748B]">Choose which store should own this product. You can switch stores here anytime before saving.</p>
+                                <p class="mt-2 text-xs text-[#64748B]">This product will be created in your currently active store. Use the sidebar switcher if you need a different store.</p>
                             </div>
 
                             <div>
@@ -262,7 +250,7 @@
                         <p class="text-sm text-[#64748B]">Saving here creates the product only and keeps you on the products page.</p>
                         <div class="flex items-center gap-3">
                             <button type="button" class="rounded-lg px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]" data-close-product-modal>Cancel</button>
-                            <button type="submit" id="submit-product-modal" class="rounded-xl bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0047B3]" @disabled(!$productModalSelectedStore && $productModalStores->isEmpty())>Save Product</button>
+                            <button type="submit" id="submit-product-modal" class="rounded-xl bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0047B3]" @disabled(!$productModalSelectedStore)>Save Product</button>
                         </div>
                     </div>
                 </form>
@@ -323,9 +311,6 @@
         const productForm = document.getElementById('product-create-form');
         const openButtons = document.querySelectorAll('[data-open-product-modal]');
         const closeButtons = productModal.querySelectorAll('button[data-close-product-modal]');
-        const storeSelect = document.getElementById('product-store-id-select');
-        const storeHiddenInput = document.getElementById('product-store-id-hidden');
-        const actionTemplate = productModal.dataset.actionTemplate || '';
         const openQuery = productModal.dataset.openQuery || 'openAddProduct';
         const submitButton = document.getElementById('submit-product-modal');
         const productTypeSelect = document.getElementById('product-type');
@@ -458,16 +443,6 @@
             syncVariationOptionTextarea();
             renderVariationOptionTags();
             if (variationOptionInput) variationOptionInput.value = '';
-        };
-
-        const updateFormAction = (storeId) => {
-            if (storeHiddenInput) storeHiddenInput.value = storeId || '';
-            if (productForm) productForm.action = storeId ? actionTemplate.replace('__STORE_ID__', storeId) : '#';
-            if (submitButton) {
-                submitButton.disabled = !storeId;
-                submitButton.classList.toggle('opacity-50', !storeId);
-                submitButton.classList.toggle('cursor-not-allowed', !storeId);
-            }
         };
 
         const syncProductTypeState = () => {
@@ -630,7 +605,6 @@
             }
         });
 
-        storeSelect?.addEventListener('change', () => updateFormAction(storeSelect.value));
         productTypeSelect?.addEventListener('change', syncProductTypeState);
         customProductTypeInput?.addEventListener('input', syncProductTypeState);
         productImageInput?.addEventListener('change', () => {
@@ -708,10 +682,9 @@
         });
 
         productForm?.addEventListener('submit', (event) => {
-            const activeStoreId = storeHiddenInput?.value || '{{ $productModalSelectedStore?->id }}';
-            if (!activeStoreId) {
+            if (!{{ $productModalSelectedStore ? 'true' : 'false' }}) {
                 event.preventDefault();
-                alert('Please choose a store before saving the product.');
+                alert('Please switch to an active store before saving the product.');
                 return;
             }
             if (productTypeSelect?.value === 'custom' && !customProductTypeInput?.value.trim()) {
@@ -734,7 +707,6 @@
             closeProductModal();
         });
 
-        updateFormAction(storeSelect?.value || storeHiddenInput?.value || '{{ $productModalSelectedStore?->id }}');
         syncProductTypeState();
         if (!rows.length && variationTypes.length) {
             rows = buildRowsFromVariationTypes(rows);

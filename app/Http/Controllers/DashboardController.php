@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\Role;
 use App\Models\Store;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use App\Models\User;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
@@ -48,6 +50,33 @@ class DashboardController extends Controller
         $request->session()->regenerate();
 
         return $this->redirectByRole();
+    }
+
+    public function storeRegistration(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'confirmed', 'min:8'],
+        ]);
+
+        $userRole = Role::query()->where('name', 'user')->first();
+
+        if (! $userRole) {
+            abort(500, 'The default user role is missing. Please seed roles before registering users.');
+        }
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+            'role_id' => $userRole->id,
+        ]);
+
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return redirect()->route('onboarding-StoreDetails-1');
     }
 
     public function logout(Request $request): RedirectResponse

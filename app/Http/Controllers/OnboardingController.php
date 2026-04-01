@@ -900,6 +900,11 @@ class OnboardingController extends Controller
             ->where('stores.id', $storeId)
             ->firstOrFail();
 
+        $this->authorizeStoreRoles($request, $store, [
+            Store::ROLE_OWNER,
+            Store::ROLE_MANAGER,
+        ]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'primary_market' => ['required', 'string', 'max:80'],
@@ -956,6 +961,8 @@ class OnboardingController extends Controller
             ->where('stores.id', $storeId)
             ->firstOrFail();
 
+        $this->authorizeStoreRoles($request, $store, Store::ROLE_OWNER);
+
         $deletedStoreName = $store->name;
         $store->delete();
 
@@ -983,13 +990,20 @@ class OnboardingController extends Controller
 
     public function updateProductFromManagement(Request $request, $productId): RedirectResponse
     {
+        $currentStore = $request->attributes->get('currentStore');
+
+        if (! $currentStore) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No active store was found. Please switch to a store before editing a product.']);
+        }
+
         $product = Product::query()
             ->where('id', $productId)
-            ->whereHas('store.members', fn($query) => $query->where('users.id', $request->user()->id))
+            ->where('store_id', $currentStore->id)
             ->firstOrFail();
 
         $validated = $request->validate([
-            'store_id' => ['required', 'integer'],
             'name' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:4000'],
             'base_price' => ['required', 'numeric', 'min:0'],
@@ -1013,11 +1027,6 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
         ]);
-
-        $targetStore = Store::query()
-            ->whereIn('id', $request->user()->memberStores()->pluck('stores.id'))
-            ->where('id', (int) $validated['store_id'])
-            ->firstOrFail();
 
         if (($validated['product_type'] ?? '') === 'custom') {
             $validated['product_type'] = trim((string) ($validated['custom_product_type'] ?? ''));
@@ -1069,11 +1078,10 @@ class OnboardingController extends Controller
         $meta['default_stock'] = $meta['default_stock'] ?? 0;
         $meta['stock_alert'] = (int) $validated['stock_alert'];
 
-        DB::transaction(function () use ($product, $targetStore, $validated, $meta): void {
+        DB::transaction(function () use ($product, $currentStore, $validated, $meta): void {
             $product->update([
-                'store_id' => $targetStore->id,
                 'name' => $validated['name'],
-                'slug' => $this->uniqueProductSlug($targetStore->id, $validated['name'], $product->id),
+                'slug' => $this->uniqueProductSlug($currentStore->id, $validated['name'], $product->id),
                 'description' => $validated['description'] ?? null,
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
@@ -1136,7 +1144,7 @@ class OnboardingController extends Controller
 
                     $variant = ProductVariant::create([
                         'product_id' => $product->id,
-                        'sku' => $variantData['sku'] ?: $this->buildSku($targetStore->name, $product->name, $suffix),
+                        'sku' => $variantData['sku'] ?: $this->buildSku($currentStore->name, $product->name, $suffix),
                         'price' => $variantData['price'],
                         'stock' => $variantData['stock'],
                         'stock_alert' => $variantData['stock_alert'],
@@ -1150,7 +1158,7 @@ class OnboardingController extends Controller
             } elseif (empty($combinations)) {
                 $defaultVariant = ProductVariant::create([
                     'product_id' => $product->id,
-                    'sku' => $this->buildSku($targetStore->name, $product->name),
+                    'sku' => $this->buildSku($currentStore->name, $product->name),
                     'price' => $validated['base_price'],
                     'stock' => 0,
                     'stock_alert' => $validated['stock_alert'],
@@ -1162,7 +1170,7 @@ class OnboardingController extends Controller
                     $variant = ProductVariant::create([
                         'product_id' => $product->id,
                         'sku' => $this->buildSku(
-                            $targetStore->name,
+                            $currentStore->name,
                             $product->name,
                             implode('-', array_map(static fn($entry) => $entry['option']->value, $combination))
                         ),
@@ -1176,20 +1184,28 @@ class OnboardingController extends Controller
             }
         });
 
-        $this->syncActiveStoreSessions($request, $targetStore);
+        $this->syncActiveStoreSessions($request, $currentStore);
 
         return redirect()
             ->route('products')
             ->with('success', "Product '{$product->name}' updated successfully.")
             ->with('success_title', 'Product updated')
-            ->with('success_meta', "Store: {$targetStore->name}");
+            ->with('success_meta', "Store: {$currentStore->name}");
     }
 
     public function destroyProductFromManagement(Request $request, $productId): RedirectResponse
     {
+        $currentStore = $request->attributes->get('currentStore');
+
+        if (! $currentStore) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No active store was found. Please switch to a store before deleting a product.']);
+        }
+
         $product = Product::query()
             ->where('id', $productId)
-            ->whereHas('store.members', fn($query) => $query->where('users.id', $request->user()->id))
+            ->where('store_id', $currentStore->id)
             ->firstOrFail();
 
         $imagePaths = $product->meta['image_paths'] ?? array_filter([$product->meta['image_path'] ?? null]);
@@ -1214,6 +1230,43 @@ class OnboardingController extends Controller
             ->where('stores.id', $storeId)
             ->firstOrFail();
 
+        $this->authorizeStoreRoles($request, $store, [
+            Store::ROLE_OWNER,
+            Store::ROLE_MANAGER,
+        ]);
+
+        $this->syncActiveStoreSessions($request, $store);
+
+        return $this->storeProductForStore($request, $store);
+    }
+
+    public function storeProductFromCurrentStore(Request $request): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+
+        if (! $store) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No active store was found. Please switch to a store before adding a product.']);
+        }
+
+        $this->authorizeStoreRoles($request, $store, [
+            Store::ROLE_OWNER,
+            Store::ROLE_MANAGER,
+        ]);
+
+        return $this->storeProductForStore($request, $store);
+    }
+
+    private function authorizeStoreRoles(Request $request, Store $store, string|array $roles): void
+    {
+        if (! $request->user()?->hasStoreRole($store, $roles)) {
+            abort(403, 'You are not authorized to perform this action in this store.');
+        }
+    }
+
+    private function storeProductForStore(Request $request, Store $store): RedirectResponse
+    {
         $this->syncActiveStoreSessions($request, $store);
 
         $validated = $request->validate([
