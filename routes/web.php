@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\TeamMemberController;
 use Illuminate\Support\Facades\Route;
 // 
 Route::get('/', function () {
@@ -29,6 +30,16 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
 
     Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
     Route::get('/customersProfile', [DashboardController::class, 'customersProfile'])->name('customersProfile');
+    Route::get('/team-members', [TeamMemberController::class, 'index'])->name('team-members.index');
+    Route::post('/team-members', [TeamMemberController::class, 'store'])
+        ->middleware('store.role:owner,manager')
+        ->name('team-members.store');
+    Route::patch('/team-members/{user}', [TeamMemberController::class, 'updateRole'])
+        ->middleware('store.role:owner,manager')
+        ->name('team-members.update');
+    Route::delete('/team-members/{user}', [TeamMemberController::class, 'destroy'])
+        ->middleware('store.role:owner,manager')
+        ->name('team-members.destroy');
 
     Route::get('/analytics', [DashboardController::class, 'analytics'])->name('analytics');
     Route::get('/notifications', [DashboardController::class, 'notifications'])->name('notifications');

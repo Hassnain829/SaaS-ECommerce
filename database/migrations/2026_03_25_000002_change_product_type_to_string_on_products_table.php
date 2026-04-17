@@ -10,6 +10,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE `products` MODIFY `product_type` VARCHAR(80) NOT NULL DEFAULT 'physical'");
     }
 
@@ -18,6 +22,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         DB::statement("ALTER TABLE `products` MODIFY `product_type` ENUM('physical', 'digital', 'service', 'subscription', 'virtual') NOT NULL DEFAULT 'physical'");
     }
 };

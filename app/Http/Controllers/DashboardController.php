@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use App\Models\User;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
@@ -270,6 +271,30 @@ class DashboardController extends Controller
     public function customersProfile()
     {
         return view('user_view.customersProfileTab');
+    }
+
+    public function teamMembers(Request $request): RedirectResponse|View
+    {
+        $currentStore = $request->attributes->get('currentStore');
+
+        if (! $currentStore) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No active store was found. Please select a store before managing team members.']);
+        }
+
+        $members = $currentStore->members()
+            ->with('role')
+            ->orderByRaw("CASE store_user.role WHEN 'owner' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END")
+            ->orderBy('users.name')
+            ->get();
+
+        return view('user_view.team_members', [
+            'selectedStore' => $currentStore,
+            'members' => $members,
+            'currentUserStoreRole' => $request->user()->roleInStore($currentStore),
+            'memberRoleOptions' => Store::memberRoles(),
+        ]);
     }
 
     public function analytics()
