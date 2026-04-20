@@ -44,6 +44,9 @@
         ];
     }
 
+    $catalogBrands = $catalogBrands ?? collect();
+    $catalogTags = $catalogTags ?? collect();
+    $catalogTaxonomyCategories = $catalogTaxonomyCategories ?? collect();
     $defaultProductTypes = ['physical', 'digital', 'service', 'subscription', 'virtual'];
     $rawSelectedProductType = (string) ($productFormData['product_type'] ?? 'physical');
     $usesCustomProductType = $rawSelectedProductType !== '' && !in_array($rawSelectedProductType, $defaultProductTypes, true);
@@ -58,7 +61,7 @@
             <div class="flex items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-5 py-4 sm:px-8">
                 <div>
                     <h2 class="text-xl font-semibold text-[#0F172A] font-[Poppins]">Create Product</h2>
-                    <p class="mt-1 text-sm text-[#64748B]">Add a product to your catalog without leaving the products page.</p>
+                    <p class="mt-1 text-sm text-[#64748B]">New products are saved in your <span class="font-semibold text-[#475569]">active store</span> (sidebar switcher).</p>
                 </div>
                 <button type="button" class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#D9E2EC] bg-white text-[#64748B] transition hover:border-[#0052CC] hover:text-[#0052CC]" data-close-product-modal aria-label="Close create product modal">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -100,7 +103,7 @@
                             </div>
 
                             <div>
-                                <label for="product-type" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Product Type</label>
+                                <label for="product-type" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Product behavior (type)</label>
                                 <input type="hidden" id="product-type-value" name="product_type" value="{{ $selectedProductType === 'custom' ? $customProductType : $selectedProductType }}">
                                 <div class="relative">
                                     <select id="product-type" class="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pr-10 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
@@ -117,7 +120,7 @@
                                     <input id="custom-product-type" name="custom_product_type" type="text" value="{{ $customProductType }}" placeholder="e.g. Home Decor" class="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                                     <p class="mt-2 text-xs text-[#64748B]">Create your own product type if it is not in the list.</p>
                                 </div>
-                                <p class="mt-2 text-xs text-[#64748B]">This is the product type, not the store category.</p>
+                                <p class="mt-2 text-xs text-[#64748B]">How the product is fulfilled or sold—not the catalog category.</p>
                             </div>
                         </div>
 
@@ -140,6 +143,38 @@
                                 <label for="product-sku" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Base SKU (optional)</label>
                                 <input id="product-sku" name="sku" type="text" value="{{ $productFormData['sku'] ?? '' }}" class="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                             </div>
+                            @if ($catalogTaxonomyCategories->isNotEmpty())
+                                <div class="md:col-span-2 rounded-xl border border-[#CCFBF1]/80 bg-[#F0FDFA]/40 p-4">
+                                    <label for="product-category-ids" class="mb-2 block text-sm font-semibold text-[#0F766E] font-poppins">Catalog categories</label>
+                                    <select id="product-category-ids" name="category_ids[]" multiple size="5" class="w-full rounded-xl border border-[#99F6E4]/60 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0D9488]/25">
+                                        @foreach ($catalogTaxonomyCategories as $catOption)
+                                            <option value="{{ $catOption->id }}" @selected(collect(old('category_ids', $productFormData['category_ids'] ?? []))->contains($catOption->id))>{{ $catOption->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <p class="mt-2 text-xs text-[#115E59]/90">Main groups for your catalog (e.g. Clothing, Electronics). Separate from product behavior above.</p>
+                                </div>
+                            @endif
+                            <div class="md:col-span-2">
+                                <label for="product-brand-id" class="mb-2 block text-sm font-medium text-[#64748B] font-poppins">Brand <span class="font-normal text-[#94A3B8]">(optional)</span></label>
+                                <select id="product-brand-id" name="brand_id" class="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                                    <option value="">No brand</option>
+                                    @foreach ($catalogBrands as $brandOption)
+                                        <option value="{{ $brandOption->id }}" @selected((string) ($productFormData['brand_id'] ?? '') === (string) $brandOption->id)>{{ $brandOption->name }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-1.5 text-xs text-[#94A3B8]">Optional grouping by label, vendor, or manufacturer.</p>
+                            </div>
+                            @if ($catalogTags->isNotEmpty())
+                                <div class="md:col-span-2">
+                                    <label for="product-tag-ids" class="mb-2 block text-sm font-medium text-[#64748B] font-poppins">Tags <span class="font-normal text-[#94A3B8]">(optional)</span></label>
+                                    <select id="product-tag-ids" name="tag_ids[]" multiple size="4" class="w-full rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                                        @foreach ($catalogTags as $tagOption)
+                                            <option value="{{ $tagOption->id }}" @selected(collect(old('tag_ids', $productFormData['tag_ids'] ?? []))->contains($tagOption->id))>{{ $tagOption->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <p class="mt-1.5 text-xs text-[#94A3B8]">Light labels like Sale or Featured—does not replace categories.</p>
+                                </div>
+                            @endif
                         </div>
                     </div>
 

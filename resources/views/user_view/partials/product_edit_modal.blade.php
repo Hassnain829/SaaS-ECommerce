@@ -1,5 +1,8 @@
 @php
     $productEditHasErrors = old('_open_edit_product_modal') && $errors->any();
+    $catalogBrands = $catalogBrands ?? collect();
+    $catalogTags = $catalogTags ?? collect();
+    $catalogTaxonomyCategories = $catalogTaxonomyCategories ?? collect();
 @endphp
 
 <div id="editProductModal" class="fixed inset-0 z-[75] hidden items-center justify-center bg-[#0F172A]/70 px-4 py-6 backdrop-blur-[3px]" data-auto-open="{{ $productEditHasErrors ? 'true' : 'false' }}">
@@ -44,7 +47,7 @@
                             <p class="mt-2 text-xs text-[#64748B]">This product can only be edited inside your current active store.</p>
                         </div>
                         <div>
-                            <label for="edit_product_type_select" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Product Type</label>
+                            <label for="edit_product_type_select" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Product behavior (type)</label>
                             <select id="edit_product_type_select" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                                 @foreach (['physical', 'digital', 'service', 'subscription', 'virtual'] as $type)
                                     <option value="{{ $type }}">{{ ucfirst($type) }}</option>
@@ -54,6 +57,7 @@
                             <div id="editProductCustomTypeWrap" class="mt-3 hidden">
                                 <input id="edit_product_custom_type" type="text" value="{{ old('custom_product_type', '') }}" placeholder="e.g. Home Decor" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]">
                             </div>
+                            <p class="mt-2 text-xs text-[#64748B]">Fulfillment / sales behavior—not the catalog category.</p>
                         </div>
                     </div>
                     <div class="mt-6 grid grid-cols-1 gap-6">
@@ -76,6 +80,38 @@
                         <div><label for="edit_product_sku" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Base SKU</label><input id="edit_product_sku" name="sku" type="text" value="{{ old('sku', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
                         <div><label for="edit_product_price" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Base Price</label><input id="edit_product_price" name="base_price" type="number" min="0" step="0.01" value="{{ old('base_price', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
                         <div><label for="edit_product_stock_alert" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Stock Alert</label><input id="edit_product_stock_alert" name="stock_alert" type="number" min="0" step="1" value="{{ old('stock_alert', '0') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
+                        @if ($catalogTaxonomyCategories->isNotEmpty())
+                            <div class="md:col-span-3 rounded-xl border border-[#CCFBF1]/80 bg-[#F0FDFA]/40 p-4">
+                                <label for="edit_product_category_ids" class="mb-2 block text-sm font-semibold text-[#0F766E] font-[Poppins]">Catalog categories</label>
+                                <select id="edit_product_category_ids" name="category_ids[]" multiple size="5" class="w-full rounded-lg border border-[#99F6E4]/60 bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                    @foreach ($catalogTaxonomyCategories as $catOption)
+                                        <option value="{{ $catOption->id }}" @selected(collect(old('category_ids', []))->contains($catOption->id))>{{ $catOption->name }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-2 text-xs text-[#115E59]/90">Main catalog groups—separate from product behavior (type) above.</p>
+                            </div>
+                        @endif
+                        <div class="md:col-span-3">
+                            <label for="edit_product_brand_id" class="mb-2 block text-sm font-medium text-[#64748B] font-[Poppins]">Brand <span class="font-normal text-[#94A3B8]">(optional)</span></label>
+                            <select id="edit_product_brand_id" name="brand_id" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
+                                <option value="">No brand</option>
+                                @foreach ($catalogBrands as $brandOption)
+                                    <option value="{{ $brandOption->id }}" @selected((string) old('brand_id', '') === (string) $brandOption->id)>{{ $brandOption->name }}</option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1.5 text-xs text-[#94A3B8]">Optional vendor or label. Does not change which store owns the product.</p>
+                        </div>
+                        @if ($catalogTags->isNotEmpty())
+                            <div class="md:col-span-3">
+                                <label for="edit_product_tag_ids" class="mb-2 block text-sm font-medium text-[#64748B] font-[Poppins]">Tags <span class="font-normal text-[#94A3B8]">(optional)</span></label>
+                                <select id="edit_product_tag_ids" name="tag_ids[]" multiple size="4" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                    @foreach ($catalogTags as $tagOption)
+                                        <option value="{{ $tagOption->id }}" @selected(collect(old('tag_ids', []))->contains($tagOption->id))>{{ $tagOption->name }}</option>
+                                    @endforeach
+                                </select>
+                                <p class="mt-1.5 text-xs text-[#94A3B8]">Quick labels like Featured or Sale—not your main catalog structure.</p>
+                            </div>
+                        @endif
                     </div>
                 </div>
 
@@ -173,7 +209,7 @@ const deleteButtons=[...document.querySelectorAll('.js-open-delete-product-modal
 const editForm=document.getElementById('editProductForm'); const deleteForm=document.getElementById('deleteProductForm');
 const deleteWarningModal=document.getElementById('deleteProductWarningModal'); const openDeleteWarning=document.getElementById('openDeleteProductWarning'); const cancelDeleteProduct=document.getElementById('cancelDeleteProduct'); const deleteProductName=document.getElementById('deleteProductName');
 const editProductId=document.getElementById('edit_product_id'); const editTypeSelect=document.getElementById('edit_product_type_select'); const editTypeValue=document.getElementById('edit_product_type_value'); const editCustomTypeWrap=document.getElementById('editProductCustomTypeWrap'); const editCustomType=document.getElementById('edit_product_custom_type'); const editCustomTypeHidden=document.getElementById('edit_product_custom_type_hidden');
-const editName=document.getElementById('edit_product_name'); const editDescription=document.getElementById('edit_product_description'); const editSku=document.getElementById('edit_product_sku'); const editPrice=document.getElementById('edit_product_price'); const editStockAlert=document.getElementById('edit_product_stock_alert'); const editImageInput=document.getElementById('edit_product_image'); const editImagePreview=document.getElementById('editProductImagePreview'); const editExistingImageInputs=document.getElementById('editExistingImageInputs');
+const editName=document.getElementById('edit_product_name'); const editDescription=document.getElementById('edit_product_description'); const editSku=document.getElementById('edit_product_sku'); const editPrice=document.getElementById('edit_product_price'); const editStockAlert=document.getElementById('edit_product_stock_alert'); const editBrandId=document.getElementById('edit_product_brand_id'); const editTagIds=document.getElementById('edit_product_tag_ids'); const editCategoryIds=document.getElementById('edit_product_category_ids'); const editImageInput=document.getElementById('edit_product_image'); const editImagePreview=document.getElementById('editProductImagePreview'); const editExistingImageInputs=document.getElementById('editExistingImageInputs');
 const editVariationHiddenInputs=document.getElementById('editVariationHiddenInputs'); const editNoVariationState=document.getElementById('editNoVariationState'); const editVariationTypesList=document.getElementById('editVariationTypesList'); const editAddVariantRow=document.getElementById('editAddVariantRow'); const editVariantRows=document.getElementById('editVariantRows'); const editBulkPrice=document.getElementById('editBulkPrice'); const editBulkStock=document.getElementById('editBulkStock'); const editApplyBulkValues=document.getElementById('editApplyBulkValues'); const editPreviewCount=document.getElementById('editPreviewCount'); const editPreviewTableBody=document.getElementById('editPreviewTableBody');
 const editVariationModal=document.getElementById('editVariationModal'); const editOpenVariationModal=document.getElementById('editOpenVariationModal'); const closeEditVariationModal=document.getElementById('closeEditVariationModal'); const cancelEditVariationModal=document.getElementById('cancelEditVariationModal'); const submitEditVariationModal=document.getElementById('submitEditVariationModal'); const editVariationName=document.getElementById('editVariationName'); const editVariationOptions=document.getElementById('editVariationOptions'); const editVariationOptionInput=document.getElementById('editVariationOptionInput'); const editVariationOptionChips=document.getElementById('editVariationOptionChips');
 const defaultTypes=['physical','digital','service','subscription','virtual']; let currentProduct=null; let editVariationTypes=[]; let editRows=[]; let editingVariationIndex=null; let retainedExistingImages=[]; let selectedEditImages=[]; let editVariationOptionTags=[];
@@ -196,7 +232,7 @@ const renderVariantRows=()=>{ if(!editRows.length){editVariantRows.innerHTML='';
 const normalizeRowsAfterVariationChange=()=>{editRows=buildEditRowsFromVariationTypes(editRows);};
 const renderVariationCards=()=>{ if(!editVariationTypes.length){editVariationTypesList.classList.add('hidden'); editNoVariationState.classList.remove('hidden'); return;} editVariationTypesList.classList.remove('hidden'); editNoVariationState.classList.add('hidden'); editVariationTypesList.innerHTML=editVariationTypes.map((t,i)=>`<div class="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5"><div class="mb-3 flex items-center justify-between gap-3"><div><span class="text-base font-medium text-[#0F172A]">Variation ${i+1}: ${escapeHtml(t.name||'Variation')}</span><div class="mt-1 text-xs uppercase text-[#94A3B8]">${escapeHtml(t.type||'select')}</div></div><div class="flex items-center gap-2"><button type="button" class="edit-variation-type text-xs font-semibold text-[#0052CC]" data-variation-index="${i}">Edit</button><button type="button" class="remove-variation-type text-xs font-semibold text-[#B42318]" data-variation-index="${i}">Remove</button></div></div><div class="flex flex-wrap gap-2">${(t.options||[]).map((o,j)=>`<span class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium">${escapeHtml(o)}<button type="button" class="edit-remove-variation-option leading-none text-[#94A3B8] hover:text-[#B42318]" data-variation-index="${i}" data-option-index="${j}">&times;</button></span>`).join('')}</div></div>`).join(''); document.querySelectorAll('.edit-remove-variation-option').forEach((b)=>b.addEventListener('click',()=>{const vi=Number(b.dataset.variationIndex),oi=Number(b.dataset.optionIndex); if(!editVariationTypes[vi]) return; editVariationTypes[vi].options.splice(oi,1); if(!(editVariationTypes[vi].options||[]).length) editVariationTypes.splice(vi,1); normalizeRowsAfterVariationChange(); renderVariationInputs(); renderVariationCards(); renderVariantRows();})); document.querySelectorAll('.edit-variation-type').forEach((b)=>b.addEventListener('click',()=>openVariationEditor(Number(b.dataset.variationIndex)))); document.querySelectorAll('.remove-variation-type').forEach((b)=>b.addEventListener('click',()=>{editVariationTypes.splice(Number(b.dataset.variationIndex),1); normalizeRowsAfterVariationChange(); renderVariationInputs(); renderVariationCards(); renderVariantRows();}));};
 const closeAll=()=>{editModal.classList.add('hidden'); editModal.classList.remove('flex'); editVariationModal.classList.add('hidden'); editVariationModal.classList.remove('flex'); deleteWarningModal.classList.add('hidden'); deleteWarningModal.classList.remove('flex'); document.body.classList.remove('overflow-hidden');};
-const openEdit=(product)=>{currentProduct=product; retainedExistingImages=JSON.parse(JSON.stringify(product.image_paths||[])); selectedEditImages=[]; syncSelectedFiles(editImageInput,selectedEditImages); editProductId.value=product.id||''; editForm.action=product.update_url; deleteForm.action=product.delete_url; editName.value=product.name||''; editDescription.value=product.description||''; editSku.value=product.sku||''; editPrice.value=product.base_price||''; editStockAlert.value=product.stock_alert||0; editBulkPrice.value=product.base_price||''; editBulkStock.value=''; if(defaultTypes.includes(product.product_type)){editTypeSelect.value=product.product_type; editCustomType.value='';}else{editTypeSelect.value='custom'; editCustomType.value=product.product_type||'';} editVariationTypes=JSON.parse(JSON.stringify(product.variation_types||[])); editRows=JSON.parse(JSON.stringify(product.variants||[])); if(!editRows.length&&editVariationTypes.length){editRows=buildEditRowsFromVariationTypes(editRows);} renderEditImages(); syncType(); renderVariationInputs(); renderVariationCards(); renderVariantRows(); editModal.classList.remove('hidden'); editModal.classList.add('flex'); document.body.classList.add('overflow-hidden');};
+const openEdit=(product)=>{currentProduct=product; retainedExistingImages=JSON.parse(JSON.stringify(product.image_paths||[])); selectedEditImages=[]; syncSelectedFiles(editImageInput,selectedEditImages); editProductId.value=product.id||''; editForm.action=product.update_url; deleteForm.action=product.delete_url; editName.value=product.name||''; editDescription.value=product.description||''; editSku.value=product.sku||''; editPrice.value=product.base_price||''; editStockAlert.value=product.stock_alert||0; if(editBrandId){editBrandId.value=product.brand_id!=null&&product.brand_id!==''?String(product.brand_id):'';} if(editTagIds){const selected=new Set((product.tag_ids||[]).map((id)=>Number(id)));[...editTagIds.options].forEach((opt)=>{opt.selected=selected.has(Number(opt.value));});} if(editCategoryIds){const csel=new Set((product.category_ids||[]).map((id)=>Number(id)));[...editCategoryIds.options].forEach((opt)=>{opt.selected=csel.has(Number(opt.value));});} editBulkPrice.value=product.base_price||''; editBulkStock.value=''; if(defaultTypes.includes(product.product_type)){editTypeSelect.value=product.product_type; editCustomType.value='';}else{editTypeSelect.value='custom'; editCustomType.value=product.product_type||'';} editVariationTypes=JSON.parse(JSON.stringify(product.variation_types||[])); editRows=JSON.parse(JSON.stringify(product.variants||[])); if(!editRows.length&&editVariationTypes.length){editRows=buildEditRowsFromVariationTypes(editRows);} renderEditImages(); syncType(); renderVariationInputs(); renderVariationCards(); renderVariantRows(); editModal.classList.remove('hidden'); editModal.classList.add('flex'); document.body.classList.add('overflow-hidden');};
 const parseProductPayload=(button)=>{try{return button?.dataset?.product?JSON.parse(button.dataset.product):null;}catch(error){return null;}};
 window.openProductEditModalFromElement=(button)=>{const product=parseProductPayload(button); if(product){openEdit(product);}};
 window.openProductDeleteModalFromElement=(button)=>{const product=parseProductPayload(button); if(!product) return; openEdit(product); openDeleteWarning?.click();};

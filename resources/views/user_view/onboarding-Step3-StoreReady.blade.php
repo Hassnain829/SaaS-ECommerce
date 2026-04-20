@@ -110,6 +110,11 @@
                         </div>
                         <!-- content -->
                         <div class="p-6 space-y-4">
+                            @if ($store->logo)
+                                <div class="flex justify-center pb-2">
+                                    <img src="{{ asset('storage/'.$store->logo) }}" alt="{{ $store->name }} logo" class="h-20 w-20 rounded-xl border border-[#E2E8F0] bg-white object-contain p-2 shadow-sm">
+                                </div>
+                            @endif
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-[#64748B]">Store Name</span>
                                 <span class="text-sm font-inter font-medium text-[#0F172A] text-right">{{ $store->name }}</span>

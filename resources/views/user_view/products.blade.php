@@ -3,22 +3,55 @@
 @section('title', 'Products Admin - BaaS Core')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', 'E-commerce Portal')
-@section('sidebar_logo')
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M11 13L9 11L11 9L13 11L11 13ZM8.875 7.125L6.375 4.625L11 0L15.625 4.625L13.125 7.125L11 5L8.875 7.125ZM4.625 15.625L0 11L4.625 6.375L7.125 8.875L5 11L7.125 13.125L4.625 15.625ZM17.375 15.625L14.875 13.125L17 11L14.875 8.875L17.375 6.375L22 11L17.375 15.625ZM11 22L6.375 17.375L8.875 14.875L11 17L13.125 14.875L15.625 17.375L11 22Z" fill="white" />
-    </svg>
-@endsection
 
 @php
     $baseFilters = [
         'q' => $filters['q'] ?? '',
         'category' => $filters['category'] ?? '',
+        'product_type' => $filters['product_type'] ?? '',
         'status' => $filters['status'] ?? '',
         'stock' => $filters['stock'] ?? '',
         'sort' => $filters['sort'] ?? 'latest',
+        'brand' => $filters['brand'] ?? '',
+        'tag' => $filters['tag'] ?? '',
     ];
 
     $openProductModal = request()->boolean('openAddProduct') || old('_open_add_product_modal');
+    $brandCount = $brandCount ?? 0;
+    $activeBrandFilter = $activeBrandFilter ?? null;
+    $activeTagFilter = $activeTagFilter ?? null;
+    $activeTaxonomyCategoryFilter = $activeTaxonomyCategoryFilter ?? null;
+    $canManageBrands = in_array($currentUserStoreRole ?? '', ['owner', 'manager'], true);
+    $canManageTags = $canManageBrands;
+    $canManageCategories = $canManageBrands;
+
+    $catalogToolsReopen = $errors->any() && (
+        old('_open_brand_add_modal') == '1' || old('_open_brand_add_modal') === true ||
+        old('_editing_brand_id') ||
+        old('_open_tag_add_modal') == '1' || old('_open_tag_add_modal') === true ||
+        old('_editing_tag_id') ||
+        old('_open_category_add_modal') == '1' || old('_open_category_add_modal') === true ||
+        old('_editing_category_id')
+    );
+    $catalogToolsDefaultTab = 'categories';
+    if ($errors->any()) {
+        if (old('_editing_brand_id')) {
+            $catalogToolsDefaultTab = 'brands';
+        } elseif (old('_editing_tag_id')) {
+            $catalogToolsDefaultTab = 'tags';
+        } elseif (old('_editing_category_id')) {
+            $catalogToolsDefaultTab = 'categories';
+        } elseif (old('_open_brand_add_modal') == '1' || old('_open_brand_add_modal') === true) {
+            $catalogToolsDefaultTab = 'brands';
+        } elseif (old('_open_tag_add_modal') == '1' || old('_open_tag_add_modal') === true) {
+            $catalogToolsDefaultTab = 'tags';
+        } elseif (old('_open_category_add_modal') == '1' || old('_open_category_add_modal') === true) {
+            $catalogToolsDefaultTab = 'categories';
+        }
+    }
+    $openCatalogToolsShell = $catalogToolsReopen || request()->boolean('openCatalogTools');
+
+    $filtersRefineOpen = ($filters['brand'] ?? '') !== '' || ($filters['tag'] ?? '') !== '' || ($filters['stock'] ?? '') === 'low' || ($filters['status'] ?? '') === 'published' || ($filters['status'] ?? '') === 'draft';
 @endphp
 
 @section('topbar')
@@ -31,15 +64,18 @@
 
         <form method="GET" action="{{ route('products') }}" class="relative flex-1 max-w-xs sm:max-w-sm md:max-w-md">
             <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
+            <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
             <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
             <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
             <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
+            <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
+            <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                     <path d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z" fill="currentColor" />
                 </svg>
             </span>
-            <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search products, SKUs, categories..." class="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg py-2 pl-10 pr-4 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+            <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search products and SKUs…" class="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg py-2 pl-10 pr-4 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
         </form>
 
         <div class="flex items-center gap-3 shrink-0">
@@ -49,6 +85,12 @@
                 </svg>
                 <span>Add Product</span>
             </button>
+            @if ($canManageBrands || $canManageTags || $canManageCategories)
+                <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-xs font-semibold text-[#64748B] hover:border-[#CBD5E1] hover:bg-[#F8FAFC] hover:text-[#334155]" title="Categories, brands, and tags">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="text-[#94A3B8]" aria-hidden="true"><path d="M2.5 3.5h11v1h-11v-1zm0 4h11v1h-11v-1zm0 4h7v1h-7v-1z" fill="currentColor"/></svg>
+                    <span>Catalog tools</span>
+                </button>
+            @endif
 
             <div class="w-px h-6 bg-[#E2E8F0] hidden sm:block"></div>
 
@@ -76,12 +118,46 @@
 @endsection
 
 @section('content')
+    @include('user_view.partials.flash_success')
+
+    @if ($errors->has('brand'))
+        <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm" role="alert">
+            <p class="font-semibold text-amber-900">Cannot remove this brand</p>
+            <p class="mt-1 text-amber-900/90">{{ $errors->first('brand') }}</p>
+        </div>
+    @endif
+
+    @if ($errors->has('category'))
+        <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm" role="alert">
+            <p class="font-semibold text-amber-900">Cannot remove this category</p>
+            <p class="mt-1 text-amber-900/90">{{ $errors->first('category') }}</p>
+        </div>
+    @endif
+
     <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
             <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Products</h1>
-            <p class="text-sm text-[#64748B] mt-0.5">Manage your inventory and product listings for the active store.</p>
+            <p class="text-sm text-[#64748B] mt-0.5 max-w-2xl">Products and inventory for the store selected in the sidebar.</p>
             @if ($selectedStore)
-                <p class="mt-1 text-sm font-medium text-[#0052CC]">Viewing store: {{ $selectedStore->name }}</p>
+                <p class="mt-1 text-sm font-medium text-[#0052CC]">Active store: {{ $selectedStore->name }}</p>
+            @endif
+            @if ($activeBrandFilter)
+                <div class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#BFDBFE] bg-[#F0F9FF] px-3 py-2 text-sm text-[#0C4A6E]">
+                    <span>Showing products with brand <span class="font-semibold">{{ $activeBrandFilter->name }}</span>.</span>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['brand' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear brand filter</a>
+                </div>
+            @endif
+            @if ($activeTagFilter)
+                <div class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#E9D5FF] bg-[#FAF5FF] px-3 py-2 text-sm text-[#581C87]">
+                    <span>Filtered by tag <span class="font-semibold">{{ $activeTagFilter->name }}</span>.</span>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['tag' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear tag filter</a>
+                </div>
+            @endif
+            @if ($activeTaxonomyCategoryFilter)
+                <div class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#CCFBF1] bg-[#F0FDFA] px-3 py-2 text-sm text-[#115E59]">
+                    <span>Filtered by category <span class="font-semibold">{{ $activeTaxonomyCategoryFilter->name }}</span>.</span>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['category' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear category filter</a>
+                </div>
             @endif
         </div>
         <div class="flex flex-col sm:items-end gap-3">
@@ -96,9 +172,9 @@
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
-            <div class="text-sm text-[#64748B]">Total Products</div>
+            <div class="text-sm text-[#64748B]">Products in view</div>
             <div class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ number_format($stats['total_products']) }}</div>
-            <div class="mt-1 text-xs text-green-600 font-semibold">{{ $selectedStore ? $selectedStore->name : 'Across all stores' }}</div>
+            <div class="mt-1 text-xs text-[#64748B]">{{ $activeBrandFilter || $activeTagFilter || $activeTaxonomyCategoryFilter || ($filters['product_type'] ?? '') !== '' ? 'Matches current filters' : 'In this store' }}</div>
         </div>
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
             <div class="text-sm text-[#64748B]">Out of Stock</div>
@@ -110,76 +186,155 @@
             <div class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ number_format($stats['low_stock']) }}</div>
             <div class="mt-1 text-xs text-orange-500 font-bold">Ordering recommended</div>
         </div>
-        <div class="bg-[#0052CC]/5 rounded-xl border border-[#0052CC]/20 p-5 shadow-sm">
-            <div class="text-sm text-[#0052CC]/70">Active Categories</div>
-            <div class="mt-2 text-2xl font-medium text-[#0052CC] font-poppins">{{ number_format($stats['active_categories']) }}</div>
-            <div class="mt-1 text-xs text-[#0052CC]/60 font-bold">{{ $selectedStore ? 'Within selected store' : 'Across all stores' }}</div>
+        <div class="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <div class="text-sm text-[#64748B]">Brands</div>
+            <div class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ number_format($brandCount) }}</div>
+            @if ($canManageBrands || $canManageTags || $canManageCategories)
+                <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="mt-3 w-full rounded-lg border border-[#E2E8F0] py-2 text-xs font-semibold text-[#0052CC] transition hover:bg-[#F8FAFC] sm:hidden">Catalog tools</button>
+            @else
+                <p class="mt-2 text-xs text-[#94A3B8]">Owner or manager can edit.</p>
+            @endif
         </div>
     </div>
 
     <div class="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
-        <div class="flex flex-wrap items-center gap-2 px-4 lg:px-5 py-4 border-b border-[#E2E8F0]">
-            <form method="GET" action="{{ route('products') }}" class="contents">
-                <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
-                <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
-                <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
-                <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
-                <div class="relative">
-                    <select name="category" onchange="this.form.submit()" class="appearance-none bg-[#0052CC] text-white text-sm font-semibold px-4 py-2 pr-9 rounded-full">
-                        <option value="">All Categories</option>
-                        @foreach ($categories as $categoryValue => $categoryLabel)
-                            <option value="{{ $categoryValue }}" @selected(($filters['category'] ?? '') === $categoryValue)>{{ $categoryLabel }}</option>
-                        @endforeach
-                    </select>
-                    <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 14 14" fill="none">
-                        <path d="M7 9L3 5H11L7 9Z" fill="white" />
-                    </svg>
-                </div>
-            </form>
-
-            <a href="{{ route('products', array_filter(array_merge($baseFilters, ['stock' => ($filters['stock'] ?? '') === 'low' ? null : 'low']))) }}" class="flex items-center gap-1.5 border text-sm font-inter font-medium px-4 py-2 rounded-full transition-colors {{ ($filters['stock'] ?? '') === 'low' ? 'border-[#F97316] bg-orange-50 text-orange-500' : 'border-[#E2E8F0] text-[#475569] hover:bg-gray-50' }}">
-                Low Stock
-                <span class="bg-[#F97316] text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">{{ $stats['low_stock'] }}</span>
-            </a>
-            <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'published' ? null : 'published']))) }}" class="border text-sm font-inter font-medium px-4 py-2 rounded-full transition-colors {{ ($filters['status'] ?? '') === 'published' ? 'border-[#0052CC] bg-[#0052CC]/10 text-[#0052CC]' : 'border-[#E2E8F0] text-[#475569] hover:bg-gray-50' }}">Published</a>
-            <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'draft' ? null : 'draft']))) }}" class="border text-sm font-inter font-medium px-4 py-2 rounded-full transition-colors {{ ($filters['status'] ?? '') === 'draft' ? 'border-[#0052CC] bg-[#0052CC]/10 text-[#0052CC]' : 'border-[#E2E8F0] text-[#475569] hover:bg-gray-50' }}">Drafts</a>
-
-            <div class="ml-auto flex gap-2">
-                <form method="GET" action="{{ route('products') }}" class="relative">
+        <div class="border-b border-[#E2E8F0] px-4 py-3 lg:px-5 lg:py-3.5">
+            <div class="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+                <form method="GET" action="{{ route('products') }}" class="flex flex-wrap items-end gap-x-4 gap-y-2">
                     <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
-                    <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
                     <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
                     <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
-                    <select name="sort" onchange="this.form.submit()" class="absolute inset-0 opacity-0 cursor-pointer">
-                        <option value="latest" @selected(($filters['sort'] ?? 'latest') === 'latest')>Latest</option>
-                        <option value="name" @selected(($filters['sort'] ?? '') === 'name')>Name</option>
-                        <option value="price_high" @selected(($filters['sort'] ?? '') === 'price_high')>Price High</option>
-                        <option value="price_low" @selected(($filters['sort'] ?? '') === 'price_low')>Price Low</option>
-                        <option value="stock_high" @selected(($filters['sort'] ?? '') === 'stock_high')>Stock High</option>
-                        <option value="stock_low" @selected(($filters['sort'] ?? '') === 'stock_low')>Stock Low</option>
-                    </select>
-                    <span class="w-9 h-9 flex items-center justify-center border border-[#E2E8F0] rounded-lg hover:bg-gray-50" title="Sort products">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M7 11H9V9H7V11ZM1 3V5H15V3H1ZM4 8H12V6H4V8Z" fill="#475569" />
-                        </svg>
-                    </span>
+                    <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
+                    <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
+                    <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-[#0F766E]"> Category</span>
+                        <div class="relative">
+                            <select name="category" onchange="this.form.submit()" aria-label="Filter by catalog category" class="appearance-none bg-[#0052CC] text-white text-sm font-semibold px-4 py-2.5 pr-9 rounded-xl shadow-sm min-w-[11rem]">
+                                <option value="">All categories</option>
+                                @foreach ($catalogTaxonomyCategories ?? [] as $taxCat)
+                                    <option value="{{ $taxCat->id }}" @selected((string) ($filters['category'] ?? '') === (string) $taxCat->id)>{{ $taxCat->name }}</option>
+                                @endforeach
+                            </select>
+                            <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M7 9L3 5H11L7 9Z" fill="white" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-[#64748B]" title="How the product is sold or fulfilled—not the same as category above.">Type <span class="font-normal normal-case text-[#94A3B8]">(behavior)</span></span>
+                        <div class="relative">
+                            <select name="product_type" onchange="this.form.submit()" aria-label="Filter by product behavior type" class="appearance-none border text-sm font-semibold px-4 py-2.5 pr-9 rounded-xl transition-colors {{ ($filters['product_type'] ?? '') !== '' ? 'border-[#0D9488] bg-[#CCFBF1] text-[#115E59]' : 'border-[#E2E8F0] bg-white text-[#475569]' }}">
+                                <option value="">All types</option>
+                                @foreach ($productTypeFilterOptions ?? [] as $typeValue => $typeLabel)
+                                    <option value="{{ $typeValue }}" @selected(($filters['product_type'] ?? '') === $typeValue)>{{ $typeLabel }}</option>
+                                @endforeach
+                            </select>
+                            <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
+                            </svg>
+                        </div>
+                    </div>
                 </form>
-                <a href="{{ route('products', array_filter(array_merge($baseFilters, ['export' => 'csv']))) }}" class="w-9 h-9 flex items-center justify-center border border-[#E2E8F0] rounded-lg hover:bg-gray-50" title="Export CSV">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M2 14H14V12H2V14ZM14 6H11V2H5V6H2L8 12L14 6Z" fill="#475569" />
-                    </svg>
-                </a>
-                <a href="{{ route('products') }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] hover:bg-gray-50">Reset</a>
+                <div class="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+                    <form method="GET" action="{{ route('products') }}" class="relative">
+                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
+                        <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
+                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
+                        <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+                        <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
+                        <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
+                        <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                        <select name="sort" onchange="this.form.submit()" class="absolute inset-0 opacity-0 cursor-pointer" aria-label="Sort products">
+                            <option value="latest" @selected(($filters['sort'] ?? 'latest') === 'latest')>Latest</option>
+                            <option value="name" @selected(($filters['sort'] ?? '') === 'name')>Name</option>
+                            <option value="price_high" @selected(($filters['sort'] ?? '') === 'price_high')>Price High</option>
+                            <option value="price_low" @selected(($filters['sort'] ?? '') === 'price_low')>Price Low</option>
+                            <option value="stock_high" @selected(($filters['sort'] ?? '') === 'stock_high')>Stock High</option>
+                            <option value="stock_low" @selected(($filters['sort'] ?? '') === 'stock_low')>Stock Low</option>
+                        </select>
+                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]" title="Sort">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                <path d="M7 11H9V9H7V11ZM1 3V5H15V3H1ZM4 8H12V6H4V8Z" fill="currentColor" />
+                            </svg>
+                        </span>
+                    </form>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['export' => 'csv']))) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]" title="Export CSV">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M2 14H14V12H2V14ZM14 6H11V2H5V6H2L8 12L14 6Z" fill="currentColor" />
+                        </svg>
+                    </a>
+                    <a href="{{ route('products') }}" class="inline-flex h-9 items-center rounded-lg border border-[#E2E8F0] bg-white px-3 text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC]" title="Clear all filters and search">Reset</a>
+                </div>
             </div>
+
+            <details class="group mt-2 border-t border-[#F1F5F9] pt-2 sm:mt-3 sm:pt-3" @if ($filtersRefineOpen) open @endif>
+                <summary class="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-[#64748B] hover:text-[#334155] [&::-webkit-details-marker]:hidden">
+                    <span class="inline-flex h-5 w-5 items-center justify-center rounded border border-[#E2E8F0] bg-[#F8FAFC] text-[10px] text-[#94A3B8] group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+                    <span>More filters</span>
+                    <span class="font-normal text-[#94A3B8]">brand, tag, inventory</span>
+                </summary>
+                <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-lg bg-[#F8FAFC]/80 px-3 py-2.5">
+                    <form method="GET" action="{{ route('products') }}" class="contents">
+                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
+                        <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
+                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
+                        <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+                        <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
+                        <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
+                        <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                        <div class="relative">
+                            <select name="brand" onchange="this.form.submit()" aria-label="Filter by brand" class="appearance-none border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-3 py-1.5 pr-8 rounded-lg transition-colors {{ ($filters['brand'] ?? '') !== '' ? 'ring-1 ring-[#CBD5E1] text-[#334155]' : '' }}">
+                                <option value="">All brands</option>
+                                @foreach ($catalogBrands as $b)
+                                    <option value="{{ $b->id }}" @selected((string) ($filters['brand'] ?? '') === (string) $b->id)>{{ $b->name }}</option>
+                                @endforeach
+                            </select>
+                            <svg class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8]" width="10" height="10" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
+                            </svg>
+                        </div>
+                    </form>
+                    <form method="GET" action="{{ route('products') }}" class="contents">
+                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
+                        <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
+                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
+                        <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+                        <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
+                        <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
+                        <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
+                        <div class="relative">
+                            <select name="tag" onchange="this.form.submit()" aria-label="Filter by tag" class="appearance-none border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-3 py-1.5 pr-8 rounded-lg transition-colors {{ ($filters['tag'] ?? '') !== '' ? 'ring-1 ring-[#CBD5E1] text-[#334155]' : '' }}">
+                                <option value="">All tags</option>
+                                @foreach ($catalogTags ?? [] as $tg)
+                                    <option value="{{ $tg->id }}" @selected((string) ($filters['tag'] ?? '') === (string) $tg->id)>{{ $tg->name }}</option>
+                                @endforeach
+                            </select>
+                            <svg class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8]" width="10" height="10" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
+                            </svg>
+                        </div>
+                    </form>
+                    <span class="hidden h-4 w-px bg-[#E2E8F0] sm:inline" aria-hidden="true"></span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">||</span>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['stock' => ($filters['stock'] ?? '') === 'low' ? null : 'low']))) }}" class="flex items-center gap-1 border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['stock'] ?? '') === 'low' ? 'border-[#F97316] bg-orange-50 text-orange-700' : '' }}">
+                        Low stock
+                        <span class="rounded-full bg-[#F97316] px-1.5 py-0 text-[10px] font-bold text-white tabular-nums">{{ $stats['low_stock'] }}</span>
+                    </a>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'published' ? null : 'published']))) }}" class="border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['status'] ?? '') === 'published' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : '' }}">Published</a>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'draft' ? null : 'draft']))) }}" class="border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['status'] ?? '') === 'draft' ? 'border-slate-400 bg-slate-50 text-[#334155]' : '' }}">Drafts</a>
+                </div>
+            </details>
         </div>
 
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[780px]">
+            <table class="w-full min-w-[900px]">
                 <thead>
                     <tr class="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                         <th class="w-10 px-4 py-3"><input id="selectAllProducts" type="checkbox" class="w-4 h-4 rounded border-[#CBD5E1] accent-[#0052CC]"></th>
                         <th class="text-left px-4 py-3 text-[#64748B] text-xs font-bold uppercase tracking-wider">Product</th>
-                        <th class="text-left px-4 py-3 text-[#64748B] text-xs font-bold uppercase tracking-wider">Category</th>
+                        <th class="text-left px-4 py-3 text-[#64748B] text-xs font-bold uppercase tracking-wider">Categories</th>
+                        <th class="text-left px-4 py-3 text-[#64748B] text-xs font-bold uppercase tracking-wider">Behavior</th>
                         <th class="text-left px-4 py-3 text-[#64748B] text-xs font-bold uppercase tracking-wider">Status</th>
                         <th class="text-left px-4 py-3 text-[#64748B] text-xs font-bold uppercase tracking-wider">Price</th>
                         <th class="text-left px-4 py-3 text-[#64748B] text-xs font-bold uppercase tracking-wider" colspan="2">Inventory</th>
@@ -193,8 +348,9 @@
                             $alertLevel = (int) ($product->variants_max_stock_alert ?? ($product->meta['stock_alert'] ?? 0));
                             $stockState = $inventory === 0 ? 'out' : ($inventory <= max($alertLevel, 0) ? 'low' : 'in');
                             $stockWidth = min(100, max(4, $inventory));
-                            $productImagePath = $product->meta['image_path'] ?? ($product->meta['image_paths'][0] ?? null);
-                            $productImageUrl = $productImagePath ? asset('storage/' . $productImagePath) : null;
+                            $galleryPaths = $product->images->pluck('image_path')->values()->all();
+                            $primaryPath = $galleryPaths[0] ?? null;
+                            $productImageUrl = $primaryPath ? asset('storage/'.$primaryPath) : null;
                             $productActionPayload = [
                                 'id' => $product->id,
                                 'name' => $product->name,
@@ -202,11 +358,14 @@
                                 'sku' => $product->sku,
                                 'base_price' => (string) $product->base_price,
                                 'product_type' => $product->product_type,
+                                'brand_id' => $product->brand_id,
+                                'tag_ids' => $product->tags->pluck('id')->values()->all(),
+                                'category_ids' => $product->categories->pluck('id')->values()->all(),
                                 'stock_alert' => (int) ($product->variants_max_stock_alert ?? ($product->meta['stock_alert'] ?? 0)),
                                 'image_url' => $productImageUrl,
-                                'image_paths' => collect($product->meta['image_paths'] ?? array_filter([$productImagePath]))->values()->all(),
-                                'image_urls' => collect($product->meta['image_paths'] ?? array_filter([$productImagePath]))
-                                    ->map(fn($path) => asset('storage/' . $path))
+                                'image_paths' => $galleryPaths,
+                                'image_urls' => collect($galleryPaths)
+                                    ->map(fn ($path) => asset('storage/'.$path))
                                     ->values()
                                     ->all(),
                                 'variation_types' => $product->variationTypes->map(fn($variationType) => [
@@ -258,10 +417,39 @@
                                     <div>
                                         <div class="font-inter font-medium text-[#0F172A] text-sm">{{ $product->name }}</div>
                                         <div class="text-[#94A3B8] text-xs">SKU: {{ $product->sku ?: 'Auto-generated' }}</div>
+                                        @if ($product->brand)
+                                            <div class="mt-0.5 text-[11px] text-[#94A3B8]">Brand <span class="text-[#64748B]">{{ $product->brand->name }}</span></div>
+                                        @endif
+                                        @if ($product->tags->isNotEmpty())
+                                            @php
+                                                $tagNames = $product->tags->pluck('name');
+                                                $tagPreview = $tagNames->take(4)->implode(', ');
+                                                $extraTagCount = max(0, $tagNames->count() - 4);
+                                            @endphp
+                                            <p class="mt-0.5 max-w-[16rem] truncate text-[11px] text-[#94A3B8]" title="{{ $tagNames->implode(', ') }}">Tags: {{ $tagPreview }}@if ($extraTagCount > 0) +{{ $extraTagCount }}@endif</p>
+                                        @endif
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-4 py-4"><span class="bg-[#F1F5F9] text-[#475569] px-2 py-1 rounded text-xs">{{ \Illuminate\Support\Str::title(str_replace(['-', '_'], ' ', $product->product_type)) }}</span></td>
+                            <td class="px-4 py-4">
+                                @if ($product->categories->isNotEmpty())
+                                    @php
+                                        $visibleCats = $product->categories->take(3);
+                                        $extraCatCount = $product->categories->count() - $visibleCats->count();
+                                    @endphp
+                                    <div class="flex max-w-[12rem] flex-wrap gap-1">
+                                        @foreach ($visibleCats as $cat)
+                                            <span class="inline-block max-w-[6.5rem] truncate rounded-md border border-[#99F6E4] bg-[#F0FDFA] px-2 py-0.5 text-[11px] font-semibold text-[#0F766E]" title="{{ $cat->name }}">{{ $cat->name }}</span>
+                                        @endforeach
+                                        @if ($extraCatCount > 0)
+                                            <span class="text-[10px] font-medium text-[#94A3B8]">+{{ $extraCatCount }}</span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="text-xs text-[#94A3B8]">—</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-4"><span class="bg-[#F1F5F9] text-[#475569] px-2 py-1 rounded text-xs" title="Fulfillment / behavior type">{{ \Illuminate\Support\Str::title(str_replace(['-', '_'], ' ', $product->product_type)) }}</span></td>
                             <td class="px-4 py-4">
                                 @if ($stockState === 'out')
                                     <span class="inline-flex items-center gap-1.5 bg-red-50 text-red-600 text-xs font-bold px-3 py-1 rounded-full"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="4" fill="#EF4444" /></svg>Out of Stock</span>
@@ -289,7 +477,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-12 text-center">
+                            <td colspan="9" class="px-4 py-12 text-center">
                                 <p class="text-sm font-semibold text-[#0F172A]">No products found</p>
                                 <p class="mt-1 text-sm text-[#64748B]">Try a different search term or clear your filters.</p>
                             </td>
@@ -329,8 +517,28 @@
         'productModalSelectedStore' => $selectedStore,
         'productModalIsOpen' => $openProductModal,
         'productModalOpenQuery' => 'openAddProduct',
+        'catalogBrands' => $catalogBrands ?? collect(),
+        'catalogTags' => $catalogTags ?? collect(),
+        'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
     ])
-    @include('user_view.partials.product_edit_modal')
+    @include('user_view.partials.product_edit_modal', [
+        'catalogBrands' => $catalogBrands ?? collect(),
+        'catalogTags' => $catalogTags ?? collect(),
+        'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
+    ])
+
+    @if ($canManageBrands || $canManageTags || $canManageCategories)
+        @include('user_view.partials.catalog_tools_modal', [
+            'managementBrands' => $managementBrands ?? collect(),
+            'managementTags' => $managementTags ?? collect(),
+            'managementCategories' => $managementCategories ?? collect(),
+            'canManageBrands' => $canManageBrands,
+            'canManageTags' => $canManageTags,
+            'canManageCategories' => $canManageCategories,
+            'openCatalogToolsShell' => $openCatalogToolsShell,
+            'catalogToolsDefaultTab' => $catalogToolsDefaultTab,
+        ])
+    @endif
 
     <script>
         (() => {

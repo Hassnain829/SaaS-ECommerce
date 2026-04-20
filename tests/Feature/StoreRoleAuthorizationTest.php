@@ -181,8 +181,6 @@ class StoreRoleAuthorizationTest extends TestCase
             'meta' => [
                 'default_stock' => 10,
                 'stock_alert' => 2,
-                'image_path' => null,
-                'image_paths' => [],
             ],
         ]);
     }

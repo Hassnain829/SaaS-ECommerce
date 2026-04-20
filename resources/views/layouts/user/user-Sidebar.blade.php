@@ -16,7 +16,7 @@
 
 <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-white border-r border-[#E2E8F0] flex flex-col transform -translate-x-full transition-transform duration-300 md:static md:translate-x-0 md:z-auto w-64 bg-white border-r border-gray-200 h-full">
     <div class="p-6 flex items-center gap-3">
-        <div class="w-10 h-10 bg-[#0052CC] rounded-lg flex items-center justify-center shrink-0">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#0052CC]">
             @hasSection('sidebar_logo')
                 @yield('sidebar_logo')
             @else
@@ -25,9 +25,9 @@
                 </svg>
             @endif
         </div>
-        <div>
-            <div class="text-lg font-bold text-[#0F172A]">@yield('sidebar_brand_title', 'BaaS Core')</div>
-            <div class="text-xs text-[#64748B]">@yield('sidebar_brand_subtitle', 'Enterprise Admin')</div>
+        <div class="min-w-0">
+            <div class="text-lg font-bold text-[#0F172A] truncate">@yield('sidebar_brand_title', 'BaaS Core')</div>
+            <div class="text-xs text-[#64748B] truncate">@yield('sidebar_brand_subtitle', optional($currentStore)->name ?? 'Enterprise Admin')</div>
         </div>
     </div>
 
@@ -79,13 +79,15 @@
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M2 7L3.75 2.625C3.9 2.24167 4.12917 1.9375 4.4375 1.7125C4.74583 1.4875 5.1 1.375 5.5 1.375H14.5C14.9 1.375 15.2542 1.4875 15.5625 1.7125C15.8708 1.9375 16.1 2.24167 16.25 2.625L18 7V16.25C18 16.7333 17.8292 17.1458 17.4875 17.4875C17.1458 17.8292 16.7333 18 16.25 18H3.75C3.26667 18 2.85417 17.8292 2.5125 17.4875C2.17083 17.1458 2 16.7333 2 16.25V7ZM4.05 7H15.95L14.625 3.75H5.375L4.05 7ZM7.5 10.75V14.5H12.5V10.75H7.5Z" fill="currentColor"/>
             </svg>
-            <span class="text-sm {{ request()->routeIs('store-management') ? 'font-semibold' : 'font-medium' }}">Store</span>
+            <span class="text-sm {{ request()->routeIs('store-management') ? 'font-semibold' : 'font-medium' }}">Stores</span>
         </a>
 
-        <a href="{{ route('products') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('products') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <a href="{{ route('products') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('products') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M3 20C2.45 20 1.97917 19.8042 1.5875 19.4125C1.19583 19.0208 1 18.55 1 18V6.725C0.7 6.54167 0.458333 6.30417 0.275 6.0125C0.0916667 5.72083 0 5.38333 0 5V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H18C18.55 0 19.0208 0.195833 19.4125 0.5875C19.8042 0.979167 20 1.45 20 2V5C20 5.38333 19.9083 5.72083 19.725 6.0125C19.5417 6.30417 19.3 6.54167 19 6.725V18C19 18.55 18.8042 19.0208 18.4125 19.4125C18.0208 19.8042 17.55 20 17 20H3ZM3 7V18H17V7H3ZM2 5H18V2H2V5ZM7 12H13V10H7V12Z" fill="currentColor"/>
             </svg>
-            <span class="text-sm {{ request()->routeIs('products') ? 'font-semibold' : 'font-medium' }}">Products</span></a>
+            <span class="text-sm {{ request()->routeIs('products') ? 'font-semibold' : 'font-medium' }}">Products</span>
+        </a>
 
         <a href="{{ route('orders') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('orders') || request()->routeIs('orderViewDetails') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M6 20C5.45 20 4.97917 19.8042 4.5875 19.4125C4.19583 19.0208 4 18.55 4 18C4 17.45 4.19583 16.9792 4.5875 16.5875C4.97917 16.1958 5.45 16 6 16C6.55 16 7.02083 16.1958 7.4125 16.5875C7.80417 16.9792 8 17.45 8 18C8 18.55 7.80417 19.0208 7.4125 19.4125C7.02083 19.8042 6.55 20 6 20ZM16 20C15.45 20 14.9792 19.8042 14.5875 19.4125C14.1958 19.0208 14 18.55 14 18C14 17.45 14.1958 16.9792 14.5875 16.5875C14.9792 16.1958 15.45 16 16 16C16.55 16 17.0208 16.1958 17.4125 16.5875C17.8042 16.9792 18 17.45 18 18C18 18.55 17.8042 19.0208 17.4125 19.4125C17.0208 19.8042 16.55 20 16 20ZM5.15 4L7.55 9H14.55L17.3 4H5.15ZM4.2 2H18.95C19.3333 2 19.625 2.17083 19.825 2.5125C20.025 2.85417 20.0333 3.2 19.85 3.55L16.3 9.95C16.1167 10.2833 15.8708 10.5417 15.5625 10.725C15.2542 10.9083 14.9167 11 14.55 11H7.1L6 13H18V15H6C5.25 15 4.68333 14.6708 4.3 14.0125C3.91667 13.3542 3.9 12.7 4.25 12.05L5.6 9.6L2 2H0V0H3.25L4.2 2Z" fill="currentColor"/>

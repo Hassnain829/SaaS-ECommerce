@@ -8,6 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * `logo` is a storage-relative path string when set, not embedded image binary.
+ */
 class Store extends Model
 {
     use HasFactory;
@@ -39,6 +42,18 @@ class Store extends Model
         'settings' => 'array',
         'onboarding_completed' => 'boolean',
     ];
+
+    /**
+     * Public URL for the store logo file on the public disk (requires `storage:link`).
+     */
+    public function logoPublicUrl(): ?string
+    {
+        if (! filled($this->logo)) {
+            return null;
+        }
+
+        return asset('storage/'.$this->logo);
+    }
 
     public function user(): BelongsTo
     {
@@ -104,5 +119,15 @@ class Store extends Model
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
+    }
+
+    public function brands(): HasMany
+    {
+        return $this->hasMany(Brand::class);
+    }
+
+    public function tags(): HasMany
+    {
+        return $this->hasMany(Tag::class);
     }
 }

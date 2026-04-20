@@ -1,6 +1,9 @@
 ﻿<?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\TagController;
 use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnboardingController;
@@ -25,6 +28,33 @@ Route::get('/logout', [DashboardController::class, 'logout'])
 Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
+    Route::post('/brands', [BrandController::class, 'store'])
+        ->middleware('store.role:owner,manager')
+        ->name('brands.store');
+    Route::patch('/brands/{brand}', [BrandController::class, 'update'])
+        ->middleware('store.role:owner,manager')
+        ->name('brands.update');
+    Route::delete('/brands/{brand}', [BrandController::class, 'destroy'])
+        ->middleware('store.role:owner,manager')
+        ->name('brands.destroy');
+    Route::post('/tags', [TagController::class, 'store'])
+        ->middleware('store.role:owner,manager')
+        ->name('tags.store');
+    Route::patch('/tags/{tag}', [TagController::class, 'update'])
+        ->middleware('store.role:owner,manager')
+        ->name('tags.update');
+    Route::delete('/tags/{tag}', [TagController::class, 'destroy'])
+        ->middleware('store.role:owner,manager')
+        ->name('tags.destroy');
+    Route::post('/categories', [CategoryController::class, 'store'])
+        ->middleware('store.role:owner,manager')
+        ->name('categories.store');
+    Route::patch('/categories/{category}', [CategoryController::class, 'update'])
+        ->middleware('store.role:owner,manager')
+        ->name('categories.update');
+    Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])
+        ->middleware('store.role:owner,manager')
+        ->name('categories.destroy');
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
     Route::get('/orderViewDetails', [DashboardController::class, 'orderViewDetails'])->name('orderViewDetails');
 

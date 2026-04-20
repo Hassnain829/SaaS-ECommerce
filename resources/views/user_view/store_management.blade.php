@@ -60,8 +60,9 @@
 <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
     <!-- Hero Header -->
     <div>
-        <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Store Management Hub</h1>
-        <p class="text-base font-inter text-[#434654] max-w-2xl mt-2">Orchestrate your commerce ecosystem. Monitor real-time performance, manage deployment nodes, and scale your global footprint.</p>
+        <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Your stores</h1>
+        <p class="mt-2 max-w-2xl text-sm text-[#64748B]">Each store is its own workspace. Open a store’s <span class="font-semibold text-[#475569]">catalog</span> to manage products.</p>
+        <p class="mt-2 text-xs text-[#94A3B8]">Use the sidebar <span class="font-medium text-[#64748B]">Current Store</span> switcher anytime to change which store you are working in.</p>
     </div>
 
     <!-- Tab Navigation -->
@@ -87,18 +88,25 @@
                     'category' => $store->category,
                     'custom_category' => $store->settings['custom_category'] ?? '',
                     'business_models' => $store->settings['business_models'] ?? [],
+                    'logo_url' => $store->logoPublicUrl(),
                     'update_url' => route('store.update', ['storeId' => $store->id]),
                     'delete_url' => route('store.destroy', ['storeId' => $store->id]),
                 ];
             @endphp
             <!-- Dynamic Store Card -->
-            <div class="bg-white rounded-xl shadow-sm border border-transparent p-6">
+            <div class="rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
                 <div class="flex justify-between items-start">
                     <div class="flex gap-4">
-                        <div class="w-12 h-12 bg-[#DCE9FF] rounded-lg flex items-center justify-center">
-                            <svg width="21" height="18" viewBox="0 0 21 18" fill="none">
-                                <path d="M4.48333 7.95L3.48333 8.5C3.25 8.63333 3 8.66667 2.73333 8.6C2.46667 8.53333 2.26667 8.38333 2.13333 8.15L0.133333 4.65C0 4.41667 -0.0333333 4.16667 0.0333333 3.9C0.1 3.63333 0.25 3.43333 0.483333 3.3L6.23333 0H7.98333C8.13333 0 8.25417 0.0458333 8.34583 0.1375C8.4375 0.229167 8.48333 0.35 8.48333 0.5V1C8.48333 1.55 8.67917 2.02083 9.07083 2.4125C9.4625 2.80417 9.93333 3 10.4833 3C11.0333 3 11.5042 2.80417 11.8958 2.4125C12.2875 2.02083 12.4833 1.55 12.4833 1V0.5C12.4833 0.35 12.5292 0.229167 12.6208 0.1375C12.7125 0.0458333 12.8333 0 12.9833 0H14.7333L20.4833 3.3C20.7167 3.43333 20.8667 3.63333 20.9333 3.9C21 4.16667 20.9667 4.41667 20.8333 4.65L18.8333 8.15C18.7 8.38333 18.5042 8.52917 18.2458 8.5875C17.9875 8.64583 17.7333 8.60833 17.4833 8.475L16.4833 7.975V17C16.4833 17.2833 16.3875 17.5208 16.1958 17.7125C16.0042 17.9042 15.7667 18 15.4833 18H5.48333C5.2 18 4.9625 17.9042 4.77083 17.7125C4.57917 17.5208 4.48333 17.2833 4.48333 17V7.95M6.48333 4.6V16H14.4833V4.6L17.5833 6.3L18.6333 4.55L14.3333 2.05C14.0833 2.9 13.6125 3.60417 12.9208 4.1625C12.2292 4.72083 11.4167 5 10.4833 5C9.55 5 8.7375 4.72083 8.04583 4.1625C7.35417 3.60417 6.88333 2.9 6.63333 2.05L2.33333 4.55L3.38333 6.3L6.48333 4.6Z" fill="#003D9B"/>
-                            </svg>
+                        <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-sm">
+                            @if ($store->logo)
+                                <img src="{{ asset('storage/'.$store->logo) }}" alt="{{ $store->name }} logo" class="h-full w-full object-contain p-1">
+                            @else
+                                <div class="flex h-full w-full items-center justify-center bg-[#DCE9FF]">
+                                    <svg width="21" height="18" viewBox="0 0 21 18" fill="none">
+                                        <path d="M4.48333 7.95L3.48333 8.5C3.25 8.63333 3 8.66667 2.73333 8.6C2.46667 8.53333 2.26667 8.38333 2.13333 8.15L0.133333 4.65C0 4.41667 -0.0333333 4.16667 0.0333333 3.9C0.1 3.63333 0.25 3.43333 0.483333 3.3L6.23333 0H7.98333C8.13333 0 8.25417 0.0458333 8.34583 0.1375C8.4375 0.229167 8.48333 0.35 8.48333 0.5V1C8.48333 1.55 8.67917 2.02083 9.07083 2.4125C9.4625 2.80417 9.93333 3 10.4833 3C11.0333 3 11.5042 2.80417 11.8958 2.4125C12.2875 2.02083 12.4833 1.55 12.4833 1V0.5C12.4833 0.35 12.5292 0.229167 12.6208 0.1375C12.7125 0.0458333 12.8333 0 12.9833 0H14.7333L20.4833 3.3C20.7167 3.43333 20.8667 3.63333 20.9333 3.9C21 4.16667 20.9667 4.41667 20.8333 4.65L18.8333 8.15C18.7 8.38333 18.5042 8.52917 18.2458 8.5875C17.9875 8.64583 17.7333 8.60833 17.4833 8.475L16.4833 7.975V17C16.4833 17.2833 16.3875 17.5208 16.1958 17.7125C16.0042 17.9042 15.7667 18 15.4833 18H5.48333C5.2 18 4.9625 17.9042 4.77083 17.7125C4.57917 17.5208 4.48333 17.2833 4.48333 17V7.95M6.48333 4.6V16H14.4833V4.6L17.5833 6.3L18.6333 4.55L14.3333 2.05C14.0833 2.9 13.6125 3.60417 12.9208 4.1625C12.2292 4.72083 11.4167 5 10.4833 5C9.55 5 8.7375 4.72083 8.04583 4.1625C7.35417 3.60417 6.88333 2.9 6.63333 2.05L2.33333 4.55L3.38333 6.3L6.48333 4.6Z" fill="#003D9B"/>
+                                    </svg>
+                                </div>
+                            @endif
                         </div>
                         <div>
                             <h3 class="font-inter font-medium text-[#0F172A]">{{ $store->name }}</h3>
@@ -124,40 +132,45 @@
                 </div>
 
                 <!-- Store Details -->
-                <div class="mt-4 border-y border-[#C3C6D6]/10 py-4">
+                <div class="mt-4 border-y border-[#E2E8F0] py-4">
                     <div class="space-y-2">
                         <div class="flex justify-between items-center text-sm">
-                            <span class="text-[#64748B]">Slug:</span>
+                            <span class="text-[#64748B]">Slug</span>
                             <span class="font-inter font-medium text-[#0F172A]">{{ $store->slug }}</span>
                         </div>
                         <div class="flex justify-between items-center text-sm">
-                            <span class="text-[#64748B]">Created:</span>
+                            <span class="text-[#64748B]">Created</span>
                             <span class="font-inter font-medium text-[#0F172A]">{{ $store->created_at->format('M d, Y') }}</span>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-3 text-sm">
+                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-[#F8FAFC] px-2.5 py-1 font-medium text-[#0F172A] ring-1 ring-[#E2E8F0]">
+                                <span class="text-[#64748B] font-normal">Products</span>
+                                {{ (int) ($store->products_count ?? 0) }}
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-[#F8FAFC] px-2.5 py-1 font-medium text-[#0F172A] ring-1 ring-[#E2E8F0]">
+                                <span class="text-[#64748B] font-normal">Brands</span>
+                                {{ (int) ($store->brands_count ?? 0) }}
+                            </span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Actions -->
-                <div class="flex items-center gap-3 mt-4">
-                    <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex-1 py-2 bg-[#0052CC] text-white text-sm font-bold rounded-lg hover:bg-[#0042a3] transition text-center">View Products</a>
-                    <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" title="Add Products" class="p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]">
+                <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
+                    <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex-1 min-w-[8rem] rounded-lg bg-[#0052CC] py-2.5 text-center text-sm font-bold text-white transition hover:bg-[#0042a3]">Open catalog</a>
+                    <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" title="Add product" class="inline-flex items-center justify-center rounded-lg border border-[#E2E8F0] p-2.5 hover:bg-gray-50 sm:shrink-0">
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             <path d="M8 16H10V10H16V8H10V2H8V8H2V10H8V16Z" fill="#434654"/>
                         </svg>
                     </a>
                     <button
                         type="button"
-                        class="js-open-edit-store-modal p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]"
+                        class="js-open-edit-store-modal inline-flex items-center justify-center rounded-lg border border-[#E2E8F0] p-2.5 hover:bg-gray-100"
                         data-store='@json($storeActionPayload)'
                         title="Edit Store"
                     >
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             <path d="M2 16H3.425L13.2 6.225L11.775 4.8L2 14.575V16ZM0 18V13.75L13.2 0.575C13.4 0.391667 13.6208 0.25 13.8625 0.15C14.1042 0.05 14.3583 0 14.625 0C14.8917 0 15.15 0.05 15.4 0.15C15.65 0.25 15.8667 0.4 16.05 0.6L17.425 2C17.625 2.18333 17.7708 2.4 17.8625 2.65C17.9542 2.9 18 3.15 18 3.4C18 3.66667 17.9542 3.92083 17.8625 4.1625C17.7708 4.40417 17.625 4.625 17.425 4.825L4.25 18H0Z" fill="#434654"/>
-                        </svg>
-                    </button>
-                    <button class="p-2 rounded-lg hover:bg-gray-100 border border-[#E2E8F0]">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                            <path d="M10.0125 20C8.6375 20 7.34167 19.7375 6.125 19.2125C4.90833 18.6875 3.84583 17.9708 2.9375 17.0625C2.02917 16.1542 1.3125 15.0917 0.7875 13.9C0.2625 12.6583 0 11.3625 0 9.9875C0 8.6125 0.2625 7.32083 0.7875 6.1125C1.3125 4.90417 2.02917 3.84583 2.9375 2.9375C3.84583 2.02917 4.90833 1.3125 6.125 0.7875C7.34167 0.2625 8.6375 0 10.0125 0C11.3875 0 12.6792 0.2625 13.8875 0.7875C15.0958 1.3125 16.1542 2.02917 17.0625 2.9375C17.9708 3.84583 18.6875 4.90417 19.2125 6.1125C19.7375 7.32083 20 8.6125 20 9.9875C20 11.3625 19.7375 12.6583 19.2125 13.9C18.6875 15.0917 17.9708 16.1542 17.0625 17.0625C16.1542 17.9708 15.0958 18.6875 13.8875 19.2125C12.6792 19.7375 11.3875 20 10.0125 20Z" fill="#434654"/>
                         </svg>
                     </button>
                 </div>
@@ -197,52 +210,22 @@
 
     <!-- Platform Overview + Recent Activity (two column layout) -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-6">
-        <!-- Left: Platform Overview stats (4 mini cards) -->
+        <!-- Left: workspace summary -->
         <div class="lg:col-span-2 space-y-5">
-            <!-- Stats grid -->
-            <div class="grid grid-cols-2 gap-5">
-                <!-- Active Stores -->
-                <div class="bg-[#EFF4FF] rounded-xl p-4 border-l-4 border-l-[#003D9B]">
-                    <div class="text-[10px] font-bold uppercase font-poppins text-[#434654]">Active Stores</div>
-                    <div class="text-xl font-black font-poppins text-[#0B1C30]">12</div>
-                    <div class="flex items-center gap-1 text-[10px] font-bold text-[#4EDEA3] mt-1">
-                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-                            <path d="M0.7 6L0 5.3L3.7 1.575L5.7 3.575L8.3 1H7V0H10V3H9V1.7L5.7 5L3.7 3L0.7 6Z" fill="#4EDEA3"/>
-                        </svg>
-                        +2 this month
+            <div class="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+                <p class="text-xs font-semibold uppercase tracking-wider text-[#64748B]">Workspace summary</p>
+                <p class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ $stores->count() }} {{ Str::plural('store', $stores->count()) }}</p>
+                <div class="mt-4 flex flex-wrap gap-4 text-sm">
+                    <div>
+                        <span class="text-[#64748B]">Products (all stores)</span>
+                        <p class="text-lg font-semibold text-[#0F172A]">{{ number_format($stores->sum(fn ($s) => (int) ($s->products_count ?? 0))) }}</p>
+                    </div>
+                    <div>
+                        <span class="text-[#64748B]">Brands</span>
+                        <p class="text-lg font-semibold text-[#0F172A]">{{ number_format($stores->sum(fn ($s) => (int) ($s->brands_count ?? 0))) }}</p>
                     </div>
                 </div>
-                <!-- Total Sales -->
-                <div class="bg-[#EFF4FF] rounded-xl p-4 border-l-4 border-l-[#003D9B]">
-                    <div class="text-[10px] font-bold uppercase font-poppins text-[#434654]">Total Sales</div>
-                    <div class="text-xl font-black font-poppins text-[#0B1C30]">$20.6k</div>
-                    <div class="flex items-center gap-1 text-[10px] font-bold text-[#4EDEA3] mt-1">
-                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-                            <path d="M0.7 6L0 5.3L3.7 1.575L5.7 3.575L8.3 1H7V0H10V3H9V1.7L5.7 5L3.7 3L0.7 6Z" fill="#4EDEA3"/>
-                        </svg>
-                        +15.4%
-                    </div>
-                </div>
-                <!-- System Status -->
-                <div class="bg-[#EFF4FF] rounded-xl p-4 border-l-4 border-l-[#003D9B]">
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">System Status</div>
-                    <div class="text-xl font-black text-[#4EDEA3]">Stable</div>
-                    <div class="flex items-center gap-1 text-[10px] font-bold text-[#434654] mt-1">
-                        <span class="w-2 h-2 bg-[#4EDEA3] rounded-full"></span>
-                        All nodes live
-                    </div>
-                </div>
-                <!-- Active Sessions -->
-                <div class="bg-[#EFF4FF] rounded-xl p-4 border-l-4 border-l-[#003D9B]">
-                    <div class="text-[10px] font-bold uppercase text-[#434654]">Active Sessions</div>
-                    <div class="text-xl font-black text-[#0B1C30]">1.4k</div>
-                    <div class="flex items-center gap-1 text-[10px] font-bold text-[#434654] mt-1">
-                        <svg width="11" height="8" viewBox="0 0 11 8" fill="none">
-                            <path d="M0 8V6.6C0 6.31667 0.0729167 6.05625 0.21875 5.81875C0.364583 5.58125 0.558333 5.4 0.8 5.275C1.31667 5.01667 1.84167 4.82292 2.375 4.69375C2.90833 4.56458 3.45 4.5 4 4.5C4.55 4.5 5.09167 4.56458 5.625 4.69375C6.15833 4.82292 6.68333 5.01667 7.2 5.275C7.44167 5.4 7.63542 5.58125 7.78125 5.81875C7.92708 6.05625 8 6.31667 8 6.6V8H0ZM9 8V6.5C9 6.13333 8.89792 5.78125 8.69375 5.44375C8.48958 5.10625 8.2 4.81667 7.825 4.575C8.25 4.625 8.65 4.71042 9.025 4.83125C9.4 4.95208 9.75 5.1 10.075 5.275C10.375 5.44167 10.6042 5.62708 10.7625 5.83125C10.9208 6.03542 11 6.25833 11 6.5V8H9ZM4 4C3.45 4 2.97917 3.80417 2.5875 3.4125C2.19583 3.02083 2 2.55 2 2C2 1.45 2.19583 0.979167 2.5875 0.5875C2.97917 0.195833 3.45 0 4 0C4.55 0 5.02083 0.195833 5.4125 0.5875C5.80417 0.979167 6 1.45 6 2C6 2.55 5.80417 3.02083 5.4125 3.4125C5.02083 3.80417 4.55 4 4 4Z" fill="#434654"/>
-                        </svg>
-                        Live tracking
-                    </div>
-                </div>
+                <p class="mt-3 text-xs text-[#64748B]">Counts reflect your memberships. Use a store card to open its catalog.</p>
             </div>
 
             <!-- Upgrade Banner -->

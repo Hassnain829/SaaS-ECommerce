@@ -2,12 +2,6 @@
 
 @section('title', 'General Settings | BaaS Core')
 
-@section('sidebar_logo')
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 14L10 12L12 10L14 12L12 14ZM9.875 8.125L7.375 5.625L12 1L16.625 5.625L14.125 8.125L12 6L9.875 8.125ZM5.625 16.625L1 12L5.625 7.375L8.125 9.875L6 12L8.125 14.125L5.625 16.625ZM18.375 16.625L15.875 14.125L18 12L15.875 9.875L18.375 7.375L23 12L18.375 16.625ZM12 23L7.375 18.375L9.875 15.875L12 18L14.125 15.875L16.625 18.375L12 23Z" fill="white"/>
-    </svg>
-@endsection
-
 @section('topbar')
     <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
         <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">

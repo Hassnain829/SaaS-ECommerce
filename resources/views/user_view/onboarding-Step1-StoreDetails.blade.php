@@ -83,6 +83,8 @@
                     $selectedCategory = old('category', $storeDraft['category'] ?? 'physical');
                     $businessModelOld = old('business_models', $storeDraft['business_models'] ?? []);
                     $customCategoryOld = old('custom_category', $storeDraft['custom_category'] ?? '');
+                    $savedLogoPath = $storeDraft['logo'] ?? null;
+                    $savedLogoUrl = $savedLogoPath ? asset('storage/'.$savedLogoPath) : null;
                 @endphp
 
                 <form id="store-onboarding-form" action="{{ route('onboarding-StoreDetails-1.store') }}" method="POST" enctype="multipart/form-data" class="space-y-8">
@@ -113,17 +115,20 @@
                     <div>
                         <label class="block text-sm font-medium text-[#334155] mb-2 font-[Poppins]">Store Logo</label>
                         <div class="bg-[#F8FAFC] border-2 border-dashed border-[#CBD5E1] rounded-xl p-8 flex flex-col items-center gap-4">
-                            <div class="bg-white rounded-full p-3 shadow-sm">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M14 2V8H20" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M12 18V12" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M9 15H15" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
+                            <div class="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+                                <img id="store-logo-preview" @if ($savedLogoUrl) src="{{ $savedLogoUrl }}" @endif alt="Store logo preview" class="max-h-full max-w-full object-contain p-2 {{ $savedLogoUrl ? '' : 'hidden' }}">
+                                <div id="store-logo-placeholder" class="{{ $savedLogoUrl ? 'hidden' : '' }} flex flex-col items-center justify-center gap-2 p-3 text-center">
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-[#94A3B8]">
+                                        <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M14 2V8H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M12 18V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M9 15H15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
                             </div>
                             <div class="text-center">
                                 <p class="text-sm font-bold text-[#0F172A]">Upload Store Logo</p>
-                                <p class="text-xs text-[#64748B] mt-1">PNG, JPG or SVG. Max 2MB.</p>
+                                <p class="text-xs text-[#64748B] mt-1">PNG, JPG or SVG. Max 2MB. Shown on store cards and onboarding.</p>
                             </div>
                             <label for="store_logo" class="inline-flex h-9 items-center justify-center whitespace-nowrap bg-[#0052CC] px-4 text-xs font-bold text-white rounded-lg shadow-md hover:bg-[#0042a3] transition cursor-pointer">Browse Files</label>
                             <input id="store_logo" name="store_logo" type="file" accept=".jpg,.jpeg,.png,.svg" class="hidden">
@@ -321,6 +326,22 @@
                     if (event.target === customCategoryModal) {
                         hideCustomCategoryModal();
                     }
+                });
+            }
+
+            const storeLogoInput = document.getElementById('store_logo');
+            const storeLogoPreview = document.getElementById('store-logo-preview');
+            const storeLogoPlaceholder = document.getElementById('store-logo-placeholder');
+            if (storeLogoInput && storeLogoPreview) {
+                storeLogoInput.addEventListener('change', () => {
+                    const file = storeLogoInput.files && storeLogoInput.files[0];
+                    if (!file) {
+                        return;
+                    }
+                    const url = URL.createObjectURL(file);
+                    storeLogoPreview.src = url;
+                    storeLogoPreview.classList.remove('hidden');
+                    storeLogoPlaceholder?.classList.add('hidden');
                 });
             }
         })();

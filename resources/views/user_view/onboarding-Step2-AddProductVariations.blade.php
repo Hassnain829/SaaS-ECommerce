@@ -66,8 +66,14 @@
                 </div>
             </div>
 
-            <div class="flex justify-between items-start mb-8">
-                <div>
+            <div class="flex justify-between items-start mb-8 gap-4">
+                <div class="flex min-w-0 flex-1 items-start gap-4">
+                    @if ($store->logo)
+                        <div class="mt-1 flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+                            <img src="{{ asset('storage/'.$store->logo) }}" alt="{{ $store->name }} logo" class="max-h-full max-w-full object-contain p-1.5">
+                        </div>
+                    @endif
+                    <div class="min-w-0">
                     @if ($store->products->count() > 0)
                         <h1 class="text-3xl font-medium text-[#0F172A] font-[Poppins]">Add Product to {{ $store->name }}</h1>
                         <p class="text-base text-[#64748B] mt-1">Expand your store catalog. Define product basics, add variation types, then add variant rows by selecting options.</p>
@@ -76,6 +82,7 @@
                         <p class="text-base text-[#64748B] mt-1">Define product basics, add variation types, then add
                             variant rows by selecting options.</p>
                     @endif
+                    </div>
                 </div>
                 <button
                     class="bg-[#E2E8F0] text-[#64748B] text-sm font-inter font-medium px-4 py-2 rounded border border-[#E2E8F0]"
@@ -216,6 +223,49 @@
                         <input id="sku" name="sku" type="text" value="{{ $step2Data['sku'] ?? '' }}"
                             class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                     </div>
+
+                    @php
+                        $onboardingBrands = $brands ?? collect();
+                        $onboardingTags = $tags ?? collect();
+                        $onboardingProductCategories = $productCategories ?? collect();
+                    @endphp
+                    <div class="mt-4">
+                        <label for="onboarding-brand-id" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Brand (optional)</label>
+                        <select id="onboarding-brand-id" name="brand_id"
+                            class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20 bg-white">
+                            <option value="">No brand</option>
+                            @foreach ($onboardingBrands as $b)
+                                <option value="{{ $b->id }}" @selected((string) ($step2Data['brand_id'] ?? '') === (string) $b->id)>{{ $b->name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-2 text-xs text-[#64748B]">Applies to <span class="font-semibold text-[#475569]">{{ $store->name }}</span> only. You can add or change brands later on the Products page.</p>
+                    </div>
+
+                    @if ($onboardingTags->isNotEmpty())
+                        <div class="mt-4">
+                            <label for="onboarding-tag-ids" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Tags (optional)</label>
+                            <select id="onboarding-tag-ids" name="tag_ids[]" multiple size="4"
+                                class="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] bg-white focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                                @foreach ($onboardingTags as $tg)
+                                    <option value="{{ $tg->id }}" @selected(collect($step2Data['tag_ids'] ?? [])->contains($tg->id))>{{ $tg->name }}</option>
+                                @endforeach
+                            </select>
+                            <p class="mt-2 text-xs text-[#64748B]">Use tags to add lightweight labels like Featured, Sale, or Summer.</p>
+                        </div>
+                    @endif
+
+                    @if ($onboardingProductCategories->isNotEmpty())
+                        <div class="mt-4">
+                            <label for="onboarding-category-ids" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Categories</label>
+                            <select id="onboarding-category-ids" name="category_ids[]" multiple size="4"
+                                class="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] bg-white focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                                @foreach ($onboardingProductCategories as $pc)
+                                    <option value="{{ $pc->id }}" @selected(collect($step2Data['category_ids'] ?? [])->contains($pc->id))>{{ $pc->name }}</option>
+                                @endforeach
+                            </select>
+                            <p class="mt-2 text-xs text-[#64748B]">Catalog categories are separate from product type (physical, digital, etc.).</p>
+                        </div>
+                    @endif
 
                     <div class="mt-4">
                         <label for="step2-product-image" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Product Images</label>

@@ -20,6 +20,7 @@
         'category' => old('category', $fallbackEditStoreRecord->category),
         'custom_category' => old('custom_category', $fallbackEditStoreRecord->settings['custom_category'] ?? ''),
         'business_models' => old('business_models', $fallbackEditStoreRecord->settings['business_models'] ?? []),
+        'logo_url' => $fallbackEditStoreRecord->logoPublicUrl(),
         'update_url' => route('store.update', ['storeId' => (int) old('_edit_store_id')]),
         'delete_url' => route('store.destroy', ['storeId' => (int) old('_edit_store_id')]),
     ] : null;
@@ -97,6 +98,12 @@
                 </div>
 
                 <div>
+                    <div id="edit-store-current-logo-wrap" class="mb-4 hidden">
+                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Current logo</p>
+                        <div class="inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-sm">
+                            <img id="edit-store-current-logo-img" src="" alt="" class="max-h-full max-w-full object-contain p-1">
+                        </div>
+                    </div>
                     <label for="edit_store_logo" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Replace Logo</label>
                     <input id="edit_store_logo" name="store_logo" type="file" accept=".jpg,.jpeg,.png,.svg" class="w-full rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                 </div>
@@ -208,6 +215,9 @@
         const deleteStoreName = document.getElementById('deleteStoreName');
         const editButtons = [...document.querySelectorAll('.js-open-edit-store-modal')];
         const categoryButtons = [...document.querySelectorAll('.edit-store-category')];
+        const editStoreLogoWrap = document.getElementById('edit-store-current-logo-wrap');
+        const editStoreLogoImg = document.getElementById('edit-store-current-logo-img');
+        const editStoreLogoInput = document.getElementById('edit_store_logo');
         let currentStore = null;
 
         const setBodyLock = (locked) => document.body.classList.toggle('overflow-hidden', locked);
@@ -238,6 +248,20 @@
             [...editStoreForm.querySelectorAll('input[name="business_models[]"]')].forEach((input) => {
                 input.checked = (store.business_models || []).includes(input.value);
             });
+
+            if (store.logo_url && editStoreLogoWrap && editStoreLogoImg) {
+                editStoreLogoImg.src = store.logo_url;
+                editStoreLogoWrap.classList.remove('hidden');
+            } else if (editStoreLogoWrap) {
+                editStoreLogoWrap.classList.add('hidden');
+                if (editStoreLogoImg) {
+                    editStoreLogoImg.removeAttribute('src');
+                }
+            }
+
+            if (editStoreLogoInput) {
+                editStoreLogoInput.value = '';
+            }
 
             editModal.classList.remove('hidden');
             editModal.classList.add('flex');

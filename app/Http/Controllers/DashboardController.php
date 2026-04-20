@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Product;
+use App\Models\Tag;
 use App\Models\Role;
 use App\Models\Store;
 use Illuminate\Http\RedirectResponse;
@@ -118,15 +121,45 @@ class DashboardController extends Controller
         }
 
         $search = trim((string) $request->query('q', ''));
-        $category = trim((string) $request->query('category', ''));
+        $taxonomyCategoryQuery = $request->query('category');
+        $taxonomyCategoryFilterId = null;
+        if ($taxonomyCategoryQuery !== null && $taxonomyCategoryQuery !== '' && ctype_digit((string) $taxonomyCategoryQuery)) {
+            $candidateCategory = (int) $taxonomyCategoryQuery;
+            if (Category::query()->where('store_id', $selectedStore->id)->where('id', $candidateCategory)->exists()) {
+                $taxonomyCategoryFilterId = $candidateCategory;
+            }
+        }
+
+        $productTypeFilter = trim((string) $request->query('product_type', ''));
         $status = trim((string) $request->query('status', ''));
         $stockFilter = trim((string) $request->query('stock', ''));
         $sort = trim((string) $request->query('sort', 'latest'));
+        $brandQuery = $request->query('brand');
+        $brandFilterId = null;
+        if ($brandQuery !== null && $brandQuery !== '' && ctype_digit((string) $brandQuery)) {
+            $candidate = (int) $brandQuery;
+            if (Brand::query()->where('store_id', $selectedStore->id)->where('id', $candidate)->exists()) {
+                $brandFilterId = $candidate;
+            }
+        }
+
+        $tagQuery = $request->query('tag');
+        $tagFilterId = null;
+        if ($tagQuery !== null && $tagQuery !== '' && ctype_digit((string) $tagQuery)) {
+            $candidateTag = (int) $tagQuery;
+            if (Tag::query()->where('store_id', $selectedStore->id)->where('id', $candidateTag)->exists()) {
+                $tagFilterId = $candidateTag;
+            }
+        }
 
         $baseQuery = Product::query()
             ->where('store_id', $selectedStore->id)
             ->with([
                 'store:id,name,currency',
+                'brand:id,name',
+                'tags:id,name,color',
+                'categories:id,name,store_id',
+                'images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
                 'variationTypes.options:id,variation_type_id,value,sort_order',
                 'variants.options:id,variation_type_id,value',
                 'variants:id,product_id,sku,price,stock,stock_alert',
@@ -141,14 +174,26 @@ class DashboardController extends Controller
             });
         }
 
-        if ($category !== '') {
-            $baseQuery->where('product_type', $category);
+        if ($taxonomyCategoryFilterId !== null) {
+            $baseQuery->whereHas('categories', fn ($query) => $query->where('categories.id', $taxonomyCategoryFilterId));
+        }
+
+        if ($productTypeFilter !== '') {
+            $baseQuery->where('product_type', $productTypeFilter);
         }
 
         if ($status === 'published') {
             $baseQuery->where('status', true);
         } elseif ($status === 'draft') {
             $baseQuery->where('status', false);
+        }
+
+        if ($brandFilterId !== null) {
+            $baseQuery->where('brand_id', $brandFilterId);
+        }
+
+        if ($tagFilterId !== null) {
+            $baseQuery->whereHas('tags', fn ($query) => $query->where('tags.id', $tagFilterId));
         }
 
         if ($stockFilter === 'low') {
@@ -191,15 +236,18 @@ class DashboardController extends Controller
 
             return response()->streamDownload(function () use ($exportProducts) {
                 $handle = fopen('php://output', 'w');
-                fputcsv($handle, ['Store', 'Product', 'SKU', 'Category', 'Status', 'Base Price', 'Inventory']);
+                fputcsv($handle, ['Store', 'Product', 'SKU', 'Brand', 'Categories', 'Product type', 'Status', 'Base Price', 'Inventory']);
 
                 foreach ($exportProducts as $product) {
                     $inventory = (int) ($product->variants_sum_stock ?? 0);
+                    $taxonomyNames = $product->categories->pluck('name')->filter()->implode('; ');
                     fputcsv($handle, [
                         $product->store?->name,
                         $product->name,
                         $product->sku,
-                        ucfirst($product->product_type),
+                        $product->brand?->name ?? '',
+                        $taxonomyNames,
+                        $product->product_type,
                         $product->status ? 'Published' : 'Draft',
                         number_format((float) $product->base_price, 2, '.', ''),
                         $inventory,
@@ -212,13 +260,28 @@ class DashboardController extends Controller
 
         $statsQuery = clone $baseQuery;
         $statsProducts = $statsQuery->get();
-        $availableCategories = $statsProducts
+
+        $defaultProductTypes = ['physical', 'digital', 'service', 'subscription', 'virtual'];
+        $productTypesInStats = $statsProducts
             ->pluck('product_type')
             ->filter()
             ->unique()
             ->sort()
-            ->mapWithKeys(fn(string $type): array => [$type => Str::title(str_replace(['-', '_'], ' ', $type))])
+            ->values();
+        $productTypeFilterOptions = collect($defaultProductTypes)
+            ->merge($productTypesInStats)
+            ->unique()
+            ->sort()
+            ->mapWithKeys(fn (string $type): array => [
+                $type => Str::title(str_replace(['-', '_'], ' ', $type)),
+            ])
             ->all();
+
+        $distinctTaxonomyCategoryCount = $statsProducts
+            ->pluck('categories')
+            ->flatten()
+            ->unique('id')
+            ->count();
 
         $products = $productsQuery->paginate(10)->withQueryString();
 
@@ -230,26 +293,91 @@ class DashboardController extends Controller
 
             return $inventory > 0 && $inventory <= max($alertLevel, 0);
         })->count();
-        $activeCategoriesCount = $statsProducts->pluck('product_type')->filter()->unique()->count();
+        $distinctProductTypeCount = $statsProducts->pluck('product_type')->filter()->unique()->count();
+
+        $catalogTaxonomyCategories = $selectedStore->categories()
+            ->where('status', 'active')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'parent_id']);
+
+        $managementCategories = $selectedStore->categories()
+            ->withCount('products')
+            ->with('parent:id,name')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $catalogBrands = $selectedStore->brands()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $managementBrands = $selectedStore->brands()
+            ->withCount('products')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $catalogTags = $selectedStore->tags()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'color']);
+
+        $managementTags = $selectedStore->tags()
+            ->withCount('products')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $brandCount = $selectedStore->brands()->count();
+        $activeBrandFilter = $brandFilterId !== null
+            ? $catalogBrands->firstWhere('id', $brandFilterId)
+            : null;
+
+        $activeTagFilter = $tagFilterId !== null
+            ? $catalogTags->firstWhere('id', $tagFilterId)
+            : null;
+
+        $activeTaxonomyCategoryFilter = $taxonomyCategoryFilterId !== null
+            ? $catalogTaxonomyCategories->firstWhere('id', $taxonomyCategoryFilterId)
+            : null;
+
+        $currentUserStoreRole = $request->user()->roleInStore($selectedStore);
 
         return view('user_view.products', [
             'selectedStore' => $selectedStore,
             'stores' => $stores,
             'products' => $products,
+            'catalogBrands' => $catalogBrands,
+            'managementBrands' => $managementBrands,
+            'catalogTags' => $catalogTags,
+            'managementTags' => $managementTags,
+            'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
+            'managementCategories' => $managementCategories,
+            'productTypeFilterOptions' => $productTypeFilterOptions,
+            'currentUserStoreRole' => $currentUserStoreRole,
+            'brandCount' => $brandCount,
+            'activeBrandFilter' => $activeBrandFilter,
+            'activeTagFilter' => $activeTagFilter,
+            'activeTaxonomyCategoryFilter' => $activeTaxonomyCategoryFilter,
             'filters' => [
                 'q' => $search,
-                'category' => $category,
+                'category' => $taxonomyCategoryFilterId !== null ? (string) $taxonomyCategoryFilterId : '',
+                'product_type' => $productTypeFilter,
                 'status' => $status,
                 'stock' => $stockFilter,
                 'sort' => $sort !== '' ? $sort : 'latest',
+                'brand' => $brandFilterId !== null ? (string) $brandFilterId : '',
+                'tag' => $tagFilterId !== null ? (string) $tagFilterId : '',
             ],
             'stats' => [
                 'total_products' => $totalProducts,
                 'out_of_stock' => $outOfStockCount,
                 'low_stock' => $lowStockCount,
-                'active_categories' => $activeCategoriesCount,
+                'taxonomy_labels_in_view' => $distinctTaxonomyCategoryCount,
+                'product_types_in_view' => $distinctProductTypeCount,
             ],
-            'categories' => $availableCategories,
         ]);
     }
 
@@ -360,6 +488,7 @@ class DashboardController extends Controller
     {
         $stores = request()->user()->memberStores()
             ->orderBy('stores.name')
+            ->withCount(['products', 'brands'])
             ->get();
 
         return view('user_view.store_management', compact('stores'));

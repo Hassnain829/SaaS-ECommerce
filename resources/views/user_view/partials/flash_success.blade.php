@@ -12,6 +12,8 @@
                 $successTitle = 'Product updated';
             } elseif (str_contains($normalizedMessage, 'variation')) {
                 $successTitle = 'Variation saved';
+            } elseif (str_contains($normalizedMessage, 'brand')) {
+                $successTitle = 'Brand updated';
             } elseif (str_contains($normalizedMessage, 'category')) {
                 $successTitle = 'Category saved';
             } elseif (str_contains($normalizedMessage, 'onboarding')) {

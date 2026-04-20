@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\CatalogRules;
+use App\Support\ProductImageStorage;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
@@ -10,8 +13,8 @@ use App\Models\Store;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -106,7 +109,7 @@ class OnboardingController extends Controller
         ]);
 
         $this->syncActiveStoreSessions($request, $store);
-        $request->session()->put('onboarding_store_draft', Arr::only($validated, [
+        $storeDraft = Arr::only($validated, [
             'name',
             'primary_market',
             'address',
@@ -115,7 +118,11 @@ class OnboardingController extends Controller
             'category',
             'business_models',
             'custom_category',
-        ]));
+        ]);
+        if ($logoPath) {
+            $storeDraft['logo'] = $logoPath;
+        }
+        $request->session()->put('onboarding_store_draft', $storeDraft);
 
         if ($request->boolean('_open_create_store_modal')) {
             return redirect()
@@ -155,6 +162,9 @@ class OnboardingController extends Controller
         return view('user_view.onboarding-Step2-AddProductVariations', [
             'store' => $store,
             'draft' => $draft,
+            'brands' => $store->brands()->orderBy('sort_order')->orderBy('name')->get(),
+            'tags' => $store->tags()->orderBy('sort_order')->orderBy('name')->get(),
+            'productCategories' => $store->categories()->where('status', 'active')->orderBy('sort_order')->orderBy('name')->get(),
             'productTypes' => ['physical', 'digital', 'service', 'subscription', 'virtual'],
             'variationInputTypes' => ['select', 'radio', 'checkbox'],
         ]);
@@ -193,6 +203,9 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
             'mode' => ['nullable', 'string', 'in:create,edit'],
+            'brand_id' => CatalogRules::brandIdForStore($store),
+            ...CatalogRules::tagIdsForStore($store),
+            ...CatalogRules::categoryIdsForStore($store),
         ]);
 
         if (($validated['product_type'] ?? '') === 'custom') {
@@ -204,7 +217,7 @@ class OnboardingController extends Controller
         if ($validated['product_type'] === '') {
             return back()
                 ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
-                ->withInput();
+                ->withInput($request->except(['product_images']));
         }
 
         $normalizedVariants = $this->normalizeCustomVariants(
@@ -216,18 +229,28 @@ class OnboardingController extends Controller
         );
 
         if (!empty($normalizedVariants['errors'])) {
-            return back()->withErrors($normalizedVariants['errors'])->withInput();
+            return back()->withErrors($normalizedVariants['errors'])->withInput($request->except(['product_images']));
         }
 
         $validated['variants'] = $normalizedVariants['variants'];
-        $request->session()->put('onboarding_product_draft', $validated);
+        $validated['brand_id'] = $validated['brand_id'] ?? null;
+        $tagIds = collect($validated['tag_ids'] ?? [])
+            ->map(static fn ($id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        $categoryIds = collect($validated['category_ids'] ?? [])
+            ->map(static fn ($id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
 
-        $imagePaths = [];
-        foreach ($request->file('product_images', []) as $imageFile) {
-            $imagePaths[] = $imageFile->store('product-images', 'public');
-        }
+        // Never persist UploadedFile instances to session (not serializable).
+        $request->session()->put('onboarding_product_draft', Arr::except($validated, ['product_images']));
 
-        DB::transaction(function () use ($validated, $store, $request, $imagePaths): void {
+        DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds): void {
             // Only look for existing product if in edit mode
             $product = ($validated['mode'] === 'edit') ? $this->resolveSessionProduct($request, $store) : null;
             $productPayload = [
@@ -236,12 +259,11 @@ class OnboardingController extends Controller
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],
+                'brand_id' => $validated['brand_id'] ?? null,
                 'status' => true,
                 'meta' => [
                     'default_stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
-                    'image_path' => $imagePaths[0] ?? null,
-                    'image_paths' => $imagePaths,
                     'onboarding_created' => true,
                 ],
             ];
@@ -256,6 +278,12 @@ class OnboardingController extends Controller
                     'slug' => $this->uniqueProductSlug($store->id, $validated['name']),
                 ]);
             }
+
+            $galleryPaths = [];
+            foreach ($request->file('product_images', []) as $imageFile) {
+                $galleryPaths[] = ProductImageStorage::store($imageFile, $store);
+            }
+            $this->replaceProductGallery($product, $galleryPaths, $request->user()?->id, ($validated['mode'] ?? '') === 'edit');
 
             $variationOptionSets = [];
             $variationOptionMap = [];
@@ -347,6 +375,9 @@ class OnboardingController extends Controller
                     $variant->options()->sync(array_map(static fn($entry) => $entry['option']->id, $combination));
                 }
             }
+
+            $product->tags()->sync($tagIds);
+            $product->categories()->sync($categoryIds);
 
             $store->update([
                 'settings' => $this->mergeStoreSettings($store->settings, [
@@ -628,7 +659,8 @@ class OnboardingController extends Controller
             'category' => $store->category,
             'business_models' => is_array($settings['business_models'] ?? null) ? $settings['business_models'] : [],
             'custom_category' => $settings['custom_category'] ?? null,
-        ], static fn($value): bool => $value !== null);
+            'logo' => $store->logo,
+        ], static fn ($value): bool => $value !== null && $value !== '');
     }
 
     private function mapProductToDraft(Product $product): array
@@ -695,10 +727,13 @@ class OnboardingController extends Controller
             'base_price' => (float) $product->base_price,
             'sku' => $product->sku,
             'product_type' => $product->product_type,
+            'brand_id' => $product->brand_id,
             'default_stock' => (int) ($meta['default_stock'] ?? 0),
             'stock_alert' => (int) ($meta['stock_alert'] ?? 0),
             'variation_types' => $variationTypesPayload,
             'variants' => $variantsPayload,
+            'tag_ids' => $product->tags()->pluck('id')->all(),
+            'category_ids' => $product->categories()->pluck('id')->all(),
         ];
     }
 
@@ -1011,7 +1046,11 @@ class OnboardingController extends Controller
             'product_type' => ['required', 'string', 'max:80'],
             'custom_product_type' => ['nullable', 'string', 'max:80', 'required_if:product_type,custom'],
             'existing_image_paths' => ['nullable', 'array', 'max:8'],
-            'existing_image_paths.*' => ['string', 'max:255'],
+            'existing_image_paths.*' => [
+                'string',
+                'max:512',
+                Rule::exists('product_images', 'image_path')->where('product_id', $product->id),
+            ],
             'stock_alert' => ['required', 'integer', 'min:0'],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
@@ -1026,6 +1065,9 @@ class OnboardingController extends Controller
             'variants.*.stock' => ['nullable', 'integer', 'min:0'],
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
+            'brand_id' => CatalogRules::brandIdForStore($currentStore),
+            ...CatalogRules::tagIdsForStore($currentStore),
+            ...CatalogRules::categoryIdsForStore($currentStore),
         ]);
 
         if (($validated['product_type'] ?? '') === 'custom') {
@@ -1037,7 +1079,7 @@ class OnboardingController extends Controller
         if ($validated['product_type'] === '') {
             return back()
                 ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
-                ->withInput();
+                ->withInput($request->except(['product_images']));
         }
 
         $normalizedVariants = $this->normalizeCustomVariants(
@@ -1049,36 +1091,57 @@ class OnboardingController extends Controller
         );
 
         if (!empty($normalizedVariants['errors'])) {
-            return back()->withErrors($normalizedVariants['errors'])->withInput();
+            return back()->withErrors($normalizedVariants['errors'])->withInput($request->except(['product_images']));
         }
 
         $validated['variants'] = $normalizedVariants['variants'];
+        $validated['brand_id'] = $validated['brand_id'] ?? null;
+        $tagIds = collect($validated['tag_ids'] ?? [])
+            ->map(static fn ($id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        $categoryIds = collect($validated['category_ids'] ?? [])
+            ->map(static fn ($id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
 
         $meta = $product->meta ?? [];
-        $currentImagePaths = collect($meta['image_paths'] ?? array_filter([$meta['image_path'] ?? null]))
-            ->filter()
-            ->values();
-        $retainedImagePaths = collect($validated['existing_image_paths'] ?? [])
-            ->filter(fn($path) => $currentImagePaths->contains($path))
-            ->values();
-
-        foreach ($currentImagePaths->diff($retainedImagePaths) as $removedImagePath) {
-            Storage::disk('public')->delete($removedImagePath);
-        }
-
-        $newImagePaths = [];
-        foreach ($request->file('product_images', []) as $imageFile) {
-            $newImagePaths[] = $imageFile->store('product-images', 'public');
-        }
-
-        $finalImagePaths = $retainedImagePaths->merge($newImagePaths)->values()->all();
-        $meta['image_paths'] = $finalImagePaths;
-        $meta['image_path'] = $finalImagePaths[0] ?? null;
-
+        unset($meta['image_path'], $meta['image_paths']);
         $meta['default_stock'] = $meta['default_stock'] ?? 0;
         $meta['stock_alert'] = (int) $validated['stock_alert'];
 
-        DB::transaction(function () use ($product, $currentStore, $validated, $meta): void {
+        $retainedPaths = collect($validated['existing_image_paths'] ?? [])
+            ->filter(static fn ($p): bool => is_string($p) && $p !== '')
+            ->unique()
+            ->values();
+
+        DB::transaction(function () use ($product, $currentStore, $request, $validated, $meta, $tagIds, $categoryIds, $retainedPaths): void {
+            foreach ($product->images()->get() as $imageRow) {
+                if (! $retainedPaths->contains($imageRow->image_path)) {
+                    $imageRow->delete();
+                }
+            }
+
+            $nextOrder = (int) $product->images()->max('sort_order') + 1;
+            foreach ($request->file('product_images', []) as $imageFile) {
+                ProductImage::query()->create([
+                    'product_id' => $product->id,
+                    'image_path' => ProductImageStorage::store($imageFile, $currentStore),
+                    'alt_text' => null,
+                    'sort_order' => $nextOrder,
+                    'is_primary' => false,
+                    'created_by' => $request->user()?->id,
+                    'updated_by' => $request->user()?->id,
+                ]);
+                $nextOrder++;
+            }
+
+            $this->normalizePrimaryProductImage($product);
+
             $product->update([
                 'name' => $validated['name'],
                 'slug' => $this->uniqueProductSlug($currentStore->id, $validated['name'], $product->id),
@@ -1086,6 +1149,7 @@ class OnboardingController extends Controller
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],
+                'brand_id' => $validated['brand_id'] ?? null,
                 'meta' => $meta,
             ]);
 
@@ -1182,6 +1246,9 @@ class OnboardingController extends Controller
                     $variant->options()->sync(array_map(static fn($entry) => $entry['option']->id, $combination));
                 }
             }
+
+            $product->tags()->sync($tagIds);
+            $product->categories()->sync($categoryIds);
         });
 
         $this->syncActiveStoreSessions($request, $currentStore);
@@ -1208,14 +1275,8 @@ class OnboardingController extends Controller
             ->where('store_id', $currentStore->id)
             ->firstOrFail();
 
-        $imagePaths = $product->meta['image_paths'] ?? array_filter([$product->meta['image_path'] ?? null]);
-
         $deletedProductName = $product->name;
         $product->delete();
-
-        foreach ($imagePaths as $imagePath) {
-            Storage::disk('public')->delete($imagePath);
-        }
 
         return redirect()
             ->route('products')
@@ -1291,6 +1352,9 @@ class OnboardingController extends Controller
             'variants.*.stock' => ['nullable', 'integer', 'min:0'],
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
+            'brand_id' => CatalogRules::brandIdForStore($store),
+            ...CatalogRules::tagIdsForStore($store),
+            ...CatalogRules::categoryIdsForStore($store),
         ]);
 
         if (($validated['product_type'] ?? '') === 'custom') {
@@ -1302,12 +1366,25 @@ class OnboardingController extends Controller
         if ($validated['product_type'] === '') {
             return back()
                 ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
-                ->withInput();
+                ->withInput($request->except(['product_images']));
         }
 
         // Map bulk_price and bulk_stock to base_price and default_stock for processing
         $validated['base_price'] = $validated['bulk_price'];
         $validated['default_stock'] = $validated['bulk_stock'];
+        $validated['brand_id'] = $validated['brand_id'] ?? null;
+        $tagIds = collect($validated['tag_ids'] ?? [])
+            ->map(static fn ($id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        $categoryIds = collect($validated['category_ids'] ?? [])
+            ->map(static fn ($id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
 
         $normalizedVariants = $this->normalizeCustomVariants(
             $request->input('variants', []),
@@ -1318,28 +1395,23 @@ class OnboardingController extends Controller
         );
 
         if (!empty($normalizedVariants['errors'])) {
-            return back()->withErrors($normalizedVariants['errors'])->withInput();
+            return back()->withErrors($normalizedVariants['errors'])->withInput($request->except(['product_images']));
         }
 
         $validated['variants'] = $normalizedVariants['variants'];
-        $imagePaths = [];
-        foreach ($request->file('product_images', []) as $imageFile) {
-            $imagePaths[] = $imageFile->store('product-images', 'public');
-        }
 
-        DB::transaction(function () use ($validated, $store, $imagePaths): void {
+        DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds): void {
             $productPayload = [
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],
+                'brand_id' => $validated['brand_id'] ?? null,
                 'status' => true,
                 'meta' => [
                     'default_stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
-                    'image_path' => $imagePaths[0] ?? null,
-                    'image_paths' => $imagePaths,
                 ],
             ];
 
@@ -1347,6 +1419,12 @@ class OnboardingController extends Controller
                 'store_id' => $store->id,
                 'slug' => $this->uniqueProductSlug($store->id, $validated['name']),
             ]);
+
+            $galleryPaths = [];
+            foreach ($request->file('product_images', []) as $imageFile) {
+                $galleryPaths[] = ProductImageStorage::store($imageFile, $store);
+            }
+            $this->replaceProductGallery($product, $galleryPaths, $request->user()?->id, false);
 
             $variationOptionSets = [];
             $variationOptionMap = [];
@@ -1438,6 +1516,9 @@ class OnboardingController extends Controller
                     $variant->options()->sync(array_map(static fn($entry) => $entry['option']->id, $combination));
                 }
             }
+
+            $product->tags()->sync($tagIds);
+            $product->categories()->sync($categoryIds);
         });
 
         return redirect()
@@ -1445,5 +1526,51 @@ class OnboardingController extends Controller
             ->with('success', "Product '{$validated['name']}' added to {$store->name}.")
             ->with('success_title', 'Product added')
             ->with('success_meta', 'Catalog updated');
+    }
+
+    private function replaceProductGallery(Product $product, array $paths, ?int $userId, bool $preserveWhenEmpty): void
+    {
+        $paths = array_values(array_filter($paths));
+        if ($paths === []) {
+            if ($preserveWhenEmpty) {
+                return;
+            }
+            foreach ($product->images()->get() as $img) {
+                $img->delete();
+            }
+
+            return;
+        }
+
+        foreach ($product->images()->get() as $img) {
+            $img->delete();
+        }
+
+        foreach ($paths as $index => $path) {
+            ProductImage::query()->create([
+                'product_id' => $product->id,
+                'image_path' => $path,
+                'alt_text' => null,
+                'sort_order' => $index,
+                'is_primary' => $index === 0,
+                'created_by' => $userId,
+                'updated_by' => $userId,
+            ]);
+        }
+    }
+
+    private function normalizePrimaryProductImage(Product $product): void
+    {
+        $rows = $product->images()->orderBy('sort_order')->orderBy('id')->get();
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        foreach ($rows->values() as $index => $row) {
+            $row->update([
+                'sort_order' => $index,
+                'is_primary' => $index === 0,
+            ]);
+        }
     }
 }
