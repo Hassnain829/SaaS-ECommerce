@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Tag;
 use App\Models\Role;
 use App\Models\Store;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -285,6 +286,14 @@ class DashboardController extends Controller
 
         $products = $productsQuery->paginate(10)->withQueryString();
 
+        $bulkSelectableProductIds = (clone $baseQuery)
+            ->orderByDesc('id')
+            ->limit(500)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+
         $totalProducts = $statsProducts->count();
         $outOfStockCount = $statsProducts->filter(fn(Product $product) => (int) ($product->variants_sum_stock ?? 0) === 0)->count();
         $lowStockCount = $statsProducts->filter(function (Product $product): bool {
@@ -378,6 +387,7 @@ class DashboardController extends Controller
                 'taxonomy_labels_in_view' => $distinctTaxonomyCategoryCount,
                 'product_types_in_view' => $distinctProductTypeCount,
             ],
+            'bulkSelectableProductIds' => $bulkSelectableProductIds,
         ]);
     }
 
@@ -505,5 +515,52 @@ class DashboardController extends Controller
         view()->share('currentStore', $store);
 
         return redirect()->route('products');
+    }
+
+    /**
+     * Lightweight polling payload for product list primary image cells.
+     */
+    public function productPrimaryImages(Request $request): JsonResponse
+    {
+        $selectedStore = $request->attributes->get('currentStore');
+        abort_unless($selectedStore, 404);
+
+        $raw = $request->query('ids', '');
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn ($v): int => (int) $v,
+            explode(',', is_string($raw) ? $raw : '')
+        ))));
+        if (count($ids) > 150) {
+            $ids = array_slice($ids, 0, 150);
+        }
+        if ($ids === []) {
+            return response()->json(['products' => []]);
+        }
+
+        $products = Product::query()
+            ->where('store_id', $selectedStore->id)
+            ->whereIn('id', $ids)
+            ->with(['images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id')])
+            ->get(['id']);
+
+        $out = [];
+        foreach ($products as $p) {
+            $primary = $p->images->first();
+            $state = 'none';
+            $url = null;
+            if ($primary) {
+                if ($primary->isReady()) {
+                    $state = 'ready';
+                    $url = asset('storage/'.$primary->image_path);
+                } elseif ($primary->isPendingVisual()) {
+                    $state = 'pending';
+                } elseif ($primary->isFailed()) {
+                    $state = 'failed';
+                }
+            }
+            $out[(string) $p->id] = ['state' => $state, 'url' => $url];
+        }
+
+        return response()->json(['products' => $out]);
     }
 }

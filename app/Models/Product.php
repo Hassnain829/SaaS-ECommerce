@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Storage;
 class Product extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
         'store_id',
@@ -42,7 +44,7 @@ class Product extends Model
             // DB cascade removes product_images rows without model events; delete files here.
             $paths = $product->images()->pluck('image_path');
             foreach ($paths as $path) {
-                if ($path) {
+                if ($path && $path !== ProductImage::PENDING_DISK_PATH) {
                     Storage::disk('public')->delete($path);
                 }
             }
@@ -98,5 +100,10 @@ class Product extends Model
     public function variants(): HasMany
     {
         return $this->hasMany(ProductVariant::class);
+    }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
     }
 }

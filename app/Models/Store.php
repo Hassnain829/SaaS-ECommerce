@@ -130,4 +130,14 @@ class Store extends Model
     {
         return $this->hasMany(Tag::class);
     }
+
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
+    }
+
+    public function productImports(): HasMany
+    {
+        return $this->hasMany(ProductImport::class);
+    }
 }

@@ -85,6 +85,14 @@
                 </svg>
                 <span>Add Product</span>
             </button>
+            @if ($canManageBrands)
+                <a href="{{ route('products.import.create') }}" class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm hover:border-[#CBD5E1] hover:bg-[#F8FAFC]">
+                    Import products
+                </a>
+                <a href="{{ route('products.import.history') }}" class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm hover:border-[#CBD5E1] hover:bg-[#F8FAFC]">
+                    Import history
+                </a>
+            @endif
             @if ($canManageBrands || $canManageTags || $canManageCategories)
                 <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-xs font-semibold text-[#64748B] hover:border-[#CBD5E1] hover:bg-[#F8FAFC] hover:text-[#334155]" title="Categories, brands, and tags">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="text-[#94A3B8]" aria-hidden="true"><path d="M2.5 3.5h11v1h-11v-1zm0 4h11v1h-11v-1zm0 4h7v1h-7v-1z" fill="currentColor"/></svg>
@@ -161,6 +169,16 @@
             @endif
         </div>
         <div class="flex flex-col sm:items-end gap-3">
+            @if ($canManageBrands)
+                <div class="sm:hidden flex flex-col gap-2 w-full">
+                    <a href="{{ route('products.import.create') }}" class="flex items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#334155]">
+                        Import products
+                    </a>
+                    <a href="{{ route('products.import.history') }}" class="flex items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#334155]">
+                        Import history
+                    </a>
+                </div>
+            @endif
             <button type="button" data-open-product-modal class="sm:hidden flex items-center justify-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2.5 rounded-lg">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
@@ -327,6 +345,115 @@
             </details>
         </div>
 
+        @if ($canManageBrands)
+            <div id="bulk-catalog-toolbar" class="hidden border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 lg:px-5">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div class="flex flex-col gap-2">
+                        <p class="text-sm text-[#334155]"><span id="bulk-selected-count" class="font-bold text-[#0F172A]">0</span> <span id="bulk-selected-label" class="text-[#64748B]">selected on this page</span></p>
+                        <button type="button" id="bulk-select-all-matching" class="w-fit rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#334155] hover:bg-[#F1F5F9]">
+                            Select all matching (up to {{ count($bulkSelectableProductIds ?? []) }})
+                        </button>
+                    </div>
+                    <div class="flex flex-wrap items-end gap-2">
+                        <div class="flex flex-col gap-1">
+                            <label for="bulk-action-select" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Bulk action</label>
+                            <select id="bulk-action-select" class="min-w-[11rem] rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                <option value="">Choose…</option>
+                                <option value="delete">Delete</option>
+                                <option value="stock">Stock (set or adjust)</option>
+                                <option value="categories">Add categories</option>
+                                <option value="brand">Set brand</option>
+                                <option value="tags">Add tags</option>
+                                <option value="status">Set status</option>
+                            </select>
+                        </div>
+                        <div id="bulk-extra-stock" class="hidden flex flex-wrap items-end gap-2">
+                            <select id="bulk-stock-mode" class="rounded-lg border border-[#CBD5E1] bg-white px-2 py-2 text-xs font-semibold text-[#334155]">
+                                <option value="set">Set to</option>
+                                <option value="delta">Adjust by</option>
+                            </select>
+                            <input id="bulk-stock-value" type="number" class="w-24 rounded-lg border border-[#CBD5E1] px-2 py-2 text-sm" placeholder="Qty">
+                        </div>
+                        <div id="bulk-extra-categories" class="hidden max-w-full">
+                            <select id="bulk-category-ids" multiple size="3" class="max-w-xs rounded-lg border border-[#CBD5E1] bg-white px-2 py-1 text-xs text-[#334155]">
+                                @foreach ($catalogTaxonomyCategories ?? [] as $c)
+                                    <option value="{{ $c->id }}">{{ $c->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div id="bulk-extra-brand" class="hidden">
+                            <select id="bulk-brand-id" class="min-w-[10rem] rounded-lg border border-[#CBD5E1] bg-white px-2 py-2 text-sm text-[#334155]">
+                                <option value="">Choose brand</option>
+                                @foreach ($catalogBrands ?? [] as $b)
+                                    <option value="{{ $b->id }}">{{ $b->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div id="bulk-extra-tags" class="hidden max-w-full">
+                            <select id="bulk-tag-ids" multiple size="3" class="max-w-xs rounded-lg border border-[#CBD5E1] bg-white px-2 py-1 text-xs text-[#334155]">
+                                @foreach ($catalogTags ?? [] as $t)
+                                    <option value="{{ $t->id }}">{{ $t->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div id="bulk-extra-status" class="hidden">
+                            <select id="bulk-status-value" class="rounded-lg border border-[#CBD5E1] bg-white px-2 py-2 text-sm text-[#334155]">
+                                <option value="published">Published</option>
+                                <option value="draft">Draft</option>
+                            </select>
+                        </div>
+                        <button type="button" id="bulk-apply-btn" class="inline-flex items-center gap-2 rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3] disabled:cursor-not-allowed disabled:opacity-60">
+                            <span id="bulk-apply-spinner" class="hidden h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true"></span>
+                            <span>Apply</span>
+                        </button>
+                    </div>
+                </div>
+                @if ($errors->has('bulk'))
+                    <p class="mt-2 text-sm font-medium text-[#B42318]">{{ $errors->first('bulk') }}</p>
+                @endif
+            </div>
+
+            <form id="bulk-products-form" method="POST" action="{{ route('products.bulk') }}" class="hidden" aria-hidden="true">
+                @csrf
+                <input type="hidden" name="action" id="bulk-form-action" value="">
+                <input type="hidden" name="stock_mode" id="bulk-form-stock-mode" value="">
+                <input type="hidden" name="stock_value" id="bulk-form-stock-value" value="">
+                <input type="hidden" name="brand_id" id="bulk-form-brand-id" value="">
+                <input type="hidden" name="product_status" id="bulk-form-product-status" value="">
+                <div id="bulk-form-category-inputs"></div>
+                <div id="bulk-form-tag-inputs"></div>
+                <div id="bulk-form-product-id-inputs"></div>
+            </form>
+
+            <div id="bulk-confirm-shell" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 px-4 py-8" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
+                <div class="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-xl">
+                    <h3 id="bulk-confirm-title" class="text-lg font-semibold text-[#0F172A]">Confirm bulk action</h3>
+                    <p id="bulk-confirm-body" class="mt-2 text-sm leading-relaxed text-[#475569]"></p>
+                    <div class="mt-6 flex flex-wrap justify-end gap-2">
+                        <button type="button" id="bulk-confirm-cancel" class="rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Cancel</button>
+                        <button type="button" id="bulk-confirm-ok" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        <style>
+            @keyframes product-thumb-shimmer {
+                0% { background-position: -120% 0; }
+                100% { background-position: 120% 0; }
+            }
+            .product-thumb-skeleton {
+                background: linear-gradient(90deg, #E2E8F0 0%, #F1F5F9 45%, #E2E8F0 90%);
+                background-size: 200% 100%;
+                animation: product-thumb-shimmer 1.2s ease-in-out infinite;
+            }
+            .product-thumb-spinner {
+                border: 2px solid #E2E8F0;
+                border-top-color: #0052CC;
+                animation: spin 0.7s linear infinite;
+            }
+            @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
         <div class="overflow-x-auto">
             <table class="w-full min-w-[900px]">
                 <thead>
@@ -348,9 +475,21 @@
                             $alertLevel = (int) ($product->variants_max_stock_alert ?? ($product->meta['stock_alert'] ?? 0));
                             $stockState = $inventory === 0 ? 'out' : ($inventory <= max($alertLevel, 0) ? 'low' : 'in');
                             $stockWidth = min(100, max(4, $inventory));
-                            $galleryPaths = $product->images->pluck('image_path')->values()->all();
-                            $primaryPath = $galleryPaths[0] ?? null;
-                            $productImageUrl = $primaryPath ? asset('storage/'.$primaryPath) : null;
+                            $primaryImage = $product->images->first(fn ($img) => $img->is_primary) ?? $product->images->first();
+                            $primaryVisualState = 'none';
+                            if ($primaryImage) {
+                                if ($primaryImage->isReady()) {
+                                    $primaryVisualState = 'ready';
+                                } elseif ($primaryImage->isPendingVisual()) {
+                                    $primaryVisualState = 'pending';
+                                } elseif ($primaryImage->isFailed()) {
+                                    $primaryVisualState = 'failed';
+                                }
+                            }
+                            $galleryPaths = $product->images->filter(fn ($img) => $img->isReady())->pluck('image_path')->values()->all();
+                            $productImageUrl = ($primaryVisualState === 'ready' && $primaryImage && $primaryImage->image_path)
+                                ? asset('storage/'.$primaryImage->image_path)
+                                : null;
                             $productActionPayload = [
                                 'id' => $product->id,
                                 'name' => $product->name,
@@ -402,18 +541,39 @@
                             ];
                         @endphp
                         <tr class="hover:bg-[#F8FAFC] transition-colors">
-                            <td class="px-4 py-4"><input type="checkbox" class="js-product-row-checkbox w-4 h-4 rounded border-[#CBD5E1] accent-[#0052CC]"></td>
+                            <td class="px-4 py-4"><input type="checkbox" class="js-product-row-checkbox w-4 h-4 rounded border-[#CBD5E1] accent-[#0052CC]" data-product-id="{{ $product->id }}" @if (! $canManageBrands) disabled @endif></td>
                             <td class="px-4 py-4">
                                 <div class="flex items-center gap-3">
-                                    @if ($productImageUrl)
-                                        <img src="{{ $productImageUrl }}" alt="{{ $product->name }}" class="h-10 w-10 rounded-lg object-cover shrink-0 border border-[#DCE9FF]">
-                                    @else
-                                        <div class="w-10 h-10 rounded-lg bg-[#DCE9FF] shrink-0 flex items-center justify-center">
-                                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                                                <path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="#0052CC" />
-                                            </svg>
-                                        </div>
-                                    @endif
+                                    <div class="flex shrink-0 flex-col items-center gap-0.5 w-11">
+                                    <div
+                                        class="js-product-primary-thumb h-10 w-10 rounded-lg border border-[#E2E8F0] overflow-hidden flex items-center justify-center bg-[#F8FAFC]"
+                                        data-product-id="{{ $product->id }}"
+                                        data-state="{{ $primaryVisualState }}"
+                                        data-url="{{ $productImageUrl ?? '' }}"
+                                    >
+                                        @if ($primaryVisualState === 'ready' && $productImageUrl)
+                                            <img src="{{ $productImageUrl }}" alt="{{ $product->name }}" class="h-10 w-10 object-cover">
+                                        @elseif ($primaryVisualState === 'pending')
+                                            <div class="relative flex h-full w-full items-center justify-center product-thumb-skeleton">
+                                                <span class="product-thumb-spinner absolute h-5 w-5 rounded-full" aria-hidden="true"></span>
+                                            </div>
+                                        @elseif ($primaryVisualState === 'failed')
+                                            <div class="relative flex h-full w-full items-center justify-center bg-[#FEF2F2]" title="Image could not be loaded">
+                                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="text-[#94A3B8]">
+                                                    <path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="currentColor" />
+                                                </svg>
+                                                <span class="absolute bottom-0.5 right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white" title="Image error">!</span>
+                                            </div>
+                                        @else
+                                            <div class="flex h-full w-full items-center justify-center bg-[#DCE9FF]">
+                                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                                    <path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="#0052CC" />
+                                                </svg>
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <span class="js-product-thumb-hint block min-h-[14px] w-full text-center text-[10px] leading-tight text-[#64748B]" data-product-id="{{ $product->id }}">@if ($primaryVisualState === 'pending')Image loading…@endif</span>
+                                    </div>
                                     <div>
                                         <div class="font-inter font-medium text-[#0F172A] text-sm">{{ $product->name }}</div>
                                         <div class="text-[#94A3B8] text-xs">SKU: {{ $product->sku ?: 'Auto-generated' }}</div>
@@ -469,7 +629,8 @@
                             </td>
                             <td class="px-4 py-4 text-[#475569] font-semibold text-sm w-8">{{ $inventory }}</td>
                             <td class="px-4 py-4">
-                                <div class="flex items-center gap-2">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <a href="{{ route('products.show', $product) }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]">View</a>
                                     <button type="button" class="js-open-edit-product-modal inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#0052CC] hover:bg-[#EEF4FF]" data-product='@json($productActionPayload)' onclick="window.openProductEditModalFromElement && window.openProductEditModalFromElement(this)">Edit</button>
                                     <button type="button" class="js-open-delete-product-modal inline-flex items-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FEEBEC]" data-product='@json($productActionPayload)' onclick="window.openProductDeleteModalFromElement && window.openProductDeleteModalFromElement(this)">Delete</button>
                                 </div>
@@ -541,25 +702,335 @@
     @endif
 
     <script>
+        window.__bulkSelectableProductIds = @json($bulkSelectableProductIds ?? []);
         (() => {
+            const bulkForm = document.getElementById('bulk-products-form');
+            if (!bulkForm) {
+                return;
+            }
+
+            const allMatchingIds = Array.isArray(window.__bulkSelectableProductIds) ? window.__bulkSelectableProductIds.map(String) : [];
+            let bulkAllMode = false;
+            let bulkAllSelection = new Set();
+
             const selectAll = document.getElementById('selectAllProducts');
             const rowCheckboxes = [...document.querySelectorAll('.js-product-row-checkbox')];
+            const toolbar = document.getElementById('bulk-catalog-toolbar');
+            const countEl = document.getElementById('bulk-selected-count');
+            const actionSelect = document.getElementById('bulk-action-select');
+            const extraStock = document.getElementById('bulk-extra-stock');
+            const extraCategories = document.getElementById('bulk-extra-categories');
+            const extraBrand = document.getElementById('bulk-extra-brand');
+            const extraTags = document.getElementById('bulk-extra-tags');
+            const extraStatus = document.getElementById('bulk-extra-status');
+            const applyBtn = document.getElementById('bulk-apply-btn');
+            const applySpinner = document.getElementById('bulk-apply-spinner');
+            const confirmShell = document.getElementById('bulk-confirm-shell');
+            const confirmBody = document.getElementById('bulk-confirm-body');
+            const confirmOk = document.getElementById('bulk-confirm-ok');
+            const confirmCancel = document.getElementById('bulk-confirm-cancel');
+
+            function pageSelectedIds() {
+                return rowCheckboxes.filter((c) => c.checked && !c.disabled).map((c) => c.getAttribute('data-product-id')).filter(Boolean);
+            }
+
+            function effectiveSelectedIds() {
+                if (bulkAllMode && bulkAllSelection.size > 0) {
+                    return [...bulkAllSelection];
+                }
+                return pageSelectedIds();
+            }
+
+            function refreshBulkUi() {
+                const ids = effectiveSelectedIds();
+                if (countEl) {
+                    countEl.textContent = String(ids.length);
+                }
+                const label = document.getElementById('bulk-selected-label');
+                if (label) {
+                    label.textContent = bulkAllMode ? 'selected (all matching, up to 500)' : 'selected on this page';
+                }
+                if (toolbar) {
+                    toolbar.classList.toggle('hidden', ids.length === 0);
+                }
+            }
 
             if (selectAll) {
                 selectAll.addEventListener('change', () => {
+                    bulkAllMode = false;
+                    bulkAllSelection = new Set();
                     rowCheckboxes.forEach((checkbox) => {
-                        checkbox.checked = selectAll.checked;
+                        if (!checkbox.disabled) {
+                            checkbox.checked = selectAll.checked;
+                        }
                     });
+                    refreshBulkUi();
                 });
             }
 
             rowCheckboxes.forEach((checkbox) => {
                 checkbox.addEventListener('change', () => {
-                    if (!selectAll) return;
-                    selectAll.checked = rowCheckboxes.length > 0 && rowCheckboxes.every((rowCheckbox) => rowCheckbox.checked);
+                    bulkAllMode = false;
+                    bulkAllSelection = new Set();
+                    if (selectAll) {
+                        const enabled = rowCheckboxes.filter((c) => !c.disabled);
+                        selectAll.checked = enabled.length > 0 && enabled.every((rowCheckbox) => rowCheckbox.checked);
+                    }
+                    refreshBulkUi();
                 });
             });
 
+            document.getElementById('bulk-select-all-matching')?.addEventListener('click', () => {
+                if (!allMatchingIds.length) {
+                    window.alert('No products in the current filtered list to select.');
+                    return;
+                }
+                bulkAllMode = true;
+                bulkAllSelection = new Set(allMatchingIds);
+                rowCheckboxes.forEach((c) => {
+                    const id = c.getAttribute('data-product-id');
+                    c.checked = !!(id && bulkAllSelection.has(String(id)));
+                });
+                if (selectAll) {
+                    const enabled = rowCheckboxes.filter((c) => !c.disabled);
+                    selectAll.checked = enabled.length > 0 && enabled.every((rowCheckbox) => rowCheckbox.checked);
+                }
+                refreshBulkUi();
+            });
+
+            function toggleExtras() {
+                const v = actionSelect ? actionSelect.value : '';
+                [extraStock, extraCategories, extraBrand, extraTags, extraStatus].forEach((el) => el && el.classList.add('hidden'));
+                if (v === 'stock' && extraStock) extraStock.classList.remove('hidden');
+                if (v === 'categories' && extraCategories) extraCategories.classList.remove('hidden');
+                if (v === 'brand' && extraBrand) extraBrand.classList.remove('hidden');
+                if (v === 'tags' && extraTags) extraTags.classList.remove('hidden');
+                if (v === 'status' && extraStatus) extraStatus.classList.remove('hidden');
+            }
+
+            actionSelect?.addEventListener('change', toggleExtras);
+            toggleExtras();
+
+            function setMultiHidden(container, name, selectedValues) {
+                if (!container) return;
+                container.innerHTML = '';
+                selectedValues.forEach((val) => {
+                    const inp = document.createElement('input');
+                    inp.type = 'hidden';
+                    inp.name = name;
+                    inp.value = String(val);
+                    container.appendChild(inp);
+                });
+            }
+
+            let confirmAction = null;
+
+            function closeConfirm() {
+                if (!confirmShell) return;
+                confirmShell.classList.add('hidden');
+                confirmShell.classList.remove('flex');
+                confirmAction = null;
+            }
+
+            function openConfirm(bodyHtml, onConfirm) {
+                if (!confirmShell || !confirmBody) {
+                    onConfirm();
+                    return;
+                }
+                confirmBody.textContent = bodyHtml;
+                confirmAction = onConfirm;
+                confirmShell.classList.remove('hidden');
+                confirmShell.classList.add('flex');
+            }
+
+            confirmCancel?.addEventListener('click', closeConfirm);
+            confirmOk?.addEventListener('click', () => {
+                const fn = confirmAction;
+                closeConfirm();
+                if (typeof fn === 'function') {
+                    fn();
+                }
+            });
+
+            function prepareAndSubmit(action, ids) {
+                document.getElementById('bulk-form-action').value = action;
+                const pidWrap = document.getElementById('bulk-form-product-id-inputs');
+                pidWrap.innerHTML = '';
+                ids.forEach((id) => {
+                    const inp = document.createElement('input');
+                    inp.type = 'hidden';
+                    inp.name = 'product_ids[]';
+                    inp.value = id;
+                    pidWrap.appendChild(inp);
+                });
+                document.getElementById('bulk-form-stock-mode').value = '';
+                document.getElementById('bulk-form-stock-value').value = '';
+                document.getElementById('bulk-form-brand-id').value = '';
+                document.getElementById('bulk-form-product-status').value = '';
+                setMultiHidden(document.getElementById('bulk-form-category-inputs'), 'category_ids[]', []);
+                setMultiHidden(document.getElementById('bulk-form-tag-inputs'), 'tag_ids[]', []);
+
+                if (action === 'stock') {
+                    const mode = document.getElementById('bulk-stock-mode')?.value || 'set';
+                    const val = document.getElementById('bulk-stock-value')?.value;
+                    document.getElementById('bulk-form-stock-mode').value = mode;
+                    document.getElementById('bulk-form-stock-value').value = String(val);
+                }
+                if (action === 'categories') {
+                    const sel = document.getElementById('bulk-category-ids');
+                    const picked = sel ? [...sel.selectedOptions].map((o) => o.value) : [];
+                    setMultiHidden(document.getElementById('bulk-form-category-inputs'), 'category_ids[]', picked);
+                }
+                if (action === 'brand') {
+                    const bid = document.getElementById('bulk-brand-id')?.value;
+                    document.getElementById('bulk-form-brand-id').value = bid || '';
+                }
+                if (action === 'tags') {
+                    const sel = document.getElementById('bulk-tag-ids');
+                    const picked = sel ? [...sel.selectedOptions].map((o) => o.value) : [];
+                    setMultiHidden(document.getElementById('bulk-form-tag-inputs'), 'tag_ids[]', picked);
+                }
+                if (action === 'status') {
+                    document.getElementById('bulk-form-product-status').value = document.getElementById('bulk-status-value')?.value || 'published';
+                }
+                if (applyBtn) applyBtn.disabled = true;
+                if (applySpinner) applySpinner.classList.remove('hidden');
+                bulkForm.submit();
+            }
+
+            applyBtn?.addEventListener('click', () => {
+                const ids = effectiveSelectedIds();
+                if (ids.length === 0) {
+                    window.alert('Select at least one product.');
+                    return;
+                }
+                const action = actionSelect?.value || '';
+                if (!action) {
+                    window.alert('Choose a bulk action.');
+                    return;
+                }
+                if (action === 'stock') {
+                    const val = document.getElementById('bulk-stock-value')?.value;
+                    if (val === '' || val === undefined) {
+                        window.alert('Enter a stock quantity.');
+                        return;
+                    }
+                }
+                if (action === 'categories') {
+                    const sel = document.getElementById('bulk-category-ids');
+                    const picked = sel ? [...sel.selectedOptions].map((o) => o.value) : [];
+                    if (picked.length === 0) {
+                        window.alert('Select one or more categories.');
+                        return;
+                    }
+                }
+                if (action === 'brand') {
+                    const bid = document.getElementById('bulk-brand-id')?.value;
+                    if (!bid) {
+                        window.alert('Choose a brand.');
+                        return;
+                    }
+                }
+                if (action === 'tags') {
+                    const sel = document.getElementById('bulk-tag-ids');
+                    const picked = sel ? [...sel.selectedOptions].map((o) => o.value) : [];
+                    if (picked.length === 0) {
+                        window.alert('Select one or more tags.');
+                        return;
+                    }
+                }
+
+                const n = ids.length;
+                let msg = `Apply this bulk action to ${n} product(s)?`;
+                if (action === 'delete') {
+                    msg = `Archive ${n} product(s) (soft delete)? They will be hidden from the catalog but can be restored from the database if needed.`;
+                }
+
+                openConfirm(msg, () => prepareAndSubmit(action, ids));
+            });
+
+            refreshBulkUi();
+        })();
+    </script>
+    <script>
+        (function () {
+            const pollUrl = @json(route('products.primary-images'));
+            const thumbs = Array.from(document.querySelectorAll('.js-product-primary-thumb'));
+            if (!thumbs.some(function (el) { return el.dataset.state === 'pending'; })) {
+                return;
+            }
+            const ids = Array.from(new Set(thumbs.map(function (el) { return el.dataset.productId; }).filter(Boolean)));
+            if (!ids.length) {
+                return;
+            }
+            function setHint(productId, text) {
+                var hint = document.querySelector('.js-product-thumb-hint[data-product-id="' + productId + '"]');
+                if (hint) {
+                    hint.textContent = text || '';
+                }
+            }
+            function setThumbFailed(el) {
+                el.dataset.state = 'failed';
+                el.innerHTML = '<div class="relative flex h-full w-full items-center justify-center bg-[#FEF2F2]" title="Image could not be loaded">' +
+                    '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="text-[#94A3B8]"><path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2Z" fill="currentColor" /></svg>' +
+                    '<span class="absolute bottom-0.5 right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-[8px] font-bold text-white">!</span></div>';
+            }
+            function setThumbPending(el) {
+                el.dataset.state = 'pending';
+                el.innerHTML = '<div class="relative flex h-full w-full items-center justify-center product-thumb-skeleton">' +
+                    '<span class="product-thumb-spinner absolute h-5 w-5 rounded-full" aria-hidden="true"></span></div>';
+            }
+            function tick() {
+                return fetch(pollUrl + '?ids=' + encodeURIComponent(ids.join(',')), {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                })
+                    .then(function (res) { return res.ok ? res.json() : null; })
+                    .then(function (data) {
+                        if (!data || !data.products) {
+                            return;
+                        }
+                        var map = data.products;
+                        thumbs.forEach(function (el) {
+                            var id = el.dataset.productId;
+                            var row = map[id];
+                            if (!row) {
+                                return;
+                            }
+                            if (row.state === 'ready' && row.url) {
+                                el.dataset.state = 'ready';
+                                el.dataset.url = row.url;
+                                el.textContent = '';
+                                var img = document.createElement('img');
+                                img.src = row.url;
+                                img.alt = '';
+                                img.className = 'h-10 w-10 object-cover';
+                                el.appendChild(img);
+                                setHint(id, '');
+                                return;
+                            }
+                            if (row.state === 'pending') {
+                                setThumbPending(el);
+                                setHint(id, 'Image loading…');
+                                return;
+                            }
+                            if (row.state === 'failed') {
+                                setThumbFailed(el);
+                                setHint(id, '');
+                            }
+                        });
+                    })
+                    .catch(function () {});
+            }
+            function schedule() {
+                if (!document.querySelector('.js-product-primary-thumb[data-state="pending"]')) {
+                    return;
+                }
+                tick().finally(function () {
+                    setTimeout(schedule, 4000);
+                });
+            }
+            setTimeout(schedule, 4000);
         })();
     </script>
 @endsection

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Support\CatalogRules;
 use App\Support\ProductImageStorage;
+use App\Support\StockMovementRecorder;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
@@ -253,6 +254,11 @@ class OnboardingController extends Controller
         DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds): void {
             // Only look for existing product if in edit mode
             $product = ($validated['mode'] === 'edit') ? $this->resolveSessionProduct($request, $store) : null;
+            $oldFingerprintStocks = [];
+            if ($product) {
+                $product->load(['variants.options.variationType']);
+                $oldFingerprintStocks = StockMovementRecorder::snapshotFingerprintsToStock($product);
+            }
             $productPayload = [
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -378,6 +384,16 @@ class OnboardingController extends Controller
 
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
+
+            $product->refresh();
+            $product->load(['variants.options.variationType']);
+            StockMovementRecorder::syncAfterVariantRebuild(
+                $store,
+                $product,
+                $oldFingerprintStocks,
+                $request->user()?->id,
+                'onboarding'
+            );
 
             $store->update([
                 'settings' => $this->mergeStoreSettings($store->settings, [
@@ -1119,7 +1135,10 @@ class OnboardingController extends Controller
             ->unique()
             ->values();
 
-        DB::transaction(function () use ($product, $currentStore, $request, $validated, $meta, $tagIds, $categoryIds, $retainedPaths): void {
+        $product->load(['variants.options.variationType']);
+        $oldFingerprintStocks = StockMovementRecorder::snapshotFingerprintsToStock($product);
+
+        DB::transaction(function () use ($product, $currentStore, $request, $validated, $meta, $tagIds, $categoryIds, $retainedPaths, $oldFingerprintStocks): void {
             foreach ($product->images()->get() as $imageRow) {
                 if (! $retainedPaths->contains($imageRow->image_path)) {
                     $imageRow->delete();
@@ -1249,6 +1268,16 @@ class OnboardingController extends Controller
 
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
+
+            $product->refresh();
+            $product->load(['variants.options.variationType']);
+            StockMovementRecorder::syncAfterVariantRebuild(
+                $currentStore,
+                $product,
+                $oldFingerprintStocks,
+                $request->user()?->id,
+                'catalog'
+            );
         });
 
         $this->syncActiveStoreSessions($request, $currentStore);
@@ -1276,7 +1305,7 @@ class OnboardingController extends Controller
             ->firstOrFail();
 
         $deletedProductName = $product->name;
-        $product->delete();
+        $product->forceDelete();
 
         return redirect()
             ->route('products')
@@ -1401,6 +1430,7 @@ class OnboardingController extends Controller
         $validated['variants'] = $normalizedVariants['variants'];
 
         DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds): void {
+            $oldFingerprintStocks = [];
             $productPayload = [
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -1519,6 +1549,16 @@ class OnboardingController extends Controller
 
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
+
+            $product->refresh();
+            $product->load(['variants.options.variationType']);
+            StockMovementRecorder::syncAfterVariantRebuild(
+                $store,
+                $product,
+                $oldFingerprintStocks,
+                $request->user()?->id,
+                'catalog'
+            );
         });
 
         return redirect()

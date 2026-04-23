@@ -7,6 +7,9 @@ use App\Http\Controllers\TagController;
 use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\ProductBulkController;
+use App\Http\Controllers\ProductImportController;
+use App\Http\Controllers\ProductQuickViewController;
 use App\Http\Controllers\TeamMemberController;
 use Illuminate\Support\Facades\Route;
 // 
@@ -28,6 +31,11 @@ Route::get('/logout', [DashboardController::class, 'logout'])
 Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
+    Route::get('/products/primary-images', [DashboardController::class, 'productPrimaryImages'])->name('products.primary-images');
+    Route::get('/products/view/{product}', [ProductQuickViewController::class, 'show'])->name('products.show');
+    Route::post('/products/bulk', [ProductBulkController::class, 'handle'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.bulk');
     Route::post('/brands', [BrandController::class, 'store'])
         ->middleware('store.role:owner,manager')
         ->name('brands.store');
@@ -103,6 +111,47 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::delete('/product/{productId}', [OnboardingController::class, 'destroyProductFromManagement'])
         ->middleware('store.role:owner,manager')
         ->name('product.destroy');
+
+    Route::get('/products/import/template', [ProductImportController::class, 'template'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.template');
+    Route::get('/products/import/history', [ProductImportController::class, 'history'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.history');
+    Route::get('/products/import', [ProductImportController::class, 'create'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.create');
+    Route::post('/products/import', [ProductImportController::class, 'store'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.store');
+    Route::get('/products/import/{productImportId}/mapping', [ProductImportController::class, 'mapping'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.mapping');
+    Route::post('/products/import/{productImportId}/mapping', [ProductImportController::class, 'saveMapping'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.mapping.save');
+    Route::get('/products/import/{productImportId}/preview', [ProductImportController::class, 'preview'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.preview');
+    Route::post('/products/import/{productImportId}/confirm', [ProductImportController::class, 'confirm'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.confirm');
+    Route::post('/products/import/{productImportId}/resume', [ProductImportController::class, 'resume'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.resume');
+    Route::get('/products/import/{productImportId}/result', [ProductImportController::class, 'result'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.result');
+    Route::get('/products/import/{productImportId}/progress', [ProductImportController::class, 'importProgress'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.progress');
+    Route::get('/products/import/{productImportId}/report', [ProductImportController::class, 'report'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.report');
+    Route::post('/products/import/{productImportId}/retry-failed', [ProductImportController::class, 'retryFailed'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.retry-failed');
+
     Route::get('/store/{storeId}/products', [DashboardController::class, 'store_products'])->name('store.products');
     Route::get('/store/{storeId}/add-product', [OnboardingController::class, 'addProductFromStore'])->name('store.add-product');
     Route::post('/store/{storeId}/add-product', [OnboardingController::class, 'storeProductFromStore'])->name('store.add-product.store');

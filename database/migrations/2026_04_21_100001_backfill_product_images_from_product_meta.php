@@ -9,7 +9,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Product::query()->orderBy('id')->chunkById(100, function ($products): void {
+        // Avoid SoftDeletingScope issues if this migration ever runs without deleted_at (defensive).
+        Product::query()->withoutGlobalScopes()->orderBy('id')->chunkById(100, function ($products): void {
             foreach ($products as $product) {
                 $meta = is_array($product->meta) ? $product->meta : [];
                 $paths = collect($meta['image_paths'] ?? [])
