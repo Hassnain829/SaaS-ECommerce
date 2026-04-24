@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\Tag;
 use App\Models\Role;
 use App\Models\Store;
+use App\Support\ProductCustomFieldHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -153,6 +154,12 @@ class DashboardController extends Controller
             }
         }
 
+        $cfKey = trim((string) $request->query('cf_key', ''));
+        $cfValue = trim((string) $request->query('cf_value', ''));
+        $cfFilterActive = $cfKey !== '' && $cfValue !== ''
+            && ProductCustomFieldHelper::isValidKey($cfKey)
+            && ProductCustomFieldHelper::isAllowedKey($cfKey);
+
         $baseQuery = Product::query()
             ->where('store_id', $selectedStore->id)
             ->with([
@@ -163,7 +170,8 @@ class DashboardController extends Controller
                 'images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
                 'variationTypes.options:id,variation_type_id,value,sort_order',
                 'variants.options:id,variation_type_id,value',
-                'variants:id,product_id,sku,price,stock,stock_alert',
+                'variants:id,product_id,sku,price,compare_at_price,stock,stock_alert',
+                'variants.linkedCatalogImage:id,product_id,product_variant_id,image_path,status,sort_order,is_primary',
             ])
             ->withSum('variants', 'stock')
             ->withMax('variants', 'stock_alert');
@@ -171,8 +179,16 @@ class DashboardController extends Controller
         if ($search !== '') {
             $baseQuery->where(function ($query) use ($search) {
                 $query->where('name', 'like', '%' . $search . '%')
-                    ->orWhere('sku', 'like', '%' . $search . '%');
+                    ->orWhere('sku', 'like', '%' . $search . '%')
+                    ->orWhere('products.meta', 'like', '%' . $search . '%')
+                    ->orWhereHas('categories', static function ($q) use ($search): void {
+                        $q->where('categories.name', 'like', '%' . $search . '%');
+                    });
             });
+        }
+
+        if ($cfFilterActive) {
+            ProductCustomFieldHelper::metaJsonContainsCustomField($baseQuery, $cfKey, $cfValue);
         }
 
         if ($taxonomyCategoryFilterId !== null) {
@@ -354,6 +370,23 @@ class DashboardController extends Controller
 
         $currentUserStoreRole = $request->user()->roleInStore($selectedStore);
 
+        $settings = is_array($selectedStore->settings) ? $selectedStore->settings : [];
+        $catalogSettings = is_array($settings['catalog'] ?? null) ? $settings['catalog'] : [];
+        $rawListKeys = is_array($catalogSettings['product_list_detail_keys'] ?? null)
+            ? $catalogSettings['product_list_detail_keys']
+            : [];
+        $productListDetailKeys = array_values(array_filter(
+            array_slice(array_map('strval', $rawListKeys), 0, 2),
+            static fn (string $k): bool => $k !== '' && ProductCustomFieldHelper::isValidKey($k) && ProductCustomFieldHelper::isAllowedKey($k)
+        ));
+
+        $detectedCatalogCustomFieldKeys = ProductCustomFieldHelper::detectCustomFieldKeysForStore((int) $selectedStore->id);
+        $mergedHighlightKeys = array_values(array_unique(array_merge(
+            $detectedCatalogCustomFieldKeys,
+            $productListDetailKeys
+        )));
+        $catalogCustomFieldKeyOptions = ProductCustomFieldHelper::keyOptionsForSelect($mergedHighlightKeys);
+
         return view('user_view.products', [
             'selectedStore' => $selectedStore,
             'stores' => $stores,
@@ -379,7 +412,11 @@ class DashboardController extends Controller
                 'sort' => $sort !== '' ? $sort : 'latest',
                 'brand' => $brandFilterId !== null ? (string) $brandFilterId : '',
                 'tag' => $tagFilterId !== null ? (string) $tagFilterId : '',
+                'cf_key' => $cfFilterActive ? $cfKey : '',
+                'cf_value' => $cfFilterActive ? $cfValue : '',
             ],
+            'productListDetailKeys' => $productListDetailKeys,
+            'catalogCustomFieldKeyOptions' => $catalogCustomFieldKeyOptions,
             'stats' => [
                 'total_products' => $totalProducts,
                 'out_of_stock' => $outOfStockCount,
@@ -389,6 +426,41 @@ class DashboardController extends Controller
             ],
             'bulkSelectableProductIds' => $bulkSelectableProductIds,
         ]);
+    }
+
+    public function saveProductListDetailKeys(Request $request): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        $user = $request->user();
+        abort_unless(
+            $store && $user && $user->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER]),
+            403
+        );
+
+        $validated = $request->validate([
+            'detail_key_1' => ['nullable', 'string', 'max:128'],
+            'detail_key_2' => ['nullable', 'string', 'max:128'],
+        ]);
+
+        $keys = [];
+        foreach ([$validated['detail_key_1'] ?? '', $validated['detail_key_2'] ?? ''] as $raw) {
+            $k = trim((string) $raw);
+            if ($k !== '' && ProductCustomFieldHelper::isValidKey($k) && ProductCustomFieldHelper::isAllowedKey($k)) {
+                $keys[] = $k;
+            }
+        }
+        $keys = array_slice(array_values(array_unique($keys)), 0, 2);
+
+        $settings = is_array($store->settings) ? $store->settings : [];
+        $catalog = is_array($settings['catalog'] ?? null) ? $settings['catalog'] : [];
+        $catalog['product_list_detail_keys'] = $keys;
+        $settings['catalog'] = $catalog;
+        $store->update(['settings' => $settings]);
+
+        return redirect()
+            ->route('products')
+            ->with('success', 'Product list highlights saved for this store.')
+            ->with('success_title', 'List preferences');
     }
 
     public function orders()

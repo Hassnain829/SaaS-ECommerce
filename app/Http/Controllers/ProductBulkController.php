@@ -31,6 +31,7 @@ final class ProductBulkController extends Controller
             'product_ids.*' => ['integer', 'min:1'],
             'stock_mode' => ['nullable', 'string', Rule::in(['set', 'delta'])],
             'stock_value' => ['nullable', 'integer', 'min:-999999', 'max:999999'],
+            'bulk_variant_stock_scope' => ['nullable', 'string', Rule::in(['default_variant_only', 'all_variants_same', 'skip_multi_variant'])],
             'category_ids' => ['nullable', 'array', 'max:50'],
             'category_ids.*' => ['integer', 'min:1'],
             'brand_id' => ['nullable', 'integer', 'min:1'],
@@ -115,36 +116,65 @@ final class ProductBulkController extends Controller
         $mode = (string) $validated['stock_mode'];
         $value = (int) $validated['stock_value'];
         $userId = $request->user()?->id;
+        $scope = (string) ($validated['bulk_variant_stock_scope'] ?? 'default_variant_only');
+        if (! in_array($scope, ['default_variant_only', 'all_variants_same', 'skip_multi_variant'], true)) {
+            $scope = 'default_variant_only';
+        }
 
-        DB::transaction(function () use ($store, $products, $mode, $value, $userId): void {
+        $skippedMulti = 0;
+
+        DB::transaction(function () use ($store, $products, $mode, $value, $userId, $scope, &$skippedMulti): void {
             foreach ($products as $product) {
-                $variant = $this->defaultCatalogVariant($product);
-                if (! $variant) {
+                $product->loadCount('variants');
+                $variantCount = (int) $product->variants_count;
+                $isMultiVariant = $variantCount > 1;
+
+                if ($isMultiVariant && $scope === 'skip_multi_variant') {
+                    $skippedMulti++;
+
                     continue;
                 }
-                $previous = (int) $variant->stock;
-                $new = $mode === 'set'
-                    ? max(0, $value)
-                    : max(0, $previous + $value);
-                if ($new === $previous) {
-                    continue;
+
+                $targets = $scope === 'all_variants_same'
+                    ? $product->variants()->orderBy('id')->get()
+                    : collect([$this->defaultCatalogVariant($product)])->filter();
+
+                foreach ($targets as $variant) {
+                    if (! $variant) {
+                        continue;
+                    }
+                    $previous = (int) $variant->stock;
+                    $new = $mode === 'set'
+                        ? max(0, $value)
+                        : max(0, $previous + $value);
+                    if ($new === $previous) {
+                        continue;
+                    }
+                    $variant->update(['stock' => $new]);
+                    StockMovementRecorder::recordAdjustment(
+                        $store,
+                        $product,
+                        $variant->fresh(),
+                        $previous,
+                        $new,
+                        $userId,
+                        'catalog',
+                        \App\Models\StockMovement::TYPE_EDIT_UPDATE,
+                        $mode === 'set' ? 'Bulk stock: set to '.$new : 'Bulk stock: adjust by '.$value
+                    );
                 }
-                $variant->update(['stock' => $new]);
-                StockMovementRecorder::recordAdjustment(
-                    $store,
-                    $product,
-                    $variant->fresh(),
-                    $previous,
-                    $new,
-                    $userId,
-                    'catalog',
-                    \App\Models\StockMovement::TYPE_EDIT_UPDATE,
-                    $mode === 'set' ? 'Bulk stock: set to '.$new : 'Bulk stock: adjust by '.$value
-                );
             }
         });
 
-        return back()->with('success', 'Stock updated for '.$n.' product(s) (default variant line).')
+        $msg = match ($scope) {
+            'all_variants_same' => 'Stock updated on every variant row for '.$n.' product(s).',
+            'skip_multi_variant' => $skippedMulti > 0
+                ? 'Stock updated for '.($n - $skippedMulti).' product(s). Skipped '.$skippedMulti.' multi-variant product(s) as requested.'
+                : 'Stock updated for '.$n.' product(s).',
+            default => 'Stock updated for '.$n.' product(s) (default inventory row only).',
+        };
+
+        return back()->with('success', $msg)
             ->with('success_title', 'Bulk stock');
     }
 

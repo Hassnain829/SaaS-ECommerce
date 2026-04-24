@@ -31,6 +31,25 @@
                         <div class="flex justify-between gap-4"><dt class="text-[#64748B]">Rows sampled</dt><dd class="font-semibold text-[#0F172A]">{{ $preview['total_rows_sampled'] ?? 0 }}</dd></div>
                         <div class="flex justify-between gap-4"><dt class="text-[#64748B]">Valid rows</dt><dd class="font-semibold text-[#059669]">{{ $preview['valid_rows'] ?? 0 }}</dd></div>
                         <div class="flex justify-between gap-4"><dt class="text-[#64748B]">Invalid rows</dt><dd class="font-semibold text-[#B42318]">{{ $preview['invalid_rows'] ?? 0 }}</dd></div>
+                        @if (!empty($preview['variant_import']) && !empty($preview['variant_summary']))
+                            @php $vs = $preview['variant_summary']; @endphp
+                            <div class="mt-4 border-t border-[#E2E8F0] pt-4 space-y-2 text-sm">
+                                <p class="font-semibold text-[#0F172A]">Multi-row variants</p>
+                                <div class="flex justify-between gap-4"><dt class="text-[#64748B]">Products detected</dt><dd class="font-semibold text-[#0F172A]">{{ $vs['unique_products_detected'] ?? '—' }}</dd></div>
+                                <div class="flex justify-between gap-4"><dt class="text-[#64748B]">Variant lines</dt><dd class="font-semibold text-[#0F172A]">{{ $vs['variant_line_rows'] ?? '—' }}</dd></div>
+                                @if (!empty($vs['option_group_labels']))
+                                    <p class="text-[#64748B]">Option groups: <span class="font-medium text-[#0F172A]">{{ implode(', ', $vs['option_group_labels']) }}</span></p>
+                                @endif
+                                @if (!empty($vs['sample_variant_lines']))
+                                    <p class="text-xs text-[#64748B]">Sample combinations</p>
+                                    <ul class="list-disc space-y-1 pl-5 text-xs text-[#334155]">
+                                        @foreach (array_slice($vs['sample_variant_lines'], 0, 6) as $line)
+                                            <li>{{ $line }}</li>
+                                        @endforeach
+                                    </ul>
+                                @endif
+                            </div>
+                        @endif
                         @if (!empty($preview['total_rows_truncated']))
                             <p class="text-xs text-[#B45309]">Preview capped at 5,000 rows; full file still imports.</p>
                         @endif
@@ -61,6 +80,20 @@
                 <div class="mt-6 rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
                     <p class="font-semibold">Duplicate SKUs in file</p>
                     <p class="mt-1">SKUs: {{ implode(', ', $preview['duplicate_skus_in_file']) }}. Duplicate rows are rejected during import so stock and identity stay consistent.</p>
+                </div>
+            @endif
+
+            @if (!empty($preview['variant_summary']['duplicate_variant_skus_in_file']))
+                <div class="mt-6 rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
+                    <p class="font-semibold">Duplicate variant SKUs</p>
+                    <p class="mt-1">These variant SKUs appear more than once: {{ implode(', ', $preview['variant_summary']['duplicate_variant_skus_in_file']) }}.</p>
+                </div>
+            @endif
+
+            @if (!empty($preview['variant_summary']['weak_grouping_without_parent_sku']))
+                <div class="mt-6 rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+                    <p class="font-semibold">Parent product SKU not mapped</p>
+                    <p class="mt-1">Rows are grouped by product name and brand. If two different products share the same name and brand, map a Parent product SKU column to keep them separate.</p>
                 </div>
             @endif
 

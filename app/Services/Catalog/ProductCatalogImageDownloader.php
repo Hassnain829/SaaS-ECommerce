@@ -5,6 +5,7 @@ namespace App\Services\Catalog;
 use App\Jobs\ProcessProductImageJob;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductVariant;
 use App\Models\ProductImport;
 use App\Models\Store;
 use App\Support\ProductImageStorage;
@@ -22,7 +23,7 @@ final class ProductCatalogImageDownloader
      * @param  list<string>  $urls
      * @return int number of images stored (ready immediately)
      */
-    public function importUrls(Product $product, Store $store, array $urls, ?int $userId): int
+    public function importUrls(Product $product, Store $store, array $urls, ?int $userId, ?ProductVariant $variant = null): int
     {
         $urls = array_values(array_filter(array_map('trim', $urls)));
         if ($urls === []) {
@@ -47,6 +48,7 @@ final class ProductCatalogImageDownloader
 
             ProductImage::query()->create([
                 'product_id' => $product->id,
+                'product_variant_id' => $variant?->id,
                 'image_path' => $relative,
                 'source_url' => null,
                 'alt_text' => null,
@@ -83,6 +85,7 @@ final class ProductCatalogImageDownloader
         Store $store,
         array $urls,
         ?int $userId,
+        ?ProductVariant $variant = null,
     ): int {
         $urls = array_values(array_filter(array_map('trim', $urls)));
         if ($urls === []) {
@@ -103,6 +106,7 @@ final class ProductCatalogImageDownloader
 
             $row = ProductImage::query()->create([
                 'product_id' => $product->id,
+                'product_variant_id' => $variant?->id,
                 'image_path' => ProductImage::PENDING_DISK_PATH,
                 'source_url' => $url,
                 'alt_text' => null,

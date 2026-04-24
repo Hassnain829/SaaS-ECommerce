@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\CatalogRules;
+use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
 use App\Support\StockMovementRecorder;
 use App\Models\Product;
@@ -15,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -203,6 +205,8 @@ class OnboardingController extends Controller
             'variants.*.stock' => ['nullable', 'integer', 'min:0'],
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
+            'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
             'mode' => ['nullable', 'string', 'in:create,edit'],
             'brand_id' => CatalogRules::brandIdForStore($store),
             ...CatalogRules::tagIdsForStore($store),
@@ -235,6 +239,14 @@ class OnboardingController extends Controller
 
         $validated['variants'] = $normalizedVariants['variants'];
         $validated['brand_id'] = $validated['brand_id'] ?? null;
+
+        $variationOptionErrors = $this->validateVariationOptionUniqueness($validated['variation_types'] ?? []);
+        if ($variationOptionErrors !== []) {
+            return back()
+                ->withErrors($variationOptionErrors)
+                ->withInput($request->except(['product_images']));
+        }
+
         $tagIds = collect($validated['tag_ids'] ?? [])
             ->map(static fn ($id): int => (int) $id)
             ->filter(static fn (int $id): bool => $id > 0)
@@ -291,6 +303,11 @@ class OnboardingController extends Controller
             }
             $this->replaceProductGallery($product, $galleryPaths, $request->user()?->id, ($validated['mode'] ?? '') === 'edit');
 
+            $imageErrors = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
+            if ($imageErrors !== []) {
+                throw ValidationException::withMessages($imageErrors);
+            }
+
             $variationOptionSets = [];
             $variationOptionMap = [];
 
@@ -325,6 +342,7 @@ class OnboardingController extends Controller
 
             $combinations = $this->generateCombinations($variationOptionSets);
             $customVariants = $validated['variants'] ?? [];
+            $variantImageAssignments = [];
 
             if (!empty($customVariants)) {
                 foreach ($customVariants as $variantData) {
@@ -345,6 +363,7 @@ class OnboardingController extends Controller
                         'product_id' => $product->id,
                         'sku' => $variantData['sku'] ?: $this->buildSku($store->name, $product->name, $suffix),
                         'price' => $variantData['price'],
+                        'compare_at_price' => $variantData['compare_at_price'] ?? null,
                         'stock' => $variantData['stock'],
                         'stock_alert' => $variantData['stock_alert'],
                     ]);
@@ -353,17 +372,27 @@ class OnboardingController extends Controller
                         static fn(ProductVariationOption $option): int => $option->id,
                         $selectedOptions
                     ));
+
+                    $variantImageAssignments[] = [
+                        'variant' => $variant,
+                        'image_id' => $variantData['product_image_id'] ?? null,
+                    ];
                 }
             } elseif (empty($combinations)) {
                 $defaultVariant = ProductVariant::create([
                     'product_id' => $product->id,
                     'sku' => $this->buildSku($store->name, $product->name),
                     'price' => $validated['base_price'],
+                    'compare_at_price' => null,
                     'stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
                 ]);
 
                 $defaultVariant->options()->sync([]);
+                $variantImageAssignments[] = [
+                    'variant' => $defaultVariant,
+                    'image_id' => null,
+                ];
             } else {
                 foreach ($combinations as $combination) {
                     $variant = ProductVariant::create([
@@ -374,13 +403,20 @@ class OnboardingController extends Controller
                             implode('-', array_map(static fn($entry) => $entry['option']->value, $combination))
                         ),
                         'price' => $validated['base_price'],
+                        'compare_at_price' => null,
                         'stock' => $validated['default_stock'],
                         'stock_alert' => $validated['stock_alert'],
                     ]);
 
                     $variant->options()->sync(array_map(static fn($entry) => $entry['option']->id, $combination));
+                    $variantImageAssignments[] = [
+                        'variant' => $variant,
+                        'image_id' => null,
+                    ];
                 }
             }
+
+            $this->syncVariantCatalogImages($product, $variantImageAssignments);
 
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
@@ -683,7 +719,7 @@ class OnboardingController extends Controller
     {
         $meta = is_array($product->meta) ? $product->meta : [];
         $variationTypes = $product->variationTypes()->with('options')->get();
-        $variants = $product->variants()->with('options')->get();
+        $variants = $product->variants()->with(['options', 'linkedCatalogImage'])->get();
 
         $variationTypeIndexById = [];
         $variationTypesPayload = $variationTypes->values()->map(function (ProductVariationType $variationType, int $index) use (&$variationTypeIndexById): array {
@@ -732,8 +768,10 @@ class OnboardingController extends Controller
                 'option_map' => $optionMap,
                 'sku' => $variant->sku,
                 'price' => (float) $variant->price,
+                'compare_at_price' => $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null,
                 'stock' => (int) $variant->stock,
                 'stock_alert' => (int) $variant->stock_alert,
+                'product_image_id' => $variant->linkedCatalogImage?->id,
             ];
         })->values()->all();
 
@@ -756,6 +794,90 @@ class OnboardingController extends Controller
     private function mergeStoreSettings(?array $existingSettings, array $updates): array
     {
         return array_merge($existingSettings ?? [], $updates);
+    }
+
+    /**
+     * @param  array<int, array{name?: string, type?: string, options?: array<int, string>}>  $variationTypes
+     * @return array<string, string>
+     */
+    private function validateVariationOptionUniqueness(array $variationTypes): array
+    {
+        $errors = [];
+        foreach ($variationTypes as $i => $type) {
+            if (! is_array($type)) {
+                continue;
+            }
+            $options = is_array($type['options'] ?? null) ? $type['options'] : [];
+            $seen = [];
+            foreach ($options as $value) {
+                $key = mb_strtolower(trim((string) $value));
+                if ($key === '') {
+                    continue;
+                }
+                if (isset($seen[$key])) {
+                    $label = trim((string) ($type['name'] ?? 'Option group'));
+
+                    $errors['variation_types.'.$i.'.options'] = 'Each value in “'.$label.'” must be unique.';
+
+                    break;
+                }
+                $seen[$key] = true;
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param  array<int, array{product_image_id?: int|null}>  $normalizedVariants
+     * @return array<string, string>
+     */
+    private function validateVariantProductImageIds(Product $product, array $normalizedVariants): array
+    {
+        $errors = [];
+        foreach ($normalizedVariants as $rowIndex => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $id = isset($row['product_image_id']) ? (int) $row['product_image_id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $exists = ProductImage::query()
+                ->where('product_id', $product->id)
+                ->where('id', $id)
+                ->exists();
+            if (! $exists) {
+                $errors['variants.'.$rowIndex.'.product_image_id'] = 'Choose a catalog image that belongs to this product.';
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param  array<int, array{variant: ProductVariant, image_id?: int|null}>  $assignments
+     */
+    private function syncVariantCatalogImages(Product $product, array $assignments): void
+    {
+        ProductImage::query()->where('product_id', $product->id)->update(['product_variant_id' => null]);
+
+        foreach ($assignments as $item) {
+            $variant = $item['variant'] ?? null;
+            $imageId = isset($item['image_id']) ? (int) $item['image_id'] : 0;
+            if (! $variant instanceof ProductVariant || $imageId <= 0) {
+                continue;
+            }
+
+            $image = ProductImage::query()
+                ->where('product_id', $product->id)
+                ->where('id', $imageId)
+                ->first();
+
+            if ($image) {
+                $image->update(['product_variant_id' => $variant->id]);
+            }
+        }
     }
 
     private function uniqueSlug(string $modelClass, string $name): string
@@ -842,9 +964,9 @@ class OnboardingController extends Controller
     }
 
     /**
-     * @param array<int|string, mixed> $variantRows
-     * @param array<int, array{name:string, type:string, options:array<int, string>}> $variationTypes
-     * @return array{variants: array<int, array{option_map: array<int, int>, sku: string|null, price: float, stock: int, stock_alert: int}>, errors: array<string, string>}
+     * @param  array<int|string, mixed>  $variantRows
+     * @param  array<int, array{name:string, type:string, options:array<int, string>}>  $variationTypes
+     * @return array{variants: array<int, array{option_map: array<int, int>, sku: string|null, price: float, compare_at_price: float|null, stock: int, stock_alert: int, product_image_id: int|null}>, errors: array<string, string>}
      */
     private function normalizeCustomVariants(
         array $variantRows,
@@ -858,7 +980,7 @@ class OnboardingController extends Controller
         $seenCombinationKeys = [];
 
         foreach ($variantRows as $rowIndex => $row) {
-            if (!is_array($row)) {
+            if (! is_array($row)) {
                 continue;
             }
 
@@ -872,8 +994,8 @@ class OnboardingController extends Controller
                     continue;
                 }
 
-                if (!is_numeric($rawOptionIndex)) {
-                    $errors["variants.$rowIndex.option_map.$variationIndex"] = sprintf(
+                if (! is_numeric($rawOptionIndex)) {
+                    $errors['variants.'.$rowIndex.'.option_map.'.$variationIndex] = sprintf(
                         'Variant %d has an invalid value for %s.',
                         $rowIndex + 1,
                         $variationType['name']
@@ -882,8 +1004,8 @@ class OnboardingController extends Controller
                 }
 
                 $optionIndex = (int) $rawOptionIndex;
-                if (!array_key_exists($optionIndex, $variationType['options'] ?? [])) {
-                    $errors["variants.$rowIndex.option_map.$variationIndex"] = sprintf(
+                if (! array_key_exists($optionIndex, $variationType['options'] ?? [])) {
+                    $errors['variants.'.$rowIndex.'.option_map.'.$variationIndex] = sprintf(
                         'Variant %d has an unavailable option for %s.',
                         $rowIndex + 1,
                         $variationType['name']
@@ -894,20 +1016,20 @@ class OnboardingController extends Controller
                 $optionMap[$variationIndex] = $optionIndex;
             }
 
-            if (!empty($variationTypes)) {
+            if (! empty($variationTypes)) {
                 if (count($optionMap) === 0) {
                     continue;
                 }
 
                 ksort($optionMap);
                 $combinationKey = implode('|', array_map(
-                    static fn(int $variationIndex, int $optionIndex): string => $variationIndex . ':' . $optionIndex,
+                    static fn (int $variationIndex, int $optionIndex): string => $variationIndex.':'.$optionIndex,
                     array_keys($optionMap),
                     $optionMap
                 ));
 
                 if (isset($seenCombinationKeys[$combinationKey])) {
-                    $errors["variants.$rowIndex.option_map"] = sprintf(
+                    $errors['variants.'.$rowIndex.'.option_map'] = sprintf(
                         'Variant %d duplicates another variant combination.',
                         $rowIndex + 1
                     );
@@ -917,12 +1039,50 @@ class OnboardingController extends Controller
                 $seenCombinationKeys[$combinationKey] = true;
             }
 
+            $priceVal = isset($row['price']) && $row['price'] !== '' ? (float) $row['price'] : $basePrice;
+
+            $compareAtPrice = null;
+            if (isset($row['compare_at_price']) && $row['compare_at_price'] !== '' && $row['compare_at_price'] !== null) {
+                $compareAtPrice = (float) $row['compare_at_price'];
+                if ($compareAtPrice < 0) {
+                    $errors['variants.'.$rowIndex.'.compare_at_price'] = sprintf(
+                        'Variant %d has an invalid compare-at price.',
+                        $rowIndex + 1
+                    );
+
+                    continue;
+                }
+                if ($compareAtPrice > 0 && $compareAtPrice < $priceVal) {
+                    $errors['variants.'.$rowIndex.'.compare_at_price'] = sprintf(
+                        'Variant %d: compare-at must be greater than or equal to price.',
+                        $rowIndex + 1
+                    );
+
+                    continue;
+                }
+            }
+
+            $productImageId = null;
+            if (isset($row['product_image_id']) && $row['product_image_id'] !== '' && $row['product_image_id'] !== null) {
+                $productImageId = (int) $row['product_image_id'];
+                if ($productImageId < 1) {
+                    $errors['variants.'.$rowIndex.'.product_image_id'] = sprintf(
+                        'Variant %d has an invalid catalog image.',
+                        $rowIndex + 1
+                    );
+
+                    continue;
+                }
+            }
+
             $normalized[] = [
                 'option_map' => $optionMap,
                 'sku' => isset($row['sku']) && trim((string) $row['sku']) !== '' ? trim((string) $row['sku']) : null,
-                'price' => isset($row['price']) && $row['price'] !== '' ? (float) $row['price'] : $basePrice,
+                'price' => $priceVal,
+                'compare_at_price' => $compareAtPrice,
                 'stock' => isset($row['stock']) && $row['stock'] !== '' ? (int) $row['stock'] : $defaultStock,
                 'stock_alert' => isset($row['stock_alert']) && $row['stock_alert'] !== '' ? (int) $row['stock_alert'] : $defaultStockAlert,
+                'product_image_id' => $productImageId,
             ];
         }
 
@@ -1081,9 +1241,15 @@ class OnboardingController extends Controller
             'variants.*.stock' => ['nullable', 'integer', 'min:0'],
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
+            'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
             'brand_id' => CatalogRules::brandIdForStore($currentStore),
             ...CatalogRules::tagIdsForStore($currentStore),
             ...CatalogRules::categoryIdsForStore($currentStore),
+            'custom_fields' => ['nullable', 'array', 'max:40'],
+            'custom_fields.*.key' => ['nullable', 'string', 'max:128'],
+            'custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
+            'custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
         ]);
 
         if (($validated['product_type'] ?? '') === 'custom') {
@@ -1112,6 +1278,41 @@ class OnboardingController extends Controller
 
         $validated['variants'] = $normalizedVariants['variants'];
         $validated['brand_id'] = $validated['brand_id'] ?? null;
+
+        $variationOptionErrorsUpdate = $this->validateVariationOptionUniqueness($validated['variation_types'] ?? []);
+        if ($variationOptionErrorsUpdate !== []) {
+            return back()
+                ->withErrors($variationOptionErrorsUpdate)
+                ->withInput($request->except(['product_images']));
+        }
+
+        if ($request->filled('_custom_fields_editor')) {
+            $cfRows = $validated['custom_fields'] ?? [];
+            foreach ($cfRows as $i => $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $key = trim((string) ($row['key'] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
+                if (! ProductCustomFieldHelper::isValidKey($key)) {
+                    return back()
+                        ->withErrors([
+                            'custom_fields.'.$i.'.key' => 'Field name can only use letters, numbers, dots, dashes, and underscores (up to 128 characters).',
+                        ])
+                        ->withInput($request->except(['product_images']));
+                }
+                if (! ProductCustomFieldHelper::isAllowedKey($key)) {
+                    return back()
+                        ->withErrors([
+                            'custom_fields.'.$i.'.key' => 'This name is reserved for catalog or import data. Choose a different field name.',
+                        ])
+                        ->withInput($request->except(['product_images']));
+                }
+            }
+        }
+
         $tagIds = collect($validated['tag_ids'] ?? [])
             ->map(static fn ($id): int => (int) $id)
             ->filter(static fn (int $id): bool => $id > 0)
@@ -1130,6 +1331,12 @@ class OnboardingController extends Controller
         $meta['default_stock'] = $meta['default_stock'] ?? 0;
         $meta['stock_alert'] = (int) $validated['stock_alert'];
 
+        if ($request->filled('_custom_fields_editor')) {
+            $meta['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
+                $validated['custom_fields'] ?? []
+            );
+        }
+
         $retainedPaths = collect($validated['existing_image_paths'] ?? [])
             ->filter(static fn ($p): bool => is_string($p) && $p !== '')
             ->unique()
@@ -1137,8 +1344,17 @@ class OnboardingController extends Controller
 
         $product->load(['variants.options.variationType']);
         $oldFingerprintStocks = StockMovementRecorder::snapshotFingerprintsToStock($product);
+        $oldFingerprintVariantCustomFields = [];
+        foreach ($product->variants as $existingVariant) {
+            $fp = StockMovementRecorder::variantOptionFingerprint($existingVariant);
+            $variantMeta = is_array($existingVariant->meta) ? $existingVariant->meta : [];
+            $variantCf = $variantMeta['custom_fields'] ?? null;
+            if (is_array($variantCf) && $variantCf !== []) {
+                $oldFingerprintVariantCustomFields[$fp] = $variantCf;
+            }
+        }
 
-        DB::transaction(function () use ($product, $currentStore, $request, $validated, $meta, $tagIds, $categoryIds, $retainedPaths, $oldFingerprintStocks): void {
+        DB::transaction(function () use ($product, $currentStore, $request, $validated, $meta, $tagIds, $categoryIds, $retainedPaths, $oldFingerprintStocks, $oldFingerprintVariantCustomFields): void {
             foreach ($product->images()->get() as $imageRow) {
                 if (! $retainedPaths->contains($imageRow->image_path)) {
                     $imageRow->delete();
@@ -1160,6 +1376,11 @@ class OnboardingController extends Controller
             }
 
             $this->normalizePrimaryProductImage($product);
+
+            $imageErrorsUpdate = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
+            if ($imageErrorsUpdate !== []) {
+                throw ValidationException::withMessages($imageErrorsUpdate);
+            }
 
             $product->update([
                 'name' => $validated['name'],
@@ -1209,6 +1430,7 @@ class OnboardingController extends Controller
 
             $combinations = $this->generateCombinations($variationOptionSets);
             $customVariants = $validated['variants'] ?? [];
+            $variantImageAssignmentsUpdate = [];
 
             if (!empty($customVariants)) {
                 foreach ($customVariants as $variantData) {
@@ -1229,6 +1451,7 @@ class OnboardingController extends Controller
                         'product_id' => $product->id,
                         'sku' => $variantData['sku'] ?: $this->buildSku($currentStore->name, $product->name, $suffix),
                         'price' => $variantData['price'],
+                        'compare_at_price' => $variantData['compare_at_price'] ?? null,
                         'stock' => $variantData['stock'],
                         'stock_alert' => $variantData['stock_alert'],
                     ]);
@@ -1237,17 +1460,30 @@ class OnboardingController extends Controller
                         static fn(ProductVariationOption $option): int => $option->id,
                         $selectedOptions
                     ));
+
+                    $this->carryVariantCustomFieldsOntoNewRow($variant, $oldFingerprintVariantCustomFields);
+
+                    $variantImageAssignmentsUpdate[] = [
+                        'variant' => $variant,
+                        'image_id' => $variantData['product_image_id'] ?? null,
+                    ];
                 }
             } elseif (empty($combinations)) {
                 $defaultVariant = ProductVariant::create([
                     'product_id' => $product->id,
                     'sku' => $this->buildSku($currentStore->name, $product->name),
                     'price' => $validated['base_price'],
+                    'compare_at_price' => null,
                     'stock' => 0,
                     'stock_alert' => $validated['stock_alert'],
                 ]);
 
                 $defaultVariant->options()->sync([]);
+                $this->carryVariantCustomFieldsOntoNewRow($defaultVariant, $oldFingerprintVariantCustomFields);
+                $variantImageAssignmentsUpdate[] = [
+                    'variant' => $defaultVariant,
+                    'image_id' => null,
+                ];
             } else {
                 foreach ($combinations as $combination) {
                     $variant = ProductVariant::create([
@@ -1258,13 +1494,21 @@ class OnboardingController extends Controller
                             implode('-', array_map(static fn($entry) => $entry['option']->value, $combination))
                         ),
                         'price' => $validated['base_price'],
+                        'compare_at_price' => null,
                         'stock' => 0,
                         'stock_alert' => $validated['stock_alert'],
                     ]);
 
                     $variant->options()->sync(array_map(static fn($entry) => $entry['option']->id, $combination));
+                    $this->carryVariantCustomFieldsOntoNewRow($variant, $oldFingerprintVariantCustomFields);
+                    $variantImageAssignmentsUpdate[] = [
+                        'variant' => $variant,
+                        'image_id' => null,
+                    ];
                 }
             }
+
+            $this->syncVariantCatalogImages($product, $variantImageAssignmentsUpdate);
 
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
@@ -1281,6 +1525,17 @@ class OnboardingController extends Controller
         });
 
         $this->syncActiveStoreSessions($request, $currentStore);
+
+        $workspaceReturnId = $request->input('_workspace_return_product_id');
+        if ($workspaceReturnId !== null && $workspaceReturnId !== ''
+            && ctype_digit((string) $workspaceReturnId)
+            && (int) $workspaceReturnId === (int) $product->id) {
+            return redirect()
+                ->route('products.show', $product)
+                ->with('success', "Product '{$product->name}' updated successfully.")
+                ->with('success_title', 'Product updated')
+                ->with('success_meta', "Store: {$currentStore->name}");
+        }
 
         return redirect()
             ->route('products')
@@ -1370,6 +1625,7 @@ class OnboardingController extends Controller
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'bulk_stock' => ['required', 'integer', 'min:0'],
             'stock_alert' => ['required', 'integer', 'min:0'],
+            'inventory_variant_stock_mode' => ['nullable', 'string', Rule::in(['split_total', 'repeat_each'])],
             'variation_types' => ['nullable', 'array'],
             'variation_types.*.name' => ['required', 'string', 'max:100'],
             'variation_types.*.type' => ['required', 'in:select,radio,checkbox'],
@@ -1381,6 +1637,8 @@ class OnboardingController extends Controller
             'variants.*.stock' => ['nullable', 'integer', 'min:0'],
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
+            'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
             'brand_id' => CatalogRules::brandIdForStore($store),
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
@@ -1402,6 +1660,12 @@ class OnboardingController extends Controller
         $validated['base_price'] = $validated['bulk_price'];
         $validated['default_stock'] = $validated['bulk_stock'];
         $validated['brand_id'] = $validated['brand_id'] ?? null;
+
+        $isCatalogQuickAdd = $request->boolean('_open_add_product_modal');
+        if ($isCatalogQuickAdd) {
+            $validated['variation_types'] = [];
+        }
+
         $tagIds = collect($validated['tag_ids'] ?? [])
             ->map(static fn ($id): int => (int) $id)
             ->filter(static fn (int $id): bool => $id > 0)
@@ -1415,8 +1679,13 @@ class OnboardingController extends Controller
             ->values()
             ->all();
 
+        $variantStockMode = (string) ($request->input('inventory_variant_stock_mode') ?: 'split_total');
+        if (! in_array($variantStockMode, ['split_total', 'repeat_each'], true)) {
+            $variantStockMode = 'split_total';
+        }
+
         $normalizedVariants = $this->normalizeCustomVariants(
-            $request->input('variants', []),
+            $isCatalogQuickAdd ? [] : $request->input('variants', []),
             $validated['variation_types'] ?? [],
             (float) $validated['base_price'],
             (int) $validated['default_stock'],
@@ -1429,7 +1698,14 @@ class OnboardingController extends Controller
 
         $validated['variants'] = $normalizedVariants['variants'];
 
-        DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds): void {
+        $variationOptionErrorsCatalog = $this->validateVariationOptionUniqueness($validated['variation_types'] ?? []);
+        if ($variationOptionErrorsCatalog !== []) {
+            return back()
+                ->withErrors($variationOptionErrorsCatalog)
+                ->withInput($request->except(['product_images']));
+        }
+
+        $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode): int {
             $oldFingerprintStocks = [];
             $productPayload = [
                 'name' => $validated['name'],
@@ -1455,6 +1731,11 @@ class OnboardingController extends Controller
                 $galleryPaths[] = ProductImageStorage::store($imageFile, $store);
             }
             $this->replaceProductGallery($product, $galleryPaths, $request->user()?->id, false);
+
+            $imageErrorsCatalog = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
+            if ($imageErrorsCatalog !== []) {
+                throw ValidationException::withMessages($imageErrorsCatalog);
+            }
 
             $variationOptionSets = [];
             $variationOptionMap = [];
@@ -1490,6 +1771,7 @@ class OnboardingController extends Controller
 
             $combinations = $this->generateCombinations($variationOptionSets);
             $customVariants = $validated['variants'] ?? [];
+            $variantImageAssignmentsCatalog = [];
 
             if (!empty($customVariants)) {
                 foreach ($customVariants as $variantData) {
@@ -1510,6 +1792,7 @@ class OnboardingController extends Controller
                         'product_id' => $product->id,
                         'sku' => $variantData['sku'] ?: $this->buildSku($store->name, $product->name, $suffix),
                         'price' => $variantData['price'],
+                        'compare_at_price' => $variantData['compare_at_price'] ?? null,
                         'stock' => $variantData['stock'],
                         'stock_alert' => $variantData['stock_alert'],
                     ]);
@@ -1518,19 +1801,31 @@ class OnboardingController extends Controller
                         static fn(ProductVariationOption $option): int => $option->id,
                         $selectedOptions
                     ));
+
+                    $variantImageAssignmentsCatalog[] = [
+                        'variant' => $variant,
+                        'image_id' => $variantData['product_image_id'] ?? null,
+                    ];
                 }
             } elseif (empty($combinations)) {
                 $defaultVariant = ProductVariant::create([
                     'product_id' => $product->id,
                     'sku' => $this->buildSku($store->name, $product->name),
                     'price' => $validated['base_price'],
+                    'compare_at_price' => null,
                     'stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
                 ]);
 
                 $defaultVariant->options()->sync([]);
+                $variantImageAssignmentsCatalog[] = [
+                    'variant' => $defaultVariant,
+                    'image_id' => null,
+                ];
             } else {
-                foreach ($combinations as $combination) {
+                $comboCount = count($combinations);
+                $allocated = $this->allocateIntegerAcrossSlots((int) $validated['default_stock'], $comboCount, $variantStockMode);
+                foreach ($combinations as $idx => $combination) {
                     $variant = ProductVariant::create([
                         'product_id' => $product->id,
                         'sku' => $this->buildSku(
@@ -1539,13 +1834,20 @@ class OnboardingController extends Controller
                             implode('-', array_map(static fn($entry) => $entry['option']->value, $combination))
                         ),
                         'price' => $validated['base_price'],
-                        'stock' => $validated['default_stock'],
+                        'compare_at_price' => null,
+                        'stock' => $allocated[$idx] ?? 0,
                         'stock_alert' => $validated['stock_alert'],
                     ]);
 
                     $variant->options()->sync(array_map(static fn($entry) => $entry['option']->id, $combination));
+                    $variantImageAssignmentsCatalog[] = [
+                        'variant' => $variant,
+                        'image_id' => null,
+                    ];
                 }
             }
+
+            $this->syncVariantCatalogImages($product, $variantImageAssignmentsCatalog);
 
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
@@ -1559,13 +1861,44 @@ class OnboardingController extends Controller
                 $request->user()?->id,
                 'catalog'
             );
+
+            return (int) $product->id;
         });
+
+        if ($isCatalogQuickAdd) {
+            return redirect()
+                ->route('products.edit', ['product' => $newProductId])
+                ->with('success', "Product '{$validated['name']}' was created. Use this full editor to add option groups, variant photos, and additional details when you are ready.")
+                ->with('success_title', 'Product created')
+                ->with('success_meta', $store->name);
+        }
 
         return redirect()
             ->route('products')
             ->with('success', "Product '{$validated['name']}' added to {$store->name}.")
             ->with('success_title', 'Product added')
             ->with('success_meta', 'Catalog updated');
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function allocateIntegerAcrossSlots(int $total, int $slots, string $mode): array
+    {
+        $slots = max(1, $slots);
+        if ($mode === 'repeat_each') {
+            return array_fill(0, $slots, max(0, $total));
+        }
+
+        $total = max(0, $total);
+        $base = intdiv($total, $slots);
+        $rem = $total % $slots;
+        $out = array_fill(0, $slots, $base);
+        for ($i = 0; $i < $rem; $i++) {
+            $out[$i]++;
+        }
+
+        return $out;
     }
 
     private function replaceProductGallery(Product $product, array $paths, ?int $userId, bool $preserveWhenEmpty): void
@@ -1612,5 +1945,25 @@ class OnboardingController extends Controller
                 'is_primary' => $index === 0,
             ]);
         }
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $oldFingerprintVariantCustomFields
+     */
+    private function carryVariantCustomFieldsOntoNewRow(ProductVariant $variant, array $oldFingerprintVariantCustomFields): void
+    {
+        if ($oldFingerprintVariantCustomFields === []) {
+            return;
+        }
+
+        $variant->load(['options.variationType']);
+        $fp = StockMovementRecorder::variantOptionFingerprint($variant);
+        if (! isset($oldFingerprintVariantCustomFields[$fp])) {
+            return;
+        }
+
+        $next = is_array($variant->meta) ? $variant->meta : [];
+        $next['custom_fields'] = $oldFingerprintVariantCustomFields[$fp];
+        $variant->update(['meta' => $next]);
     }
 }

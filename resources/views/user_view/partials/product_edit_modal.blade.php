@@ -1,23 +1,72 @@
 @php
-    $productEditHasErrors = old('_open_edit_product_modal') && $errors->any();
+    $productEditSurface = $productEditSurface ?? 'modal';
+    $productEditPageNative = $productEditPageNative ?? false;
+    $productEditHasErrors = ($productEditSurface === 'page')
+        ? $errors->any()
+        : (old('_open_edit_product_modal') && $errors->any());
     $catalogBrands = $catalogBrands ?? collect();
     $catalogTags = $catalogTags ?? collect();
     $catalogTaxonomyCategories = $catalogTaxonomyCategories ?? collect();
+    $workspaceReturnProductId = $workspaceReturnProductId ?? null;
+    $additionalDetailKeyErrors = [];
+    if ($errors->any()) {
+        foreach ($errors->getMessages() as $field => $messages) {
+            if (preg_match('/^custom_fields\.(\d+)\.key$/', (string) $field, $m) && $messages !== []) {
+                $additionalDetailKeyErrors[(int) $m[1]] = (string) ($messages[0] ?? '');
+            }
+        }
+    }
+    $editSectionClass = ($productEditSurface === 'page' && $productEditPageNative)
+        ? 'rounded-2xl border border-slate-200/80 bg-white px-5 py-6 sm:px-7 sm:py-7'
+        : 'rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7';
 @endphp
 
-<div id="editProductModal" class="fixed inset-0 z-[75] hidden items-center justify-center bg-[#0F172A]/70 px-4 py-6 backdrop-blur-[3px]" data-auto-open="{{ $productEditHasErrors ? 'true' : 'false' }}">
-    <div class="relative flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-[#E2E8F0] bg-white shadow-2xl">
-        <div class="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
-            <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Product Actions</p>
-                <h2 class="mt-1 text-2xl font-medium text-[#0F172A] font-[Poppins]">Edit Product</h2>
+<div id="editProductModal"
+     data-surface="{{ $productEditSurface }}"
+     @class([
+         'w-full' => $productEditSurface === 'page',
+         'fixed inset-0 z-[75] hidden items-center justify-center bg-[#0F172A]/70 px-4 py-6 backdrop-blur-[3px]' => $productEditSurface !== 'page',
+     ])
+     data-auto-open="{{ $productEditHasErrors ? 'true' : 'false' }}">
+    <div @class([
+        'relative flex w-full flex-col overflow-hidden border bg-white',
+        'max-h-[94vh] max-w-5xl rounded-3xl border-[#E2E8F0] shadow-2xl' => $productEditSurface !== 'page',
+        'max-w-none w-full min-h-0 rounded-2xl border-slate-200/80 shadow-sm' => $productEditSurface === 'page' && $productEditPageNative,
+        'max-w-5xl mx-auto min-h-0 rounded-3xl border-slate-200/90 shadow-md ring-1 ring-slate-900/[0.04]' => $productEditSurface === 'page' && ! $productEditPageNative,
+    ])>
+        @if (! ($productEditSurface === 'page' && $productEditPageNative))
+            <div @class([
+                'flex items-center justify-between gap-3 border-b border-[#E2E8F0] px-6 py-4',
+                'bg-gradient-to-r from-white to-slate-50/80' => $productEditSurface === 'page',
+            ])>
+                <div class="min-w-0">
+                    @if ($productEditSurface === 'page')
+                        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Catalog · Edit workspace</p>
+                        <h2 class="mt-1 text-xl font-semibold text-[#0F172A] font-[Poppins] sm:text-2xl">Edit product</h2>
+                        <p class="mt-1 text-xs text-[#64748B]">Save applies changes to this product in your active store. Cancel returns without saving.</p>
+                    @else
+                        <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Product Actions</p>
+                        <h2 class="mt-1 text-2xl font-medium text-[#0F172A] font-[Poppins]">Edit Product</h2>
+                    @endif
+                </div>
+                @if ($productEditSurface === 'page' && ! empty($workspaceReturnProductId))
+                    <a href="{{ route('products.show', ['product' => $workspaceReturnProductId]) }}" class="inline-flex shrink-0 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#475569] shadow-sm transition hover:bg-[#F8FAFC]" aria-label="Back to product workspace without saving">
+                        Back
+                    </a>
+                @else
+                    <button type="button" id="closeEditProductModal" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#E2E8F0] text-[#64748B] transition hover:text-[#334155]" aria-label="Close edit product modal">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4.5 4.5L13.5 13.5M13.5 4.5L4.5 13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    </button>
+                @endif
             </div>
-            <button type="button" id="closeEditProductModal" class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] text-[#64748B] transition hover:text-[#334155]" aria-label="Close edit product modal">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4.5 4.5L13.5 13.5M13.5 4.5L4.5 13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </button>
-        </div>
+        @endif
 
-        <div class="overflow-y-auto px-6 py-6">
+        <div @class([
+            'overflow-y-auto px-6 py-6',
+            'sm:px-8 sm:py-8' => $productEditSurface === 'page',
+            'border-t border-slate-100/90 bg-slate-50/20' => $productEditSurface === 'page' && $productEditPageNative,
+            'bg-slate-50/40' => $productEditSurface === 'page' && ! $productEditPageNative,
+        ])>
             @if ($productEditHasErrors)
                 <div class="mb-6 rounded-lg border border-[#F4B8BF] bg-[#FFF1F2] px-4 py-3 text-sm text-[#B42318]">
                     <ul class="ml-5 list-disc">
@@ -33,11 +82,19 @@
                 @method('PUT')
                 <input type="hidden" name="_open_edit_product_modal" value="1">
                 <input type="hidden" name="_edit_product_id" id="edit_product_id" value="{{ old('_edit_product_id', '') }}">
+                @if ($workspaceReturnProductId)
+                    <input type="hidden" name="_workspace_return_product_id" value="{{ old('_workspace_return_product_id', (string) $workspaceReturnProductId) }}">
+                @endif
                 <input type="hidden" name="product_type" id="edit_product_type_value" value="{{ old('product_type', 'physical') }}">
                 <input type="hidden" name="custom_product_type" id="edit_product_custom_type_hidden" value="{{ old('custom_product_type', '') }}">
 
-                <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
-                    <div class="mb-6"><h3 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Product Details</h3></div>
+                <div class="{{ $editSectionClass }}">
+                    <div @class(['mb-6 border-b border-slate-100 pb-4' => $productEditSurface === 'page' && $productEditPageNative, 'mb-6' => ! ($productEditSurface === 'page' && $productEditPageNative)])>
+                        <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl">{{ ($productEditSurface === 'page' && $productEditPageNative) ? 'Product basics' : 'Product details' }}</h3>
+                        @if ($productEditSurface === 'page' && $productEditPageNative)
+                            <p class="mt-1 text-xs text-[#64748B]">Name, type, identifiers, and pricing defaults for your active store.</p>
+                        @endif
+                    </div>
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div>
                             <label class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Active Store</label>
@@ -60,9 +117,13 @@
                             <p class="mt-2 text-xs text-[#64748B]">Fulfillment / sales behavior—not the catalog category.</p>
                         </div>
                     </div>
-                    <div class="mt-6 grid grid-cols-1 gap-6">
+                    @if ($productEditSurface === 'page' && $productEditPageNative)
+                        <p class="mt-6 text-xs font-bold uppercase tracking-wide text-[#94A3B8]">Media</p>
+                        <p class="mt-1 text-xs text-[#64748B]">Photos for this listing. Upload here first, then you can assign a photo to each variant row below.</p>
+                    @endif
+                    <div class="mt-4 grid grid-cols-1 gap-6">
                         <div>
-                            <label for="edit_product_image" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Product Images</label>
+                            <label for="edit_product_image" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">{{ ($productEditSurface === 'page' && $productEditPageNative) ? 'Product images' : 'Product Images' }}</label>
                             <input id="edit_product_image" name="product_images[]" type="file" accept=".jpg,.jpeg,.png,.webp" multiple class="w-full rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                             <div id="editExistingImageInputs"></div>
                             <div id="editProductImagePreview" class="mt-3 flex flex-wrap gap-2"></div>
@@ -80,6 +141,12 @@
                         <div><label for="edit_product_sku" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Base SKU</label><input id="edit_product_sku" name="sku" type="text" value="{{ old('sku', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
                         <div><label for="edit_product_price" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Base Price</label><input id="edit_product_price" name="base_price" type="number" min="0" step="0.01" value="{{ old('base_price', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
                         <div><label for="edit_product_stock_alert" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Stock Alert</label><input id="edit_product_stock_alert" name="stock_alert" type="number" min="0" step="1" value="{{ old('stock_alert', '0') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
+                        @if ($productEditSurface === 'page' && $productEditPageNative)
+                            <div class="md:col-span-3 mt-2 border-t border-slate-100 pt-6">
+                                <p class="text-xs font-bold uppercase tracking-wide text-[#94A3B8]">Organization</p>
+                                <p class="mt-1 text-xs text-[#64748B]">Brand, categories, and tags help your team find this product in the catalog.</p>
+                            </div>
+                        @endif
                         @if ($catalogTaxonomyCategories->isNotEmpty())
                             <div class="md:col-span-3 rounded-xl border border-[#CCFBF1]/80 bg-[#F0FDFA]/40 p-4">
                                 <label for="edit_product_category_ids" class="mb-2 block text-sm font-semibold text-[#0F766E] font-[Poppins]">Catalog categories</label>
@@ -115,41 +182,84 @@
                     </div>
                 </div>
 
-                <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
+                <div class="{{ $editSectionClass }}">
+                    <input type="hidden" name="_custom_fields_editor" value="1">
+                    <div @class(['mb-4 border-b border-slate-100 pb-4' => $productEditSurface === 'page' && $productEditPageNative, 'mb-4' => ! ($productEditSurface === 'page' && $productEditPageNative)])>
+                        <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl">Additional details</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-[#64748B]"><span class="font-medium text-[#334155]">Additional details</span> are extra fields you choose and can edit anytime (supplier, material, origin, care notes, ingredients, internal references, and similar). They show under <span class="font-medium text-[#334155]">Additional product details</span> on the product workspace—separate from read-only columns kept from imports. Field names may use letters, numbers, dots, dashes, and underscores.</p>
+                    </div>
+                    <div id="editAdditionalDetailsBody" class="space-y-3"></div>
+                    <button type="button" id="editAddAdditionalDetailRow" class="mt-4 inline-flex items-center gap-2 rounded-lg border border-[#D4E3FF] bg-[#EEF4FF] px-4 py-2 text-sm font-semibold text-[#0052CC] transition hover:bg-[#E4EEFF]">Add detail</button>
+                </div>
+
+                <div class="{{ $editSectionClass }}">
                     <div class="mb-6 flex items-center justify-between gap-3">
-                        <h3 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Product Variations</h3>
-                        <button id="editOpenVariationModal" type="button" class="inline-flex items-center gap-2 rounded-full border border-[#D4E3FF] bg-[#EEF4FF] px-4 py-2 text-sm font-semibold text-[#0052CC] transition hover:bg-[#E4EEFF]">Add Variation Type</button>
+                        <div>
+                            <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl">Option groups</h3>
+                            <p class="mt-1 text-xs text-[#64748B]">Each group (for example Size or Color) lists the values shoppers can pick.</p>
+                        </div>
+                        <button id="editOpenVariationModal" type="button" class="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#D4E3FF] bg-[#EEF4FF] px-4 py-2 text-sm font-semibold text-[#0052CC] transition hover:bg-[#E4EEFF]">Add option group</button>
                     </div>
                     <div id="editVariationHiddenInputs"></div>
-                    <div id="editNoVariationState" class="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">No variation type added yet.</div>
+                    <div id="editNoVariationState" class="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">This product has one inventory row. Add option groups only if shoppers choose size, color, pack, or similar variations.</div>
                     <div id="editVariationTypesList" class="hidden space-y-4"></div>
                 </div>
 
-                <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
-                    <div class="mb-4 flex items-center justify-between gap-3">
-                        <h3 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants</h3>
-                        <span class="text-sm font-medium text-[#64748B]">Rows are created automatically from variation options</span>
+                <div class="{{ $editSectionClass }}">
+                    <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl">Sellable combinations (variants)</h3>
+                            <p class="mt-1 text-xs text-[#64748B]">Each row is one combination of your option groups. Rows are built from option groups above.</p>
+                        </div>
                     </div>
+                    @if ($productEditSurface === 'page' && $productEditPageNative)
+                        <p class="mb-3 text-xs text-[#64748B]">Variant photo: pick the same catalog images you added under <span class="font-medium text-[#334155]">Media</span> so each combination can show the right picture.</p>
+                    @endif
                     <div class="mb-5 grid grid-cols-1 gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 md:grid-cols-4">
-                        <div class="md:col-span-2"><p class="text-sm font-semibold text-[#0F172A]">Bulk Set Price & Stock</p><p class="text-xs text-[#64748B]">Apply one value to all variant rows.</p></div>
+                        <div class="md:col-span-2"><p class="text-sm font-semibold text-[#0F172A]">Bulk Set Price & Stock</p><p class="text-xs text-[#64748B]">Each row has its own stock. Workspace totals are the sum of these rows—nothing is copied from base price stock unless you use the tools below.</p></div>
                         <div><label for="editBulkPrice" class="mb-1 block text-xs font-semibold text-[#64748B]">Price</label><input id="editBulkPrice" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div>
                         <div class="flex items-end gap-2"><div class="flex-1"><label for="editBulkStock" class="mb-1 block text-xs font-semibold text-[#64748B]">Stock</label><input id="editBulkStock" type="number" min="0" step="1" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div><button id="editApplyBulkValues" type="button" class="rounded-lg bg-[#0052CC] px-3 py-2 text-sm font-semibold text-white">Apply</button></div>
+                    </div>
+                    <div id="editDistributeStockPanel" class="mb-5 hidden rounded-2xl border border-[#E0E7FF] bg-[#F8FAFF] p-4 md:flex md:flex-wrap md:items-end md:gap-3">
+                        <div class="min-w-[12rem] flex-1">
+                            <label for="editDistributeTotal" class="mb-1 block text-xs font-semibold text-[#64748B]">Split total inventory</label>
+                            <input id="editDistributeTotal" type="number" min="0" step="1" class="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#0F172A]" placeholder="e.g. 90">
+                            <p class="mt-1 text-[11px] text-[#64748B]">Divides this total evenly across all combination rows (remainder goes to the first rows).</p>
+                        </div>
+                        <button type="button" id="editDistributeEqualBtn" class="mt-3 inline-flex items-center justify-center rounded-lg border border-[#BFDBFE] bg-white px-4 py-2 text-sm font-semibold text-[#1D4ED8] hover:bg-[#EFF6FF] md:mt-0">Apply equal split</button>
                     </div>
                     <div id="editVariantRows" class="space-y-4"></div>
                 </div>
 
-                <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
-                    <div class="mb-6 flex items-center justify-between gap-3"><h3 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants Matrix Preview</h3><span id="editPreviewCount" class="text-sm text-[#94A3B8]">0 variant row(s)</span></div>
-                    <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="border-b border-[#F1F5F9]"><tr><th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Variant</th><th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">SKU</th><th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Price</th><th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Stock</th></tr></thead><tbody id="editPreviewTableBody" class="divide-y divide-[#F1F5F9]"></tbody></table></div>
+                <div class="{{ $editSectionClass }}">
+                    <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl">Variant combinations preview</h3>
+                            <p class="mt-1 text-xs text-[#64748B]">Quick read-only check of SKUs, prices, and stock before you save.</p>
+                        </div>
+                        <span id="editPreviewCount" class="text-sm text-[#94A3B8]">0 rows</span>
+                    </div>
+                    <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="border-b border-[#F1F5F9]"><tr><th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Combination</th><th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">SKU</th><th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Price</th><th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Stock</th></tr></thead><tbody id="editPreviewTableBody" class="divide-y divide-[#F1F5F9]"></tbody></table></div>
                 </div>
 
-                <div class="flex flex-col gap-4 border-t border-[#E2E8F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
-                    <button type="button" id="openDeleteProductWarning" class="inline-flex items-center justify-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-4 py-3 text-sm font-bold text-[#B42318] transition hover:bg-[#FEEBEC]">Delete Product</button>
-                    <div class="flex flex-col gap-3 sm:flex-row">
-                        <button type="button" id="dismissEditProductModal" class="rounded-lg border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]">Cancel</button>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">Save Changes</button>
+                @if (! ($productEditSurface === 'page' && $productEditPageNative))
+                    <div class="flex flex-col gap-4 border-t border-slate-200/90 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                        <button type="button" id="openDeleteProductWarning" class="inline-flex items-center justify-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-4 py-3 text-sm font-bold text-[#B42318] transition hover:bg-[#FEEBEC]">Delete Product</button>
+                        <div class="flex flex-col gap-3 sm:flex-row">
+                            @if ($productEditSurface === 'page' && ! empty($workspaceReturnProductId))
+                                <a href="{{ route('products.show', ['product' => $workspaceReturnProductId]) }}" id="dismissEditProductModal" class="inline-flex items-center justify-center rounded-lg border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]">Cancel</a>
+                            @else
+                                <button type="button" id="dismissEditProductModal" class="rounded-lg border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]">Cancel</button>
+                            @endif
+                            <button type="submit" class="rounded-lg bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">{{ $productEditSurface === 'page' ? 'Save and return to workspace' : 'Save Changes' }}</button>
+                        </div>
                     </div>
-                </div>
+                @else
+                    <div class="flex flex-col gap-4 border-t border-slate-200/90 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                        <button type="button" id="openDeleteProductWarning" class="inline-flex items-center justify-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-4 py-3 text-sm font-bold text-[#B42318] transition hover:bg-[#FEEBEC]">Delete Product</button>
+                        <a href="{{ route('products.show', ['product' => $workspaceReturnProductId]) }}" id="dismissEditProductModal" class="inline-flex items-center justify-center rounded-lg border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]">Cancel</a>
+                    </div>
+                @endif
             </form>
         </div>
     </div>
@@ -201,9 +311,15 @@
 </div>
 
 <script>
+window.__additionalDetailKeyErrors = @json($additionalDetailKeyErrors);
 (() => {
 const editModal=document.getElementById('editProductModal'); if(!editModal) return;
-const closeButtons=[document.getElementById('closeEditProductModal'),document.getElementById('dismissEditProductModal')];
+const editSurfaceIsPage=editModal.dataset.surface==='page';
+const closeEditProductButton=document.getElementById('closeEditProductModal');
+const dismissEditProductEl=document.getElementById('dismissEditProductModal');
+const closeButtons=[];
+if(closeEditProductButton){closeButtons.push(closeEditProductButton);}
+if(dismissEditProductEl&&dismissEditProductEl.tagName==='BUTTON'){closeButtons.push(dismissEditProductEl);}
 const editButtons=[...document.querySelectorAll('.js-open-edit-product-modal:not([data-open-delete="true"])')];
 const deleteButtons=[...document.querySelectorAll('.js-open-delete-product-modal')];
 const editForm=document.getElementById('editProductForm'); const deleteForm=document.getElementById('deleteProductForm');
@@ -211,12 +327,16 @@ const deleteWarningModal=document.getElementById('deleteProductWarningModal'); c
 const editProductId=document.getElementById('edit_product_id'); const editTypeSelect=document.getElementById('edit_product_type_select'); const editTypeValue=document.getElementById('edit_product_type_value'); const editCustomTypeWrap=document.getElementById('editProductCustomTypeWrap'); const editCustomType=document.getElementById('edit_product_custom_type'); const editCustomTypeHidden=document.getElementById('edit_product_custom_type_hidden');
 const editName=document.getElementById('edit_product_name'); const editDescription=document.getElementById('edit_product_description'); const editSku=document.getElementById('edit_product_sku'); const editPrice=document.getElementById('edit_product_price'); const editStockAlert=document.getElementById('edit_product_stock_alert'); const editBrandId=document.getElementById('edit_product_brand_id'); const editTagIds=document.getElementById('edit_product_tag_ids'); const editCategoryIds=document.getElementById('edit_product_category_ids'); const editImageInput=document.getElementById('edit_product_image'); const editImagePreview=document.getElementById('editProductImagePreview'); const editExistingImageInputs=document.getElementById('editExistingImageInputs');
 const editVariationHiddenInputs=document.getElementById('editVariationHiddenInputs'); const editNoVariationState=document.getElementById('editNoVariationState'); const editVariationTypesList=document.getElementById('editVariationTypesList'); const editAddVariantRow=document.getElementById('editAddVariantRow'); const editVariantRows=document.getElementById('editVariantRows'); const editBulkPrice=document.getElementById('editBulkPrice'); const editBulkStock=document.getElementById('editBulkStock'); const editApplyBulkValues=document.getElementById('editApplyBulkValues'); const editPreviewCount=document.getElementById('editPreviewCount'); const editPreviewTableBody=document.getElementById('editPreviewTableBody');
+const editAdditionalDetailsBody=document.getElementById('editAdditionalDetailsBody'); const editAddAdditionalDetailRow=document.getElementById('editAddAdditionalDetailRow');
 const editVariationModal=document.getElementById('editVariationModal'); const editOpenVariationModal=document.getElementById('editOpenVariationModal'); const closeEditVariationModal=document.getElementById('closeEditVariationModal'); const cancelEditVariationModal=document.getElementById('cancelEditVariationModal'); const submitEditVariationModal=document.getElementById('submitEditVariationModal'); const editVariationName=document.getElementById('editVariationName'); const editVariationOptions=document.getElementById('editVariationOptions'); const editVariationOptionInput=document.getElementById('editVariationOptionInput'); const editVariationOptionChips=document.getElementById('editVariationOptionChips');
-const defaultTypes=['physical','digital','service','subscription','virtual']; let currentProduct=null; let editVariationTypes=[]; let editRows=[]; let editingVariationIndex=null; let retainedExistingImages=[]; let selectedEditImages=[]; let editVariationOptionTags=[];
+const defaultTypes=['physical','digital','service','subscription','virtual']; let editCatalogImages=[]; let currentProduct=null; let editVariationTypes=[]; let editRows=[]; let editingVariationIndex=null; let retainedExistingImages=[]; let selectedEditImages=[]; let editVariationOptionTags=[];
 const escapeHtml=(v)=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
+const readAdditionalDetailKeyErrors=()=>{try{const raw=window.__additionalDetailKeyErrors;return raw&&typeof raw==='object'?raw:{}}catch(e){return{}}};
+const renderAdditionalDetailRows=(rows)=>{if(!editAdditionalDetailsBody)return;const keyErrors=readAdditionalDetailKeyErrors();const data=(Array.isArray(rows)&&rows.length)?rows:[{key:'',type:'text',value:''}];editAdditionalDetailsBody.innerHTML=data.map((row,i)=>{const err=(keyErrors&&keyErrors[i])||(keyErrors&&keyErrors[String(i)])||'';const keyRing=err?' border-rose-300 ring-1 ring-rose-100':' border-[#E2E8F0]';return`<div data-additional-detail-row class="grid gap-3 rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 md:grid-cols-12 md:items-start"><div class="md:col-span-3"><label class="mb-1 block text-xs font-semibold text-[#64748B]">Field name</label><input data-field="key" type="text" name="custom_fields[${i}][key]" value="${escapeHtml(row.key||'')}" class="w-full rounded-lg border bg-white px-3 py-2 text-sm${keyRing}" placeholder="e.g. supplier_code" maxlength="128" autocomplete="off">${err?`<p class="mt-1 text-xs text-rose-600">${escapeHtml(err)}</p>`:''}</div><div class="md:col-span-2"><label class="mb-1 block text-xs font-semibold text-[#64748B]">Type</label><select data-field="type" name="custom_fields[${i}][type]" class="w-full rounded-lg border border-[#E2E8F0] bg-white px-2 py-2 text-sm"><option value="text"${(row.type||'text')==='text'?' selected':''}>Text</option><option value="number"${(row.type||'')==='number'?' selected':''}>Number</option><option value="boolean"${(row.type||'')==='boolean'?' selected':''}>Yes / No</option><option value="list"${(row.type||'')==='list'?' selected':''}>List</option></select></div><div class="md:col-span-6"><label class="mb-1 block text-xs font-semibold text-[#64748B]">Value</label><input data-field="value" type="text" name="custom_fields[${i}][value]" value="${escapeHtml(row.value||'')}" class="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm" placeholder="Lists: comma-separated"></div><div class="md:col-span-1 flex items-start justify-end pt-6 md:pt-7"><button type="button" class="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700" data-remove-additional-detail title="Remove this row">Remove</button></div></div>`;}).join('');editAdditionalDetailsBody.querySelectorAll('[data-remove-additional-detail]').forEach((btn)=>btn.addEventListener('click',()=>{btn.closest('[data-additional-detail-row]')?.remove();if(!editAdditionalDetailsBody.querySelector('[data-additional-detail-row]')){renderAdditionalDetailRows([{key:'',type:'text',value:''}]);}}));};
+editAddAdditionalDetailRow?.addEventListener('click',()=>{const current=[...editAdditionalDetailsBody.querySelectorAll('[data-additional-detail-row]')].map((row)=>({key:(row.querySelector('[data-field="key"]')?.value||'').trim(),type:(row.querySelector('[data-field="type"]')?.value)||'text',value:row.querySelector('[data-field="value"]')?.value??''}));current.push({key:'',type:'text',value:''});renderAdditionalDetailRows(current);});
 const getEditVariantRowLimit=()=>editVariationTypes.reduce((total,variationType)=>total+((variationType.options||[]).length||0),0);
 const getEditRowKey=(optionMap)=>Object.entries(optionMap||{}).sort(([left],[right])=>Number(left)-Number(right)).map(([variationIndex,optionIndex])=>`${variationIndex}:${optionIndex}`).join('|');
-const buildEditRowsFromVariationTypes=(existingRows=[])=>{if(!editVariationTypes.length||editVariationTypes.some((variationType)=>!(variationType.options||[]).length)){return [];} const existingRowsByKey=new Map(existingRows.map((row)=>[getEditRowKey(row.option_map||{}),row])); const combinations=[]; const walk=(variationIndex,optionMap)=>{if(variationIndex>=editVariationTypes.length){combinations.push({...optionMap}); return;} (editVariationTypes[variationIndex].options||[]).forEach((_,optionIndex)=>{walk(variationIndex+1,{...optionMap,[variationIndex]:optionIndex});});}; walk(0,{}); return combinations.map((optionMap)=>{const existingRow=existingRowsByKey.get(getEditRowKey(optionMap)); return {option_map:optionMap,sku:(existingRow?.sku)||'',price:existingRow?.price ?? (editPrice.value || ''),stock:existingRow?.stock ?? (editBulkStock.value || ''),stock_alert:existingRow?.stock_alert ?? (editStockAlert.value || 0)};});};
+const buildEditRowsFromVariationTypes=(existingRows=[])=>{if(!editVariationTypes.length||editVariationTypes.some((variationType)=>!(variationType.options||[]).length)){return [];} const existingRowsByKey=new Map(existingRows.map((row)=>[getEditRowKey(row.option_map||{}),row])); const combinations=[]; const walk=(variationIndex,optionMap)=>{if(variationIndex>=editVariationTypes.length){combinations.push({...optionMap}); return;} (editVariationTypes[variationIndex].options||[]).forEach((_,optionIndex)=>{walk(variationIndex+1,{...optionMap,[variationIndex]:optionIndex});});}; walk(0,{}); return combinations.map((optionMap)=>{const existingRow=existingRowsByKey.get(getEditRowKey(optionMap)); return {option_map:optionMap,sku:(existingRow?.sku)||'',price:existingRow?.price ?? (editPrice.value||''),compare_at_price:existingRow?.compare_at_price ?? '',stock:existingRow?.stock ?? (editBulkStock.value||''),stock_alert:existingRow?.stock_alert ?? (editStockAlert.value||0),product_image_id:existingRow?.product_image_id ?? ''};});};
 const syncType=()=>{const isCustom=editTypeSelect.value==='custom'; editCustomTypeWrap.classList.toggle('hidden',!isCustom); editCustomType.required=isCustom; editTypeValue.value=isCustom?(editCustomType.value.trim()||'custom'):editTypeSelect.value; editCustomTypeHidden.value=isCustom?(editCustomType.value.trim()||''):'';};
 const syncSelectedFiles=(input,files)=>{if(!input) return; const transfer=new DataTransfer(); files.forEach((file)=>transfer.items.add(file)); input.files=transfer.files;};
 const renderExistingImageInputs=()=>{editExistingImageInputs.innerHTML=retainedExistingImages.map((path)=>`<input type="hidden" name="existing_image_paths[]" value="${escapeHtml(path)}">`).join('');};
@@ -227,12 +347,15 @@ const addEditVariationOptionTags=(rawValue)=>{const nextTags=String(rawValue||''
 const openVariationEditor=(variationIndex=null)=>{editingVariationIndex=variationIndex; const variation=variationIndex===null?null:editVariationTypes[variationIndex]; editVariationName.value=variation?.name||''; editVariationOptionTags=[...(variation?.options||[])]; syncEditVariationOptions(); renderEditVariationOptionTags(); submitEditVariationModal.textContent=variation?'Update Variation':'Add Variation'; editVariationModal.classList.remove('hidden'); editVariationModal.classList.add('flex');};
 const closeVariationEditor=()=>{editingVariationIndex=null; editVariationName.value=''; editVariationOptionTags=[]; syncEditVariationOptions(); renderEditVariationOptionTags(); submitEditVariationModal.textContent='Save Variation'; editVariationModal.classList.add('hidden'); editVariationModal.classList.remove('flex');};
 const renderVariationInputs=()=>{editVariationHiddenInputs.innerHTML=editVariationTypes.map((t,i)=>`<input type="hidden" name="variation_types[${i}][name]" value="${escapeHtml(t.name||'')}"><input type="hidden" name="variation_types[${i}][type]" value="${escapeHtml(t.type||'select')}">${(t.options||[]).map((o,j)=>`<input type="hidden" name="variation_types[${i}][options][${j}]" value="${escapeHtml(o)}">`).join('')}`).join('');};
-const renderPreview=()=>{const previewRows=editRows.map((row)=>({label:editVariationTypes.map((v,i)=>{const s=row.option_map?.[i]; return s!==undefined&&s!==''?(v.options?.[s]||''):'';}).filter(Boolean).join(' / ')||'Default Variant',sku:row.sku||'Auto-generated',price:row.price||editPrice.value||'',stock:row.stock||editBulkStock.value||''})); const rows=previewRows.length?previewRows:[{label:'No variants added yet',sku:'-',price:'-',stock:'-'}]; editPreviewTableBody.innerHTML=rows.map((r)=>`<tr><td class="px-2 py-4 text-[#0F172A]">${escapeHtml(r.label)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(r.sku)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(r.price)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(r.stock)}</td></tr>`).join(''); editPreviewCount.textContent=`${previewRows.length} variant row(s)`;};
-const renderVariantRows=()=>{ if(!editRows.length){editVariantRows.innerHTML=''; renderPreview(); return;} editVariantRows.innerHTML=editRows.map((row,rowIndex)=>`<div class="space-y-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5"><div class="flex flex-wrap gap-2">${Object.entries(row.option_map||{}).map(([variationIndex,optionIndex])=>`<span class="inline-flex items-center rounded-lg border border-[#DDE7F3] bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A]">${escapeHtml(editVariationTypes[Number(variationIndex)]?.name||'Variation')}: ${escapeHtml(editVariationTypes[Number(variationIndex)]?.options?.[Number(optionIndex)]||'')}</span><input type="hidden" name="variants[${rowIndex}][option_map][${variationIndex}]" value="${escapeHtml(optionIndex)}">`).join('')}</div><div class="grid grid-cols-1 gap-3 md:grid-cols-3"><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">SKU</label><input type="text" name="variants[${rowIndex}][sku]" value="${escapeHtml(row.sku||'')}" data-row-index="${rowIndex}" data-row-field="sku" class="edit-row-input w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">Price</label><input type="number" min="0" step="0.01" name="variants[${rowIndex}][price]" value="${escapeHtml(row.price||'')}" data-row-index="${rowIndex}" data-row-field="price" class="edit-row-input w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">Stock</label><input type="number" min="0" step="1" name="variants[${rowIndex}][stock]" value="${escapeHtml(row.stock||'')}" data-row-index="${rowIndex}" data-row-field="stock" class="edit-row-input w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div></div><input type="hidden" name="variants[${rowIndex}][stock_alert]" value="${escapeHtml(editStockAlert.value||row.stock_alert||0)}"></div>`).join(''); document.querySelectorAll('.edit-row-input').forEach((i)=>i.addEventListener('input',()=>{const r=Number(i.dataset.rowIndex); editRows[r][i.dataset.rowField]=i.value; renderPreview();})); renderPreview();};
+const variantImageOptionLabel=(img,idx)=>{if(img&&img.picker_label)return String(img.picker_label);return 'Catalog photo '+(idx+1);};
+const editDistributeStockPanel=document.getElementById('editDistributeStockPanel');const editDistributeTotal=document.getElementById('editDistributeTotal');const editDistributeEqualBtn=document.getElementById('editDistributeEqualBtn');
+const updateDistributePanelVisibility=()=>{if(!editDistributeStockPanel)return;editDistributeStockPanel.classList.toggle('hidden',!(editRows.length>1));};
+const renderPreview=()=>{const previewRows=editRows.map((row)=>({label:editVariationTypes.map((v,i)=>{const s=row.option_map?.[i]; return s!==undefined&&s!==''?(v.options?.[s]||''):'';}).filter(Boolean).join(' / ')||'Single inventory row',sku:row.sku||'Auto-generated',price:row.price||editPrice.value||'',stock:row.stock||editBulkStock.value||''})); const rows=previewRows.length?previewRows:[{label:'Add option groups to create combinations',sku:'-',price:'-',stock:'-'}]; editPreviewTableBody.innerHTML=rows.map((r)=>`<tr><td class="px-2 py-4 text-[#0F172A]">${escapeHtml(r.label)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(r.sku)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(r.price)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(r.stock)}</td></tr>`).join(''); editPreviewCount.textContent=previewRows.length?`${previewRows.length} combination(s)`:'0 rows';};
+const renderVariantRows=()=>{if(!editRows.length){editVariantRows.innerHTML='';updateDistributePanelVisibility();renderPreview();return;}const missingGalleryNote=(!editCatalogImages.length&&editRows.length)?'<div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" data-variant-gallery-empty-state><p class="font-semibold text-amber-900">Upload product images first</p><p class="mt-1 text-xs text-amber-900/90">Add photos under Media, then assign them to variants using each row’s variant photo control.</p></div>':'';editVariantRows.innerHTML=missingGalleryNote+editRows.map((row,rowIndex)=>{const selectedOptions=Object.entries(row.option_map||{}).map(([variationIndex,optionIndex])=>`<span class="inline-flex items-center rounded-lg border border-[#DDE7F3] bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A]">${escapeHtml(editVariationTypes[Number(variationIndex)]?.name||'Option group')}: ${escapeHtml(editVariationTypes[Number(variationIndex)]?.options?.[Number(optionIndex)]||'')}</span><input type="hidden" name="variants[${rowIndex}][option_map][${variationIndex}]" value="${escapeHtml(optionIndex)}">`).join('');const imgOpts=[`<option value="">No variant image</option>`,...editCatalogImages.map((img,ix)=>`<option value="${escapeHtml(String(img.id))}" ${String(row.product_image_id??'')===String(img.id)?'selected':''}>${escapeHtml(variantImageOptionLabel(img,ix))}</option>`)].join('');return `<div class="space-y-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5"><div class="flex flex-wrap gap-2">${selectedOptions}</div><div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3"><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">SKU</label><input type="text" name="variants[${rowIndex}][sku]" value="${escapeHtml(row.sku||'')}" data-row-index="${rowIndex}" data-row-field="sku" class="edit-row-input w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">Price</label><input type="number" min="0" step="0.01" name="variants[${rowIndex}][price]" value="${escapeHtml(row.price||'')}" data-row-index="${rowIndex}" data-row-field="price" class="edit-row-input w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">Compare-at</label><input type="number" min="0" step="0.01" name="variants[${rowIndex}][compare_at_price]" value="${escapeHtml(row.compare_at_price??'')}" data-row-index="${rowIndex}" data-row-field="compare_at_price" class="edit-row-input w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">Stock</label><input type="number" min="0" step="1" name="variants[${rowIndex}][stock]" value="${escapeHtml(row.stock||'')}" data-row-index="${rowIndex}" data-row-field="stock" class="edit-row-input w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">Stock alert</label><input type="number" min="0" step="1" name="variants[${rowIndex}][stock_alert]" value="${escapeHtml(row.stock_alert??(editStockAlert.value||0))}" data-row-index="${rowIndex}" data-row-field="stock_alert" class="edit-row-input w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]"></div><div class="md:col-span-2 lg:col-span-1"><label class="mb-1 block text-xs font-semibold text-[#64748B]">Variant photo</label><select name="variants[${rowIndex}][product_image_id]" data-row-index="${rowIndex}" data-row-field="product_image_id" class="edit-row-select w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A]">${imgOpts}</select></div></div></div>`;}).join('');document.querySelectorAll('.edit-row-input,.edit-row-select').forEach((i)=>{const fn=()=>{const r=Number(i.dataset.rowIndex);editRows[r][i.dataset.rowField]=i.value;renderPreview();};i.addEventListener('input',fn);i.addEventListener('change',fn);});updateDistributePanelVisibility();renderPreview();};
 const normalizeRowsAfterVariationChange=()=>{editRows=buildEditRowsFromVariationTypes(editRows);};
-const renderVariationCards=()=>{ if(!editVariationTypes.length){editVariationTypesList.classList.add('hidden'); editNoVariationState.classList.remove('hidden'); return;} editVariationTypesList.classList.remove('hidden'); editNoVariationState.classList.add('hidden'); editVariationTypesList.innerHTML=editVariationTypes.map((t,i)=>`<div class="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5"><div class="mb-3 flex items-center justify-between gap-3"><div><span class="text-base font-medium text-[#0F172A]">Variation ${i+1}: ${escapeHtml(t.name||'Variation')}</span><div class="mt-1 text-xs uppercase text-[#94A3B8]">${escapeHtml(t.type||'select')}</div></div><div class="flex items-center gap-2"><button type="button" class="edit-variation-type text-xs font-semibold text-[#0052CC]" data-variation-index="${i}">Edit</button><button type="button" class="remove-variation-type text-xs font-semibold text-[#B42318]" data-variation-index="${i}">Remove</button></div></div><div class="flex flex-wrap gap-2">${(t.options||[]).map((o,j)=>`<span class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium">${escapeHtml(o)}<button type="button" class="edit-remove-variation-option leading-none text-[#94A3B8] hover:text-[#B42318]" data-variation-index="${i}" data-option-index="${j}">&times;</button></span>`).join('')}</div></div>`).join(''); document.querySelectorAll('.edit-remove-variation-option').forEach((b)=>b.addEventListener('click',()=>{const vi=Number(b.dataset.variationIndex),oi=Number(b.dataset.optionIndex); if(!editVariationTypes[vi]) return; editVariationTypes[vi].options.splice(oi,1); if(!(editVariationTypes[vi].options||[]).length) editVariationTypes.splice(vi,1); normalizeRowsAfterVariationChange(); renderVariationInputs(); renderVariationCards(); renderVariantRows();})); document.querySelectorAll('.edit-variation-type').forEach((b)=>b.addEventListener('click',()=>openVariationEditor(Number(b.dataset.variationIndex)))); document.querySelectorAll('.remove-variation-type').forEach((b)=>b.addEventListener('click',()=>{editVariationTypes.splice(Number(b.dataset.variationIndex),1); normalizeRowsAfterVariationChange(); renderVariationInputs(); renderVariationCards(); renderVariantRows();}));};
-const closeAll=()=>{editModal.classList.add('hidden'); editModal.classList.remove('flex'); editVariationModal.classList.add('hidden'); editVariationModal.classList.remove('flex'); deleteWarningModal.classList.add('hidden'); deleteWarningModal.classList.remove('flex'); document.body.classList.remove('overflow-hidden');};
-const openEdit=(product)=>{currentProduct=product; retainedExistingImages=JSON.parse(JSON.stringify(product.image_paths||[])); selectedEditImages=[]; syncSelectedFiles(editImageInput,selectedEditImages); editProductId.value=product.id||''; editForm.action=product.update_url; deleteForm.action=product.delete_url; editName.value=product.name||''; editDescription.value=product.description||''; editSku.value=product.sku||''; editPrice.value=product.base_price||''; editStockAlert.value=product.stock_alert||0; if(editBrandId){editBrandId.value=product.brand_id!=null&&product.brand_id!==''?String(product.brand_id):'';} if(editTagIds){const selected=new Set((product.tag_ids||[]).map((id)=>Number(id)));[...editTagIds.options].forEach((opt)=>{opt.selected=selected.has(Number(opt.value));});} if(editCategoryIds){const csel=new Set((product.category_ids||[]).map((id)=>Number(id)));[...editCategoryIds.options].forEach((opt)=>{opt.selected=csel.has(Number(opt.value));});} editBulkPrice.value=product.base_price||''; editBulkStock.value=''; if(defaultTypes.includes(product.product_type)){editTypeSelect.value=product.product_type; editCustomType.value='';}else{editTypeSelect.value='custom'; editCustomType.value=product.product_type||'';} editVariationTypes=JSON.parse(JSON.stringify(product.variation_types||[])); editRows=JSON.parse(JSON.stringify(product.variants||[])); if(!editRows.length&&editVariationTypes.length){editRows=buildEditRowsFromVariationTypes(editRows);} renderEditImages(); syncType(); renderVariationInputs(); renderVariationCards(); renderVariantRows(); editModal.classList.remove('hidden'); editModal.classList.add('flex'); document.body.classList.add('overflow-hidden');};
+const renderVariationCards=()=>{ if(!editVariationTypes.length){editVariationTypesList.classList.add('hidden'); editNoVariationState.classList.remove('hidden'); return;} editVariationTypesList.classList.remove('hidden'); editNoVariationState.classList.add('hidden'); editVariationTypesList.innerHTML=editVariationTypes.map((t,i)=>`<div class="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5"><div class="mb-3 flex items-center justify-between gap-3"><div><span class="text-base font-medium text-[#0F172A]">Option group ${i+1}: ${escapeHtml(t.name||'Untitled')}</span><div class="mt-1 text-xs uppercase text-[#94A3B8]">Shopper choices · ${escapeHtml(t.type||'select')}</div></div><div class="flex items-center gap-2"><button type="button" class="edit-variation-type text-xs font-semibold text-[#0052CC]" data-variation-index="${i}">Edit</button><button type="button" class="remove-variation-type text-xs font-semibold text-[#B42318]" data-variation-index="${i}">Remove</button></div></div><div class="flex flex-wrap gap-2">${(t.options||[]).map((o,j)=>`<span class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium">${escapeHtml(o)}<button type="button" class="edit-remove-variation-option leading-none text-[#94A3B8] hover:text-[#B42318]" data-variation-index="${i}" data-option-index="${j}">&times;</button></span>`).join('')}</div></div>`).join(''); document.querySelectorAll('.edit-remove-variation-option').forEach((b)=>b.addEventListener('click',()=>{const vi=Number(b.dataset.variationIndex),oi=Number(b.dataset.optionIndex); if(!editVariationTypes[vi]) return; editVariationTypes[vi].options.splice(oi,1); if(!(editVariationTypes[vi].options||[]).length) editVariationTypes.splice(vi,1); normalizeRowsAfterVariationChange(); renderVariationInputs(); renderVariationCards(); renderVariantRows();})); document.querySelectorAll('.edit-variation-type').forEach((b)=>b.addEventListener('click',()=>openVariationEditor(Number(b.dataset.variationIndex)))); document.querySelectorAll('.remove-variation-type').forEach((b)=>b.addEventListener('click',()=>{editVariationTypes.splice(Number(b.dataset.variationIndex),1); normalizeRowsAfterVariationChange(); renderVariationInputs(); renderVariationCards(); renderVariantRows();}));};
+const closeAll=()=>{if(editSurfaceIsPage){editVariationModal.classList.add('hidden');editVariationModal.classList.remove('flex');deleteWarningModal.classList.add('hidden');deleteWarningModal.classList.remove('flex');return;}editModal.classList.add('hidden');editModal.classList.remove('flex');editVariationModal.classList.add('hidden');editVariationModal.classList.remove('flex');deleteWarningModal.classList.add('hidden');deleteWarningModal.classList.remove('flex');document.body.classList.remove('overflow-hidden');};
+const openEdit=(product)=>{currentProduct=product;editCatalogImages=Array.isArray(product.catalog_images)?product.catalog_images:[];retainedExistingImages=JSON.parse(JSON.stringify(product.image_paths||[]));selectedEditImages=[];syncSelectedFiles(editImageInput,selectedEditImages);editProductId.value=product.id||'';editForm.action=product.update_url;deleteForm.action=product.delete_url;editName.value=product.name||'';editDescription.value=product.description||'';editSku.value=product.sku||'';editPrice.value=product.base_price||'';editStockAlert.value=product.stock_alert||0;if(editBrandId){editBrandId.value=product.brand_id!=null&&product.brand_id!==''?String(product.brand_id):'';}if(editTagIds){const selected=new Set((product.tag_ids||[]).map((id)=>Number(id)));[...editTagIds.options].forEach((opt)=>{opt.selected=selected.has(Number(opt.value));});}if(editCategoryIds){const csel=new Set((product.category_ids||[]).map((id)=>Number(id)));[...editCategoryIds.options].forEach((opt)=>{opt.selected=csel.has(Number(opt.value));});}editBulkPrice.value=product.base_price||'';editBulkStock.value='';if(defaultTypes.includes(product.product_type)){editTypeSelect.value=product.product_type;editCustomType.value='';}else{editTypeSelect.value='custom';editCustomType.value=product.product_type||'';}editVariationTypes=JSON.parse(JSON.stringify(product.variation_types||[]));editRows=JSON.parse(JSON.stringify(product.variants||[]));if(!editRows.length&&editVariationTypes.length){editRows=buildEditRowsFromVariationTypes(editRows);}renderAdditionalDetailRows(Array.isArray(product.custom_fields)&&product.custom_fields.length?product.custom_fields:[{key:'',type:'text',value:''}]);renderEditImages();syncType();renderVariationInputs();renderVariationCards();renderVariantRows();if(editSurfaceIsPage){document.body.classList.remove('overflow-hidden');}else{editModal.classList.remove('hidden');editModal.classList.add('flex');document.body.classList.add('overflow-hidden');}};
 const parseProductPayload=(button)=>{try{return button?.dataset?.product?JSON.parse(button.dataset.product):null;}catch(error){return null;}};
 window.openProductEditModalFromElement=(button)=>{const product=parseProductPayload(button); if(product){openEdit(product);}};
 window.openProductDeleteModalFromElement=(button)=>{const product=parseProductPayload(button); if(!product) return; openEdit(product); openDeleteWarning?.click();};
@@ -244,9 +367,11 @@ editOpenVariationModal?.addEventListener('click',()=>openVariationEditor());
 [closeEditVariationModal,cancelEditVariationModal].forEach((b)=>b?.addEventListener('click',closeVariationEditor));
 submitEditVariationModal?.addEventListener('click',()=>{addEditVariationOptionTags(editVariationOptionInput?.value||''); const name=editVariationName.value.trim(),type='select',options=editVariationOptions.value.split(',').map((v)=>v.trim()).filter(Boolean); if(!name||!options.length){alert('Please enter a variation name and at least one option.'); return;} if(editingVariationIndex===null){editVariationTypes.push({name,type,options});}else{editVariationTypes[editingVariationIndex]={...editVariationTypes[editingVariationIndex],name,type,options};} normalizeRowsAfterVariationChange(); closeVariationEditor(); renderVariationInputs(); renderVariationCards(); renderVariantRows();});
 editApplyBulkValues?.addEventListener('click',()=>{editRows=editRows.map((r)=>({...r,price:editBulkPrice.value||r.price,stock:editBulkStock.value||r.stock})); renderVariantRows();});
+editDistributeEqualBtn?.addEventListener('click',()=>{const raw=editDistributeTotal?.value||'';const total=parseInt(String(raw),10);if(Number.isNaN(total)||total<0){window.alert('Enter a whole number total to split across rows.');return;}const n=editRows.length;if(n<2){window.alert('Add option groups so there are at least two combination rows.');return;}let rem=total%n;const base=Math.floor(total/n);editRows=editRows.map((r)=>{const add=rem>0?1:0;if(rem>0)rem--;return{...r,stock:String(base+add)};});renderVariantRows();});
 openDeleteWarning?.addEventListener('click',()=>{if(!currentProduct) return; deleteProductName.textContent=currentProduct.name||'this product'; deleteWarningModal.classList.remove('hidden'); deleteWarningModal.classList.add('flex');});
 cancelDeleteProduct?.addEventListener('click',()=>{deleteWarningModal.classList.add('hidden'); deleteWarningModal.classList.remove('flex');});
 renderEditVariationOptionTags();
-if(editModal.dataset.autoOpen==='true'){editModal.classList.remove('hidden'); editModal.classList.add('flex'); document.body.classList.add('overflow-hidden'); syncType();}
+if(editSurfaceIsPage&&typeof window.__workspaceEditInitialPayload!=='undefined'&&window.__workspaceEditInitialPayload){openEdit(window.__workspaceEditInitialPayload);delete window.__workspaceEditInitialPayload;}
+else if(editModal.dataset.autoOpen==='true'&&!editSurfaceIsPage){editModal.classList.remove('hidden');editModal.classList.add('flex');document.body.classList.add('overflow-hidden');syncType();}
 })();
 </script>

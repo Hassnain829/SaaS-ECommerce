@@ -6,7 +6,7 @@
 
 @section('content')
     <div class="flex-1 overflow-y-auto p-4 lg:p-8">
-        <div class="mx-auto max-w-4xl">
+        <div class="mx-auto max-w-5xl">
             <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Step 2 of 4</p>
@@ -31,44 +31,106 @@
                 if (! is_array($existingCustom)) {
                     $existingCustom = [];
                 }
+                $headers = $headers ?? [];
+                $headerHints = \App\Support\ImportExtraColumnHints::mappingHeaderSignals($headers);
             @endphp
 
             <form method="post" action="{{ route('products.import.mapping.save', ['productImportId' => $import->id]) }}" class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
                 @csrf
-                <div class="mb-8 space-y-3 text-sm text-[#64748B]">
-                    <p><span class="font-semibold text-[#0F172A]">1. Catalog fields</span> map spreadsheet columns into real product columns (name, SKU, price, stock, taxonomy, and so on).</p>
-                    <p><span class="font-semibold text-[#0F172A]">2. Custom fields</span> (optional) attach extra columns to the product or variant record in a structured way you can use later in your theme or integrations.</p>
-                    <p><span class="font-semibold text-[#0F172A]">3. Leftover columns</span> are still stored with the product so nothing is dropped, unless you map them above. Each spreadsheet column can only be selected once across sections 1 and 2.</p>
+                <div class="mb-8 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
+                    <p class="font-semibold text-[#0F172A]">How this step works</p>
+                    <p class="mt-1">Match each spreadsheet column to one catalog target below. <span class="font-medium text-[#334155]">Additional details</span> (optional) save extra columns you want to edit later on the product or variant. Any column you leave unmapped is still kept as read-only reference after import.</p>
+                    <p class="mt-2 text-xs text-[#64748B]">Each spreadsheet column can only be chosen once across catalog targets and additional details.</p>
                 </div>
 
-                <h2 class="text-sm font-semibold uppercase tracking-wide text-[#64748B]">Catalog fields</h2>
-                <div class="mt-4 space-y-4">
-                    @foreach ($fieldLabels as $field => $label)
-                        <div class="grid gap-2 sm:grid-cols-[220px_1fr] sm:items-center">
-                            <label for="map_{{ $field }}" class="text-sm font-medium text-[#334155]">
-                                {{ $label }}
-                                @if (in_array($field, \App\Catalog\ProductImportField::requiredForImport(), true))
-                                    <span class="text-[#B42318]">*</span>
-                                @endif
-                            </label>
-                            <select id="map_{{ $field }}" name="column_mapping[{{ $field }}]" class="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm text-[#0F172A]">
-                                <option value="">— Ignore —</option>
-                                @foreach ($headers as $h)
-                                    @if ($h === '')
+                @if ($headerHints['variant'] || $headerHints['image'] || $headerHints['category_like'])
+                    <div class="mb-6 space-y-2 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
+                        <p class="font-semibold text-[#78350F]">We noticed possible columns in your file</p>
+                        <ul class="ml-5 list-disc space-y-1">
+                            @if ($headerHints['variant'])
+                                <li>Headers look like they may include <span class="font-medium">variants or options</span>—open <span class="font-medium">Variants</span> when you map those.</li>
+                            @endif
+                            @if ($headerHints['image'])
+                                <li>Headers may include <span class="font-medium">image URLs or photos</span>—open <span class="font-medium">Images</span> when you are ready.</li>
+                            @endif
+                            @if ($headerHints['category_like'])
+                                <li>Some columns look like <span class="font-medium">categories</span>. Map them to <span class="font-medium">Categories</span> under Product information, or leave them unmapped and promote them later from the product workspace.</li>
+                            @endif
+                        </ul>
+                    </div>
+                @endif
+
+                @foreach (\App\Catalog\ProductImportField::mappingUiSections() as $section)
+                    @php
+                        $sid = $section['id'] ?? '';
+                        $shouldOpen = (bool) ($section['default_open'] ?? false);
+                        if ($sid === 'pricing_inventory') {
+                            foreach ($headers as $hc) {
+                                if (! is_string($hc) || $hc === '') {
+                                    continue;
+                                }
+                                if (preg_match('/price|cost|compare|stock|inventory|weight|length|width|height|dimension/i', $hc) === 1) {
+                                    $shouldOpen = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if ($sid === 'variants' && $headerHints['variant']) {
+                            $shouldOpen = true;
+                        }
+                        if ($sid === 'images' && $headerHints['image']) {
+                            $shouldOpen = true;
+                        }
+                    @endphp
+                    <details id="import-mapping-section-{{ $section['id'] }}" class="group mb-4 rounded-2xl border border-[#E2E8F0] bg-[#FAFAFA]/80 open:bg-white" @if ($shouldOpen) open @endif>
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left font-[Poppins] text-base font-semibold text-[#0F172A] hover:bg-white [&::-webkit-details-marker]:hidden">
+                            <span>{{ $section['title'] }}</span>
+                            <span class="text-xs font-normal text-[#94A3B8] group-open:rotate-180 transition-transform" aria-hidden="true">▼</span>
+                        </summary>
+                        <div class="border-t border-[#F1F5F9] px-4 pb-4 pt-3">
+                            <p class="text-sm text-[#64748B]">{{ $section['intro'] }}</p>
+                            <div class="mt-4 space-y-4">
+                                @foreach ($section['fields'] as $field)
+                                    @php
+                                        $label = $fieldLabels[$field] ?? null;
+                                    @endphp
+                                    @if ($label === null)
                                         @continue
                                     @endif
-                                    <option value="{{ $h }}" @selected(old('column_mapping.'.$field, $existingMapping[$field] ?? '') === $h)>{{ $h }}</option>
+                                    <div class="grid gap-2 sm:grid-cols-[minmax(0,14rem)_1fr] sm:items-center">
+                                        <label for="map_{{ $field }}" class="text-sm font-medium text-[#334155]">
+                                            {{ $label }}
+                                            @if (in_array($field, \App\Catalog\ProductImportField::requiredForImport(), true))
+                                                <span class="text-[#B42318]">*</span>
+                                            @endif
+                                        </label>
+                                        <select id="map_{{ $field }}" name="column_mapping[{{ $field }}]" class="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm text-[#0F172A]">
+                                            <option value="">— Ignore —</option>
+                                            @foreach ($headers as $h)
+                                                @if ($h === '')
+                                                    @continue
+                                                @endif
+                                                <option value="{{ $h }}" @selected(old('column_mapping.'.$field, $existingMapping[$field] ?? '') === $h)>{{ $h }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
                                 @endforeach
-                            </select>
+                            </div>
                         </div>
-                    @endforeach
-                </div>
+                    </details>
+                @endforeach
 
-                <div class="mt-10 border-t border-[#E2E8F0] pt-8">
+                <details id="import-mapping-section-additional_details" class="group mt-8 border-t border-[#E2E8F0] pt-8">
+                    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-[#E2E8F0] bg-[#FAFAFA]/80 px-4 py-3 text-left font-[Poppins] text-base font-semibold text-[#0F172A] hover:bg-white [&::-webkit-details-marker]:hidden">
+                        <span>Additional details</span>
+                        <span class="text-xs font-normal text-[#94A3B8] group-open:rotate-180 transition-transform" aria-hidden="true">▼</span>
+                    </summary>
+                    <div class="mt-4 px-1 pb-2">
                     <div class="flex flex-wrap items-end justify-between gap-4">
                         <div>
-                            <h2 class="text-sm font-semibold uppercase tracking-wide text-[#64748B]">Custom meta fields</h2>
-                            <p class="mt-2 text-sm text-[#64748B]">Destination keys: letters, numbers, <span class="font-mono">_</span>, <span class="font-mono">.</span>, <span class="font-mono">-</span> (1–128 chars). Cannot match a built-in import field name such as <span class="font-mono">sku</span>.</p>
+                            <p class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Map optional editable fields</p>
+                            <p class="mt-2 text-sm text-[#64748B]">Optional: map extra columns into <span class="font-medium text-[#334155]">editable additional details</span> on the product or variant (for example supplier code or material). Use short internal names: letters, numbers, underscores, dots, or dashes (1–128 characters). Names cannot match a built-in catalog field such as <span class="font-mono text-xs">sku</span>.</p>
+                            <p class="mt-2 text-xs text-[#64748B]">Columns you do not map here still appear later under <span class="font-medium text-[#334155]">Advanced imported data</span> as read-only reference.</p>
                         </div>
                         <button type="button" id="add-custom-field" class="inline-flex items-center justify-center rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">
                             Add custom field
@@ -111,7 +173,8 @@
                             </div>
                         @endforeach
                     </div>
-                </div>
+                    </div>
+                </details>
 
                 <template id="custom-field-row-template">
                     <div class="custom-field-row grid gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:grid-cols-[1fr_1fr_140px_auto] sm:items-end">

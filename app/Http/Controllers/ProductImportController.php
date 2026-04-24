@@ -141,7 +141,25 @@ class ProductImportController extends Controller
         ], $fieldRules));
         $mapping = $validated['column_mapping'] ?? [];
 
+        if (ProductImportField::hasPartialOptionSlotMapping($mapping)) {
+            return back()->withErrors([
+                'column_mapping' => 'For each option slot, map both the group label column and the value column, or leave that slot unused.',
+            ])->withInput();
+        }
+
+        $structuredVariant = ProductImportField::usesStructuredVariantRows($mapping);
+        $hasParentSkuColumn = is_string($mapping[ProductImportField::PARENT_SKU] ?? null) && $mapping[ProductImportField::PARENT_SKU] !== '';
+        $hasSkuColumn = is_string($mapping[ProductImportField::SKU] ?? null) && $mapping[ProductImportField::SKU] !== '';
+        if ($structuredVariant && ! $hasParentSkuColumn && ! $hasSkuColumn) {
+            return back()->withErrors([
+                'column_mapping' => 'For multi-row variants, map Parent product SKU or Product SKU so rows can be grouped into the correct product.',
+            ])->withInput();
+        }
+
         foreach (ProductImportField::requiredForImport() as $required) {
+            if ($structuredVariant && $required === ProductImportField::SKU && $hasParentSkuColumn) {
+                continue;
+            }
             if (empty($mapping[$required]) || ! is_string($mapping[$required])) {
                 return back()->withErrors([$required => 'This field must be mapped.'])->withInput();
             }

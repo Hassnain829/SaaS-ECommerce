@@ -232,18 +232,18 @@ class ProductBulkActionsTest extends TestCase
         $this->assertTrue((bool) $product->fresh()->status);
     }
 
-    public function test_product_quick_view_is_store_scoped(): void
+    public function test_product_workspace_is_store_scoped(): void
     {
         $owner = $this->makeUser();
         $store = $this->makeStore($owner);
-        $product = $this->makeProduct($store, 'QV');
+        $product = $this->makeProduct($store, 'WS');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products.show', $product))
             ->assertOk()
-            ->assertSee('Quick view', false)
-            ->assertSee('QV', false);
+            ->assertSee('Product workspace', false)
+            ->assertSee('WS', false);
     }
 
     private function makeUser(?string $email = null): User

@@ -67,7 +67,8 @@ final class ProductImportRowPayloadSanitizer
             $isCustom = $headerName !== '' && isset($customSources[$headerName]);
 
             $maxLen = self::resolveMaxLength($fields, $isMapped, $isCustom);
-            if (self::fieldsContain($fields, ProductImportField::IMAGE_URLS)) {
+            if (self::fieldsContain($fields, ProductImportField::IMAGE_URLS)
+                || self::fieldsContain($fields, ProductImportField::VARIANT_IMAGE_URL)) {
                 $raw = self::truncateImageUrlCell($raw);
             }
             $raw = self::mbTrunc($raw, $maxLen);
@@ -127,12 +128,13 @@ final class ProductImportRowPayloadSanitizer
         if ($field === ProductImportField::SHORT_DESCRIPTION) {
             return max(200, (int) config('product_import.row_payload_max_chars_short_description', 1500));
         }
-        if ($field === ProductImportField::IMAGE_URLS) {
+        if ($field === ProductImportField::IMAGE_URLS || $field === ProductImportField::VARIANT_IMAGE_URL) {
             return max(500, (int) config('product_import.row_payload_max_chars_image_urls_field', 8000));
         }
         if (in_array($field, [
             ProductImportField::PRODUCT_NAME,
             ProductImportField::SKU,
+            ProductImportField::PARENT_SKU,
             ProductImportField::VARIANT_SKU,
             ProductImportField::BARCODE,
             ProductImportField::BASE_PRICE,
@@ -141,6 +143,21 @@ final class ProductImportRowPayloadSanitizer
             ProductImportField::PRODUCT_TYPE,
             ProductImportField::STATUS,
             ProductImportField::VISIBILITY,
+            ProductImportField::OPTION_1_NAME,
+            ProductImportField::OPTION_1_VALUE,
+            ProductImportField::OPTION_2_NAME,
+            ProductImportField::OPTION_2_VALUE,
+            ProductImportField::OPTION_3_NAME,
+            ProductImportField::OPTION_3_VALUE,
+            ProductImportField::VARIANT_PRICE,
+            ProductImportField::VARIANT_STOCK,
+            ProductImportField::VARIANT_STOCK_ALERT,
+            ProductImportField::VARIANT_STATUS,
+        ], true)) {
+            return max(64, (int) config('product_import.row_payload_max_chars_short_field', 512));
+        }
+        if (in_array($field, [
+            ProductImportField::VARIANT_COMPARE_AT_PRICE,
         ], true)) {
             return max(64, (int) config('product_import.row_payload_max_chars_short_field', 512));
         }

@@ -635,6 +635,34 @@ class ProductImportTest extends TestCase
         Bus::assertDispatched(ProcessProductImportJob::class, fn (ProcessProductImportJob $job): bool => $job->productImportId === $import->id);
     }
 
+    public function test_mapping_page_shows_grouped_merchant_sections(): void
+    {
+        Storage::fake('local');
+
+        $owner = $this->createMerchantUser('map-sections@example.com');
+        $store = $this->createMemberStore($owner, 'Map Sections Store', Store::ROLE_OWNER);
+
+        $file = UploadedFile::fake()->createWithContent('sections.csv', "Title,SKU,Price\nWidget,S-1,12\n");
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.store'), ['file' => $file])
+            ->assertRedirect();
+
+        $import = ProductImport::query()->firstOrFail();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.import.mapping', ['productImportId' => $import->id]))
+            ->assertOk()
+            ->assertSee('id="import-mapping-section-required_basics"', false)
+            ->assertSee('id="import-mapping-section-product_information"', false)
+            ->assertSee('id="import-mapping-section-pricing_inventory"', false)
+            ->assertSee('id="import-mapping-section-variants"', false)
+            ->assertSee('id="import-mapping-section-images"', false)
+            ->assertSee('id="import-mapping-section-additional_details"', false);
+    }
+
     protected function createMerchantUser(?string $email = null): User
     {
         $role = Role::firstOrCreate(['name' => 'user']);

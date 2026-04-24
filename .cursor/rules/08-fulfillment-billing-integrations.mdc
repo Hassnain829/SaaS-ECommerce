@@ -1,0 +1,48 @@
+---
+description: Fulfillment, billing, integrations, and later-phase system rules
+alwaysApply: true
+---
+
+# Fulfillment, Billing, Integrations, and Security
+
+These are later roadmap phases, but architecture decisions now must not block them.
+
+## Fulfillment
+
+Shipping and carrier systems must be:
+- async-friendly
+- store-scoped
+- operationally understandable
+- extensible to DHL, UPS, and other carriers
+
+Do not couple slow external calls directly into merchant request flows if background work is more appropriate.
+
+## Billing
+
+Billing must support:
+- plans
+- subscriptions
+- invoices
+- payment methods
+- future SaaS monetization
+
+Avoid architecture choices now that would make subscription-based limits impossible later.
+
+## Integrations
+
+API keys, webhooks, notifications, and security logs are not optional extras.
+They are part of the final platform target.
+
+Future-friendly choices now:
+- event-driven thinking
+- clean state transitions
+- auditable actions
+- no hidden side effects
+
+## General future-proofing rule
+
+When implementing current features:
+- leave room for fulfillment
+- leave room for billing
+- leave room for integrations
+- do not create one-off patterns that block scale

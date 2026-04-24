@@ -1,0 +1,57 @@
+---
+description: Catalog, import, custom fields, and data modeling rules
+alwaysApply: true
+---
+
+# Catalog and Import Architecture
+
+## Core catalog structure
+
+Keep core product data normalized:
+
+- products = core product fields
+- product_variants = variant-level price/stock/SKU/etc
+- product_images = media
+- categories = taxonomy
+- brands = grouping
+- tags = lightweight labels
+- product_imports = import sessions
+- product_import_rows = row tracking/debugging
+
+## Meta usage
+
+Use JSON/meta only for flexible data:
+
+- products.meta.custom_fields = explicitly mapped custom fields
+- products.meta.import_extra = preserved unmapped import data
+
+Do not:
+- create dynamic database columns from imported files
+- push core normalized data into meta
+- hide important imported data permanently
+
+## Import philosophy
+
+Import is a first-class system.
+
+It must:
+- accept messy real-world data
+- normalize safely
+- support large files
+- preserve unknown data
+- be resumable
+- allow retry
+- provide understandable progress and outcomes
+
+## Import-to-product rule
+
+Imported data must follow this pipeline:
+
+Import → Normalize → Store → Expose → Manage
+
+Meaning:
+- data must be stored safely
+- then surfaced in the product workspace
+- then manageable by the merchant
+
+Do not build import features that preserve data without exposing it in usable UI.

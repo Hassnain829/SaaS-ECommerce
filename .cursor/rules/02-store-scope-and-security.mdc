@@ -1,0 +1,55 @@
+---
+description: Store isolation, authorization, and tenant safety rules
+alwaysApply: true
+---
+
+# Store Scope and Security
+
+This is a strict multi-tenant application.
+
+## Golden rule
+
+Every tenant-facing operation must be scoped to the active store.
+
+## Required safety behavior
+
+All tenant reads/writes must:
+- resolve the active store from current store context
+- verify entity ownership through store_id or product/store relationship
+- return 404 or deny access for cross-store access
+- never trust raw IDs without same-store verification
+
+## Applies to all domains
+
+This rule applies to:
+- products
+- variants
+- images
+- categories
+- brands
+- tags
+- imports
+- customers
+- orders
+- shipments
+- payment records
+- notifications
+- API keys
+- webhooks
+
+## Role behavior
+
+Respect the existing hierarchy:
+- owner = full control
+- manager = operational control
+- staff = limited access
+
+Do not weaken role restrictions.
+
+## Never allow
+
+- cross-store product edit
+- cross-store variant/image association
+- cross-store import history visibility
+- cross-store bulk operations
+- cross-store order/customer mutation

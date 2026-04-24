@@ -1,0 +1,53 @@
+---
+description: Workspace-first UX and merchant-facing UI rules
+alwaysApply: true
+---
+
+# Workspace-first UX
+
+Core merchant flows must use workspace-style UX.
+
+## Product rule
+
+Product detail is not a temporary quick view.
+It is the merchant's product workspace.
+
+Core product workflows should feel:
+- direct
+- intentional
+- contextual
+- trustworthy
+
+## Avoid
+
+- route → list → modal → route bridges for core editing
+- weak page identity for important workspaces
+- technical labels in merchant-facing areas
+- hidden data that merchants expect to inspect
+- passive "inspection only" surfaces for core entities
+
+## Prefer
+
+- direct product-specific edit flows
+- strong hero/summary sections
+- clear next-step guidance
+- readable sections
+- progressive disclosure for advanced data
+
+## Merchant-facing copy
+
+Never expose raw developer terms in the main UI unless intentionally under an advanced details area.
+
+Prefer wording like:
+- Product workspace
+- Additional custom details
+- Extra imported product information
+- Recent stock activity
+- Images are still being prepared
+- Some rows need attention
+
+Avoid wording like:
+- payload
+- queued state machine
+- sync/dispatch jargon
+- raw metadata bucket

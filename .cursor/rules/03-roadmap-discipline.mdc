@@ -1,0 +1,44 @@
+---
+description: Roadmap order, day boundaries, and implementation discipline
+alwaysApply: true
+---
+
+# Roadmap Discipline
+
+Follow the enterprise roadmap strictly.
+
+## Current roadmap state
+
+Completed:
+- Sprint 1 foundation
+- Sprint 2 catalog core
+- Day 12 import core
+- Day 13 import enhancements
+- Day 14 product detail workspace (functional, still may need UX polish)
+
+Current priority:
+1. Day 15 — Variant System Upgrade
+2. Day 16 — Variant Import
+3. Day 17 — Custom Fields Usability
+4. Day 18 — Product UX Completion
+
+Later:
+- Day 19–24 Commerce
+- Day 25–29 Fulfillment
+- Day 30–34 Billing
+- Day 35–40 Integrations and Security
+
+## Rule for implementation
+
+Do not solve future-day scope prematurely unless explicitly asked.
+
+Example:
+- Day 15 should prepare Day 16, not fully implement Day 16
+- Day 17 should improve custom-fields usability, not redesign import
+- Day 18 should polish product UX, not jump into orders
+
+## Sign-off rule
+
+When asked to verify completion:
+- distinguish core functional completion vs sign-off readiness
+- do not mark a day done if major merchant workflow residue remains

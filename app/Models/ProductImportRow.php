@@ -15,6 +15,9 @@ class ProductImportRow extends Model
 
     public const STATUS_SKIPPED = 'skipped';
 
+    /** Row validated; waits for end-of-file variant grouping pass */
+    public const STATUS_DEFERRED = 'deferred';
+
     protected $fillable = [
         'product_import_id',
         'row_number',

@@ -1,0 +1,60 @@
+---
+description: Variant system rules, option groups, combinations, and usability
+alwaysApply: true
+---
+
+# Variant System and Product Modeling
+
+Variants are a critical differentiator in this platform.
+
+## Variant system requirements
+
+Variants must support:
+- multiple option groups
+- multiple option values
+- clear combination logic
+- variant-level SKU
+- variant-level price
+- variant-level compare-at price
+- variant-level stock
+- variant-level stock alert
+- variant-level image relationship
+- future variant-level custom fields
+
+## Product modeling requirements
+
+The platform must support:
+- simple products
+- variant products
+- service products
+- digital products
+- future subscription-style products
+
+Do not hardcode assumptions that all products are physical or simple.
+
+## Merchant UX rule
+
+Variant handling must be easier than competing platforms.
+
+Merchants must be able to understand:
+- what the option groups are
+- what values belong to each group
+- what combinations exist
+- what price/stock belongs to each variant
+- what image belongs to which variant
+
+## Data integrity rule
+
+Never allow:
+- duplicate option values in the same group
+- duplicate variant combinations
+- ambiguous default variant behavior
+- unsafe variant/image linkage
+- orphaned option/variant relationships
+
+## Day 15 and Day 16 rule
+
+Day 15 should stabilize variant structure and merchant usability.
+Day 16 should implement variant import on top of that structure.
+
+Do not skip structural clarity and jump straight into import hacks.

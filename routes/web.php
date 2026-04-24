@@ -9,7 +9,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProductBulkController;
 use App\Http\Controllers\ProductImportController;
-use App\Http\Controllers\ProductQuickViewController;
+use App\Http\Controllers\ProductWorkspaceController;
+use App\Http\Controllers\ProductWorkspaceDataController;
 use App\Http\Controllers\TeamMemberController;
 use Illuminate\Support\Facades\Route;
 // 
@@ -32,10 +33,22 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
     Route::get('/products/primary-images', [DashboardController::class, 'productPrimaryImages'])->name('products.primary-images');
-    Route::get('/products/view/{product}', [ProductQuickViewController::class, 'show'])->name('products.show');
+    Route::get('/products/view/{product}', [ProductWorkspaceController::class, 'show'])->name('products.show');
+    Route::get('/products/{product}/edit', [ProductWorkspaceController::class, 'edit'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.edit');
+    Route::post('/products/{product}/workspace/import-extra/promote', [ProductWorkspaceDataController::class, 'promoteImportExtra'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.workspace.promote-import-extra');
+    Route::post('/products/{product}/workspace/import-extra/apply-category', [ProductWorkspaceDataController::class, 'applyImportCategory'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.workspace.apply-import-category');
     Route::post('/products/bulk', [ProductBulkController::class, 'handle'])
         ->middleware('store.role:owner,manager')
         ->name('products.bulk');
+    Route::post('/products/catalog-list-highlights', [DashboardController::class, 'saveProductListDetailKeys'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.catalog-list-highlights');
     Route::post('/brands', [BrandController::class, 'store'])
         ->middleware('store.role:owner,manager')
         ->name('brands.store');

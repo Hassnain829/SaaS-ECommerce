@@ -1,0 +1,46 @@
+---
+description: Commerce core, customers, orders, and inventory behavior
+alwaysApply: true
+---
+
+# Commerce, Orders, and Inventory
+
+From Day 19 onward, commerce becomes the core operational layer.
+
+## Customers
+
+Customer records must be:
+- store-scoped
+- real, queryable, and editable
+- usable by orders and addresses
+
+## Orders
+
+Orders must be:
+- store-scoped
+- product/variant aware
+- snapshot-safe
+- operationally understandable
+
+Order detail should surface:
+- line items
+- variant details
+- totals
+- statuses
+- customer data
+- fulfillment state
+
+## Inventory
+
+Inventory must remain auditable.
+
+All stock-affecting actions must preserve the stock movements architecture.
+
+Never rely only on a raw integer without auditability.
+
+## Rule for future work
+
+As commerce features are implemented:
+- do not break existing product/variant/inventory rules
+- do not bypass stock movement recording
+- do not create order flows that ignore variant structure

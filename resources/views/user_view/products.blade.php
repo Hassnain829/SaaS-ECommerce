@@ -5,6 +5,9 @@
 @section('sidebar_brand_subtitle', 'E-commerce Portal')
 
 @php
+    use App\Support\ProductCustomFieldHelper;
+    use App\Support\ProductDetailPresenter;
+    use App\Support\ProductEditPayload;
     $baseFilters = [
         'q' => $filters['q'] ?? '',
         'category' => $filters['category'] ?? '',
@@ -14,6 +17,8 @@
         'sort' => $filters['sort'] ?? 'latest',
         'brand' => $filters['brand'] ?? '',
         'tag' => $filters['tag'] ?? '',
+        'cf_key' => $filters['cf_key'] ?? '',
+        'cf_value' => $filters['cf_value'] ?? '',
     ];
 
     $openProductModal = request()->boolean('openAddProduct') || old('_open_add_product_modal');
@@ -51,7 +56,29 @@
     }
     $openCatalogToolsShell = $catalogToolsReopen || request()->boolean('openCatalogTools');
 
-    $filtersRefineOpen = ($filters['brand'] ?? '') !== '' || ($filters['tag'] ?? '') !== '' || ($filters['stock'] ?? '') === 'low' || ($filters['status'] ?? '') === 'published' || ($filters['status'] ?? '') === 'draft';
+    $filtersRefineOpen = ($filters['brand'] ?? '') !== '' || ($filters['tag'] ?? '') !== '' || ($filters['stock'] ?? '') === 'low' || ($filters['status'] ?? '') === 'published' || ($filters['status'] ?? '') === 'draft'
+        || (($filters['cf_key'] ?? '') !== '' && ($filters['cf_value'] ?? '') !== '');
+    $productListDetailKeys = $productListDetailKeys ?? [];
+    $catalogCustomFieldKeyOptions = $catalogCustomFieldKeyOptions ?? [];
+    $highlightKeyOptions = collect($catalogCustomFieldKeyOptions);
+    foreach ($productListDetailKeys as $savedKey) {
+        $savedKey = trim((string) $savedKey);
+        if ($savedKey !== '' && ! $highlightKeyOptions->contains(fn ($o) => (string) ($o['value'] ?? '') === $savedKey)) {
+            $highlightKeyOptions->push([
+                'value' => $savedKey,
+                'label' => ProductDetailPresenter::humanizeKey($savedKey).' (saved)',
+            ]);
+        }
+    }
+    $cfKeyFilter = trim((string) ($filters['cf_key'] ?? ''));
+    $cfKeyFilterOptions = collect($catalogCustomFieldKeyOptions);
+    if ($cfKeyFilter !== '' && ! $cfKeyFilterOptions->contains(fn ($o) => (string) ($o['value'] ?? '') === $cfKeyFilter)) {
+        $cfKeyFilterOptions->push([
+            'value' => $cfKeyFilter,
+            'label' => ProductDetailPresenter::humanizeKey($cfKeyFilter).' (current filter)',
+        ]);
+    }
+    $cfKeyChipLabel = $cfKeyFilter !== '' ? ProductDetailPresenter::humanizeKey($cfKeyFilter) : '';
 @endphp
 
 @section('topbar')
@@ -70,34 +97,41 @@
             <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
             <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
             <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+            <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
+            <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                     <path d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z" fill="currentColor" />
                 </svg>
             </span>
-            <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search products and SKUs…" class="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg py-2 pl-10 pr-4 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+            <input type="text" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search products, SKUs, categories, and extra details…" class="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg py-2 pl-10 pr-4 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
         </form>
 
-        <div class="flex items-center gap-3 shrink-0">
+        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
             <button type="button" data-open-product-modal class="hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
                 </svg>
                 <span>Add Product</span>
             </button>
-            @if ($canManageBrands)
-                <a href="{{ route('products.import.create') }}" class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm hover:border-[#CBD5E1] hover:bg-[#F8FAFC]">
-                    Import products
-                </a>
-                <a href="{{ route('products.import.history') }}" class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm hover:border-[#CBD5E1] hover:bg-[#F8FAFC]">
-                    Import history
-                </a>
-            @endif
             @if ($canManageBrands || $canManageTags || $canManageCategories)
-                <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-xs font-semibold text-[#64748B] hover:border-[#CBD5E1] hover:bg-[#F8FAFC] hover:text-[#334155]" title="Categories, brands, and tags">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" class="text-[#94A3B8]" aria-hidden="true"><path d="M2.5 3.5h11v1h-11v-1zm0 4h11v1h-11v-1zm0 4h7v1h-7v-1z" fill="currentColor"/></svg>
-                    <span>Catalog tools</span>
-                </button>
+                <details id="products-catalog-more-menu" class="group relative hidden sm:block" data-products-more-actions>
+                    <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#475569] shadow-sm hover:border-[#CBD5E1] hover:bg-[#F8FAFC] [&::-webkit-details-marker]:hidden" aria-label="More catalog actions">
+                        <span>More</span>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-[#94A3B8] transition group-open:rotate-180" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </summary>
+                    <div class="absolute right-0 z-40 mt-1 w-52 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg ring-1 ring-black/5">
+                        @if ($canManageBrands)
+                            <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import products</a>
+                            <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import history</a>
+                        @endif
+                        @if ($canManageBrands || $canManageTags || $canManageCategories)
+                            <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">
+                                Catalog tools
+                            </button>
+                        @endif
+                    </div>
+                </details>
             @endif
 
             <div class="w-px h-6 bg-[#E2E8F0] hidden sm:block"></div>
@@ -167,17 +201,30 @@
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['category' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear category filter</a>
                 </div>
             @endif
+            @if (($filters['cf_key'] ?? '') !== '' && ($filters['cf_value'] ?? '') !== '')
+                <div class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]">
+                    <span>Additional detail <span class="font-semibold text-[#0F172A]">{{ $cfKeyChipLabel }}</span> contains <span class="font-semibold">{{ $filters['cf_value'] }}</span>.</span>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['cf_key' => null, 'cf_value' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear</a>
+                </div>
+            @endif
         </div>
         <div class="flex flex-col sm:items-end gap-3">
-            @if ($canManageBrands)
-                <div class="sm:hidden flex flex-col gap-2 w-full">
-                    <a href="{{ route('products.import.create') }}" class="flex items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#334155]">
-                        Import products
-                    </a>
-                    <a href="{{ route('products.import.history') }}" class="flex items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#334155]">
-                        Import history
-                    </a>
-                </div>
+            @if ($canManageBrands || $canManageTags || $canManageCategories)
+                <details class="group relative sm:hidden w-full" data-products-more-actions-mobile>
+                    <summary class="flex w-full cursor-pointer list-none items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#334155] [&::-webkit-details-marker]:hidden">
+                        More catalog actions
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-[#94A3B8] group-open:rotate-180 transition" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </summary>
+                    <div class="absolute left-0 right-0 z-40 mt-1 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg">
+                        @if ($canManageBrands)
+                            <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import products</a>
+                            <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import history</a>
+                        @endif
+                        @if ($canManageBrands || $canManageTags || $canManageCategories)
+                            <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Catalog tools</button>
+                        @endif
+                    </div>
+                </details>
             @endif
             <button type="button" data-open-product-modal class="sm:hidden flex items-center justify-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2.5 rounded-lg">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -225,6 +272,8 @@
                     <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
                     <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
                     <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                    <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
+                    <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
                     <div class="flex flex-col gap-1">
                         <span class="text-[10px] font-bold uppercase tracking-wider text-[#0F766E]"> Category</span>
                         <div class="relative">
@@ -263,6 +312,8 @@
                         <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
                         <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
                         <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                        <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
+                        <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
                         <select name="sort" onchange="this.form.submit()" class="absolute inset-0 opacity-0 cursor-pointer" aria-label="Sort products">
                             <option value="latest" @selected(($filters['sort'] ?? 'latest') === 'latest')>Latest</option>
                             <option value="name" @selected(($filters['sort'] ?? '') === 'name')>Name</option>
@@ -286,11 +337,11 @@
                 </div>
             </div>
 
-            <details class="group mt-2 border-t border-[#F1F5F9] pt-2 sm:mt-3 sm:pt-3" @if ($filtersRefineOpen) open @endif>
+            <details id="products-advanced-filters-panel" class="group mt-2 border-t border-[#F1F5F9] pt-2 sm:mt-3 sm:pt-3" @if ($filtersRefineOpen) open @endif>
                 <summary class="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-[#64748B] hover:text-[#334155] [&::-webkit-details-marker]:hidden">
                     <span class="inline-flex h-5 w-5 items-center justify-center rounded border border-[#E2E8F0] bg-[#F8FAFC] text-[10px] text-[#94A3B8] group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
-                    <span>More filters</span>
-                    <span class="font-normal text-[#94A3B8]">brand, tag, inventory</span>
+                    <span>Advanced filters &amp; table settings</span>
+                    <span class="font-normal text-[#94A3B8]">brand, tag, inventory, list columns</span>
                 </summary>
                 <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-lg bg-[#F8FAFC]/80 px-3 py-2.5">
                     <form method="GET" action="{{ route('products') }}" class="contents">
@@ -301,6 +352,8 @@
                         <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
                         <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
                         <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                        <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
+                        <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
                         <div class="relative">
                             <select name="brand" onchange="this.form.submit()" aria-label="Filter by brand" class="appearance-none border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-3 py-1.5 pr-8 rounded-lg transition-colors {{ ($filters['brand'] ?? '') !== '' ? 'ring-1 ring-[#CBD5E1] text-[#334155]' : '' }}">
                                 <option value="">All brands</option>
@@ -321,6 +374,8 @@
                         <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
                         <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
                         <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
+                        <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
+                        <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
                         <div class="relative">
                             <select name="tag" onchange="this.form.submit()" aria-label="Filter by tag" class="appearance-none border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-3 py-1.5 pr-8 rounded-lg transition-colors {{ ($filters['tag'] ?? '') !== '' ? 'ring-1 ring-[#CBD5E1] text-[#334155]' : '' }}">
                                 <option value="">All tags</option>
@@ -333,6 +388,34 @@
                             </svg>
                         </div>
                     </form>
+                    <form method="GET" action="{{ route('products') }}" class="flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
+                        <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
+                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
+                        <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+                        <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
+                        <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
+                        <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
+                        <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                        <datalist id="catalog-cf-key-suggestions">
+                            @foreach ($cfKeyFilterOptions as $opt)
+                                <option value="{{ $opt['value'] }}">{{ $opt['label'] }}</option>
+                            @endforeach
+                        </datalist>
+                        <div class="flex min-w-0 max-w-full flex-col gap-0.5 sm:max-w-[14rem]">
+                            <label for="cf_key_input" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Additional detail</label>
+                            <input id="cf_key_input" name="cf_key" list="catalog-cf-key-suggestions" value="{{ $cfKeyFilter }}" placeholder="Material, supplier, …" class="w-full min-w-0 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1.5 text-xs text-[#334155]" maxlength="128" autocomplete="off" aria-describedby="cf-key-filter-help">
+                            <p id="cf-key-filter-help" class="text-[10px] leading-snug text-[#94A3B8]">Choose a saved detail or type a field name; suggestions come from this store’s catalog.</p>
+                        </div>
+                        <div class="flex flex-col gap-0.5">
+                            <label for="cf_value_input" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Contains</label>
+                            <input id="cf_value_input" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}" placeholder="Text to match" class="w-40 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1.5 text-xs text-[#334155]" maxlength="200">
+                        </div>
+                        <button type="submit" class="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1E293B]">Apply</button>
+                        @if (($filters['cf_key'] ?? '') !== '' || ($filters['cf_value'] ?? '') !== '')
+                            <a href="{{ route('products', array_filter(array_merge($baseFilters, ['cf_key' => null, 'cf_value' => null]))) }}" class="self-end text-xs font-semibold text-[#0052CC] hover:underline">Clear filter</a>
+                        @endif
+                    </form>
                     <span class="hidden h-4 w-px bg-[#E2E8F0] sm:inline" aria-hidden="true"></span>
                     <span class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">||</span>
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['stock' => ($filters['stock'] ?? '') === 'low' ? null : 'low']))) }}" class="flex items-center gap-1 border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['stock'] ?? '') === 'low' ? 'border-[#F97316] bg-orange-50 text-orange-700' : '' }}">
@@ -342,6 +425,36 @@
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'published' ? null : 'published']))) }}" class="border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['status'] ?? '') === 'published' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : '' }}">Published</a>
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'draft' ? null : 'draft']))) }}" class="border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['status'] ?? '') === 'draft' ? 'border-slate-400 bg-slate-50 text-[#334155]' : '' }}">Drafts</a>
                 </div>
+                @if ($canManageBrands)
+                    <div class="mt-4 border-t border-[#E2E8F0] pt-4">
+                        <p class="text-xs font-semibold text-[#334155]">Product list columns</p>
+                        <form method="POST" action="{{ route('products.catalog-list-highlights') }}" class="mt-2 space-y-2 rounded-lg bg-[#F8FAFC]/80 px-3 py-2.5" aria-describedby="product-list-highlights-help">
+                            @csrf
+                            <p id="product-list-highlights-help" class="text-[10px] leading-snug text-[#64748B]">Choose up to two additional details to show under each product name in this list.</p>
+                            <div class="flex flex-wrap items-end gap-2">
+                                <div class="flex min-w-0 flex-col gap-0.5 sm:min-w-[10rem]">
+                                    <label for="detail_key_1" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Detail 1</label>
+                                    <select id="detail_key_1" name="detail_key_1" class="w-full max-w-[12rem] rounded-lg border border-[#E2E8F0] bg-white px-2 py-1.5 text-xs text-[#334155]">
+                                        <option value="">None</option>
+                                        @foreach ($highlightKeyOptions as $opt)
+                                            <option value="{{ $opt['value'] }}" @selected(($productListDetailKeys[0] ?? '') === $opt['value'])>{{ $opt['label'] }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="flex min-w-0 flex-col gap-0.5 sm:min-w-[10rem]">
+                                    <label for="detail_key_2" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Detail 2</label>
+                                    <select id="detail_key_2" name="detail_key_2" class="w-full max-w-[12rem] rounded-lg border border-[#E2E8F0] bg-white px-2 py-1.5 text-xs text-[#334155]">
+                                        <option value="">None</option>
+                                        @foreach ($highlightKeyOptions as $opt)
+                                            <option value="{{ $opt['value'] }}" @selected(($productListDetailKeys[1] ?? '') === $opt['value'])>{{ $opt['label'] }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0047B3]">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
             </details>
         </div>
 
@@ -367,12 +480,22 @@
                                 <option value="status">Set status</option>
                             </select>
                         </div>
-                        <div id="bulk-extra-stock" class="hidden flex flex-wrap items-end gap-2">
-                            <select id="bulk-stock-mode" class="rounded-lg border border-[#CBD5E1] bg-white px-2 py-2 text-xs font-semibold text-[#334155]">
-                                <option value="set">Set to</option>
-                                <option value="delta">Adjust by</option>
-                            </select>
-                            <input id="bulk-stock-value" type="number" class="w-24 rounded-lg border border-[#CBD5E1] px-2 py-2 text-sm" placeholder="Qty">
+                        <div id="bulk-extra-stock" class="hidden flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-end">
+                            <div class="flex flex-wrap items-end gap-2">
+                                <select id="bulk-stock-mode" class="rounded-lg border border-[#CBD5E1] bg-white px-2 py-2 text-xs font-semibold text-[#334155]">
+                                    <option value="set">Set to</option>
+                                    <option value="delta">Adjust by</option>
+                                </select>
+                                <input id="bulk-stock-value" type="number" class="w-24 rounded-lg border border-[#CBD5E1] px-2 py-2 text-sm" placeholder="Qty">
+                            </div>
+                            <div class="flex min-w-[14rem] max-w-md flex-col gap-1">
+                                <label for="bulk-stock-variant-scope" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Products with multiple variants</label>
+                                <select id="bulk-stock-variant-scope" class="rounded-lg border border-[#CBD5E1] bg-white px-2 py-2 text-xs font-medium text-[#334155]">
+                                    <option value="default_variant_only">Update default row only</option>
+                                    <option value="all_variants_same">Apply same quantity to every variant row</option>
+                                    <option value="skip_multi_variant">Skip multi-variant products</option>
+                                </select>
+                            </div>
                         </div>
                         <div id="bulk-extra-categories" class="hidden max-w-full">
                             <select id="bulk-category-ids" multiple size="3" class="max-w-xs rounded-lg border border-[#CBD5E1] bg-white px-2 py-1 text-xs text-[#334155]">
@@ -418,6 +541,7 @@
                 <input type="hidden" name="action" id="bulk-form-action" value="">
                 <input type="hidden" name="stock_mode" id="bulk-form-stock-mode" value="">
                 <input type="hidden" name="stock_value" id="bulk-form-stock-value" value="">
+                <input type="hidden" name="bulk_variant_stock_scope" id="bulk-form-stock-variant-scope" value="default_variant_only">
                 <input type="hidden" name="brand_id" id="bulk-form-brand-id" value="">
                 <input type="hidden" name="product_status" id="bulk-form-product-status" value="">
                 <div id="bulk-form-category-inputs"></div>
@@ -490,55 +614,11 @@
                             $productImageUrl = ($primaryVisualState === 'ready' && $primaryImage && $primaryImage->image_path)
                                 ? asset('storage/'.$primaryImage->image_path)
                                 : null;
-                            $productActionPayload = [
-                                'id' => $product->id,
-                                'name' => $product->name,
-                                'description' => $product->description,
-                                'sku' => $product->sku,
-                                'base_price' => (string) $product->base_price,
-                                'product_type' => $product->product_type,
-                                'brand_id' => $product->brand_id,
-                                'tag_ids' => $product->tags->pluck('id')->values()->all(),
-                                'category_ids' => $product->categories->pluck('id')->values()->all(),
-                                'stock_alert' => (int) ($product->variants_max_stock_alert ?? ($product->meta['stock_alert'] ?? 0)),
-                                'image_url' => $productImageUrl,
-                                'image_paths' => $galleryPaths,
-                                'image_urls' => collect($galleryPaths)
-                                    ->map(fn ($path) => asset('storage/'.$path))
-                                    ->values()
-                                    ->all(),
-                                'variation_types' => $product->variationTypes->map(fn($variationType) => [
-                                    'name' => $variationType->name,
-                                    'type' => $variationType->type,
-                                    'options' => $variationType->options->sortBy('sort_order')->pluck('value')->values()->all(),
-                                ])->values()->all(),
-                                'variants' => $product->variants->map(function ($variant) use ($product) {
-                                    $optionMap = [];
-
-                                    foreach ($product->variationTypes as $variationIndex => $variationType) {
-                                        $selectedOption = $variant->options->first(
-                                            fn($option) => (int) $option->variation_type_id === (int) $variationType->id
-                                        );
-
-                                        if ($selectedOption) {
-                                            $optionMap[$variationIndex] = $variationType->options
-                                                ->sortBy('sort_order')
-                                                ->pluck('id')
-                                                ->search($selectedOption->id);
-                                        }
-                                    }
-
-                                    return [
-                                        'option_map' => $optionMap,
-                                        'sku' => $variant->sku,
-                                        'price' => (string) $variant->price,
-                                        'stock' => (string) $variant->stock,
-                                        'stock_alert' => (int) $variant->stock_alert,
-                                    ];
-                                })->values()->all(),
-                                'update_url' => route('product.update', ['productId' => $product->id]),
-                                'delete_url' => route('product.destroy', ['productId' => $product->id]),
-                            ];
+                            $productActionPayload = ProductEditPayload::forProduct($product);
+                            $detailChips = ProductCustomFieldHelper::listHighlightsForKeys(
+                                is_array($product->meta) ? $product->meta : [],
+                                $productListDetailKeys
+                            );
                         @endphp
                         <tr class="hover:bg-[#F8FAFC] transition-colors">
                             <td class="px-4 py-4"><input type="checkbox" class="js-product-row-checkbox w-4 h-4 rounded border-[#CBD5E1] accent-[#0052CC]" data-product-id="{{ $product->id }}" @if (! $canManageBrands) disabled @endif></td>
@@ -587,6 +667,16 @@
                                                 $extraTagCount = max(0, $tagNames->count() - 4);
                                             @endphp
                                             <p class="mt-0.5 max-w-[16rem] truncate text-[11px] text-[#94A3B8]" title="{{ $tagNames->implode(', ') }}">Tags: {{ $tagPreview }}@if ($extraTagCount > 0) +{{ $extraTagCount }}@endif</p>
+                                        @endif
+                                        @if (! empty($detailChips))
+                                            <div class="mt-1 flex max-w-[18rem] flex-wrap gap-1">
+                                                @foreach ($detailChips as $chip)
+                                                    <span class="inline-flex max-w-full items-center truncate rounded-md border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 text-[10px] font-semibold text-[#1E40AF]" title="{{ $chip['label'] }}: {{ $chip['text'] }}">
+                                                        <span class="shrink-0 text-[#64748B]">{{ $chip['label'] }}:</span>
+                                                        <span class="ml-0.5 truncate">{{ $chip['text'] }}</span>
+                                                    </span>
+                                                @endforeach
+                                            </div>
                                         @endif
                                     </div>
                                 </div>
@@ -681,6 +771,7 @@
         'catalogBrands' => $catalogBrands ?? collect(),
         'catalogTags' => $catalogTags ?? collect(),
         'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
+        'catalogImagesForVariantPicker' => [],
     ])
     @include('user_view.partials.product_edit_modal', [
         'catalogBrands' => $catalogBrands ?? collect(),
@@ -865,6 +956,8 @@
                 });
                 document.getElementById('bulk-form-stock-mode').value = '';
                 document.getElementById('bulk-form-stock-value').value = '';
+                const scopeEl = document.getElementById('bulk-form-stock-variant-scope');
+                if (scopeEl) scopeEl.value = 'default_variant_only';
                 document.getElementById('bulk-form-brand-id').value = '';
                 document.getElementById('bulk-form-product-status').value = '';
                 setMultiHidden(document.getElementById('bulk-form-category-inputs'), 'category_ids[]', []);
@@ -875,6 +968,9 @@
                     const val = document.getElementById('bulk-stock-value')?.value;
                     document.getElementById('bulk-form-stock-mode').value = mode;
                     document.getElementById('bulk-form-stock-value').value = String(val);
+                    const sc = document.getElementById('bulk-stock-variant-scope')?.value || 'default_variant_only';
+                    const scopeHidden = document.getElementById('bulk-form-stock-variant-scope');
+                    if (scopeHidden) scopeHidden.value = sc;
                 }
                 if (action === 'categories') {
                     const sel = document.getElementById('bulk-category-ids');

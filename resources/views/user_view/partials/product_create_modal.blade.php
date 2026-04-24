@@ -8,42 +8,6 @@
         $productFormData = $draft;
     }
 
-    $productVariationTypes = $productFormData['variation_types'] ?? [];
-    $productCustomVariants = $productFormData['variants'] ?? [];
-    $productPreviewRows = [];
-
-    if (!empty($productCustomVariants)) {
-        foreach ($productCustomVariants as $variantRow) {
-            if (!is_array($variantRow)) {
-                continue;
-            }
-
-            $labelParts = [];
-            foreach ($productVariationTypes as $variationIndex => $variationType) {
-                $selectedIndex = $variantRow['option_map'][$variationIndex] ?? null;
-                if ($selectedIndex !== null && $selectedIndex !== '' && isset($variationType['options'][$selectedIndex])) {
-                    $labelParts[] = $variationType['options'][$selectedIndex];
-                }
-            }
-
-            $productPreviewRows[] = [
-                'label' => !empty($labelParts) ? implode(' / ', $labelParts) : 'Default Variant',
-                'sku' => $variantRow['sku'] ?? '',
-                'price' => $variantRow['price'] ?? ($productFormData['bulk_price'] ?? '0'),
-                'stock' => $variantRow['stock'] ?? ($productFormData['bulk_stock'] ?? 50),
-            ];
-        }
-    }
-
-    if (empty($productPreviewRows)) {
-        $productPreviewRows[] = [
-            'label' => 'No variants added yet',
-            'sku' => '-',
-            'price' => '-',
-            'stock' => '-',
-        ];
-    }
-
     $catalogBrands = $catalogBrands ?? collect();
     $catalogTags = $catalogTags ?? collect();
     $catalogTaxonomyCategories = $catalogTaxonomyCategories ?? collect();
@@ -57,11 +21,11 @@
 <div id="productCreateModal" data-open-query="{{ $productModalOpenQuery }}" class="fixed inset-0 z-[70] {{ $productModalIsOpen ? '' : 'hidden' }}">
     <div id="productCreateModalBackdrop" class="absolute inset-0 bg-[#0F172A]/70 backdrop-blur-[3px]"></div>
     <div class="relative flex min-h-full items-center justify-center px-3 py-3 sm:px-5 sm:py-5">
-        <div class="relative w-full max-w-[980px] overflow-hidden rounded-[28px] border border-[#D9E2EC] bg-[#F8FBFF] shadow-[0_30px_80px_rgba(15,23,42,0.28)]">
+                <div class="relative w-full max-w-[720px] overflow-hidden rounded-[28px] border border-[#D9E2EC] bg-[#F8FBFF] shadow-[0_30px_80px_rgba(15,23,42,0.28)]">
             <div class="flex items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-5 py-4 sm:px-8">
                 <div>
-                    <h2 class="text-xl font-semibold text-[#0F172A] font-[Poppins]">Create Product</h2>
-                    <p class="mt-1 text-sm text-[#64748B]">New products are saved in your <span class="font-semibold text-[#475569]">active store</span> (sidebar switcher).</p>
+                    <h2 class="text-xl font-semibold text-[#0F172A] font-[Poppins]">Quick add product</h2>
+                    <p class="mt-1 text-sm text-[#64748B]">Creates a simple product with one inventory row in your <span class="font-semibold text-[#475569]">active store</span>. After save you will open the full editor for variants, more images, and advanced details.</p>
                 </div>
                 <button type="button" class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#D9E2EC] bg-white text-[#64748B] transition hover:border-[#0052CC] hover:text-[#0052CC]" data-close-product-modal aria-label="Close create product modal">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -84,9 +48,9 @@
                 <form id="product-create-form" action="{{ route('product.store') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
                     @csrf
                     <input type="hidden" name="_open_add_product_modal" value="1">
+                    <input type="hidden" name="inventory_variant_stock_mode" value="split_total">
                     <input id="bulk-price-hidden" type="hidden" name="bulk_price" value="{{ $productFormData['bulk_price'] ?? '' }}">
                     <input id="bulk-stock-hidden" type="hidden" name="bulk_stock" value="{{ $productFormData['bulk_stock'] ?? '' }}">
-                    <input type="hidden" name="stock_alert" value="{{ $productFormData['stock_alert'] ?? 5 }}">
 
                     <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
                         <div class="mb-6">
@@ -179,110 +143,32 @@
                     </div>
 
                     <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
-                        <div class="mb-6 flex items-center justify-between gap-3">
-                            <h3 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Product Variations</h3>
-                            <button id="openVariationModal" type="button" class="inline-flex items-center gap-2 rounded-full border border-[#D4E3FF] bg-[#EEF4FF] px-4 py-2 text-sm font-semibold text-[#0052CC] transition hover:bg-[#E4EEFF]">
-                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                    <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="currentColor"/>
-                                </svg>
-                                Add Variation Type
-                            </button>
-                        </div>
-
-                        <div id="variation-hidden-inputs">
-                            @foreach ($productVariationTypes as $variationIndex => $variationType)
-                                <input type="hidden" name="variation_types[{{ $variationIndex }}][name]" value="{{ $variationType['name'] ?? '' }}">
-                                <input type="hidden" name="variation_types[{{ $variationIndex }}][type]" value="{{ $variationType['type'] ?? 'select' }}">
-                                @foreach (($variationType['options'] ?? []) as $optionIndex => $option)
-                                    <input type="hidden" name="variation_types[{{ $variationIndex }}][options][{{ $optionIndex }}]" value="{{ $option }}">
-                                @endforeach
-                            @endforeach
-                        </div>
-
-                        <div id="no-variation-state" class="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B] {{ empty($productVariationTypes) ? '' : 'hidden' }}">
-                            No variation type added yet. Click <span class="font-semibold text-[#0052CC]">Add Variation Type</span> to start.
-                        </div>
-
-                        <div id="variation-types-list" class="space-y-4 {{ empty($productVariationTypes) ? 'hidden' : '' }}">
-                            @foreach ($productVariationTypes as $index => $variationType)
-                                <div class="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5">
-                                    <div class="mb-3 flex items-center justify-between">
-                                        <span class="text-base text-[#0F172A] font-poppins">Variation {{ $index + 1 }}: {{ $variationType['name'] ?? 'Variation' }}</span>
-                                        <span class="text-xs uppercase text-[#94A3B8]">{{ $variationType['type'] ?? 'select' }}</span>
-                                    </div>
-                                    <div class="flex flex-wrap gap-2">
-                                        @foreach (($variationType['options'] ?? []) as $optionIndex => $option)
-                                            <span class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium">
-                                                {{ $option }}
-                                                <button type="button" class="remove-variation-option leading-none text-[#94A3B8] hover:text-[#B42318]" data-variation-index="{{ $index }}" data-option-index="{{ $optionIndex }}" aria-label="Remove option">&times;</button>
-                                            </span>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
-                        <div class="mb-4 flex items-center justify-between gap-3">
-                            <h3 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants</h3>
-                            <span class="text-sm font-medium text-[#64748B]">Rows are created automatically from variation options</span>
-                        </div>
-
-                        <div class="mb-5 grid grid-cols-1 gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 md:grid-cols-4">
-                            <div class="md:col-span-2">
-                                <p class="text-sm font-semibold text-[#0F172A]">Bulk Set Price & Stock</p>
-                                <p class="text-xs text-[#64748B]">Apply one value to all variant rows.</p>
-                            </div>
+                        <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Price and inventory</h3>
+                        <p class="mt-1 text-xs text-[#64748B]">These apply to your single default inventory row. Totals for multi-variant products are always the sum of each variant row in the full editor.</p>
+                        <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div>
                                 <label for="bulk-price" class="mb-1 block text-xs font-semibold text-[#64748B]">Price</label>
                                 <input id="bulk-price" type="number" min="0" step="0.01" value="{{ $productFormData['bulk_price'] ?? '' }}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                             </div>
-                            <div class="flex items-end gap-2">
-                                <div class="flex-1">
-                                    <label for="bulk-stock" class="mb-1 block text-xs font-semibold text-[#64748B]">Stock</label>
-                                    <input id="bulk-stock" type="number" min="0" step="1" value="{{ $productFormData['bulk_stock'] ?? '' }}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                                </div>
-                                <button id="apply-bulk-values" type="button" class="rounded-lg bg-[#0052CC] px-3 py-2 text-sm font-semibold text-white">Apply</button>
+                            <div>
+                                <label for="bulk-stock" class="mb-1 block text-xs font-semibold text-[#64748B]">Stock on hand</label>
+                                <input id="bulk-stock" type="number" min="0" step="1" value="{{ $productFormData['bulk_stock'] ?? '' }}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                            </div>
+                            <div>
+                                <label for="product-stock-alert" class="mb-1 block text-xs font-semibold text-[#64748B]">Low-stock alert</label>
+                                <input id="product-stock-alert" name="stock_alert" type="number" min="0" step="1" value="{{ $productFormData['stock_alert'] ?? 5 }}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                             </div>
                         </div>
-
-                        <div id="variant-rows" class="space-y-4"></div>
-                        <p class="mt-3 text-xs text-[#64748B]">Each row is created from your variation options automatically.</p>
                     </div>
 
-                    <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
-                        <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-                            <h3 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants Matrix Preview</h3>
-                            <span id="preview-count" class="text-sm text-[#94A3B8]">{{ count($productPreviewRows) }} variant row(s)</span>
-                        </div>
-
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
-                                <thead class="border-b border-[#F1F5F9]">
-                                    <tr>
-                                        <th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Variant</th>
-                                        <th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">SKU</th>
-                                        <th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Price ($)</th>
-                                        <th class="px-2 py-3 text-left text-xs font-bold uppercase text-[#94A3B8]">Stock</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="preview-table-body" class="divide-y divide-[#F1F5F9]">
-                                    @foreach ($productPreviewRows as $row)
-                                        <tr>
-                                            <td class="px-2 py-4 font-medium text-[#0F172A]">{{ $row['label'] }}</td>
-                                            <td class="px-2 py-4 text-[#475569]">{{ $row['sku'] ?: 'Auto-generated' }}</td>
-                                            <td class="px-2 py-4 text-[#475569]">{{ $row['price'] }}</td>
-                                            <td class="px-2 py-4 text-[#475569]">{{ $row['stock'] }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="rounded-[24px] border border-[#E0E7FF] bg-[#F8FAFF] p-5 shadow-sm sm:p-7">
+                        <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Variants and advanced catalog work</h3>
+                        <p class="mt-2 text-sm text-[#64748B]">Option groups, sellable combinations, variant photos, per-row pricing, and inventory tools live in the <span class="font-medium text-[#334155]">full product editor</span> so your gallery exists before you assign images to variants.</p>
+                        <p class="mt-3 text-sm text-[#334155]">After you save this quick add, you will land in that editor automatically.</p>
                     </div>
 
                     <div class="sticky bottom-0 flex flex-col gap-3 rounded-[22px] border border-[#DDE7F3] bg-white/95 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-                        <p class="text-sm text-[#64748B]">Saving here creates the product only and keeps you on the products page.</p>
+                        <p class="text-sm text-[#64748B]">Save creates the product and opens the full editor for this item.</p>
                         <div class="flex items-center gap-3">
                             <button type="button" class="rounded-lg px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]" data-close-product-modal>Cancel</button>
                             <button type="submit" id="submit-product-modal" class="rounded-xl bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0047B3]" @disabled(!$productModalSelectedStore)>Save Product</button>
@@ -294,60 +180,16 @@
     </div>
 </div>
 
-<div id="variationModal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-[#0F172A]/60 p-4 backdrop-blur-[2px]">
-    <div class="w-full max-w-[512px] overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-2xl">
-        <div class="flex items-center justify-between border-b border-[#F1F5F9] px-6 py-4">
-            <div>
-                <h3 class="text-lg font-semibold text-[#0F172A]">Add Variation Type</h3>
-                <p class="mt-0.5 text-xs text-[#64748B]">Define how customers will differentiate your items</p>
-            </div>
-            <button type="button" id="closeVariationModal" class="text-[#94A3B8] hover:text-[#64748B]">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M1.4 14L0 12.6L5.6 7L0 1.4L1.4 0L7 5.6L12.6 0L14 1.4L8.4 7L14 12.6L12.6 14L7 8.4L1.4 14Z" fill="currentColor"/>
-                </svg>
-            </button>
-        </div>
-
-        <form id="variationForm" class="space-y-6 p-6">
-            <div>
-                <label class="mb-2 block text-sm font-semibold text-[#334155]">Variation Name</label>
-                <input id="variationName" type="text" placeholder="e.g., Size" class="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-            </div>
-
-            <div>
-                <label class="mb-2 block text-sm font-semibold text-[#334155]">Option Values</label>
-                <div class="rounded-lg border border-[#E2E8F0] px-3 py-3 focus-within:ring-2 focus-within:ring-[#0052CC]/20">
-                    <div id="variationOptionChips" class="mb-2 flex flex-wrap gap-2"></div>
-                    <input id="variationOptionInput" type="text" placeholder="Type a value and press Enter" class="w-full border-0 p-0 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-0">
-                </div>
-                <textarea id="variationOptions" rows="3" placeholder="S, M, L, XL" class="hidden"></textarea>
-            </div>
-        </form>
-
-        <div class="flex items-center justify-end gap-3 border-t border-[#F1F5F9] bg-[#F8FAFC] px-6 py-4">
-            <button type="button" id="cancelVariationModal" class="px-4 py-2 text-sm font-semibold text-[#475569] hover:text-[#1E293B]">Cancel</button>
-            <button type="button" id="submitVariationModal" class="flex items-center gap-2 rounded-lg bg-[#0052CC] px-5 py-2 text-sm font-bold text-white shadow-md shadow-[#0052CC]/20 transition hover:bg-[#0047B3]">
-                <span>Add Variation</span>
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M4 5.33333H0V4H4V0H5.33333V4H9.33333V5.33333H5.33333V9.33333H4V5.33333Z" fill="white"/>
-                </svg>
-            </button>
-        </div>
-    </div>
-</div>
-
 <script>
     (() => {
         const productModal = document.getElementById('productCreateModal');
         if (!productModal) return;
 
-        const variationModal = document.getElementById('variationModal');
         const productModalBackdrop = document.getElementById('productCreateModalBackdrop');
         const productForm = document.getElementById('product-create-form');
         const openButtons = document.querySelectorAll('[data-open-product-modal]');
         const closeButtons = productModal.querySelectorAll('button[data-close-product-modal]');
         const openQuery = productModal.dataset.openQuery || 'openAddProduct';
-        const submitButton = document.getElementById('submit-product-modal');
         const productTypeSelect = document.getElementById('product-type');
         const productTypeValueInput = document.getElementById('product-type-value');
         const customProductTypeWrapper = document.getElementById('custom-product-type-wrapper');
@@ -356,28 +198,10 @@
         const productImagePreview = document.getElementById('product-image-preview');
         let selectedProductImages = [];
 
-        let variationTypes = @json(array_values($productVariationTypes));
-        let rows = @json(array_values($productCustomVariants));
-        let defaultPrice = @json((string) ($productFormData['bulk_price'] ?? ''));
-        let defaultStock = @json((string) ($productFormData['bulk_stock'] ?? ''));
-        const defaultStockAlert = @json((int) ($productFormData['stock_alert'] ?? 5));
-
         const bulkPriceInput = document.getElementById('bulk-price');
         const bulkStockInput = document.getElementById('bulk-stock');
-        const applyBulkButton = document.getElementById('apply-bulk-values');
-        const rowsContainer = document.getElementById('variant-rows');
-        const previewCount = document.getElementById('preview-count');
-        const previewTableBody = document.getElementById('preview-table-body');
-        const variationTypesList = document.getElementById('variation-types-list');
-        const noVariationState = document.getElementById('no-variation-state');
-        const variationHiddenInputs = document.getElementById('variation-hidden-inputs');
         const bulkPriceHiddenInput = document.getElementById('bulk-price-hidden');
         const bulkStockHiddenInput = document.getElementById('bulk-stock-hidden');
-        const openVariationModal = document.getElementById('openVariationModal');
-        const variationOptionInput = document.getElementById('variationOptionInput');
-        const variationOptionChips = document.getElementById('variationOptionChips');
-        const variationOptionsTextarea = document.getElementById('variationOptions');
-        let variationOptionTags = [];
 
         const escapeHtml = (value) => String(value)
             .replaceAll('&', '&amp;')
@@ -385,43 +209,6 @@
             .replaceAll('>', '&gt;')
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
-        const getRowKey = (optionMap) => Object.entries(optionMap || {}).sort(([left], [right]) => Number(left) - Number(right)).map(([variationIndex, optionIndex]) => `${variationIndex}:${optionIndex}`).join('|');
-        const buildRowsFromVariationTypes = (existingRows = []) => {
-            if (!variationTypes.length || variationTypes.some((variationType) => !(variationType.options || []).length)) {
-                return [];
-            }
-
-            const existingRowsByKey = new Map(existingRows.map((row) => [getRowKey(row.option_map || {}), row]));
-            const combinations = [];
-
-            const walk = (variationIndex, optionMap) => {
-                if (variationIndex >= variationTypes.length) {
-                    combinations.push({ ...optionMap });
-                    return;
-                }
-
-                (variationTypes[variationIndex].options || []).forEach((_, optionIndex) => {
-                    walk(variationIndex + 1, {
-                        ...optionMap,
-                        [variationIndex]: optionIndex,
-                    });
-                });
-            };
-
-            walk(0, {});
-
-            return combinations.map((optionMap) => {
-                const existingRow = existingRowsByKey.get(getRowKey(optionMap));
-
-                return {
-                    option_map: optionMap,
-                    sku: existingRow?.sku || '',
-                    price: existingRow?.price ?? defaultPrice,
-                    stock: existingRow?.stock ?? defaultStock,
-                    stock_alert: existingRow?.stock_alert ?? defaultStockAlert,
-                };
-            });
-        };
 
         const syncSelectedFiles = (input, files) => {
             if (!input) return;
@@ -453,33 +240,6 @@
             });
         };
 
-        const syncVariationOptionTextarea = () => {
-            if (variationOptionsTextarea) {
-                variationOptionsTextarea.value = variationOptionTags.join(', ');
-            }
-        };
-
-        const renderVariationOptionTags = () => {
-            if (!variationOptionChips) return;
-            variationOptionChips.innerHTML = variationOptionTags.map((tag, index) => `<span class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-sm font-medium text-[#0F172A]">${escapeHtml(tag)}<button type="button" class="remove-variation-tag leading-none text-[#94A3B8] hover:text-[#B42318]" data-index="${index}">&times;</button></span>`).join('');
-            variationOptionChips.querySelectorAll('.remove-variation-tag').forEach((button) => {
-                button.addEventListener('click', () => {
-                    variationOptionTags = variationOptionTags.filter((_, index) => index !== Number(button.dataset.index));
-                    syncVariationOptionTextarea();
-                    renderVariationOptionTags();
-                });
-            });
-        };
-
-        const addVariationOptionTags = (rawValue) => {
-            const nextTags = String(rawValue || '').split(',').map((value) => value.trim()).filter(Boolean);
-            if (!nextTags.length) return;
-            variationOptionTags = [...variationOptionTags, ...nextTags];
-            syncVariationOptionTextarea();
-            renderVariationOptionTags();
-            if (variationOptionInput) variationOptionInput.value = '';
-        };
-
         const syncProductTypeState = () => {
             const isCustomType = productTypeSelect?.value === 'custom';
             customProductTypeWrapper?.classList.toggle('hidden', !isCustomType);
@@ -500,128 +260,12 @@
 
         const closeProductModal = () => {
             productModal.classList.add('hidden');
-            variationModal?.classList.add('hidden');
-            variationModal?.classList.remove('flex');
             document.body.classList.remove('overflow-hidden');
             const url = new URL(window.location.href);
             if (url.searchParams.has(openQuery)) {
                 url.searchParams.delete(openQuery);
                 window.history.replaceState({}, '', url);
             }
-        };
-
-        const openVariationDialog = () => {
-            variationModal?.classList.remove('hidden');
-            variationModal?.classList.add('flex');
-            document.getElementById('variationName')?.focus();
-        };
-
-        const closeVariationDialog = () => {
-            variationModal?.classList.add('hidden');
-            variationModal?.classList.remove('flex');
-            const name = document.getElementById('variationName');
-            if (name) name.value = '';
-            variationOptionTags = [];
-            syncVariationOptionTextarea();
-            renderVariationOptionTags();
-        };
-
-        const normalizeRow = (row) => ({
-            option_map: row?.option_map || {},
-            sku: row?.sku || '',
-            price: row?.price ?? defaultPrice,
-            stock: row?.stock ?? defaultStock,
-            stock_alert: row?.stock_alert ?? defaultStockAlert,
-        });
-
-        rows = rows.map(normalizeRow);
-
-        const renderVariationHiddenInputs = () => {
-            if (!variationHiddenInputs) return;
-            variationHiddenInputs.innerHTML = variationTypes.map((variationType, variationIndex) => {
-                const optionInputs = (variationType.options || []).map((option, optionIndex) => `<input type="hidden" name="variation_types[${variationIndex}][options][${optionIndex}]" value="${escapeHtml(option)}">`).join('');
-                return `<input type="hidden" name="variation_types[${variationIndex}][name]" value="${escapeHtml(variationType.name || '')}"><input type="hidden" name="variation_types[${variationIndex}][type]" value="${escapeHtml(variationType.type || 'select')}">${optionInputs}`;
-            }).join('');
-        };
-
-        const attachVariationOptionRemoveListeners = () => {
-            document.querySelectorAll('.remove-variation-option').forEach((button) => {
-                button.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    const variationIndex = Number(button.dataset.variationIndex);
-                    const optionIndex = Number(button.dataset.optionIndex);
-                    if (!variationTypes[variationIndex]) return;
-                    variationTypes[variationIndex].options.splice(optionIndex, 1);
-                    if (!(variationTypes[variationIndex].options || []).length) variationTypes.splice(variationIndex, 1);
-                    rows = buildRowsFromVariationTypes(rows);
-                    renderVariationHiddenInputs();
-                    renderVariationTypeCards();
-                    renderVariantRows();
-                });
-            });
-        };
-
-        const renderVariationTypeCards = () => {
-            if (!variationTypes.length) {
-                variationTypesList?.classList.add('hidden');
-                noVariationState?.classList.remove('hidden');
-                return;
-            }
-
-            noVariationState?.classList.add('hidden');
-            variationTypesList?.classList.remove('hidden');
-
-            variationTypesList.innerHTML = variationTypes.map((variationType, variationIndex) => {
-                const chips = (variationType.options || []).map((option, optionIndex) => `<span class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium">${escapeHtml(option)}<button type="button" class="remove-variation-option leading-none text-[#94A3B8] hover:text-[#B42318]" data-variation-index="${variationIndex}" data-option-index="${optionIndex}" aria-label="Remove option">&times;</button></span>`).join('');
-                return `<div class="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5"><div class="mb-3 flex items-center justify-between"><span class="text-base font-medium text-[#0F172A]">Variation ${variationIndex + 1}: ${escapeHtml(variationType.name || 'Variation')}</span><span class="text-xs uppercase text-[#94A3B8]">${escapeHtml(variationType.type || 'select')}</span></div><div class="flex flex-wrap gap-2">${chips}</div></div>`;
-            }).join('');
-            attachVariationOptionRemoveListeners();
-        };
-
-        const updatePreview = () => {
-            if (!previewCount || !previewTableBody) return;
-            const previewRows = rows.map((row) => {
-                const labelParts = variationTypes.map((variation, variationIndex) => {
-                    const selectedIndex = row.option_map?.[variationIndex];
-                    return selectedIndex !== undefined && selectedIndex !== null && selectedIndex !== '' ? (variation.options?.[selectedIndex] || '') : '';
-                }).filter(Boolean);
-                return {
-                    label: labelParts.length ? labelParts.join(' / ') : 'Default Variant',
-                    sku: row.sku || 'Auto-generated',
-                    price: row.price || defaultPrice,
-                    stock: row.stock || defaultStock,
-                };
-            });
-
-            const sourceRows = previewRows.length ? previewRows : [{ label: 'No variants added yet', sku: '-', price: '-', stock: '-' }];
-            previewTableBody.innerHTML = sourceRows.map((row) => `<tr><td class="px-2 py-4 font-medium text-[#0F172A]">${escapeHtml(row.label)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(row.sku)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(row.price)}</td><td class="px-2 py-4 text-[#475569]">${escapeHtml(row.stock)}</td></tr>`).join('');
-            previewCount.textContent = `${previewRows.length} variant row(s)`;
-        };
-
-        const renderVariantRows = () => {
-            if (!rowsContainer) return;
-            if (!rows.length) {
-                rowsContainer.innerHTML = '';
-                updatePreview();
-                return;
-            }
-
-            rowsContainer.innerHTML = rows.map((row, rowIndex) => {
-                const selectedOptions = Object.entries(row.option_map || {}).map(([variationIndex, optionIndex]) => {
-                    const variationType = variationTypes[Number(variationIndex)];
-                    const optionValue = variationType?.options?.[Number(optionIndex)] || '';
-                    return `<span class="inline-flex items-center rounded-lg border border-[#DDE7F3] bg-white px-3 py-1.5 text-sm font-medium text-[#0F172A]">${escapeHtml(variationType?.name || 'Variation')}: ${escapeHtml(optionValue)}</span><input type="hidden" name="variants[${rowIndex}][option_map][${variationIndex}]" value="${escapeHtml(optionIndex)}">`;
-                }).join('');
-                return `<div class="space-y-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5"><div class="flex flex-wrap gap-2">${selectedOptions}</div><div class="grid grid-cols-1 gap-3 md:grid-cols-3"><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">SKU (optional)</label><input type="text" name="variants[${rowIndex}][sku]" value="${escapeHtml(row.sku || '')}" data-row-index="${rowIndex}" data-row-field="sku" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"></div><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">Price ($)</label><input type="number" min="0" step="0.01" name="variants[${rowIndex}][price]" value="${escapeHtml(row.price || '')}" data-row-index="${rowIndex}" data-row-field="price" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"></div><div><label class="mb-1 block text-xs font-semibold text-[#64748B]">Stock</label><input type="number" min="0" step="1" name="variants[${rowIndex}][stock]" value="${escapeHtml(row.stock || '')}" data-row-index="${rowIndex}" data-row-field="stock" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20"></div></div><input type="hidden" name="variants[${rowIndex}][stock_alert]" value="${escapeHtml(row.stock_alert ?? defaultStockAlert)}"></div>`;
-            }).join('');
-            document.querySelectorAll('input[data-row-field]').forEach((input) => {
-                input.addEventListener('input', () => {
-                    const rowIndex = Number(input.dataset.rowIndex);
-                    rows[rowIndex][input.dataset.rowField] = input.value;
-                    updatePreview();
-                });
-            });
-            updatePreview();
         };
 
         openButtons.forEach((button) => button.addEventListener('click', (event) => {
@@ -650,70 +294,13 @@
             }
             renderSelectedImages(productImageInput, productImagePreview);
         });
-        variationOptionInput?.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ',') {
-                event.preventDefault();
-                addVariationOptionTags(variationOptionInput.value);
-            }
-        });
-        variationOptionInput?.addEventListener('blur', () => {
-            if (variationOptionInput.value.trim()) {
-                addVariationOptionTags(variationOptionInput.value);
-            }
-        });
-        openVariationModal?.addEventListener('click', (event) => {
-            event.preventDefault();
-            openVariationDialog();
-        });
-
-        document.getElementById('closeVariationModal')?.addEventListener('click', closeVariationDialog);
-        document.getElementById('cancelVariationModal')?.addEventListener('click', closeVariationDialog);
-        document.getElementById('submitVariationModal')?.addEventListener('click', () => {
-            const variationName = document.getElementById('variationName')?.value.trim();
-            const variationType = 'select';
-            addVariationOptionTags(variationOptionInput?.value || '');
-            const optionsStr = document.getElementById('variationOptions')?.value.trim();
-            if (!variationName || !optionsStr) {
-                alert('Please add a variation name and at least one option.');
-                return;
-            }
-            const options = optionsStr.split(',').map((option) => option.trim()).filter(Boolean);
-            if (!options.length) {
-                alert('Please enter valid options separated by commas.');
-                return;
-            }
-            variationTypes.push({ name: variationName, type: variationType, options });
-            rows = buildRowsFromVariationTypes(rows);
-            renderVariationHiddenInputs();
-            renderVariationTypeCards();
-            renderVariantRows();
-            closeVariationDialog();
-        });
-
-        variationModal?.addEventListener('click', (event) => {
-            if (event.target === variationModal) closeVariationDialog();
-        });
-
-        if (applyBulkButton) {
-            applyBulkButton.addEventListener('click', (event) => {
-                event.preventDefault();
-                const price = bulkPriceInput?.value || defaultPrice;
-                const stock = bulkStockInput?.value || defaultStock;
-                rows = rows.map((row) => ({ ...row, price, stock }));
-                renderVariantRows();
-            });
-        }
 
         bulkPriceInput?.addEventListener('input', () => {
-            defaultPrice = bulkPriceInput.value;
-            if (bulkPriceHiddenInput) bulkPriceHiddenInput.value = defaultPrice;
-            updatePreview();
+            if (bulkPriceHiddenInput) bulkPriceHiddenInput.value = bulkPriceInput.value || '';
         });
 
         bulkStockInput?.addEventListener('input', () => {
-            defaultStock = bulkStockInput.value;
-            if (bulkStockHiddenInput) bulkStockHiddenInput.value = defaultStock;
-            updatePreview();
+            if (bulkStockHiddenInput) bulkStockHiddenInput.value = bulkStockInput.value || '';
         });
 
         productForm?.addEventListener('submit', (event) => {
@@ -729,29 +316,20 @@
                 return;
             }
             syncProductTypeState();
-            if (bulkPriceInput && bulkPriceHiddenInput) bulkPriceHiddenInput.value = bulkPriceInput.value || defaultPrice;
-            if (bulkStockInput && bulkStockHiddenInput) bulkStockHiddenInput.value = bulkStockInput.value || defaultStock;
+            if (bulkPriceInput && bulkPriceHiddenInput) bulkPriceHiddenInput.value = bulkPriceInput.value || '';
+            if (bulkStockInput && bulkStockHiddenInput) bulkStockHiddenInput.value = bulkStockInput.value || '';
         });
 
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape' || productModal.classList.contains('hidden')) return;
-            if (variationModal && !variationModal.classList.contains('hidden')) {
-                closeVariationDialog();
-                return;
-            }
             closeProductModal();
         });
 
         syncProductTypeState();
-        if (!rows.length && variationTypes.length) {
-            rows = buildRowsFromVariationTypes(rows);
-        }
-        renderVariationHiddenInputs();
-        renderVariationTypeCards();
-        renderVariantRows();
+        if (bulkPriceInput && bulkPriceHiddenInput) bulkPriceHiddenInput.value = bulkPriceInput.value || '';
+        if (bulkStockInput && bulkStockHiddenInput) bulkStockHiddenInput.value = bulkStockInput.value || '';
         selectedProductImages = Array.from(productImageInput?.files || []);
         renderSelectedImages(productImageInput, productImagePreview);
-        renderVariationOptionTags();
 
         const currentUrl = new URL(window.location.href);
         if (currentUrl.searchParams.get(openQuery) === '1' || {{ $productModalIsOpen ? 'true' : 'false' }}) {

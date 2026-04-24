@@ -1,0 +1,48 @@
+---
+description: Product identity, merchant-first direction, and success criteria
+alwaysApply: true
+---
+
+# Product Vision and Success Criteria
+
+This project is an enterprise ecommerce SaaS platform.
+
+It must be:
+- merchant-friendly
+- production-grade
+- easier than Shopify and WooCommerce
+- powerful like Amazon Seller tooling
+- scalable for large catalogs and teams
+
+## Merchant-first rule
+
+Every implementation must answer:
+- Does this make the merchant's job easier?
+- Does this reduce friction?
+- Does this improve clarity?
+- Does this preserve trust in the system?
+
+If not, do not choose that implementation.
+
+## Success criteria for features
+
+A feature is not complete just because:
+- the route exists
+- the Blade exists
+- the data saves
+- tests pass
+
+A feature is complete only when:
+- the workflow is understandable
+- the merchant can use it confidently
+- the data is visible and actionable
+- the behavior matches product intent
+- the implementation is safe for future roadmap steps
+
+## Anti-patterns
+
+Do not accept:
+- awkward bridge flows
+- placeholder-level UX for core features
+- storing important data but not exposing it
+- technically correct but merchant-confusing behavior

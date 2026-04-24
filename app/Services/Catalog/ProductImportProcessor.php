@@ -23,6 +23,7 @@ final class ProductImportProcessor
     public function __construct(
         private readonly ProductImportSpreadsheetReader $reader,
         private readonly ProductCatalogImageDownloader $imageDownloader,
+        private readonly ProductImportVariantFinalizer $variantFinalizer,
     ) {}
 
     private function maxRows(): int
@@ -62,6 +63,8 @@ final class ProductImportProcessor
         $mapping = $import->column_mapping ?? [];
         $headers = $import->headers ?? [];
         $customMappings = self::normalizeCustomMappings($import->custom_field_mappings ?? []);
+        $variantMode = ProductImportField::usesStructuredVariantRows($mapping)
+            && ! ProductImportField::hasPartialOptionSlotMapping($mapping);
 
         if ($store === null || $headers === [] || $mapping === []) {
             $this->failImport($import, 'Invalid import configuration.');
@@ -96,6 +99,13 @@ final class ProductImportProcessor
         foreach (($importState['seen_sku_keys'] ?? []) as $k) {
             if (is_string($k) && $k !== '') {
                 $seenSkuInFile[$k] = true;
+            }
+        }
+        /** @var array<string, true> $seenVariantSkuLowerInFile */
+        $seenVariantSkuLowerInFile = [];
+        foreach (($importState['seen_variant_sku_lower_in_file'] ?? []) as $k) {
+            if (is_string($k) && $k !== '') {
+                $seenVariantSkuLowerInFile[$k] = true;
             }
         }
         /** @var array<string, true> $assignedVariantSkusLower */
@@ -180,8 +190,10 @@ final class ProductImportProcessor
                 $mapping,
                 $customMappings,
                 $taxonomyCache,
+                $variantMode,
                 &$assignedVariantSkusLower,
                 &$seenSkuInFile,
+                &$seenVariantSkuLowerInFile,
                 &$created,
                 &$updated,
                 &$skipped,
@@ -229,7 +241,7 @@ final class ProductImportProcessor
                     $rowsToInsert[] = [
                         'product_import_id' => $import->id,
                         'row_number' => $rn,
-                        'status' => ProductImportRow::STATUS_PENDING,
+                        'status' => $variantMode ? ProductImportRow::STATUS_DEFERRED : ProductImportRow::STATUS_PENDING,
                         'error_message' => null,
                         'payload' => $encoded,
                         'created_at' => $now,
@@ -266,7 +278,8 @@ final class ProductImportProcessor
                                 $warningsCount,
                                 $failures,
                                 $seenSkuInFile,
-                                $assignedVariantSkusLower
+                                $assignedVariantSkusLower,
+                                $seenVariantSkuLowerInFile
                             );
                         }
 
@@ -282,6 +295,8 @@ final class ProductImportProcessor
                         $taxonomyCache,
                         $assignedVariantSkusLower,
                         $seenSkuInFile,
+                        $seenVariantSkuLowerInFile,
+                        $variantMode,
                         $rn,
                         $cells,
                         $created,
@@ -307,7 +322,8 @@ final class ProductImportProcessor
                             $warningsCount,
                             $failures,
                             $seenSkuInFile,
-                            $assignedVariantSkusLower
+                            $assignedVariantSkusLower,
+                            $seenVariantSkuLowerInFile
                         );
                     }
                 }
@@ -326,13 +342,44 @@ final class ProductImportProcessor
                     $warningsCount,
                     $failures,
                     $seenSkuInFile,
-                    $assignedVariantSkusLower
+                    $assignedVariantSkusLower,
+                    $seenVariantSkuLowerInFile
                 );
 
                 unset($chunkMatrix);
 
                 return ! $stoppedCap;
             });
+
+            $import->refresh();
+            $stateAfterStream = is_array($import->import_state) ? $import->import_state : [];
+            if ($variantMode && empty($stateAfterStream['variant_finalize_complete']) && $rowIndex > 0) {
+                $finalizeTaxonomy = new ProductImportTaxonomyCache($store, $import->created_by);
+                $this->variantFinalizer->finalize(
+                    $import,
+                    $store,
+                    $headers,
+                    $mapping,
+                    $customMappings,
+                    $finalizeTaxonomy,
+                    $assignedVariantSkusLower,
+                    $created,
+                    $updated,
+                    $failed,
+                    $failures,
+                    $warningsCount
+                );
+                $import->refresh();
+                $st = is_array($import->import_state) ? $import->import_state : [];
+                $import->update([
+                    'import_state' => array_merge($st, [
+                        'variant_finalize_complete' => true,
+                        'seen_sku_keys' => array_keys($seenSkuInFile),
+                        'assigned_variant_sku_lower' => array_keys($assignedVariantSkusLower),
+                        'seen_variant_sku_lower_in_file' => array_keys($seenVariantSkuLowerInFile),
+                    ]),
+                ]);
+            }
 
             $processedCap = min($rowIndex, $maxRows);
             $import->refresh();
@@ -371,10 +418,11 @@ final class ProductImportProcessor
                 'status' => ProductImport::STATUS_COMPLETED,
                 'completed_at' => now(),
                 'last_processed_row' => $processedCap,
-                'import_state' => [
+                'import_state' => array_merge(is_array($import->import_state) ? $import->import_state : [], [
                     'seen_sku_keys' => array_keys($seenSkuInFile),
                     'assigned_variant_sku_lower' => array_keys($assignedVariantSkusLower),
-                ],
+                    'seen_variant_sku_lower_in_file' => array_keys($seenVariantSkuLowerInFile),
+                ]),
                 'result_summary' => $completedSummary,
             ]);
         } catch (\Throwable $e) {
@@ -409,6 +457,7 @@ final class ProductImportProcessor
     /**
      * @param  array<string, true>  $seenSkuInFile
      * @param  array<string, true>  $assignedVariantSkusLower
+     * @param  array<string, true>  $seenVariantSkuLowerInFile
      * @param  list<array{row:int, message:string}>  $failures
      */
     private function persistImportCheckpoint(
@@ -426,14 +475,16 @@ final class ProductImportProcessor
         array $failures,
         array $seenSkuInFile,
         array $assignedVariantSkusLower,
+        array $seenVariantSkuLowerInFile,
     ): void {
         $import->refresh();
         $import->update([
             'last_processed_row' => $lastRowNumber,
-            'import_state' => [
+            'import_state' => array_merge(is_array($import->import_state) ? $import->import_state : [], [
                 'seen_sku_keys' => array_keys($seenSkuInFile),
                 'assigned_variant_sku_lower' => array_keys($assignedVariantSkusLower),
-            ],
+                'seen_variant_sku_lower_in_file' => array_keys($seenVariantSkuLowerInFile),
+            ]),
             'result_summary' => array_merge(is_array($import->result_summary) ? $import->result_summary : [], [
                 'warnings_count' => $warningsCount,
                 'failures' => ProductImportMerchantMessages::truncateFailureList($failures),
@@ -514,6 +565,7 @@ final class ProductImportProcessor
     /**
      * @param  array<string, true>  $assignedVariantSkusLower
      * @param  array<string, true>  $seenSkuInFile
+     * @param  array<string, true>  $seenVariantSkuLowerInFile
      * @param  list<array{row:int, message:string}>  $failures
      */
     private function processImportDataRow(
@@ -525,6 +577,8 @@ final class ProductImportProcessor
         ProductImportTaxonomyCache $taxonomyCache,
         array &$assignedVariantSkusLower,
         array &$seenSkuInFile,
+        array &$seenVariantSkuLowerInFile,
+        bool $variantMode,
         int $dataRowNumber,
         array $cells,
         int &$created,
@@ -548,6 +602,29 @@ final class ProductImportProcessor
         }
 
         $fields = $this->extractMappedFields($row, $mapping);
+
+        if ($variantMode) {
+            $vSku = trim((string) ($fields[ProductImportField::VARIANT_SKU] ?? ''));
+            if ($vSku !== '') {
+                $vk = mb_strtolower($vSku);
+                if (isset($seenVariantSkuLowerInFile[$vk])) {
+                    $failed++;
+                    $dupMsg = ProductImportMerchantMessages::humanizeRowError('Duplicate variant SKU in import file.');
+                    if (count($failures) < 200) {
+                        $failures[] = ['row' => $excelRow, 'message' => $dupMsg];
+                    }
+                    $this->markImportRow($import, $dataRowNumber, ProductImportRow::STATUS_FAILED, $dupMsg);
+
+                    return;
+                }
+                $seenVariantSkuLowerInFile[$vk] = true;
+            }
+
+            $this->markImportRow($import, $dataRowNumber, ProductImportRow::STATUS_DEFERRED, null);
+
+            return;
+        }
+
         $sku = trim((string) ($fields[ProductImportField::SKU] ?? ''));
         $skuKey = mb_strtolower($sku);
         if (isset($seenSkuInFile[$skuKey])) {
@@ -703,6 +780,15 @@ final class ProductImportProcessor
                 $assignedVariantSkusLower[$k] = true;
             }
         }
+        /** @var array<string, true> $seenVariantSkuLowerInFile */
+        $seenVariantSkuLowerInFile = [];
+        foreach (($importState['seen_variant_sku_lower_in_file'] ?? []) as $k) {
+            if (is_string($k) && $k !== '') {
+                $seenVariantSkuLowerInFile[$k] = true;
+            }
+        }
+        $variantMode = ProductImportField::usesStructuredVariantRows($mapping)
+            && ! ProductImportField::hasPartialOptionSlotMapping($mapping);
 
         $taxonomyCache = new ProductImportTaxonomyCache($store, $import->created_by);
         $rs = $import->result_summary ?? [];
@@ -733,6 +819,8 @@ final class ProductImportProcessor
                 $taxonomyCache,
                 $assignedVariantSkusLower,
                 $seenSkuInFile,
+                $seenVariantSkuLowerInFile,
+                $variantMode,
                 $rn,
                 $cells,
                 $created,
@@ -741,6 +829,31 @@ final class ProductImportProcessor
                 $scratchFailures,
                 $warningsCount
             );
+        }
+
+        if ($variantMode) {
+            $this->variantFinalizer->finalize(
+                $import,
+                $store,
+                $headers,
+                $mapping,
+                $customMappings,
+                $taxonomyCache,
+                $assignedVariantSkusLower,
+                $created,
+                $updated,
+                $scratchFailed,
+                $scratchFailures,
+                $warningsCount
+            );
+            $import->update([
+                'import_state' => array_merge(is_array($import->import_state) ? $import->import_state : [], [
+                    'variant_finalize_complete' => true,
+                    'seen_sku_keys' => array_keys($seenSkuInFile),
+                    'assigned_variant_sku_lower' => array_keys($assignedVariantSkusLower),
+                    'seen_variant_sku_lower_in_file' => array_keys($seenVariantSkuLowerInFile),
+                ]),
+            ]);
         }
 
         $failedRemaining = (int) ProductImportRow::query()
@@ -1127,7 +1240,10 @@ final class ProductImportProcessor
         $n = 0;
         while (true) {
             $lk = mb_strtolower($sku);
-            if (isset($assignedLower[$lk]) || ProductVariant::query()->where('sku', $sku)->exists()) {
+            if (isset($assignedLower[$lk]) || ProductVariant::query()
+                ->where('sku', $sku)
+                ->whereHas('product', static fn ($q) => $q->where('store_id', $storeId))
+                ->exists()) {
                 $n++;
                 $sku = Str::limit($base, 90, '').'-'.$storeId.'-'.$n;
 
