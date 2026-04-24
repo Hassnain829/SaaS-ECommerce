@@ -1075,7 +1075,13 @@ class OnboardingController extends Controller
                 }
             }
 
+            $variantRowId = null;
+            if (isset($row['id']) && $row['id'] !== '' && $row['id'] !== null && ctype_digit((string) $row['id'])) {
+                $variantRowId = (int) $row['id'];
+            }
+
             $normalized[] = [
+                'id' => $variantRowId,
                 'option_map' => $optionMap,
                 'sku' => isset($row['sku']) && trim((string) $row['sku']) !== '' ? trim((string) $row['sku']) : null,
                 'price' => $priceVal,
@@ -1243,6 +1249,14 @@ class OnboardingController extends Controller
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
             'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
+            'variants.*.id' => [
+                'nullable',
+                'integer',
+                Rule::exists('product_variants', 'id')->where(fn ($q) => $q->where('product_id', $product->id)),
+            ],
+            'inventory_stock_allocation_mode' => ['nullable', 'string', Rule::in(['manual', 'apply_same_each', 'split_total'])],
+            'inventory_apply_same_stock' => ['nullable', 'integer', 'min:0'],
+            'inventory_split_total' => ['nullable', 'integer', 'min:0'],
             'brand_id' => CatalogRules::brandIdForStore($currentStore),
             ...CatalogRules::tagIdsForStore($currentStore),
             ...CatalogRules::categoryIdsForStore($currentStore),
@@ -1278,6 +1292,26 @@ class OnboardingController extends Controller
 
         $validated['variants'] = $normalizedVariants['variants'];
         $validated['brand_id'] = $validated['brand_id'] ?? null;
+
+        $this->applyInventoryStockAllocationModeToVariants($request, $validated);
+
+        $skuPlanSkus = [];
+        if (($validated['variants'] ?? []) !== []) {
+            $skuPlan = $this->planVariantSkusForCatalogSave(
+                $product,
+                $currentStore,
+                $validated['name'],
+                $validated['variation_types'] ?? [],
+                $validated['variants']
+            );
+            if ($skuPlan['errors'] !== []) {
+                return back()
+                    ->withErrors($skuPlan['errors'])
+                    ->withInput($request->except(['product_images']));
+            }
+            $skuPlanSkus = $skuPlan['skus'];
+        }
+        // $skuPlanSkus keyed by variant row index; empty when no variant rows (simple product path).
 
         $variationOptionErrorsUpdate = $this->validateVariationOptionUniqueness($validated['variation_types'] ?? []);
         if ($variationOptionErrorsUpdate !== []) {
@@ -1354,7 +1388,7 @@ class OnboardingController extends Controller
             }
         }
 
-        DB::transaction(function () use ($product, $currentStore, $request, $validated, $meta, $tagIds, $categoryIds, $retainedPaths, $oldFingerprintStocks, $oldFingerprintVariantCustomFields): void {
+        DB::transaction(function () use ($product, $currentStore, $request, $validated, $meta, $tagIds, $categoryIds, $retainedPaths, $oldFingerprintStocks, $oldFingerprintVariantCustomFields, $skuPlanSkus): void {
             foreach ($product->images()->get() as $imageRow) {
                 if (! $retainedPaths->contains($imageRow->image_path)) {
                     $imageRow->delete();
@@ -1433,7 +1467,7 @@ class OnboardingController extends Controller
             $variantImageAssignmentsUpdate = [];
 
             if (!empty($customVariants)) {
-                foreach ($customVariants as $variantData) {
+                foreach ($customVariants as $rowIndex => $variantData) {
                     $selectedOptions = [];
 
                     foreach (($variantData['option_map'] ?? []) as $variationIndex => $optionIndex) {
@@ -1447,9 +1481,11 @@ class OnboardingController extends Controller
                         $selectedOptions
                     ));
 
+                    $resolvedSku = $skuPlanSkus[$rowIndex] ?? ($variantData['sku'] ?: $this->buildSku($currentStore->name, $product->name, $suffix));
+
                     $variant = ProductVariant::create([
                         'product_id' => $product->id,
-                        'sku' => $variantData['sku'] ?: $this->buildSku($currentStore->name, $product->name, $suffix),
+                        'sku' => $resolvedSku,
                         'price' => $variantData['price'],
                         'compare_at_price' => $variantData['compare_at_price'] ?? null,
                         'stock' => $variantData['stock'],
@@ -1899,6 +1935,143 @@ class OnboardingController extends Controller
         }
 
         return $out;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $validated
+     */
+    private function applyInventoryStockAllocationModeToVariants(Request $request, array &$validated): void
+    {
+        $variants = &$validated['variants'];
+        if (! is_array($variants) || $variants === []) {
+            return;
+        }
+
+        $mode = (string) $request->input('inventory_stock_allocation_mode', 'manual');
+        if (! in_array($mode, ['manual', 'apply_same_each', 'split_total'], true)) {
+            return;
+        }
+
+        $n = count($variants);
+        if ($mode === 'apply_same_each') {
+            $qty = max(0, (int) $request->input('inventory_apply_same_stock', 0));
+            foreach ($variants as &$row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $row['stock'] = $qty;
+            }
+            unset($row);
+
+            return;
+        }
+
+        if ($mode === 'split_total') {
+            $total = max(0, (int) $request->input('inventory_split_total', 0));
+            $allocated = $this->allocateIntegerAcrossSlots($total, max(1, $n), 'split_total');
+            foreach ($variants as $i => &$row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $row['stock'] = (int) ($allocated[$i] ?? 0);
+            }
+            unset($row);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $variationTypes
+     * @param  array<int, array<string, mixed>>  $variantRows
+     * @return array{skus: array<int, string>, errors: array<string, string>}
+     */
+    private function planVariantSkusForCatalogSave(
+        Product $product,
+        Store $store,
+        string $productName,
+        array $variationTypes,
+        array $variantRows,
+    ): array {
+        $errors = [];
+        $claimedManualLower = [];
+        $claimedAuto = [];
+        $skus = [];
+
+        foreach ($variantRows as $idx => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $suffix = $this->variantSuffixFromVariationSubmission($row, $variationTypes);
+            $manualRaw = isset($row['sku']) && is_string($row['sku']) ? trim($row['sku']) : '';
+
+            if ($manualRaw !== '') {
+                $lower = mb_strtolower($manualRaw);
+                if (in_array($lower, $claimedManualLower, true)) {
+                    $errors['variants.'.$idx.'.sku'] = 'Each variant row needs a unique SKU. Two rows are using the same SKU.';
+                }
+                $claimedManualLower[] = $lower;
+
+                $existsOther = ProductVariant::query()
+                    ->whereRaw('LOWER(sku) = ?', [$lower])
+                    ->where('product_id', '!=', $product->id)
+                    ->exists();
+                if ($existsOther) {
+                    $errors['variants.'.$idx.'.sku'] = 'That SKU is already used on another product. Choose a different SKU.';
+                }
+
+                $skus[$idx] = $manualRaw;
+            } else {
+                $base = $this->buildSku($store->name, $productName, $suffix !== '' ? $suffix : null);
+                $skus[$idx] = $this->allocateUniqueAutoVariantSku($base, $product->id, $claimedAuto);
+            }
+        }
+
+        return ['skus' => $skus, 'errors' => $errors];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $variationTypes
+     */
+    private function variantSuffixFromVariationSubmission(array $variantRow, array $variationTypes): string
+    {
+        $map = is_array($variantRow['option_map'] ?? null) ? $variantRow['option_map'] : [];
+        ksort($map);
+        $parts = [];
+        foreach ($map as $vi => $oi) {
+            $vi = (int) $vi;
+            $oi = (int) $oi;
+            $options = $variationTypes[$vi]['options'] ?? [];
+            $parts[] = (string) ($options[$oi] ?? 'opt');
+        }
+
+        return implode('-', $parts);
+    }
+
+    /**
+     * @param  list<string>  $claimedAuto
+     */
+    private function allocateUniqueAutoVariantSku(string $base, int $productId, array &$claimedAuto): string
+    {
+        $n = 0;
+        while ($n < 10000) {
+            $attempt = $n === 0 ? $base : Str::limit($base.'-'.$n, 120, '');
+            $global = ProductVariant::query()
+                ->whereRaw('LOWER(sku) = ?', [mb_strtolower($attempt)])
+                ->where('product_id', '!=', $productId)
+                ->exists();
+            $batch = in_array($attempt, $claimedAuto, true);
+            if (! $global && ! $batch) {
+                $claimedAuto[] = $attempt;
+
+                return $attempt;
+            }
+            $n++;
+        }
+
+        $fallback = Str::limit($base.'-'.Str::upper(Str::random(8)), 120, '');
+        $claimedAuto[] = $fallback;
+
+        return $fallback;
     }
 
     private function replaceProductGallery(Product $product, array $paths, ?int $userId, bool $preserveWhenEmpty): void

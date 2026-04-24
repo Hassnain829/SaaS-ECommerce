@@ -145,6 +145,7 @@
                     <div class="rounded-[24px] border border-[#DDE7F3] bg-white p-5 shadow-sm sm:p-7">
                         <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Price and inventory</h3>
                         <p class="mt-1 text-xs text-[#64748B]">These apply to your single default inventory row. Totals for multi-variant products are always the sum of each variant row in the full editor.</p>
+                        <p class="mt-2 text-xs text-[#64748B]">Option groups, extra gallery assignments per variant, and advanced catalog fields are only in the full editor after you save.</p>
                         <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div>
                                 <label for="bulk-price" class="mb-1 block text-xs font-semibold text-[#64748B]">Price</label>
@@ -159,12 +160,6 @@
                                 <input id="product-stock-alert" name="stock_alert" type="number" min="0" step="1" value="{{ $productFormData['stock_alert'] ?? 5 }}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                             </div>
                         </div>
-                    </div>
-
-                    <div class="rounded-[24px] border border-[#E0E7FF] bg-[#F8FAFF] p-5 shadow-sm sm:p-7">
-                        <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Variants and advanced catalog work</h3>
-                        <p class="mt-2 text-sm text-[#64748B]">Option groups, sellable combinations, variant photos, per-row pricing, and inventory tools live in the <span class="font-medium text-[#334155]">full product editor</span> so your gallery exists before you assign images to variants.</p>
-                        <p class="mt-3 text-sm text-[#334155]">After you save this quick add, you will land in that editor automatically.</p>
                     </div>
 
                     <div class="sticky bottom-0 flex flex-col gap-3 rounded-[22px] border border-[#DDE7F3] bg-white/95 px-5 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">

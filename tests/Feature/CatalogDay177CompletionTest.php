@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use App\Support\ProductEditPayload;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Role;
@@ -242,6 +243,160 @@ class CatalogDay177CompletionTest extends TestCase
         $this->assertSame([12, 12], $stocks);
     }
 
+    public function test_duplicate_variant_skus_on_update_return_validation_errors_not_500(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+        $product = $this->twoOptionVariantProduct($store);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('products'))
+            ->put(route('product.update', ['productId' => $product->id]), $this->baseCatalogUpdatePayload($product) + [
+                'inventory_stock_allocation_mode' => 'manual',
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['L', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'option_map' => ['0' => 0],
+                        'sku' => 'DUPLICATE-SKU',
+                        'price' => 10,
+                        'stock' => 1,
+                        'stock_alert' => 0,
+                    ],
+                    [
+                        'option_map' => ['0' => 1],
+                        'sku' => 'DUPLICATE-SKU',
+                        'price' => 10,
+                        'stock' => 1,
+                        'stock_alert' => 0,
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors(['variants.1.sku']);
+    }
+
+    public function test_split_total_inventory_mode_persists_three_variants(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+        $product = $this->threeOptionVariantProduct($store);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $this->baseCatalogUpdatePayload($product) + [
+                'inventory_stock_allocation_mode' => 'split_total',
+                'inventory_split_total' => 100,
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['S', 'M', 'L']],
+                ],
+                'variants' => [
+                    ['option_map' => ['0' => 0], 'sku' => 'T-S', 'price' => 10, 'stock' => 0, 'stock_alert' => 0],
+                    ['option_map' => ['0' => 1], 'sku' => 'T-M', 'price' => 10, 'stock' => 0, 'stock_alert' => 0],
+                    ['option_map' => ['0' => 2], 'sku' => 'T-L', 'price' => 10, 'stock' => 0, 'stock_alert' => 0],
+                ],
+            ])
+            ->assertRedirect();
+
+        $stocks = $product->fresh()->variants()->orderBy('id')->pluck('stock')->map(fn ($s) => (int) $s)->values()->all();
+        $this->assertSame([34, 33, 33], $stocks);
+    }
+
+    public function test_apply_same_each_stock_mode_persists_three_variants(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+        $product = $this->threeOptionVariantProduct($store);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $this->baseCatalogUpdatePayload($product) + [
+                'inventory_stock_allocation_mode' => 'apply_same_each',
+                'inventory_apply_same_stock' => 100,
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['S', 'M', 'L']],
+                ],
+                'variants' => [
+                    ['option_map' => ['0' => 0], 'sku' => 'T-S', 'price' => 10, 'stock' => 0, 'stock_alert' => 0],
+                    ['option_map' => ['0' => 1], 'sku' => 'T-M', 'price' => 10, 'stock' => 0, 'stock_alert' => 0],
+                    ['option_map' => ['0' => 2], 'sku' => 'T-L', 'price' => 10, 'stock' => 0, 'stock_alert' => 0],
+                ],
+            ])
+            ->assertRedirect();
+
+        $stocks = $product->fresh()->variants()->orderBy('id')->pluck('stock')->map(fn ($s) => (int) $s)->values()->all();
+        $this->assertSame([100, 100, 100], $stocks);
+        $this->assertSame(300, array_sum($stocks));
+    }
+
+    public function test_variant_image_from_other_product_is_rejected(): void
+    {
+        Storage::fake('public');
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+        $product = $this->twoOptionVariantProduct($store);
+        $other = $this->simpleProduct($store);
+        $path = UploadedFile::fake()->create('other.jpg', 10, 'image/jpeg')->store('products/'.$store->id, 'public');
+        $foreignImage = ProductImage::query()->create([
+            'product_id' => $other->id,
+            'image_path' => $path,
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_READY,
+        ]);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $this->baseCatalogUpdatePayload($product) + [
+                'inventory_stock_allocation_mode' => 'manual',
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['L', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'option_map' => ['0' => 0],
+                        'sku' => 'MULTI-L',
+                        'price' => 10,
+                        'stock' => 5,
+                        'stock_alert' => 0,
+                        'product_image_id' => $foreignImage->id,
+                    ],
+                    [
+                        'option_map' => ['0' => 1],
+                        'sku' => 'MULTI-M',
+                        'price' => 10,
+                        'stock' => 7,
+                        'stock_alert' => 0,
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors(['variants.0.product_image_id']);
+    }
+
+    public function test_product_edit_payload_includes_queued_images_for_variant_picker(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+        $product = $this->simpleProduct($store);
+        ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => 'queued/shot.webp',
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_QUEUED,
+        ]);
+
+        $payload = ProductEditPayload::forProduct($product->fresh());
+        $this->assertNotEmpty($payload['catalog_images']);
+        $this->assertSame('queued/shot.webp', $payload['catalog_images'][0]['image_path']);
+        $this->assertSame([], $payload['image_paths']);
+    }
+
     public function test_quick_add_create_modal_has_no_variant_form_fields(): void
     {
         $store = $this->makeStore($this->merchantUser());
@@ -362,5 +517,67 @@ class CatalogDay177CompletionTest extends TestCase
         $v2->options()->sync([$oM->id]);
 
         return $product->fresh();
+    }
+
+    /**
+     * Three sellable rows (Size S / M / L).
+     */
+    protected function threeOptionVariantProduct(Store $store): Product
+    {
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Triple '.fake()->unique()->numerify('####'),
+            'slug' => 'triple-'.Str::random(6),
+            'description' => null,
+            'base_price' => 10,
+            'sku' => 'TRI-BASE',
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => [],
+        ]);
+
+        $vt = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Size',
+            'type' => 'select',
+        ]);
+        $opts = [];
+        foreach (['S', 'M', 'L'] as $i => $label) {
+            $opts[] = ProductVariationOption::query()->create([
+                'variation_type_id' => $vt->id,
+                'value' => $label,
+                'sort_order' => $i,
+            ]);
+        }
+
+        foreach ($opts as $i => $opt) {
+            $v = $product->variants()->create([
+                'sku' => 'TRI-'.$opt->value,
+                'price' => 10,
+                'stock' => 1 + $i,
+                'stock_alert' => 0,
+            ]);
+            $v->options()->sync([$opt->id]);
+        }
+
+        return $product->fresh();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function baseCatalogUpdatePayload(Product $product): array
+    {
+        return [
+            '_open_edit_product_modal' => '1',
+            '_edit_product_id' => (string) $product->id,
+            'name' => $product->name,
+            'description' => (string) ($product->description ?? ''),
+            'base_price' => (float) $product->base_price,
+            'sku' => $product->sku,
+            'product_type' => $product->product_type,
+            'stock_alert' => 0,
+            'existing_image_paths' => [],
+        ];
     }
 }

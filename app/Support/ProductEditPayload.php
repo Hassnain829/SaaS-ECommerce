@@ -56,6 +56,7 @@ final class ProductEditPayload
 
             return [
                 'id' => $img->id,
+                'image_path' => (string) ($img->image_path ?? ''),
                 'thumb_url' => $thumbUrl,
                 'picker_label' => $pickerLabel,
             ];
@@ -102,6 +103,7 @@ final class ProductEditPayload
                 }
 
                 return [
+                    'id' => $variant->id,
                     'option_map' => $optionMap,
                     'sku' => $variant->sku,
                     'price' => (string) $variant->price,
@@ -280,6 +282,9 @@ final class ProductEditPayload
                     }
                 }
                 $rows[] = [
+                    'id' => isset($variantRow['id']) && $variantRow['id'] !== '' && $variantRow['id'] !== null
+                        ? (int) $variantRow['id']
+                        : null,
                     'option_map' => $optionMap,
                     'sku' => (string) ($variantRow['sku'] ?? ''),
                     'price' => isset($variantRow['price']) ? (string) $variantRow['price'] : '',
