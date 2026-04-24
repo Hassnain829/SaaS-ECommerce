@@ -9,7 +9,7 @@
         <div class="mx-auto max-w-5xl">
             <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Step 2 of 4</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Adjust mapping (when needed)</p>
                     <h1 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Map columns</h1>
                     <p class="mt-2 text-sm text-[#64748B]">File: <span class="font-medium text-[#0F172A]">{{ $import->original_filename }}</span></p>
                 </div>
@@ -26,6 +26,12 @@
                 </div>
             @endif
 
+            @if (session('import_notice'))
+                <div class="mb-6 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E40AF]">
+                    {{ session('import_notice') }}
+                </div>
+            @endif
+
             @php
                 $existingCustom = old('custom_field_mappings', $existingCustomMappings ?? []);
                 if (! is_array($existingCustom)) {
@@ -39,7 +45,7 @@
                 @csrf
                 <div class="mb-8 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                     <p class="font-semibold text-[#0F172A]">How this step works</p>
-                    <p class="mt-1">Match each spreadsheet column to one catalog target below. <span class="font-medium text-[#334155]">Additional details</span> (optional) save extra columns you want to edit later on the product or variant. Any column you leave unmapped is still kept as read-only reference after import.</p>
+                    <p class="mt-1">We may have pre-selected matches from your header row—confirm them below. Map each spreadsheet column to one catalog target. <span class="font-medium text-[#334155]">Additional details</span> (optional) save extra columns you want to edit later on the product or variant. Any column you leave unmapped is still kept as read-only reference after import.</p>
                     <p class="mt-2 text-xs text-[#64748B]">Each spreadsheet column can only be chosen once across catalog targets and additional details.</p>
                 </div>
 

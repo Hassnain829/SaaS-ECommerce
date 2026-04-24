@@ -8,11 +8,14 @@ use App\Jobs\RetryFailedProductImportRowsJob;
 use App\Models\ProductImport;
 use App\Models\ProductImportRow;
 use App\Models\Store;
-use App\Services\Catalog\ProductImportPreviewService;
+use App\Services\Catalog\ProductImportAutoColumnMapper;
+use App\Services\Catalog\ProductImportMappingValidator;
 use App\Services\Catalog\ProductImportMediaProgress;
+use App\Services\Catalog\ProductImportPreviewService;
 use App\Services\Catalog\ProductImportProcessor;
 use App\Services\Catalog\ProductImportSpreadsheetReader;
 use App\Services\Catalog\ProductImportStaleHandler;
+use App\Support\Catalog\ProductImportHeaderNormalizer;
 use App\Support\Catalog\ProductImportQueue;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -73,6 +76,11 @@ class ProductImportController extends Controller
             if ($headers === [] || (count(array_filter($headers, static fn ($h) => $h !== '')) === 0)) {
                 throw new \RuntimeException('The file has no header row or no columns.');
             }
+            if (ProductImportHeaderNormalizer::hasCaseInsensitiveDuplicateHeaders($headers)) {
+                throw new \RuntimeException(
+                    'Duplicate column headers (ignoring capitalization) would cause values to overwrite each other. Give each column a unique name, then try again.'
+                );
+            }
             $import->update([
                 'headers' => $headers,
                 'status' => ProductImport::STATUS_PARSED,
@@ -92,8 +100,38 @@ class ProductImportController extends Controller
             return back()->withErrors(['file' => 'Could not read the file: '.$e->getMessage()]);
         }
 
+        $guessedMapping = ProductImportAutoColumnMapper::guess($headers);
+        $guessedCustom = ProductImportAutoColumnMapper::suggestCustomMappings($headers, $guessedMapping);
+        $validationErrors = ProductImportMappingValidator::validate($guessedMapping, $headers, $guessedCustom);
+
+        if ($validationErrors === []) {
+            $previewError = $this->persistMappingAndBuildPreview($import, $guessedMapping, $guessedCustom);
+            if ($previewError !== null) {
+                return redirect()
+                    ->route('products.import.mapping', ['productImportId' => $import->id])
+                    ->withErrors(['preview' => $previewError])
+                    ->with('import_notice', 'We matched your columns automatically, but the preview step reported an issue. Adjust mapping if needed, then build preview again.');
+            }
+
+            Log::channel('import')->info('product_import_auto_mapped_to_preview', [
+                'import_id' => $import->id,
+                'store_id' => $store->id,
+            ]);
+
+            return redirect()->route('products.import.preview', ['productImportId' => $import->id]);
+        }
+
+        $import->update([
+            'column_mapping' => $guessedMapping,
+            'custom_field_mappings' => ProductImportProcessor::normalizeCustomMappings($guessedCustom),
+        ]);
+
         return redirect()
-            ->route('products.import.mapping', ['productImportId' => $import->id]);
+            ->route('products.import.mapping', ['productImportId' => $import->id])
+            ->with(
+                'import_notice',
+                'We pre-filled column matches from your header row. Review the mapping (especially required fields marked with *), then click Build preview.'
+            );
     }
 
     public function mapping(Request $request, int $productImportId): View
@@ -129,7 +167,6 @@ class ProductImportController extends Controller
         }
 
         $headers = $productImport->headers ?? [];
-        $headerSet = array_flip(array_filter($headers, static fn ($h) => is_string($h) && $h !== ''));
 
         $fieldRules = [];
         foreach (array_keys(ProductImportField::labels()) as $field) {
@@ -141,44 +178,6 @@ class ProductImportController extends Controller
         ], $fieldRules));
         $mapping = $validated['column_mapping'] ?? [];
 
-        if (ProductImportField::hasPartialOptionSlotMapping($mapping)) {
-            return back()->withErrors([
-                'column_mapping' => 'For each option slot, map both the group label column and the value column, or leave that slot unused.',
-            ])->withInput();
-        }
-
-        $structuredVariant = ProductImportField::usesStructuredVariantRows($mapping);
-        $hasParentSkuColumn = is_string($mapping[ProductImportField::PARENT_SKU] ?? null) && $mapping[ProductImportField::PARENT_SKU] !== '';
-        $hasSkuColumn = is_string($mapping[ProductImportField::SKU] ?? null) && $mapping[ProductImportField::SKU] !== '';
-        if ($structuredVariant && ! $hasParentSkuColumn && ! $hasSkuColumn) {
-            return back()->withErrors([
-                'column_mapping' => 'For multi-row variants, map Parent product SKU or Product SKU so rows can be grouped into the correct product.',
-            ])->withInput();
-        }
-
-        foreach (ProductImportField::requiredForImport() as $required) {
-            if ($structuredVariant && $required === ProductImportField::SKU && $hasParentSkuColumn) {
-                continue;
-            }
-            if (empty($mapping[$required]) || ! is_string($mapping[$required])) {
-                return back()->withErrors([$required => 'This field must be mapped.'])->withInput();
-            }
-            if (! isset($headerSet[$mapping[$required]])) {
-                return back()->withErrors([$required => 'Mapped column is not present in the file.'])->withInput();
-            }
-        }
-
-        $sourcesUsed = [];
-        foreach ($mapping as $field => $source) {
-            if (! is_string($source) || $source === '') {
-                continue;
-            }
-            if (isset($sourcesUsed[$source])) {
-                return back()->withErrors(['column_mapping' => 'Each file column can only be mapped once ('.$source.').'])->withInput();
-            }
-            $sourcesUsed[$source] = $field;
-        }
-
         $rawCustom = $request->input('custom_field_mappings');
         if ($rawCustom === null) {
             $rawCustom = [];
@@ -187,27 +186,17 @@ class ProductImportController extends Controller
             return back()->withErrors(['custom_field_mappings' => 'Custom field mappings must be a valid list.'])->withInput();
         }
 
-        $customErrors = $this->validateCustomFieldMappingsInput($rawCustom, $headerSet, $sourcesUsed);
-        if ($customErrors !== []) {
-            return back()->withErrors(['custom_field_mappings' => implode(' ', $customErrors)])->withInput();
+        $validationErrors = ProductImportMappingValidator::validate($mapping, $headers, $rawCustom);
+        if ($validationErrors !== []) {
+            return back()->withErrors(['column_mapping' => implode(' ', $validationErrors)])->withInput();
         }
 
         $normalizedCustom = ProductImportProcessor::normalizeCustomMappings($rawCustom);
 
-        $productImport->update([
-            'column_mapping' => $mapping,
-            'custom_field_mappings' => $normalizedCustom,
-        ]);
-
-        $preview = $this->previewService->build($productImport->fresh());
-        if (isset($preview['error'])) {
-            return back()->withErrors(['preview' => $preview['error']])->withInput();
+        $previewError = $this->persistMappingAndBuildPreview($productImport, $mapping, $normalizedCustom);
+        if ($previewError !== null) {
+            return back()->withErrors(['preview' => $previewError])->withInput();
         }
-
-        $productImport->update([
-            'preview_summary' => $preview,
-            'status' => ProductImport::STATUS_PREVIEWED,
-        ]);
 
         return redirect()->route('products.import.preview', ['productImportId' => $productImport->id]);
     }
@@ -559,76 +548,28 @@ class ProductImportController extends Controller
     }
 
     /**
-     * @param  array<int, mixed>  $rawCustom
-     * @param  array<string, int>  $headerSet
-     * @param  array<string, string>  $sourcesUsed  source header => system field key
-     * @return list<string>
+     * @param  array<string, mixed>  $mapping
+     * @param  array<int, array<string, string>>|array<int, mixed>  $customMappings  Normalized custom rows or raw request rows (normalized before call).
      */
-    private function validateCustomFieldMappingsInput(array $rawCustom, array $headerSet, array $sourcesUsed): array
+    private function persistMappingAndBuildPreview(ProductImport $productImport, array $mapping, array $customMappings): ?string
     {
-        $errors = [];
-        $reserved = array_flip(array_map('strtolower', array_keys(ProductImportField::labels())));
-        $keyPattern = '/^[a-zA-Z0-9_.-]{1,128}$/';
+        $normalizedCustom = ProductImportProcessor::normalizeCustomMappings($customMappings);
 
-        $rows = [];
-        foreach ($rawCustom as $idx => $row) {
-            if (! is_array($row)) {
-                $errors[] = 'Custom field row '.($idx + 1).' is invalid.';
+        $productImport->update([
+            'column_mapping' => $mapping,
+            'custom_field_mappings' => $normalizedCustom,
+        ]);
 
-                continue;
-            }
-            $source = trim((string) ($row['source'] ?? ''));
-            $key = trim((string) ($row['key'] ?? ''));
-            $scopeRaw = strtolower(trim((string) ($row['scope'] ?? 'product')));
-            $scope = $scopeRaw === 'variant' ? 'variant' : 'product';
-
-            if ($source === '' && $key === '') {
-                continue;
-            }
-            if ($source === '' || $key === '') {
-                $errors[] = 'Each custom field needs both a source column and a destination key.';
-
-                continue;
-            }
-            if (! isset($headerSet[$source])) {
-                $errors[] = 'Custom field source column "'.$source.'" is not in this file.';
-
-                continue;
-            }
-            if (isset($sourcesUsed[$source])) {
-                $errors[] = 'Column "'.$source.'" is already mapped to a catalog field and cannot be reused as a custom field.';
-
-                continue;
-            }
-            if (preg_match($keyPattern, $key) !== 1) {
-                $errors[] = 'Custom field key "'.$key.'" must be 1–128 characters (letters, numbers, underscore, dot, hyphen).';
-
-                continue;
-            }
-            if (isset($reserved[strtolower($key)])) {
-                $errors[] = 'Custom field key "'.$key.'" is reserved for a built-in import field.';
-
-                continue;
-            }
-
-            $rows[] = ['source' => $source, 'key' => $key, 'scope' => $scope];
+        $preview = $this->previewService->build($productImport->fresh());
+        if (isset($preview['error'])) {
+            return (string) $preview['error'];
         }
 
-        $seenSources = [];
-        $seenKeys = [];
-        foreach ($rows as $row) {
-            if (isset($seenSources[$row['source']])) {
-                $errors[] = 'Duplicate custom mapping for column "'.$row['source'].'".';
-            }
-            $seenSources[$row['source']] = true;
+        $productImport->update([
+            'preview_summary' => $preview,
+            'status' => ProductImport::STATUS_PREVIEWED,
+        ]);
 
-            $lk = strtolower($row['key']);
-            if (isset($seenKeys[$lk])) {
-                $errors[] = 'Duplicate custom field key "'.$row['key'].'".';
-            }
-            $seenKeys[$lk] = true;
-        }
-
-        return $errors;
+        return null;
     }
 }

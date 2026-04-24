@@ -37,27 +37,15 @@ class ProductImportTest extends TestCase
         $csv = "Title,SKU,Price,Stock,ExtraCol\nWidget One,IMP-001,19.99,5,hello\n";
         $file = UploadedFile::fake()->createWithContent('catalog.csv', $csv);
 
-        $this->actingAs($owner)
+        $importResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.store'), ['file' => $file])
-            ->assertRedirect();
+            ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->first();
         $this->assertNotNull($import);
-        $this->assertSame(ProductImport::STATUS_PARSED, $import->status);
         $this->assertContains('Title', $import->headers);
 
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                    'base_price' => 'Price',
-                    'stock' => 'Stock',
-                ],
-            ])
-            ->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
+        $importResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $import->refresh();
         $this->assertSame(ProductImport::STATUS_PREVIEWED, $import->status);
@@ -128,24 +116,13 @@ class ProductImportTest extends TestCase
         $csv = "Title,SKU,Price,Brand,Category,Tags\nT,SKU-T,10,New Brand X,New Cat Y|New Cat Z,Sale|New\n";
         $file = UploadedFile::fake()->createWithContent('tax.csv', $csv);
 
-        $this->actingAs($owner)
+        $taxResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                    'base_price' => 'Price',
-                    'brand' => 'Brand',
-                    'category' => 'Category',
-                    'tags' => 'Tags',
-                ],
-            ]);
+        $taxResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
+        $this->assertSame(ProductImport::STATUS_PREVIEWED, $import->fresh()->status);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -186,21 +163,12 @@ class ProductImportTest extends TestCase
         $csv = "Title,SKU,Stock\nNew Name,UPD-1,9\n";
         $file = UploadedFile::fake()->createWithContent('u.csv', $csv);
 
-        $this->actingAs($owner)
+        $updResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->latest('id')->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                    'stock' => 'Stock',
-                ],
-            ]);
+        $updResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -230,21 +198,12 @@ class ProductImportTest extends TestCase
         $csv = "Title,SKU,Stock\nGood,G1,1\n,,,\n";
         $file = UploadedFile::fake()->createWithContent('mix.csv', $csv);
 
-        $this->actingAs($owner)
+        $mixResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                    'stock' => 'Stock',
-                ],
-            ]);
+        $mixResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -271,22 +230,12 @@ class ProductImportTest extends TestCase
         $csv = "Title,SKU,Price,Images\nImg P,IMG-P,1,https://example.test/image.png\n";
         $file = UploadedFile::fake()->createWithContent('img.csv', $csv);
 
-        $this->actingAs($owner)
+        $imgResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                    'base_price' => 'Price',
-                    'image_urls' => 'Images',
-                ],
-            ]);
+        $imgResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -308,22 +257,12 @@ class ProductImportTest extends TestCase
         $csv = "Title,SKU,Price,Stock\nWidget,MSK-1,\"PKR 2,499.00\",\" 1,200 \"\n";
         $file = UploadedFile::fake()->createWithContent('messy.csv', $csv);
 
-        $this->actingAs($owner)
+        $messyResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                    'base_price' => 'Price',
-                    'stock' => 'Stock',
-                ],
-            ]);
+        $messyResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $import->refresh();
         $this->assertSame(1, (int) ($import->preview_summary['valid_rows'] ?? 0));
@@ -349,27 +288,12 @@ class ProductImportTest extends TestCase
         $csv = "Title,SKU,Supplier\nWidget,CUST-1,ACME-77\n";
         $file = UploadedFile::fake()->createWithContent('cust.csv', $csv);
 
-        $this->actingAs($owner)
+        $custResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                ],
-                'custom_field_mappings' => [
-                    [
-                        'source' => 'Supplier',
-                        'key' => 'supplier_code',
-                        'scope' => 'product',
-                    ],
-                ],
-            ]);
+        $custResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $import->refresh();
         $this->assertNotEmpty($import->preview_summary['custom_field_preview_lines'] ?? []);
@@ -400,22 +324,12 @@ class ProductImportTest extends TestCase
         $csv = implode('', $lines);
         $file = UploadedFile::fake()->createWithContent('large.csv', $csv);
 
-        $this->actingAs($owner)
+        $largeResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                    'base_price' => 'Price',
-                    'stock' => 'Stock',
-                ],
-            ]);
+        $largeResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -518,22 +432,12 @@ class ProductImportTest extends TestCase
         $csv = "Title,SKU,Price,Stock\nGood,G1,1,1\n,BAD,1,1\n";
         $file = UploadedFile::fake()->createWithContent('rows.csv', $csv);
 
-        $this->actingAs($owner)
+        $rowsResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->latest('id')->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                    'base_price' => 'Price',
-                    'stock' => 'Stock',
-                ],
-            ]);
+        $rowsResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -611,20 +515,12 @@ class ProductImportTest extends TestCase
 
         $file = UploadedFile::fake()->createWithContent('b.csv', "Title,SKU\nX,Y1\n");
 
-        $this->actingAs($owner)
+        $busResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
-                'column_mapping' => [
-                    'product_name' => 'Title',
-                    'sku' => 'SKU',
-                ],
-            ]);
+        $busResponse->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
 
         $import->refresh();
 
@@ -642,14 +538,14 @@ class ProductImportTest extends TestCase
         $owner = $this->createMerchantUser('map-sections@example.com');
         $store = $this->createMemberStore($owner, 'Map Sections Store', Store::ROLE_OWNER);
 
-        $file = UploadedFile::fake()->createWithContent('sections.csv', "Title,SKU,Price\nWidget,S-1,12\n");
+        $file = UploadedFile::fake()->createWithContent('sections.csv', "H1,H2,H3\nWidget,S-1,12\n");
 
-        $this->actingAs($owner)
+        $secResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.store'), ['file' => $file])
-            ->assertRedirect();
+            ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
+        $secResponse->assertRedirect(route('products.import.mapping', ['productImportId' => $import->id]));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])

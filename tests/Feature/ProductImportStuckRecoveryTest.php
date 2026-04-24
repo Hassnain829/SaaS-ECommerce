@@ -236,14 +236,14 @@ class ProductImportStuckRecoveryTest extends TestCase
         $owner = $this->createMerchantUser('up@example.com');
         $store = $this->createMemberStore($owner, 'Up Store', Store::ROLE_OWNER);
 
-        $file = UploadedFile::fake()->createWithContent('keep.csv', "Title,SKU\nX,Y\n");
+        $file = UploadedFile::fake()->createWithContent('keep.csv', "H1,H2\nX,Y\n");
 
-        $this->actingAs($owner)
+        $response = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('products.import.store'), ['file' => $file])
-            ->assertRedirect();
+            ->post(route('products.import.store'), ['file' => $file]);
 
         $import = ProductImport::query()->firstOrFail();
+        $response->assertRedirect(route('products.import.mapping', ['productImportId' => $import->id]));
         Storage::disk('local')->assertExists($import->stored_path);
         $this->assertSame(ProductImport::STATUS_PARSED, $import->status);
     }

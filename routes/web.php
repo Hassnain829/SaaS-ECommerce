@@ -1,19 +1,21 @@
-﻿<?php
+<?php
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\TagController;
 use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeveloperStorefrontSettingsController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProductBulkController;
 use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductWorkspaceController;
 use App\Http\Controllers\ProductWorkspaceDataController;
+use App\Http\Controllers\TagController;
 use App\Http\Controllers\TeamMemberController;
 use Illuminate\Support\Facades\Route;
-// 
+
+//
 Route::get('/', function () {
     return view('user_view.welcome');
 });
@@ -100,6 +102,15 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/shippingAutomation', [DashboardController::class, 'shippingAutomation'])->name('shippingAutomation');
     Route::get('/security', [DashboardController::class, 'security'])->name('security');
     Route::get('/profileSettings', [DashboardController::class, 'profileSettings'])->name('profileSettings');
+
+    Route::get('/developer-storefront', [DeveloperStorefrontSettingsController::class, 'show'])
+        ->name('developer-storefront.settings');
+    Route::post('/developer-storefront/token', [DeveloperStorefrontSettingsController::class, 'generate'])
+        ->middleware('store.role:owner,manager')
+        ->name('developer-storefront.token.generate');
+    Route::delete('/developer-storefront/token', [DeveloperStorefrontSettingsController::class, 'revoke'])
+        ->middleware('store.role:owner,manager')
+        ->name('developer-storefront.token.revoke');
 
     Route::get('/onboarding-StoreDetails-1', [OnboardingController::class, 'step1'])->name('onboarding-StoreDetails-1');
     Route::post('/onboarding-StoreDetails-1', [OnboardingController::class, 'storeStep1'])->name('onboarding-StoreDetails-1.store');

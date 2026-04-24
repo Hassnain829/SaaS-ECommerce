@@ -2,6 +2,7 @@
 
 namespace App\Services\Catalog;
 
+use App\Support\Catalog\ProductImportHeaderNormalizer;
 use OpenSpout\Common\Entity\Cell;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Reader\CSV\Reader as CsvReader;
@@ -20,7 +21,7 @@ final class ProductImportSpreadsheetReader
         try {
             foreach ($reader->getSheetIterator() as $sheet) {
                 foreach ($sheet->getRowIterator() as $row) {
-                    return $this->rowToStringList($row);
+                    return ProductImportHeaderNormalizer::sanitizeHeaderRow($this->rowToStringList($row));
                 }
             }
         } finally {

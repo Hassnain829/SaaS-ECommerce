@@ -15,6 +15,8 @@ class StockMovement extends Model
 
     public const TYPE_IMPORT = 'import';
 
+    public const TYPE_ORDER_SALE = 'order_sale';
+
     /** Append-only: only created_at is maintained */
     public const UPDATED_AT = null;
 

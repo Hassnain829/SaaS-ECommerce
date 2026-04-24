@@ -138,6 +138,13 @@
             </svg>
             <span class="text-sm {{ request()->routeIs('shippingAutomation') ? 'font-semibold' : 'font-medium' }}">Shipping</span></a> -->
 
+        <a href="{{ route('developer-storefront.settings') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('developer-storefront.*') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 17L4.75 12.625C4.9 12.2417 5.12917 11.9375 5.4375 11.7125C5.74583 11.4875 6.1 11.375 6.5 11.375H8.5L10 9.875V8.375C9.71667 8.375 9.47917 8.27917 9.2875 8.0875C9.09583 7.89583 9 7.65833 9 7.375V4.5L7.5 3H12.5L11 4.5V7.375C11 7.65833 10.9042 7.89583 10.7125 8.0875C10.5208 8.27917 10.2833 8.375 10 8.375V10.25L11.75 12H13.75C14.15 12 14.5042 12.1125 14.8125 12.3375C15.1208 12.5625 15.35 12.8667 15.5 13.25L17.25 17.625L15.75 18.75L14 14.375H12L10 12.375L8 14.375H6L4.25 18.75L2.75 17.625L3 17Z" fill="currentColor"/>
+            </svg>
+            <span class="text-sm {{ request()->routeIs('developer-storefront.*') ? 'font-semibold' : 'font-medium' }}">Dev storefront</span>
+        </a>
+
         <a href="{{ route('security') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('security') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}">
             <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M8 20C5.68333 19.4167 3.77083 18.0875 2.2625 16.0125C0.754167 13.9375 0 11.6333 0 9.1V3L8 0L16 3V9.1C16 11.6333 15.2458 13.9375 13.7375 16.0125C12.2292 18.0875 10.3167 19.4167 8 20ZM8 17.9C9.61667 17.4 10.9667 16.4125 12.05 14.9375C13.1333 13.4625 13.7667 11.8167 13.95 10H8V2.125L2 4.375V9.1C2 9.28333 2 9.43333 2 9.55C2 9.66667 2.01667 9.81667 2.05 10H8V17.9Z" fill="currentColor"/>

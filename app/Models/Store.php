@@ -16,7 +16,9 @@ class Store extends Model
     use HasFactory;
 
     public const ROLE_OWNER = 'owner';
+
     public const ROLE_MANAGER = 'manager';
+
     public const ROLE_STAFF = 'staff';
 
     public const MEMBER_ROLES = [
@@ -41,6 +43,7 @@ class Store extends Model
     protected $casts = [
         'settings' => 'array',
         'onboarding_completed' => 'boolean',
+        'developer_storefront_token_created_at' => 'datetime',
     ];
 
     /**
@@ -139,5 +142,15 @@ class Store extends Model
     public function productImports(): HasMany
     {
         return $this->hasMany(ProductImport::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    public function hasDeveloperStorefrontToken(): bool
+    {
+        return filled($this->developer_storefront_token_hash);
     }
 }

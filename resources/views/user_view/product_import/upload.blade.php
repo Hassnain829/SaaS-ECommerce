@@ -11,7 +11,7 @@
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Catalog</p>
                     <h1 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Bulk product import</h1>
-                    <p class="mt-2 max-w-xl text-sm text-[#64748B]">Upload a CSV or Excel file with a header row. You will match your columns to your catalog, review a quick check, then we will bring the products into this store.</p>
+                    <p class="mt-2 max-w-xl text-sm text-[#64748B]">Upload a CSV or Excel file with a header row. We detect common column names automatically; you will land on a quick preview when we are confident, or on a short mapping step only when your headers need a manual match.</p>
                 </div>
                 <a href="{{ route('products') }}" class="text-sm font-semibold text-[#0052CC] hover:text-[#0047B3]">← Back to products</a>
             </div>
@@ -33,11 +33,11 @@
                         <label for="import_file" class="mb-2 block text-sm font-medium text-[#334155]">Spreadsheet file</label>
                         <input id="import_file" name="file" type="file" accept=".csv,.txt,.xlsx" required
                                class="w-full rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-4 text-sm text-[#0F172A] file:mr-4 file:rounded-lg file:border-0 file:bg-[#0052CC] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#0047B3]">
-                        <p class="mt-2 text-xs text-[#64748B]">Accepted: CSV, TXT, XLSX. Max 15 MB. First row must be column headers.</p>
+                        <p class="mt-2 text-xs text-[#64748B]">Accepted: CSV, TXT, XLSX. Max 15 MB. First row must be column headers. Each column name must be unique (duplicates, including different capitalization of the same name, are rejected so data does not collide).</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-4">
                         <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#0047B3]">
-                            Continue to mapping
+                            Upload and continue
                         </button>
                         <a href="{{ route('products.import.template') }}" class="text-sm font-semibold text-[#475569] underline decoration-[#CBD5E1] underline-offset-4 hover:text-[#0F172A]">Download sample CSV</a>
                     </div>
