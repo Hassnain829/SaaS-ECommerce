@@ -58,6 +58,16 @@
                             </details>
                         @endif
                     </div>
+                    @if ($import->canReopenMapping())
+                        <div class="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+                            <p class="font-semibold text-[#1E40AF]">Wrong column mapping?</p>
+                            <p class="mt-1">If the file stopped because of settings—or you need to map columns (for example images) differently—open the same upload again. Re-editing restarts the import from the first row with your new mapping; continuing from where it stopped keeps the old mapping.</p>
+                            <form method="post" action="{{ route('products.import.reopen-mapping', ['productImportId' => $import->id]) }}" class="mt-3">
+                                @csrf
+                                <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-[#93C5FD] bg-white px-4 py-2 text-sm font-bold text-[#1D4ED8] shadow-sm hover:bg-[#EFF6FF]">Re-edit column mapping</button>
+                            </form>
+                        </div>
+                    @endif
                 @elseif ($waiting)
                     <div class="flex items-start gap-3 text-[#0F172A]">
                         <span class="mt-0.5 inline-block h-8 w-8 animate-spin rounded-full border-2 border-[#E2E8F0] border-t-[#0052CC]"></span>
@@ -199,6 +209,12 @@
                         <a href="{{ route('products.import.history') }}" class="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm hover:bg-[#F8FAFC]">View import history</a>
                         @if ($failed > 0)
                             <a href="{{ route('products.import.report', ['productImportId' => $import->id]) }}" class="inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Open full report</a>
+                        @endif
+                        @if ($import->canReopenMapping())
+                            <form method="post" action="{{ route('products.import.reopen-mapping', ['productImportId' => $import->id]) }}" class="inline-flex">
+                                @csrf
+                                <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-[#93C5FD] bg-[#EFF6FF] px-4 py-2 text-sm font-bold text-[#1D4ED8] shadow-sm hover:bg-[#DBEAFE]">Re-edit column mapping</button>
+                            </form>
                         @endif
                     </div>
                     @if (!empty($summary['failures']))

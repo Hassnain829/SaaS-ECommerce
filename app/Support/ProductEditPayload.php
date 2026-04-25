@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Product;
+use App\Models\ProductImage;
 use Illuminate\Support\Str;
 
 /**
@@ -52,6 +53,13 @@ final class ProductEditPayload
             } else {
                 $galleryOrdinal++;
                 $pickerLabel = 'Gallery image '.$galleryOrdinal.' — '.$fileDisp;
+            }
+            if ($img->isFailed()) {
+                $pickerLabel .= ' — upload failed';
+            } elseif ($img->isPendingVisual()) {
+                $pickerLabel .= ' — processing';
+            } elseif (($img->image_path ?? '') === ProductImage::PENDING_DISK_PATH) {
+                $pickerLabel .= ' — pending download';
             }
 
             return [

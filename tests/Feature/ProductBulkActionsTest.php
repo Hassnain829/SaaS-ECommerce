@@ -74,6 +74,26 @@ class ProductBulkActionsTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_staff_cannot_run_bulk_stock(): void
+    {
+        $owner = $this->makeUser('owner-stock-staff@x.com');
+        $staff = $this->makeUser('staff-stock@x.com');
+        $store = $this->makeStore($owner);
+        $store->members()->syncWithoutDetaching([$staff->id => ['role' => Store::ROLE_STAFF]]);
+        $p = $this->makeProduct($store, 'Stock Staff');
+
+        $this->actingAs($staff)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'stock',
+                'product_ids' => [$p->id],
+                'stock_mode' => 'set',
+                'stock_value' => 5,
+                'bulk_variant_stock_scope' => 'default_variant_only',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_bulk_stock_set_records_stock_movements(): void
     {
         $owner = $this->makeUser();

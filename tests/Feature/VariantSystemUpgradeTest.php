@@ -27,7 +27,7 @@ class VariantSystemUpgradeTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products.show', $product))
             ->assertOk()
-            ->assertSee('Sellable combinations and inventory', false)
+            ->assertSee('Default inventory', false)
             ->assertSee('Default variant', false);
     }
 
@@ -123,6 +123,46 @@ class VariantSystemUpgradeTest extends TestCase
                 ],
             ])
             ->assertSessionHasErrors();
+    }
+
+    public function test_duplicate_variant_skus_across_rows_return_validation(): void
+    {
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Dup Sku Store');
+        $product = $this->createSimpleProduct($store);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => $product->name,
+                'description' => 'd',
+                'base_price' => 10,
+                'sku' => $product->sku,
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['S', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'option_map' => ['0' => 0],
+                        'sku' => 'SHARED-SKU-ROW',
+                        'price' => 10,
+                        'stock' => 1,
+                        'stock_alert' => 1,
+                    ],
+                    [
+                        'option_map' => ['0' => 1],
+                        'sku' => 'SHARED-SKU-ROW',
+                        'price' => 11,
+                        'stock' => 2,
+                        'stock_alert' => 1,
+                    ],
+                ],
+            ])
+            ->assertSessionHasErrors('variants.1.sku');
     }
 
     public function test_staff_cannot_update_product_variants(): void

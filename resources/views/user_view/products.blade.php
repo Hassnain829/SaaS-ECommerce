@@ -203,7 +203,7 @@
             @endif
             @if (($filters['cf_key'] ?? '') !== '' && ($filters['cf_value'] ?? '') !== '')
                 <div class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]">
-                    <span>Additional detail <span class="font-semibold text-[#0F172A]">{{ $cfKeyChipLabel }}</span> contains <span class="font-semibold">{{ $filters['cf_value'] }}</span>.</span>
+                    <span>Saved product detail <span class="font-semibold text-[#0F172A]">{{ $cfKeyChipLabel }}</span> contains <span class="font-semibold">{{ $filters['cf_value'] }}</span>.</span>
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['cf_key' => null, 'cf_value' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear</a>
                 </div>
             @endif
@@ -341,7 +341,7 @@
                 <summary class="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-[#64748B] hover:text-[#334155] [&::-webkit-details-marker]:hidden">
                     <span class="inline-flex h-5 w-5 items-center justify-center rounded border border-[#E2E8F0] bg-[#F8FAFC] text-[10px] text-[#94A3B8] group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
                     <span>Advanced filters &amp; table settings</span>
-                    <span class="font-normal text-[#94A3B8]">brand, tag, inventory, list columns</span>
+                    <span class="font-normal text-[#94A3B8]">brand, tag, inventory, list columns, saved detail search</span>
                 </summary>
                 <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-lg bg-[#F8FAFC]/80 px-3 py-2.5">
                     <form method="GET" action="{{ route('products') }}" class="contents">
@@ -403,7 +403,7 @@
                             @endforeach
                         </datalist>
                         <div class="flex min-w-0 max-w-full flex-col gap-0.5 sm:max-w-[14rem]">
-                            <label for="cf_key_input" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Additional detail</label>
+                            <label for="cf_key_input" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Saved product detail</label>
                             <input id="cf_key_input" name="cf_key" list="catalog-cf-key-suggestions" value="{{ $cfKeyFilter }}" placeholder="Material, supplier, …" class="w-full min-w-0 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1.5 text-xs text-[#334155]" maxlength="128" autocomplete="off" aria-describedby="cf-key-filter-help">
                             <p id="cf-key-filter-help" class="text-[10px] leading-snug text-[#94A3B8]">Choose a saved detail or type a field name; suggestions come from this store’s catalog.</p>
                         </div>
@@ -430,7 +430,7 @@
                         <p class="text-xs font-semibold text-[#334155]">Product list columns</p>
                         <form method="POST" action="{{ route('products.catalog-list-highlights') }}" class="mt-2 space-y-2 rounded-lg bg-[#F8FAFC]/80 px-3 py-2.5" aria-describedby="product-list-highlights-help">
                             @csrf
-                            <p id="product-list-highlights-help" class="text-[10px] leading-snug text-[#64748B]">Choose up to two additional details to show under each product name in this list.</p>
+                            <p id="product-list-highlights-help" class="text-[10px] leading-snug text-[#64748B]">Choose up to two saved product details to show under each product name in this list.</p>
                             <div class="flex flex-wrap items-end gap-2">
                                 <div class="flex min-w-0 flex-col gap-0.5 sm:min-w-[10rem]">
                                     <label for="detail_key_1" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Detail 1</label>
@@ -1040,6 +1040,20 @@
                 let msg = `Apply this bulk action to ${n} product(s)?`;
                 if (action === 'delete') {
                     msg = `Archive ${n} product(s) (soft delete)? They will be hidden from the catalog but can be restored from the database if needed.`;
+                }
+                if (action === 'stock') {
+                    const mode = document.getElementById('bulk-stock-mode')?.value || 'set';
+                    const val = document.getElementById('bulk-stock-value')?.value;
+                    const scope = document.getElementById('bulk-stock-variant-scope')?.value || 'default_variant_only';
+                    const scopeExplain = scope === 'all_variants_same'
+                        ? 'Multi-variant products: every variant row will be set to this same quantity.'
+                        : scope === 'skip_multi_variant'
+                            ? 'Multi-variant products will be skipped entirely; only products with a single inventory row are updated.'
+                            : 'Only the default inventory row per product is updated; extra variant rows on multi-variant products are left unchanged.';
+                    const modeExplain = mode === 'delta'
+                        ? `Adjust stock by ${val} units on each affected row (never below zero).`
+                        : `Set stock to exactly ${val} units on each affected row.`;
+                    msg = `${modeExplain} ${scopeExplain} This applies to ${n} selected product(s). Continue?`;
                 }
 
                 openConfirm(msg, () => prepareAndSubmit(action, ids));

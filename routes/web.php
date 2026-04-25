@@ -154,6 +154,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/products/import/{productImportId}/mapping', [ProductImportController::class, 'saveMapping'])
         ->middleware('store.role:owner,manager')
         ->name('products.import.mapping.save');
+    Route::post('/products/import/{productImportId}/reopen-mapping', [ProductImportController::class, 'reopenMapping'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.import.reopen-mapping');
     Route::get('/products/import/{productImportId}/preview', [ProductImportController::class, 'preview'])
         ->middleware('store.role:owner,manager')
         ->name('products.import.preview');

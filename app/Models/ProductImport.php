@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class ProductImport extends Model
 {
@@ -70,5 +71,44 @@ class ProductImport extends Model
     public function importRows(): HasMany
     {
         return $this->hasMany(ProductImportRow::class, 'product_import_id');
+    }
+
+    /**
+     * Lowercase trimmed status for comparisons (handles DB padding / casing quirks).
+     */
+    public function normalizedStatus(): string
+    {
+        $s = $this->status;
+
+        return is_string($s) ? strtolower(trim($s)) : '';
+    }
+
+    /**
+     * Imports that can return to the column-mapping screen: finished runs, or an in-flight
+     * mapping step when the file is still available.
+     */
+    public function canReopenMapping(): bool
+    {
+        $st = $this->normalizedStatus();
+        if (! in_array($st, [
+            self::STATUS_COMPLETED,
+            self::STATUS_FAILED,
+            self::STATUS_PARSED,
+            self::STATUS_PREVIEWED,
+        ], true)) {
+            return false;
+        }
+
+        $disk = (string) ($this->stored_disk ?? '');
+        $path = (string) ($this->stored_path ?? '');
+        if ($disk === '' || $path === '') {
+            return false;
+        }
+
+        if (($this->headers ?? []) === []) {
+            return false;
+        }
+
+        return Storage::disk($disk)->exists($path);
     }
 }

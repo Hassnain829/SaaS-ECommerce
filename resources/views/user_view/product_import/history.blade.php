@@ -52,6 +52,16 @@
                     </div>
                 </form>
 
+                @if ($errors->any())
+                    <div class="mb-6 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B42318]">
+                        <ul class="ml-5 list-disc">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
                 @if ($imports->isEmpty())
                     <div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-6 py-12 text-center">
                         <p class="text-sm font-semibold text-[#334155]">No imports yet</p>
@@ -102,8 +112,20 @@
                                         <td class="px-4 py-3 text-right tabular-nums font-semibold {{ ($isDone && (int) ($rs['failed'] ?? 0) > 0) ? 'text-[#B42318]' : 'text-[#334155]' }}">
                                             {{ $isDone ? (int) ($rs['failed'] ?? 0) : '—' }}
                                         </td>
-                                        <td class="px-4 py-3 text-right">
+                                        <td class="px-4 py-3 text-right whitespace-nowrap">
                                             <a href="{{ route($detailRoute, ['productImportId' => $import->id]) }}" class="font-semibold text-[#0052CC] hover:text-[#0047B3]">Open</a>
+                                            @if ($import->canReopenMapping())
+                                                @php
+                                                    $mapBtnLabel = in_array($import->normalizedStatus(), [ProductImport::STATUS_COMPLETED, ProductImport::STATUS_FAILED], true)
+                                                        ? 'Re-edit mapping'
+                                                        : 'Adjust mapping';
+                                                @endphp
+                                                <span class="mx-2 text-[#CBD5E1]" aria-hidden="true">·</span>
+                                                <form method="post" action="{{ route('products.import.reopen-mapping', ['productImportId' => $import->id]) }}" class="inline">
+                                                    @csrf
+                                                    <button type="submit" class="font-semibold text-[#0052CC] hover:text-[#0047B3]">{{ $mapBtnLabel }}</button>
+                                                </form>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
