@@ -80,7 +80,7 @@ final class ProductEditPayload
             'brand_id' => $product->brand_id,
             'tag_ids' => $product->tags->pluck('id')->values()->all(),
             'category_ids' => $product->categories->pluck('id')->values()->all(),
-            'custom_fields' => self::editorRowsFromProductMeta($product),
+            'custom_fields' => self::editorRowsFromMeta(is_array($product->meta) ? $product->meta : []),
             'stock_alert' => (int) ($product->variants->max('stock_alert') !== null
                 ? $product->variants->max('stock_alert')
                 : (($product->meta['stock_alert'] ?? 0))),
@@ -119,6 +119,7 @@ final class ProductEditPayload
                     'stock' => (string) $variant->stock,
                     'stock_alert' => (int) $variant->stock_alert,
                     'product_image_id' => $variant->linkedCatalogImage?->id,
+                    'custom_fields' => self::editorRowsFromMeta(is_array($variant->meta) ? $variant->meta : []),
                 ];
             })->values()->all(),
             'update_url' => route('product.update', ['productId' => $product->id]),
@@ -129,9 +130,8 @@ final class ProductEditPayload
     /**
      * @return list<array{key: string, type: string, value: string}>
      */
-    private static function editorRowsFromProductMeta(Product $product): array
+    private static function editorRowsFromMeta(array $meta): array
     {
-        $meta = is_array($product->meta) ? $product->meta : [];
         $cf = is_array($meta['custom_fields'] ?? null) ? $meta['custom_fields'] : [];
         $rows = [];
         foreach ($cf as $key => $value) {
@@ -303,6 +303,25 @@ final class ProductEditPayload
                     'product_image_id' => isset($variantRow['product_image_id']) && $variantRow['product_image_id'] !== '' && $variantRow['product_image_id'] !== null
                         ? (int) $variantRow['product_image_id'] : null,
                 ];
+                
+                if (isset($variantRow['custom_fields']) && is_array($variantRow['custom_fields'])) {
+                    $cfRows = [];
+                    foreach (array_values($variantRow['custom_fields']) as $cfRow) {
+                        if (! is_array($cfRow)) {
+                            continue;
+                        }
+                        $cfRows[] = [
+                            'key' => (string) ($cfRow['key'] ?? ''),
+                            'type' => in_array((string) ($cfRow['type'] ?? 'text'), ['text', 'number', 'boolean', 'list'], true)
+                                ? (string) $cfRow['type']
+                                : 'text',
+                            'value' => (string) ($cfRow['value'] ?? ''),
+                        ];
+                    }
+                    if ($cfRows !== []) {
+                        $rows[count($rows) - 1]['custom_fields'] = $cfRows;
+                    }
+                }
             }
             if ($rows !== []) {
                 $base['variants'] = $rows;

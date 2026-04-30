@@ -208,6 +208,10 @@ class OnboardingController extends Controller
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
             'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
+            'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
+            'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
+            'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
+            'variants.*.custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
             'mode' => ['nullable', 'string', 'in:create,edit'],
             'brand_id' => CatalogRules::brandIdForStore($store),
             ...CatalogRules::tagIdsForStore($store),
@@ -1253,6 +1257,10 @@ class OnboardingController extends Controller
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
             'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
+            'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
+            'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
+            'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
+            'variants.*.custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
             'variants.*.id' => [
                 'nullable',
                 'integer',
@@ -1751,6 +1759,10 @@ class OnboardingController extends Controller
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
             'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
+            'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
+            'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
+            'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
+            'variants.*.custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
             'brand_id' => CatalogRules::brandIdForStore($store),
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
@@ -1925,6 +1937,11 @@ class OnboardingController extends Controller
                     );
 
                     try {
+                        $variantMeta = [];
+                        if (!empty($variantData['custom_fields'])) {
+                            $variantMeta['custom_fields'] = $variantData['custom_fields'];
+                        }
+
                         $variant = ProductVariant::create([
                             'product_id' => $product->id,
                             'sku' => $resolvedSkuCreate,
@@ -1932,6 +1949,7 @@ class OnboardingController extends Controller
                             'compare_at_price' => $variantData['compare_at_price'] ?? null,
                             'stock' => $variantData['stock'],
                             'stock_alert' => $variantData['stock_alert'],
+                            'meta' => $variantMeta,
                         ]);
                     } catch (UniqueConstraintViolationException) {
                         throw ValidationException::withMessages([
@@ -2417,12 +2435,18 @@ class OnboardingController extends Controller
             $resolvedSku = $skuPlanSkus[$rowIndex] ?? $variant->sku;
 
             try {
+                $variantMeta = is_array($variant->meta) ? $variant->meta : [];
+                if (isset($variantData['custom_fields']) && is_array($variantData['custom_fields'])) {
+                    $variantMeta['custom_fields'] = $variantData['custom_fields'];
+                }
+
                 $variant->update([
                     'sku' => $resolvedSku,
                     'price' => $variantData['price'],
                     'compare_at_price' => $variantData['compare_at_price'] ?? null,
                     'stock' => $variantData['stock'],
                     'stock_alert' => $variantData['stock_alert'],
+                    'meta' => $variantMeta,
                 ]);
             } catch (UniqueConstraintViolationException) {
                 throw ValidationException::withMessages([
