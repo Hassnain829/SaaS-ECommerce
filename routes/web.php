@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\BrandController;
@@ -48,9 +48,7 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/products/bulk', [ProductBulkController::class, 'handle'])
         ->middleware('store.role:owner,manager')
         ->name('products.bulk');
-    Route::post('/products/catalog-list-highlights', [DashboardController::class, 'saveProductListDetailKeys'])
-        ->middleware('store.role:owner,manager')
-        ->name('products.catalog-list-highlights');
+
     Route::post('/brands', [BrandController::class, 'store'])
         ->middleware('store.role:owner,manager')
         ->name('brands.store');

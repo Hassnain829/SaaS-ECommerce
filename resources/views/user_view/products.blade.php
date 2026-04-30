@@ -264,20 +264,17 @@
 
     <div class="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
         <div class="border-b border-[#E2E8F0] px-4 py-3 lg:px-5 lg:py-3.5">
-            <div class="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-                <form method="GET" action="{{ route('products') }}" class="flex flex-wrap items-end gap-x-4 gap-y-2">
+            <div class="flex flex-col gap-y-3">
+                <form method="GET" action="{{ route('products') }}" class="flex flex-wrap items-end gap-x-4 gap-y-3">
                     <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
+                    <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
                     <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
                     <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
-                    <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
-                    <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
-                    <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
-                    <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
-                    <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
+
                     <div class="flex flex-col gap-1">
                         <span class="text-[10px] font-bold uppercase tracking-wider text-[#0F766E]"> Category</span>
                         <div class="relative">
-                            <select name="category" onchange="this.form.submit()" aria-label="Filter by catalog category" class="appearance-none bg-[#0052CC] text-white text-sm font-semibold px-4 py-2.5 pr-9 rounded-xl shadow-sm min-w-[11rem]">
+                            <select name="category" onchange="this.form.submit()" aria-label="Filter by catalog category" class="appearance-none bg-[#0052CC] text-white text-sm font-semibold px-4 py-2 pr-9 rounded-xl shadow-sm min-w-[11rem]">
                                 <option value="">All categories</option>
                                 @foreach ($catalogTaxonomyCategories ?? [] as $taxCat)
                                     <option value="{{ $taxCat->id }}" @selected((string) ($filters['category'] ?? '') === (string) $taxCat->id)>{{ $taxCat->name }}</option>
@@ -288,10 +285,11 @@
                             </svg>
                         </div>
                     </div>
+
                     <div class="flex flex-col gap-1">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-[#64748B]" title="How the product is sold or fulfilled—not the same as category above.">Type <span class="font-normal normal-case text-[#94A3B8]">(behavior)</span></span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Type</span>
                         <div class="relative">
-                            <select name="product_type" onchange="this.form.submit()" aria-label="Filter by product behavior type" class="appearance-none border text-sm font-semibold px-4 py-2.5 pr-9 rounded-xl transition-colors {{ ($filters['product_type'] ?? '') !== '' ? 'border-[#0D9488] bg-[#CCFBF1] text-[#115E59]' : 'border-[#E2E8F0] bg-white text-[#475569]' }}">
+                            <select name="product_type" onchange="this.form.submit()" aria-label="Filter by product behavior type" class="appearance-none border text-sm font-semibold px-4 py-2 pr-9 rounded-xl transition-colors {{ ($filters['product_type'] ?? '') !== '' ? 'border-[#0D9488] bg-[#CCFBF1] text-[#115E59]' : 'border-[#E2E8F0] bg-white text-[#475569]' }}">
                                 <option value="">All types</option>
                                 @foreach ($productTypeFilterOptions ?? [] as $typeValue => $typeLabel)
                                     <option value="{{ $typeValue }}" @selected(($filters['product_type'] ?? '') === $typeValue)>{{ $typeLabel }}</option>
@@ -302,160 +300,59 @@
                             </svg>
                         </div>
                     </div>
-                </form>
-                <div class="flex flex-wrap items-center gap-1.5 sm:ml-auto">
-                    <form method="GET" action="{{ route('products') }}" class="relative">
-                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
-                        <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
-                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
-                        <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
-                        <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
-                        <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
-                        <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
-                        <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
-                        <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
-                        <select name="sort" onchange="this.form.submit()" class="absolute inset-0 opacity-0 cursor-pointer" aria-label="Sort products">
-                            <option value="latest" @selected(($filters['sort'] ?? 'latest') === 'latest')>Latest</option>
-                            <option value="name" @selected(($filters['sort'] ?? '') === 'name')>Name</option>
-                            <option value="price_high" @selected(($filters['sort'] ?? '') === 'price_high')>Price High</option>
-                            <option value="price_low" @selected(($filters['sort'] ?? '') === 'price_low')>Price Low</option>
-                            <option value="stock_high" @selected(($filters['sort'] ?? '') === 'stock_high')>Stock High</option>
-                            <option value="stock_low" @selected(($filters['sort'] ?? '') === 'stock_low')>Stock Low</option>
-                        </select>
-                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]" title="Sort">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                <path d="M7 11H9V9H7V11ZM1 3V5H15V3H1ZM4 8H12V6H4V8Z" fill="currentColor" />
-                            </svg>
-                        </span>
-                    </form>
-                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['export' => 'csv']))) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]" title="Export CSV">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                            <path d="M2 14H14V12H2V14ZM14 6H11V2H5V6H2L8 12L14 6Z" fill="currentColor" />
-                        </svg>
-                    </a>
-                    <a href="{{ route('products') }}" class="inline-flex h-9 items-center rounded-lg border border-[#E2E8F0] bg-white px-3 text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC]" title="Clear all filters and search">Reset</a>
-                </div>
-            </div>
 
-            <details id="products-advanced-filters-panel" class="group mt-2 border-t border-[#F1F5F9] pt-2 sm:mt-3 sm:pt-3" @if ($filtersRefineOpen) open @endif>
-                <summary class="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold text-[#64748B] hover:text-[#334155] [&::-webkit-details-marker]:hidden">
-                    <span class="inline-flex h-5 w-5 items-center justify-center rounded border border-[#E2E8F0] bg-[#F8FAFC] text-[10px] text-[#94A3B8] group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
-                    <span>Advanced filters &amp; table settings</span>
-                    <span class="font-normal text-[#94A3B8]">brand, tag, inventory, list columns, saved detail search</span>
-                </summary>
-                <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-lg bg-[#F8FAFC]/80 px-3 py-2.5">
-                    <form method="GET" action="{{ route('products') }}" class="contents">
-                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
-                        <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
-                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
-                        <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
-                        <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
-                        <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
-                        <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
-                        <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
-                        <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Brand</span>
                         <div class="relative">
-                            <select name="brand" onchange="this.form.submit()" aria-label="Filter by brand" class="appearance-none border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-3 py-1.5 pr-8 rounded-lg transition-colors {{ ($filters['brand'] ?? '') !== '' ? 'ring-1 ring-[#CBD5E1] text-[#334155]' : '' }}">
+                            <select name="brand" onchange="this.form.submit()" aria-label="Filter by brand" class="appearance-none border text-sm font-semibold px-4 py-2 pr-9 rounded-xl transition-colors {{ ($filters['brand'] ?? '') !== '' ? 'border-[#0D9488] bg-[#CCFBF1] text-[#115E59]' : 'border-[#E2E8F0] bg-white text-[#475569]' }}">
                                 <option value="">All brands</option>
                                 @foreach ($catalogBrands as $b)
                                     <option value="{{ $b->id }}" @selected((string) ($filters['brand'] ?? '') === (string) $b->id)>{{ $b->name }}</option>
                                 @endforeach
                             </select>
-                            <svg class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8]" width="10" height="10" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                            <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="12" height="12" viewBox="0 0 14 14" fill="none">
                                 <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
                             </svg>
                         </div>
-                    </form>
-                    <form method="GET" action="{{ route('products') }}" class="contents">
-                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
-                        <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
-                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
-                        <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
-                        <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
-                        <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
-                        <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
-                        <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
-                        <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
-                        <div class="relative">
-                            <select name="tag" onchange="this.form.submit()" aria-label="Filter by tag" class="appearance-none border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-3 py-1.5 pr-8 rounded-lg transition-colors {{ ($filters['tag'] ?? '') !== '' ? 'ring-1 ring-[#CBD5E1] text-[#334155]' : '' }}">
-                                <option value="">All tags</option>
-                                @foreach ($catalogTags ?? [] as $tg)
-                                    <option value="{{ $tg->id }}" @selected((string) ($filters['tag'] ?? '') === (string) $tg->id)>{{ $tg->name }}</option>
-                                @endforeach
+                    </div>
+
+
+
+                    <div class="flex flex-wrap items-center gap-1.5 sm:ml-auto pb-1">
+                        <div class="relative inline-flex">
+                            <select name="sort" onchange="this.form.submit()" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" aria-label="Sort products">
+                                <option value="latest" @selected(($filters['sort'] ?? 'latest') === 'latest')>Latest</option>
+                                <option value="name" @selected(($filters['sort'] ?? '') === 'name')>Name</option>
+                                <option value="price_high" @selected(($filters['sort'] ?? '') === 'price_high')>Price High</option>
+                                <option value="price_low" @selected(($filters['sort'] ?? '') === 'price_low')>Price Low</option>
+                                <option value="stock_high" @selected(($filters['sort'] ?? '') === 'stock_high')>Stock High</option>
+                                <option value="stock_low" @selected(($filters['sort'] ?? '') === 'stock_low')>Stock Low</option>
                             </select>
-                            <svg class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3B8]" width="10" height="10" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                                <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
+                            <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]" title="Sort">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                    <path d="M7 11H9V9H7V11ZM1 3V5H15V3H1ZM4 8H12V6H4V8Z" fill="currentColor" />
+                                </svg>
+                            </span>
+                        </div>
+                        <a href="{{ route('products', array_filter(array_merge($baseFilters, ['export' => 'csv']))) }}" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]" title="Export CSV">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                <path d="M2 14H14V12H2V14ZM14 6H11V2H5V6H2L8 12L14 6Z" fill="currentColor" />
                             </svg>
-                        </div>
-                    </form>
-                    <form method="GET" action="{{ route('products') }}" class="flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
-                        <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
-                        <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
-                        <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
-                        <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
-                        <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
-                        <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
-                        <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
-                        <datalist id="catalog-cf-key-suggestions">
-                            @foreach ($cfKeyFilterOptions as $opt)
-                                <option value="{{ $opt['value'] }}">{{ $opt['label'] }}</option>
-                            @endforeach
-                        </datalist>
-                        <div class="flex min-w-0 max-w-full flex-col gap-0.5 sm:max-w-[14rem]">
-                            <label for="cf_key_input" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Saved product detail</label>
-                            <input id="cf_key_input" name="cf_key" list="catalog-cf-key-suggestions" value="{{ $cfKeyFilter }}" placeholder="Material, supplier, …" class="w-full min-w-0 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1.5 text-xs text-[#334155]" maxlength="128" autocomplete="off" aria-describedby="cf-key-filter-help">
-                            <p id="cf-key-filter-help" class="text-[10px] leading-snug text-[#94A3B8]">Choose a saved detail or type a field name; suggestions come from this store’s catalog.</p>
-                        </div>
-                        <div class="flex flex-col gap-0.5">
-                            <label for="cf_value_input" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Contains</label>
-                            <input id="cf_value_input" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}" placeholder="Text to match" class="w-40 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1.5 text-xs text-[#334155]" maxlength="200">
-                        </div>
-                        <button type="submit" class="rounded-lg bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1E293B]">Apply</button>
-                        @if (($filters['cf_key'] ?? '') !== '' || ($filters['cf_value'] ?? '') !== '')
-                            <a href="{{ route('products', array_filter(array_merge($baseFilters, ['cf_key' => null, 'cf_value' => null]))) }}" class="self-end text-xs font-semibold text-[#0052CC] hover:underline">Clear filter</a>
-                        @endif
-                    </form>
-                    <span class="hidden h-4 w-px bg-[#E2E8F0] sm:inline" aria-hidden="true"></span>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">||</span>
-                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['stock' => ($filters['stock'] ?? '') === 'low' ? null : 'low']))) }}" class="flex items-center gap-1 border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['stock'] ?? '') === 'low' ? 'border-[#F97316] bg-orange-50 text-orange-700' : '' }}">
+                        </a>
+                        <a href="{{ route('products') }}" class="inline-flex h-9 items-center rounded-lg border border-[#E2E8F0] bg-white px-3 text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC]" title="Clear all filters and search">Reset</a>
+                    </div>
+                </form>
+
+                <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8] mr-2">Quick Toggles:</span>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['stock' => ($filters['stock'] ?? '') === 'low' ? null : 'low']))) }}" class="flex items-center gap-1 border text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors hover:bg-[#F8FAFC] {{ ($filters['stock'] ?? '') === 'low' ? 'border-[#F97316] bg-orange-50 text-orange-700' : 'border-[#E2E8F0] bg-white text-[#64748B]' }}">
                         Low stock
                         <span class="rounded-full bg-[#F97316] px-1.5 py-0 text-[10px] font-bold text-white tabular-nums">{{ $stats['low_stock'] }}</span>
                     </a>
-                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'published' ? null : 'published']))) }}" class="border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['status'] ?? '') === 'published' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : '' }}">Published</a>
-                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'draft' ? null : 'draft']))) }}" class="border border-[#E2E8F0] bg-white text-xs font-medium text-[#64748B] px-2.5 py-1.5 rounded-lg transition-colors hover:bg-white {{ ($filters['status'] ?? '') === 'draft' ? 'border-slate-400 bg-slate-50 text-[#334155]' : '' }}">Drafts</a>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'published' ? null : 'published']))) }}" class="border text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors hover:bg-[#F8FAFC] {{ ($filters['status'] ?? '') === 'published' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : 'border-[#E2E8F0] bg-white text-[#64748B]' }}">Published</a>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'draft' ? null : 'draft']))) }}" class="border text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors hover:bg-[#F8FAFC] {{ ($filters['status'] ?? '') === 'draft' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : 'border-[#E2E8F0] bg-white text-[#64748B]' }}">Drafts</a>
                 </div>
-                @if ($canManageBrands)
-                    <div class="mt-4 border-t border-[#E2E8F0] pt-4">
-                        <p class="text-xs font-semibold text-[#334155]">Product list columns</p>
-                        <form method="POST" action="{{ route('products.catalog-list-highlights') }}" class="mt-2 space-y-2 rounded-lg bg-[#F8FAFC]/80 px-3 py-2.5" aria-describedby="product-list-highlights-help">
-                            @csrf
-                            <p id="product-list-highlights-help" class="text-[10px] leading-snug text-[#64748B]">Choose up to two saved product details to show under each product name in this list.</p>
-                            <div class="flex flex-wrap items-end gap-2">
-                                <div class="flex min-w-0 flex-col gap-0.5 sm:min-w-[10rem]">
-                                    <label for="detail_key_1" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Detail 1</label>
-                                    <select id="detail_key_1" name="detail_key_1" class="w-full max-w-[12rem] rounded-lg border border-[#E2E8F0] bg-white px-2 py-1.5 text-xs text-[#334155]">
-                                        <option value="">None</option>
-                                        @foreach ($highlightKeyOptions as $opt)
-                                            <option value="{{ $opt['value'] }}" @selected(($productListDetailKeys[0] ?? '') === $opt['value'])>{{ $opt['label'] }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="flex min-w-0 flex-col gap-0.5 sm:min-w-[10rem]">
-                                    <label for="detail_key_2" class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Detail 2</label>
-                                    <select id="detail_key_2" name="detail_key_2" class="w-full max-w-[12rem] rounded-lg border border-[#E2E8F0] bg-white px-2 py-1.5 text-xs text-[#334155]">
-                                        <option value="">None</option>
-                                        @foreach ($highlightKeyOptions as $opt)
-                                            <option value="{{ $opt['value'] }}" @selected(($productListDetailKeys[1] ?? '') === $opt['value'])>{{ $opt['label'] }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0047B3]">Save</button>
-                            </div>
-                        </form>
-                    </div>
-                @endif
-            </details>
+            </div>
         </div>
 
         @if ($canManageBrands)
