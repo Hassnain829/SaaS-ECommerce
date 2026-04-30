@@ -1,0 +1,977 @@
+---
+config:
+  layout: elk
+---
+erDiagram
+    stores {
+        bigint id PK
+        string name
+        string slug UK
+        string legal_name
+        string logo
+        string cover_image
+        text address
+        string city
+        string state
+        string postal_code
+        string country_code
+        string currency
+        string timezone
+        string default_locale
+        string default_weight_unit
+        string default_dimension_unit
+        string support_email
+        string support_phone
+        string billing_email
+        enum category
+        enum status "active, paused, suspended, trial"
+        enum storefront_status "draft, live, maintenance"
+        boolean onboarding_completed
+        boolean tax_inclusive_pricing
+        json settings
+        timestamp launched_at
+        timestamp suspended_at
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    users {
+        bigint id PK
+        string name
+        string email UK
+        string password
+        bigint role_id FK
+        string avatar
+        string phone
+        boolean is_active
+        timestamp email_verified_at
+        string remember_token
+        timestamp last_login_at
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    roles {
+        bigint id PK
+        string name
+        string guard_name
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    permissions {
+        bigint id PK
+        string name
+        string guard_name
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    model_has_roles {
+        bigint role_id FK
+        string model_type
+        bigint model_id
+        bigint store_id FK
+    }
+
+    model_has_permissions {
+        bigint permission_id FK
+        string model_type
+        bigint model_id
+        bigint store_id FK
+    }
+
+    brands {
+        bigint id PK
+        bigint store_id FK
+        string name
+        string slug
+        string short_description
+        text description
+        string logo
+        string cover_image
+        string website_url
+        string country_of_origin
+        enum status "active, inactive, draft"
+        integer sort_order
+        boolean featured
+        string seo_title
+        string seo_description
+        json meta
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    categories {
+        bigint id PK
+        bigint store_id FK
+        string name
+        string slug
+        text description
+        bigint parent_id FK
+        integer sort_order
+        string image
+        string banner_image
+        boolean is_featured
+        boolean is_visible
+        enum status "active, inactive, draft"
+        string seo_title
+        string seo_description
+        string path_cache
+        integer level_depth
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    product_categories {
+        bigint product_id FK
+        bigint category_id FK
+        timestamp created_at
+    }
+
+    tags {
+        bigint id PK
+        bigint store_id FK
+        string name
+        string slug
+        text description
+        string color
+        enum status "active, inactive"
+        integer usage_count
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    product_tags {
+        bigint product_id FK
+        bigint tag_id FK
+        timestamp created_at
+    }
+
+    attributes {
+        bigint id PK
+        bigint store_id FK
+        string name
+        string slug
+        string display_type
+        integer sort_order
+        boolean is_filterable
+        boolean is_visible
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    attribute_terms {
+        bigint id PK
+        bigint attribute_id FK
+        string name
+        string slug
+        string swatch_value
+        integer sort_order
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    product_attributes {
+        bigint id PK
+        bigint product_id FK
+        bigint attribute_id FK
+        boolean is_variation
+        boolean is_visible
+        integer sort_order
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    product_attribute_terms {
+        bigint product_attribute_id FK
+        bigint term_id FK
+        timestamp created_at
+    }
+
+    products {
+        bigint id PK
+        bigint store_id FK
+        bigint brand_id FK
+        string name
+        string slug
+        string short_description
+        text description
+        decimal base_price
+        decimal compare_at_price
+        decimal cost_price
+        string currency_code
+        string sku
+        string barcode
+        enum product_type "physical, digital, service, subscription, virtual"
+        enum visibility "draft, hidden, published, archived"
+        boolean status
+        boolean is_featured
+        boolean requires_shipping
+        boolean track_inventory
+        boolean allow_backorders
+        integer min_order_qty
+        integer max_order_qty
+        integer low_stock_threshold
+        string tax_class
+        boolean tax_included
+        decimal weight
+        decimal length
+        decimal width
+        decimal height
+        string weight_unit
+        string dimension_unit
+        string vendor_code
+        string seo_title
+        string seo_description
+        text internal_notes
+        json meta
+        timestamp published_at
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    product_images {
+        bigint id PK
+        bigint product_id FK
+        bigint variant_id FK
+        string image_path
+        string alt_text
+        enum image_type "main, gallery, swatch, variant"
+        boolean is_primary
+        integer sort_order
+        string mime_type
+        integer file_size
+        integer width
+        integer height
+        string storage_disk
+        bigint created_by FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    product_variation_types {
+        bigint id PK
+        bigint product_id FK
+        string name
+        enum type "select, radio, checkbox"
+        integer sort_order
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    product_variation_options {
+        bigint id PK
+        bigint variation_type_id FK
+        string value
+        integer sort_order
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    product_variants {
+        bigint id PK
+        bigint product_id FK
+        string sku
+        string barcode
+        decimal price
+        decimal compare_at_price
+        decimal cost_price
+        string currency_code
+        integer stock
+        integer stock_alert
+        decimal weight
+        decimal length
+        decimal width
+        decimal height
+        boolean requires_shipping
+        boolean track_inventory
+        boolean allow_backorders
+        boolean is_default
+        boolean is_active
+        integer position
+        string image
+        json meta
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    product_variant_options {
+        bigint variant_id FK
+        bigint option_id FK
+        timestamp created_at
+    }
+
+    stock_movements {
+        bigint id PK
+        bigint store_id FK
+        bigint product_id FK
+        bigint variant_id FK
+        integer previous_stock
+        integer quantity_change
+        integer new_stock
+        enum movement_type "manual_adjustment, order_reserved, order_deducted, refund, restock, transfer, import"
+        string reason
+        string source
+        bigint reference_id
+        string reference_type
+        string reference_code
+        text notes
+        bigint performed_by FK
+        timestamp created_at
+    }
+
+    customers {
+        bigint id PK
+        bigint store_id FK
+        string email
+        string first_name
+        string last_name
+        string full_name
+        string phone
+        string password
+        enum status "active, blocked, guest"
+        boolean accepts_marketing
+        timestamp email_verified_at
+        timestamp last_order_at
+        integer total_orders
+        decimal total_spent
+        decimal average_order_value
+        date date_of_birth
+        string gender
+        string preferred_currency
+        string preferred_locale
+        string source
+        text notes
+        json meta
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    customer_addresses {
+        bigint id PK
+        bigint customer_id FK
+        enum type "shipping, billing"
+        string name
+        string company
+        string address_line1
+        string address_line2
+        string city
+        string state
+        string province_code
+        string postal_code
+        string country
+        string country_code
+        string phone
+        boolean is_default
+        boolean is_residential
+        text delivery_instructions
+        decimal latitude
+        decimal longitude
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    orders {
+        bigint id PK
+        bigint store_id FK
+        bigint customer_id FK
+        string order_number
+        string external_order_number
+        enum status "draft, pending, confirmed, processing, completed, cancelled, refunded"
+        enum fulfillment_status "unfulfilled, partial, fulfilled, returned"
+        enum payment_status "pending, paid, failed, refunded, partially_refunded"
+        string order_source
+        string channel
+        string currency_code
+        decimal exchange_rate
+        integer item_count
+        integer total_quantity
+        decimal subtotal
+        decimal discount
+        decimal discount_tax
+        decimal shipping
+        decimal shipping_tax
+        decimal tax
+        decimal total
+        decimal grand_total
+        decimal refunded_total
+        decimal outstanding_total
+        string payment_method
+        string payment_gateway
+        string payment_reference
+        string transaction_id
+        string fraud_status
+        string invoice_status
+        string customer_email
+        string customer_phone
+        boolean billing_same_as_shipping
+        text notes
+        json meta
+        timestamp placed_at
+        timestamp confirmed_at
+        timestamp cancelled_at
+        timestamp refunded_at
+        timestamp closed_at
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    order_items {
+        bigint id PK
+        bigint order_id FK
+        bigint product_id FK
+        bigint variant_id FK
+        integer quantity
+        integer refunded_quantity
+        integer returned_quantity
+        decimal unit_price
+        decimal subtotal
+        decimal discount_amount
+        decimal tax_amount
+        decimal total
+        decimal cost_price_snapshot
+        decimal weight_snapshot
+        string sku_snapshot
+        string barcode_snapshot
+        string product_name
+        string product_slug_snapshot
+        string brand_name_snapshot
+        string product_image_snapshot
+        string product_type_snapshot
+        enum fulfillment_status "unfulfilled, partial, fulfilled, returned"
+        json variant_details
+        json meta
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    order_addresses {
+        bigint id PK
+        bigint order_id FK
+        enum type "shipping, billing"
+        string name
+        string email
+        string company
+        string address_line1
+        string address_line2
+        string city
+        string state
+        string province_code
+        string postal_code
+        string country
+        string country_code
+        string phone
+        text delivery_notes
+        decimal latitude
+        decimal longitude
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    shipments {
+        bigint id PK
+        bigint order_id FK
+        bigint carrier_id FK
+        bigint carrier_account_id FK
+        string shipment_number
+        string tracking_number
+        string tracking_url
+        string carrier_service
+        enum status "pending, picked_up, in_transit, delivered, failed, returned"
+        string label_url
+        json labels
+        integer package_count
+        decimal package_weight
+        decimal insured_value
+        decimal cost
+        text failure_reason
+        json shipping_address_snapshot
+        timestamp estimated_delivery
+        timestamp shipped_at
+        timestamp delivered_at
+        bigint shipped_by FK
+        json meta
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    carriers {
+        bigint id PK
+        string name
+        string code
+        string logo
+        string website_url
+        string tracking_url_template
+        boolean supports_label_purchase
+        boolean supports_rate_quote
+        boolean supports_pickup
+        boolean is_active
+        json config_schema
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    carrier_accounts {
+        bigint id PK
+        bigint store_id FK
+        bigint carrier_id FK
+        string account_name
+        string account_number
+        enum environment "sandbox, production"
+        json credentials
+        json credentials_encrypted
+        boolean is_enabled
+        string verification_status
+        timestamp last_verified_at
+        string default_service_code
+        json warehouse_origin
+        json meta
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    shipping_rules {
+        bigint id PK
+        bigint store_id FK
+        string name
+        enum strategy "cheapest, fastest, balanced"
+        json conditions
+        json destination_zones
+        json service_whitelist
+        json service_blacklist
+        string rate_adjustment_type
+        decimal rate_adjustment_value
+        integer priority
+        boolean is_default
+        boolean is_active
+        bigint created_by FK
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    reviews {
+        bigint id PK
+        bigint product_id FK
+        bigint customer_id FK
+        integer rating
+        text comment
+        enum status "pending, approved, rejected, spam"
+        bigint approved_by FK
+        timestamp approved_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    bookings {
+        bigint id PK
+        bigint store_id FK
+        bigint product_id FK
+        bigint variant_id FK
+        bigint customer_id FK
+        bigint resource_id FK
+        datetime start_time
+        datetime end_time
+        integer duration_minutes
+        enum status "pending, confirmed, cancelled, completed"
+        text notes
+        json meta
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    resources {
+        bigint id PK
+        bigint store_id FK
+        string name
+        enum type "staff, room, equipment"
+        json availability
+        enum status "active, inactive"
+        json meta
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    customer_memberships {
+        bigint id PK
+        bigint store_id FK
+        bigint product_id FK
+        bigint variant_id FK
+        bigint customer_id FK
+        date start_date
+        date end_date
+        enum status "active, expired, cancelled"
+        json meta
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    coupons {
+        bigint id PK
+        bigint store_id FK
+        string name
+        string code
+        text description
+        enum type "fixed, percent"
+        decimal value
+        decimal minimum_order_amount
+        decimal maximum_discount_amount
+        integer usage_limit
+        integer usage_per_customer_limit
+        integer used_count
+        boolean applies_once_per_customer
+        string applies_to
+        json customer_eligibility
+        json conditions
+        boolean is_active
+        timestamp starts_at
+        timestamp expires_at
+        bigint created_by FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at
+    }
+
+    order_coupons {
+        bigint order_id FK
+        bigint coupon_id FK
+        decimal discount_amount
+        timestamp created_at
+    }
+
+    plans {
+        bigint id PK
+        string name
+        string slug
+        string code
+        text description
+        decimal price_monthly
+        decimal price_yearly
+        string billing_interval
+        integer trial_days
+        integer product_limit
+        integer staff_limit
+        boolean is_public
+        boolean is_active
+        integer sort_order
+        json features
+        json overage_rules
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    subscriptions {
+        bigint id PK
+        bigint store_id FK
+        bigint plan_id FK
+        bigint payment_method_id FK
+        string external_subscription_id
+        enum status "active, past_due, canceled, incomplete, trialing, paused"
+        integer quantity
+        boolean cancel_at_period_end
+        timestamp billing_cycle_anchor
+        timestamp current_period_start
+        timestamp current_period_end
+        timestamp trial_ends_at
+        timestamp ends_at
+        timestamp paused_at
+        timestamp canceled_at
+        json metadata
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    invoices {
+        bigint id PK
+        bigint store_id FK
+        bigint subscription_id FK
+        string invoice_number
+        string external_invoice_id
+        decimal subtotal
+        decimal tax
+        decimal total
+        decimal paid_amount
+        string currency_code
+        enum status "paid, open, void, uncollectible"
+        string billing_reason
+        string failure_reason
+        timestamp invoice_date
+        timestamp due_date
+        timestamp paid_at
+        string hosted_invoice_url
+        string pdf_url
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    payment_methods {
+        bigint id PK
+        bigint store_id FK
+        enum type "card, bank_account"
+        string gateway
+        string external_payment_method_id
+        string holder_name
+        string brand
+        string last_four
+        string expiry
+        string fingerprint
+        boolean is_default
+        enum status "active, expired, failed"
+        json billing_address_meta
+        json gateway_data
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    api_keys {
+        bigint id PK
+        bigint store_id FK
+        string name
+        string key
+        string secret
+        enum type "production, development"
+        json scopes
+        boolean is_active
+        string last_ip
+        timestamp last_used_at
+        timestamp expires_at
+        timestamp revoked_at
+        bigint created_by FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    webhooks {
+        bigint id PK
+        bigint store_id FK
+        string name
+        string url
+        string secret
+        string event_version
+        json events
+        boolean is_active
+        integer failure_count
+        integer last_status_code
+        timestamp last_triggered_at
+        timestamp disabled_at
+        timestamp secret_rotated_at
+        bigint created_by FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    notifications {
+        bigint id PK
+        bigint user_id FK
+        bigint store_id FK
+        bigint actor_user_id FK
+        string type
+        string channel
+        string title
+        text body
+        enum status "queued, sent, failed, read"
+        json data
+        boolean is_read
+        timestamp sent_at
+        timestamp failed_at
+        timestamp read_at
+        string error_message
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    notification_preferences {
+        bigint id PK
+        bigint user_id FK
+        string channel
+        boolean is_enabled
+        json event_types
+        json settings
+        json quiet_hours
+        string locale
+        bigint updated_by FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    security_logs {
+        bigint id PK
+        bigint user_id FK
+        bigint target_user_id FK
+        bigint store_id FK
+        string session_id
+        string event_type
+        string severity
+        string ip_address
+        string user_agent
+        string location
+        integer risk_score
+        json metadata
+        timestamp created_at
+    }
+
+    user_sessions {
+        bigint id PK
+        bigint user_id FK
+        string session_id
+        string ip_address
+        string user_agent
+        string browser
+        string os
+        string device
+        string device_type
+        string location
+        timestamp last_activity
+        timestamp ended_at
+        timestamp revoked_at
+        boolean is_current
+        timestamp created_at
+    }
+
+    tax_settings {
+        bigint id PK
+        bigint store_id FK
+        string tax_id
+        boolean automated_calculation
+        boolean prices_include_tax
+        string default_tax_region
+        string tax_provider
+        json nexus_regions
+        json rates
+        enum status "active, inactive"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    legal_pages {
+        bigint id PK
+        bigint store_id FK
+        enum type "privacy_policy, terms_of_service, refund_policy"
+        string title
+        text content
+        string url
+        boolean is_published
+        string seo_title
+        string seo_description
+        bigint updated_by FK
+        timestamp published_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    stores ||--o{ products : has
+    stores ||--o{ categories : has
+    stores ||--o{ tags : has
+    stores ||--o{ brands : has
+    stores ||--o{ attributes : has
+    stores ||--o{ customers : has
+    stores ||--o{ orders : has
+    stores ||--o{ bookings : has
+    stores ||--o{ resources : has
+    stores ||--o{ customer_memberships : has
+    stores ||--o{ subscriptions : has
+    stores ||--o{ coupons : has
+    stores ||--o{ api_keys : has
+    stores ||--o{ webhooks : has
+    stores ||--o{ carrier_accounts : has
+    stores ||--o{ shipping_rules : has
+    stores ||--o{ tax_settings : has
+    stores ||--o{ legal_pages : has
+    stores ||--o{ notifications : has
+    stores ||--o{ invoices : has
+    stores ||--o{ stock_movements : has
+    stores ||--o{ model_has_roles : scopes
+    stores ||--o{ model_has_permissions : scopes
+
+    users ||--o{ model_has_roles : assigned
+    users ||--o{ model_has_permissions : assigned
+    users ||--o{ notifications : receives
+    users ||--o{ notification_preferences : configures
+    users ||--o{ security_logs : generates
+    users ||--o{ user_sessions : has
+
+    roles ||--o{ model_has_roles : linked
+    permissions ||--o{ model_has_permissions : linked
+
+    categories ||--o{ categories : self_parent
+    categories ||--o{ product_categories : categorized
+    products ||--o{ product_categories : belongs_to
+
+    brands ||--o{ products : belongs_to
+
+    products ||--o{ product_tags : tagged
+    tags ||--o{ product_tags : used
+
+    products ||--o{ product_attributes : has
+    attributes ||--o{ product_attributes : used_in
+    attributes ||--o{ attribute_terms : defines
+    product_attributes ||--o{ product_attribute_terms : assigns
+    attribute_terms ||--o{ product_attribute_terms : assigned
+
+    products ||--o{ product_variation_types : defines
+    products ||--o{ product_variants : has
+    products ||--o{ product_images : has
+    products ||--o{ order_items : sold_in
+    products ||--o{ reviews : receives
+    products ||--o{ bookings : for_services
+    products ||--o{ customer_memberships : for_memberships
+    products ||--o{ stock_movements : tracked_for
+
+    product_variation_types ||--o{ product_variation_options : has
+    product_variation_options ||--o{ product_variant_options : included_in
+    product_variants ||--o{ product_variant_options : combines
+    product_variants ||--o{ stock_movements : tracks
+    product_variants ||--o{ order_items : references
+    product_variants ||--o{ bookings : references
+    product_variants ||--o{ customer_memberships : references
+    product_variants ||--o{ product_images : variant_images
+
+    customers ||--o{ orders : places
+    customers ||--o{ customer_addresses : has
+    customers ||--o{ reviews : writes
+    customers ||--o{ bookings : makes
+    customers ||--o{ customer_memberships : holds
+
+    orders ||--o{ order_items : contains
+    orders ||--o{ order_addresses : has
+    orders ||--o{ shipments : shipped_with
+    orders ||--o{ order_coupons : applies
+
+    carriers ||--o{ shipments : used_for
+    carriers ||--o{ carrier_accounts : configured
+
+    carrier_accounts ||--o{ shipments : used_by
+
+    coupons ||--o{ order_coupons : used
+
+    plans ||--o{ subscriptions : defines
+    subscriptions ||--o{ invoices : generates
+    payment_methods ||--o{ subscriptions : funds
