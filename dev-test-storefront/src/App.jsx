@@ -33,14 +33,33 @@ export default function App() {
         const res = await fetch(`${base}/catalog`, {
           headers: { Accept: 'application/json', ...authHeaders() },
         });
-        const data = await res.json().catch(() => ({}));
+        const raw = await res.text();
+        let data = {};
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch {
+          data = {};
+        }
         if (!res.ok) {
-          throw new Error(data.message || res.statusText || 'Request failed');
+          if (res.status === 401) {
+            throw new Error(
+              data.message ||
+                'Unauthorized: check VITE_STOREFRONT_TOKEN in dev-test-storefront/.env matches the token from Dashboard → Dev storefront (no quotes). Restart npm run dev after changing .env.'
+            );
+          }
+          throw new Error(
+            data.message ||
+              (raw.startsWith('<') ? `HTTP ${res.status}: server returned HTML (wrong URL or Laravel error page).` : res.statusText) ||
+              `Request failed (${res.status})`
+          );
         }
         setCatalog(data);
       } catch (e) {
         setCatalog(null);
-        setError(e.message || 'Failed to load catalog');
+        const msg = e instanceof TypeError && String(e.message).toLowerCase().includes('fetch')
+          ? 'Could not reach the API. If VITE_API_BASE is unset, Laravel must run at the proxy target (default http://127.0.0.1:8000) and you must use npm run dev so /api is proxied. Or set VITE_API_BASE to your full API base URL (e.g. http://127.0.0.1:8000/api/developer-storefront).'
+          : e.message || 'Failed to load catalog';
+        setError(msg);
       } finally {
         if (!quiet) setLoading(false);
       }
@@ -109,12 +128,18 @@ export default function App() {
           })),
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      const raw = await res.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
         const msg =
           data.message ||
           (data.errors && JSON.stringify(data.errors)) ||
-          res.statusText ||
+          (raw.startsWith('<') ? `HTTP ${res.status}: server returned HTML.` : res.statusText) ||
           'Order failed';
         throw new Error(msg);
       }
@@ -122,7 +147,11 @@ export default function App() {
       setCart([]);
       await loadCatalog({ quiet: true });
     } catch (e) {
-      setError(e.message || 'Order failed');
+      const msg =
+        e instanceof TypeError && String(e.message).toLowerCase().includes('fetch')
+          ? 'Could not reach the API (same checks as catalog: Laravel running, proxy or VITE_API_BASE).'
+          : e.message || 'Order failed';
+      setError(msg);
     } finally {
       setLoading(false);
     }
