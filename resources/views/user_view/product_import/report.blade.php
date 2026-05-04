@@ -92,6 +92,12 @@
                                 <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Try failed rows again</button>
                             </form>
                         @endif
+                        @if ($import->canReopenMapping())
+                            <form method="post" action="{{ route('products.import.reopen-mapping', ['productImportId' => $import->id]) }}" class="inline-flex" onsubmit="this.querySelector('button').disabled=true;">
+                                @csrf
+                                <button type="submit" class="inline-flex items-center justify-center rounded-xl border border-[#93C5FD] bg-[#EFF6FF] px-4 py-2 text-sm font-bold text-[#1D4ED8] shadow-sm hover:bg-[#DBEAFE]">Re-edit column mapping</button>
+                            </form>
+                        @endif
                     </div>
                 </div>
 

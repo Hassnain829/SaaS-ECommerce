@@ -304,6 +304,185 @@ class ProductImportDay13Test extends TestCase
             ->assertDontSeeText('parsed.csv');
     }
 
+    public function test_owner_can_reopen_mapping_from_completed_import(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        $owner = $this->createMerchantUser('reopen@example.com');
+        $store = $this->createMemberStore($owner, 'Reopen Store', Store::ROLE_OWNER);
+
+        $csv = "Title,SKU,Price,Stock\nWidget,W-1,5,2\n";
+        $file = UploadedFile::fake()->createWithContent('reopen.csv', $csv);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.store'), ['file' => $file]);
+        $import = ProductImport::query()->firstOrFail();
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
+                'column_mapping' => [
+                    'product_name' => 'Title',
+                    'sku' => 'SKU',
+                    'base_price' => 'Price',
+                    'stock' => 'Stock',
+                ],
+            ]);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.confirm', ['productImportId' => $import->id]));
+
+        $import->refresh();
+        $this->assertSame(ProductImport::STATUS_COMPLETED, $import->status);
+        $this->assertTrue($import->canReopenMapping());
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->get(route('products.import.mapping', ['productImportId' => $import->id]))
+            ->assertNotFound();
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.reopen-mapping', ['productImportId' => $import->id]))
+            ->assertRedirect(route('products.import.mapping', ['productImportId' => $import->id]));
+
+        $import->refresh();
+        $this->assertSame(ProductImport::STATUS_PARSED, $import->status);
+        $this->assertNull($import->preview_summary);
+        $this->assertNull($import->result_summary);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->get(route('products.import.mapping', ['productImportId' => $import->id]))
+            ->assertOk();
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
+                'column_mapping' => [
+                    'product_name' => 'Title',
+                    'sku' => 'SKU',
+                    'base_price' => 'Price',
+                    'stock' => 'Stock',
+                ],
+            ])
+            ->assertRedirect(route('products.import.preview', ['productImportId' => $import->id]));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.confirm', ['productImportId' => $import->id]));
+
+        $import->refresh();
+        $this->assertSame(ProductImport::STATUS_COMPLETED, $import->status);
+    }
+
+    public function test_staff_cannot_reopen_import_mapping(): void
+    {
+        Storage::fake('local');
+
+        $owner = $this->createMerchantUser('reopen-own@example.com');
+        $staff = $this->createMerchantUser('reopen-st@example.com');
+        $store = $this->createMemberStore($owner, 'Reopen Staff Store', Store::ROLE_OWNER);
+        $store->members()->syncWithoutDetaching([$staff->id => ['role' => Store::ROLE_STAFF]]);
+
+        $path = 'product-imports/'.$store->id.'/done.csv';
+        Storage::disk('local')->put($path, "Title,SKU\nX,Y\n");
+
+        $import = ProductImport::query()->create([
+            'store_id' => $store->id,
+            'created_by' => $owner->id,
+            'original_filename' => 'done.csv',
+            'stored_disk' => 'local',
+            'stored_path' => $path,
+            'mime_type' => 'text/csv',
+            'file_extension' => 'csv',
+            'status' => ProductImport::STATUS_COMPLETED,
+            'headers' => ['Title', 'SKU'],
+            'column_mapping' => ['product_name' => 'Title', 'sku' => 'SKU'],
+            'preview_summary' => [],
+            'result_summary' => ['created' => 1],
+        ]);
+
+        $this->assertTrue($import->fresh()->canReopenMapping());
+
+        $this->actingAs($staff)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.reopen-mapping', ['productImportId' => $import->id]))
+            ->assertForbidden();
+    }
+
+    public function test_reopen_mapping_rejected_when_import_not_finished(): void
+    {
+        Storage::fake('local');
+
+        $owner = $this->createMerchantUser('not-finished@example.com');
+        $store = $this->createMemberStore($owner, 'Not Finished Store', Store::ROLE_OWNER);
+
+        $path = 'product-imports/'.$store->id.'/uploaded-only.csv';
+        Storage::disk('local')->put($path, "Title,SKU\nA,B\n");
+
+        ProductImport::query()->create([
+            'store_id' => $store->id,
+            'created_by' => $owner->id,
+            'original_filename' => 'uploaded-only.csv',
+            'stored_disk' => 'local',
+            'stored_path' => $path,
+            'mime_type' => 'text/csv',
+            'file_extension' => 'csv',
+            'status' => ProductImport::STATUS_UPLOADED,
+            'headers' => ['Title', 'SKU'],
+            'column_mapping' => null,
+            'preview_summary' => null,
+            'result_summary' => null,
+        ]);
+        $import = ProductImport::query()->firstOrFail();
+
+        $this->assertFalse($import->canReopenMapping());
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.reopen-mapping', ['productImportId' => $import->id]))
+            ->assertRedirect(route('products.import.history'))
+            ->assertSessionHasErrors('import');
+    }
+
+    public function test_reopen_mapping_idempotent_when_already_reopened_to_parsed(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        $owner = $this->createMerchantUser('reopen-twice@example.com');
+        $store = $this->createMemberStore($owner, 'Reopen Twice Store', Store::ROLE_OWNER);
+
+        $csv = "Title,SKU,Price,Stock\nZed,Z-9,3,1\n";
+        $file = UploadedFile::fake()->createWithContent('twice.csv', $csv);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.store'), ['file' => $file]);
+        $import = ProductImport::query()->firstOrFail();
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.mapping.save', ['productImportId' => $import->id]), [
+                'column_mapping' => [
+                    'product_name' => 'Title',
+                    'sku' => 'SKU',
+                    'base_price' => 'Price',
+                    'stock' => 'Stock',
+                ],
+            ]);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.confirm', ['productImportId' => $import->id]));
+
+        $import->refresh();
+        $this->assertSame(ProductImport::STATUS_COMPLETED, $import->status);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.reopen-mapping', ['productImportId' => $import->id]))
+            ->assertRedirect(route('products.import.mapping', ['productImportId' => $import->id]));
+
+        $import->refresh();
+        $this->assertSame(ProductImport::STATUS_PARSED, $import->status);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('products.import.reopen-mapping', ['productImportId' => $import->id]))
+            ->assertRedirect(route('products.import.mapping', ['productImportId' => $import->id]))
+            ->assertSessionHasNoErrors();
+    }
+
     protected function createMerchantUser(?string $email = null): User
     {
         $role = Role::firstOrCreate(['name' => 'user']);

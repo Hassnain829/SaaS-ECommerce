@@ -27,7 +27,7 @@ class ProductWorkspaceViewTest extends TestCase
             ->assertDontSee('Quick view', false)
             ->assertSee('Product workspace', false)
             ->assertSee('Alpha', false)
-            ->assertSee('Sellable combinations and inventory', false);
+            ->assertSee('Default inventory', false);
     }
 
     public function test_cross_store_workspace_returns_404(): void

@@ -332,6 +332,72 @@ class ProductImportController extends Controller
             ->with('import_notice', 'We picked up where you left off and are continuing with the remaining rows.');
     }
 
+    public function reopenMapping(Request $request, int $productImportId): RedirectResponse
+    {
+        $productImport = $this->resolveImport($request, $productImportId);
+        $this->authorizeImport($request, $productImport);
+        $productImport = ProductImportStaleHandler::resolveIfStale($productImport->fresh());
+        $productImport->refresh();
+
+        if (($productImport->headers ?? []) === []) {
+            return redirect()
+                ->route('products.import.history')
+                ->withErrors(['import' => 'This import no longer has column headers stored. Upload the file again to start a new import.']);
+        }
+
+        if (! Storage::disk($productImport->stored_disk)->exists($productImport->stored_path)) {
+            return redirect()
+                ->route('products.import.history')
+                ->withErrors(['import' => 'The original file is no longer on the server. Upload it again to start a new import.']);
+        }
+
+        $st = $productImport->normalizedStatus();
+
+        if (in_array($st, [ProductImport::STATUS_QUEUED, ProductImport::STATUS_PROCESSING], true)) {
+            return redirect()
+                ->route('products.import.result', ['productImportId' => $productImport->id])
+                ->withErrors(['import' => 'This import is still running. When the status shows Finished, you can re-edit column mapping from import history or this page.']);
+        }
+
+        // Already on the mapping / preview path (e.g. double submit or back navigation): send them to mapping without wiping.
+        if (in_array($st, [ProductImport::STATUS_PARSED, ProductImport::STATUS_PREVIEWED], true)) {
+            return redirect()
+                ->route('products.import.mapping', ['productImportId' => $productImport->id])
+                ->with('import_notice', 'Adjust your column mapping below, then save to build a new preview.');
+        }
+
+        if (! in_array($st, [ProductImport::STATUS_COMPLETED, ProductImport::STATUS_FAILED], true)) {
+            return redirect()
+                ->route('products.import.history')
+                ->withErrors(['import' => 'Re-editing mapping from import history is only available once the import shows Finished or Could not finish. If you are still mapping a new upload, open Map columns from your import notifications or start from Import products.']);
+        }
+
+        $productImport->update([
+            'status' => ProductImport::STATUS_PARSED,
+            'preview_summary' => null,
+            'completed_at' => null,
+            'failure_message' => null,
+            'queued_at' => null,
+            'started_at' => null,
+            'last_processed_row' => 0,
+            'total_rows' => null,
+            'import_state' => null,
+            'result_summary' => null,
+        ]);
+
+        Log::channel('import')->info('product_import_mapping_reopened', [
+            'import_id' => $productImport->id,
+            'store_id' => $productImport->store_id,
+        ]);
+
+        return redirect()
+            ->route('products.import.mapping', ['productImportId' => $productImport->id])
+            ->with(
+                'import_notice',
+                'You are re-editing a previous import using the same file. Adjust column mapping (for example images), open preview, then confirm to run again. Rows with the same product SKU are updated in your catalog—they are not duplicated.'
+            );
+    }
+
     public function history(Request $request): View
     {
         $store = $request->attributes->get('currentStore');

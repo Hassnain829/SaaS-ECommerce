@@ -100,6 +100,12 @@ final class ProductWorkspaceController extends Controller
             is_array($meta['import_extra'] ?? null) ? $meta['import_extra'] : []
         );
 
+        $primaryCatalogThumb = null;
+        $primaryImg = $product->images->first(fn ($im) => $im->is_primary) ?? $product->images->first();
+        if ($primaryImg && $primaryImg->isReady() && $primaryImg->image_path) {
+            $primaryCatalogThumb = asset('storage/'.$primaryImg->image_path);
+        }
+
         $variantSummaries = [];
         $variantCount = (int) $product->variants->count();
         foreach ($product->variants as $idx => $variant) {
@@ -108,8 +114,12 @@ final class ProductWorkspaceController extends Controller
             $label = ProductVariantLabel::forVariant($variant, $idx, $variantCount);
             $img = $variant->linkedCatalogImage;
             $thumbUrl = null;
+            $imageIsProductFallback = false;
             if ($img && $img->isReady() && $img->image_path) {
                 $thumbUrl = asset('storage/'.$img->image_path);
+            } elseif ($primaryCatalogThumb !== null) {
+                $thumbUrl = $primaryCatalogThumb;
+                $imageIsProductFallback = true;
             }
             $vMeta = is_array($variant->meta) ? $variant->meta : [];
             $variantCustomRows = ProductDetailPresenter::associativeRows(
@@ -127,6 +137,7 @@ final class ProductWorkspaceController extends Controller
                 'stock_alert' => (int) $variant->stock_alert,
                 'is_first' => $idx === 0,
                 'catalog_image_thumb' => $thumbUrl,
+                'catalog_image_is_product_fallback' => $imageIsProductFallback,
                 'additional_detail_rows' => $variantCustomRows,
             ];
         }

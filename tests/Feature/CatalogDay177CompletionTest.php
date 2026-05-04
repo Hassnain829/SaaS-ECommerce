@@ -279,6 +279,90 @@ class CatalogDay177CompletionTest extends TestCase
         $response->assertSessionHasErrors(['variants.1.sku']);
     }
 
+    public function test_catalog_variant_update_preserves_explicit_skus_and_prices_across_rebuild(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+        $product = $this->twoOptionVariantProduct($store);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $this->baseCatalogUpdatePayload($product) + [
+                'inventory_stock_allocation_mode' => 'manual',
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['L', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'option_map' => ['0' => 0],
+                        'sku' => 'MULTI-L',
+                        'price' => 11,
+                        'stock' => 5,
+                        'stock_alert' => 0,
+                    ],
+                    [
+                        'option_map' => ['0' => 1],
+                        'sku' => 'MULTI-M',
+                        'price' => 12,
+                        'stock' => 7,
+                        'stock_alert' => 0,
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $after = $product->fresh()->variants()->get();
+        $this->assertCount(2, $after);
+        $skus = $after->pluck('sku')->all();
+        $this->assertEqualsCanonicalizing(['MULTI-L', 'MULTI-M'], $skus);
+        $bySku = $after->keyBy('sku');
+        $this->assertSame(11.0, (float) $bySku['MULTI-L']->price);
+        $this->assertSame(12.0, (float) $bySku['MULTI-M']->price);
+    }
+
+    public function test_catalog_update_reuses_variant_database_ids_when_structure_unchanged(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+        $product = $this->twoOptionVariantProduct($store);
+        $variants = $product->variants()->orderBy('id')->get();
+        $idFirst = (int) $variants[0]->id;
+        $idSecond = (int) $variants[1]->id;
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $this->baseCatalogUpdatePayload($product) + [
+                'inventory_stock_allocation_mode' => 'manual',
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['L', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'id' => $idFirst,
+                        'option_map' => ['0' => 0],
+                        'sku' => 'MULTI-L',
+                        'price' => 11,
+                        'stock' => 5,
+                        'stock_alert' => 0,
+                    ],
+                    [
+                        'id' => $idSecond,
+                        'option_map' => ['0' => 1],
+                        'sku' => 'MULTI-M',
+                        'price' => 12,
+                        'stock' => 7,
+                        'stock_alert' => 0,
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $after = $product->fresh()->variants()->orderBy('id')->get();
+        $this->assertCount(2, $after);
+        $this->assertSame($idFirst, (int) $after[0]->id);
+        $this->assertSame($idSecond, (int) $after[1]->id);
+    }
+
     public function test_split_total_inventory_mode_persists_three_variants(): void
     {
         $owner = $this->merchantUser();

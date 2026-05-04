@@ -227,12 +227,13 @@
 
                     <section class="rounded-3xl border border-[#E2E8F0] bg-white p-7 shadow-sm ring-1 ring-black/[0.02] sm:p-9">
                         <div class="border-b border-[#F1F5F9] pb-4">
-                            <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Sellable combinations and inventory</h2>
                             @if ($multiVariant)
+                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Sellable combinations and inventory</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">Each row is one variant (a combination of your option groups) with its own SKU, price, compare-at, stock, optional photo, and optional extra details. Totals in <span class="font-medium text-[#334155]">Pricing &amp; inventory</span> roll up from these rows.</p>
                             @else
+                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Default inventory</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">
-                                    This product has one inventory row—simple to manage.
+                                    One SKU and stock row for this product.
                                     @if ($canManageCatalog)
                                         Add option groups in <span class="font-medium text-[#334155]">Edit product</span> only if shoppers should choose size, color, pack, or similar variations.
                                     @else
@@ -261,10 +262,16 @@
                                 </div>
                                 <div class="flex flex-col gap-6 sm:flex-row sm:items-start">
                                     <div class="shrink-0 text-center sm:text-left">
-                                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Catalog photo for this row</p>
+                                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Photo for listings</p>
                                         @if (! empty($row['catalog_image_thumb']))
-                                            <img src="{{ $row['catalog_image_thumb'] }}" alt="" title="Variant catalog image" class="mx-auto h-20 w-20 rounded-xl border border-[#E2E8F0] object-cover shadow-sm sm:mx-0">
-                                            <p class="mt-2 text-xs text-[#64748B]">Shown when this variant uses its own image from your catalog.</p>
+                                            <img src="{{ $row['catalog_image_thumb'] }}" alt="" title="{{ ! empty($row['catalog_image_is_product_fallback']) ? 'Catalog image (main product photo)' : 'Variant catalog image' }}" class="mx-auto h-20 w-20 rounded-xl border border-[#E2E8F0] object-cover shadow-sm sm:mx-0">
+                                            <p class="mt-2 text-xs text-[#64748B]">
+                                                @if (! empty($row['catalog_image_is_product_fallback']))
+                                                    Uses your main product image until you assign a variant-specific photo in Edit product.
+                                                @else
+                                                    Variant-specific catalog image.
+                                                @endif
+                                            </p>
                                         @else
                                             <div class="mx-auto flex h-20 w-20 flex-col items-center justify-center rounded-xl border border-dashed border-[#CBD5E1] bg-white px-1 text-center text-[10px] font-medium leading-tight text-[#94A3B8] sm:mx-0">No variant image</div>
                                             <p class="mt-2 max-w-xs text-xs text-[#64748B]">
@@ -342,9 +349,12 @@
                                             <tr class="bg-white even:bg-[#FAFBFC]">
                                                 <td class="px-4 py-3.5 align-top">
                                                     @if (! empty($row['catalog_image_thumb']))
-                                                        <img src="{{ $row['catalog_image_thumb'] }}" alt="" class="h-14 w-14 rounded-xl border border-[#E2E8F0] object-cover shadow-sm" title="Variant catalog image">
+                                                        <img src="{{ $row['catalog_image_thumb'] }}" alt="" class="h-14 w-14 rounded-xl border border-[#E2E8F0] object-cover shadow-sm" title="{{ ! empty($row['catalog_image_is_product_fallback']) ? 'Catalog image (main product photo)' : 'Variant catalog image' }}">
+                                                        @if (! empty($row['catalog_image_is_product_fallback']))
+                                                            <p class="mt-1 max-w-[7rem] text-[10px] leading-tight text-[#64748B]">Main product image</p>
+                                                        @endif
                                                     @else
-                                                        <span class="text-xs text-[#94A3B8]">No variant image</span>
+                                                        <span class="text-xs text-[#94A3B8]">No image</span>
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-3.5 align-top">
@@ -530,6 +540,7 @@
                         <p class="mt-3 text-sm text-[#64748B]">
                             <span class="font-medium text-[#334155]">Advanced imported data</span> is read-only spreadsheet information that was preserved because it was not mapped during import. <span class="font-medium text-[#334155]">Additional details</span> are editable extra fields your team chooses (supplier, material, origin, ingredients, care notes, warranty, internal references). Use <span class="font-medium text-[#334155]">Make editable</span> to copy a preserved column into additional details without re-importing.
                         </p>
+                        <p class="mt-2 text-xs text-[#64748B]">Recovery here is one column at a time per product. To promote many unmapped columns at once, run a new import with an updated mapping instead of using this panel alone.</p>
                         @if ($importExtraRows === [])
                             <div class="mt-4 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-4 text-sm text-[#64748B]">
                                 <p class="font-medium text-[#334155]">No extra imported data for this product.</p>
