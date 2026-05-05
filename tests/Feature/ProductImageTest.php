@@ -40,9 +40,8 @@ class ProductImageTest extends TestCase
                 '_open_add_product_modal' => '1',
             ]);
 
-        $response->assertRedirect(route('products'));
-
         $product = Product::query()->where('store_id', $store->id)->where('name', 'Photo Product')->firstOrFail();
+        $response->assertRedirect(route('products.edit', ['product' => $product->id]));
         $this->assertCount(1, $product->images);
         $path = $product->images->first()->image_path;
         $this->assertIsString($path);

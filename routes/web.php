@@ -34,6 +34,9 @@ Route::get('/logout', [DashboardController::class, 'logout'])
 Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
+    Route::post('/products/catalog-list-highlights', [DashboardController::class, 'saveProductListDetailKeys'])
+        ->middleware('store.role:owner,manager')
+        ->name('products.catalog-list-highlights');
     Route::get('/products/primary-images', [DashboardController::class, 'productPrimaryImages'])->name('products.primary-images');
     Route::get('/products/view/{product}', [ProductWorkspaceController::class, 'show'])->name('products.show');
     Route::get('/products/{product}/edit', [ProductWorkspaceController::class, 'edit'])

@@ -352,6 +352,73 @@
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'published' ? null : 'published']))) }}" class="border text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors hover:bg-[#F8FAFC] {{ ($filters['status'] ?? '') === 'published' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : 'border-[#E2E8F0] bg-white text-[#64748B]' }}">Published</a>
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'draft' ? null : 'draft']))) }}" class="border text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors hover:bg-[#F8FAFC] {{ ($filters['status'] ?? '') === 'draft' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : 'border-[#E2E8F0] bg-white text-[#64748B]' }}">Drafts</a>
                 </div>
+
+                <details id="products-advanced-filters-panel" class="group rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3" @open($filtersRefineOpen)>
+                    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[#0F172A] [&::-webkit-details-marker]:hidden">
+                        <span>Advanced filters &amp; table settings</span>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="text-[#64748B] transition group-open:rotate-180" aria-hidden="true">
+                            <path d="M3 5L7 9L11 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </summary>
+
+                    <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
+                        <form method="GET" action="{{ route('products') }}" class="grid gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 sm:grid-cols-[minmax(10rem,0.7fr)_minmax(12rem,1fr)_auto] sm:items-end">
+                            <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
+                            <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
+                            <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
+                            <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+                            <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
+                            <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
+                            <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
+                            <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+
+                            <div class="flex flex-col gap-1">
+                                <label for="cf_key" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Saved detail</label>
+                                <input id="cf_key" name="cf_key" list="catalog-cf-key-suggestions" value="{{ $filters['cf_key'] ?? '' }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]" placeholder="material">
+                                <datalist id="catalog-cf-key-suggestions">
+                                    @foreach ($cfKeyFilterOptions as $option)
+                                        <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
+                                    @endforeach
+                                </datalist>
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <label for="cf_value" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Contains</label>
+                                <input id="cf_value" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]" placeholder="cotton">
+                            </div>
+
+                            <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white hover:bg-[#0047B3]">Apply</button>
+                        </form>
+
+                        @if ($canManageBrands)
+                            <form method="POST" action="{{ route('products.catalog-list-highlights') }}" class="rounded-lg border border-[#E2E8F0] bg-white p-3">
+                                @csrf
+                                <p class="text-sm font-semibold text-[#0F172A]">Product list columns</p>
+                                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                                    <div class="flex flex-col gap-1">
+                                        <label for="detail_key_1" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Extra detail 1</label>
+                                        <select id="detail_key_1" name="detail_key_1" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                            <option value="">None</option>
+                                            @foreach ($highlightKeyOptions as $option)
+                                                <option value="{{ $option['value'] }}" @selected(($productListDetailKeys[0] ?? '') === $option['value'])>{{ $option['label'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label for="detail_key_2" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Extra detail 2</label>
+                                        <select id="detail_key_2" name="detail_key_2" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                            <option value="">None</option>
+                                            @foreach ($highlightKeyOptions as $option)
+                                                <option value="{{ $option['value'] }}" @selected(($productListDetailKeys[1] ?? '') === $option['value'])>{{ $option['label'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                <button type="submit" class="mt-3 rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm font-semibold text-[#334155] hover:bg-[#F8FAFC]">Save columns</button>
+                            </form>
+                        @endif
+                    </div>
+                </details>
             </div>
         </div>
 

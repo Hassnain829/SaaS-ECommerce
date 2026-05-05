@@ -1,104 +1,133 @@
-# BaaS Core — Global Project Instructions
+# AGENTS.md — Enterprise SaaS E-Commerce Project Instructions
 
-## What this product is
+## Project Identity
 
-BaaS Core is an enterprise-ready multi-tenant SaaS ecommerce platform.
+This project is a Laravel Blade multi-store SaaS e-commerce platform.
 
-It is being built to:
-- compete with Amazon Seller Central, Shopify, and WooCommerce
-- support many store types:
-  - physical products
-  - clothing
-  - electronics
-  - grocery
-  - restaurant/menu
-  - services
-  - subscriptions
-  - digital products
-- be easier, faster, and less frustrating for merchants
+It is not a simple webshop.
 
-This is NOT:
-- a demo
-- a CRUD panel
-- an MVP shortcut build
+The long-term goal is to build a merchant-friendly enterprise commerce operating system that can compete with Shopify, WooCommerce, and Amazon Seller Central in capability, while being easier and less frustrating for merchants to use.
 
----
+The platform must support:
 
-## Core product promise
-
-Every feature must reduce merchant friction.
-
-The platform must:
-- simplify complex tasks
-- preserve imported data safely
-- make product and variant management easier
-- make inventory understandable
-- make operations feel direct and predictable
-
-If a change makes the merchant think too much, navigate too much, or hunt for data, it is the wrong solution.
+- multi-store SaaS tenancy
+- merchant storefront/API connection
+- large catalog management
+- product imports
+- variants and option groups
+- custom fields and imported data preservation
+- inventory tracking
+- orders and customers
+- fulfillment and shipping
+- payments and refunds
+- returns and exchanges
+- SaaS billing
+- integrations, API keys, webhooks, automation
+- security logs, permissions, and enterprise auditability
 
 ---
 
-## Architecture rules
+## Canonical Project Files
 
-- Every tenant-facing query must be scoped by current store.
-- Never allow cross-store access or mutation.
-- Keep core catalog data normalized.
-- Use JSON/meta only for flexible imported or custom fields.
-- Do not store images in the database.
-- Imports must remain resumable, store-safe, and scalable.
-- Inventory changes must remain auditable.
+Before implementing any task, always read these files first:
 
----
+1. `ENTERPRISE_PROJECT_CONTEXT.md`
+2. `ENTERPRISE_ROADMAP_2026.md`
+3. `PROJECT_BRAIN.md`
+4. `.agents/rules/PROJECT-CONTEXT.txt`
+5. `.agents/rules/ROADMAP.txt`
+6. `.agents/rules/Updated ERD similar to Shopify.txt`
+7. `.agents/rules/cursor_project_context_and_development-day-17last.md`
+8. `.agents/rules/OVERVIEW FOR SAAS.txt`
+9. `.cursor/rules/*` if present
 
-## Current roadmap focus
+The canonical source of truth is:
 
-Current critical phase:
-- Day 14: Product Detail Workspace
-- Day 15: Variant System Upgrade
-- Day 16: Variant Import
-- Day 17: Custom Fields Usability
-- Day 18: Product UX Completion
+- `ENTERPRISE_PROJECT_CONTEXT.md` for product vision, architecture rules, and development principles.
+- `ENTERPRISE_ROADMAP_2026.md` for build order, implementation phases, tests, and acceptance criteria.
 
-Then:
-- Day 19–24: Commerce Core
-- Day 25–29: Fulfillment
-- Day 30–34: Billing
-- Day 35–40: Integrations and Security
-
-Follow roadmap order unless explicitly told otherwise.
+Older files such as `ROADMAP.txt` and `PROJECT-CONTEXT.txt` are retained for history and compatibility, but the enterprise files override them when there is conflict.
 
 ---
 
-## UX rules
+## Core Product Philosophy
 
-Prefer:
-- direct workspace-based flows
-- clear section hierarchy
-- readable merchant-facing copy
-- strong progress feedback
-- visible and understandable imported data
+Every feature must answer this question:
 
-Avoid:
-- modal/list bridge hacks for core workflows
-- debug-style pages
-- technical jargon in merchant UI
-- redirect loops
-- hiding important data behind internal structures
+> Does this make merchant life easier?
+
+If the answer is no, the implementation is wrong.
+
+The product must:
+
+- simplify complexity
+- reduce merchant effort
+- make imports understandable
+- make variants easier to manage
+- make inventory clear
+- make orders/customers actionable
+- avoid technical wording in merchant UI
+- expose important data clearly
+- preserve unknown imported data safely
+- remain flexible for many store types
+
+Avoid merchant-facing terms such as:
+
+- JSON
+- payload
+- schema
+- pivot
+- raw meta
+- internal object
+
+Use merchant-friendly terms such as:
+
+- Additional details
+- Imported data
+- Product options
+- Variants
+- Inventory
+- Store settings
+- Customer information
+- Order activity
 
 ---
 
-## Development standard
+## Non-Negotiable Architecture Rules
 
-Every meaningful feature should follow this order where applicable:
-1. migration
-2. model
-3. relationships
-4. validation
-5. authorization
-6. controller/service logic
-7. Blade UI
-8. seed/demo data if needed
-9. feature tests
+### 1. Store Scoping Is Mandatory
 
-Do not stop at UI-only implementation.
+Every tenant-owned entity must be scoped to the current store.
+
+Never allow cross-store leakage.
+
+Store-scoped examples:
+
+- products
+- variants
+- images
+- categories
+- brands
+- tags
+- imports
+- customers
+- customer addresses
+- orders
+- order items
+- order addresses
+- stock movements
+- API keys
+- webhooks
+- notifications
+- settings
+
+Every query must be checked for store safety.
+
+Do not use unscoped model queries in merchant-facing controllers.
+
+Bad:
+
+```php
+Product::find($id);
+Order::find($id);
+Customer::find($id);

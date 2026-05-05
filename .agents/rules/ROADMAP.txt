@@ -1,3 +1,10 @@
+> Canonical roadmap notice:
+>
+> This file is retained for historical roadmap context. The current enterprise build roadmap is now defined in the project root file:
+>
+> `ENTERPRISE_ROADMAP_2026.md`
+>
+> Before implementing any new task, read `ENTERPRISE_ROADMAP_2026.md` first. If this file conflicts with `ENTERPRISE_ROADMAP_2026.md`, follow `ENTERPRISE_ROADMAP_2026.md`.
 # 🗺️ ENTERPRISE DEVELOPMENT ROADMAP
 
 ---

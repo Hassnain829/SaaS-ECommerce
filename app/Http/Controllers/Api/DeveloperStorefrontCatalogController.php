@@ -6,11 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\OrderNumberGenerator;
 use App\Support\StockMovementRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class DeveloperStorefrontCatalogController extends Controller
@@ -40,7 +40,7 @@ class DeveloperStorefrontCatalogController extends Controller
         ]);
     }
 
-        public function placeOrder(Request $request): JsonResponse
+    public function placeOrder(Request $request): JsonResponse
     {
         $store = $request->attributes->get('developerStorefrontStore');
 
@@ -84,6 +84,10 @@ class DeveloperStorefrontCatalogController extends Controller
 
             $variantRows = ProductVariant::query()
                 ->whereIn('id', collect($mergedItems)->pluck('variant_id')->unique()->all())
+                ->whereHas('product', fn ($query) => $query
+                    ->where('store_id', $store->id)
+                    ->where('status', true))
+                ->with('product')
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
@@ -94,17 +98,13 @@ class DeveloperStorefrontCatalogController extends Controller
 
                 if (! $variant) {
                     throw ValidationException::withMessages([
-                        'items' => 'One or more variants are invalid.',
+                        'items' => 'One or more products or variants are not available for this store.',
                     ]);
                 }
 
-                $product = Product::query()
-                    ->where('id', (int) $item['product_id'])
-                    ->where('store_id', $store->id)
-                    ->where('status', true)
-                    ->first();
+                $product = $variant->product;
 
-                if (! $product || (int) $variant->product_id !== (int) $product->id) {
+                if (! $product || (int) $product->id !== (int) $item['product_id']) {
                     throw ValidationException::withMessages([
                         'items' => 'Product and variant do not match this store.',
                     ]);
@@ -151,7 +151,7 @@ class DeveloperStorefrontCatalogController extends Controller
                 $totalQuantity += $qty;
             }
 
-            $orderNumber = (string)rand(10000, 99999);
+            $orderNumber = app(OrderNumberGenerator::class)->generate($store);
 
             $customer = \App\Models\Customer::firstOrCreate(
                 ['store_id' => $store->id, 'email' => $validated['customer_email']],

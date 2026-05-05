@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -11,6 +12,8 @@ return new class extends Migration
      */
     public function up(): void
     {
+        $this->renameDefaultedOrderColumnsForCommerce();
+
         Schema::table('orders', function (Blueprint $table) {
             $table->foreignId('customer_id')->nullable()->after('store_id')->constrained()->nullOnDelete();
             $table->dropColumn('customer_name');
@@ -18,9 +21,7 @@ return new class extends Migration
             $table->string('external_order_number')->nullable()->after('order_number');
             $table->string('fulfillment_status', 32)->default('unfulfilled')->after('status');
             $table->string('payment_status', 32)->default('pending')->after('fulfillment_status');
-            $table->renameColumn('source', 'order_source');
             $table->string('channel')->nullable()->after('order_source');
-            $table->renameColumn('currency', 'currency_code');
             $table->decimal('exchange_rate', 10, 6)->default(1.0)->after('currency_code');
             $table->integer('item_count')->default(0)->after('exchange_rate');
             $table->integer('total_quantity')->default(0)->after('item_count');
@@ -78,6 +79,168 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        $this->rollbackOrderItemColumns();
+        $this->rollbackOrderColumns();
+    }
+
+    private function renameDefaultedOrderColumnsForCommerce(): void
+    {
+        if (! Schema::hasTable('orders')) {
+            return;
+        }
+
+        if (Schema::hasColumn('orders', 'source') && ! Schema::hasColumn('orders', 'order_source')) {
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement("ALTER TABLE `orders` CHANGE `source` `order_source` varchar(32) NOT NULL DEFAULT 'developer_storefront'");
+            } else {
+                Schema::table('orders', function (Blueprint $table): void {
+                    $table->renameColumn('source', 'order_source');
+                });
+            }
+        }
+
+        if (Schema::hasColumn('orders', 'currency') && ! Schema::hasColumn('orders', 'currency_code')) {
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement("ALTER TABLE `orders` CHANGE `currency` `currency_code` varchar(8) NOT NULL DEFAULT 'USD'");
+            } else {
+                Schema::table('orders', function (Blueprint $table): void {
+                    $table->renameColumn('currency', 'currency_code');
+                });
+            }
+        }
+    }
+
+    private function rollbackOrderItemColumns(): void
+    {
+        if (! Schema::hasTable('order_items')) {
+            return;
+        }
+
+        $columnsToDrop = array_values(array_filter([
+            'refunded_quantity',
+            'returned_quantity',
+            'subtotal',
+            'discount_amount',
+            'tax_amount',
+            'cost_price_snapshot',
+            'weight_snapshot',
+            'sku_snapshot',
+            'barcode_snapshot',
+            'product_slug_snapshot',
+            'brand_name_snapshot',
+            'product_image_snapshot',
+            'product_type_snapshot',
+            'fulfillment_status',
+            'variant_details',
+            'meta',
+        ], fn (string $column): bool => Schema::hasColumn('order_items', $column)));
+
+        if ($columnsToDrop !== []) {
+            Schema::table('order_items', function (Blueprint $table) use ($columnsToDrop): void {
+                $table->dropColumn($columnsToDrop);
+            });
+        }
+
+        if (Schema::hasColumn('order_items', 'total') && ! Schema::hasColumn('order_items', 'line_total')) {
+            Schema::table('order_items', function (Blueprint $table): void {
+                $table->renameColumn('total', 'line_total');
+            });
+        }
+    }
+
+    private function rollbackOrderColumns(): void
+    {
+        if (! Schema::hasTable('orders')) {
+            return;
+        }
+
+        Schema::table('orders', function (Blueprint $table): void {
+            if (Schema::hasColumn('orders', 'customer_id')) {
+                $table->dropForeign(['customer_id']);
+            }
+
+            if (Schema::hasColumn('orders', 'created_by')) {
+                $table->dropForeign(['created_by']);
+            }
+
+            if (Schema::hasColumn('orders', 'updated_by')) {
+                $table->dropForeign(['updated_by']);
+            }
+        });
+
+        if (Schema::hasColumn('orders', 'order_number') && ! Schema::hasColumn('orders', 'reference')) {
+            Schema::table('orders', function (Blueprint $table): void {
+                $table->renameColumn('order_number', 'reference');
+            });
+        }
+
+        if (Schema::hasColumn('orders', 'order_source') && ! Schema::hasColumn('orders', 'source')) {
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement("ALTER TABLE `orders` CHANGE `order_source` `source` varchar(32) NOT NULL DEFAULT 'developer_storefront'");
+            } else {
+                Schema::table('orders', function (Blueprint $table): void {
+                    $table->renameColumn('order_source', 'source');
+                });
+            }
+        }
+
+        if (Schema::hasColumn('orders', 'currency_code') && ! Schema::hasColumn('orders', 'currency')) {
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement("ALTER TABLE `orders` CHANGE `currency_code` `currency` varchar(8) NOT NULL DEFAULT 'USD'");
+            } else {
+                Schema::table('orders', function (Blueprint $table): void {
+                    $table->renameColumn('currency_code', 'currency');
+                });
+            }
+        }
+
+        $columnsToDrop = array_values(array_filter([
+            'customer_id',
+            'external_order_number',
+            'fulfillment_status',
+            'payment_status',
+            'channel',
+            'exchange_rate',
+            'item_count',
+            'total_quantity',
+            'subtotal',
+            'discount',
+            'discount_tax',
+            'shipping',
+            'shipping_tax',
+            'tax',
+            'grand_total',
+            'refunded_total',
+            'outstanding_total',
+            'payment_method',
+            'payment_gateway',
+            'payment_reference',
+            'transaction_id',
+            'fraud_status',
+            'invoice_status',
+            'customer_phone',
+            'billing_same_as_shipping',
+            'notes',
+            'placed_at',
+            'confirmed_at',
+            'cancelled_at',
+            'refunded_at',
+            'closed_at',
+            'created_by',
+            'updated_by',
+            'deleted_at',
+        ], fn (string $column): bool => Schema::hasColumn('orders', $column)));
+
+        if ($columnsToDrop !== []) {
+            Schema::table('orders', function (Blueprint $table) use ($columnsToDrop): void {
+                $table->dropColumn($columnsToDrop);
+            });
+        }
+
+        if (! Schema::hasColumn('orders', 'customer_name')) {
+            Schema::table('orders', function (Blueprint $table): void {
+                $table->string('customer_name')->nullable()->after('status');
+            });
+        }
     }
 };

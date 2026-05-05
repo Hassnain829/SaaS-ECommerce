@@ -9,12 +9,13 @@ use App\Models\OrderAddress;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Store;
+use App\Services\OrderNumberGenerator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
 class CustomerAndOrderSeeder extends Seeder
 {
-    public function run(): void
+    public function run(OrderNumberGenerator $orderNumberGenerator): void
     {
         $store = Store::query()->where('slug', 'demo-fashion')->first();
 
@@ -175,7 +176,7 @@ class CustomerAndOrderSeeder extends Seeder
                 $order = Order::query()->create([
                     'store_id' => $store->id,
                     'customer_id' => $customer->id,
-                    'order_number' => (string)rand(10000, 99999),
+                    'order_number' => $orderNumberGenerator->generate($store),
                     'status' => $status,
                     'payment_status' => 'paid',
                     'customer_email' => $customer->email,

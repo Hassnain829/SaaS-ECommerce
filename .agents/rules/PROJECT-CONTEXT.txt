@@ -1,3 +1,10 @@
+> Canonical project context notice:
+>
+> This file is retained for historical project context. The current enterprise product brain and development rules are now defined in the project root file:
+>
+> `ENTERPRISE_PROJECT_CONTEXT.md`
+>
+> Before implementing any new task, read `ENTERPRISE_PROJECT_CONTEXT.md` first. If this file conflicts with `ENTERPRISE_PROJECT_CONTEXT.md`, follow `ENTERPRISE_PROJECT_CONTEXT.md`.
 # 🧠 PROJECT CONTEXT — ENTERPRISE E-COMMERCE SAAS PLATFORM
 
 ## 🎯 Vision
