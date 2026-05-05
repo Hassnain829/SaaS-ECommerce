@@ -463,24 +463,103 @@ class DashboardController extends Controller
             ->with('success_title', 'List preferences');
     }
 
-    public function orders()
+    public function orders(Request $request)
     {
-        return view('user_view.orders');
+        $selectedStore = $request->attributes->get('currentStore');
+        
+        $status = $request->query('status');
+
+        $query = \App\Models\Order::query()
+            ->where('store_id', $selectedStore->id)
+            ->with(['customer', 'items']);
+
+        if ($status && $status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        $orders = $query->orderByDesc('placed_at')->paginate(20)->withQueryString();
+
+        $statusCounts = \App\Models\Order::query()
+            ->where('store_id', $selectedStore->id)
+            ->selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->all();
+            
+        $statusCounts['all'] = array_sum($statusCounts);
+
+        return view('user_view.orders', [
+            'orders' => $orders,
+            'currentStatus' => $status ?? 'all',
+            'statusCounts' => $statusCounts,
+            'selectedStore' => $selectedStore,
+        ]);
     }
 
-    public function orderViewDetails()
+    public function orderViewDetails(Request $request, \App\Models\Order $order)
     {
-        return view('user_view.orderViewDetails');
+        $selectedStore = $request->attributes->get('currentStore');
+        
+        if ($order->store_id !== $selectedStore->id) {
+            abort(404);
+        }
+
+        $order->load(['items', 'customer', 'addresses', 'items.product', 'items.variant.options']);
+
+        return view('user_view.orderViewDetails', [
+            'order' => $order,
+            'selectedStore' => $selectedStore,
+        ]);
     }
 
-    public function customers()
+    public function updateOrderStatus(Request $request, \App\Models\Order $order)
     {
-        return view('user_view.customers');
+        $selectedStore = $request->attributes->get('currentStore');
+        
+        if ($order->store_id !== $selectedStore->id) {
+            abort(404);
+        }
+
+        $request->validate([
+            'status' => ['required', 'string', 'in:pending,processing,shipped,delivered,cancelled'],
+        ]);
+
+        $order->update(['status' => $request->status]);
+
+        return back()->with('success', 'Order status updated successfully.');
     }
 
-    public function customersProfile()
+    public function customers(Request $request)
     {
-        return view('user_view.customersProfileTab');
+        $selectedStore = $request->attributes->get('currentStore');
+
+        $customers = \App\Models\Customer::query()
+            ->where('store_id', $selectedStore->id)
+            ->orderByDesc('created_at')
+            ->paginate(20);
+
+        return view('user_view.customers', [
+            'customers' => $customers,
+            'selectedStore' => $selectedStore,
+        ]);
+    }
+
+    public function customersProfile(Request $request, \App\Models\Customer $customer)
+    {
+        $selectedStore = $request->attributes->get('currentStore');
+        
+        if ($customer->store_id !== $selectedStore->id) {
+            abort(404);
+        }
+
+        $customer->load(['addresses', 'orders' => function($q) {
+            $q->orderByDesc('placed_at')->take(5);
+        }]);
+
+        return view('user_view.customersProfileTab', [
+            'customer' => $customer,
+            'selectedStore' => $selectedStore,
+        ]);
     }
 
     public function teamMembers(Request $request): RedirectResponse|View

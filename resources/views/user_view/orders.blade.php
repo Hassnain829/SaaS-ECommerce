@@ -1,4 +1,4 @@
-﻿@extends('layouts.user.user-sidebar')
+@extends('layouts.user.user-sidebar')
 
 @section('title', 'All Orders | BaaS Core')
 
@@ -38,8 +38,8 @@
 <div class="w-full py-2 md:py-4">
     <div class="flex items-start justify-between gap-4 mb-4">
         <div>
-            <h1 class="text-4xl text-[#0F172A] font-poppins">All Orders</h1>
-            <p class="text-lg md:text-[28px] text-[#64748B] mt-1">Manage and track your customer orders.</p>
+            <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">All Orders</h1>
+            <p class="text-sm text-[#64748B]">Manage and track your customer orders.</p>
         </div>
         <button class="bg-white border border-[#CBD5E1] rounded-xl px-4 h-10 text-sm font-semibold text-[#1E293B] inline-flex items-center gap-2">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 12L1 7L2.4 5.6L5 8.2V0H7V8.2L9.6 5.6L11 7L6 12Z" fill="currentColor"/></svg>
@@ -49,11 +49,11 @@
 
     <section class="bg-white border border-[#CBD5E1] rounded-2xl p-4 md:p-5 space-y-4">
         <div class="flex flex-wrap gap-2 text-sm font-semibold">
-            <button class="h-9 px-4 rounded-full bg-[#0052CC] text-white">All</button>
-            <button class="h-9 px-4 rounded-full bg-[#F1F5F9] text-[#475569]">Pending</button>
-            <button class="h-9 px-4 rounded-full bg-[#F1F5F9] text-[#475569]">Processing</button>
-            <button class="h-9 px-4 rounded-full bg-[#F1F5F9] text-[#475569]">Shipped</button>
-            <button class="h-9 px-4 rounded-full bg-[#F1F5F9] text-[#475569]">Cancelled</button>
+            <a href="{{ route('orders', ['status' => 'all']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'all' ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">All ({{ $statusCounts['all'] ?? 0 }})</a>
+            <a href="{{ route('orders', ['status' => 'pending']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'pending' ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">Pending ({{ $statusCounts['pending'] ?? 0 }})</a>
+            <a href="{{ route('orders', ['status' => 'processing']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'processing' ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">Processing ({{ $statusCounts['processing'] ?? 0 }})</a>
+            <a href="{{ route('orders', ['status' => 'shipped']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'shipped' ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">Shipped ({{ $statusCounts['shipped'] ?? 0 }})</a>
+            <a href="{{ route('orders', ['status' => 'cancelled']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'cancelled' ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">Cancelled ({{ $statusCounts['cancelled'] ?? 0 }})</a>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
@@ -72,77 +72,57 @@
                         <th class="text-left px-4 py-4">Customer</th>
                         <th class="text-right px-4 py-4">Total</th>
                         <th class="text-left px-4 py-4">Payment</th>
-                        <th class="text-left px-4 py-4">Fulfillment</th>
+                        <th class="text-left px-4 py-4">Status</th>
                         <th class="text-right px-6 py-4"></th>
                     </tr>
                 </thead>
                 <tbody class="text-sm">
+                    @forelse($orders as $order)
                     <tr class="border-b border-[#F1F5F9]">
-                        <td class="px-6 py-4 text-[#0052CC] font-bold">#ORD-9421</td>
-                        <td class="px-4 py-4 text-[#475569]">Oct 18, 2023</td>
-                        <td class="px-4 py-4"><p class="font-semibold">Sarah Jenkins</p><p class="text-xs text-[#64748B]">sarah.j@example.com</p></td>
-                        <td class="px-4 py-4 text-right font-bold">$245.00</td>
-                        <td class="px-4 py-4"><span class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#059669]">Success</span></td>
-                        <td class="px-4 py-4 text-[#64748B]">UPS Ground</td>
+                        <td class="px-6 py-4 text-[#0052CC] font-bold">#{{ strtoupper($order->order_number) }}</td>
+                        <td class="px-4 py-4 text-[#475569]">{{ $order->placed_at ? $order->placed_at->format('M d, Y') : '-' }}</td>
+                        <td class="px-4 py-4">
+                            <p class="font-semibold">{{ $order->customer->full_name ?? $order->customer_email }}</p>
+                            <p class="text-xs text-[#64748B]">{{ $order->customer_email }}</p>
+                        </td>
+                        <td class="px-4 py-4 text-right font-bold">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $order->total, 2) }}</td>
+                        <td class="px-4 py-4">
+                            @if($order->payment_status === 'paid')
+                                <span class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#059669]">Paid</span>
+                            @else
+                                <span class="inline-flex items-center gap-1 rounded-full bg-[#FFF7ED] px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#D97706]">{{ $order->payment_status }}</span>
+                            @endif
+                        </td>
+                        <td class="px-4 py-4 text-[#64748B]">
+                            <span class="inline-flex items-center gap-1 rounded-full bg-[#F1F5F9] px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#475569]">
+                                {{ $order->status }}
+                            </span>
+                        </td>
                         <td class="px-6 py-4 text-right">
-                            <a href="{{ route('orderViewDetails') }}" class="text-[#0052CC] font-bold">View Details</a>
+                            <a href="{{ route('orderViewDetails', $order->id) }}" class="text-[#0052CC] font-bold">View Details</a>
                         </td>
                     </tr>
-                    <tr class="border-b border-[#F1F5F9]">
-                        <td class="px-6 py-4 text-[#0052CC] font-bold">#ORD-9421</td>
-                        <td class="px-4 py-4 text-[#475569]">Oct 18, 2023</td>
-                        <td class="px-4 py-4"><p class="font-semibold">Marcus Thorne</p><p class="text-xs text-[#64748B]">m.thorne@cloud.net</p></td>
-                        <td class="px-4 py-4 text-right font-bold">$1,120.50</td>
-                        <td class="px-4 py-4"><span class="inline-flex items-center gap-1 rounded-full bg-[#FFF7ED] px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#D97706]">Pending</span></td>
-                        <td class="px-4 py-4 text-[#64748B]">FedEx Express</td>
-                        <td class="px-6 py-4 text-right">
-                            <a href="{{ route('orderViewDetails') }}" class="text-[#0052CC] font-bold">View Details</a>
-                        </td>
-                    </tr>
-                    <tr class="border-b border-[#F1F5F9]">
-                        <td class="px-6 py-4 text-[#0052CC] font-bold">#ORD-9421</td>
-                        <td class="px-4 py-4 text-[#475569]">Oct 18, 2023</td>
-                        <td class="px-4 py-4"><p class="font-semibold">Elena Rodriguez</p><p class="text-xs text-[#64748B]">elena.r@web.com</p></td>
-                        <td class="px-4 py-4 text-right font-bold">$89.99</td>
-                        <td class="px-4 py-4"><span class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#059669]">Success</span></td>
-                        <td class="px-4 py-4 text-[#64748B]">DHL International</td>
-                        <td class="px-6 py-4 text-right">
-                            <a href="{{ route('orderViewDetails') }}" class="text-[#0052CC] font-bold">View Details</a>
-                        </td>
-                    </tr>
-                    <tr class="border-b border-[#F1F5F9]">
-                        <td class="px-6 py-4 text-[#0052CC] font-bold">#ORD-9421</td>
-                        <td class="px-4 py-4 text-[#475569]">Oct 18, 2023</td>
-                        <td class="px-4 py-4"><p class="font-semibold">David Wu</p><p class="text-xs text-[#64748B]">dwu88@gmail.com</p></td>
-                        <td class="px-4 py-4 text-right font-bold">$430.00</td>
-                        <td class="px-4 py-4"><span class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#059669]">Success</span></td>
-                        <td class="px-4 py-4 text-[#64748B]">UPS Ground</td>
-                        <td class="px-6 py-4 text-right">
-                            <a href="{{ route('orderViewDetails') }}" class="text-[#0052CC] font-bold">View Details</a>
-                        </td>
-                    </tr>
+                    @empty
                     <tr>
-                        <td class="px-6 py-4 text-[#0052CC] font-bold">#ORD-9421</td>
-                        <td class="px-4 py-4 text-[#475569]">Oct 18, 2023</td>
-                        <td class="px-4 py-4"><p class="font-semibold">Chloe Vance</p><p class="text-xs text-[#64748B]">chloe.v@corp.com</p></td>
-                        <td class="px-4 py-4 text-right font-bold">$12.50</td>
-                        <td class="px-4 py-4"><span class="inline-flex items-center gap-1 rounded-full bg-[#FFF1F2] px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] text-[#E11D48]">Cancelled</span></td>
-                        <td class="px-4 py-4 text-[#94A3B8]">No fulfillment</td>
-                        <td class="px-6 py-4 text-right">
-                            <a href="{{ route('orderViewDetails') }}" class="text-[#0052CC] font-bold">View Details</a>
-                        </td>
+                        <td colspan="7" class="px-6 py-8 text-center text-[#64748B]">No orders found for this status.</td>
                     </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>
 
-        <div class="border-t border-[#F1F5F9] px-4 md:px-6 h-14 flex items-center justify-between text-xs text-[#64748B]">
-            <p>Showing <span class="font-bold text-[#0F172A]">1</span> to <span class="font-bold text-[#0F172A]">10</span> of <span class="font-bold text-[#0F172A]">1,248</span> orders</p>
+        @if($orders->hasPages())
+        <div class="border-t border-[#F1F5F9] px-4 md:px-6 py-4 flex items-center justify-between text-xs text-[#64748B]">
+            <p>Showing <span class="font-bold text-[#0F172A]">{{ $orders->firstItem() }}</span> to <span class="font-bold text-[#0F172A]">{{ $orders->lastItem() }}</span> of <span class="font-bold text-[#0F172A]">{{ $orders->total() }}</span> orders</p>
             <div class="flex items-center gap-2">
-                <button class="w-7 h-7 rounded-lg border border-[#E2E8F0] text-[#94A3B8]">&lsaquo;</button>
-                <button class="w-7 h-7 rounded-lg border border-[#E2E8F0] text-[#0F172A]">&rsaquo;</button>
+                {{ $orders->links('pagination::tailwind') }}
             </div>
         </div>
+        @else
+        <div class="border-t border-[#F1F5F9] px-4 md:px-6 h-14 flex items-center justify-between text-xs text-[#64748B]">
+            <p>Showing <span class="font-bold text-[#0F172A]">{{ $orders->count() }}</span> orders</p>
+        </div>
+        @endif
     </section>
 </div>
 @endsection

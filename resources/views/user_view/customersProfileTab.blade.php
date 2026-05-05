@@ -1,4 +1,4 @@
-﻿@extends('layouts.user.user-sidebar')
+@extends('layouts.user.user-sidebar')
 
 @section('title', 'Customer Profile | BaaS Core')
 
@@ -11,7 +11,7 @@
     <div class="hidden sm:flex items-center gap-2 text-sm min-w-0">
       <a href="{{ route('customers') }}" class="text-[#64748B]">Customers</a>
       <span class="text-[#94A3B8]">&gt;</span>
-      <span class="font-semibold text-[#0F172A] truncate">Sarah Jenkins</span>
+      <span class="font-semibold text-[#0F172A] truncate">{{ $customer->full_name ?? $customer->email }}</span>
     </div>
 
     <div class="flex items-center gap-3 ml-auto">
@@ -27,18 +27,30 @@
     <div class="space-y-5">
       <section class="bg-white border border-[#CBD5E1] rounded-2xl p-5">
         <div class="flex flex-wrap items-start gap-4">
-          <div class="rounded-xl bg-[#F5D8BE] border border-[#E2E8F0] flex items-center justify-center text-[10px] text-[#64748B]" style="height:74px; width:74px;">Photo</div>
+                    @php
+              $initials = collect(explode(' ', $customer->full_name ?? ''))->map(fn($n) => substr($n, 0, 1))->take(2)->join('');
+          @endphp
+          <div class="rounded-xl bg-[#F5D8BE] border border-[#E2E8F0] flex items-center justify-center text-xl font-bold text-[#64748B]" style="height:74px; width:74px;">{{ strtoupper($initials) ?: 'C' }}</div>
 
           <div class="flex-1 min-w-0">
             <div class="flex flex-wrap items-center gap-3">
-              <h1 class="text-4xl lg:text-5xl font-poppins leading-tight text-[#0F172A]">Sarah Jenkins</h1>
-              <span class="inline-flex rounded-full bg-[#D1FAE5] px-2.5 py-1 text-[11px] font-semibold text-[#059669]">VIP CUSTOMER</span>
+              <h1 class="text-2xl font-medium font-poppins text-[#0F172A]">{{ $customer->full_name ?? $customer->email }}</h1>
+              @if($customer->status === 'active')
+                  <span class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#059669]">Active</span>
+              @else
+                  <span class="inline-flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#64748B]">{{ $customer->status }}</span>
+              @endif
             </div>
 
             <div class="mt-2 space-y-1 text-[#64748B] text-sm">
-              <p>s.jenkins@example.com</p>
-              <p>+1 (555) 234-8910</p>
-              <p>Seattle, WA, USA</p>
+              <p>{{ $customer->email }}</p>
+              @if($customer->phone)
+                  <p>{{ $customer->phone }}</p>
+              @endif
+              @php $defaultAddress = $customer->addresses->firstWhere('is_default', true) ?? $customer->addresses->first(); @endphp
+              @if($defaultAddress)
+                  <p>{{ $defaultAddress->city }}, {{ $defaultAddress->state }}, {{ $defaultAddress->country }}</p>
+              @endif
             </div>
           </div>
 
@@ -49,19 +61,18 @@
         </div>
       </section>
 
-      <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <article class="bg-white border border-[#CBD5E1] rounded-2xl p-5">
-          <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Lifetime Value</p>
-          <p class="text-4xl leading-none font-semibold mt-2">$12,450.00</p>
-          <p class="text-[#059669] text-sm font-semibold mt-2">↗14%</p>
+          <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Total Spent</p>
+          <p class="text-4xl leading-none font-semibold mt-2">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $customer->total_spent, 2) }}</p>
         </article>
         <article class="bg-white border border-[#CBD5E1] rounded-2xl p-5">
           <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Average Order Value</p>
-          <p class="text-4xl leading-none font-semibold mt-2">$415.00</p>
+          <p class="text-4xl leading-none font-semibold mt-2">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $customer->average_order_value, 2) }}</p>
         </article>
         <article class="bg-white border border-[#CBD5E1] rounded-2xl p-5">
           <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Total Orders</p>
-          <p class="text-4xl leading-none font-semibold mt-2">30</p>
+          <p class="text-4xl leading-none font-semibold mt-2">{{ $customer->total_orders }}</p>
         </article>
       </section>
 
@@ -125,10 +136,22 @@
                 <th class="text-right px-6 py-4">Total</th>
               </tr>
             </thead>
-            <tbody>
-              <tr class="border-t border-[#F1F5F9]"><td class="px-6 py-4 font-bold text-[#0052CC]">#ORD-90234</td><td class="px-4 py-4">Oct 24, 2023</td><td class="px-4 py-4"><span class="rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase text-[#059669]">Delivered</span></td><td class="px-4 py-4 text-[#475569]">Leather Tote, Silk Scarf</td><td class="px-6 py-4 text-right font-bold">$890.00</td></tr>
-              <tr class="border-t border-[#F1F5F9]"><td class="px-6 py-4 font-bold text-[#0052CC]">#ORD-89451</td><td class="px-4 py-4">Sep 12, 2023</td><td class="px-4 py-4"><span class="rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase text-[#059669]">Delivered</span></td><td class="px-4 py-4 text-[#475569]">Wool Pea Coat</td><td class="px-6 py-4 text-right font-bold">$1,250.00</td></tr>
-              <tr class="border-t border-[#F1F5F9]"><td class="px-6 py-4 font-bold text-[#0052CC]">#ORD-88210</td><td class="px-4 py-4">Aug 05, 2023</td><td class="px-4 py-4"><span class="rounded-full bg-[#F1F5F9] px-2 py-1 text-[10px] font-bold uppercase text-[#475569]">Returned</span></td><td class="px-4 py-4 text-[#475569]">Chelsea Boots</td><td class="px-6 py-4 text-right font-bold">$320.00</td></tr>
+                        <tbody>
+              @forelse($customer->orders as $order)
+              <tr class="border-t border-[#F1F5F9]">
+                <td class="px-6 py-4 font-bold text-[#0052CC]"><a href="{{ route('orderViewDetails', $order->id) }}">#{{ strtoupper($order->order_number) }}</a></td>
+                <td class="px-4 py-4">{{ $order->placed_at ? $order->placed_at->format('M d, Y') : '-' }}</td>
+                <td class="px-4 py-4">
+                  <span class="rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase text-[#059669]">{{ $order->status }}</span>
+                </td>
+                <td class="px-4 py-4 text-[#475569]">{{ $order->item_count }} items</td>
+                <td class="px-6 py-4 text-right font-bold">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $order->total, 2) }}</td>
+              </tr>
+              @empty
+              <tr>
+                <td colspan="5" class="px-6 py-8 text-center text-[#64748B]">No orders found for this customer.</td>
+              </tr>
+              @endforelse
             </tbody>
           </table>
         </div>

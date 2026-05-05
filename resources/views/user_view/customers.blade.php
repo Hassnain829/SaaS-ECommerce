@@ -1,4 +1,4 @@
-﻿@extends('layouts.user.user-sidebar')
+@extends('layouts.user.user-sidebar')
 
 @section('title', 'Customers | BaaS Core')
 
@@ -46,8 +46,8 @@
     <div class="w-full space-y-6">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <h1 class="text-4xl text-[#0F172A] font-poppins">Customers</h1>
-                <p class="text-base text-[#64748B] mt-1">Manage and view detailed insights of your customer base.</p>
+                <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Customers</h1>
+                <p class="text-sm text-[#64748B]">Manage and view detailed insights of your customer base.</p>
             </div>
         </div>
 
@@ -82,143 +82,57 @@
                         </tr>
                     </thead>
                     <tbody class="text-sm">
+                        @forelse($customers as $customer)
                         <tr class="border-b border-[#F1F5F9]">
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-full bg-[#E2E8F0]"></div>
+                                    <div class="h-10 w-10 rounded-full bg-[#E2E8F0] grid place-items-center text-[#475569] font-bold">
+                                        {{ strtoupper(substr($customer->full_name ?? $customer->email, 0, 1)) }}
+                                    </div>
                                     <div>
-                                        <p class="font-bold">Sarah Chen</p>
-                                        <p class="text-xs text-[#64748B]">sarah.chen@example.com</p>
+                                        <p class="font-bold">{{ $customer->full_name ?? $customer->email }}</p>
+                                        <p class="text-xs text-[#64748B]">{{ $customer->email }}</p>
                                     </div>
                                 </div>
                             </td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex px-2.5 py-1 rounded border border-[#E2E8F0] bg-[#F1F5F9] text-xs font-medium text-[#475569]">Fashion</span>
+                            <td class="px-4 py-4">
+                                <span class="inline-flex px-2.5 py-1 rounded border border-[#E2E8F0] bg-[#F1F5F9] text-xs font-medium text-[#475569] capitalize">{{ $customer->status }}</span>
                             </td>
-                            <td class="px-4 py-4 text-center font-medium">18</td>
-                            <td class="px-4 py-4 text-right font-bold">$2,450.00</td>
-                            <td class="px-4 py-4 text-[#475569]">Oct 20, 2023</td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#059669]">Active</span>
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <a href="{{ route('customersProfile') }}" class="text-[#0052CC] text-xs font-bold">View
-                                    Profile</a>
-                            </td>
-                        </tr>
-                        <tr class="border-b border-[#F1F5F9]">
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-full bg-[#E2E8F0]"></div>
-                                    <div>
-                                        <p class="font-bold">Michael Ross</p>
-                                        <p class="text-xs text-[#64748B]">m.ross@corporate.io</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex px-2.5 py-1 rounded border border-[#E2E8F0] bg-[#F1F5F9] text-xs font-medium text-[#475569]">Electronics</span>
-                            </td>
-                            <td class="px-4 py-4 text-center font-medium">54</td>
-                            <td class="px-4 py-4 text-right font-bold">$12,890.25</td>
-                            <td class="px-4 py-4 text-[#475569]">Oct 24, 2023</td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#059669]">Active</span>
+                            <td class="px-4 py-4 text-center font-medium">{{ $customer->total_orders }}</td>
+                            <td class="px-4 py-4 text-right font-bold">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $customer->total_spent, 2) }}</td>
+                            <td class="px-4 py-4 text-[#475569]">{{ $customer->last_order_at ? $customer->last_order_at->format('M d, Y') : 'Never' }}</td>
+                            <td class="px-4 py-4">
+                                @if($customer->status === 'active')
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#059669]">Active</span>
+                                @else
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#64748B]">{{ $customer->status }}</span>
+                                @endif
                             </td>
                             <td class="px-6 py-4 text-right">
-                                <a href="{{ route('customersProfile') }}" class="text-[#0052CC] text-xs font-bold">View
-                                    Profile</a>
+                                <a href="{{ route('customersProfile', $customer->id) }}" class="text-[#0052CC] text-xs font-bold">View Profile</a>
                             </td>
                         </tr>
-                        <tr class="border-b border-[#F1F5F9]">
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-full bg-[#E2E8F0]"></div>
-                                    <div>
-                                        <p class="font-bold">Elena Rodriguez</p>
-                                        <p class="text-xs text-[#64748B]">elena.r@design.co</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex px-2.5 py-1 rounded border border-[#E2E8F0] bg-[#F1F5F9] text-xs font-medium text-[#475569]">Home
-                                    Office</span></td>
-                            <td class="px-4 py-4 text-center font-medium">6</td>
-                            <td class="px-4 py-4 text-right font-bold">$842.00</td>
-                            <td class="px-4 py-4 text-[#475569]">Oct 17, 2023</td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#64748B]">Inactive</span>
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <a href="{{ route('customersProfile') }}" class="text-[#0052CC] text-xs font-bold">View
-                                    Profile</a>
-                            </td>
-                        </tr>
-                        <tr class="border-b border-[#F1F5F9]">
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-full bg-[#E2E8F0]"></div>
-                                    <div>
-                                        <p class="font-bold">David Park</p>
-                                        <p class="text-xs text-[#64748B]">dpark@techcloud.com</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex px-2.5 py-1 rounded border border-[#E2E8F0] bg-[#F1F5F9] text-xs font-medium text-[#475569]">Electronics</span>
-                            </td>
-                            <td class="px-4 py-4 text-center font-medium">29</td>
-                            <td class="px-4 py-4 text-right font-bold">$5,630.50</td>
-                            <td class="px-4 py-4 text-[#475569]">Oct 23, 2023</td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#059669]">Active</span>
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <a href="{{ route('customersProfile') }}" class="text-[#0052CC] text-xs font-bold">View
-                                    Profile</a>
-                            </td>
-                        </tr>
+                        @empty
                         <tr>
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-3">
-                                    <div class="h-10 w-10 rounded-full bg-[#E2E8F0]"></div>
-                                    <div>
-                                        <p class="font-bold">Anna Schmidt</p>
-                                        <p class="text-xs text-[#64748B]">anna.s@berlin-style.com</p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex px-2.5 py-1 rounded border border-[#E2E8F0] bg-[#F1F5F9] text-xs font-medium text-[#475569]">Fashion</span>
-                            </td>
-                            <td class="px-4 py-4 text-center font-medium">12</td>
-                            <td class="px-4 py-4 text-right font-bold">$1,210.00</td>
-                            <td class="px-4 py-4 text-[#475569]">Oct 12, 2023</td>
-                            <td class="px-4 py-4"><span
-                                    class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#059669]">Active</span>
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <a href="{{ route('customersProfile') }}" class="text-[#0052CC] text-xs font-bold">View
-                                    Profile</a>
-                            </td>
+                            <td colspan="7" class="px-6 py-8 text-center text-[#64748B]">No customers found.</td>
                         </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
 
-            <div
-                class="bg-[#F8FAFC]/50 border-t border-[#F1F5F9] px-4 md:px-6 h-14 flex items-center justify-between text-xs text-[#64748B]">
-                <p>Showing 1 to 5 of 1,248 customers</p>
+            @if($customers->hasPages())
+            <div class="bg-[#F8FAFC]/50 border-t border-[#F1F5F9] px-4 md:px-6 py-4 flex items-center justify-between text-xs text-[#64748B]">
+                <p>Showing <span class="font-bold text-[#0F172A]">{{ $customers->firstItem() }}</span> to <span class="font-bold text-[#0F172A]">{{ $customers->lastItem() }}</span> of <span class="font-bold text-[#0F172A]">{{ $customers->total() }}</span> customers</p>
                 <div class="flex items-center gap-1">
-                    <button class="w-8 h-8 rounded text-[#94A3B8]">&lsaquo;</button>
-                    <button class="w-8 h-8 rounded bg-[#0052CC] text-white font-bold">1</button>
-                    <button class="w-8 h-8 rounded text-[#0F172A] font-bold">2</button>
-                    <button class="w-8 h-8 rounded text-[#0F172A] font-bold">3</button>
-                    <span class="px-2 text-[#94A3B8]">...</span>
-                    <button class="w-8 h-8 rounded text-[#0F172A] font-bold">250</button>
-                    <button class="w-8 h-8 rounded text-[#0F172A]">&rsaquo;</button>
+                    {{ $customers->links('pagination::tailwind') }}
                 </div>
             </div>
+            @else
+            <div class="bg-[#F8FAFC]/50 border-t border-[#F1F5F9] px-4 md:px-6 h-14 flex items-center justify-between text-xs text-[#64748B]">
+                <p>Showing <span class="font-bold text-[#0F172A]">{{ $customers->count() }}</span> customers</p>
+            </div>
+            @endif
         </section>
     </div>
 @endsection

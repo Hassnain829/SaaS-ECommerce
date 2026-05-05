@@ -77,10 +77,11 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         ->middleware('store.role:owner,manager')
         ->name('categories.destroy');
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
-    Route::get('/orderViewDetails', [DashboardController::class, 'orderViewDetails'])->name('orderViewDetails');
+    Route::get('/orders/{order}', [DashboardController::class, 'orderViewDetails'])->name('orderViewDetails');
+    Route::patch('/orders/{order}/status', [DashboardController::class, 'updateOrderStatus'])->name('orders.updateStatus');
 
     Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
-    Route::get('/customersProfile', [DashboardController::class, 'customersProfile'])->name('customersProfile');
+    Route::get('/customers/{customer}', [DashboardController::class, 'customersProfile'])->name('customersProfile');
     Route::get('/team-members', [TeamMemberController::class, 'index'])->name('team-members.index');
     Route::post('/team-members', [TeamMemberController::class, 'store'])
         ->middleware('store.role:owner,manager')

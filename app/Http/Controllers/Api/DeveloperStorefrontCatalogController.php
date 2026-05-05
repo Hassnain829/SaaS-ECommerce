@@ -40,13 +40,23 @@ class DeveloperStorefrontCatalogController extends Controller
         ]);
     }
 
-    public function placeOrder(Request $request): JsonResponse
+        public function placeOrder(Request $request): JsonResponse
     {
         $store = $request->attributes->get('developerStorefrontStore');
 
         $validated = $request->validate([
             'customer_name' => ['required', 'string', 'max:120'],
-            'customer_email' => ['nullable', 'email', 'max:255'],
+            'customer_email' => ['required', 'email', 'max:255'],
+            'customer_phone' => ['nullable', 'string', 'max:255'],
+            'shipping_address' => ['required', 'array'],
+            'shipping_address.address_line1' => ['required', 'string'],
+            'shipping_address.city' => ['required', 'string'],
+            'shipping_address.state' => ['nullable', 'string'],
+            'shipping_address.postal_code' => ['required', 'string'],
+            'shipping_address.country' => ['required', 'string'],
+            'shipping_address.phone' => ['nullable', 'string'],
+            'billing_same_as_shipping' => ['nullable', 'boolean'],
+            'billing_address' => ['nullable', 'array'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'items.*.variant_id' => ['required', 'integer', 'exists:product_variants,id'],
@@ -56,6 +66,8 @@ class DeveloperStorefrontCatalogController extends Controller
         $order = DB::transaction(function () use ($store, $validated) {
             $lines = [];
             $total = '0';
+            $itemCount = 0;
+            $totalQuantity = 0;
 
             $mergedItems = [];
             foreach ($validated['items'] as $item) {
@@ -130,54 +142,128 @@ class DeveloperStorefrontCatalogController extends Controller
                     'variant' => $variant,
                     'quantity' => $qty,
                     'unit_price' => $unit,
-                    'line_total' => $line,
+                    'subtotal' => $line,
+                    'total' => $line,
                 ];
 
                 $total = bcadd($total, $line, 2);
+                $itemCount++;
+                $totalQuantity += $qty;
             }
 
-            $reference = 'baa_'.Str::lower(Str::random(20));
+            $orderNumber = (string)rand(10000, 99999);
+
+            $customer = \App\Models\Customer::firstOrCreate(
+                ['store_id' => $store->id, 'email' => $validated['customer_email']],
+                [
+                    'full_name' => $validated['customer_name'],
+                    'phone' => $validated['customer_phone'] ?? null,
+                    'status' => 'guest',
+                ]
+            );
+
+            // update stats
+            $customer->increment('total_orders');
+            $customer->total_spent = bcadd((string)$customer->total_spent, $total, 2);
+            if ($customer->total_orders > 0) {
+                $customer->average_order_value = bcdiv((string)$customer->total_spent, (string)$customer->total_orders, 2);
+            }
+            $customer->last_order_at = now();
+            $customer->save();
 
             $order = Order::query()->create([
                 'store_id' => $store->id,
-                'reference' => $reference,
+                'customer_id' => $customer->id,
+                'order_number' => $orderNumber,
                 'status' => Order::STATUS_CONFIRMED,
-                'customer_name' => $validated['customer_name'],
-                'customer_email' => $validated['customer_email'] ?? null,
+                'payment_status' => 'paid',
+                'customer_email' => $validated['customer_email'],
+                'customer_phone' => $validated['customer_phone'] ?? null,
+                'billing_same_as_shipping' => $validated['billing_same_as_shipping'] ?? true,
+                'subtotal' => $total,
                 'total' => $total,
-                'currency' => $store->currency,
-                'source' => 'developer_storefront',
-                'meta' => ['channel' => 'developer_test_react'],
+                'grand_total' => $total,
+                'currency_code' => $store->currency,
+                'order_source' => 'developer_storefront',
+                'channel' => 'developer_test_react',
+                'item_count' => $itemCount,
+                'total_quantity' => $totalQuantity,
+                'placed_at' => now(),
             ]);
+
+            $shipping = $validated['shipping_address'];
+            $order->addresses()->create([
+                'type' => 'shipping',
+                'name' => $validated['customer_name'],
+                'email' => $validated['customer_email'],
+                'address_line1' => $shipping['address_line1'] ?? null,
+                'city' => $shipping['city'] ?? null,
+                'state' => $shipping['state'] ?? null,
+                'postal_code' => $shipping['postal_code'] ?? null,
+                'country' => $shipping['country'] ?? null,
+                'phone' => $shipping['phone'] ?? null,
+            ]);
+
+            if (!($validated['billing_same_as_shipping'] ?? true) && !empty($validated['billing_address'])) {
+                $billing = $validated['billing_address'];
+                $order->addresses()->create([
+                    'type' => 'billing',
+                    'name' => $validated['customer_name'],
+                    'email' => $validated['customer_email'],
+                    'address_line1' => $billing['address_line1'] ?? null,
+                    'city' => $billing['city'] ?? null,
+                    'state' => $billing['state'] ?? null,
+                    'postal_code' => $billing['postal_code'] ?? null,
+                    'country' => $billing['country'] ?? null,
+                    'phone' => $billing['phone'] ?? null,
+                ]);
+            }
+
+            $customer->addresses()->firstOrCreate(
+                ['type' => 'shipping', 'address_line1' => $shipping['address_line1']],
+                [
+                    'name' => $validated['customer_name'],
+                    'city' => $shipping['city'] ?? null,
+                    'state' => $shipping['state'] ?? null,
+                    'postal_code' => $shipping['postal_code'] ?? null,
+                    'country' => $shipping['country'] ?? null,
+                    'phone' => $shipping['phone'] ?? null,
+                    'is_default' => true,
+                ]
+            );
 
             foreach ($lines as $row) {
                 $order->items()->create([
                     'product_id' => $row['product']->id,
                     'product_variant_id' => $row['variant']->id,
                     'product_name' => $row['product']->name,
+                    'sku_snapshot' => $row['variant']->sku,
+                    'barcode_snapshot' => $row['variant']->barcode,
+                    'product_slug_snapshot' => $row['product']->slug,
                     'variant_label' => $this->variantLabel($row['variant']),
                     'quantity' => $row['quantity'],
                     'unit_price' => $row['unit_price'],
-                    'line_total' => $row['line_total'],
+                    'subtotal' => $row['subtotal'],
+                    'total' => $row['total'],
                 ]);
             }
 
-            return $order->load('items');
+            return $order->load(['items', 'addresses']);
         });
 
         return response()->json([
             'order' => [
                 'id' => $order->id,
-                'reference' => $order->reference,
+                'order_number' => $order->order_number,
                 'status' => $order->status,
                 'total' => (string) $order->total,
-                'currency' => $order->currency,
+                'currency_code' => $order->currency_code,
                 'items' => $order->items->map(fn ($i) => [
                     'product_name' => $i->product_name,
                     'variant_label' => $i->variant_label,
                     'quantity' => $i->quantity,
                     'unit_price' => (string) $i->unit_price,
-                    'line_total' => (string) $i->line_total,
+                    'total' => (string) $i->total,
                 ]),
             ],
         ], 201);

@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Project context and development guidelines
 _Exported on 4/30/2026 at 02:39:24 GMT+5 from Cursor (3.2.16)_
 

@@ -20,6 +20,12 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [customerName, setCustomerName] = useState('Dev Customer');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('+1 555-0198');
+  const [addressLine1, setAddressLine1] = useState('123 Developer Way');
+  const [city, setCity] = useState('San Francisco');
+  const [stateRegion, setStateRegion] = useState('CA');
+  const [postalCode, setPostalCode] = useState('94105');
+  const [country, setCountry] = useState('US');
   const [orderResult, setOrderResult] = useState(null);
 
   const base = useMemo(() => apiBase(), []);
@@ -121,6 +127,15 @@ export default function App() {
         body: JSON.stringify({
           customer_name: customerName.trim(),
           customer_email: customerEmail.trim() || null,
+          customer_phone: customerPhone.trim() || null,
+          shipping_address: {
+            address_line1: addressLine1.trim(),
+            city: city.trim(),
+            state: stateRegion.trim(),
+            postal_code: postalCode.trim(),
+            country: country.trim(),
+            phone: customerPhone.trim() || null
+          },
           items: cart.map(({ product_id, variant_id, quantity }) => ({
             product_id,
             variant_id,
@@ -352,23 +367,82 @@ export default function App() {
           </ul>
 
           <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Customer Details</h3>
             <label style={{ fontSize: '0.8rem' }}>
               Customer name
               <input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem' }}
+                style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
               />
             </label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.8rem', flex: 1 }}>
+                Email (optional)
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+              <label style={{ fontSize: '0.8rem', flex: 1 }}>
+                Phone (optional)
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+            </div>
+
+            <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Shipping Address</h3>
             <label style={{ fontSize: '0.8rem' }}>
-              Email (optional)
+              Address Line 1
               <input
-                type="email"
-                value={customerEmail}
-                onChange={(e) => setCustomerEmail(e.target.value)}
-                style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem' }}
+                value={addressLine1}
+                onChange={(e) => setAddressLine1(e.target.value)}
+                style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
               />
             </label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.8rem', flex: 1 }}>
+                City
+                <input
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+              <label style={{ fontSize: '0.8rem', flex: 1 }}>
+                State/Region
+                <input
+                  value={stateRegion}
+                  onChange={(e) => setStateRegion(e.target.value)}
+                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.8rem', flex: 1 }}>
+                Postal Code
+                <input
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+              <label style={{ fontSize: '0.8rem', flex: 1 }}>
+                Country
+                <input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                />
+              </label>
+            </div>
+            
             <button
               type="button"
               onClick={placeOrder}
