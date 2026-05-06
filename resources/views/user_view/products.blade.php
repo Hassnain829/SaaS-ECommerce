@@ -17,6 +17,7 @@
         'sort' => $filters['sort'] ?? 'latest',
         'brand' => $filters['brand'] ?? '',
         'tag' => $filters['tag'] ?? '',
+        'attribute_term' => $filters['attribute_term'] ?? '',
         'cf_key' => $filters['cf_key'] ?? '',
         'cf_value' => $filters['cf_value'] ?? '',
     ];
@@ -26,9 +27,11 @@
     $activeBrandFilter = $activeBrandFilter ?? null;
     $activeTagFilter = $activeTagFilter ?? null;
     $activeTaxonomyCategoryFilter = $activeTaxonomyCategoryFilter ?? null;
+    $activeAttributeTermFilter = $activeAttributeTermFilter ?? null;
     $canManageBrands = in_array($currentUserStoreRole ?? '', ['owner', 'manager'], true);
     $canManageTags = $canManageBrands;
     $canManageCategories = $canManageBrands;
+    $catalogAttributeTermCount = ($catalogAttributes ?? collect())->sum(fn ($attribute) => $attribute->terms->count());
 
     $catalogToolsReopen = $errors->any() && (
         old('_open_brand_add_modal') == '1' || old('_open_brand_add_modal') === true ||
@@ -56,7 +59,7 @@
     }
     $openCatalogToolsShell = $catalogToolsReopen || request()->boolean('openCatalogTools');
 
-    $filtersRefineOpen = ($filters['brand'] ?? '') !== '' || ($filters['tag'] ?? '') !== '' || ($filters['stock'] ?? '') === 'low' || ($filters['status'] ?? '') === 'published' || ($filters['status'] ?? '') === 'draft'
+    $filtersRefineOpen = ($filters['brand'] ?? '') !== '' || ($filters['tag'] ?? '') !== '' || ($filters['attribute_term'] ?? '') !== '' || ($filters['stock'] ?? '') === 'low' || ($filters['status'] ?? '') === 'published' || ($filters['status'] ?? '') === 'draft'
         || (($filters['cf_key'] ?? '') !== '' && ($filters['cf_value'] ?? '') !== '');
     $productListDetailKeys = $productListDetailKeys ?? [];
     $catalogCustomFieldKeyOptions = $catalogCustomFieldKeyOptions ?? [];
@@ -97,6 +100,7 @@
             <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
             <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
             <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+            <input type="hidden" name="attribute_term" value="{{ $filters['attribute_term'] ?? '' }}">
             <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
             <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
@@ -124,6 +128,7 @@
                         @if ($canManageBrands)
                             <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import products</a>
                             <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import history</a>
+                            <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Manage attributes</a>
                         @endif
                         @if ($canManageBrands || $canManageTags || $canManageCategories)
                             <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">
@@ -201,6 +206,12 @@
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['category' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear category filter</a>
                 </div>
             @endif
+            @if ($activeAttributeTermFilter)
+                <div class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-sm text-[#1E3A8A]">
+                    <span>Filtered by attribute <span class="font-semibold">{{ $activeAttributeTermFilter->name }}</span>.</span>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['attribute_term' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear attribute filter</a>
+                </div>
+            @endif
             @if (($filters['cf_key'] ?? '') !== '' && ($filters['cf_value'] ?? '') !== '')
                 <div class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]">
                     <span>Saved product detail <span class="font-semibold text-[#0F172A]">{{ $cfKeyChipLabel }}</span> contains <span class="font-semibold">{{ $filters['cf_value'] }}</span>.</span>
@@ -219,6 +230,7 @@
                         @if ($canManageBrands)
                             <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import products</a>
                             <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import history</a>
+                            <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Manage attributes</a>
                         @endif
                         @if ($canManageBrands || $canManageTags || $canManageCategories)
                             <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Catalog tools</button>
@@ -239,7 +251,7 @@
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
             <div class="text-sm text-[#64748B]">Products in view</div>
             <div class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ number_format($stats['total_products']) }}</div>
-            <div class="mt-1 text-xs text-[#64748B]">{{ $activeBrandFilter || $activeTagFilter || $activeTaxonomyCategoryFilter || ($filters['product_type'] ?? '') !== '' ? 'Matches current filters' : 'In this store' }}</div>
+            <div class="mt-1 text-xs text-[#64748B]">{{ $activeBrandFilter || $activeTagFilter || $activeTaxonomyCategoryFilter || $activeAttributeTermFilter || ($filters['product_type'] ?? '') !== '' ? 'Matches current filters' : 'In this store' }}</div>
         </div>
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
             <div class="text-sm text-[#64748B]">Out of Stock</div>
@@ -270,6 +282,9 @@
                     <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
                     <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
                     <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
+                    <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                    <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
+                    <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
 
                     <div class="flex flex-col gap-1">
                         <span class="text-[10px] font-bold uppercase tracking-wider text-[#0F766E]"> Category</span>
@@ -316,6 +331,29 @@
                         </div>
                     </div>
 
+
+                    @if ($catalogAttributeTermCount > 0)
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Attribute</span>
+                            <div class="relative">
+                                <select name="attribute_term" onchange="this.form.submit()" aria-label="Filter by product attribute" class="appearance-none border text-sm font-semibold px-4 py-2 pr-9 rounded-xl transition-colors {{ ($filters['attribute_term'] ?? '') !== '' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : 'border-[#E2E8F0] bg-white text-[#475569]' }}">
+                                    <option value="">All attributes</option>
+                                    @foreach (($catalogAttributes ?? collect()) as $attribute)
+                                        @if ($attribute->terms->isNotEmpty())
+                                            <optgroup label="{{ $attribute->name }}">
+                                                @foreach ($attribute->terms as $term)
+                                                    <option value="{{ $term->id }}" @selected((string) ($filters['attribute_term'] ?? '') === (string) $term->id)>{{ $term->name }}</option>
+                                                @endforeach
+                                            </optgroup>
+                                        @endif
+                                    @endforeach
+                                </select>
+                                <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="12" height="12" viewBox="0 0 14 14" fill="none">
+                                    <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
+                                </svg>
+                            </div>
+                        </div>
+                    @endif
 
 
                     <div class="flex flex-wrap items-center gap-1.5 sm:ml-auto pb-1">
@@ -371,6 +409,7 @@
                             <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
                             <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
                             <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
+                            <input type="hidden" name="attribute_term" value="{{ $filters['attribute_term'] ?? '' }}">
 
                             <div class="flex flex-col gap-1">
                                 <label for="cf_key" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Saved detail</label>
@@ -741,6 +780,7 @@
         'catalogBrands' => $catalogBrands ?? collect(),
         'catalogTags' => $catalogTags ?? collect(),
         'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
+        'catalogAttributes' => $catalogAttributes ?? collect(),
     ])
 
     @if ($canManageBrands || $canManageTags || $canManageCategories)

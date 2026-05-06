@@ -13,6 +13,7 @@ use App\Models\ProductVariationType;
 use App\Models\Store;
 use App\Support\Catalog\ProductImportMerchantMessages;
 use App\Support\Catalog\SpreadsheetValueNormalizer;
+use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -337,6 +338,7 @@ final class ProductImportVariantFinalizer
         $productExistedBefore = $product !== null;
 
         $mergedProductCustom = [];
+        $mergedAttributeValues = [];
         $mergedExtras = [];
         $mergedDescription = '';
         $mergedShort = '';
@@ -347,6 +349,9 @@ final class ProductImportVariantFinalizer
             $f = $m['fields'];
             [$pc, $_vc] = $this->extractCustomFieldValues($m['keyed'], $customMappings);
             $mergedProductCustom = array_merge($mergedProductCustom, $pc);
+            foreach ($this->extractAttributeValues($m['keyed'], $customMappings) as $attributeName => $values) {
+                $mergedAttributeValues[$attributeName] = array_merge($mergedAttributeValues[$attributeName] ?? [], $values);
+            }
             $mergedExtras = array_merge($mergedExtras, $this->collectUnmappedExtras($m['keyed'], array_keys($m['keyed']), $mapping, $customMappings));
             $d = trim((string) ($f[ProductImportField::DESCRIPTION] ?? ''));
             if ($d !== '' && strlen($d) > strlen($mergedDescription)) {
@@ -387,6 +392,7 @@ final class ProductImportVariantFinalizer
                 'base_price' => $basePrice,
                 'sku' => $productSku,
                 'product_type' => $productType,
+                ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'status' => $status,
                 'meta' => $meta,
             ]);
@@ -401,6 +407,7 @@ final class ProductImportVariantFinalizer
                 'base_price' => $basePrice > 0 ? $basePrice : $product->base_price,
                 'sku' => $productSku,
                 'product_type' => $productType,
+                ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'status' => $status,
                 'brand_id' => $brandName !== '' ? $taxonomyCache->brandId($brandName) : $product->brand_id,
                 'meta' => $meta,
@@ -409,6 +416,7 @@ final class ProductImportVariantFinalizer
         }
 
         $product->refresh();
+        $this->syncAttributeValues($store, $product, $mergedAttributeValues, $performedBy);
 
         /** @var array<int, ProductVariationType> $typeBySlot */
         $typeBySlot = [];
@@ -503,7 +511,7 @@ final class ProductImportVariantFinalizer
             if ($desiredVariantSku === '') {
                 $desiredVariantSku = $productSku.'-'.implode('-', array_map(static fn (int $id): string => (string) $id, $optionIds));
             }
-            $variantSku = $this->ensureUniqueVariantSku($desiredVariantSku, $store->id, $assignedVariantSkusLower);
+            $variantSku = $this->ensureUniqueVariantSku($desiredVariantSku, $store->id, $assignedVariantSkusLower, $variant?->id);
 
             $price = SpreadsheetValueNormalizer::normalizeDecimal($f[ProductImportField::VARIANT_PRICE] ?? '')
                 ?? SpreadsheetValueNormalizer::normalizeDecimal($f[ProductImportField::BASE_PRICE] ?? '')
@@ -669,7 +677,7 @@ final class ProductImportVariantFinalizer
     /**
      * @param  array<string, true>  $assignedLower
      */
-    private function ensureUniqueVariantSku(string $desiredSku, int $storeId, array &$assignedLower): string
+    private function ensureUniqueVariantSku(string $desiredSku, int $storeId, array &$assignedLower, ?int $ignoreVariantId = null): string
     {
         $sku = $desiredSku !== '' ? $desiredSku : 'SKU-'.$storeId.'-'.Str::upper(Str::random(6));
         $base = $sku;
@@ -677,8 +685,9 @@ final class ProductImportVariantFinalizer
         while (true) {
             $lk = mb_strtolower($sku);
             if (isset($assignedLower[$lk]) || ProductVariant::query()
-                ->where('sku', $sku)
-                ->whereHas('product', static fn ($q) => $q->where('store_id', $storeId))
+                ->where('store_id', $storeId)
+                ->whereRaw('LOWER(sku) = ?', [$lk])
+                ->when($ignoreVariantId, fn ($query) => $query->where('id', '!=', $ignoreVariantId))
                 ->exists()) {
                 $n++;
                 $sku = Str::limit($base, 90, '').'-'.$storeId.'-'.$n;
@@ -711,9 +720,7 @@ final class ProductImportVariantFinalizer
 
     private function normalizeProductType(string $type): string
     {
-        $type = strtolower(trim($type));
-
-        return $type !== '' ? $type : 'physical';
+        return ProductTypeBehavior::normalize($type);
     }
 
     private function parseStatus(string $statusField, string $visibilityField): bool
@@ -831,6 +838,9 @@ final class ProductImportVariantFinalizer
             if ($val === '') {
                 continue;
             }
+            if ($scope === 'attribute') {
+                continue;
+            }
             if ($scope === 'variant') {
                 $variant[$key] = $val;
             } else {
@@ -839,6 +849,51 @@ final class ProductImportVariantFinalizer
         }
 
         return [$product, $variant];
+    }
+
+    /**
+     * @param  list<array{source: string, key: string, scope: string}>  $customMappings
+     * @return array<string, list<string>>
+     */
+    private function extractAttributeValues(array $row, array $customMappings): array
+    {
+        $attributes = [];
+        foreach ($customMappings as $map) {
+            if (($map['scope'] ?? '') !== 'attribute') {
+                continue;
+            }
+
+            $source = (string) ($map['source'] ?? '');
+            $key = trim((string) ($map['key'] ?? ''));
+            if ($source === '' || $key === '') {
+                continue;
+            }
+
+            foreach ($this->splitDelimited((string) ($row[$source] ?? '')) as $value) {
+                if ($value !== '') {
+                    $attributes[$key][] = $value;
+                }
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param  array<string, list<string>>  $attributeValues
+     */
+    private function syncAttributeValues(Store $store, Product $product, array $attributeValues, ?int $userId): void
+    {
+        if ($attributeValues === []) {
+            return;
+        }
+
+        $assigner = app(ProductAttributeAssigner::class);
+        foreach ($attributeValues as $attributeName => $values) {
+            foreach (array_values(array_unique($values)) as $value) {
+                $assigner->attachTermByNames($store, $product, $attributeName, $value, $userId);
+            }
+        }
     }
 
     /**

@@ -16,6 +16,7 @@ use App\Services\SecurityLogRecorder;
 use App\Services\UserSessionTracker;
 use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
+use App\Support\ProductTypeBehavior;
 use App\Support\StorePermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -214,6 +215,18 @@ class DashboardController extends Controller
             }
         }
 
+        $attributeTermQuery = $request->query('attribute_term');
+        $attributeTermFilterId = null;
+        if ($attributeTermQuery !== null && $attributeTermQuery !== '' && ctype_digit((string) $attributeTermQuery)) {
+            $candidateTerm = (int) $attributeTermQuery;
+            if (\App\Models\AttributeTerm::query()
+                ->where('id', $candidateTerm)
+                ->whereHas('attribute', fn ($query) => $query->where('store_id', $selectedStore->id))
+                ->exists()) {
+                $attributeTermFilterId = $candidateTerm;
+            }
+        }
+
         $cfKey = trim((string) $request->query('cf_key', ''));
         $cfValue = trim((string) $request->query('cf_value', ''));
         $cfFilterActive = $cfKey !== '' && $cfValue !== ''
@@ -232,6 +245,8 @@ class DashboardController extends Controller
                 'variants.options:id,variation_type_id,value',
                 'variants:id,product_id,sku,price,compare_at_price,stock,stock_alert',
                 'variants.linkedCatalogImage:id,product_id,product_variant_id,image_path,status,sort_order,is_primary',
+                'productAttributes.attribute:id,store_id,name,slug,display_type,is_filterable,is_visible',
+                'productAttributes.terms:id,attribute_id,name,slug,swatch_value',
             ])
             ->withSum('variants', 'stock')
             ->withMax('variants', 'stock_alert');
@@ -271,6 +286,10 @@ class DashboardController extends Controller
 
         if ($tagFilterId !== null) {
             $baseQuery->whereHas('tags', fn ($query) => $query->where('tags.id', $tagFilterId));
+        }
+
+        if ($attributeTermFilterId !== null) {
+            $baseQuery->whereHas('productAttributes.terms', fn ($query) => $query->where('attribute_terms.id', $attributeTermFilterId));
         }
 
         if ($stockFilter === 'low') {
@@ -338,7 +357,7 @@ class DashboardController extends Controller
         $statsQuery = clone $baseQuery;
         $statsProducts = $statsQuery->get();
 
-        $defaultProductTypes = ['physical', 'digital', 'service', 'subscription', 'virtual'];
+        $defaultProductTypes = ProductTypeBehavior::types();
         $productTypesInStats = $statsProducts
             ->pluck('product_type')
             ->filter()
@@ -415,6 +434,13 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get();
 
+        $catalogAttributes = $selectedStore->attributes()
+            ->where('is_visible', true)
+            ->with(['terms' => fn ($query) => $query->orderBy('sort_order')->orderBy('name')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
         $brandCount = $selectedStore->brands()->count();
         $activeBrandFilter = $brandFilterId !== null
             ? $catalogBrands->firstWhere('id', $brandFilterId)
@@ -426,6 +452,10 @@ class DashboardController extends Controller
 
         $activeTaxonomyCategoryFilter = $taxonomyCategoryFilterId !== null
             ? $catalogTaxonomyCategories->firstWhere('id', $taxonomyCategoryFilterId)
+            : null;
+
+        $activeAttributeTermFilter = $attributeTermFilterId !== null
+            ? $catalogAttributes->flatMap(fn ($attribute) => $attribute->terms)->firstWhere('id', $attributeTermFilterId)
             : null;
 
         $currentUserStoreRole = $request->user()->roleInStore($selectedStore);
@@ -454,6 +484,7 @@ class DashboardController extends Controller
             'catalogBrands' => $catalogBrands,
             'managementBrands' => $managementBrands,
             'catalogTags' => $catalogTags,
+            'catalogAttributes' => $catalogAttributes,
             'managementTags' => $managementTags,
             'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
             'managementCategories' => $managementCategories,
@@ -463,6 +494,7 @@ class DashboardController extends Controller
             'activeBrandFilter' => $activeBrandFilter,
             'activeTagFilter' => $activeTagFilter,
             'activeTaxonomyCategoryFilter' => $activeTaxonomyCategoryFilter,
+            'activeAttributeTermFilter' => $activeAttributeTermFilter,
             'filters' => [
                 'q' => $search,
                 'category' => $taxonomyCategoryFilterId !== null ? (string) $taxonomyCategoryFilterId : '',
@@ -472,6 +504,7 @@ class DashboardController extends Controller
                 'sort' => $sort !== '' ? $sort : 'latest',
                 'brand' => $brandFilterId !== null ? (string) $brandFilterId : '',
                 'tag' => $tagFilterId !== null ? (string) $tagFilterId : '',
+                'attribute_term' => $attributeTermFilterId !== null ? (string) $attributeTermFilterId : '',
                 'cf_key' => $cfFilterActive ? $cfKey : '',
                 'cf_value' => $cfFilterActive ? $cfValue : '',
             ],

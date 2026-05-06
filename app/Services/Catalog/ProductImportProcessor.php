@@ -12,6 +12,7 @@ use App\Support\Catalog\ProductImportRowPayloadSanitizer;
 use App\Support\Catalog\SpreadsheetValueNormalizer;
 use App\Models\Store;
 use App\Support\Catalog\ProductImportQueue;
+use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -924,10 +925,9 @@ final class ProductImportProcessor
         $name = trim((string) ($fields[ProductImportField::PRODUCT_NAME] ?? ''));
         $productSku = trim((string) ($fields[ProductImportField::SKU] ?? ''));
         $variantSkuDesired = trim((string) ($fields[ProductImportField::VARIANT_SKU] ?? ''));
-        $variantSku = $variantSkuDesired !== '' ? $variantSkuDesired : $productSku;
-        $variantSku = $this->ensureUniqueVariantSku($variantSku, $store->id, $assignedVariantSkusLower);
 
         [$productCustom, $variantCustom] = $this->extractCustomFieldValues($row, $customMappings);
+        $attributeValues = $this->extractAttributeValues($row, $customMappings);
 
         $basePrice = SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::BASE_PRICE] ?? '') ?? 0.0;
         $stock = SpreadsheetValueNormalizer::normalizeInteger($fields[ProductImportField::STOCK] ?? '') ?? 0;
@@ -957,6 +957,8 @@ final class ProductImportProcessor
             ->where('store_id', $store->id)
             ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)])
             ->first();
+        $variantSku = $variantSkuDesired !== '' ? $variantSkuDesired : $productSku;
+        $variantSku = $this->ensureUniqueVariantSku($variantSku, $store->id, $assignedVariantSkusLower, $product?->id);
 
         $performedBy = $import->created_by;
         $importId = (int) $import->id;
@@ -975,11 +977,13 @@ final class ProductImportProcessor
                 'base_price' => $basePrice,
                 'sku' => $productSku,
                 'product_type' => $productType,
+                ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'status' => $status,
                 'meta' => $meta,
             ]);
 
             $this->syncTaxonomy($product, $fields, $taxonomyCache);
+            $this->syncAttributeValues($store, $product, $attributeValues, $performedBy);
 
             $variant = ProductVariant::query()->create([
                 'product_id' => $product->id,
@@ -1021,12 +1025,14 @@ final class ProductImportProcessor
             'base_price' => $basePrice,
             'sku' => $productSku,
             'product_type' => $productType,
+            ...ProductTypeBehavior::defaultColumnsFor($productType),
             'status' => $status,
             'brand_id' => $brandId ?? $product->brand_id,
             'meta' => $meta,
         ]);
 
         $this->syncTaxonomy($product, $fields, $taxonomyCache);
+        $this->syncAttributeValues($store, $product, $attributeValues, $performedBy);
 
         $variant = $product->variants()->whereDoesntHave('options')->orderBy('id')->first();
         if (! $variant) {
@@ -1088,6 +1094,9 @@ final class ProductImportProcessor
             if ($val === '') {
                 continue;
             }
+            if ($scope === 'attribute') {
+                continue;
+            }
             if ($scope === 'variant') {
                 $variant[$key] = $val;
             } else {
@@ -1096,6 +1105,51 @@ final class ProductImportProcessor
         }
 
         return [$product, $variant];
+    }
+
+    /**
+     * @param  list<array{source: string, key: string, scope: string}>  $customMappings
+     * @return array<string, list<string>>
+     */
+    private function extractAttributeValues(array $row, array $customMappings): array
+    {
+        $attributes = [];
+        foreach ($customMappings as $map) {
+            if (($map['scope'] ?? '') !== 'attribute') {
+                continue;
+            }
+
+            $key = trim((string) ($map['key'] ?? ''));
+            $source = (string) ($map['source'] ?? '');
+            if ($key === '' || $source === '') {
+                continue;
+            }
+
+            foreach ($this->splitDelimited((string) ($row[$source] ?? '')) as $value) {
+                if ($value !== '') {
+                    $attributes[$key][] = $value;
+                }
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param  array<string, list<string>>  $attributeValues
+     */
+    private function syncAttributeValues(Store $store, Product $product, array $attributeValues, ?int $userId): void
+    {
+        if ($attributeValues === []) {
+            return;
+        }
+
+        $assigner = app(ProductAttributeAssigner::class);
+        foreach ($attributeValues as $attributeName => $values) {
+            foreach (array_values(array_unique($values)) as $value) {
+                $assigner->attachTermByNames($store, $product, $attributeName, $value, $userId);
+            }
+        }
     }
 
     /**
@@ -1128,7 +1182,7 @@ final class ProductImportProcessor
             $source = trim((string) ($entry['source'] ?? ''));
             $key = trim((string) ($entry['key'] ?? ''));
             $scope = strtolower(trim((string) ($entry['scope'] ?? 'product')));
-            if ($scope !== 'variant') {
+            if (! in_array($scope, ['product', 'variant', 'attribute'], true)) {
                 $scope = 'product';
             }
             if ($source === '' || $key === '') {
@@ -1233,7 +1287,7 @@ final class ProductImportProcessor
     /**
      * @param  array<string, true>  $assignedLower
      */
-    private function ensureUniqueVariantSku(string $desiredSku, int $storeId, array &$assignedLower): string
+    private function ensureUniqueVariantSku(string $desiredSku, int $storeId, array &$assignedLower, ?int $ignoreProductId = null): string
     {
         $sku = $desiredSku !== '' ? $desiredSku : 'SKU-'.$storeId.'-'.Str::upper(Str::random(6));
         $base = $sku;
@@ -1241,8 +1295,9 @@ final class ProductImportProcessor
         while (true) {
             $lk = mb_strtolower($sku);
             if (isset($assignedLower[$lk]) || ProductVariant::query()
-                ->where('sku', $sku)
-                ->whereHas('product', static fn ($q) => $q->where('store_id', $storeId))
+                ->where('store_id', $storeId)
+                ->whereRaw('LOWER(sku) = ?', [$lk])
+                ->when($ignoreProductId, fn ($query) => $query->where('product_id', '!=', $ignoreProductId))
                 ->exists()) {
                 $n++;
                 $sku = Str::limit($base, 90, '').'-'.$storeId.'-'.$n;
@@ -1258,9 +1313,7 @@ final class ProductImportProcessor
 
     private function normalizeProductType(string $type): string
     {
-        $type = strtolower(trim($type));
-
-        return $type !== '' ? $type : 'physical';
+        return ProductTypeBehavior::normalize($type);
     }
 
     private function parseStatus(string $statusField, string $visibilityField): bool

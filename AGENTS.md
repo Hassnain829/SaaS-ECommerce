@@ -1,5 +1,14 @@
 # AGENTS.md — Enterprise SaaS E-Commerce Project Instructions
 
+
+## Developer Storefront Clarification
+
+`dev-test-storefront` is not the final storefront product. It is a local testing simulator used to prove that external websites can fetch products from this SaaS platform and send orders/customers back into the merchant dashboard.
+
+The final product goal is to support merchants who already have Shopify, WooCommerce, WordPress, custom websites, mobile apps, or other selling channels. The SaaS platform acts as the central commerce backend for catalog, inventory, orders, customers, and future fulfillment.
+
+Do not overbuild the dev storefront during catalog phases. Keep it functional for testing catalog API and order creation only. Full production API keys, scopes, webhooks, idempotency, and external integration management belong to the later API/integrations roadmap phase.
+
 ## Project Identity
 
 This project is a Laravel Blade multi-store SaaS e-commerce platform.

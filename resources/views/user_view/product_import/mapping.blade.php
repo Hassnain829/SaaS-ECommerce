@@ -45,7 +45,7 @@
                 @csrf
                 <div class="mb-8 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                     <p class="font-semibold text-[#0F172A]">How this step works</p>
-                    <p class="mt-1">We may have pre-selected matches from your header row—confirm them below. Map each spreadsheet column to one catalog target. <span class="font-medium text-[#334155]">Additional details</span> (optional) save extra columns you want to edit later on the product or variant. Any column you leave unmapped is still kept as read-only reference after import.</p>
+                    <p class="mt-1">We may have pre-selected matches from your header row—confirm them below. Map each spreadsheet column to one catalog target. <span class="font-medium text-[#334155]">Additional details</span> save extra columns you want to edit later, while <span class="font-medium text-[#334155]">Product attribute</span> creates reusable facts shoppers can filter or compare. Any column you leave unmapped is still kept as read-only reference after import.</p>
                     <p class="mt-2 text-xs text-[#64748B]">Each spreadsheet column can only be chosen once across catalog targets and additional details.</p>
                 </div>
 
@@ -135,7 +135,7 @@
                     <div class="flex flex-wrap items-end justify-between gap-4">
                         <div>
                             <p class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Map optional editable fields</p>
-                            <p class="mt-2 text-sm text-[#64748B]">Optional: map extra columns into <span class="font-medium text-[#334155]">editable additional details</span> on the product or variant (for example supplier code or material). Use short internal names: letters, numbers, underscores, dots, or dashes (1–128 characters). Names cannot match a built-in catalog field such as <span class="font-mono text-xs">sku</span>.</p>
+                            <p class="mt-2 text-sm text-[#64748B]">Optional: map extra columns into <span class="font-medium text-[#334155]">editable additional details</span> on the product or variant, or into a <span class="font-medium text-[#334155]">product attribute</span> for structured filtering. Use short names: letters, numbers, underscores, dots, or dashes (1–128 characters). Names cannot match a built-in catalog field such as <span class="font-mono text-xs">sku</span>.</p>
                             <p class="mt-2 text-xs text-[#64748B]">Columns you do not map here still appear later under <span class="font-medium text-[#334155]">Advanced imported data</span> as read-only reference.</p>
                         </div>
                         <button type="button" id="add-custom-field" class="inline-flex items-center justify-center rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">
@@ -171,6 +171,7 @@
                                     <select name="custom_field_mappings[{{ $i }}][scope]" class="mt-1 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
                                         <option value="product" @selected($scopeVal === 'product')>Product</option>
                                         <option value="variant" @selected($scopeVal === 'variant')>Variant</option>
+                                        <option value="attribute" @selected($scopeVal === 'attribute')>Product attribute</option>
                                     </select>
                                 </div>
                                 <div class="flex sm:justify-end">
@@ -205,6 +206,7 @@
                             <select data-name-scope class="mt-1 w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
                                 <option value="product">Product</option>
                                 <option value="variant">Variant</option>
+                                <option value="attribute">Product attribute</option>
                             </select>
                         </div>
                         <div class="flex sm:justify-end">

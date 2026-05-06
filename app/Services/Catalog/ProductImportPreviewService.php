@@ -194,10 +194,16 @@ final class ProductImportPreviewService
 
         $customPreviewLines = [];
         foreach ($customMappings as $cm) {
-            $scope = $cm['scope'] === 'variant' ? 'Variant meta' : 'Product meta';
+            if ($cm['scope'] === 'attribute') {
+                $customPreviewLines[] = $cm['source'].' -> '.$cm['key'].' (Product attribute)';
+
+                continue;
+            }
+
+            $scope = $cm['scope'] === 'variant' ? 'Variant additional detail' : 'Product additional detail';
             $pathHint = $cm['scope'] === 'variant'
-                ? 'product_variants.meta.custom_fields.'.$cm['key']
-                : 'products.meta.custom_fields.'.$cm['key'];
+                ? 'variant field'
+                : 'product field';
             $customPreviewLines[] = $cm['source'].' → '.$cm['key'].' ('.$scope.'; '.$pathHint.')';
         }
 

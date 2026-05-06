@@ -11,11 +11,9 @@
     $catalogBrands = $catalogBrands ?? collect();
     $catalogTags = $catalogTags ?? collect();
     $catalogTaxonomyCategories = $catalogTaxonomyCategories ?? collect();
-    $defaultProductTypes = ['physical', 'digital', 'service', 'subscription', 'virtual'];
-    $rawSelectedProductType = (string) ($productFormData['product_type'] ?? 'physical');
-    $usesCustomProductType = $rawSelectedProductType !== '' && !in_array($rawSelectedProductType, $defaultProductTypes, true);
-    $selectedProductType = $usesCustomProductType ? 'custom' : $rawSelectedProductType;
-    $customProductType = $usesCustomProductType ? $rawSelectedProductType : (string) ($productFormData['custom_product_type'] ?? '');
+    $defaultProductTypes = \App\Support\ProductTypeBehavior::types();
+    $rawSelectedProductType = \App\Support\ProductTypeBehavior::normalize((string) ($productFormData['product_type'] ?? 'physical'));
+    $selectedProductType = in_array($rawSelectedProductType, $defaultProductTypes, true) ? $rawSelectedProductType : 'physical';
 @endphp
 
 <div id="productCreateModal" data-open-query="{{ $productModalOpenQuery }}" class="fixed inset-0 z-[70] {{ $productModalIsOpen ? '' : 'hidden' }}">
@@ -68,22 +66,18 @@
 
                             <div>
                                 <label for="product-type" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Product behavior (type)</label>
-                                <input type="hidden" id="product-type-value" name="product_type" value="{{ $selectedProductType === 'custom' ? $customProductType : $selectedProductType }}">
+                                <input type="hidden" id="product-type-value" name="product_type" value="{{ $selectedProductType }}">
                                 <div class="relative">
                                     <select id="product-type" class="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pr-10 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                                         @foreach ($defaultProductTypes as $productType)
                                             <option value="{{ $productType }}" @selected($selectedProductType === $productType)>{{ ucfirst($productType) }}</option>
                                         @endforeach
-                                        <option value="custom" @selected($selectedProductType === 'custom')>Custom Type</option>
                                     </select>
                                     <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 14 14" fill="none">
                                         <path d="M7 9L3 5H11L7 9Z" fill="#64748B"/>
                                     </svg>
                                 </div>
-                                <div id="custom-product-type-wrapper" class="mt-3 {{ $selectedProductType === 'custom' ? '' : 'hidden' }}">
-                                    <input id="custom-product-type" name="custom_product_type" type="text" value="{{ $customProductType }}" placeholder="e.g. Home Decor" class="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                                    <p class="mt-2 text-xs text-[#64748B]">Create your own product type if it is not in the list.</p>
-                                </div>
+                                <input type="hidden" name="custom_product_type" value="">
                                 <p class="mt-2 text-xs text-[#64748B]">How the product is fulfilled or sold—not the catalog category.</p>
                             </div>
                         </div>
@@ -187,8 +181,6 @@
         const openQuery = productModal.dataset.openQuery || 'openAddProduct';
         const productTypeSelect = document.getElementById('product-type');
         const productTypeValueInput = document.getElementById('product-type-value');
-        const customProductTypeWrapper = document.getElementById('custom-product-type-wrapper');
-        const customProductTypeInput = document.getElementById('custom-product-type');
         const productImageInput = document.getElementById('product-image');
         const productImagePreview = document.getElementById('product-image-preview');
         let selectedProductImages = [];
@@ -236,15 +228,8 @@
         };
 
         const syncProductTypeState = () => {
-            const isCustomType = productTypeSelect?.value === 'custom';
-            customProductTypeWrapper?.classList.toggle('hidden', !isCustomType);
-            if (customProductTypeInput) {
-                customProductTypeInput.required = Boolean(isCustomType);
-            }
             if (productTypeValueInput) {
-                productTypeValueInput.value = isCustomType
-                    ? (customProductTypeInput?.value.trim() || 'custom')
-                    : (productTypeSelect?.value || 'physical');
+                productTypeValueInput.value = productTypeSelect?.value || 'physical';
             }
         };
 
@@ -280,7 +265,6 @@
         });
 
         productTypeSelect?.addEventListener('change', syncProductTypeState);
-        customProductTypeInput?.addEventListener('input', syncProductTypeState);
         productImageInput?.addEventListener('change', () => {
             const incomingFiles = Array.from(productImageInput.files || []);
             if (incomingFiles.length) {
@@ -302,12 +286,6 @@
             if (!{{ $productModalSelectedStore ? 'true' : 'false' }}) {
                 event.preventDefault();
                 alert('Please switch to an active store before saving the product.');
-                return;
-            }
-            if (productTypeSelect?.value === 'custom' && !customProductTypeInput?.value.trim()) {
-                event.preventDefault();
-                alert('Please enter a custom product type.');
-                customProductTypeInput?.focus();
                 return;
             }
             syncProductTypeState();

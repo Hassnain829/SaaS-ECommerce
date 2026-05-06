@@ -7,6 +7,7 @@ use App\Models\StockMovement;
 use App\Models\Store;
 use App\Support\ProductDetailPresenter;
 use App\Support\ProductEditPayload;
+use App\Support\ProductTypeBehavior;
 use App\Support\ProductVariantLabel;
 use App\Support\StorePermission;
 use Illuminate\Http\Request;
@@ -49,6 +50,12 @@ final class ProductWorkspaceController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
+        $catalogAttributes = $store->attributes()
+            ->with(['terms' => fn ($query) => $query->orderBy('sort_order')->orderBy('name')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
         /** @var array<string, mixed> $old */
         $old = $request->session()->get('_old_input', []);
         $editProductPayload = ProductEditPayload::withFormOld($product, $old);
@@ -59,6 +66,7 @@ final class ProductWorkspaceController extends Controller
             'catalogBrands' => $catalogBrands,
             'catalogTags' => $catalogTags,
             'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
+            'catalogAttributes' => $catalogAttributes,
             'editProductPayload' => $editProductPayload,
             'workspaceReturnProductId' => $product->id,
         ]);
@@ -81,6 +89,8 @@ final class ProductWorkspaceController extends Controller
             'variants.options' => fn ($q) => $q->orderBy('variation_type_id')->orderBy('sort_order'),
             'variants.options.variationType:id,name',
             'variants.linkedCatalogImage:id,product_id,product_variant_id,image_path,status,sort_order,is_primary',
+            'productAttributes.attribute:id,store_id,name,slug,display_type,is_filterable,is_visible',
+            'productAttributes.terms:id,attribute_id,name,slug,swatch_value',
         ]);
 
         $user = $request->user();
@@ -150,6 +160,16 @@ final class ProductWorkspaceController extends Controller
             ];
         })->values()->all();
 
+        $attributeRows = $product->productAttributes
+            ->filter(fn ($row): bool => $row->attribute !== null && (int) $row->attribute->store_id === (int) $store->id)
+            ->map(fn ($row): array => [
+                'name' => (string) $row->attribute->name,
+                'is_filterable' => (bool) $row->attribute->is_filterable,
+                'terms' => $row->terms->pluck('name')->filter()->values()->all(),
+            ])
+            ->values()
+            ->all();
+
         $totalStock = (int) $product->variants->sum('stock');
         $maxVariantAlert = (int) $product->variants->max('stock_alert');
         $metaStockAlert = isset($meta['stock_alert']) ? (int) $meta['stock_alert'] : 0;
@@ -163,6 +183,8 @@ final class ProductWorkspaceController extends Controller
             'catalog' => $catalog,
             'customFieldRows' => $customFieldRows,
             'importExtraRows' => $importExtraRows,
+            'attributeRows' => $attributeRows,
+            'productBehavior' => ProductTypeBehavior::behaviorFor($product->product_type),
             'variantSummaries' => $variantSummaries,
             'optionGroupSummaries' => $optionGroupSummaries,
             'totalStock' => $totalStock,

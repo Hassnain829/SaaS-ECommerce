@@ -40,6 +40,7 @@
                         'catalogBrands' => $catalogBrands,
                         'catalogTags' => $catalogTags,
                         'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
+                        'catalogAttributes' => $catalogAttributes,
                         'workspaceReturnProductId' => $workspaceReturnProductId,
                     ])
                 </div>

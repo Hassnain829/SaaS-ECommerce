@@ -28,12 +28,16 @@ class Product extends Model
         'base_price',
         'sku',
         'product_type',
+        'requires_shipping',
+        'track_inventory',
         'status',
         'meta',
     ];
 
     protected $casts = [
         'base_price' => 'decimal:2',
+        'requires_shipping' => 'boolean',
+        'track_inventory' => 'boolean',
         'status' => 'boolean',
         'meta' => 'array',
     ];
@@ -100,6 +104,18 @@ class Product extends Model
     public function variants(): HasMany
     {
         return $this->hasMany(ProductVariant::class);
+    }
+
+    public function productAttributes(): HasMany
+    {
+        return $this->hasMany(ProductAttribute::class);
+    }
+
+    public function attributes(): BelongsToMany
+    {
+        return $this->belongsToMany(Attribute::class, 'product_attributes')
+            ->withPivot(['is_variation', 'is_visible', 'sort_order'])
+            ->withTimestamps();
     }
 
     public function stockMovements(): HasMany

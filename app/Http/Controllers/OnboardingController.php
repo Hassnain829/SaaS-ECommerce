@@ -9,9 +9,11 @@ use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
 use App\Services\SecurityLogRecorder;
+use App\Services\Catalog\ProductAttributeAssigner;
 use App\Support\CatalogRules;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
+use App\Support\ProductTypeBehavior;
 use App\Support\StorePermission;
 use App\Support\StockMovementRecorder;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -191,8 +193,8 @@ class OnboardingController extends Controller
             'description' => ['nullable', 'string', 'max:4000'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
-            'product_type' => ['required', 'string', 'max:80'],
-            'custom_product_type' => ['nullable', 'string', 'max:80', 'required_if:product_type,custom'],
+            'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
+            'custom_product_type' => ['nullable', 'string', 'max:80'],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'default_stock' => ['required', 'integer', 'min:0'],
@@ -220,15 +222,15 @@ class OnboardingController extends Controller
             ...CatalogRules::categoryIdsForStore($store),
         ]);
 
-        if (($validated['product_type'] ?? '') === 'custom') {
-            $validated['product_type'] = trim((string) ($validated['custom_product_type'] ?? ''));
-        } else {
-            $validated['product_type'] = trim((string) $validated['product_type']);
-        }
+        $validated['product_type'] = ProductTypeBehavior::normalize($validated['product_type'] ?? null);
 
-        if ($validated['product_type'] === '') {
+        $productSku = trim((string) ($validated['sku'] ?? ''));
+        if ($productSku !== '' && Product::query()
+            ->where('store_id', $store->id)
+            ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)])
+            ->exists()) {
             return back()
-                ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
+                ->withErrors(['sku' => 'That product SKU is already used in this store. Use a different SKU or edit the existing product.'])
                 ->withInput($request->except(['product_images']));
         }
 
@@ -284,6 +286,7 @@ class OnboardingController extends Controller
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],
+                ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
                 'status' => true,
                 'meta' => [
@@ -1247,8 +1250,8 @@ class OnboardingController extends Controller
             'description' => ['nullable', 'string', 'max:4000'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
-            'product_type' => ['required', 'string', 'max:80'],
-            'custom_product_type' => ['nullable', 'string', 'max:80', 'required_if:product_type,custom'],
+            'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
+            'custom_product_type' => ['nullable', 'string', 'max:80'],
             'existing_image_paths' => ['nullable', 'array', 'max:8'],
             'existing_image_paths.*' => [
                 'string',
@@ -1290,17 +1293,21 @@ class OnboardingController extends Controller
             'custom_fields.*.key' => ['nullable', 'string', 'max:128'],
             'custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
             'custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
+            'attribute_terms' => ['nullable', 'array'],
+            'attribute_terms.*' => ['nullable', 'array'],
+            'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        if (($validated['product_type'] ?? '') === 'custom') {
-            $validated['product_type'] = trim((string) ($validated['custom_product_type'] ?? ''));
-        } else {
-            $validated['product_type'] = trim((string) $validated['product_type']);
-        }
+        $validated['product_type'] = ProductTypeBehavior::normalize($validated['product_type'] ?? null);
 
-        if ($validated['product_type'] === '') {
+        $productSku = trim((string) ($validated['sku'] ?? ''));
+        if ($productSku !== '' && Product::query()
+            ->where('store_id', $currentStore->id)
+            ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)])
+            ->where('id', '!=', $product->id)
+            ->exists()) {
             return back()
-                ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
+                ->withErrors(['sku' => 'That product SKU is already used in this store. Use a different SKU or edit the existing product.'])
                 ->withInput($request->except(['product_images']));
         }
 
@@ -1474,6 +1481,7 @@ class OnboardingController extends Controller
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],
+                ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
                 'meta' => $meta,
             ]);
@@ -1646,6 +1654,7 @@ class OnboardingController extends Controller
 
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
+            app(ProductAttributeAssigner::class)->syncTerms($product, $validated['attribute_terms'] ?? []);
 
             $product->refresh();
             $product->load(['variants.options.variationType']);
@@ -1768,8 +1777,8 @@ class OnboardingController extends Controller
             'description' => ['nullable', 'string', 'max:4000'],
             'bulk_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
-            'product_type' => ['required', 'string', 'max:80'],
-            'custom_product_type' => ['nullable', 'string', 'max:80', 'required_if:product_type,custom'],
+            'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
+            'custom_product_type' => ['nullable', 'string', 'max:80'],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'bulk_stock' => ['required', 'integer', 'min:0'],
@@ -1797,15 +1806,15 @@ class OnboardingController extends Controller
             ...CatalogRules::categoryIdsForStore($store),
         ]);
 
-        if (($validated['product_type'] ?? '') === 'custom') {
-            $validated['product_type'] = trim((string) ($validated['custom_product_type'] ?? ''));
-        } else {
-            $validated['product_type'] = trim((string) $validated['product_type']);
-        }
+        $validated['product_type'] = ProductTypeBehavior::normalize($validated['product_type'] ?? null);
 
-        if ($validated['product_type'] === '') {
+        $productSku = trim((string) ($validated['sku'] ?? ''));
+        if ($productSku !== '' && Product::query()
+            ->where('store_id', $store->id)
+            ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)])
+            ->exists()) {
             return back()
-                ->withErrors(['custom_product_type' => 'Please enter a valid product type.'])
+                ->withErrors(['sku' => 'That product SKU is already used in this store. Use a different SKU or edit the existing product.'])
                 ->withInput($request->except(['product_images']));
         }
 
@@ -1866,6 +1875,7 @@ class OnboardingController extends Controller
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],
+                ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
                 'status' => true,
                 'meta' => [
@@ -2190,6 +2200,10 @@ class OnboardingController extends Controller
         /** @var list<string> All SKUs (lowercase) already assigned in this plan — blocks manual vs auto collisions. */
         $batchSkuLower = [];
         $skus = [];
+        $canMatchExistingRows = $this->catalogVariationTypesStructureMatchesOrdered($product, $variationTypes);
+        $existingVariationOptionMap = $canMatchExistingRows
+            ? $this->buildVariationOptionMapFromProductId((int) $product->id)
+            : [];
 
         foreach ($variantRows as $idx => $row) {
             if (! is_array($row)) {
@@ -2206,12 +2220,22 @@ class OnboardingController extends Controller
                 } elseif (in_array($lower, $batchSkuLower, true)) {
                     $errors['variants.'.$idx.'.sku'] = 'That SKU is already used by another variant row in this save.';
                 } else {
+                    $submittedVariantId = isset($row['id']) && ctype_digit((string) $row['id']) ? (int) $row['id'] : null;
+                    if ($submittedVariantId === null && $canMatchExistingRows) {
+                        $matchedVariant = $this->findVariantForCatalogRowFromProduct(
+                            $product,
+                            is_array($row['option_map'] ?? null) ? $row['option_map'] : [],
+                            $existingVariationOptionMap
+                        );
+                        $submittedVariantId = $matchedVariant?->id;
+                    }
                     $existsOther = ProductVariant::query()
+                        ->where('store_id', $store->id)
                         ->whereRaw('LOWER(sku) = ?', [$lower])
-                        ->where('product_id', '!=', $product->id)
+                        ->when($submittedVariantId, fn ($query) => $query->where('id', '!=', $submittedVariantId))
                         ->exists();
                     if ($existsOther) {
-                        $errors['variants.'.$idx.'.sku'] = 'That SKU is already used on another product. Choose a different SKU.';
+                        $errors['variants.'.$idx.'.sku'] = 'That SKU is already used in this store. Choose a different SKU.';
                     }
                 }
 
@@ -2257,6 +2281,7 @@ class OnboardingController extends Controller
      */
     private function allocateUniqueAutoVariantSku(string $base, int $productId, array &$claimedAuto, array &$batchSkuLower = []): string
     {
+        $storeId = (int) Product::query()->whereKey($productId)->value('store_id');
         $attemptLowerIn = static function (string $needle, array $claimed, array $batchLower): bool {
             $n = mb_strtolower($needle);
             foreach ($claimed as $c) {
@@ -2272,6 +2297,7 @@ class OnboardingController extends Controller
         while ($n < 10000) {
             $attempt = $n === 0 ? $base : Str::limit($base.'-'.$n, 120, '');
             $global = ProductVariant::query()
+                ->when($storeId > 0, fn ($query) => $query->where('store_id', $storeId))
                 ->whereRaw('LOWER(sku) = ?', [mb_strtolower($attempt)])
                 ->where('product_id', '!=', $productId)
                 ->exists();
@@ -2288,6 +2314,7 @@ class OnboardingController extends Controller
         $tries = 0;
         while ($tries < 50) {
             if (! ProductVariant::query()
+                ->when($storeId > 0, fn ($query) => $query->where('store_id', $storeId))
                 ->whereRaw('LOWER(sku) = ?', [mb_strtolower($fallback)])
                 ->where('product_id', '!=', $productId)
                 ->exists()

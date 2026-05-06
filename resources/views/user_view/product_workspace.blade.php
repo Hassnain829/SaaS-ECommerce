@@ -20,12 +20,15 @@
         'import' => 'Catalog import',
     ];
     $optionGroupSummaries = $optionGroupSummaries ?? [];
+    $productBehavior = $productBehavior ?? \App\Support\ProductTypeBehavior::behaviorFor($product->product_type);
+    $attributeRows = $attributeRows ?? [];
     $hasMedia = $readyImages->isNotEmpty() || $product->images->isNotEmpty();
     $workspaceStoreId = (int) (optional($storeForView)->id ?? 0);
     $hasOrganization = ($product->brand && (int) $product->brand->store_id === $workspaceStoreId)
         || $product->categories->contains(fn ($c): bool => (int) $c->store_id === $workspaceStoreId)
         || $product->tags->contains(fn ($t): bool => (int) $t->store_id === $workspaceStoreId);
     $hasCustom = $customFieldRows !== [];
+    $hasAttributes = $attributeRows !== [];
     $hasImportExtra = $importExtraRows !== [];
     $variantCount = count($variantSummaries);
     $multiVariant = $variantCount > 1;
@@ -89,7 +92,7 @@
                             </div>
                             <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Product behavior</dt>
-                                <dd class="mt-1 text-sm font-medium text-[#334155]">{{ Str::title(str_replace(['-', '_'], ' ', $product->product_type)) }}</dd>
+                                <dd class="mt-1 text-sm font-medium text-[#334155]">{{ $productBehavior['label'] ?? Str::title(str_replace(['-', '_'], ' ', $product->product_type)) }}</dd>
                             </div>
                             <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3 sm:col-span-2 lg:col-span-1">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Timeline</dt>
@@ -167,6 +170,42 @@
                             <div class="mt-6 max-w-none text-sm leading-relaxed text-[#334155] whitespace-pre-wrap">{{ $product->description }}</div>
                         </section>
                     @endif
+
+                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-7 shadow-sm ring-1 ring-black/[0.02] sm:p-9">
+                        <div class="border-b border-[#F1F5F9] pb-4">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">Structured catalog facts</p>
+                            <h2 class="mt-1 text-lg font-semibold text-[#0F172A] font-[Poppins]">Attributes</h2>
+                            <p class="mt-1 text-sm text-[#64748B]">Reusable product facts for filtering and comparison. Shopper choices such as size or color combinations still live under option groups.</p>
+                        </div>
+                        @if ($hasAttributes)
+                            <dl class="mt-6 grid gap-3 sm:grid-cols-2">
+                                @foreach ($attributeRows as $attributeRow)
+                                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                                        <dt class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                                            <span>{{ $attributeRow['name'] }}</span>
+                                            @if (! empty($attributeRow['is_filterable']))
+                                                <span class="rounded-full bg-[#EEF4FF] px-2 py-0.5 text-[10px] font-bold text-[#0052CC]">Filterable</span>
+                                            @endif
+                                        </dt>
+                                        <dd class="mt-2 flex flex-wrap gap-1.5">
+                                            @foreach ($attributeRow['terms'] as $term)
+                                                <span class="inline-flex rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1 text-xs font-semibold text-[#334155]">{{ $term }}</span>
+                                            @endforeach
+                                        </dd>
+                                    </div>
+                                @endforeach
+                            </dl>
+                        @else
+                            <div class="mt-6 rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-5 py-6 text-sm text-[#64748B]">
+                                @if ($canManageCatalog)
+                                    <p class="font-medium text-[#334155]">No attributes selected yet.</p>
+                                    <p class="mt-2">Create store attributes, then assign terms from <a href="{{ route('products.edit', $product) }}" class="font-semibold text-[#0052CC] hover:underline">Edit product</a>.</p>
+                                @else
+                                    <p>No structured attributes have been saved for this product yet.</p>
+                                @endif
+                            </div>
+                        @endif
+                    </section>
 
                     <section class="rounded-3xl border border-[#E2E8F0] bg-gradient-to-b from-white to-[#F8FAFF]/30 p-7 shadow-sm ring-1 ring-[#0052CC]/[0.07] sm:p-9" aria-labelledby="workspace-additional-details-heading">
                         <div class="border-b border-[#F1F5F9] pb-4">

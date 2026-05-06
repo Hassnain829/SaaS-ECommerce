@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrentStoreController;
@@ -79,6 +80,21 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])
         ->middleware('store.permission:catalog.manage')
         ->name('categories.destroy');
+    Route::get('/catalog/attributes', [AttributeController::class, 'index'])
+        ->middleware('store.permission:catalog.view')
+        ->name('catalog.attributes.index');
+    Route::post('/catalog/attributes', [AttributeController::class, 'store'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('catalog.attributes.store');
+    Route::patch('/catalog/attributes/{attribute}', [AttributeController::class, 'update'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('catalog.attributes.update');
+    Route::delete('/catalog/attributes/{attribute}', [AttributeController::class, 'destroy'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('catalog.attributes.destroy');
+    Route::post('/catalog/attributes/{attribute}/terms', [AttributeController::class, 'storeTerm'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('catalog.attributes.terms.store');
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
     Route::get('/orders/{order}', [DashboardController::class, 'orderViewDetails'])->name('orderViewDetails');
     Route::patch('/orders/{order}/status', [DashboardController::class, 'updateOrderStatus'])

@@ -24,6 +24,7 @@ final class ProductEditPayload
             'variants.options:id,variation_type_id,value',
             'variants.linkedCatalogImage:id,product_id,product_variant_id,image_path,status,sort_order,is_primary',
             'images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
+            'productAttributes.terms:id,attribute_id,name',
         ]);
 
         $primaryImage = $product->images->first(fn ($img) => $img->is_primary) ?? $product->images->first();
@@ -80,6 +81,11 @@ final class ProductEditPayload
             'brand_id' => $product->brand_id,
             'tag_ids' => $product->tags->pluck('id')->values()->all(),
             'category_ids' => $product->categories->pluck('id')->values()->all(),
+            'attribute_term_ids' => $product->productAttributes
+                ->flatMap(fn ($productAttribute) => $productAttribute->terms->pluck('id'))
+                ->map(static fn ($id): int => (int) $id)
+                ->values()
+                ->all(),
             'custom_fields' => self::editorRowsFromMeta(is_array($product->meta) ? $product->meta : []),
             'stock_alert' => (int) ($product->variants->max('stock_alert') !== null
                 ? $product->variants->max('stock_alert')
@@ -230,6 +236,16 @@ final class ProductEditPayload
             $base['category_ids'] = collect($old['category_ids'])
                 ->map(static fn ($id): int => (int) $id)
                 ->filter(static fn (int $id): bool => $id > 0)
+                ->values()
+                ->all();
+        }
+
+        if (isset($old['attribute_terms']) && is_array($old['attribute_terms'])) {
+            $base['attribute_term_ids'] = collect($old['attribute_terms'])
+                ->flatten()
+                ->map(static fn ($id): int => (int) $id)
+                ->filter(static fn (int $id): bool => $id > 0)
+                ->unique()
                 ->values()
                 ->all();
         }

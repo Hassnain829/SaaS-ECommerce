@@ -14,6 +14,7 @@ class ProductVariant extends Model
     use HasFactory;
 
     protected $fillable = [
+        'store_id',
         'product_id',
         'sku',
         'price',
@@ -29,6 +30,32 @@ class ProductVariant extends Model
         'compare_at_price' => 'decimal:2',
         'meta' => 'array',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (ProductVariant $variant): void {
+            if ($variant->store_id) {
+                return;
+            }
+
+            if ($variant->relationLoaded('product') && $variant->product) {
+                $variant->store_id = $variant->product->store_id;
+
+                return;
+            }
+
+            if ($variant->product_id) {
+                $variant->store_id = Product::query()
+                    ->whereKey($variant->product_id)
+                    ->value('store_id');
+            }
+        });
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
+    }
 
     public function product(): BelongsTo
     {

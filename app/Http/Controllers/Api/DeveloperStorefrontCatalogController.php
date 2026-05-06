@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Services\OrderEventRecorder;
 use App\Services\OrderNumberGenerator;
 use App\Support\OrderLifecycle;
+use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -329,6 +330,7 @@ class DeveloperStorefrontCatalogController extends Controller
             'slug' => $product->slug,
             'description' => $product->description,
             'product_type' => $product->product_type,
+            'behavior' => ProductTypeBehavior::behaviorFor($product->product_type),
             'primary_image_url' => $imageUrl,
             'variants' => $product->variants->map(fn (ProductVariant $v) => [
                 'id' => $v->id,

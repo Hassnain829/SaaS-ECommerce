@@ -105,7 +105,7 @@ final class ProductImportMappingValidator
             $source = trim((string) ($row['source'] ?? ''));
             $key = trim((string) ($row['key'] ?? ''));
             $scopeRaw = strtolower(trim((string) ($row['scope'] ?? 'product')));
-            $scope = $scopeRaw === 'variant' ? 'variant' : 'product';
+            $scope = in_array($scopeRaw, ['product', 'variant', 'attribute'], true) ? $scopeRaw : 'product';
 
             if ($source === '' && $key === '') {
                 continue;
