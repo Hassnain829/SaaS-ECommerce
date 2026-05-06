@@ -9,13 +9,14 @@ use App\Models\OrderAddress;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Store;
+use App\Services\OrderEventRecorder;
 use App\Services\OrderNumberGenerator;
+use App\Support\OrderLifecycle;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 class CustomerAndOrderSeeder extends Seeder
 {
-    public function run(OrderNumberGenerator $orderNumberGenerator): void
+    public function run(OrderNumberGenerator $orderNumberGenerator, OrderEventRecorder $orderEventRecorder): void
     {
         $store = Store::query()->where('slug', 'demo-fashion')->first();
 
@@ -170,7 +171,12 @@ class CustomerAndOrderSeeder extends Seeder
 
                 $placedAt = now()->subDays(rand(1, 30));
 
-                $statuses = [Order::STATUS_CONFIRMED, Order::STATUS_PENDING, 'processing', 'completed'];
+                $statuses = [
+                    OrderLifecycle::ORDER_CONFIRMED,
+                    OrderLifecycle::ORDER_PENDING,
+                    OrderLifecycle::ORDER_PROCESSING,
+                    OrderLifecycle::ORDER_COMPLETED,
+                ];
                 $status = $statuses[array_rand($statuses)];
 
                 $order = Order::query()->create([
@@ -178,7 +184,8 @@ class CustomerAndOrderSeeder extends Seeder
                     'customer_id' => $customer->id,
                     'order_number' => $orderNumberGenerator->generate($store),
                     'status' => $status,
-                    'payment_status' => 'paid',
+                    'payment_status' => OrderLifecycle::PAYMENT_PAID,
+                    'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
                     'customer_email' => $customer->email,
                     'customer_phone' => $customer->phone,
                     'billing_same_as_shipping' => true,
@@ -190,6 +197,8 @@ class CustomerAndOrderSeeder extends Seeder
                     'item_count' => count($orderItems),
                     'total_quantity' => collect($orderItems)->sum('quantity'),
                     'placed_at' => $placedAt,
+                    'confirmed_at' => $status !== OrderLifecycle::ORDER_PENDING ? $placedAt->copy()->addMinutes(5) : null,
+                    'closed_at' => $status === OrderLifecycle::ORDER_COMPLETED ? $placedAt->copy()->addHours(2) : null,
                     'created_at' => $placedAt,
                     'updated_at' => $placedAt,
                 ]);
@@ -207,12 +216,60 @@ class CustomerAndOrderSeeder extends Seeder
                         'sku_snapshot' => $item['variant']->sku,
                         'barcode_snapshot' => $item['variant']->barcode,
                         'product_slug_snapshot' => $item['product']->slug,
+                        'product_image_snapshot' => $this->productImageSnapshot($item['product']),
+                        'product_type_snapshot' => $item['product']->product_type,
                         'variant_label' => collect($item['variant']->options)->pluck('value')->join(' / '),
                         'quantity' => $item['quantity'],
                         'unit_price' => $item['unit_price'],
                         'subtotal' => $item['subtotal'],
                         'total' => $item['total'],
                     ]);
+                }
+
+                $orderEventRecorder->record(
+                    $order,
+                    OrderLifecycle::EVENT_ORDER_CREATED,
+                    'Order placed',
+                    'Order was created as demo order history.',
+                    [
+                        'source' => 'seeder',
+                        'order_number' => $order->order_number,
+                    ],
+                    createdAt: $placedAt,
+                );
+
+                $orderEventRecorder->record(
+                    $order,
+                    OrderLifecycle::EVENT_PAYMENT_STATUS_CHANGED,
+                    'Payment marked as paid',
+                    'Payment status was recorded as paid for this demo order.',
+                    ['payment_status' => OrderLifecycle::PAYMENT_PAID],
+                    createdAt: $placedAt->copy()->addMinute(),
+                );
+
+                if ($status === OrderLifecycle::ORDER_PROCESSING || $status === OrderLifecycle::ORDER_COMPLETED) {
+                    $orderEventRecorder->record(
+                        $order,
+                        OrderLifecycle::EVENT_ORDER_STATUS_CHANGED,
+                        'Order status changed',
+                        'Order status changed from Confirmed to '.OrderLifecycle::orderStatusLabel($status).'.',
+                        [
+                            'previous_status' => OrderLifecycle::ORDER_CONFIRMED,
+                            'new_status' => $status,
+                        ],
+                        createdAt: $placedAt->copy()->addMinutes(10),
+                    );
+                }
+
+                if ($status === OrderLifecycle::ORDER_COMPLETED) {
+                    $orderEventRecorder->record(
+                        $order,
+                        OrderLifecycle::EVENT_ORDER_COMPLETED,
+                        'Order completed',
+                        'The order was marked completed.',
+                        ['status' => $status],
+                        createdAt: $placedAt->copy()->addHours(2),
+                    );
                 }
 
                 $totalSpent = bcadd((string)$totalSpent, (string)$orderTotal, 2);
@@ -225,5 +282,13 @@ class CustomerAndOrderSeeder extends Seeder
                 'last_order_at' => now(),
             ]);
         }
+    }
+
+    private function productImageSnapshot(Product $product): ?string
+    {
+        return $product->images()
+            ->orderByDesc('is_primary')
+            ->orderBy('sort_order')
+            ->value('image_path');
     }
 }

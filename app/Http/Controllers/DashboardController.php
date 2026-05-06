@@ -4,17 +4,31 @@ namespace App\Http\Controllers;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\Tag;
 use App\Models\Role;
+use App\Models\SecurityLog;
 use App\Models\Store;
+use App\Models\UserSession;
+use App\Services\OrderEventRecorder;
+use App\Services\SecurityLogRecorder;
+use App\Services\UserSessionTracker;
+use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
+use App\Support\StorePermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Models\User;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -45,15 +59,55 @@ class DashboardController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        $throttleKey = Str::lower($credentials['email']).'|'.$request->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            app(SecurityLogRecorder::class)->record(
+                $request,
+                'login_throttled',
+                SecurityLog::SEVERITY_WARNING,
+                user: User::query()->where('email', $credentials['email'])->first(),
+                metadata: ['email' => $credentials['email'], 'retry_after_seconds' => $seconds]
+            );
+
+            throw ValidationException::withMessages([
+                'email' => 'Too many sign-in attempts. Please wait '.$seconds.' seconds and try again.',
+            ]);
+        }
+
         $remember = $request->boolean('remember');
 
         if (! Auth::attempt($credentials, $remember)) {
+            RateLimiter::hit($throttleKey, 60);
+            app(SecurityLogRecorder::class)->record(
+                $request,
+                'failed_login',
+                SecurityLog::SEVERITY_WARNING,
+                user: User::query()->where('email', $credentials['email'])->first(),
+                metadata: ['email' => $credentials['email']]
+            );
+
             return back()->withErrors([
                 'email' => 'Email or password is incorrect.',
             ])->withInput($request->only('email'));
         }
 
         $request->session()->regenerate();
+        RateLimiter::clear($throttleKey);
+
+        $user = $request->user();
+        if ($user && $user->is_active === false) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()->withErrors([
+                'email' => 'This account is deactivated. Contact the store owner before signing in again.',
+            ])->withInput($request->only('email'));
+        }
+
+        $user?->forceFill(['last_login_at' => now()])->save();
+        app(SecurityLogRecorder::class)->record($request, 'login', user: $user);
 
         return $this->redirectByRole();
     }
@@ -77,16 +131,22 @@ class DashboardController extends Controller
             'email' => $validated['email'],
             'password' => $validated['password'],
             'role_id' => $userRole->id,
+            'is_active' => true,
         ]);
 
         Auth::login($user);
         $request->session()->regenerate();
+        app(SecurityLogRecorder::class)->record($request, 'account_registered', user: $user);
 
         return redirect()->route('onboarding-StoreDetails-1');
     }
 
     public function logout(Request $request): RedirectResponse
     {
+        if ($request->user()) {
+            app(SecurityLogRecorder::class)->record($request, 'logout');
+        }
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
@@ -433,7 +493,7 @@ class DashboardController extends Controller
         $store = $request->attributes->get('currentStore');
         $user = $request->user();
         abort_unless(
-            $store && $user && $user->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER]),
+            $store && $user && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE),
             403
         );
 
@@ -457,6 +517,13 @@ class DashboardController extends Controller
         $settings['catalog'] = $catalog;
         $store->update(['settings' => $settings]);
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'catalog_list_preferences_updated',
+            store: $store,
+            metadata: ['detail_keys' => $keys]
+        );
+
         return redirect()
             ->route('products')
             ->with('success', 'Product list highlights saved for this store.')
@@ -466,67 +533,172 @@ class DashboardController extends Controller
     public function orders(Request $request)
     {
         $selectedStore = $request->attributes->get('currentStore');
-        
-        $status = $request->query('status');
 
-        $query = \App\Models\Order::query()
+        $status = (string) $request->query('status', 'all');
+        if ($status !== 'all' && ! in_array($status, OrderLifecycle::orderStatuses(), true)) {
+            $status = 'all';
+        }
+
+        $query = Order::query()
             ->where('store_id', $selectedStore->id)
             ->with(['customer', 'items']);
 
-        if ($status && $status !== 'all') {
+        if ($status !== 'all') {
             $query->where('status', $status);
         }
 
         $orders = $query->orderByDesc('placed_at')->paginate(20)->withQueryString();
 
-        $statusCounts = \App\Models\Order::query()
+        $statusCounts = Order::query()
             ->where('store_id', $selectedStore->id)
             ->selectRaw('status, count(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status')
             ->all();
-            
+
         $statusCounts['all'] = array_sum($statusCounts);
 
         return view('user_view.orders', [
             'orders' => $orders,
-            'currentStatus' => $status ?? 'all',
+            'currentStatus' => $status,
             'statusCounts' => $statusCounts,
+            'orderStatuses' => OrderLifecycle::orderStatuses(),
             'selectedStore' => $selectedStore,
         ]);
     }
 
-    public function orderViewDetails(Request $request, \App\Models\Order $order)
+    public function orderViewDetails(Request $request, Order $order)
     {
         $selectedStore = $request->attributes->get('currentStore');
-        
+
         if ($order->store_id !== $selectedStore->id) {
             abort(404);
         }
 
-        $order->load(['items', 'customer', 'addresses', 'items.product', 'items.variant.options']);
+        $order->load([
+            'items',
+            'customer',
+            'addresses',
+            'items.product.images',
+            'items.variant.options.variationType',
+            'events.actor',
+        ]);
 
         return view('user_view.orderViewDetails', [
             'order' => $order,
+            'orderStatuses' => OrderLifecycle::orderStatuses(),
             'selectedStore' => $selectedStore,
         ]);
     }
 
-    public function updateOrderStatus(Request $request, \App\Models\Order $order)
+    public function updateOrderStatus(Request $request, Order $order)
     {
         $selectedStore = $request->attributes->get('currentStore');
-        
+
         if ($order->store_id !== $selectedStore->id) {
             abort(404);
         }
 
+        abort_unless($request->user()?->canManageOrders($selectedStore), 403);
+
         $request->validate([
-            'status' => ['required', 'string', 'in:pending,processing,shipped,delivered,cancelled'],
+            'status' => ['required', 'string', Rule::in(OrderLifecycle::orderStatuses())],
         ]);
 
-        $order->update(['status' => $request->status]);
+        $previousStatus = (string) $order->status;
+        $newStatus = (string) $request->status;
 
-        return back()->with('success', 'Order status updated successfully.');
+        if ($previousStatus === $newStatus) {
+            return back()->with('success', 'Order status is already '.OrderLifecycle::orderStatusLabel($newStatus).'.');
+        }
+
+        if (! OrderLifecycle::canTransitionOrderStatus($previousStatus, $newStatus)) {
+            return back()->withErrors([
+                'status' => 'This order cannot move from '.OrderLifecycle::orderStatusLabel($previousStatus).' to '.OrderLifecycle::orderStatusLabel($newStatus).'.',
+            ]);
+        }
+
+        DB::transaction(function () use ($order, $request, $previousStatus, $newStatus): void {
+            $updates = [
+                'status' => $newStatus,
+                'updated_by' => $request->user()?->id,
+            ];
+
+            if ($newStatus === OrderLifecycle::ORDER_CONFIRMED && ! $order->confirmed_at) {
+                $updates['confirmed_at'] = now();
+            }
+
+            if ($newStatus === OrderLifecycle::ORDER_CANCELLED) {
+                $updates['cancelled_at'] = now();
+            }
+
+            if ($newStatus === OrderLifecycle::ORDER_REFUNDED) {
+                $updates['refunded_at'] = now();
+            }
+
+            if ($newStatus === OrderLifecycle::ORDER_COMPLETED) {
+                $updates['closed_at'] = now();
+            }
+
+            $order->update($updates);
+
+            app(OrderEventRecorder::class)->record(
+                $order,
+                OrderLifecycle::EVENT_ORDER_STATUS_CHANGED,
+                'Order status changed',
+                'Order status changed from '.OrderLifecycle::orderStatusLabel($previousStatus).' to '.OrderLifecycle::orderStatusLabel($newStatus).'.',
+                [
+                    'previous_status' => $previousStatus,
+                    'new_status' => $newStatus,
+                ],
+                $request->user()
+            );
+
+            $terminalEvents = [
+                OrderLifecycle::ORDER_CANCELLED => [
+                    OrderLifecycle::EVENT_ORDER_CANCELLED,
+                    'Order cancelled',
+                    'The order was cancelled.',
+                ],
+                OrderLifecycle::ORDER_COMPLETED => [
+                    OrderLifecycle::EVENT_ORDER_COMPLETED,
+                    'Order completed',
+                    'The order was marked completed.',
+                ],
+                OrderLifecycle::ORDER_REFUNDED => [
+                    OrderLifecycle::EVENT_ORDER_REFUNDED,
+                    'Order refunded',
+                    'The order was marked refunded.',
+                ],
+            ];
+
+            if (isset($terminalEvents[$newStatus])) {
+                [$eventType, $title, $description] = $terminalEvents[$newStatus];
+
+                app(OrderEventRecorder::class)->record(
+                    $order,
+                    $eventType,
+                    $title,
+                    $description,
+                    ['status' => $newStatus],
+                    $request->user()
+                );
+            }
+        });
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'order_status_changed',
+            store: $selectedStore,
+            metadata: [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'previous_status' => $previousStatus,
+                'new_status' => $newStatus,
+            ]
+        );
+
+        return back()->with('success', 'Order status updated to '.OrderLifecycle::orderStatusLabel($newStatus).'.');
     }
 
     public function customers(Request $request)
@@ -611,14 +783,175 @@ class DashboardController extends Controller
         return view('user_view.shippingAutomation');
     }
 
-    public function security()
+    public function security(Request $request, UserSessionTracker $sessionTracker)
     {
-        return view('user_view.security');
+        $user = $request->user();
+        $selectedStore = $request->attributes->get('currentStore');
+        $currentSession = $sessionTracker->touch($request);
+
+        $sessions = UserSession::query()
+            ->where('user_id', $user->id)
+            ->orderByRaw('revoked_at IS NULL DESC')
+            ->orderByDesc('last_activity')
+            ->limit(20)
+            ->get();
+
+        $securityLogs = SecurityLog::query()
+            ->with(['store:id,name', 'user:id,name,email', 'targetUser:id,name,email'])
+            ->where(function ($query) use ($user, $selectedStore): void {
+                $query->where('user_id', $user->id);
+
+                if ($selectedStore) {
+                    $query->orWhere('store_id', $selectedStore->id);
+                }
+            })
+            ->orderByDesc('created_at')
+            ->limit(25)
+            ->get();
+
+        return view('user_view.security', [
+            'selectedStore' => $selectedStore,
+            'sessions' => $sessions,
+            'currentSessionId' => $currentSession?->id,
+            'securityLogs' => $securityLogs,
+        ]);
     }
 
-    public function profileSettings()
+    public function revokeUserSession(Request $request, UserSession $userSession, UserSessionTracker $sessionTracker): RedirectResponse
     {
-        return view('user_view.profileSettings');
+        abort_unless((int) $userSession->user_id === (int) $request->user()->id, 404);
+
+        if ($userSession->session_id === $sessionTracker->sessionId($request)) {
+            return back()->withErrors(['session' => 'You are using this session right now. Use Logout when you want to leave this device.']);
+        }
+
+        $sessionTracker->revoke($userSession);
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'user_session_revoked',
+            targetUser: $request->user(),
+            metadata: [
+                'session_record_id' => $userSession->id,
+                'browser' => $userSession->browser,
+                'os' => $userSession->os,
+            ]
+        );
+
+        return back()
+            ->with('success', 'That session was signed out.')
+            ->with('success_title', 'Session revoked');
+    }
+
+    public function profileSettings(Request $request)
+    {
+        $user = $request->user();
+        $stores = $user->memberStores()
+            ->orderBy('stores.name')
+            ->get();
+
+        return view('user_view.profileSettings', [
+            'profileUser' => $user,
+            'memberStores' => $stores,
+            'selectedStore' => $request->attributes->get('currentStore'),
+        ]);
+    }
+
+    public function updateProfile(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone' => ['nullable', 'string', 'max:40'],
+            'avatar' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
+        $oldEmail = (string) $user->email;
+        $avatar = $user->avatar;
+        if ($request->hasFile('avatar')) {
+            if ($avatar) {
+                Storage::disk('public')->delete($avatar);
+            }
+            $avatar = $request->file('avatar')->store('avatars', 'public');
+        }
+
+        $user->fill([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
+            'avatar' => $avatar,
+        ]);
+
+        if ($oldEmail !== $validated['email']) {
+            $user->email_verified_at = null;
+        }
+
+        $user->save();
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'profile_updated',
+            metadata: ['email_changed' => $oldEmail !== $validated['email']]
+        );
+
+        return back()
+            ->with('success', 'Profile updated.')
+            ->with('success_title', 'Account saved');
+    }
+
+    public function updatePassword(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', 'string', 'confirmed', 'min:8'],
+        ]);
+
+        $request->user()->forceFill([
+            'password' => Hash::make($validated['password']),
+            'remember_token' => Str::random(60),
+        ])->save();
+
+        $request->session()->regenerate();
+
+        app(SecurityLogRecorder::class)->record($request, 'password_changed');
+
+        return back()
+            ->with('success', 'Password changed.')
+            ->with('success_title', 'Account secured');
+    }
+
+    public function deactivateAccount(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'confirm_deactivation' => ['required', 'string', 'in:deactivate'],
+        ]);
+
+        $user = $request->user();
+        $blockingStore = $this->storeWhereUserIsLastOwner($user);
+        if ($blockingStore) {
+            return back()->withErrors([
+                'confirm_deactivation' => "Transfer ownership of {$blockingStore->name} before deactivating your account.",
+            ]);
+        }
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'account_deactivated',
+            SecurityLog::SEVERITY_WARNING,
+            metadata: ['confirmation' => $validated['confirm_deactivation']]
+        );
+
+        $user->forceFill(['is_active' => false])->save();
+
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()
+            ->route('signin')
+            ->withErrors(['email' => 'Your account has been deactivated.']);
     }
 
     public function onboarding_StoreDetails_1()
@@ -666,6 +999,26 @@ class DashboardController extends Controller
         view()->share('currentStore', $store);
 
         return redirect()->route('products');
+    }
+
+    private function storeWhereUserIsLastOwner(User $user): ?Store
+    {
+        $ownedStores = $user->memberStores()
+            ->wherePivot('role', Store::ROLE_OWNER)
+            ->get();
+
+        foreach ($ownedStores as $store) {
+            $hasAnotherOwner = $store->members()
+                ->wherePivot('role', Store::ROLE_OWNER)
+                ->where('users.id', '!=', $user->id)
+                ->exists();
+
+            if (! $hasAnotherOwner) {
+                return $store;
+            }
+        }
+
+        return null;
     }
 
     /**

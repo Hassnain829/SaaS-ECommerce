@@ -2,15 +2,19 @@
 
 namespace App\Models;
 
+use App\Support\OrderLifecycle;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
-    public const STATUS_CONFIRMED = 'confirmed';
-    public const STATUS_PENDING = 'pending';
-    public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_PENDING = OrderLifecycle::ORDER_PENDING;
+    public const STATUS_CONFIRMED = OrderLifecycle::ORDER_CONFIRMED;
+    public const STATUS_PROCESSING = OrderLifecycle::ORDER_PROCESSING;
+    public const STATUS_COMPLETED = OrderLifecycle::ORDER_COMPLETED;
+    public const STATUS_CANCELLED = OrderLifecycle::ORDER_CANCELLED;
+    public const STATUS_REFUNDED = OrderLifecycle::ORDER_REFUNDED;
 
     protected $fillable = [
         'store_id',
@@ -95,5 +99,10 @@ class Order extends Model
     public function addresses(): HasMany
     {
         return $this->hasMany(OrderAddress::class);
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(OrderEvent::class)->orderBy('created_at')->orderBy('id');
     }
 }

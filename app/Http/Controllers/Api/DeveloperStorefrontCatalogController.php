@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\OrderEventRecorder;
 use App\Services\OrderNumberGenerator;
+use App\Support\OrderLifecycle;
 use App\Support\StockMovementRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -175,8 +177,9 @@ class DeveloperStorefrontCatalogController extends Controller
                 'store_id' => $store->id,
                 'customer_id' => $customer->id,
                 'order_number' => $orderNumber,
-                'status' => Order::STATUS_CONFIRMED,
-                'payment_status' => 'paid',
+                'status' => OrderLifecycle::ORDER_CONFIRMED,
+                'payment_status' => OrderLifecycle::PAYMENT_PAID,
+                'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
                 'customer_email' => $validated['customer_email'],
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'billing_same_as_shipping' => $validated['billing_same_as_shipping'] ?? true,
@@ -189,6 +192,7 @@ class DeveloperStorefrontCatalogController extends Controller
                 'item_count' => $itemCount,
                 'total_quantity' => $totalQuantity,
                 'placed_at' => now(),
+                'confirmed_at' => now(),
             ]);
 
             $shipping = $validated['shipping_address'];
@@ -240,6 +244,8 @@ class DeveloperStorefrontCatalogController extends Controller
                     'sku_snapshot' => $row['variant']->sku,
                     'barcode_snapshot' => $row['variant']->barcode,
                     'product_slug_snapshot' => $row['product']->slug,
+                    'product_image_snapshot' => $this->productImageSnapshot($row['product']),
+                    'product_type_snapshot' => $row['product']->product_type,
                     'variant_label' => $this->variantLabel($row['variant']),
                     'quantity' => $row['quantity'],
                     'unit_price' => $row['unit_price'],
@@ -248,7 +254,45 @@ class DeveloperStorefrontCatalogController extends Controller
                 ]);
             }
 
-            return $order->load(['items', 'addresses']);
+            $eventRecorder = app(OrderEventRecorder::class);
+            $eventRecorder->record(
+                $order,
+                OrderLifecycle::EVENT_ORDER_CREATED,
+                'Order placed',
+                'Order was created from the developer storefront.',
+                [
+                    'source' => 'developer_storefront',
+                    'channel' => 'developer_test_react',
+                    'order_number' => $order->order_number,
+                ],
+                createdAt: $order->placed_at
+            );
+
+            $eventRecorder->record(
+                $order,
+                OrderLifecycle::EVENT_PAYMENT_STATUS_CHANGED,
+                'Payment marked as paid',
+                'Payment status was set to paid during checkout.',
+                [
+                    'payment_status' => OrderLifecycle::PAYMENT_PAID,
+                    'source' => 'developer_storefront',
+                ],
+                createdAt: $order->placed_at?->copy()->addMinute()
+            );
+
+            $eventRecorder->record(
+                $order,
+                OrderLifecycle::EVENT_INVENTORY_DEDUCTED,
+                'Inventory deducted',
+                'Stock was deducted for ordered items.',
+                [
+                    'item_count' => $itemCount,
+                    'total_quantity' => $totalQuantity,
+                ],
+                createdAt: $order->placed_at?->copy()->addMinutes(2)
+            );
+
+            return $order->load(['items', 'addresses', 'events']);
         });
 
         return response()->json([
@@ -310,5 +354,13 @@ class DeveloperStorefrontCatalogController extends Controller
         return $variant->options
             ->map(fn ($o) => ($o->variationType?->name ?? 'Option').': '.$o->value)
             ->implode(', ');
+    }
+
+    private function productImageSnapshot(Product $product): ?string
+    {
+        return $product->images()
+            ->orderByDesc('is_primary')
+            ->orderBy('sort_order')
+            ->value('image_path');
     }
 }

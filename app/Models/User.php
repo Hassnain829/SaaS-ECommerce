@@ -3,14 +3,14 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\StorePermission;
+use App\Support\StorePermissionResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use App\Models\Role;
-use App\Models\Store;
 
 class User extends Authenticatable
 {
@@ -27,6 +27,10 @@ class User extends Authenticatable
         'email',
         'password',
         'role_id',
+        'phone',
+        'avatar',
+        'is_active',
+        'last_login_at',
     ];
 
     /**
@@ -49,6 +53,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 
@@ -65,6 +71,16 @@ class User extends Authenticatable
     public function stores(): HasMany
     {
         return $this->hasMany(Store::class);
+    }
+
+    public function securityLogs(): HasMany
+    {
+        return $this->hasMany(SecurityLog::class);
+    }
+
+    public function userSessions(): HasMany
+    {
+        return $this->hasMany(UserSession::class);
     }
 
     public function memberStores(): BelongsToMany
@@ -111,5 +127,43 @@ class User extends Authenticatable
         $roles = is_array($roles) ? $roles : [$roles];
 
         return in_array($role, $roles, true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function storePermissions(Store|int|null $store): array
+    {
+        return StorePermissionResolver::permissionsFor($this, $store);
+    }
+
+    public function hasStorePermission(Store|int|null $store, string $permission): bool
+    {
+        return StorePermissionResolver::userCan($this, $store, $permission);
+    }
+
+    public function hasAnyStorePermission(Store|int|null $store, array $permissions): bool
+    {
+        return StorePermissionResolver::userCanAny($this, $store, $permissions);
+    }
+
+    public function canManageCatalog(Store|int|null $store): bool
+    {
+        return $this->hasStorePermission($store, StorePermission::CATALOG_MANAGE);
+    }
+
+    public function canManageOrders(Store|int|null $store): bool
+    {
+        return $this->hasStorePermission($store, StorePermission::ORDERS_MANAGE);
+    }
+
+    public function canManageCustomers(Store|int|null $store): bool
+    {
+        return $this->hasStorePermission($store, StorePermission::CUSTOMERS_MANAGE);
+    }
+
+    public function canManageSettings(Store|int|null $store): bool
+    {
+        return $this->hasStorePermission($store, StorePermission::SETTINGS_MANAGE);
     }
 }

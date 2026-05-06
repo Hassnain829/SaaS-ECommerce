@@ -122,7 +122,6 @@
       <section class="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden">
         <div class="p-5 border-b border-[#E2E8F0] flex items-center justify-between">
           <h2 class="text-2xl">Purchase History</h2>
-          <button class="text-[#0052CC] font-semibold">Download CSV</button>
         </div>
 
         <div class="overflow-x-auto">
@@ -142,7 +141,7 @@
                 <td class="px-6 py-4 font-bold text-[#0052CC]"><a href="{{ route('orderViewDetails', $order->id) }}">#{{ strtoupper($order->order_number) }}</a></td>
                 <td class="px-4 py-4">{{ $order->placed_at ? $order->placed_at->format('M d, Y') : '-' }}</td>
                 <td class="px-4 py-4">
-                  <span class="rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase text-[#059669]">{{ $order->status }}</span>
+                  <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">{{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}</span>
                 </td>
                 <td class="px-4 py-4 text-[#475569]">{{ $order->item_count }} items</td>
                 <td class="px-6 py-4 text-right font-bold">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $order->total, 2) }}</td>

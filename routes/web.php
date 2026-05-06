@@ -35,83 +35,99 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
     Route::post('/products/catalog-list-highlights', [DashboardController::class, 'saveProductListDetailKeys'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('products.catalog-list-highlights');
     Route::get('/products/primary-images', [DashboardController::class, 'productPrimaryImages'])->name('products.primary-images');
     Route::get('/products/view/{product}', [ProductWorkspaceController::class, 'show'])->name('products.show');
     Route::get('/products/{product}/edit', [ProductWorkspaceController::class, 'edit'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('products.edit');
     Route::post('/products/{product}/workspace/import-extra/promote', [ProductWorkspaceDataController::class, 'promoteImportExtra'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('products.workspace.promote-import-extra');
     Route::post('/products/{product}/workspace/import-extra/apply-category', [ProductWorkspaceDataController::class, 'applyImportCategory'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('products.workspace.apply-import-category');
     Route::post('/products/bulk', [ProductBulkController::class, 'handle'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('products.bulk');
 
     Route::post('/brands', [BrandController::class, 'store'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('brands.store');
     Route::patch('/brands/{brand}', [BrandController::class, 'update'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('brands.update');
     Route::delete('/brands/{brand}', [BrandController::class, 'destroy'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('brands.destroy');
     Route::post('/tags', [TagController::class, 'store'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('tags.store');
     Route::patch('/tags/{tag}', [TagController::class, 'update'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('tags.update');
     Route::delete('/tags/{tag}', [TagController::class, 'destroy'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('tags.destroy');
     Route::post('/categories', [CategoryController::class, 'store'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('categories.store');
     Route::patch('/categories/{category}', [CategoryController::class, 'update'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('categories.update');
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('categories.destroy');
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
     Route::get('/orders/{order}', [DashboardController::class, 'orderViewDetails'])->name('orderViewDetails');
-    Route::patch('/orders/{order}/status', [DashboardController::class, 'updateOrderStatus'])->name('orders.updateStatus');
+    Route::patch('/orders/{order}/status', [DashboardController::class, 'updateOrderStatus'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.updateStatus');
 
     Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
     Route::get('/customers/{customer}', [DashboardController::class, 'customersProfile'])->name('customersProfile');
-    Route::get('/team-members', [TeamMemberController::class, 'index'])->name('team-members.index');
+    Route::get('/team-members', [TeamMemberController::class, 'index'])
+        ->middleware('store.permission:team.view')
+        ->name('team-members.index');
     Route::post('/team-members', [TeamMemberController::class, 'store'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:team.manage')
         ->name('team-members.store');
     Route::patch('/team-members/{user}', [TeamMemberController::class, 'updateRole'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:team.manage')
         ->name('team-members.update');
     Route::delete('/team-members/{user}', [TeamMemberController::class, 'destroy'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:team.manage')
         ->name('team-members.destroy');
 
     Route::get('/analytics', [DashboardController::class, 'analytics'])->name('analytics');
     Route::get('/notifications', [DashboardController::class, 'notifications'])->name('notifications');
 
-    Route::get('/BillingSubscription', [DashboardController::class, 'billingSubscription'])->name('billingSubscription');
-    Route::get('/generalSettings', [DashboardController::class, 'generalSettings'])->name('generalSettings');
+    Route::get('/BillingSubscription', [DashboardController::class, 'billingSubscription'])
+        ->middleware('store.permission:billing.view')
+        ->name('billingSubscription');
+    Route::get('/generalSettings', [DashboardController::class, 'generalSettings'])
+        ->middleware('store.permission:settings.view')
+        ->name('generalSettings');
     Route::get('/shippingAutomation', [DashboardController::class, 'shippingAutomation'])->name('shippingAutomation');
-    Route::get('/security', [DashboardController::class, 'security'])->name('security');
+    Route::get('/security', [DashboardController::class, 'security'])
+        ->middleware('store.permission:security.view')
+        ->name('security');
+    Route::delete('/security/sessions/{userSession}', [DashboardController::class, 'revokeUserSession'])
+        ->name('security.sessions.destroy');
     Route::get('/profileSettings', [DashboardController::class, 'profileSettings'])->name('profileSettings');
+    Route::patch('/profileSettings', [DashboardController::class, 'updateProfile'])->name('profile.update');
+    Route::put('/profileSettings/password', [DashboardController::class, 'updatePassword'])->name('profile.password.update');
+    Route::patch('/profileSettings/deactivate', [DashboardController::class, 'deactivateAccount'])->name('profile.deactivate');
 
     Route::get('/developer-storefront', [DeveloperStorefrontSettingsController::class, 'show'])
+        ->middleware('store.permission:developer_api.view')
         ->name('developer-storefront.settings');
     Route::post('/developer-storefront/token', [DeveloperStorefrontSettingsController::class, 'generate'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:developer_api.manage')
         ->name('developer-storefront.token.generate');
     Route::delete('/developer-storefront/token', [DeveloperStorefrontSettingsController::class, 'revoke'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:developer_api.manage')
         ->name('developer-storefront.token.revoke');
 
     Route::get('/onboarding-StoreDetails-1', [OnboardingController::class, 'step1'])->name('onboarding-StoreDetails-1');
@@ -129,56 +145,56 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::put('/store/{storeId}', [OnboardingController::class, 'updateStoreFromManagement'])->name('store.update');
     Route::delete('/store/{storeId}', [OnboardingController::class, 'destroyStoreFromManagement'])->name('store.destroy');
     Route::post('/products', [OnboardingController::class, 'storeProductFromCurrentStore'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('product.store');
     Route::put('/product/{productId}', [OnboardingController::class, 'updateProductFromManagement'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('product.update');
     Route::delete('/product/{productId}', [OnboardingController::class, 'destroyProductFromManagement'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:catalog.manage')
         ->name('product.destroy');
 
     Route::get('/products/import/template', [ProductImportController::class, 'template'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.template');
     Route::get('/products/import/history', [ProductImportController::class, 'history'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.history');
     Route::get('/products/import', [ProductImportController::class, 'create'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.create');
     Route::post('/products/import', [ProductImportController::class, 'store'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.store');
     Route::get('/products/import/{productImportId}/mapping', [ProductImportController::class, 'mapping'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.mapping');
     Route::post('/products/import/{productImportId}/mapping', [ProductImportController::class, 'saveMapping'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.mapping.save');
     Route::post('/products/import/{productImportId}/reopen-mapping', [ProductImportController::class, 'reopenMapping'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.reopen-mapping');
     Route::get('/products/import/{productImportId}/preview', [ProductImportController::class, 'preview'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.preview');
     Route::post('/products/import/{productImportId}/confirm', [ProductImportController::class, 'confirm'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.confirm');
     Route::post('/products/import/{productImportId}/resume', [ProductImportController::class, 'resume'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.resume');
     Route::get('/products/import/{productImportId}/result', [ProductImportController::class, 'result'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.result');
     Route::get('/products/import/{productImportId}/progress', [ProductImportController::class, 'importProgress'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.progress');
     Route::get('/products/import/{productImportId}/report', [ProductImportController::class, 'report'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.report');
     Route::post('/products/import/{productImportId}/retry-failed', [ProductImportController::class, 'retryFailed'])
-        ->middleware('store.role:owner,manager')
+        ->middleware('store.permission:imports.manage')
         ->name('products.import.retry-failed');
 
     Route::get('/store/{storeId}/products', [DashboardController::class, 'store_products'])->name('store.products');

@@ -40,14 +40,14 @@ class TeamMemberFlowTest extends TestCase
         ]);
     }
 
-    public function test_manager_can_add_staff_and_manager_but_not_owner(): void
+    public function test_manager_cannot_add_team_members(): void
     {
         $owner = $this->createMerchantUser('owner@example.com');
         $manager = $this->createMerchantUser('manager@example.com');
         $store = $this->createMemberStore($owner, 'Alpha Store', Store::ROLE_OWNER);
         $this->attachMember($store, $manager, Store::ROLE_MANAGER);
 
-        $staffResponse = $this->actingAs($manager)
+        $response = $this->actingAs($manager)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('team-members.store'), [
                 'name' => 'Staff Invite',
@@ -55,45 +55,10 @@ class TeamMemberFlowTest extends TestCase
                 'role' => Store::ROLE_STAFF,
             ]);
 
-        $staffResponse->assertRedirect(route('team-members.index'));
+        $response->assertForbidden();
 
-        $managerInviteResponse = $this->actingAs($manager)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('team-members.store'), [
-                'name' => 'Manager Invite',
-                'email' => 'manager-invite@example.com',
-                'role' => Store::ROLE_MANAGER,
-            ]);
-
-        $managerInviteResponse->assertRedirect(route('team-members.index'));
-
-        $ownerInviteResponse = $this->actingAs($manager)
-            ->from(route('team-members.index'))
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('team-members.store'), [
-                'name' => 'Owner Invite',
-                'email' => 'owner-invite@example.com',
-                'role' => Store::ROLE_OWNER,
-            ]);
-
-        $ownerInviteResponse->assertRedirect(route('team-members.index'));
-        $ownerInviteResponse->assertSessionHasErrors('role');
-
-        $this->assertDatabaseHas('store_user', [
-            'store_id' => $store->id,
-            'user_id' => User::query()->where('email', 'staff-invite@example.com')->value('id'),
-            'role' => Store::ROLE_STAFF,
-        ]);
-
-        $this->assertDatabaseHas('store_user', [
-            'store_id' => $store->id,
-            'user_id' => User::query()->where('email', 'manager-invite@example.com')->value('id'),
-            'role' => Store::ROLE_MANAGER,
-        ]);
-
-        $this->assertDatabaseMissing('store_user', [
-            'store_id' => $store->id,
-            'user_id' => User::query()->where('email', 'owner-invite@example.com')->value('id'),
+        $this->assertDatabaseMissing('users', [
+            'email' => 'staff-invite@example.com',
         ]);
     }
 
@@ -141,7 +106,7 @@ class TeamMemberFlowTest extends TestCase
         ]);
     }
 
-    public function test_manager_cannot_modify_owner_or_promote_someone_to_owner(): void
+    public function test_manager_cannot_modify_team_members(): void
     {
         $owner = $this->createMerchantUser('owner@example.com');
         $manager = $this->createMerchantUser('manager@example.com');
@@ -159,14 +124,12 @@ class TeamMemberFlowTest extends TestCase
         $ownerResponse->assertForbidden();
 
         $promoteResponse = $this->actingAs($manager)
-            ->from(route('team-members.index'))
             ->withSession(['current_store_id' => $store->id])
             ->patch(route('team-members.update', ['user' => $staff->id]), [
-                'role' => Store::ROLE_OWNER,
+                'role' => Store::ROLE_MANAGER,
             ]);
 
-        $promoteResponse->assertRedirect(route('team-members.index'));
-        $promoteResponse->assertSessionHasErrors('role');
+        $promoteResponse->assertForbidden();
 
         $this->assertDatabaseHas('store_user', [
             'store_id' => $store->id,
@@ -203,7 +166,7 @@ class TeamMemberFlowTest extends TestCase
         ]);
     }
 
-    public function test_manager_can_remove_staff_only(): void
+    public function test_manager_cannot_remove_team_members(): void
     {
         $owner = $this->createMerchantUser('owner@example.com');
         $manager = $this->createMerchantUser('manager@example.com');
@@ -218,7 +181,7 @@ class TeamMemberFlowTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->delete(route('team-members.destroy', ['user' => $staff->id]));
 
-        $staffResponse->assertRedirect(route('team-members.index'));
+        $staffResponse->assertForbidden();
 
         $managerResponse = $this->actingAs($manager)
             ->withSession(['current_store_id' => $store->id])
@@ -232,9 +195,10 @@ class TeamMemberFlowTest extends TestCase
 
         $ownerResponse->assertForbidden();
 
-        $this->assertDatabaseMissing('store_user', [
+        $this->assertDatabaseHas('store_user', [
             'store_id' => $store->id,
             'user_id' => $staff->id,
+            'role' => Store::ROLE_STAFF,
         ]);
 
         $this->assertDatabaseHas('store_user', [

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Store;
+use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -48,6 +49,13 @@ class DeveloperStorefrontSettingsController extends Controller
             'developer_storefront_token_created_at' => now(),
         ]);
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'api_key_created',
+            store: $store,
+            metadata: ['source' => 'developer_storefront']
+        );
+
         return redirect()
             ->route('developer-storefront.settings')
             ->with('success', 'A new developer storefront token was generated. Copy it now; it will not be shown again.')
@@ -68,6 +76,13 @@ class DeveloperStorefrontSettingsController extends Controller
             'developer_storefront_token_hash' => null,
             'developer_storefront_token_created_at' => null,
         ]);
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'api_key_revoked',
+            store: $store,
+            metadata: ['source' => 'developer_storefront']
+        );
 
         return redirect()
             ->route('developer-storefront.settings')

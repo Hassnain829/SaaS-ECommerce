@@ -2,7 +2,9 @@
 
 use App\Http\Middleware\AuthenticateDeveloperStorefrontToken;
 use App\Http\Middleware\EnsureCurrentStore;
+use App\Http\Middleware\EnsureStorePermission;
 use App\Http\Middleware\EnsureStoreRole;
+use App\Http\Middleware\RecordUserSession;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,12 +17,18 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands()
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'current.store' => EnsureCurrentStore::class,
+            'store.permission' => EnsureStorePermission::class,
             'store.role' => EnsureStoreRole::class,
             'role' => RoleMiddleware::class,
             'dev.storefront.token' => AuthenticateDeveloperStorefrontToken::class,
+        ]);
+
+        $middleware->web(append: [
+            RecordUserSession::class,
         ]);
 
         $middleware->redirectGuestsTo(fn () => route('signin'));

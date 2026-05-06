@@ -158,17 +158,23 @@
             <span class="text-sm {{ request()->routeIs('profileSettings') ? 'font-semibold' : 'font-medium' }}">Profile</span></a> -->
     </nav>
 
+    @php
+        $sidebarUser = auth()->user();
+        $sidebarInitial = $sidebarUser ? \Illuminate\Support\Str::of($sidebarUser->name)->trim()->substr(0, 1)->upper() : '?';
+        $sidebarRoleLabel = $sidebarUser?->role?->name === 'admin' ? 'Platform Admin' : 'Merchant Account';
+    @endphp
     <div class="border-t border-gray-200 p-4 space-y-2">
         <a href="{{ route('profileSettings') }}" class="flex items-center gap-3 rounded-xl p-2 transition-colors {{ request()->routeIs('profileSettings') ? 'bg-[#0052CC]/10' : 'hover:bg-[#0052CC]/5' }}">
-            <div class="w-8 h-8 rounded-full bg-[#E2E8F0] overflow-hidden shrink-0">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                    <circle cx="16" cy="12" r="5" fill="#94A3B8"/>
-                    <path d="M26 26C26 22 22 20 16 20C10 20 6 22 6 26" fill="#94A3B8"/>
-                </svg>
+            <div class="w-8 h-8 rounded-full bg-[#E2E8F0] overflow-hidden shrink-0 flex items-center justify-center text-xs font-bold text-[#475569]">
+                @if ($sidebarUser?->avatar)
+                    <img src="{{ asset('storage/'.$sidebarUser->avatar) }}" alt="{{ $sidebarUser->name }}" class="h-full w-full object-cover">
+                @else
+                    {{ $sidebarInitial }}
+                @endif
             </div>
             <div class="min-w-0">
-                <div class="text-sm font-semibold text-[#0F172A] truncate">Alex Rivers</div>
-                <div class="text-xs {{ request()->routeIs('profileSettings') ? 'text-[#0052CC]' : 'text-[#64748B]' }}">Admin Account</div>
+                <div class="text-sm font-semibold text-[#0F172A] truncate">{{ $sidebarUser?->name ?? 'Account' }}</div>
+                <div class="text-xs {{ request()->routeIs('profileSettings') ? 'text-[#0052CC]' : 'text-[#64748B]' }}">{{ $sidebarRoleLabel }}</div>
             </div>
         </a>
         <a href="{{ route('logout') }}" class="flex items-center justify-center gap-2 rounded-xl p-2.5 text-sm font-semibold text-[#BA1A1A] border border-[#FFDAD6] bg-[#FFF6F5] hover:bg-[#FFEDEC] transition-colors">

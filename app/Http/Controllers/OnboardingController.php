@@ -8,9 +8,11 @@ use App\Models\ProductVariant;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
+use App\Services\SecurityLogRecorder;
 use App\Support\CatalogRules;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
+use App\Support\StorePermission;
 use App\Support\StockMovementRecorder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
@@ -1125,10 +1127,7 @@ class OnboardingController extends Controller
             ->where('stores.id', $storeId)
             ->firstOrFail();
 
-        $this->authorizeStoreRoles($request, $store, [
-            Store::ROLE_OWNER,
-            Store::ROLE_MANAGER,
-        ]);
+        $this->authorizeStorePermission($request, $store, StorePermission::SETTINGS_MANAGE);
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -1173,6 +1172,13 @@ class OnboardingController extends Controller
 
         $this->syncActiveStoreSessions($request, $store->refresh());
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'store_settings_updated',
+            store: $store,
+            metadata: ['store_id' => $store->id]
+        );
+
         return redirect()
             ->route('store-management')
             ->with('success', "Store '{$store->name}' updated successfully.")
@@ -1189,6 +1195,14 @@ class OnboardingController extends Controller
         $this->authorizeStoreRoles($request, $store, Store::ROLE_OWNER);
 
         $deletedStoreName = $store->name;
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'store_deleted',
+            store: $store,
+            metadata: ['store_id' => (int) $storeId, 'store_name' => $deletedStoreName]
+        );
+
         $store->delete();
 
         if ((int) $request->session()->get('onboarding_store_id') === (int) $storeId) {
@@ -1644,6 +1658,13 @@ class OnboardingController extends Controller
             );
         });
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'product_updated',
+            store: $currentStore,
+            metadata: ['product_id' => $product->id, 'product_name' => $validated['name']]
+        );
+
         $this->syncActiveStoreSessions($request, $currentStore);
 
         $workspaceReturnId = $request->input('_workspace_return_product_id');
@@ -1682,6 +1703,13 @@ class OnboardingController extends Controller
         $deletedProductName = $product->name;
         $product->forceDelete();
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'product_deleted',
+            store: $currentStore,
+            metadata: ['product_id' => (int) $productId, 'product_name' => $deletedProductName]
+        );
+
         return redirect()
             ->route('products')
             ->with('success', "Product '{$deletedProductName}' deleted successfully.")
@@ -1695,10 +1723,7 @@ class OnboardingController extends Controller
             ->where('stores.id', $storeId)
             ->firstOrFail();
 
-        $this->authorizeStoreRoles($request, $store, [
-            Store::ROLE_OWNER,
-            Store::ROLE_MANAGER,
-        ]);
+        $this->authorizeStorePermission($request, $store, StorePermission::CATALOG_MANAGE);
 
         $this->syncActiveStoreSessions($request, $store);
 
@@ -1715,10 +1740,7 @@ class OnboardingController extends Controller
                 ->withErrors(['store' => 'No active store was found. Please switch to a store before adding a product.']);
         }
 
-        $this->authorizeStoreRoles($request, $store, [
-            Store::ROLE_OWNER,
-            Store::ROLE_MANAGER,
-        ]);
+        $this->authorizeStorePermission($request, $store, StorePermission::CATALOG_MANAGE);
 
         return $this->storeProductForStore($request, $store);
     }
@@ -1726,6 +1748,13 @@ class OnboardingController extends Controller
     private function authorizeStoreRoles(Request $request, Store $store, string|array $roles): void
     {
         if (! $request->user()?->hasStoreRole($store, $roles)) {
+            abort(403, 'You are not authorized to perform this action in this store.');
+        }
+    }
+
+    private function authorizeStorePermission(Request $request, Store $store, string $permission): void
+    {
+        if (! $request->user()?->hasStorePermission($store, $permission)) {
             abort(403, 'You are not authorized to perform this action in this store.');
         }
     }
@@ -2050,12 +2079,28 @@ class OnboardingController extends Controller
         });
 
         if ($isCatalogQuickAdd) {
+            $createdProduct = Product::query()->find($newProductId);
+            app(SecurityLogRecorder::class)->record(
+                $request,
+                'product_created',
+                store: $store,
+                metadata: ['product_id' => $newProductId, 'product_name' => $createdProduct?->name]
+            );
+
             return redirect()
                 ->route('products.edit', ['product' => $newProductId])
                 ->with('success', "Product '{$validated['name']}' was created. Use this full editor to add option groups, variant photos, and additional details when you are ready.")
                 ->with('success_title', 'Product created')
                 ->with('success_meta', $store->name);
         }
+
+        $createdProduct = Product::query()->find($newProductId);
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'product_created',
+            store: $store,
+            metadata: ['product_id' => $newProductId, 'product_name' => $createdProduct?->name]
+        );
 
         return redirect()
             ->route('products')

@@ -7,6 +7,8 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\Tag;
+use App\Services\SecurityLogRecorder;
+use App\Support\StorePermission;
 use App\Support\StockMovementRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,7 +23,7 @@ final class ProductBulkController extends Controller
         abort_unless($store, 404);
 
         $user = $request->user();
-        if (! $user?->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER])) {
+        if (! $user?->hasStorePermission($store, StorePermission::CATALOG_MANAGE)) {
             abort(403, 'You are not authorized to run bulk catalog actions in this store.');
         }
 
@@ -103,6 +105,13 @@ final class ProductBulkController extends Controller
             }
         });
 
+        app(SecurityLogRecorder::class)->record(
+            request(),
+            'product_bulk_action',
+            store: $store,
+            metadata: ['action' => 'delete', 'product_count' => $n]
+        );
+
         return back()->with('success', $n.' product(s) archived (soft deleted) from this store.')
             ->with('success_title', 'Bulk delete');
     }
@@ -166,6 +175,20 @@ final class ProductBulkController extends Controller
             }
         });
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'product_bulk_action',
+            store: $store,
+            metadata: [
+                'action' => 'stock',
+                'product_count' => $n,
+                'stock_mode' => $mode,
+                'stock_value' => $value,
+                'variant_scope' => $scope,
+                'skipped_multi_variant' => $skippedMulti,
+            ]
+        );
+
         $msg = match ($scope) {
             'all_variants_same' => 'Stock updated on every variant row for '.$n.' product(s).',
             'skip_multi_variant' => $skippedMulti > 0
@@ -198,6 +221,13 @@ final class ProductBulkController extends Controller
             $product->categories()->syncWithoutDetaching($ids);
         }
 
+        app(SecurityLogRecorder::class)->record(
+            request(),
+            'product_bulk_action',
+            store: $store,
+            metadata: ['action' => 'categories', 'product_count' => $n, 'category_ids' => $ids]
+        );
+
         return back()->with('success', 'Categories applied to '.$n.' product(s).')
             ->with('success_title', 'Bulk categories');
     }
@@ -218,6 +248,13 @@ final class ProductBulkController extends Controller
         }
 
         Product::query()->where('store_id', $store->id)->whereIn('id', $products->keys())->update(['brand_id' => $brandId]);
+
+        app(SecurityLogRecorder::class)->record(
+            request(),
+            'product_bulk_action',
+            store: $store,
+            metadata: ['action' => 'brand', 'product_count' => $n, 'brand_id' => $brandId]
+        );
 
         return back()->with('success', 'Brand assigned to '.$n.' product(s).')
             ->with('success_title', 'Bulk brand');
@@ -243,6 +280,13 @@ final class ProductBulkController extends Controller
             $product->tags()->syncWithoutDetaching($ids);
         }
 
+        app(SecurityLogRecorder::class)->record(
+            request(),
+            'product_bulk_action',
+            store: $store,
+            metadata: ['action' => 'tags', 'product_count' => $n, 'tag_ids' => $ids]
+        );
+
         return back()->with('success', 'Tags applied to '.$n.' product(s).')
             ->with('success_title', 'Bulk tags');
     }
@@ -260,6 +304,13 @@ final class ProductBulkController extends Controller
 
         $bool = $status === 'published';
         Product::query()->where('store_id', $store->id)->whereIn('id', $products->keys())->update(['status' => $bool]);
+
+        app(SecurityLogRecorder::class)->record(
+            request(),
+            'product_bulk_action',
+            store: $store,
+            metadata: ['action' => 'status', 'product_count' => $n, 'status' => $status]
+        );
 
         return back()->with('success', 'Status updated for '.$n.' product(s).')
             ->with('success_title', 'Bulk status');

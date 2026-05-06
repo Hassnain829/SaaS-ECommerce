@@ -15,8 +15,10 @@ use App\Services\Catalog\ProductImportPreviewService;
 use App\Services\Catalog\ProductImportProcessor;
 use App\Services\Catalog\ProductImportSpreadsheetReader;
 use App\Services\Catalog\ProductImportStaleHandler;
+use App\Services\SecurityLogRecorder;
 use App\Support\Catalog\ProductImportHeaderNormalizer;
 use App\Support\Catalog\ProductImportQueue;
+use App\Support\StorePermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -264,6 +266,17 @@ class ProductImportController extends Controller
             'runs_inline' => ProductImportQueue::runsInline(),
         ], ProductImportQueue::diagnostics()));
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'import_confirmed',
+            store: $request->attributes->get('currentStore'),
+            metadata: [
+                'import_id' => $productImport->id,
+                'filename' => $productImport->original_filename,
+                'runs_inline' => ProductImportQueue::runsInline(),
+            ]
+        );
+
         ProcessProductImportJob::dispatch($productImport->id);
 
         $redirect = redirect()->route('products.import.result', ['productImportId' => $productImport->id]);
@@ -402,7 +415,7 @@ class ProductImportController extends Controller
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
-        if (! $request->user()?->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER])) {
+        if (! $request->user()?->hasStorePermission($store, StorePermission::IMPORTS_MANAGE)) {
             abort(403, 'You are not authorized to view import history for this store.');
         }
 
@@ -597,7 +610,7 @@ class ProductImportController extends Controller
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $productImport->store_id === (int) $store->id, 404);
 
-        if (! $request->user()?->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER])) {
+        if (! $request->user()?->hasStorePermission($store, StorePermission::IMPORTS_MANAGE)) {
             abort(403, 'You are not authorized to run catalog imports in this store.');
         }
     }

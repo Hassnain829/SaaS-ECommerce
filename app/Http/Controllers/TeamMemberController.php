@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -83,6 +84,14 @@ class TeamMemberController extends Controller
             'role' => $validated['role'],
         ]);
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'team_member_invited',
+            store: $currentStore,
+            targetUser: $member,
+            metadata: ['role' => $validated['role']]
+        );
+
         return redirect()
             ->route('team-members.index')
             ->with('success', "{$member->name} was added to {$currentStore->name}.")
@@ -122,6 +131,17 @@ class TeamMemberController extends Controller
             'role' => $newRole,
         ]);
 
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'role_changed',
+            store: $currentStore,
+            targetUser: $member,
+            metadata: [
+                'previous_role' => $currentRole,
+                'new_role' => $newRole,
+            ]
+        );
+
         return redirect()
             ->route('team-members.index')
             ->with('success', "{$member->name}'s store role was updated.")
@@ -156,6 +176,14 @@ class TeamMemberController extends Controller
         }
 
         $currentStore->members()->detach($member->id);
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'team_member_removed',
+            store: $currentStore,
+            targetUser: $member,
+            metadata: ['previous_role' => $memberRole]
+        );
 
         return redirect()
             ->route('team-members.index')

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\Store;
 use App\Support\ImportExtraWorkspaceActions;
+use App\Support\StorePermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -20,7 +21,7 @@ final class ProductWorkspaceDataController extends Controller
 
         $user = $request->user();
         abort_unless(
-            $user !== null && $user->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER]),
+            $user !== null && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE),
             403
         );
 
@@ -46,7 +47,7 @@ final class ProductWorkspaceDataController extends Controller
 
         $user = $request->user();
         abort_unless(
-            $user !== null && $user->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER]),
+            $user !== null && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE),
             403
         );
 

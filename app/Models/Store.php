@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\StorePermissionResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -139,6 +140,11 @@ class Store extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function securityLogs(): HasMany
+    {
+        return $this->hasMany(SecurityLog::class);
+    }
+
     public function productImports(): HasMany
     {
         return $this->hasMany(ProductImport::class);
@@ -152,5 +158,14 @@ class Store extends Model
     public function hasDeveloperStorefrontToken(): bool
     {
         return filled($this->developer_storefront_token_hash);
+    }
+
+    public function userHasPermission(User|int|null $user, string $permission): bool
+    {
+        if (is_int($user)) {
+            $user = User::query()->find($user);
+        }
+
+        return StorePermissionResolver::userCan($user, $this, $permission);
     }
 }

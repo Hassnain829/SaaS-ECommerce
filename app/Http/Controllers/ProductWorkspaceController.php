@@ -8,6 +8,7 @@ use App\Models\Store;
 use App\Support\ProductDetailPresenter;
 use App\Support\ProductEditPayload;
 use App\Support\ProductVariantLabel;
+use App\Support\StorePermission;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -28,7 +29,7 @@ final class ProductWorkspaceController extends Controller
 
         $user = $request->user();
         abort_unless(
-            $user !== null && $user->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER]),
+            $user !== null && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE),
             403
         );
 
@@ -83,7 +84,7 @@ final class ProductWorkspaceController extends Controller
         ]);
 
         $user = $request->user();
-        $canManageCatalog = $user !== null && $user->hasStoreRole($store, [Store::ROLE_OWNER, Store::ROLE_MANAGER]);
+        $canManageCatalog = $user !== null && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE);
 
         $recentMovements = StockMovement::query()
             ->where('store_id', $store->id)
