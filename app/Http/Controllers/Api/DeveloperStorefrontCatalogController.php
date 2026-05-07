@@ -316,6 +316,8 @@ class DeveloperStorefrontCatalogController extends Controller
 
     private function serializeProduct(Product $product): array
     {
+        $meta = is_array($product->meta) ? $product->meta : [];
+        $customProductTypeLabel = trim((string) ($meta['custom_product_type_label'] ?? ''));
         $primary = $product->images->first(fn ($img) => $img->is_primary)
             ?? $product->images->first();
 
@@ -330,6 +332,7 @@ class DeveloperStorefrontCatalogController extends Controller
             'slug' => $product->slug,
             'description' => $product->description,
             'product_type' => $product->product_type,
+            'product_type_label' => ProductTypeBehavior::productTypeLabel($product->product_type, $customProductTypeLabel),
             'behavior' => ProductTypeBehavior::behaviorFor($product->product_type),
             'primary_image_url' => $imageUrl,
             'variants' => $product->variants->map(fn (ProductVariant $v) => [

@@ -59,7 +59,7 @@
     }
     $openCatalogToolsShell = $catalogToolsReopen || request()->boolean('openCatalogTools');
 
-    $filtersRefineOpen = ($filters['brand'] ?? '') !== '' || ($filters['tag'] ?? '') !== '' || ($filters['attribute_term'] ?? '') !== '' || ($filters['stock'] ?? '') === 'low' || ($filters['status'] ?? '') === 'published' || ($filters['status'] ?? '') === 'draft'
+    $filtersRefineOpen = ($filters['brand'] ?? '') !== '' || ($filters['tag'] ?? '') !== '' || ($filters['attribute_term'] ?? '') !== ''
         || (($filters['cf_key'] ?? '') !== '' && ($filters['cf_value'] ?? '') !== '');
     $productListDetailKeys = $productListDetailKeys ?? [];
     $catalogCustomFieldKeyOptions = $catalogCustomFieldKeyOptions ?? [];
@@ -128,7 +128,7 @@
                         @if ($canManageBrands)
                             <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import products</a>
                             <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import history</a>
-                            <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Manage attributes</a>
+                            <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Manage specifications</a>
                         @endif
                         @if ($canManageBrands || $canManageTags || $canManageCategories)
                             <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">
@@ -208,8 +208,8 @@
             @endif
             @if ($activeAttributeTermFilter)
                 <div class="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-sm text-[#1E3A8A]">
-                    <span>Filtered by attribute <span class="font-semibold">{{ $activeAttributeTermFilter->name }}</span>.</span>
-                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['attribute_term' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear attribute filter</a>
+                    <span>Filtered by product specification <span class="font-semibold">{{ $activeAttributeTermFilter->name }}</span>.</span>
+                    <a href="{{ route('products', array_filter(array_merge($baseFilters, ['attribute_term' => null]))) }}" class="font-semibold text-[#0052CC] hover:underline">Clear specification filter</a>
                 </div>
             @endif
             @if (($filters['cf_key'] ?? '') !== '' && ($filters['cf_value'] ?? '') !== '')
@@ -230,7 +230,7 @@
                         @if ($canManageBrands)
                             <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import products</a>
                             <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Import history</a>
-                            <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Manage attributes</a>
+                            <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Manage specifications</a>
                         @endif
                         @if ($canManageBrands || $canManageTags || $canManageCategories)
                             <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC]">Catalog tools</button>
@@ -302,7 +302,7 @@
                     </div>
 
                     <div class="flex flex-col gap-1">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Type</span>
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Product behavior</span>
                         <div class="relative">
                             <select name="product_type" onchange="this.form.submit()" aria-label="Filter by product behavior type" class="appearance-none border text-sm font-semibold px-4 py-2 pr-9 rounded-xl transition-colors {{ ($filters['product_type'] ?? '') !== '' ? 'border-[#0D9488] bg-[#CCFBF1] text-[#115E59]' : 'border-[#E2E8F0] bg-white text-[#475569]' }}">
                                 <option value="">All types</option>
@@ -330,30 +330,6 @@
                             </svg>
                         </div>
                     </div>
-
-
-                    @if ($catalogAttributeTermCount > 0)
-                        <div class="flex flex-col gap-1">
-                            <span class="text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Attribute</span>
-                            <div class="relative">
-                                <select name="attribute_term" onchange="this.form.submit()" aria-label="Filter by product attribute" class="appearance-none border text-sm font-semibold px-4 py-2 pr-9 rounded-xl transition-colors {{ ($filters['attribute_term'] ?? '') !== '' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : 'border-[#E2E8F0] bg-white text-[#475569]' }}">
-                                    <option value="">All attributes</option>
-                                    @foreach (($catalogAttributes ?? collect()) as $attribute)
-                                        @if ($attribute->terms->isNotEmpty())
-                                            <optgroup label="{{ $attribute->name }}">
-                                                @foreach ($attribute->terms as $term)
-                                                    <option value="{{ $term->id }}" @selected((string) ($filters['attribute_term'] ?? '') === (string) $term->id)>{{ $term->name }}</option>
-                                                @endforeach
-                                            </optgroup>
-                                        @endif
-                                    @endforeach
-                                </select>
-                                <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]" width="12" height="12" viewBox="0 0 14 14" fill="none">
-                                    <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
-                                </svg>
-                            </div>
-                        </div>
-                    @endif
 
 
                     <div class="flex flex-wrap items-center gap-1.5 sm:ml-auto pb-1">
@@ -391,7 +367,7 @@
                     <a href="{{ route('products', array_filter(array_merge($baseFilters, ['status' => ($filters['status'] ?? '') === 'draft' ? null : 'draft']))) }}" class="border text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors hover:bg-[#F8FAFC] {{ ($filters['status'] ?? '') === 'draft' ? 'border-[#0052CC] bg-[#EEF4FF] text-[#0052CC]' : 'border-[#E2E8F0] bg-white text-[#64748B]' }}">Drafts</a>
                 </div>
 
-                <details id="products-advanced-filters-panel" class="group rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3" @open($filtersRefineOpen)>
+                <details id="products-advanced-filters-panel" class="group rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3" {{ $filtersRefineOpen ? 'open' : '' }}>
                     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[#0F172A] [&::-webkit-details-marker]:hidden">
                         <span>Advanced filters &amp; table settings</span>
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" class="text-[#64748B] transition group-open:rotate-180" aria-hidden="true">
@@ -400,7 +376,7 @@
                     </summary>
 
                     <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
-                        <form method="GET" action="{{ route('products') }}" class="grid gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 sm:grid-cols-[minmax(10rem,0.7fr)_minmax(12rem,1fr)_auto] sm:items-end">
+                        <form method="GET" action="{{ route('products') }}" class="grid gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 sm:grid-cols-2">
                             <input type="hidden" name="q" value="{{ $filters['q'] ?? '' }}">
                             <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
                             <input type="hidden" name="product_type" value="{{ $filters['product_type'] ?? '' }}">
@@ -408,8 +384,32 @@
                             <input type="hidden" name="stock" value="{{ $filters['stock'] ?? '' }}">
                             <input type="hidden" name="sort" value="{{ $filters['sort'] ?? 'latest' }}">
                             <input type="hidden" name="brand" value="{{ $filters['brand'] ?? '' }}">
-                            <input type="hidden" name="tag" value="{{ $filters['tag'] ?? '' }}">
-                            <input type="hidden" name="attribute_term" value="{{ $filters['attribute_term'] ?? '' }}">
+                            <div class="flex flex-col gap-1">
+                                <label for="advanced_tag" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Tag</label>
+                                <select id="advanced_tag" name="tag" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                    <option value="">All tags</option>
+                                    @foreach ($catalogTags as $tagOption)
+                                        <option value="{{ $tagOption->id }}" @selected((string) ($filters['tag'] ?? '') === (string) $tagOption->id)>{{ $tagOption->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            @if ($catalogAttributeTermCount > 0)
+                                <div class="flex flex-col gap-1">
+                                    <label for="advanced_attribute_term" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Product specification</label>
+                                    <select id="advanced_attribute_term" name="attribute_term" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                        <option value="">All specifications</option>
+                                        @foreach (($catalogAttributes ?? collect()) as $attribute)
+                                            @if ($attribute->terms->isNotEmpty())
+                                                <optgroup label="{{ $attribute->name }}">
+                                                    @foreach ($attribute->terms as $term)
+                                                        <option value="{{ $term->id }}" @selected((string) ($filters['attribute_term'] ?? '') === (string) $term->id)>{{ $term->name }}</option>
+                                                    @endforeach
+                                                </optgroup>
+                                            @endif
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
 
                             <div class="flex flex-col gap-1">
                                 <label for="cf_key" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Saved detail</label>
@@ -426,16 +426,17 @@
                                 <input id="cf_value" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]" placeholder="cotton">
                             </div>
 
-                            <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white hover:bg-[#0047B3]">Apply</button>
+                            <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white hover:bg-[#0047B3]">Apply filters</button>
                         </form>
 
                         @if ($canManageBrands)
                             <form method="POST" action="{{ route('products.catalog-list-highlights') }}" class="rounded-lg border border-[#E2E8F0] bg-white p-3">
                                 @csrf
-                                <p class="text-sm font-semibold text-[#0F172A]">Product list columns</p>
+                                <p class="text-sm font-semibold text-[#0F172A]">Table settings</p>
+                                <p class="mt-1 text-xs text-[#64748B]">Choose up to two additional details to show under product names.</p>
                                 <div class="mt-3 grid gap-2 sm:grid-cols-2">
                                     <div class="flex flex-col gap-1">
-                                        <label for="detail_key_1" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Extra detail 1</label>
+                                        <label for="detail_key_1" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Column 1</label>
                                         <select id="detail_key_1" name="detail_key_1" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
                                             <option value="">None</option>
                                             @foreach ($highlightKeyOptions as $option)
@@ -444,7 +445,7 @@
                                         </select>
                                     </div>
                                     <div class="flex flex-col gap-1">
-                                        <label for="detail_key_2" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Extra detail 2</label>
+                                        <label for="detail_key_2" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Column 2</label>
                                         <select id="detail_key_2" name="detail_key_2" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
                                             <option value="">None</option>
                                             @foreach ($highlightKeyOptions as $option)
@@ -702,7 +703,7 @@
                                     <span class="text-xs text-[#94A3B8]">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-4"><span class="bg-[#F1F5F9] text-[#475569] px-2 py-1 rounded text-xs" title="Fulfillment / behavior type">{{ \Illuminate\Support\Str::title(str_replace(['-', '_'], ' ', $product->product_type)) }}</span></td>
+                            <td class="px-4 py-4"><span class="bg-[#F1F5F9] text-[#475569] px-2 py-1 rounded text-xs" title="Fulfillment / behavior type">{{ \App\Support\ProductTypeBehavior::productTypeLabel($product->product_type, trim((string) (($product->meta['custom_product_type_label'] ?? '')))) }}</span></td>
                             <td class="px-4 py-4">
                                 @if ($stockState === 'out')
                                     <span class="inline-flex items-center gap-1.5 bg-red-50 text-red-600 text-xs font-bold px-3 py-1 rounded-full"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><circle cx="4" cy="4" r="4" fill="#EF4444" /></svg>Out of Stock</span>

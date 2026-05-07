@@ -44,6 +44,13 @@ final class ProductTypeBehavior
         };
     }
 
+    public static function productTypeLabel(string $type, ?string $customLabel = null): string
+    {
+        $customLabel = trim((string) $customLabel);
+
+        return $customLabel !== '' ? $customLabel : self::label($type);
+    }
+
     public static function description(string $type): string
     {
         return match (self::normalize($type)) {

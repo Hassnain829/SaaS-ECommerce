@@ -174,7 +174,7 @@
                     <section class="rounded-3xl border border-[#E2E8F0] bg-white p-7 shadow-sm ring-1 ring-black/[0.02] sm:p-9">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">Structured catalog facts</p>
-                            <h2 class="mt-1 text-lg font-semibold text-[#0F172A] font-[Poppins]">Attributes</h2>
+                            <h2 class="mt-1 text-lg font-semibold text-[#0F172A] font-[Poppins]">Product specifications</h2>
                             <p class="mt-1 text-sm text-[#64748B]">Reusable product facts for filtering and comparison. Shopper choices such as size or color combinations still live under option groups.</p>
                         </div>
                         @if ($hasAttributes)
@@ -205,6 +205,27 @@
                                 @endif
                             </div>
                         @endif
+                    </section>
+
+                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
+                        <div class="border-b border-[#F1F5F9] pb-4">
+                            <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Product behavior</h2>
+                            <p class="mt-1 text-sm text-[#64748B]">How this product is sold and fulfilled in your catalog workflow.</p>
+                        </div>
+                        <dl class="mt-6 grid gap-4 sm:grid-cols-3">
+                            <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                                <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Behavior label</dt>
+                                <dd class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $productBehavior['label'] }}</dd>
+                            </div>
+                            <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                                <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Shipping required</dt>
+                                <dd class="mt-1 text-sm font-semibold text-[#0F172A]">{{ !empty($productBehavior['requires_shipping']) ? 'Yes' : 'No' }}</dd>
+                            </div>
+                            <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                                <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Inventory tracking</dt>
+                                <dd class="mt-1 text-sm font-semibold text-[#0F172A]">{{ !empty($productBehavior['track_inventory']) ? 'Yes' : 'No' }}</dd>
+                            </div>
+                        </dl>
                     </section>
 
                     <section class="rounded-3xl border border-[#E2E8F0] bg-gradient-to-b from-white to-[#F8FAFF]/30 p-7 shadow-sm ring-1 ring-[#0052CC]/[0.07] sm:p-9" aria-labelledby="workspace-additional-details-heading">

@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Product attributes')
+@section('title', 'Product specifications')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
@@ -12,9 +12,9 @@
             <div class="flex flex-col gap-4 border-b border-[#E2E8F0] pb-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <a href="{{ route('products') }}" class="text-sm font-semibold text-[#0052CC] hover:underline">Back to products</a>
-                    <h1 class="mt-3 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Product attributes</h1>
+                    <h1 class="mt-3 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Product specifications</h1>
                     <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748B]">
-                        Attributes are structured product facts shoppers can filter or compare, such as material, capacity, color family, or ingredients.
+                        Specifications are structured product facts shoppers can filter or compare, such as material, capacity, color family, or ingredients.
                     </p>
                 </div>
             </div>
@@ -30,7 +30,7 @@
             @endif
 
             <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-7">
-                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Add an attribute</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Add a specification</h2>
                 <form method="post" action="{{ route('catalog.attributes.store') }}" class="mt-5 grid gap-4 lg:grid-cols-12">
                     @csrf
                     <div class="lg:col-span-3">
@@ -100,7 +100,7 @@
                                     </select>
                                     <label class="inline-flex items-center gap-2 text-xs text-[#334155]"><input type="checkbox" name="is_filterable" value="1" @checked($attribute->is_filterable)> Filterable</label>
                                     <label class="inline-flex items-center gap-2 text-xs text-[#334155]"><input type="checkbox" name="is_visible" value="1" @checked($attribute->is_visible)> Visible</label>
-                                    <button class="rounded-lg bg-[#0F172A] px-3 py-2 text-sm font-semibold text-white sm:col-span-2">Update attribute</button>
+                                    <button class="rounded-lg bg-[#0F172A] px-3 py-2 text-sm font-semibold text-white sm:col-span-2">Update specification</button>
                                 </form>
                                 <form method="post" action="{{ route('catalog.attributes.terms.store', $attribute) }}" class="grid gap-2 rounded-xl border border-[#F1F5F9] bg-white p-3 sm:grid-cols-[1fr_7rem_auto]">
                                     @csrf
@@ -111,14 +111,14 @@
                                 <form method="post" action="{{ route('catalog.attributes.destroy', $attribute) }}" onsubmit="return confirm('Remove this attribute from products in this store?');">
                                     @csrf
                                     @method('DELETE')
-                                    <button class="text-sm font-semibold text-[#B42318] hover:underline">Remove attribute</button>
+                                    <button class="text-sm font-semibold text-[#B42318] hover:underline">Remove specification</button>
                                 </form>
                             </div>
                         </div>
                     </div>
                 @empty
                     <div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-white px-6 py-10 text-center text-sm text-[#64748B]">
-                        No attributes yet. Add your first structured product fact above.
+                        No specifications yet. Add your first structured product fact above.
                     </div>
                 @endforelse
             </section>

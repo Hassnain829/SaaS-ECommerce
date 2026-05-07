@@ -167,6 +167,7 @@ class CatalogApiV1Controller extends Controller
 
         $meta = is_array($product->meta) ? $product->meta : [];
         $customFields = is_array($meta['custom_fields'] ?? null) ? $meta['custom_fields'] : [];
+        $customProductTypeLabel = trim((string) ($meta['custom_product_type_label'] ?? ''));
 
         return [
             'id' => $product->id,
@@ -176,6 +177,7 @@ class CatalogApiV1Controller extends Controller
             'sku' => $product->sku,
             'base_price' => (string) $product->base_price,
             'product_type' => $product->product_type,
+            'product_type_label' => ProductTypeBehavior::productTypeLabel($product->product_type, $customProductTypeLabel),
             'behavior' => ProductTypeBehavior::behaviorFor($product->product_type),
             'brand' => $product->brand ? [
                 'id' => $product->brand->id,

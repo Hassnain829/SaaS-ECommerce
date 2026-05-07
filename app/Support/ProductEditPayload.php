@@ -78,6 +78,7 @@ final class ProductEditPayload
             'sku' => $product->sku,
             'base_price' => (string) $product->base_price,
             'product_type' => $product->product_type,
+            'custom_product_type' => trim((string) (($product->meta['custom_product_type_label'] ?? ''))),
             'brand_id' => $product->brand_id,
             'tag_ids' => $product->tags->pluck('id')->values()->all(),
             'category_ids' => $product->categories->pluck('id')->values()->all(),
@@ -252,6 +253,9 @@ final class ProductEditPayload
 
         if (array_key_exists('product_type', $old) && is_string($old['product_type'])) {
             $base['product_type'] = $old['product_type'];
+        }
+        if (array_key_exists('custom_product_type', $old)) {
+            $base['custom_product_type'] = trim((string) $old['custom_product_type']);
         }
 
         if (! empty($old['variation_types']) && is_array($old['variation_types'])) {

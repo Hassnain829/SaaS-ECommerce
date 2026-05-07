@@ -194,7 +194,9 @@ class OnboardingController extends Controller
             'base_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
             'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
+            'product_type_selector' => ['nullable', 'string', Rule::in(array_merge(ProductTypeBehavior::types(), ['__custom__']))],
             'custom_product_type' => ['nullable', 'string', 'max:80'],
+            'custom_product_type_behavior' => ['nullable', 'string', Rule::in(ProductTypeBehavior::types())],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'default_stock' => ['required', 'integer', 'min:0'],
@@ -222,7 +224,7 @@ class OnboardingController extends Controller
             ...CatalogRules::categoryIdsForStore($store),
         ]);
 
-        $validated['product_type'] = ProductTypeBehavior::normalize($validated['product_type'] ?? null);
+        [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
 
         $productSku = trim((string) ($validated['sku'] ?? ''));
         if ($productSku !== '' && Product::query()
@@ -272,7 +274,7 @@ class OnboardingController extends Controller
         // Never persist UploadedFile instances to session (not serializable).
         $request->session()->put('onboarding_product_draft', Arr::except($validated, ['product_images']));
 
-        DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds): void {
+        DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $customProductTypeLabel): void {
             // Only look for existing product if in edit mode
             $product = ($validated['mode'] === 'edit') ? $this->resolveSessionProduct($request, $store) : null;
             $oldFingerprintStocks = [];
@@ -293,6 +295,7 @@ class OnboardingController extends Controller
                     'default_stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
                     'onboarding_created' => true,
+                    'custom_product_type_label' => $customProductTypeLabel,
                 ],
             ];
 
@@ -1251,7 +1254,9 @@ class OnboardingController extends Controller
             'base_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
             'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
+            'product_type_selector' => ['nullable', 'string', Rule::in(array_merge(ProductTypeBehavior::types(), ['__custom__']))],
             'custom_product_type' => ['nullable', 'string', 'max:80'],
+            'custom_product_type_behavior' => ['nullable', 'string', Rule::in(ProductTypeBehavior::types())],
             'existing_image_paths' => ['nullable', 'array', 'max:8'],
             'existing_image_paths.*' => [
                 'string',
@@ -1298,7 +1303,7 @@ class OnboardingController extends Controller
             'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $validated['product_type'] = ProductTypeBehavior::normalize($validated['product_type'] ?? null);
+        [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
 
         $productSku = trim((string) ($validated['sku'] ?? ''));
         if ($productSku !== '' && Product::query()
@@ -1397,6 +1402,11 @@ class OnboardingController extends Controller
         unset($meta['image_path'], $meta['image_paths']);
         $meta['default_stock'] = $meta['default_stock'] ?? 0;
         $meta['stock_alert'] = (int) $validated['stock_alert'];
+        if ($customProductTypeLabel !== null) {
+            $meta['custom_product_type_label'] = $customProductTypeLabel;
+        } else {
+            unset($meta['custom_product_type_label']);
+        }
 
         if ($request->filled('_custom_fields_editor')) {
             $meta['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
@@ -1778,7 +1788,9 @@ class OnboardingController extends Controller
             'bulk_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
             'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
+            'product_type_selector' => ['nullable', 'string', Rule::in(array_merge(ProductTypeBehavior::types(), ['__custom__']))],
             'custom_product_type' => ['nullable', 'string', 'max:80'],
+            'custom_product_type_behavior' => ['nullable', 'string', Rule::in(ProductTypeBehavior::types())],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'bulk_stock' => ['required', 'integer', 'min:0'],
@@ -1806,7 +1818,7 @@ class OnboardingController extends Controller
             ...CatalogRules::categoryIdsForStore($store),
         ]);
 
-        $validated['product_type'] = ProductTypeBehavior::normalize($validated['product_type'] ?? null);
+        [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
 
         $productSku = trim((string) ($validated['sku'] ?? ''));
         if ($productSku !== '' && Product::query()
@@ -1867,7 +1879,7 @@ class OnboardingController extends Controller
                 ->withInput($request->except(['product_images']));
         }
 
-        $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode): int {
+        $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode, $customProductTypeLabel): int {
             $oldFingerprintStocks = [];
             $productPayload = [
                 'name' => $validated['name'],
@@ -1881,6 +1893,7 @@ class OnboardingController extends Controller
                 'meta' => [
                     'default_stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
+                    'custom_product_type_label' => $customProductTypeLabel,
                 ],
             ];
 
@@ -2561,5 +2574,47 @@ class OnboardingController extends Controller
         $next = is_array($variant->meta) ? $variant->meta : [];
         $next['custom_fields'] = $oldFingerprintVariantCustomFields[$fp];
         $variant->update(['meta' => $next]);
+    }
+
+    private function sanitizeCustomProductTypeLabel(mixed $value): ?string
+    {
+        $label = strip_tags(trim((string) $value));
+
+        return $label !== '' ? $label : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array{0: string, 1: ?string}
+     */
+    private function resolveProductTypeInputs(array $validated): array
+    {
+        $selector = (string) ($validated['product_type_selector'] ?? '');
+        $normalizedType = ProductTypeBehavior::normalize($validated['product_type'] ?? null);
+
+        if ($selector === '__custom__') {
+            $customProductTypeLabel = $this->sanitizeCustomProductTypeLabel($validated['custom_product_type'] ?? null);
+            $customBehavior = ProductTypeBehavior::normalize($validated['custom_product_type_behavior'] ?? null);
+
+            if ($customProductTypeLabel === null) {
+                throw ValidationException::withMessages([
+                    'custom_product_type' => 'Enter a custom product label when selecting Other / Custom.',
+                ]);
+            }
+
+            if (! in_array($customBehavior, ProductTypeBehavior::types(), true)) {
+                throw ValidationException::withMessages([
+                    'custom_product_type_behavior' => 'Choose how this custom type should behave.',
+                ]);
+            }
+
+            return [$customBehavior, $customProductTypeLabel];
+        }
+
+        if ($selector !== '' && in_array($selector, ProductTypeBehavior::types(), true)) {
+            $normalizedType = $selector;
+        }
+
+        return [$normalizedType, null];
     }
 }

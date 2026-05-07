@@ -14,6 +14,13 @@
     $defaultProductTypes = \App\Support\ProductTypeBehavior::types();
     $rawSelectedProductType = \App\Support\ProductTypeBehavior::normalize((string) ($productFormData['product_type'] ?? 'physical'));
     $selectedProductType = in_array($rawSelectedProductType, $defaultProductTypes, true) ? $rawSelectedProductType : 'physical';
+    $selectedCustomProductType = trim((string) ($productFormData['custom_product_type'] ?? ''));
+    $selectedProductTypeSelector = trim((string) ($productFormData['product_type_selector'] ?? ''));
+    $selectedCustomProductBehavior = \App\Support\ProductTypeBehavior::normalize((string) ($productFormData['custom_product_type_behavior'] ?? $selectedProductType));
+    if (! in_array($selectedCustomProductBehavior, $defaultProductTypes, true)) {
+        $selectedCustomProductBehavior = 'physical';
+    }
+    $selectedCustomMode = $selectedCustomProductType !== '' || $selectedProductTypeSelector === '__custom__';
 @endphp
 
 <div id="productCreateModal" data-open-query="{{ $productModalOpenQuery }}" class="fixed inset-0 z-[70] {{ $productModalIsOpen ? '' : 'hidden' }}">
@@ -65,20 +72,35 @@
                             </div>
 
                             <div>
-                                <label for="product-type" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Product behavior (type)</label>
+                                <label for="product-type" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">How is this product sold?</label>
                                 <input type="hidden" id="product-type-value" name="product_type" value="{{ $selectedProductType }}">
                                 <div class="relative">
-                                    <select id="product-type" class="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pr-10 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                                    <select id="product-type" name="product_type_selector" class="w-full appearance-none rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pr-10 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                                         @foreach ($defaultProductTypes as $productType)
                                             <option value="{{ $productType }}" @selected($selectedProductType === $productType)>{{ ucfirst($productType) }}</option>
                                         @endforeach
+                                        <option value="__custom__" @selected($selectedCustomMode)>Other / Custom</option>
                                     </select>
                                     <svg class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 14 14" fill="none">
                                         <path d="M7 9L3 5H11L7 9Z" fill="#64748B"/>
                                     </svg>
                                 </div>
-                                <input type="hidden" name="custom_product_type" value="">
-                                <p class="mt-2 text-xs text-[#64748B]">How the product is fulfilled or sold—not the catalog category.</p>
+                                <div id="custom-product-type-wrap" class="{{ $selectedCustomMode ? '' : 'hidden' }} mt-3 space-y-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                                    <label for="custom-product-type" class="block text-xs font-semibold text-[#334155]">Custom product label</label>
+                                    <input id="custom-product-type" name="custom_product_type" type="text" maxlength="80" value="{{ $selectedCustomProductType }}" placeholder="e.g. Menu item, Warranty, Membership" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                    <div>
+                                        <label for="custom-product-type-behavior" class="mb-1 block text-xs font-semibold text-[#334155]">How should this custom type behave?</label>
+                                        <select id="custom-product-type-behavior" name="custom_product_type_behavior" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                            <option value="physical" @selected($selectedCustomProductBehavior === 'physical')>Ships like a physical product</option>
+                                            <option value="digital" @selected($selectedCustomProductBehavior === 'digital')>Delivered digitally</option>
+                                            <option value="service" @selected($selectedCustomProductBehavior === 'service')>Sold as a service</option>
+                                            <option value="virtual" @selected($selectedCustomProductBehavior === 'virtual')>Virtual / no shipping</option>
+                                            <option value="subscription" @selected($selectedCustomProductBehavior === 'subscription')>Subscription</option>
+                                        </select>
+                                    </div>
+                                    <p class="text-xs text-[#64748B]">Use this when your product type is not listed. This label appears in your catalog while system behavior stays safely mapped.</p>
+                                </div>
+                                <p class="mt-2 text-xs text-[#64748B]">This controls shipping, inventory, and future fulfillment behavior. It is different from catalog category.</p>
                             </div>
                         </div>
 
@@ -94,10 +116,6 @@
                                 <input id="product-name" name="name" type="text" value="{{ $productFormData['name'] ?? '' }}" placeholder="e.g. Premium Cotton T-Shirt" class="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                             </div>
                             <div>
-                                <label for="product-description" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Description</label>
-                                <textarea id="product-description" name="description" rows="3" placeholder="Describe your product's key features and benefits..." class="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ $productFormData['description'] ?? '' }}</textarea>
-                            </div>
-                            <div>
                                 <label for="product-sku" class="mb-2 block text-sm font-medium text-[#334155] font-poppins">Base SKU (optional)</label>
                                 <input id="product-sku" name="sku" type="text" value="{{ $productFormData['sku'] ?? '' }}" class="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                             </div>
@@ -110,27 +128,6 @@
                                         @endforeach
                                     </select>
                                     <p class="mt-2 text-xs text-[#115E59]/90">Main groups for your catalog (e.g. Clothing, Electronics). Separate from product behavior above.</p>
-                                </div>
-                            @endif
-                            <div class="md:col-span-2">
-                                <label for="product-brand-id" class="mb-2 block text-sm font-medium text-[#64748B] font-poppins">Brand <span class="font-normal text-[#94A3B8]">(optional)</span></label>
-                                <select id="product-brand-id" name="brand_id" class="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                                    <option value="">No brand</option>
-                                    @foreach ($catalogBrands as $brandOption)
-                                        <option value="{{ $brandOption->id }}" @selected((string) ($productFormData['brand_id'] ?? '') === (string) $brandOption->id)>{{ $brandOption->name }}</option>
-                                    @endforeach
-                                </select>
-                                <p class="mt-1.5 text-xs text-[#94A3B8]">Optional grouping by label, vendor, or manufacturer.</p>
-                            </div>
-                            @if ($catalogTags->isNotEmpty())
-                                <div class="md:col-span-2">
-                                    <label for="product-tag-ids" class="mb-2 block text-sm font-medium text-[#64748B] font-poppins">Tags <span class="font-normal text-[#94A3B8]">(optional)</span></label>
-                                    <select id="product-tag-ids" name="tag_ids[]" multiple size="4" class="w-full rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                                        @foreach ($catalogTags as $tagOption)
-                                            <option value="{{ $tagOption->id }}" @selected(collect(old('tag_ids', $productFormData['tag_ids'] ?? []))->contains($tagOption->id))>{{ $tagOption->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    <p class="mt-1.5 text-xs text-[#94A3B8]">Light labels like Sale or Featured—does not replace categories.</p>
                                 </div>
                             @endif
                         </div>
@@ -181,6 +178,9 @@
         const openQuery = productModal.dataset.openQuery || 'openAddProduct';
         const productTypeSelect = document.getElementById('product-type');
         const productTypeValueInput = document.getElementById('product-type-value');
+        const customProductTypeWrap = document.getElementById('custom-product-type-wrap');
+        const customProductTypeInput = document.getElementById('custom-product-type');
+        const customProductTypeBehaviorInput = document.getElementById('custom-product-type-behavior');
         const productImageInput = document.getElementById('product-image');
         const productImagePreview = document.getElementById('product-image-preview');
         let selectedProductImages = [];
@@ -228,8 +228,16 @@
         };
 
         const syncProductTypeState = () => {
-            if (productTypeValueInput) {
-                productTypeValueInput.value = productTypeSelect?.value || 'physical';
+            if (!productTypeValueInput) return;
+            const selected = productTypeSelect?.value || 'physical';
+            const isCustom = selected === '__custom__';
+            if (customProductTypeWrap) customProductTypeWrap.classList.toggle('hidden', !isCustom);
+            if (isCustom) {
+                const selectedBehavior = customProductTypeBehaviorInput?.value || 'physical';
+                productTypeValueInput.value = selectedBehavior;
+            } else {
+                productTypeValueInput.value = selected;
+                if (customProductTypeInput) customProductTypeInput.value = '';
             }
         };
 
@@ -265,6 +273,7 @@
         });
 
         productTypeSelect?.addEventListener('change', syncProductTypeState);
+        customProductTypeBehaviorInput?.addEventListener('change', syncProductTypeState);
         productImageInput?.addEventListener('change', () => {
             const incomingFiles = Array.from(productImageInput.files || []);
             if (incomingFiles.length) {

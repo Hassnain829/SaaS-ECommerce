@@ -220,3 +220,71 @@ Existing catalog/import/storefront tests were kept and verified.
 ## Final Phase 2 Status
 
 Phase 2 catalog completion is implemented and verified. The catalog is now safer for multi-store SaaS SKU reuse, supports structured attributes, has centralized product behavior rules, and exposes a store-scoped catalog API v1 while keeping existing merchant flows green.
+
+## Phase 2 Cleanup Sign-off
+
+### Product Behavior Flexibility
+
+- `products.product_type` remains a fixed system behavior value (`physical`, `digital`, `service`, `subscription`, `virtual`).
+- Merchant custom labels are stored in `products.meta.custom_product_type_label`.
+- Quick Add and full edit now support `Other / Custom` with explicit base behavior selection, so behavior never silently defaults to physical.
+
+### Custom Product Type Label
+
+- Example mappings now supported:
+  - Online course -> `digital`
+  - Consultation -> `service`
+  - Warranty -> `virtual`
+  - Menu item -> merchant-selected base behavior (`physical` or `virtual`)
+
+### Product Specifications UX
+
+- Backend models/tables remain attributes-based for stability.
+- Merchant-facing UI consistently uses Product specifications wording.
+- Specifications are not shown in Quick Add.
+- Specifications remain available in full editor, workspace, import mapping, and API surfaces.
+
+### Additional Details vs Imported Data
+
+- Additional details are editable team-tracked product information.
+- Advanced imported data remains preserved read-only spreadsheet reference.
+- Existing product workspace actions like Make editable and Use as catalog category remain intact.
+
+### Product List Simplification
+
+- Default list controls stay focused on search, category, product behavior, brand, and quick chips.
+- Advanced filter panel is collapsed by default.
+- Quick chips (`Low stock`, `Published`, `Drafts`) no longer force the advanced panel open.
+- Advanced panel auto-opens only when advanced filters are active (tag, specification, additional details filters).
+
+### Import Mapping Simplification
+
+- Mapping wording now uses Product specification, Additional details, and Advanced imported data.
+- Merchant guidance copy clarifies the distinction between reusable specifications, editable details, and preserved unmapped columns.
+
+### Catalog API v1 Notes
+
+- API remains token-protected with current storefront-safe auth flow.
+- Product payloads expose both `product_type` (system behavior) and `product_type_label` (merchant-friendly label).
+- Raw preserved imported fields are not exposed as technical internals in merchant-facing UI.
+
+### Dev Storefront Clarification
+
+- `dev-test-storefront` remains a local simulator for catalog/order flow verification.
+- It is not treated as the final storefront product in this phase.
+- Production API keys/scopes/webhooks/idempotency remain deferred by roadmap.
+
+### Tests Run
+
+- Finalization verification commands were executed, including targeted cleanup/completion tests and full suite run.
+
+### Remaining Deferrals
+
+- Full API key/scopes/idempotency architecture
+- Full storefront integration management
+- Full custom field schema manager
+- Advanced specification indexing
+- Phase 3 inventory locations
+- Fulfillment/shipping
+- Payments/billing
+- B2B/markets

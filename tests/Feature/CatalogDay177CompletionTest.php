@@ -63,7 +63,7 @@ class CatalogDay177CompletionTest extends TestCase
 
         $this->assertStringContainsString('id="products-advanced-filters-panel"', $html);
         $this->assertStringContainsString('Advanced filters &amp; table settings', $html);
-        $this->assertStringContainsString('Product list columns', $html);
+        $this->assertStringContainsString('Table settings', $html);
         $this->assertStringNotContainsString('>Product list highlights<', $html);
     }
 

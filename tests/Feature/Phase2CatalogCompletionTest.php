@@ -179,7 +179,7 @@ class Phase2CatalogCompletionTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products.show', $product))
             ->assertOk()
-            ->assertSee('Attributes', false)
+            ->assertSee('Product specifications', false)
             ->assertSee('Material', false)
             ->assertSee('Cotton', false);
 

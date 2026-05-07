@@ -105,6 +105,7 @@ final class ProductWorkspaceController extends Controller
             ->get();
 
         $meta = is_array($product->meta) ? $product->meta : [];
+        $customProductTypeLabel = trim((string) ($meta['custom_product_type_label'] ?? ''));
         $catalog = is_array($meta['catalog'] ?? null) ? $meta['catalog'] : [];
         $customFieldRows = ProductDetailPresenter::associativeRows(is_array($meta['custom_fields'] ?? null) ? $meta['custom_fields'] : []);
         $importExtraRows = ProductDetailPresenter::associativeRowsWithRawKeys(
@@ -184,7 +185,10 @@ final class ProductWorkspaceController extends Controller
             'customFieldRows' => $customFieldRows,
             'importExtraRows' => $importExtraRows,
             'attributeRows' => $attributeRows,
-            'productBehavior' => ProductTypeBehavior::behaviorFor($product->product_type),
+            'productBehavior' => array_merge(
+                ProductTypeBehavior::behaviorFor($product->product_type),
+                ['label' => ProductTypeBehavior::productTypeLabel($product->product_type, $customProductTypeLabel)]
+            ),
             'variantSummaries' => $variantSummaries,
             'optionGroupSummaries' => $optionGroupSummaries,
             'totalStock' => $totalStock,
