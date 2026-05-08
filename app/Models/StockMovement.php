@@ -17,6 +17,26 @@ class StockMovement extends Model
 
     public const TYPE_ORDER_SALE = 'order_sale';
 
+    public const TYPE_ORDER_RESERVED = 'order_reserved';
+
+    public const TYPE_ORDER_COMMITTED = 'order_committed';
+
+    public const TYPE_ORDER_DEDUCTED = 'order_deducted';
+
+    public const TYPE_RESERVATION_RELEASED = 'reservation_released';
+
+    public const TYPE_RESERVATION_EXPIRED = 'reservation_expired';
+
+    public const TYPE_RETURN_RESTOCK = 'return_restock';
+
+    public const TYPE_TRANSFER_OUT = 'transfer_out';
+
+    public const TYPE_TRANSFER_IN = 'transfer_in';
+
+    public const TYPE_CORRECTION = 'correction';
+
+    public const TYPE_BACKFILL = 'backfill';
+
     /** Append-only: only created_at is maintained */
     public const UPDATED_AT = null;
 
@@ -24,9 +44,19 @@ class StockMovement extends Model
         'store_id',
         'product_id',
         'variant_id',
+        'location_id',
+        'inventory_item_id',
+        'inventory_level_id',
+        'reservation_id',
         'previous_stock',
         'quantity_change',
         'new_stock',
+        'available_before',
+        'available_after',
+        'reserved_before',
+        'reserved_after',
+        'committed_before',
+        'committed_after',
         'movement_type',
         'reason',
         'source',
@@ -54,6 +84,26 @@ class StockMovement extends Model
     public function variant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'variant_id');
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
+    }
+
+    public function inventoryItem(): BelongsTo
+    {
+        return $this->belongsTo(InventoryItem::class);
+    }
+
+    public function inventoryLevel(): BelongsTo
+    {
+        return $this->belongsTo(InventoryLevel::class);
+    }
+
+    public function reservation(): BelongsTo
+    {
+        return $this->belongsTo(InventoryReservation::class, 'reservation_id');
     }
 
     public function performer(): BelongsTo

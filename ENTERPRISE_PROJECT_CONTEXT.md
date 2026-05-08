@@ -439,8 +439,122 @@ Move to:
 - Multi-location total = sum of inventory levels.
 - Checkout must reserve stock before final deduction.
 - Returns/refunds must affect stock through explicit rules.
-
 ---
+
+## 10.1 Locations vs Markets vs Currency vs Timezone
+
+Do not confuse these concepts.
+
+### Location
+
+A location is a physical or operational place where inventory exists or can be fulfilled from.
+
+Examples:
+
+- warehouse
+- physical shop
+- stock room
+- restaurant branch
+- third-party storage
+- fulfillment partner warehouse
+
+Locations are part of the inventory and fulfillment foundation.
+
+A location answers:
+
+> Where is the stock?
+
+Locations are used for:
+
+- inventory levels
+- stock availability
+- reservations
+- stock movements
+- future fulfillment origin
+- future courier pickup origin
+- future warehouse routing
+
+A location is **not** a selling market.
+A location is **not** a currency setting.
+A location is **not** the same as a store timezone.
+A location should not manage regional pricing or storefront availability.
+
+### Market
+
+A market is a selling region or customer-facing commercial context.
+
+Examples:
+
+- USA market
+- Middle East market
+- Asia market
+- EU market
+- wholesale market
+- retail market
+
+A market answers:
+
+> Where and how do we sell?
+
+Markets will later control:
+
+- countries/regions served
+- selling currency
+- language/locale
+- regional product availability
+- regional pricing
+- market-specific catalogs
+- tax behavior
+- shipping rules
+- storefront behavior
+
+A market can be served by one location or many locations.
+One location can serve one market or many markets.
+
+Never enforce this incorrect rule:
+
+1 market = 1 location
+
+ Store
+  -> Markets define selling rules
+  -> Locations define where stock exists
+  -> Fulfillment routing later connects markets/orders to locations
+
+### Currency
+
+Store currency is the default/base currency for dashboard totals, current catalog pricing, and order totals until Markets introduce regional pricing.
+
+Currency answers:
+
+> What is the store's default money unit?
+
+Store currency is not the same as a location. A warehouse or shop should not control selling currency.
+
+Future Markets work will add:
+
+- market-specific currencies
+- exchange-rate strategy
+- price lists
+- regional catalog prices
+- shopper-facing currency display
+
+### Timezone
+
+Store timezone is the default timezone for dashboard dates, reports, order activity, and store operations.
+
+Timezone answers:
+
+> What timezone should the merchant dashboard use by default?
+
+Store timezone is not the same as an inventory location. Do not add `locations.timezone` until fulfillment cutoff times, carrier pickup windows, or multi-region warehouse operations need it.
+
+Future fulfillment and Markets work may add:
+
+- location cutoff times
+- courier pickup windows
+- region-specific delivery promises
+- customer-facing localized storefront dates
+
 
 ## 11. Order Rules
 

@@ -89,7 +89,7 @@
                             >
                         </div>
                         <div>
-                            <label for="modal_primary_market" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Primary Market</label>
+                            <label for="modal_primary_market" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Primary market</label>
                             <select
                                 id="modal_primary_market"
                                 name="primary_market"
@@ -99,6 +99,7 @@
                                     <option value="{{ $market }}" @selected(old('primary_market', 'Global Market') === $market)>{{ $market }}</option>
                                 @endforeach
                             </select>
+                            <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your default selling region. Full multi-market selling, regional currencies, and price lists will be added later.</p>
                         </div>
                     </div>
 
@@ -135,20 +136,22 @@
 
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div>
-                            <label for="modal_currency" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Store Currency</label>
+                            <label for="modal_currency" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Default store currency</label>
                             <select id="modal_currency" name="currency" class="w-full appearance-none rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                                 @foreach ($currencies as $currency)
                                     <option value="{{ $currency }}" @selected(old('currency', 'USD') === $currency)>{{ $currency }}</option>
                                 @endforeach
                             </select>
+                            <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.</p>
                         </div>
                         <div>
-                            <label for="modal_timezone" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Timezone</label>
+                            <label for="modal_timezone" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Default store timezone</label>
                             <select id="modal_timezone" name="timezone" class="w-full appearance-none rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                                 @foreach ($timezones as $timezone)
                                     <option value="{{ $timezone }}" @selected(old('timezone', 'UTC') === $timezone)>{{ $timezone }}</option>
                                 @endforeach
                             </select>
+                            <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This timezone is used for dashboard dates, reports, and store operations. Location-specific cutoff times can be added later when fulfillment is enabled.</p>
                         </div>
                     </div>
 

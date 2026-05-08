@@ -98,7 +98,7 @@
                                    class="w-full px-4 py-3 border border-[#CBD5E1] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20 focus:border-[#0052CC]">
                         </div>
                         <div>
-                            <label for="primary_market" class="block text-sm font-medium text-[#334155] mb-2 font-[Poppins]">Primary Market</label>
+                            <label for="primary_market" class="block text-sm font-medium text-[#334155] mb-2 font-[Poppins]">Primary market</label>
                             <div class="relative">
                                 <select id="primary_market" name="primary_market" class="w-full appearance-none px-4 py-3 border border-[#CBD5E1] rounded-lg text-sm text-[#0F172A] bg-white focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                                     @foreach ($primaryMarkets as $market)
@@ -109,6 +109,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                 </svg> -->
                             </div>
+                            <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your default selling region. Full multi-market selling, regional currencies, and price lists will be added later.</p>
                         </div>
                     </div>
 
@@ -142,7 +143,7 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label for="currency" class="block text-sm font-medium text-[#334155] mb-2 font-[Poppins]">Store Currency</label>
+                            <label for="currency" class="block text-sm font-medium text-[#334155] mb-2 font-[Poppins]">Default store currency</label>
                             <div class="relative">
                                 <select id="currency" name="currency" class="w-full appearance-none px-4 py-3 border border-[#CBD5E1] rounded-lg text-sm text-[#0F172A] bg-white">
                                     @foreach ($currencies as $currency)
@@ -153,9 +154,10 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                 </svg> -->
                             </div>
+                            <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.</p>
                         </div>
                         <div>
-                            <label for="timezone" class="block text-sm font-medium text-[#334155] mb-2 font-[Poppins]">Timezone</label>
+                            <label for="timezone" class="block text-sm font-medium text-[#334155] mb-2 font-[Poppins]">Default store timezone</label>
                             <div class="relative">
                                 <select id="timezone" name="timezone" class="w-full appearance-none px-4 py-3 border border-[#CBD5E1] rounded-lg text-sm text-[#0F172A] bg-white">
                                     @foreach ($timezones as $timezone)
@@ -166,6 +168,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                 </svg> -->
                             </div>
+                            <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This timezone is used for dashboard dates, reports, and store operations. Location-specific cutoff times can be added later when fulfillment is enabled.</p>
                         </div>
                     </div>
 

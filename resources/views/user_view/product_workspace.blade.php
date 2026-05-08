@@ -18,6 +18,11 @@
         'manual_adjustment' => 'Manual adjustment',
         'edit_update' => 'Catalog edit',
         'import' => 'Catalog import',
+        'backfill' => 'Inventory backfill',
+        'order_reserved' => 'Order reserved',
+        'order_committed' => 'Order committed',
+        'order_deducted' => 'Order deducted',
+        'reservation_released' => 'Reservation released',
     ];
     $optionGroupSummaries = $optionGroupSummaries ?? [];
     $productBehavior = $productBehavior ?? \App\Support\ProductTypeBehavior::behaviorFor($product->product_type);
@@ -289,11 +294,11 @@
                         <div class="border-b border-[#F1F5F9] pb-4">
                             @if ($multiVariant)
                                 <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Sellable combinations and inventory</h2>
-                                <p class="mt-1 text-sm text-[#64748B]">Each row is one variant (a combination of your option groups) with its own SKU, price, compare-at, stock, optional photo, and optional extra details. Totals in <span class="font-medium text-[#334155]">Pricing &amp; inventory</span> roll up from these rows.</p>
+                                <p class="mt-1 text-sm text-[#64748B]">Each row is one variant (a combination of your option groups) with its own SKU, price, compare-at, available stock, optional photo, and optional extra details. Totals in <span class="font-medium text-[#334155]">Pricing &amp; inventory</span> roll up from inventory locations.</p>
                             @else
                                 <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Default inventory</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">
-                                    One SKU and stock row for this product.
+                                    This product has one inventory row. Available stock comes from its inventory location.
                                     @if ($canManageCatalog)
                                         Add option groups in <span class="font-medium text-[#334155]">Edit product</span> only if shoppers should choose size, color, pack, or similar variations.
                                     @else
@@ -363,8 +368,20 @@
                                             </dd>
                                         </div>
                                         <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">On hand</dt>
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Available stock</dt>
                                             <dd class="mt-1 text-lg font-semibold tabular-nums text-[#0F172A]">{{ number_format($row['stock']) }}</dd>
+                                        </div>
+                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Reserved</dt>
+                                            <dd class="mt-1 text-lg font-semibold tabular-nums text-[#0F172A]">{{ number_format($row['reserved'] ?? 0) }}</dd>
+                                        </div>
+                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Committed</dt>
+                                            <dd class="mt-1 text-lg font-semibold tabular-nums text-[#0F172A]">{{ number_format($row['committed'] ?? 0) }}</dd>
+                                        </div>
+                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Location</dt>
+                                            <dd class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $row['location_name'] ?? 'Main location' }}</dd>
                                         </div>
                                         <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 sm:col-span-2">
                                             <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Low-stock alert</dt>
@@ -391,7 +408,7 @@
                         @else
                             <div class="mt-6 overflow-x-auto rounded-2xl border border-[#E2E8F0] shadow-sm">
                                 <table class="w-full min-w-[880px] text-left text-sm" aria-describedby="variant-table-caption">
-                                    <caption id="variant-table-caption" class="sr-only">Sellable combinations: variant photo, shopper choices, optional extra details, SKU, pricing, stock, and low-stock alert.</caption>
+                                    <caption id="variant-table-caption" class="sr-only">Sellable combinations: variant photo, shopper choices, optional extra details, SKU, pricing, available stock, reservations, location, and low-stock alert.</caption>
                                     <thead class="bg-[#F1F5F9] text-xs font-bold uppercase tracking-wide text-[#64748B]">
                                         <tr>
                                             <th class="px-4 py-3.5">Variant photo</th>
@@ -400,7 +417,9 @@
                                             <th class="px-4 py-3.5">SKU</th>
                                             <th class="min-w-[7rem] px-4 py-3.5">Retail price</th>
                                             <th class="min-w-[7rem] px-4 py-3.5">Compare-at</th>
-                                            <th class="min-w-[5rem] px-4 py-3.5">On hand</th>
+                                            <th class="min-w-[5rem] px-4 py-3.5">Available</th>
+                                            <th class="min-w-[5rem] px-4 py-3.5">Reserved</th>
+                                            <th class="min-w-[6rem] px-4 py-3.5">Location</th>
                                             <th class="min-w-[6rem] px-4 py-3.5">Low-stock alert</th>
                                         </tr>
                                     </thead>
@@ -459,6 +478,8 @@
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-3.5 align-top text-sm font-semibold tabular-nums text-[#0F172A]">{{ number_format($row['stock']) }}</td>
+                                                <td class="px-4 py-3.5 align-top text-sm font-semibold tabular-nums text-[#475569]">{{ number_format($row['reserved'] ?? 0) }}</td>
+                                                <td class="px-4 py-3.5 align-top text-sm text-[#64748B]">{{ $row['location_name'] ?? 'Main location' }}</td>
                                                 <td class="px-4 py-3.5 align-top text-sm tabular-nums text-[#64748B]">{{ $row['stock_alert'] > 0 ? number_format($row['stock_alert']) : '—' }}</td>
                                             </tr>
                                         @endforeach
@@ -471,11 +492,11 @@
                     <section class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Pricing &amp; inventory</h2>
-                            <p class="mt-1 text-sm text-[#64748B]">Roll-up totals across variants and the latest stock movements for this product.</p>
+                            <p class="mt-1 text-sm text-[#64748B]">Roll-up totals from inventory locations and the latest stock movements for this product.</p>
                         </div>
                         <dl class="mt-6 grid gap-4 sm:grid-cols-2">
                             <div class="rounded-2xl bg-[#F8FAFC] px-4 py-4 ring-1 ring-[#E2E8F0]/80">
-                                <dt class="text-sm text-[#64748B]">Total units across variants</dt>
+                                <dt class="text-sm text-[#64748B]">Total available across variants</dt>
                                 <dd class="mt-1 text-2xl font-semibold text-[#0F172A] tabular-nums">{{ number_format($totalStock) }}</dd>
                             </div>
                             <div class="rounded-2xl bg-[#F8FAFC] px-4 py-4 ring-1 ring-[#E2E8F0]/80">
@@ -497,6 +518,9 @@
                                         <span class="font-medium text-[#0F172A]">{{ $movementLabels[$mv->movement_type] ?? Str::title(str_replace('_', ' ', $mv->movement_type)) }}</span>
                                         <span class="text-[#64748B]"> · </span>
                                         <span class="tabular-nums">{{ (int) $mv->previous_stock }} → {{ (int) $mv->new_stock }}</span>
+                                        @if ($mv->location)
+                                            <span class="text-[#94A3B8]"> · {{ $mv->location->name }}</span>
+                                        @endif
                                         @if ($mv->reason)
                                             <span class="text-[#94A3B8]"> — {{ Str::limit($mv->reason, 80) }}</span>
                                         @endif

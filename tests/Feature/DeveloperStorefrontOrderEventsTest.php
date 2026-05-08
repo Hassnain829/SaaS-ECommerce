@@ -48,6 +48,13 @@ class DeveloperStorefrontOrderEventsTest extends TestCase
         $this->assertDatabaseHas('order_events', [
             'store_id' => $store->id,
             'order_id' => $order->id,
+            'event_type' => OrderLifecycle::EVENT_INVENTORY_RESERVED,
+            'title' => 'Inventory reserved',
+        ]);
+
+        $this->assertDatabaseHas('order_events', [
+            'store_id' => $store->id,
+            'order_id' => $order->id,
             'event_type' => OrderLifecycle::EVENT_INVENTORY_DEDUCTED,
             'title' => 'Inventory deducted',
         ]);
@@ -55,6 +62,7 @@ class DeveloperStorefrontOrderEventsTest extends TestCase
         $this->assertSame([
             OrderLifecycle::EVENT_ORDER_CREATED,
             OrderLifecycle::EVENT_PAYMENT_STATUS_CHANGED,
+            OrderLifecycle::EVENT_INVENTORY_RESERVED,
             OrderLifecycle::EVENT_INVENTORY_DEDUCTED,
         ], $order->events()->pluck('event_type')->all());
     }

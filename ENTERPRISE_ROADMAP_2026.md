@@ -705,7 +705,124 @@ Replace single-stock logic with location-aware inventory before building serious
 
 - Every inventory change is auditable by location.
 
----
+
+
+# PHASE 3.5 — Store Settings Alignment: Locations, Markets, Currency, and Timezone
+
+## Goal
+
+Clarify and align store onboarding/settings with the new Phase 3 inventory model before moving deeper into commerce, fulfillment, and markets.
+
+This is not a full Markets implementation.
+
+This phase exists to prevent confusion between:
+
+- inventory locations
+- selling markets
+- store currency
+- market currencies
+- store timezone
+- future location/market timezones
+
+## Why this phase matters
+
+Phase 3 introduced Locations for inventory and fulfillment origin.
+
+But onboarding already collects store-level settings such as:
+
+- primary market
+- store currency
+- timezone
+- country/address
+
+These fields are defaults. They are not enough for a full international selling system.
+
+Without clarification, the UI may accidentally make merchants think Locations control markets, currencies, or timezones. That is wrong.
+
+## Core definitions
+
+### Location
+
+A physical or operational place where stock exists.
+
+Examples:
+
+- warehouse
+- shop
+- stock room
+- restaurant branch
+- third-party storage
+
+Used for:
+
+- inventory levels
+- reservations
+- stock movements
+- future fulfillment origin
+- future courier pickup
+
+### Market
+
+A selling region/customer-facing commercial context.
+
+Examples:
+
+- USA
+- Middle East
+- Asia
+- EU
+- wholesale
+- retail
+
+Used later for:
+
+- countries
+- currencies
+- language/locale
+- product availability
+- catalogs
+- price lists
+- tax behavior
+- storefront behavior
+
+### Currency
+
+Store currency is the default/base currency.
+
+Market currency will later define what shoppers see/pay in each market.
+
+### Timezone
+
+Store timezone is the default dashboard/reporting timezone.
+
+Future location timezone may be needed for warehouse cutoff times and courier pickup operations.
+
+Future market/customer timezone may be needed for localized storefront and delivery promises.
+
+## Implementation tasks
+
+### 3.5.1 Onboarding/default location alignment
+
+Verify store creation flow:
+
+1. Store onboarding saves:
+   - primary market
+   - currency
+   - timezone
+   - store address/country if available
+2. Default inventory location is created for the store.
+3. Default location uses store address/country/city where available.
+4. If address is incomplete, default location is created as `Main location`.
+5. Merchant can edit the default location later from Settings → Locations.
+
+### 3.5.2 Locations UI clarification
+
+Update Settings → Locations copy.
+
+Use this merchant-facing explanation:
+
+
+Locations are places where you store or fulfill inventory, such as a warehouse, shop, stock room, restaurant branch, or third-party storage.
 
 # PHASE 4 — Commerce Core Completion
 
@@ -1685,3 +1802,73 @@ Return:
 7. what remains deferred
 8. final sign-off status
 ```
+
+---
+
+# Phase 3.5 Roadmap Addendum - Store Settings Alignment
+
+This addendum completes the Phase 3.5 scope above and keeps the work bounded before Phase 4.
+
+## 3.5.1 Onboarding/default location alignment
+
+- Store onboarding saves primary market, default store currency, default store timezone, and store address where available.
+- Every store must have one active default inventory location.
+- Missing default locations are created as `Main location`.
+- Blank default-location address fields may be filled from store defaults where those fields exist.
+- Merchant-edited default location fields must not be overwritten.
+- The alignment must be idempotent and must not create duplicate default locations on retry.
+
+## 3.5.2 Locations UI clarification
+
+Settings -> Locations must explain that locations are places where stock is stored or fulfilled from.
+
+Locations are used for:
+
+- inventory levels
+- reservations
+- stock movements
+- future fulfillment origin
+
+Locations do not control:
+
+- customer markets
+- selling currencies
+- language
+- regional pricing
+- storefront availability
+
+Only real actions should be visible: add location, edit location, make default, and activate/deactivate. Do not show fake controls for courier pickup, carrier setup, fulfillment routing, stock transfer, market assignment, or currency assignment.
+
+## 3.5.3 Store settings copy clarification
+
+Use these labels and helpers:
+
+- `Primary market`: This is your default selling region. Full multi-market selling, regional currencies, and price lists will be added later.
+- `Default store currency`: This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.
+- `Default store timezone`: This timezone is used for dashboard dates, reports, and store operations. Location-specific cutoff times can be added later when fulfillment is enabled.
+
+## 3.5.4 Documentation
+
+Document the distinction between Locations, Markets, Currency, and Timezone in:
+
+- `ENTERPRISE_PROJECT_CONTEXT.md`
+- `ENTERPRISE_ROADMAP_2026.md`
+- `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+
+## 3.5.5 Future guardrails
+
+Future Markets and fulfillment work belongs to later phases:
+
+- `markets`
+- `market_countries`
+- `market_currencies`
+- `market_languages`
+- `catalogs`
+- `catalog_products`
+- `price_lists`
+- `price_list_prices`
+- regional availability/tax/shipping
+- location timezone/cutoff rules
+- fulfillment routing by region
+
+Do not add `locations.timezone` until fulfillment cutoff times, carrier pickup windows, or multi-region warehouse operations require it.

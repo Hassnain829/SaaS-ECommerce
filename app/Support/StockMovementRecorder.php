@@ -6,7 +6,9 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\Store;
+use App\Services\Inventory\InventoryAdjustmentService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 final class StockMovementRecorder
 {
@@ -69,6 +71,24 @@ final class StockMovementRecorder
         self::assertStoreMatchesProduct($store, $product);
         self::assertVariantBelongsToProduct($product, $variant);
 
+        if (self::inventoryTablesExist()) {
+            app(InventoryAdjustmentService::class)->setVariantAvailable(
+                $variant,
+                $newStock,
+                $reason ?? 'Initial stock',
+                null,
+                [
+                    'movement_type' => StockMovement::TYPE_INITIAL,
+                    'source' => $source,
+                    'performed_by' => $performedBy,
+                    'previous_stock_for_movement' => null,
+                    'initial_available' => 0,
+                ]
+            );
+
+            return;
+        }
+
         StockMovement::query()->create([
             'store_id' => $store->id,
             'product_id' => $product->id,
@@ -100,6 +120,24 @@ final class StockMovementRecorder
 
         self::assertStoreMatchesProduct($store, $product);
         self::assertVariantBelongsToProduct($product, $variant);
+
+        if (self::inventoryTablesExist()) {
+            app(InventoryAdjustmentService::class)->setVariantAvailable(
+                $variant,
+                $newStock,
+                $reason ?? 'Stock adjusted',
+                null,
+                [
+                    'movement_type' => $movementType,
+                    'source' => $source,
+                    'performed_by' => $performedBy,
+                    'previous_stock_for_movement' => $previousStock,
+                    'initial_available' => $previousStock,
+                ]
+            );
+
+            return;
+        }
 
         StockMovement::query()->create([
             'store_id' => $store->id,
@@ -134,6 +172,26 @@ final class StockMovementRecorder
 
         self::assertStoreMatchesProduct($store, $product);
         self::assertVariantBelongsToProduct($product, $variant);
+
+        if (self::inventoryTablesExist()) {
+            app(InventoryAdjustmentService::class)->setVariantAvailable(
+                $variant,
+                $newStock,
+                $reason ?? 'Catalog import',
+                null,
+                [
+                    'movement_type' => StockMovement::TYPE_IMPORT,
+                    'source' => 'import',
+                    'reference_id' => $productImportId,
+                    'reference_type' => 'product_import',
+                    'performed_by' => $performedBy,
+                    'previous_stock_for_movement' => $previousStock,
+                    'initial_available' => $previousStock ?? 0,
+                ]
+            );
+
+            return;
+        }
 
         $delta = $previousStock === null ? $newStock : ($newStock - $previousStock);
 
@@ -214,6 +272,13 @@ final class StockMovementRecorder
                 );
             }
         }
+    }
+
+    private static function inventoryTablesExist(): bool
+    {
+        return Schema::hasTable('inventory_items')
+            && Schema::hasTable('inventory_levels')
+            && Schema::hasTable('locations');
     }
 
     private static function assertStoreMatchesProduct(Store $store, Product $product): void

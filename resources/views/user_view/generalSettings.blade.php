@@ -1,6 +1,20 @@
-﻿@extends('layouts.user.user-sidebar')
+@extends('layouts.user.user-sidebar')
 
 @section('title', 'General Settings | BaaS Core')
+
+@php
+    $store = $selectedStore ?? $currentStore ?? null;
+    $settings = is_array($store?->settings) ? $store->settings : [];
+    $primaryMarket = $settings['primary_market'] ?? 'Global Market';
+    $businessModels = collect($settings['business_models'] ?? [])->filter()->values();
+    $categoryLabel = $settings['custom_category'] ?? $store?->category ?? 'General';
+    $contactEmail = $store?->user?->email ?? auth()->user()?->email ?? 'Not set';
+    $defaultLocationAddress = $defaultLocation
+        ? collect([$defaultLocation->address_line1, $defaultLocation->city, $defaultLocation->state, $defaultLocation->postal_code, $defaultLocation->country_code])->filter()->implode(', ')
+        : null;
+    $canManageStoreSettings = $store && (auth()->user()?->hasStorePermission($store, \App\Support\StorePermission::SETTINGS_MANAGE) ?? false);
+    $storeInitial = $store ? \Illuminate\Support\Str::of($store->name)->trim()->substr(0, 1)->upper() : '?';
+@endphp
 
 @section('topbar')
     <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
@@ -8,202 +22,167 @@
             <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
         </button>
         <h1 class="text-lg md:text-xl font-poppins font-semibold">General Settings</h1>
-        <div class="flex items-center gap-2 md:gap-3 ml-auto">
-            <button class="h-10 px-4 rounded-lg text-sm font-semibold text-[#475569] hover:bg-[#F1F5F9]">Discard</button>
-            <button class="h-10 px-5 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Save Changes</button>
+        <div class="ml-auto flex items-center gap-2 md:gap-3">
+            <a href="{{ route('generalSettings') }}" class="hidden h-10 items-center rounded-lg px-4 text-sm font-semibold text-[#475569] hover:bg-[#F1F5F9] sm:inline-flex">Discard</a>
+            @if ($canManageStoreSettings)
+                <a href="{{ route('store-management') }}" class="h-10 rounded-lg bg-[#0052CC] px-5 text-sm font-semibold text-white inline-flex items-center justify-center">Edit store details</a>
+            @else
+                <a href="{{ route('store-management') }}" class="h-10 rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569] inline-flex items-center justify-center">View stores</a>
+            @endif
         </div>
     </header>
 @endsection
 
 @section('content')
     <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
-        <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-            <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl font-poppins">Store Profile</h2>
-                <p class="text-sm text-[#64748B]">Public identity and appearance of your storefront.</p>
-            </div>
-            <div class="p-5 space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-[128px_minmax(0,1fr)] gap-5">
+        @include('user_view.partials.flash_success')
+
+        @unless ($store)
+            <section class="rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-semibold text-[#0F172A] font-[Poppins]">No active store</h2>
+                <p class="mt-2 text-sm text-[#64748B]">Create or select a store before changing settings.</p>
+                <a href="{{ route('store-management') }}" class="mt-4 inline-flex rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Open store management</a>
+            </section>
+        @else
+            <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+                <div class="border-b border-[#F1F5F9] px-5 py-4">
+                    <h2 class="text-2xl font-poppins">Store Profile</h2>
+                    <p class="text-sm text-[#64748B]">Public identity and appearance of your storefront.</p>
+                </div>
+                <div class="p-5 space-y-6">
+                    <div class="grid grid-cols-1 gap-5 md:grid-cols-[128px_minmax(0,1fr)]">
+                        <div>
+                            <p class="mb-2 text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Store Logo</p>
+                            <div class="flex h-32 w-32 flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed border-[#CBD5E1] bg-[#F8FAFC] text-[#94A3B8]">
+                                @if ($store->logo)
+                                    <img src="{{ asset('storage/'.$store->logo) }}" alt="{{ $store->name }} logo" class="h-full w-full object-contain p-3">
+                                @else
+                                    <span class="text-3xl font-bold text-[#64748B]">{{ $storeInitial }}</span>
+                                    <span class="text-center text-[10px] font-bold uppercase tracking-[0.8px]">No logo</span>
+                                @endif
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <label class="space-y-1.5">
+                                    <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Store Name</span>
+                                    <input value="{{ $store->name }}" readonly class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
+                                </label>
+                                <label class="space-y-1.5">
+                                    <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Contact Email</span>
+                                    <input value="{{ $contactEmail }}" readonly class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
+                                </label>
+                            </div>
+                            <label class="block space-y-1.5">
+                                <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Physical Address</span>
+                                <textarea readonly class="w-full min-h-20 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">{{ $store->address ?: 'No store address saved' }}</textarea>
+                            </label>
+                        </div>
+                    </div>
+
+                    <hr class="border-[#F1F5F9]">
                     <div>
-                        <p class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B] mb-2">Store Logo</p>
-                        <button class="h-32 w-32 rounded-xl border-2 border-dashed border-[#CBD5E1] bg-[#F8FAFC] flex flex-col items-center justify-center gap-2 text-[#94A3B8]">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 12V3.85L4.4 6.45L3 5L8 0L13 5L11.6 6.45L9 3.85V12H7ZM2 16C1.45 16 0.979167 15.8042 0.5875 15.4125C0.195833 15.0208 0 14.55 0 14V11H2V14H14V11H16V14C16 14.55 15.8042 15.0208 15.4125 15.4125C15.0208 15.8042 14.55 16 14 16H2Z" fill="currentColor"/></svg>
-                            <span class="text-[10px] uppercase font-bold tracking-[0.8px]">Upload Logo</span>
-                        </button>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <label class="space-y-1.5">
-                                <span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Store Name</span>
-                                <input value="Modern Commerce Hub" class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm" />
-                            </label>
-                            <label class="space-y-1.5">
-                                <span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Contact Email</span>
-                                <input value="hello@moderncommerce.com" class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm" />
-                            </label>
+                        <h3 class="mb-3 text-sm font-bold uppercase tracking-[0.7px] font-poppins">Branding</h3>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div class="flex items-center gap-4 rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
+                                <div class="rounded-lg border border-[#E2E8F0] bg-white p-2"><div class="h-6 w-7 rounded-[2px] bg-[#0052CC]"></div></div>
+                                <div>
+                                    <p class="font-semibold">Primary color</p>
+                                    <p class="text-xs text-[#64748B]">Current dashboard action color. Branding controls will be editable later.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
+                                <div class="rounded-lg border border-[#E2E8F0] bg-white p-2"><div class="h-6 w-7 rounded-[2px] bg-[#0F172A]"></div></div>
+                                <div>
+                                    <p class="font-semibold">Secondary color</p>
+                                    <p class="text-xs text-[#64748B]">Current navigation and text accent. Branding controls will be editable later.</p>
+                                </div>
+                            </div>
                         </div>
-                        <label class="space-y-1.5 block">
-                            <span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Physical Address</span>
-                            <textarea class="w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm h-11 resize-none">123 Commerce St, San Francisco, CA 94103</textarea>
-                        </label>
                     </div>
                 </div>
+            </section>
 
-                <hr class="border-[#F1F5F9]" />
-                <div>
-                    <h3 class="text-sm uppercase font-poppins tracking-[0.7px] font-bold mb-3">Branding</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4 flex items-center gap-4">
-                            <div class="p-2 rounded-lg bg-white border border-[#E2E8F0]"><div class="w-7 h-6 bg-[#0052CC] rounded-[2px]"></div></div>
-                            <div><p class="font-semibold">Primary Color</p><p class="text-xs text-[#64748B]">Buttons, links, and active states.</p></div>
-                        </div>
-                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4 flex items-center gap-4">
-                            <div class="p-2 rounded-lg bg-white border border-[#E2E8F0]"><div class="w-7 h-6 bg-[#0F172A] rounded-[2px]"></div></div>
-                            <div><p class="font-semibold">Secondary Color</p><p class="text-xs text-[#64748B]">Navigation backgrounds and accents.</p></div>
-                        </div>
+            <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+                <div class="border-b border-[#F1F5F9] px-5 py-4">
+                    <h2 class="text-2xl font-poppins">Regional &amp; Financials</h2>
+                    <p class="text-sm text-[#64748B]">Store defaults for dashboard totals, dates, and default selling context.</p>
+                </div>
+                <div class="grid grid-cols-1 gap-4 p-5 lg:grid-cols-3">
+                    <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
+                        <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Default store currency</p>
+                        <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $store->currency ?? 'USD' }}</p>
+                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.</p>
+                    </div>
+                    <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
+                        <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Default store timezone</p>
+                        <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $store->timezone ?? 'UTC' }}</p>
+                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">This timezone is used for dashboard dates, reports, and store operations. Location-specific cutoff times can be added later when fulfillment is enabled.</p>
+                    </div>
+                    <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
+                        <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Primary market</p>
+                        <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $primaryMarket }}</p>
+                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">This is your default selling region. Full multi-market selling, regional currencies, and price lists will be added later.</p>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-            <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl font-poppins">Regional & Financials</h2>
-                <p class="text-sm text-[#64748B]">Localization, currency, and tax configurations.</p>
-            </div>
-            <div class="p-5 space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <label class="space-y-1.5"><span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Currency</span><select class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm"><option>USD - US Dollar</option></select></label>
-                    <label class="space-y-1.5"><span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Timezone</span><select class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm"><option>(GMT-08:00) Pacific Time</option></select></label>
-                    <label class="space-y-1.5"><span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Language</span><select class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm"><option>English (US)</option></select></label>
+            <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
+                <div class="border-b border-[#F1F5F9] px-5 py-4">
+                    <h2 class="text-2xl font-poppins">Business Configuration</h2>
+                    <p class="text-sm text-[#64748B]">Operational status, store type, inventory location, and future fulfillment preview.</p>
                 </div>
-                <hr class="border-[#F1F5F9]" />
-                <div class="space-y-3">
-                    <h3 class="text-sm uppercase font-poppins tracking-[0.7px] font-bold">Taxes & VAT</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <label class="space-y-1.5">
-                            <span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Tax ID / VAT Number</span>
-                            <input placeholder="e.g. US123456789" class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm" />
-                        </label>
-                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4 flex items-center justify-between">
-                            <div><p class="font-semibold">Automated Tax Calculation</p><p class="text-xs text-[#64748B]">Calculate taxes based on customer location.</p></div>
-                            <button class="h-6 w-11 rounded-full bg-[#0052CC] relative"><span class="absolute right-0.5 top-0.5 h-5 w-5 rounded-full bg-white"></span></button>
+                <div class="grid grid-cols-1 gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+                    <div class="space-y-5">
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
+                                <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Main category</p>
+                                <p class="mt-2 text-lg font-semibold text-[#0F172A]">{{ \Illuminate\Support\Str::headline((string) $categoryLabel) }}</p>
+                                <p class="mt-2 text-xs text-[#64748B]">{{ $businessModels->isNotEmpty() ? $businessModels->implode(', ') : 'No extra business model tags saved' }}</p>
+                            </div>
+                            <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
+                                <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Operational status</p>
+                                <p class="mt-2 text-lg font-semibold text-[#0F172A]">{{ $store->onboarding_completed ? 'Live workspace' : 'Draft setup' }}</p>
+                                <p class="mt-2 text-xs text-[#64748B]">{{ $store->onboarding_completed ? 'Store onboarding is complete.' : 'Finish onboarding before launch.' }}</p>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
+                            <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Default inventory location</p>
+                                    <h3 class="mt-2 text-lg font-semibold text-[#0F172A]">{{ $defaultLocation?->name ?? 'Main location' }}</h3>
+                                    <p class="mt-2 text-sm text-[#64748B]">{{ $defaultLocationAddress ?: 'No address saved' }}</p>
+                                </div>
+                                <a href="{{ route('settings.locations.index') }}" class="inline-flex h-10 items-center justify-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Manage locations</a>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-[#BFD5FF] bg-[#F5F9FF] p-4">
+                            <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#2563EB]">Inventory foundation</p>
+                            <h3 class="mt-2 text-lg font-semibold text-[#0F172A]">Locations are for stock, not selling rules</h3>
+                            <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations are places where you store or fulfill inventory, such as a warehouse, shop, stock room, restaurant branch, or third-party storage.</p>
+                            <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations control where stock is stored. Markets and currencies control where and how you sell.</p>
                         </div>
                     </div>
-                </div>
-            </div>
-        </section>
 
-        <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-            <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl font-poppins">Business Configuration</h2>
-                <p class="text-sm text-[#64748B]">Operational status and market placement.</p>
-            </div>
-            <div class="p-5">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div class="space-y-3">
-                        <label class="space-y-1.5 block">
-                            <span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Main Category</span>
-                            <select class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm"><option>Electronics & Gadgets</option></select>
-                        </label>
-                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4 flex items-center justify-between">
+                    <aside class="rounded-xl border border-[#D8E1EC] bg-[#F8FAFC] p-5">
+                        <div class="flex items-start gap-4">
+                            <div class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#EFF6FF] text-[#0052CC]">
+                                <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                    <path d="M6 17C5.45 17 4.97917 16.8042 4.5875 16.4125C4.19583 16.0208 4 15.55 4 15C4 14.45 4.19583 13.9792 4.5875 13.5875C4.97917 13.1958 5.45 13 6 13C6.55 13 7.02083 13.1958 7.4125 13.5875C7.80417 13.9792 8 14.45 8 15C8 15.55 7.80417 16.0208 7.4125 16.4125C7.02083 16.8042 6.55 17 6 17ZM14 17C13.45 17 12.9792 16.8042 12.5875 16.4125C12.1958 16.0208 12 15.55 12 15C12 14.45 12.1958 13.9792 12.5875 13.5875C12.9792 13.1958 13.45 13 14 13C14.55 13 15.0208 13.1958 15.4125 13.5875C15.8042 13.9792 16 14.45 16 15C16 15.55 15.8042 16.0208 15.4125 16.4125C15.0208 16.8042 14.55 17 14 17ZM3 3H7L9 7H17C17.2833 7 17.5208 7.09583 17.7125 7.2875C17.9042 7.47917 18 7.71667 18 8C18 8.08333 17.9917 8.17083 17.975 8.2625C17.9583 8.35417 17.925 8.44167 17.875 8.525L16.1 11.75C15.9167 12.0833 15.6708 12.3333 15.3625 12.5C15.0542 12.6667 14.7167 12.75 14.35 12.75H8.25C7.88333 12.75 7.56667 12.675 7.3 12.525C7.03333 12.375 6.83333 12.1667 6.7 11.9L3 4H1V2H3V3Z" fill="currentColor"/>
+                                </svg>
+                            </div>
                             <div>
-                                <p class="font-semibold">Maintenance Mode</p>
-                                <p class="text-xs text-[#64748B]">Show a placeholder page to visitors.</p>
-                            </div>
-                            <button class="h-6 w-11 rounded-full bg-[#CBD5E1] relative"><span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white"></span></button>
-                        </div>
-                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4 flex items-center justify-between">
-                            <div>
-                                <p class="font-semibold">Store Availability</p>
-                                <p class="text-xs text-[#64748B]">Toggle public access to the storefront.</p>
-                            </div>
-                            <button class="h-6 w-11 rounded-full bg-[#0052CC] relative"><span class="absolute right-0.5 top-0.5 h-5 w-5 rounded-full bg-white"></span></button>
-                        </div>
-                    </div>
-
-                    <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4 flex flex-col">
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <p class="font-semibold">Shipping & Courier Automation</p>
-                                <p class="text-xs text-[#64748B]">Automatically calculate rates and labels.</p>
-                            </div>
-                            <button class="h-6 w-11 rounded-full bg-[#0052CC] relative shrink-0"><span class="absolute right-0.5 top-0.5 h-5 w-5 rounded-full bg-white"></span></button>
-                        </div>
-                        <div class="mt-8">
-                            <p class="text-[10px] uppercase tracking-[0.8px] text-[#94A3B8] font-bold text-right mb-2">Integrated Carriers</p>
-                            <div class="flex items-center justify-end gap-5 text-sm font-semibold">
-                                <span class="text-[#1E293B]">UPS</span>
-                                <span class="text-[#1D4ED8]">FedEx</span>
-                                <span class="text-[#DC2626]">DHL</span>
-                                <span class="text-[#DC2626]">CANADA POST</span>
+                                <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#94A3B8]">Preview</p>
+                                <h3 class="mt-1 text-xl font-semibold text-[#0F172A]">Shipping &amp; courier automation</h3>
+                                <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Preview shipping automation settings. Full carrier setup, labels, pickup windows, and routing will be implemented in a later fulfillment phase.</p>
                             </div>
                         </div>
-                        <a href="{{ route('shippingAutomation') }}" class="mt-4 h-10 rounded-lg bg-[#0052CC] text-white text-sm font-semibold inline-flex items-center justify-center">Configure Shipping & Courier</a>
-                    </div>
+                        <a href="{{ route('shippingAutomation') }}" class="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Configure shipping &amp; courier</a>
+                    </aside>
                 </div>
-            </div>
-        </section>
-
-        <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-            <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl font-poppins">Compliance & Legal</h2>
-                <p class="text-sm text-[#64748B]">Manage policies and regulatory requirements.</p>
-            </div>
-            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <label class="space-y-1.5"><span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Privacy Policy URL</span><input value="https://moderncommerce.com/privacy" class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm" /></label>
-                <label class="space-y-1.5"><span class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Terms of Service URL</span><input value="https://moderncommerce.com/terms" class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm" /></label>
-            </div>
-        </section>
-
-        <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-            <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl">Developer API Keys</h2>
-                <p class="text-sm text-[#64748B]">Access tokens for custom integrations and apps.</p>
-            </div>
-            <div class="p-5">
-                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 space-y-3">
-                    <p class="text-xs uppercase tracking-[0.6px] font-bold text-[#64748B]">Client ID</p>
-                    <div class="flex flex-col md:flex-row gap-3">
-                        <input value="baas_live_******************7a3b" class="flex-1 h-10 rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm font-mono text-[#64748B]" />
-                        <button class="h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] flex items-center justify-center" aria-label="Copy key">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 2H3C2.44772 2 2 2.44772 2 3V10C2 10.5523 2.44772 11 3 11H10C10.5523 11 11 10.5523 11 10V3C11 2.44772 10.5523 2 10 2Z" stroke="currentColor" stroke-width="1.4"/><path d="M6 5H13C13.5523 5 14 5.44772 14 6V13C14 13.5523 13.5523 14 13 14H6C5.44772 14 5 13.5523 5 13V6C5 5.44772 5.44772 5 6 5Z" stroke="currentColor" stroke-width="1.4"/></svg>
-                        </button>
-                        <button class="h-10 px-4 rounded-lg border border-[#E2E8F0] bg-white text-sm font-semibold text-[#334155]">Generate New Key</button>
-                    </div>
-                    <p class="text-xs text-[#D97706] flex items-center gap-1.5">
-                        <span aria-hidden="true">!</span>
-                        <span>Generating a new key will immediately invalidate your current production API token. Use with caution.</span>
-                    </p>
-                </div>
-            </div>
-        </section>
-
-        <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
-            <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-2xl">Automation & Notifications</h2>
-                <p class="text-sm text-[#64748B]">System communication preferences.</p>
-            </div>
-            <div class="divide-y divide-[#F1F5F9]">
-                <div class="p-5 flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="h-9 w-9 rounded-lg bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center">
-                            <svg width="16" height="14" viewBox="0 0 16 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 2.5C1 1.67157 1.67157 1 2.5 1H13.5C14.3284 1 15 1.67157 15 2.5V11.5C15 12.3284 14.3284 13 13.5 13H2.5C1.67157 13 1 12.3284 1 11.5V2.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M2 3L8 7.5L14 3" stroke="currentColor" stroke-width="1.5"/></svg>
-                        </div>
-                        <div><p class="font-semibold">Automated Order Emails</p><p class="text-xs text-[#64748B]">Send order confirmations and tracking updates automatically.</p></div>
-                    </div>
-                    <button class="h-6 w-11 rounded-full bg-[#0052CC] relative"><span class="absolute right-0.5 top-0.5 h-5 w-5 rounded-full bg-white"></span></button>
-                </div>
-                <div class="p-5 flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="h-9 w-9 rounded-lg bg-[#FFF7ED] text-[#D97706] flex items-center justify-center">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 1.5L14.5 12.5H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M8 6V9.5M8 12V12.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                        </div>
-                        <div><p class="font-semibold">System Alerts</p><p class="text-xs text-[#64748B]">Get notified about low inventory, payment issues, and security events.</p></div>
-                    </div>
-                    <button class="h-6 w-11 rounded-full bg-[#0052CC] relative"><span class="absolute right-0.5 top-0.5 h-5 w-5 rounded-full bg-white"></span></button>
-                </div>
-            </div>
-        </section>
+            </section>
+        @endunless
     </div>
 @endsection

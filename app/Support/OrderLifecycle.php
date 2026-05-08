@@ -35,6 +35,7 @@ final class OrderLifecycle
     public const EVENT_ORDER_STATUS_CHANGED = 'order.status_changed';
     public const EVENT_PAYMENT_STATUS_CHANGED = 'payment.status_changed';
     public const EVENT_FULFILLMENT_STATUS_CHANGED = 'fulfillment.status_changed';
+    public const EVENT_INVENTORY_RESERVED = 'inventory.reserved';
     public const EVENT_INVENTORY_DEDUCTED = 'inventory.deducted';
     public const EVENT_ORDER_NOTE_ADDED = 'order.note_added';
     public const EVENT_ORDER_CANCELLED = 'order.cancelled';
@@ -81,6 +82,7 @@ final class OrderLifecycle
         self::EVENT_ORDER_STATUS_CHANGED => 'Order status changed',
         self::EVENT_PAYMENT_STATUS_CHANGED => 'Payment status changed',
         self::EVENT_FULFILLMENT_STATUS_CHANGED => 'Fulfillment status changed',
+        self::EVENT_INVENTORY_RESERVED => 'Inventory reserved',
         self::EVENT_INVENTORY_DEDUCTED => 'Inventory deducted',
         self::EVENT_ORDER_NOTE_ADDED => 'Order note added',
         self::EVENT_ORDER_CANCELLED => 'Order cancelled',

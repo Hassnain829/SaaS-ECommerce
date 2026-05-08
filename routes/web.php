@@ -7,6 +7,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeveloperStorefrontSettingsController;
+use App\Http\Controllers\LocationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProductBulkController;
 use App\Http\Controllers\ProductImportController;
@@ -125,6 +126,21 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/generalSettings', [DashboardController::class, 'generalSettings'])
         ->middleware('store.permission:settings.view')
         ->name('generalSettings');
+    Route::get('/settings/locations', [LocationController::class, 'index'])
+        ->middleware('store.permission:settings.view')
+        ->name('settings.locations.index');
+    Route::post('/settings/locations', [LocationController::class, 'store'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.locations.store');
+    Route::patch('/settings/locations/{location}', [LocationController::class, 'update'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.locations.update');
+    Route::post('/settings/locations/{location}/make-default', [LocationController::class, 'makeDefault'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.locations.make-default');
+    Route::patch('/settings/locations/{location}/deactivate', [LocationController::class, 'deactivate'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.locations.deactivate');
     Route::get('/shippingAutomation', [DashboardController::class, 'shippingAutomation'])->name('shippingAutomation');
     Route::get('/security', [DashboardController::class, 'security'])
         ->middleware('store.permission:security.view')

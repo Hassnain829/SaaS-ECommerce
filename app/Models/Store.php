@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * `logo` is a storage-relative path string when set, not embedded image binary.
@@ -46,6 +48,15 @@ class Store extends Model
         'onboarding_completed' => 'boolean',
         'developer_storefront_token_created_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (Store $store): void {
+            if (Schema::hasTable('locations')) {
+                app(\App\Services\Inventory\DefaultLocationService::class)->ensureFromStoreDefaults($store);
+            }
+        });
+    }
 
     /**
      * Public URL for the store logo file on the public disk (requires `storage:link`).
@@ -138,6 +149,21 @@ class Store extends Model
     public function attributes(): HasMany
     {
         return $this->hasMany(Attribute::class);
+    }
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(Location::class);
+    }
+
+    public function defaultLocation(): HasOne
+    {
+        return $this->hasOne(Location::class)->where('is_default', true);
+    }
+
+    public function inventoryItems(): HasMany
+    {
+        return $this->hasMany(InventoryItem::class);
     }
 
     public function stockMovements(): HasMany

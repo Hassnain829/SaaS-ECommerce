@@ -531,7 +531,7 @@ final class ProductImportVariantFinalizer
                     'sku' => $variantSku,
                     'price' => $price,
                     'compare_at_price' => $compareAt,
-                    'stock' => $stock,
+                    'stock' => 0,
                     'stock_alert' => max(0, $stockAlert),
                 ]);
                 $variant->options()->sync($optionIds);
@@ -551,7 +551,6 @@ final class ProductImportVariantFinalizer
                     'sku' => $variantSku,
                     'price' => $price,
                     'compare_at_price' => $compareAt,
-                    'stock' => $stock,
                     'stock_alert' => max(0, $stockAlert),
                 ]);
                 $variant->options()->sync($optionIds);

@@ -6,11 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\Inventory\InventoryReservationService;
+use App\Services\Inventory\InventorySyncService;
 use App\Services\OrderEventRecorder;
 use App\Services\OrderNumberGenerator;
 use App\Support\OrderLifecycle;
 use App\Support\ProductTypeBehavior;
-use App\Support\StockMovementRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -114,31 +115,9 @@ class DeveloperStorefrontCatalogController extends Controller
                 }
 
                 $qty = (int) $item['quantity'];
-                $previousStock = (int) $variant->stock;
-
-                if ($previousStock < $qty) {
-                    throw ValidationException::withMessages([
-                        'items' => "Insufficient stock for {$product->name} (SKU {$variant->sku}).",
-                    ]);
-                }
 
                 $unit = (string) $variant->price;
                 $line = bcmul($unit, (string) $qty, 2);
-
-                $variant->update(['stock' => $previousStock - $qty]);
-                $variant->refresh();
-
-                StockMovementRecorder::recordAdjustment(
-                    $store,
-                    $product,
-                    $variant,
-                    $previousStock,
-                    (int) $variant->stock,
-                    null,
-                    'developer_storefront',
-                    \App\Models\StockMovement::TYPE_ORDER_SALE,
-                    'Developer test storefront order'
-                );
 
                 $lines[] = [
                     'product' => $product,
@@ -237,7 +216,45 @@ class DeveloperStorefrontCatalogController extends Controller
                 ]
             );
 
+            $reservationService = app(InventoryReservationService::class);
+            $syncService = app(InventorySyncService::class);
+            $reservations = [];
+
             foreach ($lines as $row) {
+                $item = $syncService->ensureInventoryItemForVariant($row['variant']);
+                $reservation = $reservationService->reserve(
+                    $item,
+                    (int) $row['quantity'],
+                    'order',
+                    (string) $order->id,
+                    null,
+                    null,
+                    [
+                        'order' => $order,
+                        'source' => 'developer_storefront',
+                        'reference_type' => 'order',
+                        'reference_id' => $order->id,
+                        'reference_code' => $order->order_number,
+                        'metadata' => [
+                            'product_id' => $row['product']->id,
+                            'variant_id' => $row['variant']->id,
+                        ],
+                    ]
+                );
+                $reservationService->commit($reservation, [
+                    'source' => 'developer_storefront',
+                    'reference_type' => 'order',
+                    'reference_id' => $order->id,
+                    'reference_code' => $order->order_number,
+                ]);
+                $reservationService->deductCommitted($reservation, [
+                    'source' => 'developer_storefront',
+                    'reference_type' => 'order',
+                    'reference_id' => $order->id,
+                    'reference_code' => $order->order_number,
+                ]);
+                $reservations[] = $reservation->fresh();
+
                 $order->items()->create([
                     'product_id' => $row['product']->id,
                     'product_variant_id' => $row['variant']->id,
@@ -283,6 +300,18 @@ class DeveloperStorefrontCatalogController extends Controller
 
             $eventRecorder->record(
                 $order,
+                OrderLifecycle::EVENT_INVENTORY_RESERVED,
+                'Inventory reserved',
+                'Stock was reserved for ordered items.',
+                [
+                    'reservation_count' => count($reservations),
+                    'total_quantity' => $totalQuantity,
+                ],
+                createdAt: $order->placed_at?->copy()->addMinutes(2)
+            );
+
+            $eventRecorder->record(
+                $order,
                 OrderLifecycle::EVENT_INVENTORY_DEDUCTED,
                 'Inventory deducted',
                 'Stock was deducted for ordered items.',
@@ -290,7 +319,7 @@ class DeveloperStorefrontCatalogController extends Controller
                     'item_count' => $itemCount,
                     'total_quantity' => $totalQuantity,
                 ],
-                createdAt: $order->placed_at?->copy()->addMinutes(2)
+                createdAt: $order->placed_at?->copy()->addMinutes(3)
             );
 
             return $order->load(['items', 'addresses', 'events']);

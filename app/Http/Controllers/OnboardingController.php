@@ -10,6 +10,7 @@ use App\Models\ProductVariationType;
 use App\Models\Store;
 use App\Services\SecurityLogRecorder;
 use App\Services\Catalog\ProductAttributeAssigner;
+use App\Services\Inventory\DefaultLocationService;
 use App\Support\CatalogRules;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
@@ -111,6 +112,8 @@ class OnboardingController extends Controller
             ]);
 
         }
+
+        app(DefaultLocationService::class)->ensureFromStoreDefaults($store, $request->user());
 
         $store->members()->syncWithoutDetaching([
             $request->user()->id => ['role' => 'owner'],
@@ -1172,11 +1175,14 @@ class OnboardingController extends Controller
             ]),
         ]);
 
+        $store = $store->refresh();
+        app(DefaultLocationService::class)->ensureFromStoreDefaults($store, $request->user());
+
         $store->members()->syncWithoutDetaching([
             $request->user()->id => ['role' => 'owner'],
         ]);
 
-        $this->syncActiveStoreSessions($request, $store->refresh());
+        $this->syncActiveStoreSessions($request, $store);
 
         app(SecurityLogRecorder::class)->record(
             $request,

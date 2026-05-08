@@ -7,9 +7,9 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\Tag;
+use App\Services\Inventory\InventoryAdjustmentService;
 use App\Services\SecurityLogRecorder;
 use App\Support\StorePermission;
-use App\Support\StockMovementRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -125,6 +125,7 @@ final class ProductBulkController extends Controller
         $mode = (string) $validated['stock_mode'];
         $value = (int) $validated['stock_value'];
         $userId = $request->user()?->id;
+        $actor = $request->user();
         $scope = (string) ($validated['bulk_variant_stock_scope'] ?? 'default_variant_only');
         if (! in_array($scope, ['default_variant_only', 'all_variants_same', 'skip_multi_variant'], true)) {
             $scope = 'default_variant_only';
@@ -132,7 +133,7 @@ final class ProductBulkController extends Controller
 
         $skippedMulti = 0;
 
-        DB::transaction(function () use ($store, $products, $mode, $value, $userId, $scope, &$skippedMulti): void {
+        DB::transaction(function () use ($store, $products, $mode, $value, $actor, $userId, $scope, &$skippedMulti): void {
             foreach ($products as $product) {
                 $product->loadCount('variants');
                 $variantCount = (int) $product->variants_count;
@@ -152,24 +153,25 @@ final class ProductBulkController extends Controller
                     if (! $variant) {
                         continue;
                     }
-                    $previous = (int) $variant->stock;
+                    $previous = app(\App\Services\Inventory\InventoryAvailabilityService::class)->availableForVariant($variant);
                     $new = $mode === 'set'
                         ? max(0, $value)
                         : max(0, $previous + $value);
                     if ($new === $previous) {
                         continue;
                     }
-                    $variant->update(['stock' => $new]);
-                    StockMovementRecorder::recordAdjustment(
-                        $store,
-                        $product,
-                        $variant->fresh(),
-                        $previous,
+                    app(InventoryAdjustmentService::class)->setVariantAvailable(
+                        $variant,
                         $new,
-                        $userId,
-                        'catalog',
-                        \App\Models\StockMovement::TYPE_EDIT_UPDATE,
-                        $mode === 'set' ? 'Bulk stock: set to '.$new : 'Bulk stock: adjust by '.$value
+                        $mode === 'set' ? 'Bulk stock: set to '.$new : 'Bulk stock: adjust by '.$value,
+                        $actor,
+                        [
+                            'movement_type' => \App\Models\StockMovement::TYPE_EDIT_UPDATE,
+                            'source' => 'catalog',
+                            'performed_by' => $userId,
+                            'previous_stock_for_movement' => $previous,
+                            'initial_available' => $previous,
+                        ]
                     );
                 }
             }

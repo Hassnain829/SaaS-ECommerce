@@ -989,7 +989,7 @@ final class ProductImportProcessor
                 'product_id' => $product->id,
                 'sku' => $variantSku,
                 'price' => $basePrice,
-                'stock' => $stock,
+                'stock' => 0,
                 'stock_alert' => max(0, $stockAlert),
             ]);
             $variant->options()->sync([]);
@@ -1050,7 +1050,6 @@ final class ProductImportProcessor
         $variant->update([
             'sku' => $variantSku,
             'price' => $basePrice,
-            'stock' => $stock,
             'stock_alert' => max(0, $stockAlert),
         ]);
 

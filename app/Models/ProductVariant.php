@@ -79,4 +79,9 @@ class ProductVariant extends Model
     {
         return $this->hasOne(ProductImage::class, 'product_variant_id');
     }
+
+    public function inventoryItem(): HasOne
+    {
+        return $this->hasOne(InventoryItem::class, 'variant_id');
+    }
 }

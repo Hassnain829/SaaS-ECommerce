@@ -210,7 +210,16 @@ class DeveloperStorefrontApiTest extends TestCase
             'previous_stock' => 5,
             'quantity_change' => -2,
             'new_stock' => 3,
-            'movement_type' => StockMovement::TYPE_ORDER_SALE,
+            'movement_type' => StockMovement::TYPE_ORDER_RESERVED,
+            'source' => 'developer_storefront',
+        ]);
+
+        $this->assertDatabaseHas('stock_movements', [
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'variant_id' => $variant->id,
+            'quantity_change' => -2,
+            'movement_type' => StockMovement::TYPE_ORDER_DEDUCTED,
             'source' => 'developer_storefront',
         ]);
     }

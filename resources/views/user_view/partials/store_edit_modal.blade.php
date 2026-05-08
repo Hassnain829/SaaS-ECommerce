@@ -64,31 +64,34 @@
                         <input id="edit_store_name" name="name" type="text" value="{{ old('name', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:border-[#0052CC] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                     </div>
                     <div>
-                        <label for="edit_primary_market" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Primary Market</label>
+                        <label for="edit_primary_market" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Primary market</label>
                         <select id="edit_primary_market" name="primary_market" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                             @foreach (['Global Market', 'North America', 'Europe', 'Middle East', 'South Asia'] as $market)
                                 <option value="{{ $market }}">{{ $market }}</option>
                             @endforeach
                         </select>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your default selling region. Full multi-market selling, regional currencies, and price lists will be added later.</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div>
-                        <label for="edit_currency" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Store Currency</label>
+                        <label for="edit_currency" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Default store currency</label>
                         <select id="edit_currency" name="currency" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                             @foreach (['USD', 'EUR', 'GBP', 'PKR', 'AED'] as $currency)
                                 <option value="{{ $currency }}">{{ $currency }}</option>
                             @endforeach
                         </select>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.</p>
                     </div>
                     <div>
-                        <label for="edit_timezone" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Timezone</label>
+                        <label for="edit_timezone" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Default store timezone</label>
                         <select id="edit_timezone" name="timezone" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                             @foreach (['UTC', 'Asia/Karachi', 'America/New_York', 'Europe/London', 'Asia/Dubai'] as $timezone)
                                 <option value="{{ $timezone }}">{{ $timezone }}</option>
                             @endforeach
                         </select>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This timezone is used for dashboard dates, reports, and store operations. Location-specific cutoff times can be added later when fulfillment is enabled.</p>
                     </div>
                 </div>
 

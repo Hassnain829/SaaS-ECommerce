@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\StockMovement;
+use App\Services\Inventory\InventorySyncService;
 use App\Models\Store;
 use App\Support\ProductDetailPresenter;
 use App\Support\ProductEditPayload;
@@ -99,7 +100,7 @@ final class ProductWorkspaceController extends Controller
         $recentMovements = StockMovement::query()
             ->where('store_id', $store->id)
             ->where('product_id', $product->id)
-            ->with('performer:id,name')
+            ->with(['performer:id,name', 'location:id,name'])
             ->orderByDesc('id')
             ->limit(5)
             ->get();
@@ -120,7 +121,12 @@ final class ProductWorkspaceController extends Controller
 
         $variantSummaries = [];
         $variantCount = (int) $product->variants->count();
+        $inventorySync = app(InventorySyncService::class);
         foreach ($product->variants as $idx => $variant) {
+            $level = $inventorySync->ensureDefaultLevelForVariant($variant);
+            $level->loadMissing('location');
+            $inventorySync->syncVariantStockCache($variant);
+            $variant->loadMissing('options.variationType', 'linkedCatalogImage');
             $optionsOrdered = $variant->options->sortBy(fn ($o) => [$o->variation_type_id, $o->sort_order])->values();
             $parsed = ProductVariantLabel::fromOptions($optionsOrdered);
             $label = ProductVariantLabel::forVariant($variant, $idx, $variantCount);
@@ -145,7 +151,11 @@ final class ProductWorkspaceController extends Controller
                 'sku' => (string) $variant->sku,
                 'price' => (string) $variant->price,
                 'compare_at_price' => $variant->compare_at_price !== null ? (string) $variant->compare_at_price : null,
-                'stock' => (int) $variant->stock,
+                'stock' => (int) $level->available,
+                'reserved' => (int) $level->reserved,
+                'committed' => (int) $level->committed,
+                'incoming' => (int) $level->incoming,
+                'location_name' => $level->location?->name ?? 'Main location',
                 'stock_alert' => (int) $variant->stock_alert,
                 'is_first' => $idx === 0,
                 'catalog_image_thumb' => $thumbUrl,
@@ -171,7 +181,7 @@ final class ProductWorkspaceController extends Controller
             ->values()
             ->all();
 
-        $totalStock = (int) $product->variants->sum('stock');
+        $totalStock = array_sum(array_map(static fn (array $row): int => (int) $row['stock'], $variantSummaries));
         $maxVariantAlert = (int) $product->variants->max('stock_alert');
         $metaStockAlert = isset($meta['stock_alert']) ? (int) $meta['stock_alert'] : 0;
         $effectiveLowThreshold = max($maxVariantAlert, $metaStockAlert);

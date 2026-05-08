@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Models\UserSession;
+use App\Services\Inventory\DefaultLocationService;
 use App\Services\OrderEventRecorder;
 use App\Services\SecurityLogRecorder;
 use App\Services\UserSessionTracker;
@@ -806,9 +807,20 @@ class DashboardController extends Controller
         return view('user_view.billingSubscription');
     }
 
-    public function generalSettings()
+    public function generalSettings(Request $request)
     {
-        return view('user_view.generalSettings');
+        $selectedStore = $request->attributes->get('currentStore');
+        $defaultLocation = null;
+
+        if ($selectedStore) {
+            $defaultLocation = app(DefaultLocationService::class)
+                ->ensureFromStoreDefaults($selectedStore, $request->user());
+        }
+
+        return view('user_view.generalSettings', [
+            'selectedStore' => $selectedStore,
+            'defaultLocation' => $defaultLocation,
+        ]);
     }
 
     public function shippingAutomation()
