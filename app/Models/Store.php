@@ -186,6 +186,21 @@ class Store extends Model
         return $this->hasMany(Order::class);
     }
 
+    public function customers(): HasMany
+    {
+        return $this->hasMany(Customer::class);
+    }
+
+    public function draftOrders(): HasMany
+    {
+        return $this->hasMany(DraftOrder::class);
+    }
+
+    public function customerTags(): HasMany
+    {
+        return $this->hasMany(CustomerTag::class);
+    }
+
     public function hasDeveloperStorefrontToken(): bool
     {
         return filled($this->developer_storefront_token_hash);

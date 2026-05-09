@@ -17,7 +17,12 @@ class Customer extends Model
         'phone',
         'password',
         'status',
+        'blocked_at',
+        'blocked_reason',
         'accepts_marketing',
+        'marketing_consent',
+        'marketing_consent_at',
+        'marketing_consent_source',
         'email_verified_at',
         'last_order_at',
         'total_orders',
@@ -34,6 +39,9 @@ class Customer extends Model
 
     protected $casts = [
         'accepts_marketing' => 'boolean',
+        'marketing_consent' => 'boolean',
+        'marketing_consent_at' => 'datetime',
+        'blocked_at' => 'datetime',
         'email_verified_at' => 'datetime',
         'last_order_at' => 'datetime',
         'date_of_birth' => 'date',
@@ -56,5 +64,16 @@ class Customer extends Model
     public function orders()
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function profileNotes()
+    {
+        return $this->hasMany(CustomerNote::class)->latest();
+    }
+
+    public function tags()
+    {
+        return $this->belongsToMany(CustomerTag::class, 'customer_customer_tag')
+            ->withTimestamps();
     }
 }

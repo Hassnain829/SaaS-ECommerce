@@ -3,206 +3,283 @@
 @section('title', 'Customer Profile | BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4">
+<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4 shrink-0">
     <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
         <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
     </button>
-
-    <div class="hidden sm:flex items-center gap-2 text-sm min-w-0">
-      <a href="{{ route('customers') }}" class="text-[#64748B]">Customers</a>
-      <span class="text-[#94A3B8]">&gt;</span>
-      <span class="font-semibold text-[#0F172A] truncate">{{ $customer->full_name ?? $customer->email }}</span>
+    <div class="min-w-0">
+        <h1 class="truncate text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">{{ $customer->full_name ?: $customer->email }}</h1>
+        <p class="hidden md:block text-xs text-[#64748B]">Customer profile, notes, addresses, tags, and order history.</p>
     </div>
-
-    <div class="flex items-center gap-3 ml-auto">
-      <div class="hidden md:flex w-64 h-10 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] items-center px-3 text-sm text-[#64748B]">Search data...</div>
-      <button class="h-8 w-8 flex items-center justify-center text-[#64748B]" aria-label="Notifications">🔔</button>
-    </div>
+    <a href="{{ route('customers') }}" class="h-10 px-4 rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A] inline-flex items-center justify-center hover:bg-[#F8FAFC]">Back to customers</a>
 </header>
 @endsection
 
 @section('content')
-<div class="w-full">
-  <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6">
-    <div class="space-y-5">
-      <section class="bg-white border border-[#CBD5E1] rounded-2xl p-5">
-        <div class="flex flex-wrap items-start gap-4">
-                    @php
-              $initials = collect(explode(' ', $customer->full_name ?? ''))->map(fn($n) => substr($n, 0, 1))->take(2)->join('');
-          @endphp
-          <div class="rounded-xl bg-[#F5D8BE] border border-[#E2E8F0] flex items-center justify-center text-xl font-bold text-[#64748B]" style="height:74px; width:74px;">{{ strtoupper($initials) ?: 'C' }}</div>
+@php
+    $currency = $selectedStore->currency ?? 'USD';
+    $initials = collect(explode(' ', $customer->full_name ?: $customer->email))->filter()->map(fn ($part) => substr($part, 0, 1))->take(2)->join('');
+    $defaultShipping = $customer->addresses->where('type', 'shipping')->where('is_default', true)->first() ?? $customer->addresses->where('type', 'shipping')->first();
+    $defaultBilling = $customer->addresses->where('type', 'billing')->where('is_default', true)->first() ?? $customer->addresses->where('type', 'billing')->first();
+@endphp
 
-          <div class="flex-1 min-w-0">
-            <div class="flex flex-wrap items-center gap-3">
-              <h1 class="text-2xl font-medium font-poppins text-[#0F172A]">{{ $customer->full_name ?? $customer->email }}</h1>
-              @if($customer->status === 'active')
-                  <span class="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#059669]">Active</span>
-              @else
-                  <span class="inline-flex items-center gap-1 rounded-full bg-[#F8FAFC] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.5px] text-[#64748B]">{{ $customer->status }}</span>
-              @endif
+<div class="w-full py-2 md:py-4 space-y-4">
+    @include('user_view.partials.flash_success')
+
+    @if ($errors->any())
+        <div class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">{{ $errors->first() }}</div>
+    @endif
+
+    <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div class="flex items-start gap-4 min-w-0">
+                <div class="h-16 w-16 rounded-2xl bg-[#EFF6FF] text-[#1D4ED8] grid place-items-center text-xl font-bold shrink-0">{{ strtoupper($initials) ?: 'C' }}</div>
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="truncate text-2xl md:text-3xl font-poppins font-semibold text-[#0F172A]">{{ $customer->full_name ?: $customer->email }}</h2>
+                        @if($customer->status === 'blocked')
+                            <span class="rounded-full bg-[#FEF2F2] px-2 py-1 text-[10px] font-bold uppercase tracking-[.6px] text-[#BA1A1A]">Blocked</span>
+                        @elseif($customer->status === 'active')
+                            <span class="rounded-full bg-[#ECFDF5] px-2 py-1 text-[10px] font-bold uppercase tracking-[.6px] text-[#059669]">Active</span>
+                        @else
+                            <span class="rounded-full bg-[#F8FAFC] px-2 py-1 text-[10px] font-bold uppercase tracking-[.6px] text-[#64748B]">{{ ucfirst($customer->status) }}</span>
+                        @endif
+                    </div>
+                    <p class="mt-1 text-sm text-[#64748B]">{{ $customer->email }}</p>
+                    @if($customer->phone)
+                        <p class="text-sm text-[#64748B]">{{ $customer->phone }}</p>
+                    @endif
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        @forelse($customer->tags as $tag)
+                            <span class="inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-3 py-1 text-xs font-semibold text-[#3730A3]">
+                                {{ $tag->name }}
+                                @if($canManageCustomers)
+                                    <form action="{{ route('customers.tags.destroy', [$customer, $tag]) }}" method="POST">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="font-bold text-[#64748B]" aria-label="Remove tag">x</button>
+                                    </form>
+                                @endif
+                            </span>
+                        @empty
+                            <span class="text-sm text-[#94A3B8]">No tags yet</span>
+                        @endforelse
+                    </div>
+                </div>
             </div>
 
-            <div class="mt-2 space-y-1 text-[#64748B] text-sm">
-              <p>{{ $customer->email }}</p>
-              @if($customer->phone)
-                  <p>{{ $customer->phone }}</p>
-              @endif
-              @php $defaultAddress = $customer->addresses->firstWhere('is_default', true) ?? $customer->addresses->first(); @endphp
-              @if($defaultAddress)
-                  <p>{{ $defaultAddress->city }}, {{ $defaultAddress->state }}, {{ $defaultAddress->country }}</p>
-              @endif
-            </div>
-          </div>
-
-          <div class="ml-auto flex items-center gap-2">
-            <button class="h-10 w-10 rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] text-[#475569]">...</button>
-            <button class="h-10 px-4 rounded-xl bg-[#0052CC] text-white font-semibold text-sm">Edit Profile</button>
-          </div>
+            @if($canManageCustomers)
+                <div class="w-full lg:w-72 space-y-3">
+                    <form action="{{ route('customers.tags.store', $customer) }}" method="POST" class="flex gap-2">
+                        @csrf
+                        <input name="name" class="h-10 min-w-0 flex-1 rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Add tag">
+                        <button class="h-10 rounded-lg bg-[#0052CC] px-3 text-sm font-semibold text-white">Add</button>
+                    </form>
+                    <form action="{{ route('customers.marketing.update', $customer) }}" method="POST" class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm">
+                        @csrf
+                        @method('PATCH')
+                        <label class="flex items-center gap-2 text-[#475569]">
+                            <input type="checkbox" name="marketing_consent" value="1" @checked($customer->marketing_consent || $customer->accepts_marketing) class="rounded border-[#CBD5E1]">
+                            Marketing consent accepted
+                        </label>
+                        <input name="marketing_consent_source" value="{{ $customer->marketing_consent_source ?? 'dashboard' }}" class="mt-2 h-9 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Consent source">
+                        <button class="mt-2 h-9 w-full rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A]">Save consent</button>
+                    </form>
+                </div>
+            @endif
         </div>
-      </section>
+    </section>
 
-            <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <article class="bg-white border border-[#CBD5E1] rounded-2xl p-5">
-          <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Total Spent</p>
-          <p class="text-4xl leading-none font-semibold mt-2">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $customer->total_spent, 2) }}</p>
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+            <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Lifetime spend</p>
+            <p class="mt-2 text-3xl font-semibold text-[#0F172A]">{{ $currency }} {{ number_format((float) $customer->total_spent, 2) }}</p>
         </article>
-        <article class="bg-white border border-[#CBD5E1] rounded-2xl p-5">
-          <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Average Order Value</p>
-          <p class="text-4xl leading-none font-semibold mt-2">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $customer->average_order_value, 2) }}</p>
+        <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+            <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Orders</p>
+            <p class="mt-2 text-3xl font-semibold text-[#0F172A]">{{ $customer->total_orders }}</p>
         </article>
-        <article class="bg-white border border-[#CBD5E1] rounded-2xl p-5">
-          <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Total Orders</p>
-          <p class="text-4xl leading-none font-semibold mt-2">{{ $customer->total_orders }}</p>
+        <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+            <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Average order</p>
+            <p class="mt-2 text-3xl font-semibold text-[#0F172A]">{{ $currency }} {{ number_format((float) $customer->average_order_value, 2) }}</p>
         </article>
-      </section>
+        <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+            <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Last order</p>
+            <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $customer->last_order_at ? $customer->last_order_at->format('M d') : 'None' }}</p>
+        </article>
+    </section>
 
-      <section class="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden">
-        <div class="p-5 border-b border-[#E2E8F0] flex items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 15.5L6.2 11.3L9.3 14.4L14.8 8.9L18 12.1" stroke="#0052CC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 4H18V9" stroke="#0052CC" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <h2 class="text-2xl font-poppins">Customer Insights</h2>
-          </div>
-          <span class="rounded-md bg-[#F1F5F9] px-3 py-1 text-[11px] font-bold text-[#64748B] uppercase tracking-[1px]">Model: aASeion Retail</span>
-        </div>
-
-        <div class="p-5 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-          <div>
-            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8] mb-3">Preferred Categories</p>
-            <div class="space-y-2">
-              <div class="inline-flex bg-[#F8FAFC] rounded-lg px-3 py-2">Outerwear</div>
-              <div class="inline-flex bg-[#F8FAFC] rounded-lg px-3 py-2">Accessories</div>
-              <div class="inline-flex bg-[#F8FAFC] rounded-lg px-3 py-2">Footwear</div>
-            </div>
-          </div>
-
-          <div>
-            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8] mb-3">Size Profile</p>
-            <div class="space-y-2 text-[#64748B]">
-              <p class="flex justify-between"><span>Apparel Size</span><span class="font-semibold text-[#0F172A]">M / US 6</span></p>
-              <p class="flex justify-between"><span>Shoe Size</span><span class="font-semibold text-[#0F172A]">US 8.5</span></p>
-            </div>
-          </div>
-
-          <div>
-            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8] mb-3">Engagement Scoring</p>
-            <div class="space-y-3">
-              <div>
-                <div class="flex justify-between"><span>Purchase Frequency</span><span class="font-semibold">High</span></div>
-                <div class="h-2 bg-[#E2E8F0] rounded-full mt-1"><div class="h-2 w-[85%] bg-[#0052CC] rounded-full"></div></div>
-              </div>
-              <div>
-                <div class="flex justify-between"><span>Retention Risk</span><span class="font-semibold">Low</span></div>
-                <div class="h-2 bg-[#E2E8F0] rounded-full mt-1"><div class="h-2 w-[15%] bg-[#10B981] rounded-full"></div></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden">
-        <div class="p-5 border-b border-[#E2E8F0] flex items-center justify-between">
-          <h2 class="text-2xl">Purchase History</h2>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full min-w-[760px] text-sm">
-            <thead class="bg-[#F8FAFC] text-[#64748B] text-xs font-bold uppercase tracking-[1px]">
-              <tr>
-                <th class="text-left px-6 py-4">Order ID</th>
-                <th class="text-left px-4 py-4">Date</th>
-                <th class="text-left px-4 py-4">Status</th>
-                <th class="text-left px-4 py-4">Items</th>
-                <th class="text-right px-6 py-4">Total</th>
-              </tr>
-            </thead>
+    <section class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+        <div class="space-y-4">
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white overflow-hidden">
+                <div class="border-b border-[#E2E8F0] px-5 py-4">
+                    <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order history</h3>
+                    <p class="text-sm text-[#64748B]">Real orders linked to this customer.</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[760px] text-sm">
+                        <thead class="bg-[#F8FAFC] text-xs uppercase tracking-[1px] text-[#64748B]">
+                            <tr>
+                                <th class="px-5 py-3 text-left">Order</th>
+                                <th class="px-4 py-3 text-left">Date</th>
+                                <th class="px-4 py-3 text-left">State</th>
+                                <th class="px-4 py-3 text-center">Items</th>
+                                <th class="px-5 py-3 text-right">Total</th>
+                            </tr>
+                        </thead>
                         <tbody>
-              @forelse($customer->orders as $order)
-              <tr class="border-t border-[#F1F5F9]">
-                <td class="px-6 py-4 font-bold text-[#0052CC]"><a href="{{ route('orderViewDetails', $order->id) }}">#{{ strtoupper($order->order_number) }}</a></td>
-                <td class="px-4 py-4">{{ $order->placed_at ? $order->placed_at->format('M d, Y') : '-' }}</td>
-                <td class="px-4 py-4">
-                  <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">{{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}</span>
-                </td>
-                <td class="px-4 py-4 text-[#475569]">{{ $order->item_count }} items</td>
-                <td class="px-6 py-4 text-right font-bold">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $order->total, 2) }}</td>
-              </tr>
-              @empty
-              <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-[#64748B]">No orders found for this customer.</td>
-              </tr>
-              @endforelse
-            </tbody>
-          </table>
+                            @forelse($customer->orders as $order)
+                                <tr class="border-t border-[#F1F5F9]">
+                                    <td class="px-5 py-4 font-bold text-[#0052CC]"><a href="{{ route('orderViewDetails', $order) }}">{{ strtoupper($order->order_number) }}</a></td>
+                                    <td class="px-4 py-4">{{ $order->placed_at ? $order->placed_at->format('M d, Y') : '-' }}</td>
+                                    <td class="px-4 py-4">
+                                        <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">{{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}</span>
+                                    </td>
+                                    <td class="px-4 py-4 text-center">{{ $order->item_count ?: $order->items->count() }}</td>
+                                    <td class="px-5 py-4 text-right font-bold">{{ $currency }} {{ number_format((float) ($order->grand_total ?: $order->total), 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="px-5 py-8 text-center text-[#64748B]">No orders found for this customer.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
+                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Addresses</h3>
+                <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <div class="rounded-xl bg-[#F8FAFC] p-4 text-sm">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Default shipping</p>
+                        @if($defaultShipping)
+                            <p class="mt-2 font-semibold text-[#0F172A]">{{ $defaultShipping->name ?: $customer->full_name }}</p>
+                            <p class="mt-1 text-[#475569]">{{ $defaultShipping->address_line1 }}<br>{{ $defaultShipping->city }}, {{ $defaultShipping->state }} {{ $defaultShipping->postal_code }}<br>{{ $defaultShipping->country }}</p>
+                        @else
+                            <p class="mt-2 text-[#64748B]">No shipping address saved.</p>
+                        @endif
+                    </div>
+                    <div class="rounded-xl bg-[#F8FAFC] p-4 text-sm">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Default billing</p>
+                        @if($defaultBilling)
+                            <p class="mt-2 font-semibold text-[#0F172A]">{{ $defaultBilling->name ?: $customer->full_name }}</p>
+                            <p class="mt-1 text-[#475569]">{{ $defaultBilling->address_line1 }}<br>{{ $defaultBilling->city }}, {{ $defaultBilling->state }} {{ $defaultBilling->postal_code }}<br>{{ $defaultBilling->country }}</p>
+                        @else
+                            <p class="mt-2 text-[#64748B]">No billing address saved.</p>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="mt-5 space-y-4">
+                    @foreach($customer->addresses as $address)
+                        <form action="{{ route('customers.addresses.update', [$customer, $address]) }}" method="POST" class="rounded-xl border border-[#E2E8F0] p-4">
+                            @csrf
+                            @method('PATCH')
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <h4 class="font-semibold text-[#0F172A]">{{ ucfirst($address->type) }} address @if($address->is_default)<span class="ml-2 text-xs text-[#059669]">Default</span>@endif</h4>
+                                @if($canManageCustomers)
+                                    <div class="flex gap-2">
+                                        <button class="h-8 rounded-lg border border-[#CBD5E1] bg-white px-3 text-xs font-semibold text-[#0F172A]">Save address</button>
+                                    </div>
+                                @endif
+                            </div>
+                            <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <select name="type" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" @disabled(! $canManageCustomers)>
+                                    <option value="shipping" @selected($address->type === 'shipping')>Shipping</option>
+                                    <option value="billing" @selected($address->type === 'billing')>Billing</option>
+                                </select>
+                                <input name="name" value="{{ $address->name }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="Name" @readonly(! $canManageCustomers)>
+                                <input name="address_line1" value="{{ $address->address_line1 }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm md:col-span-2" placeholder="Address line 1" @readonly(! $canManageCustomers)>
+                                <input name="city" value="{{ $address->city }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="City" @readonly(! $canManageCustomers)>
+                                <input name="state" value="{{ $address->state }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="State" @readonly(! $canManageCustomers)>
+                                <input name="postal_code" value="{{ $address->postal_code }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="Postal code" @readonly(! $canManageCustomers)>
+                                <input name="country" value="{{ $address->country }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="Country" @readonly(! $canManageCustomers)>
+                            </div>
+                        </form>
+                        @if($canManageCustomers)
+                            <div class="-mt-3 flex flex-wrap gap-2 px-2">
+                                <form action="{{ route('customers.addresses.default', [$customer, $address]) }}" method="POST">
+                                    @csrf
+                                    <button class="text-xs font-semibold text-[#0052CC]">Make default {{ $address->type }}</button>
+                                </form>
+                                <form action="{{ route('customers.addresses.destroy', [$customer, $address]) }}" method="POST">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button class="text-xs font-semibold text-[#BA1A1A]">Remove address</button>
+                                </form>
+                            </div>
+                        @endif
+                    @endforeach
+                </div>
+
+                @if($canManageCustomers)
+                    <form action="{{ route('customers.addresses.store', $customer) }}" method="POST" class="mt-5 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-4">
+                        @csrf
+                        <h4 class="font-semibold text-[#0F172A]">Add address</h4>
+                        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <select name="type" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm"><option value="shipping">Shipping</option><option value="billing">Billing</option></select>
+                            <input name="name" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="Name">
+                            <input name="address_line1" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm md:col-span-2" placeholder="Address line 1">
+                            <input name="city" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="City">
+                            <input name="state" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="State">
+                            <input name="postal_code" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="Postal code">
+                            <input name="country" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="Country">
+                        </div>
+                        <label class="mt-3 flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="is_default" value="1"> Make default for this address type</label>
+                        <button class="mt-3 h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white">Add address</button>
+                    </form>
+                @endif
+            </article>
         </div>
-      </section>
-    </div>
 
-    <aside class="hidden lg:flex flex-col gap-5">
-      <section class="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4">
-        <h3 class="text-sm font-bold uppercase tracking-[1px] text-[#94A3B8]">Quick Notes</h3>
+        <aside class="space-y-4">
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer status</h3>
+                @if($canManageCustomers)
+                    <form action="{{ route('customers.status.update', $customer) }}" method="POST" class="mt-4 space-y-3">
+                        @csrf
+                        @method('PATCH')
+                        <select name="status" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm">
+                            <option value="active" @selected($customer->status !== 'blocked')>Active</option>
+                            <option value="blocked" @selected($customer->status === 'blocked')>Blocked</option>
+                        </select>
+                        <textarea name="blocked_reason" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Reason if blocked">{{ $customer->blocked_reason }}</textarea>
+                        <button class="w-full h-10 rounded-lg bg-[#0052CC] text-sm font-semibold text-white">Save status</button>
+                    </form>
+                @else
+                    <p class="mt-3 text-sm text-[#64748B]">You can view this customer, but your store role cannot change status.</p>
+                @endif
+            </article>
 
-        <div class="relative">
-         <div class="min-h-[136px] rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] p-3 pr-12 text-[#6B7280]">Add a note about this customer...</div>
-          <button class="absolute right-0 top-1/2 -translate-y-1/2 rounded-l-lg text-white flex items-center justify-center" style="height:40px; width:40px; background:#0052CC;" aria-label="Send Note">➤</button>
-        </div>
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer notes</h3>
+                @if($canManageCustomers)
+                    <form action="{{ route('customers.notes.store', $customer) }}" method="POST" class="mt-4 space-y-3">
+                        @csrf
+                        <textarea name="body" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Add a note"></textarea>
+                        <button class="w-full h-10 rounded-lg bg-[#0052CC] text-sm font-semibold text-white">Add note</button>
+                    </form>
+                @endif
 
-        <div class="rounded-xl p-3 text-sm text-[#475569]" style="border:1px solid #DBEAFE; background:rgba(239,246,255,0.5);">
-          Requested gift wrapping for order #90234. Prefers eco-friendly packaging.
-          <p class="text-[11px] text-[#94A3B8] mt-2">Oct 24 • By Sarah M.</p>
-        </div>
-      </section>
+                <div class="mt-4 space-y-3">
+                    @forelse($customer->profileNotes as $note)
+                        <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm">
+                            <p class="whitespace-pre-line text-[#334155]">{{ $note->body }}</p>
+                            <p class="mt-2 text-xs text-[#94A3B8]">{{ $note->user?->name ?? 'Team member' }} - {{ $note->created_at?->format('M d, Y h:i A') }}</p>
+                        </div>
+                    @empty
+                        <p class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">No notes yet.</p>
+                    @endforelse
+                </div>
+            </article>
 
-      <section class="bg-white border border-[#E2E8F0] rounded-2xl p-5">
-        <h3 class="text-sm font-bold uppercase tracking-[1px] text-[#94A3B8] mb-5">Communication History</h3>
-
-        <div class="relative pl-9 space-y-7">
-          <div class="absolute w-px bg-[#E2E8F0] left-[19px] top-2 bottom-[34px]"></div>
-
-          <article class="relative">
-            <div class="absolute h-5 w-5 -left-[27px] top-1 rounded-full border-2 border-[#0052CC] bg-white"></div>
-            <h4 class="text-xl font-semibold text-[#0F172A]">Email Sent: Promo Code</h4>
-            <p class="mt-1 text-sm text-[#64748B] leading-5">Sent 'AUTUMN23' voucher via marketing automation.</p>
-            <p class="text-[11px] text-[#94A3B8] mt-1">Today, 10:45 AM</p>
-          </article>
-
-          <article class="relative">
-            <div class="absolute h-5 w-5 -left-[27px] top-1 rounded-full border-2 border-[#CBD5E1] bg-white"></div>
-            <h4 class="text-xl font-semibold text-[#0F172A]">Support Ticket #TC-441</h4>
-            <p class="mt-1 text-sm text-[#64748B] leading-5">Closed: Question regarding shipping delay. Customer satisfied.</p>
-            <p class="text-[11px] text-[#94A3B8] mt-1">Oct 22, 02:30 PM</p>
-          </article>
-
-          <article class="relative">
-            <div class="absolute h-5 w-5 -left-[27px] top-1 rounded-full border-2 border-[#CBD5E1] bg-white"></div>
-            <h4 class="text-xl font-semibold text-[#0F172A]">In-store Interaction</h4>
-            <p class="mt-1 text-sm text-[#64748B] leading-5">Seattle Store Location. Customer returned sizing L for M.</p>
-            <p class="text-[11px] text-[#94A3B8] mt-1">Sep 28, 11:15 AM</p>
-          </article>
-        </div>
-
-        <button class="w-full h-9 rounded-lg border border-[#E2E8F0] text-sm font-semibold text-[#64748B] mt-6">View Full Timeline</button>
-      </section>
-    </aside>
-  </div>
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Marketing consent</h3>
+                <p class="mt-3 text-sm text-[#475569]">{{ $customer->marketing_consent || $customer->accepts_marketing ? 'Customer has accepted marketing messages.' : 'Customer has not accepted marketing messages.' }}</p>
+                @if($customer->marketing_consent_at)
+                    <p class="mt-1 text-xs text-[#94A3B8]">Recorded {{ $customer->marketing_consent_at->format('M d, Y') }} from {{ $customer->marketing_consent_source ?: 'dashboard' }}.</p>
+                @endif
+            </article>
+        </aside>
+    </section>
 </div>
 @endsection

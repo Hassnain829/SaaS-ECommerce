@@ -40,6 +40,7 @@
         }
     }
     $canManageOrders = auth()->user()?->canManageOrders($selectedStore) ?? false;
+    $noteEvents = $order->events->where('event_type', \App\Support\OrderLifecycle::EVENT_ORDER_NOTE_ADDED);
 @endphp
 
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -323,13 +324,37 @@
 
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
                 <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order notes</h3>
-                @if($order->notes)
-                    <p class="mt-4 whitespace-pre-line text-sm text-[#334155]">{{ $order->notes }}</p>
-                @else
-                    <p class="mt-4 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
-                        No internal notes are recorded for this order.
-                    </p>
+                @if($canManageOrders)
+                    <form action="{{ route('orders.notes.store', $order) }}" method="POST" class="mt-4 space-y-3">
+                        @csrf
+                        <textarea name="body" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Add an internal note for your team"></textarea>
+                        <button type="submit" class="w-full h-10 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Add note</button>
+                    </form>
                 @endif
+
+                <div class="mt-4 space-y-3">
+                    @forelse($noteEvents as $note)
+                        <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm">
+                            <p class="whitespace-pre-line text-[#334155]">{{ $note->description }}</p>
+                            <p class="mt-2 text-xs text-[#94A3B8]">{{ $note->actor?->name ?? 'System' }} - {{ $note->created_at?->format('M d, Y h:i A') }}</p>
+                        </div>
+                    @empty
+                        @if($order->notes)
+                            <p class="whitespace-pre-line text-sm text-[#334155]">{{ $order->notes }}</p>
+                        @else
+                            <p class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
+                                No notes yet.
+                            </p>
+                        @endif
+                    @endforelse
+                </div>
+            </article>
+
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Returns and refunds</h3>
+                <p class="mt-4 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
+                    No returns or refunds are recorded yet. Returns and refunds will be added in a later commerce phase.
+                </p>
             </article>
         </aside>
     </section>

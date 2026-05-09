@@ -10,7 +10,17 @@ class OrderNumberGenerator
 {
     public function generate(Store $store): string
     {
-        return DB::transaction(function () use ($store): string {
+        return $this->next($store, '#');
+    }
+
+    public function generateDraft(Store $store): string
+    {
+        return $this->next($store, 'DRAFT-');
+    }
+
+    private function next(Store $store, string $prefix): string
+    {
+        return DB::transaction(function () use ($store, $prefix): string {
             StoreOrderSequence::query()->upsert(
                 [[
                     'store_id' => $store->id,
@@ -33,7 +43,7 @@ class OrderNumberGenerator
                 'next_number' => $number + 1,
             ])->save();
 
-            return '#'.$number;
+            return $prefix.$number;
         });
     }
 }

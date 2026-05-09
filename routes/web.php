@@ -5,10 +5,13 @@ use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrentStoreController;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeveloperStorefrontSettingsController;
+use App\Http\Controllers\DraftOrderController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductBulkController;
 use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductWorkspaceController;
@@ -97,13 +100,67 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         ->middleware('store.permission:catalog.manage')
         ->name('catalog.attributes.terms.store');
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
+    Route::get('/orders/create', [DraftOrderController::class, 'create'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.create');
     Route::get('/orders/{order}', [DashboardController::class, 'orderViewDetails'])->name('orderViewDetails');
     Route::patch('/orders/{order}/status', [DashboardController::class, 'updateOrderStatus'])
         ->middleware('store.permission:orders.manage')
         ->name('orders.updateStatus');
+    Route::post('/orders/{order}/notes', [OrderController::class, 'storeNote'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.notes.store');
+    Route::post('/draft-orders', [DraftOrderController::class, 'store'])
+        ->middleware('store.permission:orders.manage')
+        ->name('draft-orders.store');
+    Route::get('/draft-orders/{draftOrder}', [DraftOrderController::class, 'show'])
+        ->middleware('store.permission:orders.manage')
+        ->name('draft-orders.show');
+    Route::match(['post', 'patch'], '/draft-orders/{draftOrder}', [DraftOrderController::class, 'update'])
+        ->middleware('store.permission:orders.manage')
+        ->name('draft-orders.update');
+    Route::post('/draft-orders/{draftOrder}/convert', [DraftOrderController::class, 'convert'])
+        ->middleware('store.permission:orders.manage')
+        ->name('draft-orders.convert');
+    Route::patch('/draft-orders/{draftOrder}/cancel', [DraftOrderController::class, 'cancel'])
+        ->middleware('store.permission:orders.manage')
+        ->name('draft-orders.cancel');
+    Route::delete('/draft-orders/{draftOrder}', [DraftOrderController::class, 'destroy'])
+        ->middleware('store.permission:orders.manage')
+        ->name('draft-orders.destroy');
 
     Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
     Route::get('/customers/{customer}', [DashboardController::class, 'customersProfile'])->name('customersProfile');
+    Route::post('/customers/{customer}/notes', [CustomerController::class, 'storeNote'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.notes.store');
+    Route::post('/customers/{customer}/tags', [CustomerController::class, 'storeTag'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.tags.store');
+    Route::delete('/customers/{customer}/tags/{customerTag}', [CustomerController::class, 'destroyTag'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.tags.destroy');
+    Route::post('/customers/{customer}/addresses', [CustomerController::class, 'storeAddress'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.addresses.store');
+    Route::patch('/customers/{customer}/addresses/{address}', [CustomerController::class, 'updateAddress'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.addresses.update');
+    Route::post('/customers/{customer}/addresses/{address}/default', [CustomerController::class, 'makeDefaultAddress'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.addresses.default');
+    Route::delete('/customers/{customer}/addresses/{address}', [CustomerController::class, 'destroyAddress'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.addresses.destroy');
+    Route::patch('/customers/{customer}/status', [CustomerController::class, 'updateStatus'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.status.update');
+    Route::patch('/customers/{customer}/marketing', [CustomerController::class, 'updateMarketing'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.marketing.update');
+    Route::post('/customers/{customer}/metrics/recalculate', [CustomerController::class, 'recalculateMetrics'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.metrics.recalculate');
     Route::get('/team-members', [TeamMemberController::class, 'index'])
         ->middleware('store.permission:team.view')
         ->name('team-members.index');

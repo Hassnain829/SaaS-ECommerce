@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Customer;
+use App\Models\CustomerTag;
+use App\Models\DraftOrder;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Tag;
@@ -11,6 +14,7 @@ use App\Models\Role;
 use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Models\UserSession;
+use App\Services\CustomerMetricsService;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\OrderEventRecorder;
 use App\Services\SecurityLogRecorder;
@@ -572,6 +576,7 @@ class DashboardController extends Controller
         if ($status !== 'all' && ! in_array($status, OrderLifecycle::orderStatuses(), true)) {
             $status = 'all';
         }
+        $search = trim((string) $request->query('q', ''));
 
         $query = Order::query()
             ->where('store_id', $selectedStore->id)
@@ -581,7 +586,44 @@ class DashboardController extends Controller
             $query->where('status', $status);
         }
 
-        $orders = $query->orderByDesc('placed_at')->paginate(20)->withQueryString();
+        if ($search !== '') {
+            $query->where(function ($inner) use ($search): void {
+                $inner->where('order_number', 'like', '%'.$search.'%')
+                    ->orWhere('customer_email', 'like', '%'.$search.'%')
+                    ->orWhereHas('customer', function ($customerQuery) use ($search): void {
+                        $customerQuery->where('full_name', 'like', '%'.$search.'%')
+                            ->orWhere('email', 'like', '%'.$search.'%');
+                    });
+            });
+        }
+
+        $orders = $query
+            ->orderByDesc('placed_at')
+            ->orderByDesc('created_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        $draftQuery = DraftOrder::query()
+            ->where('store_id', $selectedStore->id)
+            ->whereIn('status', [DraftOrder::STATUS_DRAFT, DraftOrder::STATUS_CANCELLED])
+            ->with('customer')
+            ->withCount('items');
+
+        if ($search !== '') {
+            $draftQuery->where(function ($inner) use ($search): void {
+                $inner->where('draft_number', 'like', '%'.$search.'%')
+                    ->orWhereHas('customer', function ($customerQuery) use ($search): void {
+                        $customerQuery->where('full_name', 'like', '%'.$search.'%')
+                            ->orWhere('email', 'like', '%'.$search.'%');
+                    });
+            });
+        }
+
+        $draftOrders = $draftQuery
+            ->orderByRaw("CASE status WHEN 'draft' THEN 0 WHEN 'cancelled' THEN 1 ELSE 2 END")
+            ->orderByDesc('updated_at')
+            ->limit(20)
+            ->get();
 
         $statusCounts = Order::query()
             ->where('store_id', $selectedStore->id)
@@ -594,10 +636,13 @@ class DashboardController extends Controller
 
         return view('user_view.orders', [
             'orders' => $orders,
+            'draftOrders' => $draftOrders,
             'currentStatus' => $status,
             'statusCounts' => $statusCounts,
             'orderStatuses' => OrderLifecycle::orderStatuses(),
             'selectedStore' => $selectedStore,
+            'search' => $search,
+            'canManageOrders' => $request->user()?->canManageOrders($selectedStore) ?? false,
         ]);
     }
 
@@ -739,18 +784,64 @@ class DashboardController extends Controller
     {
         $selectedStore = $request->attributes->get('currentStore');
 
-        $customers = \App\Models\Customer::query()
+        $search = trim((string) $request->query('q', ''));
+        $status = (string) $request->query('status', 'all');
+        $tagId = (int) $request->query('tag', 0);
+
+        $query = Customer::query()
             ->where('store_id', $selectedStore->id)
+            ->with('tags');
+
+        if ($search !== '') {
+            $query->where(function ($inner) use ($search): void {
+                $inner->where('full_name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('phone', 'like', '%'.$search.'%');
+            });
+        }
+
+        if ($status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        if ($tagId > 0) {
+            $query->whereHas('tags', fn ($tagQuery) => $tagQuery
+                ->where('customer_tags.store_id', $selectedStore->id)
+                ->where('customer_tags.id', $tagId));
+        }
+
+        $customers = $query
+            ->orderByDesc('last_order_at')
             ->orderByDesc('created_at')
-            ->paginate(20);
+            ->paginate(20)
+            ->withQueryString();
+
+        $statusCounts = Customer::query()
+            ->where('store_id', $selectedStore->id)
+            ->selectRaw('status, count(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->all();
+        $statusCounts['all'] = array_sum($statusCounts);
+
+        $customerTags = CustomerTag::query()
+            ->where('store_id', $selectedStore->id)
+            ->orderBy('name')
+            ->get();
 
         return view('user_view.customers', [
             'customers' => $customers,
             'selectedStore' => $selectedStore,
+            'search' => $search,
+            'currentStatus' => $status,
+            'currentTagId' => $tagId,
+            'statusCounts' => $statusCounts,
+            'customerTags' => $customerTags,
+            'canManageOrders' => $request->user()?->canManageOrders($selectedStore) ?? false,
         ]);
     }
 
-    public function customersProfile(Request $request, \App\Models\Customer $customer)
+    public function customersProfile(Request $request, Customer $customer, CustomerMetricsService $metrics)
     {
         $selectedStore = $request->attributes->get('currentStore');
         
@@ -758,13 +849,24 @@ class DashboardController extends Controller
             abort(404);
         }
 
-        $customer->load(['addresses', 'orders' => function($q) {
-            $q->orderByDesc('placed_at')->take(5);
-        }]);
+        $metrics->recalculate($customer);
+
+        $customer->load([
+            'addresses' => fn ($query) => $query->orderByDesc('is_default')->orderBy('type')->orderBy('id'),
+            'profileNotes.user',
+            'tags',
+            'orders' => function($q) {
+                $q->with('items')
+                    ->orderByDesc('placed_at')
+                    ->orderByDesc('created_at')
+                    ->take(10);
+            },
+        ]);
 
         return view('user_view.customersProfileTab', [
             'customer' => $customer,
             'selectedStore' => $selectedStore,
+            'canManageCustomers' => $request->user()?->canManageCustomers($selectedStore) ?? false,
         ]);
     }
 
