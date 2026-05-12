@@ -41,6 +41,13 @@
     }
     $canManageOrders = auth()->user()?->canManageOrders($selectedStore) ?? false;
     $noteEvents = $order->events->where('event_type', \App\Support\OrderLifecycle::EVENT_ORDER_NOTE_ADDED);
+    $sourceLabels = [
+        'external_checkout' => 'External checkout',
+        'developer_storefront' => 'Developer Storefront',
+        'manual' => 'Manual',
+    ];
+    $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual');
+    $gatewayLabel = $order->payment_gateway ? str($order->payment_gateway)->replace('_', ' ')->title() : null;
 @endphp
 
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -94,8 +101,8 @@
                 <p class="mt-1 text-lg font-bold text-[#0F172A]">{{ $order->total_quantity ?: $order->items->sum('quantity') }}</p>
             </div>
             <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-semibold text-[#64748B]">Channel</p>
-                <p class="mt-1 truncate text-lg font-bold text-[#0F172A]">{{ $order->channel ? ucfirst($order->channel) : 'Storefront' }}</p>
+                <p class="text-xs font-semibold text-[#64748B]">Source</p>
+                <p class="mt-1 truncate text-lg font-bold text-[#0F172A]">{{ $sourceLabel }}</p>
             </div>
             <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
                 <p class="text-xs font-semibold text-[#64748B]">Total</p>
@@ -157,7 +164,13 @@
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Payment summary</h3>
-                        <p class="text-sm text-[#64748B]">{{ $order->payment_method ? ucfirst($order->payment_method) : 'Payment method not recorded' }}</p>
+                        <p class="text-sm text-[#64748B]">
+                            @if($gatewayLabel)
+                                {{ $gatewayLabel }}{{ $order->payment_method ? ' - '.str($order->payment_method)->replace('_', ' ')->title() : '' }}
+                            @else
+                                {{ $order->payment_method ? str($order->payment_method)->replace('_', ' ')->title() : 'Payment method not recorded' }}
+                            @endif
+                        </p>
                     </div>
                     <span class="inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[.6px] {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
                         {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
@@ -188,6 +201,58 @@
                 <div class="mt-5 border-t border-[#E2E8F0] pt-5 flex items-end justify-between gap-4">
                     <span class="text-base font-semibold text-[#0F172A]">Total</span>
                     <span class="text-2xl md:text-3xl font-bold text-[#0052CC]">{{ $currency }}{{ number_format($displayTotal, 2) }}</span>
+                </div>
+            </article>
+
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
+                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Payment and source</h3>
+                <p class="mt-1 text-sm text-[#64748B]">
+                    @if($order->order_source === 'external_checkout')
+                        Payment status recorded from external checkout.
+                    @else
+                        Source and payment details captured for this order.
+                    @endif
+                </p>
+
+                <div class="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Source</p>
+                        <p class="mt-1 font-semibold text-[#0F172A]">{{ $sourceLabel }}</p>
+                    </div>
+                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Channel</p>
+                        <p class="mt-1 font-semibold text-[#0F172A]">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
+                    </div>
+                    @if($order->external_order_number)
+                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">External order</p>
+                            <p class="mt-1 font-semibold text-[#0F172A]">{{ $order->external_order_number }}</p>
+                        </div>
+                    @endif
+                    @if($order->external_checkout_reference)
+                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Checkout reference</p>
+                            <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $order->external_checkout_reference }}</p>
+                        </div>
+                    @endif
+                    @if($gatewayLabel)
+                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Gateway</p>
+                            <p class="mt-1 font-semibold text-[#0F172A]">{{ $gatewayLabel }}</p>
+                        </div>
+                    @endif
+                    @if($order->payment_method)
+                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Method</p>
+                            <p class="mt-1 font-semibold text-[#0F172A]">{{ str($order->payment_method)->replace('_', ' ')->title() }}</p>
+                        </div>
+                    @endif
+                    @if($order->payment_reference)
+                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3 sm:col-span-2">
+                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Payment reference</p>
+                            <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $order->payment_reference }}</p>
+                        </div>
+                    @endif
                 </div>
             </article>
 

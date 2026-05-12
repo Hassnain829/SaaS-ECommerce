@@ -601,6 +601,26 @@ Every important order change should create an event:
 ## 12. Storefront/API Rules
 
 The dev storefront is a testbed, not the final production API.
+### Developer Storefront Payment Clarification
+
+`dev-test-storefront` is a local simulator used to test how an external website can connect to this SaaS platform.
+
+It is not the final storefront builder.
+
+It should eventually support two testing modes:
+
+1. **External paid order mode**
+   - Simulates Shopify, WooCommerce, WordPress, custom websites, PayPal, cash on delivery, bank transfer, or another existing checkout.
+   - Payment is collected outside this SaaS.
+   - The external site sends the order, customer, address, payment status, payment gateway, and payment reference into our SaaS.
+
+2. **Platform checkout mode**
+   - Simulates a storefront using our checkout lifecycle.
+   - Our SaaS creates checkout sessions, validates/reserves stock, calculates tax/discounts, creates payment intents, receives webhook confirmation, and converts checkout into an order.
+
+Do not overbuild `dev-test-storefront` as the final storefront product.
+
+Production API keys, scopes, rate limits, webhook delivery, event outbox, and full external integration management belong to the later integration roadmap.
 
 Production API must have:
 
@@ -629,20 +649,196 @@ Final target:
 
 ---
 
-## 13. Payments Rules
+## 13. Payments and Checkout Strategy
 
-Do not store or process raw card data.
+This platform must support multiple merchant payment models.
+
+The SaaS is not limited to one payment gateway.
+
+The platform supports three payment/channel modes:
+
+### 13.1 External checkout sync
+
+Use this mode for merchants who already accept payments through:
+
+- Shopify;
+- WooCommerce;
+- WordPress;
+- custom websites;
+- PayPal;
+- bank transfer;
+- cash on delivery;
+- any other existing checkout or gateway.
+
+In this mode:
+
+- the external storefront collects payment;
+- our SaaS receives the order through API/integration;
+- our SaaS stores the order, customer, address, items, payment status, payment gateway, and payment reference;
+- our SaaS does not process the payment again;
+- no Stripe PaymentIntent is created for externally paid orders.
+
+This is the closest match to the current `dev-test-storefront` concept.
+
+External orders should store:
+
+- `external_order_number`;
+- `external_checkout_reference`;
+- `payment_status`;
+- `payment_gateway`;
+- `payment_reference`;
+- `payment_method`;
+- customer snapshot;
+- address snapshots;
+- item snapshots;
+- tax/discount/shipping/totals snapshots.
+
+### 13.2 Platform checkout
+
+Use this mode for merchants who want this SaaS platform to manage checkout.
+
+In this mode:
+
+- our SaaS creates checkout sessions;
+- validates/reserves inventory;
+- captures address;
+- applies discounts/tax;
+- creates payment intents;
+- receives payment webhook confirmation;
+- converts checkout into a confirmed order.
+
+Stripe sandbox is the first supported provider for platform checkout.
+
+Do not directly create final paid orders for platform checkout.
+
+Correct lifecycle:
+
+1. Create checkout.
+2. Add checkout items.
+3. Validate stock.
+4. Reserve stock when reservation support exists.
+5. Capture shipping/billing address.
+6. Calculate shipping, tax, and discounts.
+7. Create payment intent.
+8. Receive payment success/failure webhook.
+9. Convert checkout to confirmed order.
+10. Record order/payment events.
+
+### 13.3 Merchant-connected payments
+
+Use this mode for merchants who want to connect their own payment account to platform checkout.
+
+Stripe Connect is the preferred future implementation for merchant-owned Stripe accounts.
+
+Rules:
+
+- Do not ask merchants to paste production Stripe secret keys into the dashboard.
+- Do not store raw merchant secret keys for connected payments.
+- Store connected account IDs and provider account status.
+- Use hosted Stripe onboarding when Stripe Connect is implemented.
+
+Future Stripe Connect support should store data in `payment_provider_accounts`, such as:
+
+- provider: `stripe`;
+- connection_type: `connect`;
+- provider_account_id: Stripe connected account ID;
+- status;
+- capabilities;
+- last verified time.
+
+### 13.4 Payment architecture rules
+
+Payment logic must be provider-neutral.
+
+Use provider services instead of putting Stripe logic directly inside controllers.
+
+Required provider architecture:
+
+- `PaymentProviderInterface`
+- `PaymentProviderManager`
+- `StripePlatformPaymentProvider`
+- `ExternalPaymentProvider`
+- `ManualPaymentProvider`
+- future: `StripeConnectPaymentProvider`
+- future: `PayPalPaymentProvider`
+- future: `SquarePaymentProvider`
+
+All providers should return a normalized internal payment result:
+
+- provider;
+- provider account;
+- provider intent/reference;
+- status;
+- amount;
+- currency;
+- failure code;
+- failure message;
+- safe metadata.
+
+### 13.5 Security and compliance rules
+
+Never store or process raw card data.
 
 Use:
 
 - hosted checkout;
-- hosted fields;
-- Stripe/Cashier or equivalent;
+- hosted payment fields;
+- Stripe PaymentIntents or equivalent;
 - signed webhooks;
 - idempotency keys;
-- payment attempt records.
+- payment attempt records;
+- provider-neutral payment records.
 
-Payment records should be separate from orders.
+Never expose secret keys to frontend code.
+
+Payment records must be separate from orders.
+
+Every payment record must be store-scoped.
+
+Every important payment state change should create an order event.
+
+Payment provider failures must not corrupt order state.
+
+External paid orders must not create Stripe PaymentIntents.
+
+### 13.6 Tables expected in Phase 5
+
+Phase 5 should introduce or prepare:
+
+- `checkouts`
+- `checkout_items`
+- `checkout_addresses`
+- `checkout_events`
+- `payment_provider_accounts`
+- `payment_intents`
+- `payment_attempts`
+- `payment_captures`
+- `refunds`
+- `idempotency_keys`
+- `tax_settings`
+- `coupons`
+- `order_coupons`
+
+### 13.7 Dashboard UX rule
+
+Merchants should eventually see a clear settings area:
+
+`Settings → Payments & Channels`
+
+It should explain:
+
+1. **External checkout**
+   - For merchants already using Shopify, WooCommerce, WordPress, PayPal, COD, bank transfer, or another checkout.
+
+2. **Platform checkout**
+   - For merchants who want this SaaS to manage checkout and payment.
+
+3. **Connected Stripe account**
+   - For merchants who want to connect their own Stripe account later.
+
+Do not show fake working buttons.
+
+If a mode is not implemented, show a clear coming-later state.
 
 ---
 

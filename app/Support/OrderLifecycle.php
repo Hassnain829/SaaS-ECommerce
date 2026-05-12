@@ -32,8 +32,10 @@ final class OrderLifecycle
     public const SHIPMENT_RETURNED = 'returned';
 
     public const EVENT_ORDER_CREATED = 'order.created';
+    public const EVENT_EXTERNAL_ORDER_RECEIVED = 'external_order.received';
     public const EVENT_ORDER_STATUS_CHANGED = 'order.status_changed';
     public const EVENT_PAYMENT_STATUS_CHANGED = 'payment.status_changed';
+    public const EVENT_PAYMENT_STATUS_RECORDED = 'payment.status_recorded';
     public const EVENT_FULFILLMENT_STATUS_CHANGED = 'fulfillment.status_changed';
     public const EVENT_INVENTORY_RESERVED = 'inventory.reserved';
     public const EVENT_INVENTORY_DEDUCTED = 'inventory.deducted';
@@ -79,8 +81,10 @@ final class OrderLifecycle
 
     private const EVENT_TYPE_LABELS = [
         self::EVENT_ORDER_CREATED => 'Order created',
+        self::EVENT_EXTERNAL_ORDER_RECEIVED => 'External order received',
         self::EVENT_ORDER_STATUS_CHANGED => 'Order status changed',
         self::EVENT_PAYMENT_STATUS_CHANGED => 'Payment status changed',
+        self::EVENT_PAYMENT_STATUS_RECORDED => 'Payment status recorded',
         self::EVENT_FULFILLMENT_STATUS_CHANGED => 'Fulfillment status changed',
         self::EVENT_INVENTORY_RESERVED => 'Inventory reserved',
         self::EVENT_INVENTORY_DEDUCTED => 'Inventory deducted',

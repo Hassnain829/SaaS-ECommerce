@@ -18,6 +18,13 @@
 @endsection
 
 @section('content')
+@php
+    $sourceLabels = [
+        'external_checkout' => 'External checkout',
+        'developer_storefront' => 'Developer Storefront',
+        'manual' => 'Manual',
+    ];
+@endphp
 <div class="w-full py-2 md:py-4 space-y-4">
     @include('user_view.partials.flash_success')
 
@@ -36,7 +43,7 @@
     <section class="bg-white border border-[#CBD5E1] rounded-2xl p-4 md:p-5 space-y-4">
         <form method="GET" action="{{ route('orders') }}" class="flex flex-col gap-3 md:flex-row">
             <input type="hidden" name="status" value="{{ $currentStatus }}">
-            <input name="q" value="{{ $search }}" class="h-10 flex-1 rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Search order number, customer, or email">
+            <input name="q" value="{{ $search }}" class="h-10 flex-1 rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Search order number, external order, payment reference, customer, or email">
             <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Search</button>
             @if($search !== '')
                 <a href="{{ route('orders', ['status' => $currentStatus]) }}" class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#64748B] inline-flex items-center justify-center">Clear</a>
@@ -163,8 +170,14 @@
                             <p class="text-xs text-[#64748B]">{{ $order->customer_email }}</p>
                         </td>
                         <td class="px-4 py-4">
-                            <p class="font-semibold text-[#0F172A]">{{ $order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual' }}</p>
+                            <p class="font-semibold text-[#0F172A]">{{ $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual') }}</p>
                             <p class="text-xs text-[#64748B]">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
+                            @if($order->external_order_number)
+                                <p class="text-xs text-[#64748B]">External {{ $order->external_order_number }}</p>
+                            @endif
+                            @if($order->payment_gateway)
+                                <p class="text-xs text-[#64748B]">{{ str($order->payment_gateway)->replace('_', ' ')->title() }}</p>
+                            @endif
                         </td>
                         <td class="px-4 py-4 text-right font-bold">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $order->total, 2) }}</td>
                         <td class="px-4 py-4">

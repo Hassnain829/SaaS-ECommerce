@@ -977,7 +977,321 @@ Order detail page must show only real data:
 
 ---
 
-# PHASE 5 — Checkout, Payments, Tax, Discounts
+# PHASE 5 — Checkout, Payments, Tax, Discounts, and Channel Payment Modes
+
+## Goal
+
+Replace direct test order creation with a production checkout lifecycle while supporting multiple merchant payment models.
+
+The platform must not force every merchant into one payment gateway.
+
+Merchants should be able to use one of these modes:
+
+1. **External checkout sync**
+   - Merchant already collects payment on Shopify, WooCommerce, WordPress, custom website, PayPal, COD, bank transfer, or another external checkout.
+   - Our platform receives the paid/pending order and manages catalog, customers, orders, inventory, fulfillment, and reporting.
+   - Our platform does not process the customer payment in this mode.
+
+2. **Platform checkout**
+   - Merchant uses our checkout lifecycle.
+   - Our platform creates checkout sessions, validates/reserves stock, calculates discounts/tax, creates payment intents, receives webhook confirmation, and converts checkout into an order.
+
+3. **Merchant-connected payments**
+   - Merchant connects their own Stripe account through Stripe Connect later.
+   - Our platform creates payments for that connected merchant account.
+   - Platform fees/payout management can be added later.
+
+Phase 5 must build the neutral foundation first, with Stripe sandbox as the first real payment provider and external checkout sync as the first channel-friendly mode.
+
+Do not hardcode the whole payment system around Stripe only.
+
+---
+
+## 5.0 Payment and Channel Mode Foundation
+
+### Purpose
+
+Create a flexible architecture that supports external checkouts, platform checkout, and future connected merchant accounts without rewriting orders later.
+
+### Concepts
+
+A store can support one or more payment/channel modes:
+
+- `external_checkout`
+- `platform_checkout`
+- `stripe_platform`
+- `stripe_connect`
+- `manual`
+- future: `paypal`, `square`, `authorize_net`, `shopify`, `woocommerce`
+
+### Tables
+
+Create or update:
+
+- `payment_provider_accounts`
+- `payment_intents`
+- `payment_attempts`
+- `payment_captures`
+- `refunds`
+- `idempotency_keys` if not already present
+- optional: `store_payment_settings`
+
+### `payment_provider_accounts`
+
+Fields:
+
+- `id`
+- `store_id`
+- `provider`  
+  Examples: `stripe`, `external`, `manual`, `paypal`, `shopify`, `woocommerce`
+- `mode`  
+  Examples: `test`, `live`
+- `connection_type`  
+  Examples: `platform`, `connect`, `external_reference`, `manual`
+- `display_name`
+- `status`  
+  Examples: `active`, `inactive`, `pending`, `restricted`, `revoked`
+- `is_default`
+- `provider_account_id` nullable  
+  Example: Stripe connected account ID
+- `credentials_encrypted` nullable
+- `capabilities` json nullable
+- `settings` json nullable
+- `last_verified_at` nullable
+- `created_by`
+- timestamps
+- soft deletes if consistent with project style
+
+### Rules
+
+- Do not store raw card data.
+- Do not ask merchants to paste Stripe secret keys for production connected payments.
+- Use Stripe Connect later for merchant-owned Stripe accounts.
+- Credentials must be encrypted if credentials are ever stored.
+- All provider accounts must be store-scoped.
+- One store may have multiple provider accounts.
+- One provider account may be marked default for platform checkout.
+
+### Services
+
+Create:
+
+- `PaymentProviderInterface`
+- `PaymentProviderManager`
+- `StripePlatformPaymentProvider`
+- `ExternalPaymentProvider`
+- `ManualPaymentProvider`
+- future: `StripeConnectPaymentProvider`
+
+### Internal payment result
+
+All providers must return a normalized internal result:
+
+- `provider`
+- `provider_account_id`
+- `provider_intent_id`
+- `provider_charge_id`
+- `status`
+- `amount`
+- `currency`
+- `failure_code`
+- `failure_message`
+- `raw_response` stored safely in metadata where appropriate
+
+### Acceptance criteria
+
+- Payment logic is provider-neutral.
+- Stripe is the first implementation, not the only architecture.
+- External payment references can be recorded without processing payment.
+- Store scoping is enforced.
+- Tests prove Store A cannot use Store B payment provider account.
+
+---
+
+## 5.1 Checkout Sessions
+
+### Purpose
+
+Create a production checkout lifecycle so storefronts do not directly create final paid orders.
+
+### Tables
+
+- `checkouts`
+- `checkout_items`
+- `checkout_addresses`
+- `checkout_events`
+
+### `checkouts`
+
+Suggested fields:
+
+- `id`
+- `store_id`
+- `customer_id` nullable
+- `checkout_number`
+- `source_channel`
+  - `dev_storefront`
+  - `api`
+  - `external_storefront`
+  - `manual`
+  - future: `shopify`, `woocommerce`
+- `mode`
+  - `external_checkout`
+  - `platform_checkout`
+- `status`
+  - `open`
+  - `address_pending`
+  - `payment_pending`
+  - `paid`
+  - `confirmed`
+  - `expired`
+  - `cancelled`
+  - `failed`
+- `currency_code`
+- `subtotal`
+- `discount_total`
+- `shipping_total`
+- `tax_total`
+- `grand_total`
+- `payment_provider`
+- `payment_provider_account_id` nullable
+- `external_checkout_reference` nullable
+- `external_order_reference` nullable
+- `metadata` json nullable
+- timestamps
+- `expires_at`
+- `completed_at`
+- `converted_order_id` nullable
+
+### Flow
+
+1. Create checkout.
+2. Add cart items.
+3. Validate stock.
+4. Reserve inventory where available.
+5. Capture address.
+6. Calculate discounts/tax/shipping placeholders.
+7. Create payment intent if platform checkout.
+8. Receive payment success/failure.
+9. Convert checkout into confirmed order.
+10. Release reservation on cancellation/expiry/failure.
+
+### Acceptance criteria
+
+- Storefront does not directly create final paid order for platform checkout.
+- Checkout can safely convert to order once.
+- Checkout conversion snapshots customer, address, item, tax, discount, and payment data.
+- Checkout events show real lifecycle activity.
+- Idempotency prevents duplicate checkout/order creation.
+
+---
+
+## 5.2 External Checkout Sync
+
+### Purpose
+
+Support merchants who already collect payment on Shopify, WooCommerce, WordPress, custom websites, PayPal, COD, bank transfer, or another external checkout.
+
+In this mode, the external storefront is the payment source of truth.
+
+Our platform records the order and payment reference but does not process the payment.
+
+### API behavior
+
+Create or update endpoint:
+
+- `POST /api/v1/external/orders`
+- or version current dev storefront order endpoint safely
+
+Payload should support:
+
+- `external_order_number`
+- `external_checkout_reference`
+- `payment_status`
+- `payment_gateway`
+- `payment_reference`
+- `payment_method`
+- `customer`
+- `shipping_address`
+- `billing_address`
+- `items`
+- `discounts`
+- `taxes`
+- `shipping`
+- `totals`
+- `placed_at`
+
+### Rules
+
+- External order payload must be authenticated.
+- Store scoping is mandatory.
+- External order number should be unique per store/source.
+- Payment status must map into internal payment statuses:
+  - `pending`
+  - `authorized`
+  - `paid`
+  - `failed`
+  - `refunded`
+  - `partially_refunded`
+- Do not create Stripe PaymentIntent for external-paid orders.
+- Do not collect raw card data.
+- Create order events:
+  - `external_order.received`
+  - `payment.status_recorded`
+  - `inventory.deducted` or `inventory.reserved` depending inventory mode
+- Create security/audit log where appropriate.
+
+### Dev storefront simulator
+
+Update `dev-test-storefront` to support two modes:
+
+1. `External paid order`
+   - Simulates Shopify/WooCommerce/custom website checkout.
+   - Sends `payment_status=paid`, `payment_gateway=external_test`, and `payment_reference`.
+
+2. `Platform checkout`
+   - Starts your checkout session flow and Stripe sandbox payment when implemented.
+
+### Acceptance criteria
+
+- Merchants can connect existing storefronts without using our payment gateway.
+- External paid orders appear in Orders dashboard.
+- Customers, addresses, order items, payment status, and order events are created.
+- Duplicate external order numbers are rejected or idempotently returned.
+- Tests prove external checkout mode does not create Stripe payment intents.
+
+---
+
+## 5.3 Platform Checkout with Stripe Sandbox
+
+### Purpose
+
+Implement the first real payment provider for platform checkout using Stripe test mode.
+
+### Provider
+
+- `StripePlatformPaymentProvider`
+
+### Build
+
+- Stripe SDK integration
+- PaymentIntent creation
+- Hosted payment page or Stripe Elements/Payment Element later
+- Payment attempt records
+- Webhook signature verification
+- Payment success/failure handling
+- Checkout-to-order conversion after confirmed payment
+
+### Environment
+
+Add to `.env.example`:
+PAYMENTS_DEFAULT_PROVIDER=stripe
+STRIPE_MODE=test
+STRIPE_KEY=
+STRIPE_SECRET=
+STRIPE_WEBHOOK_SECRET=
+
+---
 
 ## Goal
 

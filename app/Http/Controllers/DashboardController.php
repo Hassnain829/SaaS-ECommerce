@@ -589,6 +589,8 @@ class DashboardController extends Controller
         if ($search !== '') {
             $query->where(function ($inner) use ($search): void {
                 $inner->where('order_number', 'like', '%'.$search.'%')
+                    ->orWhere('external_order_number', 'like', '%'.$search.'%')
+                    ->orWhere('payment_reference', 'like', '%'.$search.'%')
                     ->orWhere('customer_email', 'like', '%'.$search.'%')
                     ->orWhereHas('customer', function ($customerQuery) use ($search): void {
                         $customerQuery->where('full_name', 'like', '%'.$search.'%')

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\DeveloperStorefrontCatalogController;
 use App\Http\Controllers\Api\CatalogApiV1Controller;
+use App\Http\Controllers\Api\ExternalOrderSyncController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,4 +26,10 @@ Route::middleware(['dev.storefront.token'])
         Route::get('/categories', [CatalogApiV1Controller::class, 'categories']);
         Route::get('/brands', [CatalogApiV1Controller::class, 'brands']);
         Route::get('/attributes', [CatalogApiV1Controller::class, 'attributes']);
+    });
+
+Route::middleware(['dev.storefront.token'])
+    ->prefix('v1/external')
+    ->group(function (): void {
+        Route::post('/orders', [ExternalOrderSyncController::class, 'store']);
     });
