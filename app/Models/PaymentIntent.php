@@ -16,6 +16,7 @@ class PaymentIntent extends Model
         'provider',
         'mode',
         'provider_intent_id',
+        'provider_account_id',
         'client_secret',
         'status',
         'currency_code',

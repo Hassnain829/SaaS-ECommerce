@@ -15,6 +15,7 @@ class PaymentIntentResult
         public readonly float $amount,
         public readonly string $currencyCode,
         public readonly array $raw = [],
+        public readonly ?string $providerAccountId = null,
     ) {
     }
 }

@@ -12,6 +12,7 @@ use App\Http\Controllers\DraftOrderController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PaymentSettingsController;
 use App\Http\Controllers\ProductBulkController;
 use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductWorkspaceController;
@@ -198,6 +199,24 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::patch('/settings/locations/{location}/deactivate', [LocationController::class, 'deactivate'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.locations.deactivate');
+    Route::get('/settings/payments', [PaymentSettingsController::class, 'index'])
+        ->middleware('store.permission:settings.view')
+        ->name('settings.payments.index');
+    Route::post('/settings/payments/stripe/connect', [PaymentSettingsController::class, 'connect'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.connect');
+    Route::get('/settings/payments/stripe/return', [PaymentSettingsController::class, 'stripeReturn'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.return');
+    Route::get('/settings/payments/stripe/refresh', [PaymentSettingsController::class, 'refreshOnboarding'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.refresh');
+    Route::post('/settings/payments/stripe/status', [PaymentSettingsController::class, 'status'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.status');
+    Route::post('/settings/payments/stripe/disable', [PaymentSettingsController::class, 'disable'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.disable');
     Route::get('/shippingAutomation', [DashboardController::class, 'shippingAutomation'])->name('shippingAutomation');
     Route::get('/security', [DashboardController::class, 'security'])
         ->middleware('store.permission:security.view')

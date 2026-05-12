@@ -33,6 +33,12 @@ class CheckoutConversionService
             $paymentIntent = LocalPaymentIntent::query()
                 ->where('provider', 'stripe')
                 ->where('provider_intent_id', $result->providerIntentId)
+                ->when($result->providerAccountId, function ($query) use ($result): void {
+                    $query->where(function ($inner) use ($result): void {
+                        $inner->where('provider_account_id', $result->providerAccountId)
+                            ->orWhereHas('paymentProviderAccount', fn ($accountQuery) => $accountQuery->where('provider_account_id', $result->providerAccountId));
+                    });
+                })
                 ->lockForUpdate()
                 ->first();
 
@@ -74,6 +80,7 @@ class CheckoutConversionService
             /** @var Checkout|null $checkout */
             $checkout = Checkout::query()
                 ->with(['items.variant', 'addresses', 'customer', 'store'])
+                ->with('paymentProviderAccount')
                 ->whereKey($paymentIntent->checkout_id)
                 ->lockForUpdate()
                 ->first();
@@ -92,6 +99,9 @@ class CheckoutConversionService
             }
 
             $customer = $checkout->customer;
+            $providerAccount = $checkout->paymentProviderAccount;
+            $connectionType = $providerAccount?->connection_type ?? data_get($checkout->metadata, 'payment_connection_type', 'platform');
+            $connectionLabel = $connectionType === 'connect' ? 'Connected Stripe account' : 'Platform sandbox';
             $order = Order::query()->create([
                 'store_id' => $checkout->store_id,
                 'customer_id' => $customer?->id,
@@ -128,6 +138,10 @@ class CheckoutConversionService
                         'checkout_id' => $checkout->id,
                         'checkout_number' => $checkout->checkout_number,
                         'payment_intent_id' => $result->providerIntentId,
+                        'payment_provider_account_id' => $providerAccount?->id,
+                        'provider_account_id' => $providerAccount?->provider_account_id,
+                        'connection_type' => $connectionType,
+                        'connection_label' => $connectionLabel,
                     ],
                 ],
             ]);
@@ -261,8 +275,15 @@ class CheckoutConversionService
                 $order,
                 OrderLifecycle::EVENT_PAYMENT_SUCCEEDED,
                 'Payment succeeded',
-                'Stripe sandbox confirmed the payment for this order.',
-                ['payment_reference' => $result->providerIntentId, 'gateway' => 'stripe']
+                $connectionType === 'connect'
+                    ? 'Stripe confirmed the payment through the connected account.'
+                    : 'Stripe sandbox confirmed the payment for this order.',
+                [
+                    'payment_reference' => $result->providerIntentId,
+                    'gateway' => 'stripe',
+                    'connection_type' => $connectionType,
+                    'provider_account_id' => $providerAccount?->provider_account_id,
+                ]
             );
             $this->orderEventRecorder->record(
                 $order,
@@ -287,6 +308,12 @@ class CheckoutConversionService
             $paymentIntent = LocalPaymentIntent::query()
                 ->where('provider', 'stripe')
                 ->where('provider_intent_id', $result->providerIntentId)
+                ->when($result->providerAccountId, function ($query) use ($result): void {
+                    $query->where(function ($inner) use ($result): void {
+                        $inner->where('provider_account_id', $result->providerAccountId)
+                            ->orWhereHas('paymentProviderAccount', fn ($accountQuery) => $accountQuery->where('provider_account_id', $result->providerAccountId));
+                    });
+                })
                 ->lockForUpdate()
                 ->first();
 

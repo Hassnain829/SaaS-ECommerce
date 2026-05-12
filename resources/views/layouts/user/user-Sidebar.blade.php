@@ -132,6 +132,13 @@
             </svg>
             <span class="text-sm {{ request()->routeIs('generalSettings') ? 'font-semibold' : 'font-medium' }}">General</span></a>
 
+        <a href="{{ route('settings.payments.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('settings.payments.*') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M2 5C2 3.9 2.9 3 4 3H16C17.1 3 18 3.9 18 5V15C18 16.1 17.1 17 16 17H4C2.9 17 2 16.1 2 15V5ZM4 7H16V5H4V7ZM4 10V15H16V10H4ZM6 13.5H10V12H6V13.5Z" fill="currentColor"/>
+            </svg>
+            <span class="text-sm {{ request()->routeIs('settings.payments.*') ? 'font-semibold' : 'font-medium' }}">Payments</span>
+        </a>
+
         <a href="{{ route('settings.locations.index') }}" class="flex items-center gap-3 px-3 py-2 rounded-lg transition-colors {{ request()->routeIs('settings.locations.*') ? 'bg-[#0052CC]/10 text-[#0052CC]' : 'text-[#475569] hover:bg-gray-50' }}">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                 <path d="M10 18C8.4 16.65 7.1 15.4 6.1 14.25C5.1 13.1 4.35 12.05 3.85 11.1C3.35 10.15 3.1 9.25 3.1 8.4C3.1 6.35 3.76667 4.75 5.1 3.6C6.43333 2.45 8.06667 1.875 10 1.875C11.9333 1.875 13.5667 2.45 14.9 3.6C16.2333 4.75 16.9 6.35 16.9 8.4C16.9 9.25 16.65 10.15 16.15 11.1C15.65 12.05 14.9 13.1 13.9 14.25C12.9 15.4 11.6 16.65 10 18ZM10 10.5C10.5833 10.5 11.0792 10.2958 11.4875 9.8875C11.8958 9.47917 12.1 8.98333 12.1 8.4C12.1 7.81667 11.8958 7.32083 11.4875 6.9125C11.0792 6.50417 10.5833 6.3 10 6.3C9.41667 6.3 8.92083 6.50417 8.5125 6.9125C8.10417 7.32083 7.9 7.81667 7.9 8.4C7.9 8.98333 8.10417 9.47917 8.5125 9.8875C8.92083 10.2958 9.41667 10.5 10 10.5Z" fill="currentColor"/>

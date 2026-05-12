@@ -6,6 +6,8 @@ use App\Contracts\Payments\PaymentProviderInterface;
 use App\Data\Payments\PaymentIntentResult;
 use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Checkout;
+use App\Models\PaymentIntent as LocalPaymentIntent;
+use App\Models\PaymentProviderAccount;
 use Stripe\StripeClient;
 use Stripe\Webhook;
 
@@ -15,11 +17,14 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
     {
         $secret = (string) config('payments.stripe.secret', '');
         if ($secret === '') {
-            throw new \RuntimeException('Stripe sandbox secret is not configured.');
+            throw new \RuntimeException('Stripe platform secret is not configured.');
         }
 
         $amountMinor = $this->amountMinor((float) $checkout->grand_total, (string) $checkout->currency_code);
         $client = new StripeClient($secret);
+        $providerAccount = $options['provider_account'] ?? $checkout->paymentProviderAccount;
+        $providerAccount = $providerAccount instanceof PaymentProviderAccount ? $providerAccount : null;
+        $requestOptions = $providerAccount ? $this->requestOptionsForAccount($providerAccount) : [];
         $intent = $client->paymentIntents->create([
             'amount' => $amountMinor,
             'currency' => strtolower((string) $checkout->currency_code),
@@ -29,9 +34,11 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
                 'checkout_id' => (string) $checkout->id,
                 'checkout_number' => (string) $checkout->checkout_number,
                 'source_channel' => (string) $checkout->source_channel,
+                'payment_provider_account_id' => (string) ($providerAccount?->id ?? ''),
+                'connected_account_id' => (string) ($providerAccount?->provider_account_id ?? ''),
             ],
             'description' => 'Checkout '.$checkout->checkout_number,
-        ]);
+        ], $requestOptions);
 
         $raw = method_exists($intent, 'toArray') ? $intent->toArray() : (array) $intent;
 
@@ -43,6 +50,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
             amount: (float) $checkout->grand_total,
             currencyCode: strtoupper((string) $checkout->currency_code),
             raw: $raw,
+            providerAccountId: $providerAccount?->provider_account_id,
         );
     }
 
@@ -71,6 +79,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
                 'type' => $event->type,
                 'object' => $rawObject,
             ],
+            providerAccountId: isset($event->account) ? (string) $event->account : null,
         );
     }
 
@@ -78,11 +87,22 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
     {
         $secret = (string) config('payments.stripe.secret', '');
         if ($secret === '') {
-            throw new \RuntimeException('Stripe sandbox secret is not configured.');
+            throw new \RuntimeException('Stripe platform secret is not configured.');
         }
 
         $client = new StripeClient($secret);
-        $intent = $client->paymentIntents->retrieve($providerIntentId, []);
+        $localPaymentIntent = LocalPaymentIntent::query()
+            ->with('paymentProviderAccount')
+            ->where('provider', 'stripe')
+            ->where('provider_intent_id', $providerIntentId)
+            ->latest('id')
+            ->first();
+        $providerAccount = $localPaymentIntent?->paymentProviderAccount;
+        $requestOptions = $providerAccount instanceof PaymentProviderAccount
+            ? $this->requestOptionsForAccount($providerAccount)
+            : [];
+
+        $intent = $client->paymentIntents->retrieve($providerIntentId, [], $requestOptions);
         $raw = method_exists($intent, 'toArray') ? $intent->toArray() : (array) $intent;
         $failure = $raw['last_payment_error'] ?? [];
 
@@ -99,7 +119,20 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
                 'type' => $this->eventTypeForStatus((string) ($raw['status'] ?? '')),
                 'object' => $raw,
             ],
+            providerAccountId: $providerAccount?->provider_account_id,
         );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function requestOptionsForAccount(PaymentProviderAccount $account): array
+    {
+        if ($account->connection_type !== 'connect' || ! filled($account->provider_account_id)) {
+            return [];
+        }
+
+        return ['stripe_account' => (string) $account->provider_account_id];
     }
 
     private function amountMinor(float $amount, string $currency): int

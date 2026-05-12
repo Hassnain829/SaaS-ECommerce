@@ -179,6 +179,9 @@
                             @if(data_get($order->meta, 'platform_checkout.checkout_number'))
                                 <p class="text-xs text-[#64748B]">Checkout {{ data_get($order->meta, 'platform_checkout.checkout_number') }}</p>
                             @endif
+                            @if(data_get($order->meta, 'platform_checkout.connection_label'))
+                                <p class="text-xs text-[#64748B]">{{ data_get($order->meta, 'platform_checkout.connection_label') }}</p>
+                            @endif
                             @if($order->payment_gateway)
                                 <p class="text-xs text-[#64748B]">{{ str($order->payment_gateway)->replace('_', ' ')->title() }}</p>
                             @endif

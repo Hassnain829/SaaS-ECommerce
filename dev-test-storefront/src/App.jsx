@@ -84,7 +84,11 @@ export default function App() {
     setStripeFormReady(false);
     setStripeCardMessage('');
 
-    loadStripe(platformPayment.payment.publishable_key)
+    const stripeOptions = platformPayment.payment.provider_account_id
+      ? { stripeAccount: platformPayment.payment.provider_account_id }
+      : undefined;
+
+    loadStripe(platformPayment.payment.publishable_key, stripeOptions)
       .then((stripe) => {
         if (cancelled || !stripe || !cardContainerRef.current) return;
 
@@ -345,7 +349,7 @@ export default function App() {
       if (platform) {
         const payment = data.payment || {};
         if (!payment.publishable_key || !payment.client_secret) {
-          throw new Error('Stripe sandbox keys are missing. Add STRIPE_KEY and STRIPE_SECRET in Laravel, then restart the server.');
+          throw new Error(data.message || 'Platform checkout is not enabled for this store. Connect Stripe in Settings > Payments & Channels, or use external checkout sync.');
         }
         setPlatformPayment({
           checkout: data.checkout,
@@ -683,7 +687,7 @@ export default function App() {
             </label>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
               <input type="radio" checked={checkoutMode === 'platform'} onChange={() => setCheckoutMode('platform')} />
-              Platform checkout with Stripe sandbox
+              Platform checkout with Stripe
             </label>
 
             <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Customer details</h3>
@@ -789,9 +793,10 @@ export default function App() {
                   background: '#f8fafc',
                 }}
               >
-                <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a' }}>Stripe sandbox payment</h3>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a' }}>Stripe payment</h3>
                 <p style={{ margin: '0.35rem 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }}>
                   Enter a Stripe test card. Try <code>4242 4242 4242 4242</code>, any future date, any CVC.
+                  {platformPayment.payment?.connection_label ? ` ${platformPayment.payment.connection_label}.` : ''}
                 </p>
                 <div
                   ref={cardContainerRef}
@@ -824,7 +829,7 @@ export default function App() {
                     fontWeight: 700,
                   }}
                 >
-                  {stripePaymentProcessing ? 'Confirming payment...' : 'Pay with Stripe sandbox'}
+                  {stripePaymentProcessing ? 'Confirming payment...' : 'Pay with Stripe'}
                 </button>
               </div>
             )}

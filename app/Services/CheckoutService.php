@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Checkout;
 use App\Models\Customer;
 use App\Models\PaymentIntent;
-use App\Models\PaymentProviderAccount;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Services\Inventory\InventoryReservationService;
@@ -39,7 +38,12 @@ class CheckoutService
             $items = $this->prepareItems($store, $payload['items']);
             $totals = $this->totals($items, $payload);
             $provider = (string) config('payments.default_provider', 'stripe');
-            $providerAccount = $this->ensureProviderAccount($store, $provider);
+            $providerAccount = $this->paymentProviderManager->accountForCheckout($store);
+            if (! $providerAccount) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Platform checkout is not enabled for this store. Connect Stripe or use external checkout sync.',
+                ]);
+            }
             $currencyCode = strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD'));
             $shippingAddress = $payload['shipping_address'];
             $billingSameAsShipping = $this->billingSameAsShipping($payload);
@@ -63,6 +67,9 @@ class CheckoutService
                     'billing_same_as_shipping' => $billingSameAsShipping,
                     'received_at' => now()->toISOString(),
                     'server_totals' => true,
+                    'payment_connection_type' => $providerAccount->connection_type,
+                    'payment_provider_account_id' => $providerAccount->id,
+                    'connected_account_id' => $providerAccount->provider_account_id,
                 ],
                 'expires_at' => now()->addHours(2),
             ]);
@@ -155,6 +162,7 @@ class CheckoutService
                 'provider' => $result->provider,
                 'mode' => (string) config('payments.stripe.mode', 'test'),
                 'provider_intent_id' => $result->providerIntentId,
+                'provider_account_id' => $result->providerAccountId ?? $providerAccount->provider_account_id,
                 'client_secret' => $result->clientSecret,
                 'status' => $result->status,
                 'currency_code' => $result->currencyCode,
@@ -165,6 +173,8 @@ class CheckoutService
                     'checkout_number' => $checkout->checkout_number,
                     'amount' => $result->amount,
                     'currency_code' => $result->currencyCode,
+                    'connection_type' => $providerAccount->connection_type,
+                    'provider_account_id' => $providerAccount->provider_account_id,
                 ],
                 'response_payload' => $result->raw,
             ]);
@@ -184,39 +194,18 @@ class CheckoutService
                 $checkout,
                 'payment.intent_created',
                 'Payment started',
-                'Stripe sandbox payment was prepared for this checkout.',
-                ['payment_intent_id' => $result->providerIntentId]
+                $providerAccount->connection_type === 'connect'
+                    ? 'Stripe payment was prepared through the connected account.'
+                    : 'Stripe sandbox payment was prepared for this checkout.',
+                [
+                    'payment_intent_id' => $result->providerIntentId,
+                    'connection_type' => $providerAccount->connection_type,
+                    'provider_account_id' => $providerAccount->provider_account_id,
+                ]
             );
 
             return $checkout->load(['items', 'addresses', 'events', 'paymentIntents']);
         });
-    }
-
-    private function ensureProviderAccount(Store $store, string $provider): PaymentProviderAccount
-    {
-        $mode = (string) config('payments.stripe.mode', 'test');
-        $configured = filled(config('payments.stripe.key')) && filled(config('payments.stripe.secret'));
-
-        return PaymentProviderAccount::query()->updateOrCreate(
-            [
-                'store_id' => $store->id,
-                'provider' => $provider,
-                'mode' => $mode,
-                'connection_type' => 'platform',
-            ],
-            [
-                'display_name' => 'Platform Stripe sandbox',
-                'status' => $configured ? 'active' : 'not_configured',
-                'is_default' => true,
-                'settings' => [
-                    'publishable_key_configured' => filled(config('payments.stripe.key')),
-                    'secret_key_configured' => filled(config('payments.stripe.secret')),
-                ],
-                'metadata' => [
-                    'managed_by' => 'platform',
-                ],
-            ]
-        );
     }
 
     /**

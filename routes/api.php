@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\DeveloperStorefrontCatalogController;
 use App\Http\Controllers\Api\CatalogApiV1Controller;
 use App\Http\Controllers\Api\ExternalOrderSyncController;
 use App\Http\Controllers\Api\PlatformCheckoutController;
+use App\Http\Controllers\Api\StripeConnectWebhookController;
 use App\Http\Controllers\Api\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -45,3 +46,4 @@ Route::middleware(['dev.storefront.token'])
     });
 
 Route::post('/webhooks/stripe', StripeWebhookController::class);
+Route::post('/webhooks/stripe/connect', StripeConnectWebhookController::class);

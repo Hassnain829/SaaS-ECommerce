@@ -50,6 +50,8 @@
     $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual');
     $gatewayLabel = $order->payment_gateway ? str($order->payment_gateway)->replace('_', ' ')->title() : null;
     $platformCheckoutNumber = data_get($order->meta, 'platform_checkout.checkout_number');
+    $paymentConnectionLabel = data_get($order->meta, 'platform_checkout.connection_label');
+    $connectedAccountId = data_get($order->meta, 'platform_checkout.provider_account_id');
 @endphp
 
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -245,6 +247,12 @@
                             <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $platformCheckoutNumber }}</p>
                         </div>
                     @endif
+                    @if($paymentConnectionLabel)
+                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Stripe connection</p>
+                            <p class="mt-1 font-semibold text-[#0F172A]">{{ $paymentConnectionLabel }}</p>
+                        </div>
+                    @endif
                     @if($gatewayLabel)
                         <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
                             <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Gateway</p>
@@ -261,6 +269,12 @@
                         <div class="rounded-xl bg-[#F8FAFC] px-4 py-3 sm:col-span-2">
                             <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Payment reference</p>
                             <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $order->payment_reference }}</p>
+                        </div>
+                    @endif
+                    @if($connectedAccountId)
+                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3 sm:col-span-2">
+                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Connected account</p>
+                            <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $connectedAccountId }}</p>
                         </div>
                     @endif
                 </div>

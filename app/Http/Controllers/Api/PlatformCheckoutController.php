@@ -39,9 +39,9 @@ class PlatformCheckoutController extends Controller
         try {
             $checkout = $checkoutService->create($store, $this->validatedPayload($request));
         } catch (\RuntimeException $exception) {
-            if (str_contains($exception->getMessage(), 'Stripe sandbox')) {
+            if (str_contains($exception->getMessage(), 'Stripe')) {
                 throw ValidationException::withMessages([
-                    'payment' => 'Stripe sandbox is not configured. Add the Stripe test keys before starting platform checkout.',
+                    'payment' => 'Stripe is not configured for platform checkout. Connect Stripe or use external checkout sync.',
                 ]);
             }
 
@@ -186,8 +186,10 @@ class PlatformCheckoutController extends Controller
         abort_unless($checkout, 404);
 
         $checkout->loadMissing(['items', 'addresses', 'paymentIntents', 'convertedOrder']);
+        $checkout->loadMissing('paymentProviderAccount');
         /** @var PaymentIntent|null $paymentIntent */
         $paymentIntent = $checkout->paymentIntents->sortByDesc('id')->first();
+        $providerAccount = $checkout->paymentProviderAccount;
 
         return [
             'message' => 'Platform checkout created.',
@@ -221,6 +223,11 @@ class PlatformCheckoutController extends Controller
             'payment' => [
                 'provider' => $paymentIntent?->provider,
                 'provider_intent_id' => $paymentIntent?->provider_intent_id,
+                'provider_account_id' => $paymentIntent?->provider_account_id ?: $providerAccount?->provider_account_id,
+                'connection_type' => $providerAccount?->connection_type,
+                'connection_label' => $providerAccount?->connection_type === 'connect'
+                    ? 'Connected Stripe account'
+                    : 'Platform sandbox',
                 'status' => $paymentIntent?->status,
                 'client_secret' => $paymentIntent?->client_secret,
                 'publishable_key' => config('payments.stripe.key'),
