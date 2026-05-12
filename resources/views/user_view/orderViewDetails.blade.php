@@ -43,11 +43,13 @@
     $noteEvents = $order->events->where('event_type', \App\Support\OrderLifecycle::EVENT_ORDER_NOTE_ADDED);
     $sourceLabels = [
         'external_checkout' => 'External checkout',
+        'platform_checkout' => 'Platform checkout',
         'developer_storefront' => 'Developer Storefront',
         'manual' => 'Manual',
     ];
     $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual');
     $gatewayLabel = $order->payment_gateway ? str($order->payment_gateway)->replace('_', ' ')->title() : null;
+    $platformCheckoutNumber = data_get($order->meta, 'platform_checkout.checkout_number');
 @endphp
 
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -209,6 +211,8 @@
                 <p class="mt-1 text-sm text-[#64748B]">
                     @if($order->order_source === 'external_checkout')
                         Payment status recorded from external checkout.
+                    @elseif($order->order_source === 'platform_checkout')
+                        Payment was confirmed through platform checkout.
                     @else
                         Source and payment details captured for this order.
                     @endif
@@ -233,6 +237,12 @@
                         <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
                             <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Checkout reference</p>
                             <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $order->external_checkout_reference }}</p>
+                        </div>
+                    @endif
+                    @if($platformCheckoutNumber)
+                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Checkout</p>
+                            <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $platformCheckoutNumber }}</p>
                         </div>
                     @endif
                     @if($gatewayLabel)

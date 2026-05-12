@@ -106,4 +106,9 @@ class Order extends Model
     {
         return $this->hasMany(OrderEvent::class)->orderBy('created_at')->orderBy('id');
     }
+
+    public function paymentIntents(): HasMany
+    {
+        return $this->hasMany(PaymentIntent::class);
+    }
 }

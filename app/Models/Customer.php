@@ -66,6 +66,11 @@ class Customer extends Model
         return $this->hasMany(Order::class);
     }
 
+    public function checkouts()
+    {
+        return $this->hasMany(Checkout::class);
+    }
+
     public function profileNotes()
     {
         return $this->hasMany(CustomerNote::class)->latest();

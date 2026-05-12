@@ -18,6 +18,11 @@ class OrderNumberGenerator
         return $this->next($store, 'DRAFT-');
     }
 
+    public function generateCheckout(Store $store): string
+    {
+        return $this->next($store, 'CHK-');
+    }
+
     private function next(Store $store, string $prefix): string
     {
         return DB::transaction(function () use ($store, $prefix): string {

@@ -52,6 +52,34 @@
                     </p>
                 </div>
 
+                <div class="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] p-4 space-y-3">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-[#0F172A]">Platform checkout sandbox</p>
+                            <p class="text-sm text-[#64748B]">Use this endpoint when this SaaS creates a Stripe sandbox payment for the storefront. Card details stay in Stripe.js.</p>
+                        </div>
+                        <span class="inline-flex w-fit rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-bold uppercase tracking-[.6px] text-[#1D4ED8]">
+                            {{ strtoupper($stripeConfig['mode'] ?? 'test') }}
+                        </span>
+                    </div>
+                    <code class="block font-mono text-xs text-[#0052CC] break-all">{{ rtrim(config('app.url'), '/') }}/api/v1/checkout</code>
+                    <div class="grid gap-2 text-xs sm:grid-cols-3">
+                        @foreach([
+                            'publishable_key' => 'Publishable key',
+                            'secret_key' => 'Secret key',
+                            'webhook_secret' => 'Webhook secret',
+                        ] as $key => $label)
+                            <div class="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
+                                <p class="font-semibold text-[#0F172A]">{{ $label }}</p>
+                                <p class="{{ ($stripeConfig[$key] ?? false) ? 'text-[#059669]' : 'text-[#B91C1C]' }}">
+                                    {{ ($stripeConfig[$key] ?? false) ? 'Configured' : 'Missing' }}
+                                </p>
+                            </div>
+                        @endforeach
+                    </div>
+                    <p class="text-xs text-[#64748B]">Stripe webhooks should post to <code class="text-[#0F172A]">/api/webhooks/stripe</code>. Secret values are never shown here.</p>
+                </div>
+
                 @if ($plainToken)
                     <div class="rounded-xl border-2 border-[#F59E0B] bg-[#FFFBEB] p-4 space-y-3">
                         <p class="font-semibold text-[#92400E]">Copy this token now</p>
@@ -95,6 +123,7 @@
                     <p class="mb-3">In the repository folder <code class="bg-[#F1F5F9] px-1.5 py-0.5 rounded text-[#0F172A]">dev-test-storefront</code>, create <code class="bg-[#F1F5F9] px-1.5 py-0.5 rounded">.env</code> with:</p>
                     <pre class="text-xs bg-[#0F172A] text-[#E2E8F0] rounded-lg p-4 overflow-x-auto">VITE_API_BASE={{ rtrim(config('app.url'), '/') }}/api/developer-storefront
 VITE_EXTERNAL_API_BASE={{ rtrim(config('app.url'), '/') }}/api/v1/external
+VITE_CHECKOUT_API_BASE={{ rtrim(config('app.url'), '/') }}/api/v1/checkout
 VITE_STOREFRONT_TOKEN=your_token_here</pre>
                     <p class="mt-3">Then run <code class="bg-[#F1F5F9] px-1.5 py-0.5 rounded">npm install</code> and <code class="bg-[#F1F5F9] px-1.5 py-0.5 rounded">npm run dev</code>.</p>
                 </div>

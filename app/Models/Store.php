@@ -196,6 +196,21 @@ class Store extends Model
         return $this->hasMany(DraftOrder::class);
     }
 
+    public function checkouts(): HasMany
+    {
+        return $this->hasMany(Checkout::class);
+    }
+
+    public function paymentProviderAccounts(): HasMany
+    {
+        return $this->hasMany(PaymentProviderAccount::class);
+    }
+
+    public function paymentIntents(): HasMany
+    {
+        return $this->hasMany(PaymentIntent::class);
+    }
+
     public function customerTags(): HasMany
     {
         return $this->hasMany(CustomerTag::class);

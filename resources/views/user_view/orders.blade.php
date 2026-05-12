@@ -21,6 +21,7 @@
 @php
     $sourceLabels = [
         'external_checkout' => 'External checkout',
+        'platform_checkout' => 'Platform checkout',
         'developer_storefront' => 'Developer Storefront',
         'manual' => 'Manual',
     ];
@@ -174,6 +175,9 @@
                             <p class="text-xs text-[#64748B]">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
                             @if($order->external_order_number)
                                 <p class="text-xs text-[#64748B]">External {{ $order->external_order_number }}</p>
+                            @endif
+                            @if(data_get($order->meta, 'platform_checkout.checkout_number'))
+                                <p class="text-xs text-[#64748B]">Checkout {{ data_get($order->meta, 'platform_checkout.checkout_number') }}</p>
                             @endif
                             @if($order->payment_gateway)
                                 <p class="text-xs text-[#64748B]">{{ str($order->payment_gateway)->replace('_', ' ')->title() }}</p>

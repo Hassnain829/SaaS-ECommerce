@@ -28,6 +28,12 @@ class DeveloperStorefrontSettingsController extends Controller
             'tokenConfigured' => $store->hasDeveloperStorefrontToken(),
             'tokenCreatedAt' => $store->developer_storefront_token_created_at,
             'plainToken' => $request->session()->pull('developer_storefront_plain_token'),
+            'stripeConfig' => [
+                'mode' => (string) config('payments.stripe.mode', 'test'),
+                'publishable_key' => filled(config('payments.stripe.key')),
+                'secret_key' => filled(config('payments.stripe.secret')),
+                'webhook_secret' => filled(config('payments.stripe.webhook_secret')),
+            ],
         ]);
     }
 

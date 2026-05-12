@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
 
 const defaultApiBase = '/api/developer-storefront';
 
@@ -19,6 +20,21 @@ function externalApiBase(catalogBase) {
   }
 
   return '/api/v1/external';
+}
+
+function checkoutApiBase(catalogBase) {
+  const configured = (import.meta.env.VITE_CHECKOUT_API_BASE || '').trim();
+  if (configured) return configured.replace(/\/$/, '');
+
+  if (catalogBase.endsWith('/api/developer-storefront')) {
+    return catalogBase.replace('/api/developer-storefront', '/api/v1/checkout');
+  }
+
+  if (catalogBase.endsWith('/developer-storefront')) {
+    return catalogBase.replace('/developer-storefront', '/v1/checkout');
+  }
+
+  return '/api/v1/checkout';
 }
 
 function authHeaders() {
@@ -46,10 +62,74 @@ export default function App() {
   const [postalCode, setPostalCode] = useState('94105');
   const [country, setCountry] = useState('US');
   const [orderResult, setOrderResult] = useState(null);
+  const [platformPayment, setPlatformPayment] = useState(null);
+  const [stripeFormReady, setStripeFormReady] = useState(false);
+  const [stripePaymentProcessing, setStripePaymentProcessing] = useState(false);
+  const [stripeCardMessage, setStripeCardMessage] = useState('');
+  const stripeRef = useRef(null);
+  const cardElementRef = useRef(null);
+  const cardContainerRef = useRef(null);
 
   const base = useMemo(() => apiBase(), []);
   const externalBase = useMemo(() => externalApiBase(base), [base]);
+  const checkoutBase = useMemo(() => checkoutApiBase(base), [base]);
   const cartTotal = cart.reduce((sum, line) => sum + Number(line.unit_price || 0) * Number(line.quantity || 1), 0);
+
+  useEffect(() => {
+    if (!platformPayment?.payment?.publishable_key || !platformPayment?.payment?.client_secret || !cardContainerRef.current) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    setStripeFormReady(false);
+    setStripeCardMessage('');
+
+    loadStripe(platformPayment.payment.publishable_key)
+      .then((stripe) => {
+        if (cancelled || !stripe || !cardContainerRef.current) return;
+
+        stripeRef.current = stripe;
+        const elements = stripe.elements();
+        const card = elements.create('card', {
+          hidePostalCode: true,
+          style: {
+            base: {
+              fontSize: '16px',
+              color: '#0f172a',
+              fontFamily: 'Segoe UI, system-ui, -apple-system, sans-serif',
+              '::placeholder': {
+                color: '#94a3b8',
+              },
+            },
+            invalid: {
+              color: '#b91c1c',
+            },
+          },
+        });
+
+        card.on('ready', () => {
+          if (!cancelled) setStripeFormReady(true);
+        });
+        card.on('change', (event) => {
+          if (!cancelled) setStripeCardMessage(event.error?.message || '');
+        });
+        card.mount(cardContainerRef.current);
+        cardElementRef.current = card;
+      })
+      .catch((e) => {
+        if (!cancelled) setStripeCardMessage(e.message || 'Stripe payment form could not load.');
+      });
+
+    return () => {
+      cancelled = true;
+      if (cardElementRef.current) {
+        cardElementRef.current.destroy();
+        cardElementRef.current = null;
+      }
+      stripeRef.current = null;
+      setStripeFormReady(false);
+    };
+  }, [platformPayment?.payment?.client_secret, platformPayment?.payment?.publishable_key]);
 
   const loadCatalog = useCallback(
     async ({ quiet } = {}) => {
@@ -96,6 +176,7 @@ export default function App() {
   );
 
   const addToCart = (product, variant) => {
+    setPlatformPayment(null);
     setCart((prev) => {
       const key = `${product.id}-${variant.id}`;
       const idx = prev.findIndex((line) => `${line.product_id}-${line.variant_id}` === key);
@@ -120,10 +201,12 @@ export default function App() {
 
   const updateQty = (key, qty) => {
     const quantity = Math.max(1, Number(qty) || 1);
+    setPlatformPayment(null);
     setCart((prev) => prev.map((line) => (`${line.product_id}-${line.variant_id}` === key ? { ...line, quantity } : line)));
   };
 
   const removeLine = (key) => {
+    setPlatformPayment(null);
     setCart((prev) => prev.filter((line) => `${line.product_id}-${line.variant_id}` !== key));
   };
 
@@ -187,6 +270,33 @@ export default function App() {
     })),
   });
 
+  const platformPayload = () => ({
+    source_channel: 'dev_storefront',
+    currency_code: catalog?.store?.currency || 'USD',
+    shipping_total: 0,
+    customer: {
+      full_name: customerName.trim(),
+      email: customerEmail.trim(),
+      phone: customerPhone.trim() || null,
+    },
+    shipping_address: {
+      name: customerName.trim(),
+      address_line1: addressLine1.trim(),
+      city: city.trim(),
+      state: stateRegion.trim(),
+      postal_code: postalCode.trim(),
+      country: country.trim(),
+      phone: customerPhone.trim() || null,
+    },
+    billing_address: {
+      same_as_shipping: true,
+    },
+    items: cart.map(({ variant_id, quantity }) => ({
+      variant_id,
+      quantity,
+    })),
+  });
+
   const placeOrder = async () => {
     setError('');
     setOrderResult(null);
@@ -206,7 +316,8 @@ export default function App() {
     setLoading(true);
     try {
       const external = checkoutMode === 'external';
-      const endpoint = external ? `${externalBase}/orders` : `${base}/orders`;
+      const platform = checkoutMode === 'platform';
+      const endpoint = platform ? checkoutBase : external ? `${externalBase}/orders` : `${base}/orders`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -214,7 +325,7 @@ export default function App() {
           'Content-Type': 'application/json',
           ...authHeaders(),
         },
-        body: JSON.stringify(external ? externalPayload() : legacyPayload()),
+        body: JSON.stringify(platform ? platformPayload() : external ? externalPayload() : legacyPayload()),
       });
       const raw = await res.text();
       let data = {};
@@ -231,9 +342,22 @@ export default function App() {
           'Order failed';
         throw new Error(msg);
       }
-      setOrderResult({ ...data.order, externalMode: external });
-      setCart([]);
-      await loadCatalog({ quiet: true });
+      if (platform) {
+        const payment = data.payment || {};
+        if (!payment.publishable_key || !payment.client_secret) {
+          throw new Error('Stripe sandbox keys are missing. Add STRIPE_KEY and STRIPE_SECRET in Laravel, then restart the server.');
+        }
+        setPlatformPayment({
+          checkout: data.checkout,
+          payment,
+        });
+        await loadCatalog({ quiet: true });
+      } else {
+        setOrderResult({ ...data.order, externalMode: external });
+        setPlatformPayment(null);
+        setCart([]);
+        await loadCatalog({ quiet: true });
+      }
     } catch (e) {
       const msg =
         e instanceof TypeError && String(e.message).toLowerCase().includes('fetch')
@@ -242,6 +366,85 @@ export default function App() {
       setError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const confirmPlatformPayment = async () => {
+    setError('');
+    setStripeCardMessage('');
+
+    if (!platformPayment?.payment?.client_secret || !stripeRef.current || !cardElementRef.current) {
+      setStripeCardMessage('Stripe payment form is still loading.');
+      return;
+    }
+
+    setStripePaymentProcessing(true);
+    try {
+      const confirmation = await stripeRef.current.confirmCardPayment(platformPayment.payment.client_secret, {
+        payment_method: {
+          card: cardElementRef.current,
+          billing_details: {
+            name: customerName.trim(),
+            email: customerEmail.trim(),
+            phone: customerPhone.trim() || undefined,
+            address: {
+              line1: addressLine1.trim(),
+              city: city.trim(),
+              state: stateRegion.trim(),
+              postal_code: postalCode.trim(),
+              country: country.trim(),
+            },
+          },
+        },
+      });
+
+      if (confirmation?.error) {
+        setStripeCardMessage(confirmation.error.message || 'Stripe test payment failed.');
+        return;
+      }
+
+      const confirmRes = await fetch(`${checkoutBase}/${platformPayment.checkout?.id}/confirm`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...authHeaders(),
+        },
+      });
+      const confirmRaw = await confirmRes.text();
+      let confirmData = {};
+      try {
+        confirmData = confirmRaw ? JSON.parse(confirmRaw) : {};
+      } catch {
+        confirmData = {};
+      }
+      if (!confirmRes.ok) {
+        throw new Error(
+          confirmData.message ||
+            (confirmData.errors && JSON.stringify(confirmData.errors)) ||
+            (confirmRaw.startsWith('<') ? `HTTP ${confirmRes.status}: server returned HTML.` : confirmRes.statusText) ||
+            'Stripe payment was confirmed, but Laravel could not create the order yet.'
+        );
+      }
+
+      setOrderResult({
+        platformMode: true,
+        checkout_number: confirmData.checkout?.checkout_number || platformPayment.checkout?.checkout_number,
+        order_number: confirmData.order?.order_number,
+        total: confirmData.order?.total || platformPayment.checkout?.grand_total,
+        currency_code: confirmData.order?.currency_code || platformPayment.checkout?.currency_code,
+        payment_reference: platformPayment.payment?.provider_intent_id,
+        message: confirmData.order?.order_number
+          ? 'Stripe test payment confirmed and the order was created in the SaaS dashboard.'
+          : 'Stripe test payment confirmed. Refresh the dashboard orders page.',
+      });
+      setPlatformPayment(null);
+      setCart([]);
+      await loadCatalog({ quiet: true });
+    } catch (e) {
+      setStripeCardMessage(e.message || 'Stripe test payment failed.');
+    } finally {
+      setStripePaymentProcessing(false);
     }
   };
 
@@ -317,17 +520,37 @@ export default function App() {
             marginBottom: '1rem',
           }}
         >
-          <strong>{orderResult.externalMode ? 'External paid order synced to SaaS dashboard.' : 'Legacy dev order placed.'}</strong>
-          <div style={{ marginTop: 4 }}>
-            SaaS order <code>{orderResult.order_number}</code>
-            {orderResult.external_order_number ? (
-              <>
-                {' '}
-                from external order <code>{orderResult.external_order_number}</code>
-              </>
-            ) : null}
-            , total {orderResult.total} {orderResult.currency_code || orderResult.currency}.
-          </div>
+          <strong>
+            {orderResult.platformMode
+              ? 'Platform checkout started.'
+              : orderResult.externalMode
+                ? 'External paid order synced to SaaS dashboard.'
+                : 'Legacy dev order placed.'}
+          </strong>
+          {orderResult.platformMode ? (
+            <div style={{ marginTop: 4 }}>
+              Checkout <code>{orderResult.checkout_number}</code>
+              {orderResult.order_number ? (
+                <>
+                  {' '}
+                  created order <code>{orderResult.order_number}</code>
+                </>
+              ) : null}
+              , payment <code>{orderResult.payment_reference || 'not created'}</code>, total{' '}
+              {orderResult.total} {orderResult.currency_code}. {orderResult.message}
+            </div>
+          ) : (
+            <div style={{ marginTop: 4 }}>
+              SaaS order <code>{orderResult.order_number}</code>
+              {orderResult.external_order_number ? (
+                <>
+                  {' '}
+                  from external order <code>{orderResult.external_order_number}</code>
+                </>
+              ) : null}
+              , total {orderResult.total} {orderResult.currency_code || orderResult.currency}.
+            </div>
+          )}
         </div>
       )}
 
@@ -451,16 +674,16 @@ export default function App() {
           <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
             <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Order mode</h3>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
-              <input type="radio" checked={checkoutMode === 'external'} onChange={() => setCheckoutMode('external')} />
+              <input type="radio" checked={checkoutMode === 'external'} onChange={() => { setCheckoutMode('external'); setPlatformPayment(null); }} />
               External paid order sync
             </label>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
-              <input type="radio" checked={checkoutMode === 'legacy'} onChange={() => setCheckoutMode('legacy')} />
+              <input type="radio" checked={checkoutMode === 'legacy'} onChange={() => { setCheckoutMode('legacy'); setPlatformPayment(null); }} />
               Legacy direct dev order
             </label>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem', color: '#94a3b8' }}>
-              <input type="radio" disabled />
-              Platform checkout disabled for this phase
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
+              <input type="radio" checked={checkoutMode === 'platform'} onChange={() => setCheckoutMode('platform')} />
+              Platform checkout with Stripe sandbox
             </label>
 
             <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Customer details</h3>
@@ -542,19 +765,69 @@ export default function App() {
             <button
               type="button"
               onClick={placeOrder}
-              disabled={loading || !cart.length}
+              disabled={loading || !cart.length || Boolean(platformPayment)}
               style={{
                 marginTop: '0.5rem',
                 padding: '0.5rem 1rem',
                 borderRadius: 8,
                 border: 'none',
-                background: cart.length ? '#0f172a' : '#94a3b8',
+                background: cart.length && !platformPayment ? '#0f172a' : '#94a3b8',
                 color: '#fff',
                 fontWeight: 600,
               }}
             >
-              {checkoutMode === 'external' ? 'Sync external paid order' : 'Place legacy test order'}
+              {checkoutMode === 'platform' ? (platformPayment ? 'Stripe form ready' : 'Show Stripe payment form') : checkoutMode === 'external' ? 'Sync external paid order' : 'Place legacy test order'}
             </button>
+
+            {checkoutMode === 'platform' && platformPayment && (
+              <div
+                style={{
+                  marginTop: '0.75rem',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 10,
+                  padding: '0.85rem',
+                  background: '#f8fafc',
+                }}
+              >
+                <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a' }}>Stripe sandbox payment</h3>
+                <p style={{ margin: '0.35rem 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }}>
+                  Enter a Stripe test card. Try <code>4242 4242 4242 4242</code>, any future date, any CVC.
+                </p>
+                <div
+                  ref={cardContainerRef}
+                  style={{
+                    minHeight: 44,
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    borderRadius: 8,
+                    padding: '0.75rem',
+                  }}
+                />
+                {!stripeFormReady && !stripeCardMessage && (
+                  <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: '#64748b' }}>Loading Stripe payment form...</p>
+                )}
+                {stripeCardMessage && (
+                  <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: '#b91c1c' }}>{stripeCardMessage}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={confirmPlatformPayment}
+                  disabled={!stripeFormReady || stripePaymentProcessing}
+                  style={{
+                    width: '100%',
+                    marginTop: '0.75rem',
+                    padding: '0.5rem 1rem',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: stripeFormReady && !stripePaymentProcessing ? '#0052cc' : '#94a3b8',
+                    color: '#fff',
+                    fontWeight: 700,
+                  }}
+                >
+                  {stripePaymentProcessing ? 'Confirming payment...' : 'Pay with Stripe sandbox'}
+                </button>
+              </div>
+            )}
           </div>
         </aside>
       </div>

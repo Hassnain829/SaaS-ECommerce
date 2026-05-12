@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\DeveloperStorefrontCatalogController;
 use App\Http\Controllers\Api\CatalogApiV1Controller;
 use App\Http\Controllers\Api\ExternalOrderSyncController;
+use App\Http\Controllers\Api\PlatformCheckoutController;
+use App\Http\Controllers\Api\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,3 +35,13 @@ Route::middleware(['dev.storefront.token'])
     ->group(function (): void {
         Route::post('/orders', [ExternalOrderSyncController::class, 'store']);
     });
+
+Route::middleware(['dev.storefront.token'])
+    ->prefix('v1/checkout')
+    ->group(function (): void {
+        Route::post('/', [PlatformCheckoutController::class, 'store']);
+        Route::get('/{checkout}', [PlatformCheckoutController::class, 'show']);
+        Route::post('/{checkout}/confirm', [PlatformCheckoutController::class, 'confirm']);
+    });
+
+Route::post('/webhooks/stripe', StripeWebhookController::class);
