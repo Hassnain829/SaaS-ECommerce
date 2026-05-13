@@ -22,21 +22,12 @@ class PaymentProviderManager
     public function accountForCheckout(Store $store): ?PaymentProviderAccount
     {
         $provider = (string) config('payments.default_provider', 'stripe');
-        $mode = (string) config('payments.stripe.mode', 'test');
 
         if ($provider !== 'stripe') {
             throw new InvalidArgumentException("Unsupported payment provider [{$provider}].");
         }
 
-        $connectedAccount = PaymentProviderAccount::query()
-            ->where('store_id', $store->id)
-            ->where('provider', 'stripe')
-            ->where('mode', $mode)
-            ->where('connection_type', 'connect')
-            ->where('status', 'active')
-            ->where('is_default', true)
-            ->where('charges_enabled', true)
-            ->first();
+        $connectedAccount = $this->activeConnectedAccountForStore($store);
 
         if ($connectedAccount) {
             return $connectedAccount;
@@ -47,6 +38,19 @@ class PaymentProviderManager
         }
 
         return null;
+    }
+
+    public function activeConnectedAccountForStore(Store $store): ?PaymentProviderAccount
+    {
+        return PaymentProviderAccount::query()
+            ->where('store_id', $store->id)
+            ->where('provider', 'stripe')
+            ->where('mode', (string) config('payments.stripe.mode', 'test'))
+            ->where('connection_type', 'connect')
+            ->where('status', 'active')
+            ->where('is_default', true)
+            ->where('charges_enabled', true)
+            ->first();
     }
 
     public function canUsePlatformSandboxFallback(): bool
@@ -79,7 +83,7 @@ class PaymentProviderManager
                 ],
                 'metadata' => [
                     'managed_by' => 'platform',
-                    'checkout_note' => 'Local/testing fallback. Merchants should connect their own Stripe account before production.',
+                    'checkout_note' => 'Local/testing fallback. Store owners should connect their own Stripe account before production.',
                 ],
                 'charges_enabled' => true,
                 'payouts_enabled' => false,

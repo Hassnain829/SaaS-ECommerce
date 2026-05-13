@@ -255,25 +255,6 @@ export default function App() {
     };
   };
 
-  const legacyPayload = () => ({
-    customer_name: customerName.trim(),
-    customer_email: customerEmail.trim(),
-    customer_phone: customerPhone.trim() || null,
-    shipping_address: {
-      address_line1: addressLine1.trim(),
-      city: city.trim(),
-      state: stateRegion.trim(),
-      postal_code: postalCode.trim(),
-      country: country.trim(),
-      phone: customerPhone.trim() || null,
-    },
-    items: cart.map(({ product_id, variant_id, quantity }) => ({
-      product_id,
-      variant_id,
-      quantity,
-    })),
-  });
-
   const platformPayload = () => ({
     source_channel: 'dev_storefront',
     currency_code: catalog?.store?.currency || 'USD',
@@ -321,7 +302,7 @@ export default function App() {
     try {
       const external = checkoutMode === 'external';
       const platform = checkoutMode === 'platform';
-      const endpoint = platform ? checkoutBase : external ? `${externalBase}/orders` : `${base}/orders`;
+      const endpoint = platform ? checkoutBase : `${externalBase}/orders`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -329,7 +310,7 @@ export default function App() {
           'Content-Type': 'application/json',
           ...authHeaders(),
         },
-        body: JSON.stringify(platform ? platformPayload() : external ? externalPayload() : legacyPayload()),
+        body: JSON.stringify(platform ? platformPayload() : externalPayload()),
       });
       const raw = await res.text();
       let data = {};
@@ -349,7 +330,7 @@ export default function App() {
       if (platform) {
         const payment = data.payment || {};
         if (!payment.publishable_key || !payment.client_secret) {
-          throw new Error(data.message || 'Platform checkout is not enabled for this store. Connect Stripe in Settings > Payments & Channels, or use external checkout sync.');
+          throw new Error(data.message || 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.');
         }
         setPlatformPayment({
           checkout: data.checkout,
@@ -459,7 +440,7 @@ export default function App() {
       <header style={{ marginBottom: '1.5rem' }}>
         <h1 style={{ margin: '0 0 0.35rem', fontSize: '1.5rem' }}>Developer test storefront</h1>
         <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
-          Fetches catalog from the SaaS API and can sync an already-paid external checkout order back into the merchant dashboard.
+          Local simulator for testing product fetches, external order sync, and platform checkout against the SaaS dashboard.
         </p>
       </header>
 
@@ -528,8 +509,8 @@ export default function App() {
             {orderResult.platformMode
               ? 'Platform checkout started.'
               : orderResult.externalMode
-                ? 'External paid order synced to SaaS dashboard.'
-                : 'Legacy dev order placed.'}
+                ? 'External checkout order synced to SaaS dashboard.'
+                : 'External order synced to SaaS dashboard.'}
           </strong>
           {orderResult.platformMode ? (
             <div style={{ marginTop: 4 }}>
@@ -676,19 +657,28 @@ export default function App() {
           </div>
 
           <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
-            <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Order mode</h3>
+            <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Developer simulator mode</h3>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '0.78rem', lineHeight: 1.5 }}>
+              This switch is only for local testing. A real storefront should use the checkout mode selected in the SaaS dashboard.
+            </p>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
               <input type="radio" checked={checkoutMode === 'external'} onChange={() => { setCheckoutMode('external'); setPlatformPayment(null); }} />
-              External paid order sync
+              External checkout sync
             </label>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
-              <input type="radio" checked={checkoutMode === 'legacy'} onChange={() => { setCheckoutMode('legacy'); setPlatformPayment(null); }} />
-              Legacy direct dev order
-            </label>
+            {checkoutMode === 'external' && (
+              <p style={{ margin: '-0.25rem 0 0 1.45rem', color: '#64748b', fontSize: '0.78rem', lineHeight: 1.5 }}>
+                Simulates a website that already collected payment and sends the completed order into the dashboard.
+              </p>
+            )}
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
               <input type="radio" checked={checkoutMode === 'platform'} onChange={() => setCheckoutMode('platform')} />
-              Platform checkout with Stripe
+              Platform checkout
             </label>
+            {checkoutMode === 'platform' && (
+              <p style={{ margin: '-0.25rem 0 0 1.45rem', color: '#64748b', fontSize: '0.78rem', lineHeight: 1.5 }}>
+                Simulates a storefront using the platform checkout flow. Payment is confirmed before the order is created.
+              </p>
+            )}
 
             <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Customer details</h3>
             <label style={{ fontSize: '0.8rem' }}>
@@ -780,7 +770,7 @@ export default function App() {
                 fontWeight: 600,
               }}
             >
-              {checkoutMode === 'platform' ? (platformPayment ? 'Stripe form ready' : 'Show Stripe payment form') : checkoutMode === 'external' ? 'Sync external paid order' : 'Place legacy test order'}
+              {checkoutMode === 'platform' ? (platformPayment ? 'Stripe form ready' : 'Show Stripe payment form') : 'Sync external checkout order'}
             </button>
 
             {checkoutMode === 'platform' && platformPayment && (

@@ -45,9 +45,9 @@
         'external_checkout' => 'External checkout',
         'platform_checkout' => 'Platform checkout',
         'developer_storefront' => 'Developer Storefront',
-        'manual' => 'Manual',
+        'manual' => 'Manual order',
     ];
-    $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual');
+    $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual order');
     $gatewayLabel = $order->payment_gateway ? str($order->payment_gateway)->replace('_', ' ')->title() : null;
     $platformCheckoutNumber = data_get($order->meta, 'platform_checkout.checkout_number');
     $paymentConnectionLabel = data_get($order->meta, 'platform_checkout.connection_label');

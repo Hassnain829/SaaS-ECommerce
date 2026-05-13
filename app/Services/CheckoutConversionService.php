@@ -101,7 +101,7 @@ class CheckoutConversionService
             $customer = $checkout->customer;
             $providerAccount = $checkout->paymentProviderAccount;
             $connectionType = $providerAccount?->connection_type ?? data_get($checkout->metadata, 'payment_connection_type', 'platform');
-            $connectionLabel = $connectionType === 'connect' ? 'Connected Stripe account' : 'Platform sandbox';
+            $connectionLabel = $connectionType === 'connect' ? 'Connected Stripe account' : 'Platform test mode';
             $order = Order::query()->create([
                 'store_id' => $checkout->store_id,
                 'customer_id' => $customer?->id,
@@ -277,7 +277,7 @@ class CheckoutConversionService
                 'Payment succeeded',
                 $connectionType === 'connect'
                     ? 'Stripe confirmed the payment through the connected account.'
-                    : 'Stripe sandbox confirmed the payment for this order.',
+                    : 'Stripe test mode confirmed the payment for this order.',
                 [
                     'payment_reference' => $result->providerIntentId,
                     'gateway' => 'stripe',

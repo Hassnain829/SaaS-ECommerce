@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Payments\PaymentProviderManager;
+use App\Support\CheckoutMode;
 use App\Support\ProductVariantLabel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -38,10 +39,17 @@ class CheckoutService
             $items = $this->prepareItems($store, $payload['items']);
             $totals = $this->totals($items, $payload);
             $provider = (string) config('payments.default_provider', 'stripe');
+
+            if (CheckoutMode::forStore($store) !== CheckoutMode::PLATFORM) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.',
+                ]);
+            }
+
             $providerAccount = $this->paymentProviderManager->accountForCheckout($store);
             if (! $providerAccount) {
                 throw ValidationException::withMessages([
-                    'payment' => 'Platform checkout is not enabled for this store. Connect Stripe or use external checkout sync.',
+                    'payment' => 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.',
                 ]);
             }
             $currencyCode = strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD'));

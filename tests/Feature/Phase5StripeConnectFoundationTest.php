@@ -16,6 +16,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Payments\StripeConnectService;
 use App\Services\Payments\StripePlatformPaymentProvider;
+use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -253,7 +254,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             ->postJson('/api/v1/checkout', $this->payload($variant))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['payment'])
-            ->assertJsonPath('errors.payment.0', 'Platform checkout is not enabled for this store. Connect Stripe or use external checkout sync.');
+            ->assertJsonPath('errors.payment.0', 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.');
 
         $this->assertSame(0, Checkout::query()->where('store_id', $store->id)->count());
     }
@@ -267,7 +268,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             ->postJson('/api/v1/checkout', $this->payload($variant))
             ->assertCreated()
             ->assertJsonPath('payment.connection_type', 'platform')
-            ->assertJsonPath('payment.connection_label', 'Platform sandbox');
+            ->assertJsonPath('payment.connection_label', 'Platform test mode');
 
         $this->assertDatabaseHas('payment_provider_accounts', [
             'store_id' => $store->id,
@@ -397,7 +398,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             'currency' => 'USD',
             'timezone' => 'UTC',
             'category' => 'physical',
-            'settings' => [],
+            'settings' => ['checkout_mode' => CheckoutMode::PLATFORM],
             'onboarding_completed' => true,
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);

@@ -9,23 +9,56 @@
     </button>
     <div class="min-w-0">
         <h1 class="truncate text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Payments & Channels</h1>
-        <p class="hidden md:block text-xs text-[#64748B]">Choose how this store accepts and syncs payments.</p>
+        <p class="hidden md:block text-xs text-[#64748B]">Choose how this store accepts payments and sends orders into your dashboard.</p>
     </div>
 </header>
 @endsection
 
 @section('content')
 @php
-    $statusClasses = [
-        'active' => 'bg-[#DCFCE7] text-[#166534]',
-        'pending' => 'bg-[#FEF3C7] text-[#92400E]',
-        'restricted' => 'bg-[#FEE2E2] text-[#991B1B]',
-        'disabled' => 'bg-[#F1F5F9] text-[#475569]',
-        'not_configured' => 'bg-[#F1F5F9] text-[#475569]',
-    ];
-    $connectStatus = $connectAccount?->status ?? 'not_configured';
-    $connectStatusClass = $statusClasses[$connectStatus] ?? 'bg-[#F1F5F9] text-[#475569]';
-    $connectReady = $connectAccount?->status === 'active' && $connectAccount?->charges_enabled;
+    use App\Support\CheckoutMode;
+
+    $checkoutMode = $checkoutMode ?? CheckoutMode::forStore($selectedStore);
+    $currentModeLabel = CheckoutMode::label($checkoutMode);
+    $connectStatus = $connectAccount?->status;
+    $requirementsDue = $connectAccount?->requirements_currently_due ?? [];
+    $connectReady = $activeConnectAccount !== null;
+    $hasConnectAccount = $connectAccount !== null;
+    $connectDisabled = $connectStatus === 'disabled';
+    $connectNeedsAction = $hasConnectAccount
+        && ! $connectDisabled
+        && (
+            $connectStatus === 'restricted'
+            || $connectAccount?->requirements_disabled_reason
+            || ! empty($requirementsDue)
+        );
+    $connectInProgress = $hasConnectAccount && ! $connectReady && ! $connectNeedsAction && ! $connectDisabled;
+
+    $stripeStatusLabel = 'Not connected';
+    $stripeStatusClass = 'bg-[#F1F5F9] text-[#475569]';
+    if ($connectReady) {
+        $stripeStatusLabel = 'Connected';
+        $stripeStatusClass = 'bg-[#DCFCE7] text-[#166534]';
+    } elseif ($connectNeedsAction) {
+        $stripeStatusLabel = 'Action required';
+        $stripeStatusClass = 'bg-[#FEF3C7] text-[#92400E]';
+    } elseif ($connectInProgress) {
+        $stripeStatusLabel = 'Setup in progress';
+        $stripeStatusClass = 'bg-[#FEF3C7] text-[#92400E]';
+    } elseif ($connectDisabled) {
+        $stripeStatusLabel = 'Disabled';
+        $stripeStatusClass = 'bg-[#FEE2E2] text-[#991B1B]';
+    }
+
+    $platformStatusLabel = $connectReady
+        ? ($checkoutMode === CheckoutMode::PLATFORM ? 'Enabled' : 'Stripe connected')
+        : ($hasConnectAccount && ! $connectDisabled ? 'Setup required' : 'Not enabled');
+    $platformStatusDetail = $connectReady
+        ? 'Stripe connected'
+        : ($hasConnectAccount && ! $connectDisabled ? 'Continue Stripe setup' : 'Connect Stripe to use platform checkout');
+    $platformStatusClass = $connectReady
+        ? 'bg-[#DCFCE7] text-[#166534]'
+        : ($hasConnectAccount && ! $connectDisabled ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#F1F5F9] text-[#475569]');
 @endphp
 
 <div class="mx-auto max-w-6xl space-y-5 py-2 md:py-4">
@@ -41,140 +74,231 @@
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div class="max-w-3xl">
                 <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Store payment setup</p>
-                <h2 class="mt-1 text-2xl font-poppins font-semibold text-[#0F172A]">{{ $selectedStore->name }}</h2>
+                <h2 class="mt-1 text-2xl font-poppins font-semibold text-[#0F172A]">Payments & Channels</h2>
                 <p class="mt-2 text-sm leading-6 text-[#475569]">
-                    External checkout sync is always available for websites that already collect payment. Platform checkout becomes available when Stripe is connected for this store, with local sandbox fallback only for development.
+                    Choose how this store accepts payments and sends orders into your dashboard.
                 </p>
             </div>
             <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
-                <p class="font-semibold text-[#0F172A]">Stripe mode</p>
-                <p class="mt-1 text-[#64748B]">{{ strtoupper($stripeConfig['mode']) }}</p>
+                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Current mode</p>
+                <p class="mt-1 font-semibold text-[#0F172A]">{{ $currentModeLabel }}</p>
             </div>
         </div>
     </section>
 
-    <section class="grid gap-4 lg:grid-cols-3">
-        <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">External checkout sync</h3>
-                    <p class="mt-2 text-sm leading-6 text-[#64748B]">Use when Shopify, WooCommerce, PayPal, bank transfer, cash on delivery, or a custom site already handled payment.</p>
-                </div>
-                <span class="rounded-full bg-[#DCFCE7] px-3 py-1 text-xs font-bold uppercase tracking-[.6px] text-[#166534]">Ready</span>
-            </div>
-            <div class="mt-5 rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
-                Orders arrive through <code class="text-[#0F172A]">/api/v1/external/orders</code> with a payment reference and real order snapshots.
-            </div>
-        </article>
+    <section id="checkout-mode-cards" class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
+        <div class="flex flex-col gap-1">
+            <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">How does this store accept payments?</h3>
+            <p class="text-sm text-[#64748B]">Choose one active checkout mode for this store.</p>
+        </div>
 
-        <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Platform checkout</h3>
-                    <p class="mt-2 text-sm leading-6 text-[#64748B]">Let this SaaS create the Stripe payment while the storefront collects card details with Stripe.js.</p>
-                </div>
-                <span class="rounded-full {{ $connectReady || $stripeConfig['sandbox_fallback'] ? 'bg-[#DCFCE7] text-[#166534]' : 'bg-[#FEF2F2] text-[#991B1B]' }} px-3 py-1 text-xs font-bold uppercase tracking-[.6px]">
-                    {{ $connectReady ? 'Connected' : ($stripeConfig['sandbox_fallback'] ? 'Sandbox' : 'Off') }}
-                </span>
-            </div>
-            <div class="mt-5 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                @foreach([
-                    'publishable_key' => 'Publishable key',
-                    'secret_key' => 'Platform secret',
-                    'platform_webhook_secret' => 'Platform webhook',
-                    'connect_webhook_secret' => 'Connect webhook',
-                ] as $key => $label)
-                    <div class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
-                        <p class="font-semibold text-[#0F172A]">{{ $label }}</p>
-                        <p class="{{ ($stripeConfig[$key] ?? false) ? 'text-[#059669]' : 'text-[#B91C1C]' }}">
-                            {{ ($stripeConfig[$key] ?? false) ? 'Configured' : 'Missing' }}
+        <div class="mt-5 grid gap-4 lg:grid-cols-2">
+            <article class="rounded-2xl border {{ $checkoutMode === CheckoutMode::EXTERNAL ? 'border-[#0052CC] bg-[#F8FBFF]' : 'border-[#CBD5E1] bg-white' }} p-5">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h4 class="text-lg font-poppins font-semibold text-[#0F172A]">External checkout</h4>
+                        <p class="mt-2 text-sm leading-6 text-[#64748B]">
+                            Use this if your existing website already accepts payments through Shopify, WooCommerce, WordPress, PayPal, bank transfer, cash on delivery, or another checkout.
                         </p>
                     </div>
-                @endforeach
-            </div>
-        </article>
-
-        <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-            <div class="flex items-start justify-between gap-3">
-                <div>
-                    <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Connected Stripe account</h3>
-                    <p class="mt-2 text-sm leading-6 text-[#64748B]">Best for production stores. The merchant owns their Stripe account; this SaaS only stores the Stripe account ID and status.</p>
+                    <span class="shrink-0 rounded-full bg-[#DCFCE7] px-3 py-1 text-xs font-bold uppercase tracking-[.6px] text-[#166534]">Available</span>
                 </div>
-                <span class="rounded-full {{ $connectStatusClass }} px-3 py-1 text-xs font-bold uppercase tracking-[.6px]">
-                    {{ str($connectStatus)->replace('_', ' ')->title() }}
-                </span>
-            </div>
 
-            @if($connectAccount)
-                <div class="mt-5 space-y-2 rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
-                    <p><span class="font-semibold text-[#0F172A]">Account:</span> {{ $connectAccount->provider_account_id }}</p>
-                    <p><span class="font-semibold text-[#0F172A]">Charges:</span> {{ $connectAccount->charges_enabled ? 'Enabled' : 'Not ready' }}</p>
-                    <p><span class="font-semibold text-[#0F172A]">Payouts:</span> {{ $connectAccount->payouts_enabled ? 'Enabled' : 'Not ready' }}</p>
-                    @if($connectAccount->last_verified_at)
-                        <p><span class="font-semibold text-[#0F172A]">Checked:</span> {{ $connectAccount->last_verified_at->diffForHumans() }}</p>
-                    @endif
-                    @if(! empty($connectAccount->requirements_currently_due))
-                        <p class="text-[#92400E]">Stripe still needs more business details before checkout is fully ready.</p>
-                    @endif
-                    @if($connectAccount->requirements_disabled_reason)
-                        <p class="text-[#991B1B]">{{ str($connectAccount->requirements_disabled_reason)->replace('_', ' ')->title() }}</p>
-                    @endif
-                </div>
-            @else
-                <div class="mt-5 rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
-                    No Stripe account is connected for this store yet.
-                </div>
-            @endif
+                <ul class="mt-4 space-y-2 text-sm text-[#475569]">
+                    <li class="flex gap-2"><span class="mt-2 h-1.5 w-1.5 rounded-full bg-[#0052CC]"></span><span>Payment happens on your existing website.</span></li>
+                    <li class="flex gap-2"><span class="mt-2 h-1.5 w-1.5 rounded-full bg-[#0052CC]"></span><span>Completed orders sync into this dashboard.</span></li>
+                    <li class="flex gap-2"><span class="mt-2 h-1.5 w-1.5 rounded-full bg-[#0052CC]"></span><span>No payment provider setup is required here.</span></li>
+                </ul>
 
-            <div class="mt-5 flex flex-wrap gap-2">
-                @if($canManagePayments)
-                    <form method="POST" action="{{ route('settings.payments.stripe.connect') }}">
-                        @csrf
-                        <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">
-                            {{ $connectAccount ? 'Continue Stripe onboarding' : 'Connect Stripe' }}
-                        </button>
-                    </form>
-
-                    @if($connectAccount)
-                        <form method="POST" action="{{ route('settings.payments.stripe.status') }}">
-                            @csrf
-                            <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">
-                                Refresh status
-                            </button>
-                        </form>
-
-                        @if($connectAccount->status !== 'disabled')
-                            <form method="POST" action="{{ route('settings.payments.stripe.disable') }}" onsubmit="return confirm('Disable Stripe platform checkout for this store? Existing orders stay unchanged.');">
+                <div class="mt-5 flex flex-wrap items-center gap-2">
+                    <a href="{{ route('developer-storefront.settings') }}" class="inline-flex h-10 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">
+                        View integration instructions
+                    </a>
+                    @if($canManagePayments)
+                        @if($checkoutMode === CheckoutMode::EXTERNAL)
+                            <span class="inline-flex h-10 items-center justify-center rounded-lg bg-[#E0F2FE] px-4 text-sm font-semibold text-[#075985]">Current mode</span>
+                        @else
+                            <form method="POST" action="{{ route('settings.payments.mode') }}">
                                 @csrf
-                                <button class="h-10 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 text-sm font-semibold text-[#991B1B] hover:bg-[#FEE2E2]">
-                                    Disable
-                                </button>
+                                <input type="hidden" name="checkout_mode" value="{{ CheckoutMode::EXTERNAL }}">
+                                <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">Use external checkout</button>
                             </form>
                         @endif
                     @endif
-                @else
-                    <p class="text-sm text-[#64748B]">You can view payment setup, but only store owners can change it.</p>
-                @endif
-            </div>
-        </article>
-    </section>
+                </div>
+            </article>
 
-    <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-        <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">How checkout chooses a payment account</h3>
-        <div class="mt-4 grid gap-3 md:grid-cols-3">
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
-                <p class="font-semibold text-[#0F172A]">1. Connected Stripe</p>
-                <p class="mt-1">If this store has an active default connected account, platform checkout uses it.</p>
-            </div>
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
-                <p class="font-semibold text-[#0F172A]">2. Local sandbox</p>
-                <p class="mt-1">In local/testing only, configured platform Stripe sandbox keys can be used for simulator testing.</p>
-            </div>
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
-                <p class="font-semibold text-[#0F172A]">3. External sync</p>
-                <p class="mt-1">If platform checkout is off, storefronts can still sync already-paid or pending external orders.</p>
-            </div>
+            <article class="rounded-2xl border {{ $checkoutMode === CheckoutMode::PLATFORM ? 'border-[#0052CC] bg-[#F8FBFF]' : 'border-[#CBD5E1] bg-white' }} p-5">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h4 class="text-lg font-poppins font-semibold text-[#0F172A]">Platform checkout</h4>
+                        <p class="mt-2 text-sm leading-6 text-[#64748B]">
+                            Use this platform's checkout flow to collect customer payments and create orders automatically.
+                        </p>
+                    </div>
+                    <span class="shrink-0 rounded-full {{ $platformStatusClass }} px-3 py-1 text-xs font-bold uppercase tracking-[.6px]">{{ $platformStatusLabel }}</span>
+                </div>
+
+                <ul class="mt-4 space-y-2 text-sm text-[#475569]">
+                    <li class="flex gap-2"><span class="mt-2 h-1.5 w-1.5 rounded-full bg-[#0052CC]"></span><span>Customers pay through the platform checkout.</span></li>
+                    <li class="flex gap-2"><span class="mt-2 h-1.5 w-1.5 rounded-full bg-[#0052CC]"></span><span>Orders are created after payment succeeds.</span></li>
+                    <li class="flex gap-2"><span class="mt-2 h-1.5 w-1.5 rounded-full bg-[#0052CC]"></span><span>A connected payment provider is required.</span></li>
+                </ul>
+
+                <div class="mt-4 rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm">
+                    <p class="font-semibold text-[#0F172A]">{{ $platformStatusDetail }}</p>
+                    @if($checkoutMode === CheckoutMode::PLATFORM)
+                        <p class="mt-1 text-[#64748B]">This is the active checkout mode for the store.</p>
+                    @elseif($connectReady)
+                        <p class="mt-1 text-[#64748B]">Stripe is ready. You can switch this store to platform checkout.</p>
+                    @endif
+                </div>
+
+                @if($canManagePayments)
+                    <div class="mt-5 flex flex-wrap items-center gap-2">
+                        @if($connectReady)
+                            @if($checkoutMode === CheckoutMode::PLATFORM)
+                                <span class="inline-flex h-10 items-center justify-center rounded-lg bg-[#E0F2FE] px-4 text-sm font-semibold text-[#075985]">Current mode</span>
+                            @else
+                                <form method="POST" action="{{ route('settings.payments.mode') }}">
+                                    @csrf
+                                    <input type="hidden" name="checkout_mode" value="{{ CheckoutMode::PLATFORM }}">
+                                    <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">Use platform checkout</button>
+                                </form>
+                            @endif
+                            <form method="POST" action="{{ route('settings.payments.stripe.status') }}">
+                                @csrf
+                                <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Refresh status</button>
+                            </form>
+                        @elseif($hasConnectAccount && ! $connectDisabled)
+                            <form method="GET" action="{{ route('settings.payments.stripe.refresh') }}">
+                                <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">Continue Stripe setup</button>
+                            </form>
+                            <form method="POST" action="{{ route('settings.payments.stripe.status') }}">
+                                @csrf
+                                <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Refresh status</button>
+                            </form>
+                        @else
+                            <form method="POST" action="{{ route('settings.payments.stripe.connect') }}">
+                                @csrf
+                                <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">
+                                    {{ $connectDisabled ? 'Reconnect Stripe' : 'Connect Stripe' }}
+                                </button>
+                            </form>
+                        @endif
+                    </div>
+                @endif
+            </article>
         </div>
     </section>
+
+    <section id="stripe-provider-card" class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="max-w-3xl">
+                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Payment provider</p>
+                <h3 class="mt-1 text-xl font-poppins font-semibold text-[#0F172A]">Stripe</h3>
+                <p class="mt-2 text-sm leading-6 text-[#64748B]">
+                    Connect Stripe to accept payments through platform checkout. Stripe handles the secure payment setup. You do not need to paste secret keys.
+                </p>
+            </div>
+            <span class="w-fit rounded-full {{ $stripeStatusClass }} px-3 py-1 text-xs font-bold uppercase tracking-[.6px]">{{ $stripeStatusLabel }}</span>
+        </div>
+
+        @if($connectAccount)
+            <div class="mt-5 grid gap-3 text-sm md:grid-cols-3">
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Charges</p>
+                    <p class="mt-1 font-semibold text-[#0F172A]">{{ $connectAccount->charges_enabled ? 'Enabled' : 'Not ready' }}</p>
+                </div>
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Payouts</p>
+                    <p class="mt-1 font-semibold text-[#0F172A]">{{ $connectAccount->payouts_enabled ? 'Enabled' : 'Not ready' }}</p>
+                </div>
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Last checked</p>
+                    <p class="mt-1 font-semibold text-[#0F172A]">{{ $connectAccount->last_verified_at?->diffForHumans() ?? 'Not checked yet' }}</p>
+                </div>
+            </div>
+
+            @if($connectNeedsAction)
+                <div class="mt-4 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
+                    Stripe needs more account details before platform checkout can be enabled.
+                </div>
+            @endif
+        @else
+            <div class="mt-5 rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
+                No Stripe account is connected for this store yet.
+            </div>
+        @endif
+
+        @if($canManagePayments)
+            <div class="mt-5 flex flex-wrap gap-2">
+                @if(! $connectAccount || $connectDisabled)
+                    <form method="POST" action="{{ route('settings.payments.stripe.connect') }}">
+                        @csrf
+                        <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">
+                            {{ $connectDisabled ? 'Reconnect Stripe' : 'Connect Stripe' }}
+                        </button>
+                    </form>
+                @elseif($connectReady)
+                    <form method="POST" action="{{ route('settings.payments.stripe.status') }}">
+                        @csrf
+                        <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Refresh status</button>
+                    </form>
+                    <form method="POST" action="{{ route('settings.payments.stripe.disable') }}" onsubmit="return confirm('Disable Stripe platform checkout for this store? Existing orders stay unchanged.');">
+                        @csrf
+                        <button class="h-10 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 text-sm font-semibold text-[#991B1B] hover:bg-[#FEE2E2]">Disable</button>
+                    </form>
+                @else
+                    <form method="GET" action="{{ route('settings.payments.stripe.refresh') }}">
+                        <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">Continue setup</button>
+                    </form>
+                    <form method="POST" action="{{ route('settings.payments.stripe.status') }}">
+                        @csrf
+                        <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Refresh status</button>
+                    </form>
+                @endif
+            </div>
+        @else
+            <p class="mt-5 text-sm text-[#64748B]">You can view payment setup, but your store role cannot change it.</p>
+        @endif
+    </section>
+
+    @if($canManagePayments)
+        <details id="developer-diagnostics" class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
+            <summary class="cursor-pointer text-lg font-poppins font-semibold text-[#0F172A]">Developer diagnostics</summary>
+            <div class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="font-semibold text-[#0F172A]">Stripe mode</p>
+                    <p class="mt-1 text-[#64748B]">{{ (string) str($stripeConfig['mode'])->lower() === 'live' ? 'Live' : 'Test' }}</p>
+                </div>
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="font-semibold text-[#0F172A]">Platform webhook</p>
+                    <p class="mt-1 {{ $stripeConfig['platform_webhook_secret'] ? 'text-[#059669]' : 'text-[#B91C1C]' }}">{{ $stripeConfig['platform_webhook_secret'] ? 'Configured' : 'Missing' }}</p>
+                </div>
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="font-semibold text-[#0F172A]">Connect webhook</p>
+                    <p class="mt-1 {{ $stripeConfig['connect_webhook_secret'] ? 'text-[#059669]' : 'text-[#B91C1C]' }}">{{ $stripeConfig['connect_webhook_secret'] ? 'Configured' : 'Missing' }}</p>
+                </div>
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="font-semibold text-[#0F172A]">Platform publishable key</p>
+                    <p class="mt-1 {{ $stripeConfig['publishable_key'] ? 'text-[#059669]' : 'text-[#B91C1C]' }}">{{ $stripeConfig['publishable_key'] ? 'Configured' : 'Missing' }}</p>
+                </div>
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="font-semibold text-[#0F172A]">Platform secret key</p>
+                    <p class="mt-1 {{ $stripeConfig['secret_key'] ? 'text-[#059669]' : 'text-[#B91C1C]' }}">{{ $stripeConfig['secret_key'] ? 'Configured' : 'Missing' }}</p>
+                </div>
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="font-semibold text-[#0F172A]">Platform sandbox fallback</p>
+                    <p class="mt-1 text-[#64748B]">Local/testing only</p>
+                </div>
+            </div>
+            @if(! $stripeConfig['connect_webhook_secret'])
+                <p class="mt-4 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
+                    Connect webhook is missing. Connected account events may not update automatically.
+                </p>
+            @endif
+        </details>
+    @endif
 </div>
 @endsection

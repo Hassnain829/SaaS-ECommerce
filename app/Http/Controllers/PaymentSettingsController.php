@@ -7,8 +7,10 @@ use App\Models\SecurityLog;
 use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\StripeConnectService;
 use App\Services\SecurityLogRecorder;
+use App\Support\CheckoutMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PaymentSettingsController extends Controller
@@ -38,6 +40,8 @@ class PaymentSettingsController extends Controller
             'accounts' => $accounts,
             'connectAccount' => $connectAccount,
             'platformAccount' => $platformAccount,
+            'activeConnectAccount' => $paymentProviderManager->activeConnectedAccountForStore($store),
+            'checkoutMode' => CheckoutMode::forStore($store),
             'stripeConfig' => [
                 'mode' => (string) config('payments.stripe.mode', 'test'),
                 'publishable_key' => filled(config('payments.stripe.key')),
@@ -48,6 +52,46 @@ class PaymentSettingsController extends Controller
             ],
             'canManagePayments' => $request->user()?->canManageSettings($store) ?? false,
         ]);
+    }
+
+    public function updateMode(
+        Request $request,
+        PaymentProviderManager $paymentProviderManager,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && $request->user(), 404);
+
+        $validated = $request->validate([
+            'checkout_mode' => ['required', Rule::in(CheckoutMode::ALL)],
+        ]);
+
+        $targetMode = $validated['checkout_mode'];
+        $previousMode = CheckoutMode::forStore($store);
+
+        if ($targetMode === CheckoutMode::PLATFORM && ! $paymentProviderManager->activeConnectedAccountForStore($store)) {
+            return redirect()
+                ->route('settings.payments.index')
+                ->withErrors(['checkout_mode' => 'Connect Stripe before enabling platform checkout.']);
+        }
+
+        if ($previousMode !== $targetMode) {
+            $store = CheckoutMode::setForStore($store, $targetMode);
+
+            $securityLogRecorder->record(
+                $request,
+                'payment.checkout_mode_changed',
+                store: $store,
+                metadata: [
+                    'previous_mode' => $previousMode,
+                    'new_mode' => $targetMode,
+                ]
+            );
+        }
+
+        return redirect()
+            ->route('settings.payments.index')
+            ->with('success', 'Checkout mode updated to '.CheckoutMode::label($targetMode).'.');
     }
 
     public function connect(
@@ -191,6 +235,9 @@ class PaymentSettingsController extends Controller
         }
 
         $account = $connectService->disableLocally($account);
+        if (CheckoutMode::forStore($store) === CheckoutMode::PLATFORM) {
+            $store = CheckoutMode::setForStore($store, CheckoutMode::EXTERNAL);
+        }
 
         $securityLogRecorder->record(
             $request,

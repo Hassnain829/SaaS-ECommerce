@@ -23,7 +23,7 @@
         'external_checkout' => 'External checkout',
         'platform_checkout' => 'Platform checkout',
         'developer_storefront' => 'Developer Storefront',
-        'manual' => 'Manual',
+        'manual' => 'Manual order',
     ];
 @endphp
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -171,7 +171,7 @@
                             <p class="text-xs text-[#64748B]">{{ $order->customer_email }}</p>
                         </td>
                         <td class="px-4 py-4">
-                            <p class="font-semibold text-[#0F172A]">{{ $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual') }}</p>
+                            <p class="font-semibold text-[#0F172A]">{{ $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual order') }}</p>
                             <p class="text-xs text-[#64748B]">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
                             @if($order->external_order_number)
                                 <p class="text-xs text-[#64748B]">External {{ $order->external_order_number }}</p>

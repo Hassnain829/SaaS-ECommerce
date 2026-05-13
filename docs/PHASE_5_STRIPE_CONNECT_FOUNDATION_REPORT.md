@@ -2,7 +2,7 @@
 
 ## Summary
 
-Implemented Phase 5 Option 3: Payments & Channels Settings plus a Stripe Connect foundation. Merchants now have a dashboard page for payment setup, can start/continue Stripe hosted onboarding, can refresh connected account status, and can locally disable platform checkout for a store.
+Implemented Phase 5 Option 3: Payments & Channels Settings plus a Stripe Connect foundation. Store owners now have a dashboard page for payment setup, can start/continue Stripe hosted onboarding, can refresh connected account status, and can locally disable platform checkout for a store.
 
 External Checkout Sync and Platform Stripe sandbox checkout remain intact. This phase did not add refunds, tax, coupons, shipping, fulfillment, billing, B2B, API-key management, webhooks/outbox, or automation.
 
@@ -58,7 +58,7 @@ Platform Stripe secrets remain in `.env` or the server secret manager:
 - `STRIPE_CONNECT_RETURN_URL`
 - `STRIPE_CONNECT_CLIENT_ID`
 
-Store/merchant connection state is stored in `payment_provider_accounts`. The app stores Stripe account IDs such as `acct_...`, capability/status snapshots, and onboarding state. It does not ask merchants to paste production Stripe secret keys and does not store raw merchant Stripe secrets.
+Store connection state is stored in `payment_provider_accounts`. The app stores Stripe account IDs such as `acct_...`, capability/status snapshots, and onboarding state. It does not ask store owners to paste production Stripe secret keys and does not store raw store-owner Stripe secrets.
 
 ## Schema Added
 
@@ -110,7 +110,7 @@ Platform checkout now resolves the payment account in this order:
 
 1. Active default Stripe Connect account for the current store.
 2. Platform Stripe sandbox fallback only in local/testing when enabled and configured.
-3. Friendly checkout block: `Platform checkout is not enabled for this store. Connect Stripe or use external checkout sync.`
+3. Friendly checkout block: `Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.`
 
 Connected Stripe checkout passes the connected account ID to the Stripe SDK request options using `stripe_account`.
 
@@ -128,7 +128,7 @@ Webhook retries remain idempotent through the existing checkout conversion safeg
 
 ## Dashboard / Simulator
 
-Orders list and order detail now show platform checkout connection context, including `Connected Stripe account` or `Platform sandbox` where available.
+Orders list and order detail now show platform checkout connection context, including `Connected Stripe account` or `Platform test mode` where available.
 
 The local React simulator now initializes Stripe.js with the connected account context when the checkout response includes a connected account ID.
 
@@ -199,4 +199,72 @@ Coverage includes:
 
 Complete.
 
-Phase 5 now supports external checkout sync, platform Stripe sandbox checkout, and a store-scoped Stripe Connect foundation with merchant-facing setup UI, provider resolution, connected-account webhook handling, security logs, and passing regression coverage.
+Phase 5 now supports external checkout sync, platform Stripe sandbox checkout, and a store-scoped Stripe Connect foundation with store-owner setup UI, provider resolution, connected-account webhook handling, security logs, and passing regression coverage.
+
+## Payment UX Cleanup Addendum
+
+### User / Store Owner Terminology
+
+The SaaS dashboard uses:
+
+- User / store owner = person using the SaaS dashboard.
+- Customer = person buying from the user/store owner site.
+
+### Final Checkout Mode Policy
+
+Stores choose one active checkout mode:
+
+- External checkout
+- Platform checkout
+
+External checkout is for existing websites and checkouts that already collect payment. Platform checkout requires a connected payment provider before it can be enabled from the dashboard.
+
+The active mode is stored on the current store in `stores.settings.checkout_mode` as either `external_checkout` or `platform_checkout`. The default is `external_checkout`.
+
+### Platform Sandbox Clarification
+
+The platform Stripe sandbox is a developer/testing fallback only. It is not shown as a normal user/store owner payment option.
+
+The normal dashboard decision is now limited to External checkout, Platform checkout, and Stripe connection status. Sandbox fallback details are visible only inside the collapsed Developer diagnostics section for users who can manage settings.
+
+### Webhook Secret Clarification
+
+`STRIPE_WEBHOOK_SECRET` and `STRIPE_CONNECT_WEBHOOK_SECRET` are platform-level environment secrets. They are not configured per user/store owner, and users/store owners do not edit `.env`.
+
+If local Stripe CLI forwarding uses the same webhook secret for both platform and Connect events, both environment variables may use that value locally.
+
+### Dev Storefront Clarification
+
+`dev-test-storefront` is a local simulator. A real storefront should use one integration path selected in the SaaS dashboard.
+
+The simulator now exposes only:
+
+- External checkout sync
+- Platform checkout
+
+The legacy direct dev order mode is hidden because direct final order creation is no longer the correct Phase 5 architecture.
+
+### Cleanup Commands Run
+
+- `php -l app\Support\CheckoutMode.php`: passed.
+- `php -l app\Http\Controllers\PaymentSettingsController.php`: passed.
+- `php -l app\Services\CheckoutService.php`: passed.
+- `php -l tests\Feature\Phase5PaymentUxCleanupTest.php`: passed.
+- `php -l app\Http\Controllers\Api\PlatformCheckoutController.php`: passed.
+- `php -l app\Services\CheckoutConversionService.php`: passed.
+- `php -l app\Services\Payments\PaymentProviderManager.php`: passed.
+- `php -l routes\web.php`: passed.
+- `php artisan test --filter=Phase5PaymentUxCleanupTest`: `9 passed, 53 assertions`.
+- `php artisan test --filter=Phase5StripeConnectFoundationTest`: `12 passed, 60 assertions`.
+- `php artisan test --filter=Phase5PlatformCheckoutStripeTest`: `9 passed, 72 assertions`.
+- `php artisan test --filter=Phase5ExternalCheckoutSyncTest`: `8 passed, 59 assertions`.
+- `php artisan test --filter=DeveloperStorefront`: `8 passed, 42 assertions`.
+- `php artisan test --filter=Phase4`: `20 passed, 166 assertions`.
+- `php artisan test --filter=Inventory`: `11 passed, 77 assertions`.
+- `composer dump-autoload`: passed.
+- `php artisan migrate:fresh --seed`: passed.
+- `php artisan optimize:clear`: passed after rerun by itself. The first attempt was run in parallel with `migrate:fresh --seed`, so the cache table was temporarily absent while migrations were rebuilding.
+- `php artisan inventory:backfill`: passed.
+- `php artisan test`: `342 passed, 1661 assertions`.
+- `npm.cmd run build`: passed.
+- `npm.cmd run build` in `dev-test-storefront`: passed.

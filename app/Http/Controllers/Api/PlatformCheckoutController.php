@@ -41,7 +41,7 @@ class PlatformCheckoutController extends Controller
         } catch (\RuntimeException $exception) {
             if (str_contains($exception->getMessage(), 'Stripe')) {
                 throw ValidationException::withMessages([
-                    'payment' => 'Stripe is not configured for platform checkout. Connect Stripe or use external checkout sync.',
+                    'payment' => 'Stripe is not configured for platform checkout. Connect Stripe in the SaaS dashboard or use External checkout sync.',
                 ]);
             }
 
@@ -227,7 +227,7 @@ class PlatformCheckoutController extends Controller
                 'connection_type' => $providerAccount?->connection_type,
                 'connection_label' => $providerAccount?->connection_type === 'connect'
                     ? 'Connected Stripe account'
-                    : 'Platform sandbox',
+                    : 'Platform test mode',
                 'status' => $paymentIntent?->status,
                 'client_secret' => $paymentIntent?->client_secret,
                 'publishable_key' => config('payments.stripe.key'),

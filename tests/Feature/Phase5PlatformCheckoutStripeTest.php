@@ -12,6 +12,7 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Payments\StripePlatformPaymentProvider;
+use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -376,7 +377,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             'currency' => 'USD',
             'timezone' => 'UTC',
             'category' => 'physical',
-            'settings' => [],
+            'settings' => ['checkout_mode' => CheckoutMode::PLATFORM],
             'onboarding_completed' => true,
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
