@@ -1,451 +1,485 @@
 @extends('layouts.user.user-sidebar')
 
 @section('title', 'Order ' . strtoupper($order->order_number) . ' | BaaS Core')
+@section('sidebar_brand_title', 'BaaS Admin')
+@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
 @section('topbar')
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4 shrink-0">
-    <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-        <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
-        </svg>
-    </button>
-
-    <div class="min-w-0">
-        <h1 class="truncate text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Order {{ strtoupper($order->order_number) }}</h1>
-        <p class="hidden md:block text-xs text-[#64748B]">Order detail, status history, and customer snapshot.</p>
-    </div>
-
-    <a href="{{ route('orders') }}" class="h-10 px-4 rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A] inline-flex items-center justify-center shrink-0 hover:bg-[#F8FAFC]">
-        Back to orders
-    </a>
-</header>
+    <header class="sticky top-0 z-30 flex h-[4.25rem] shrink-0 items-center justify-between gap-4 border-b border-slate-200/80 bg-white/95 px-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 md:px-8">
+        <div class="flex min-w-0 flex-1 items-center gap-3">
+            <button type="button" id="sidebarToggle" onclick="openSidebar()" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm md:hidden" aria-label="Open sidebar">
+                <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
+                </svg>
+            </button>
+            <div class="min-w-0">
+                <h1 class="truncate font-[Poppins] text-lg font-semibold tracking-tight text-slate-900 md:text-xl">Order {{ strtoupper($order->order_number) }}</h1>
+                <p class="hidden text-xs text-slate-500 sm:block">Order detail, status history, and customer snapshot.</p>
+            </div>
+        </div>
+        <a href="{{ route('orders') }}" class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-900">
+            <span aria-hidden="true">←</span> Back to orders
+        </a>
+    </header>
 @endsection
 
 @section('content')
-@php
-    $currency = $selectedStore->currency ?? '$';
-    $shipping = $order->addresses->firstWhere('type', 'shipping');
-    $billing = $order->addresses->firstWhere('type', 'billing');
-    $customerName = $order->customer?->full_name ?? $order->customer_email ?? 'Guest customer';
-    $customerInitials = collect(explode(' ', $customerName))
-        ->filter()
-        ->map(fn ($part) => substr($part, 0, 1))
-        ->take(2)
-        ->join('');
-    $displayTotal = (float) ($order->grand_total ?: $order->total);
-    $availableOrderStatuses = collect();
-    foreach ($orderStatuses as $status) {
-        if ($status === $order->status || \App\Support\OrderLifecycle::canTransitionOrderStatus($order->status, $status)) {
-            $availableOrderStatuses->push($status);
+    @php
+        $currency = $selectedStore->currency ?? '$';
+        $shipping = $order->addresses->firstWhere('type', 'shipping');
+        $billing = $order->addresses->firstWhere('type', 'billing');
+        $customerName = $order->customer?->full_name ?? $order->customer_email ?? 'Guest customer';
+        $customerInitials = collect(explode(' ', $customerName))
+            ->filter()
+            ->map(fn ($part) => substr($part, 0, 1))
+            ->take(2)
+            ->join('');
+        $displayTotal = (float) ($order->grand_total ?: $order->total);
+        $availableOrderStatuses = collect();
+        foreach ($orderStatuses as $status) {
+            if ($status === $order->status || \App\Support\OrderLifecycle::canTransitionOrderStatus($order->status, $status)) {
+                $availableOrderStatuses->push($status);
+            }
         }
-    }
-    $canManageOrders = auth()->user()?->canManageOrders($selectedStore) ?? false;
-    $noteEvents = $order->events->where('event_type', \App\Support\OrderLifecycle::EVENT_ORDER_NOTE_ADDED);
-    $sourceLabels = [
-        'external_checkout' => 'External checkout',
-        'platform_checkout' => 'Platform checkout',
-        'developer_storefront' => 'Developer Storefront',
-        'manual' => 'Manual order',
-    ];
-    $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual order');
-    $gatewayLabel = $order->payment_gateway ? str($order->payment_gateway)->replace('_', ' ')->title() : null;
-    $platformCheckoutNumber = data_get($order->meta, 'platform_checkout.checkout_number');
-    $paymentConnectionLabel = data_get($order->meta, 'platform_checkout.connection_label');
-    $connectedAccountId = data_get($order->meta, 'platform_checkout.provider_account_id');
-@endphp
+        $canManageOrders = auth()->user()?->canManageOrders($selectedStore) ?? false;
+        $noteEvents = $order->events->where('event_type', \App\Support\OrderLifecycle::EVENT_ORDER_NOTE_ADDED);
+        $sourceLabels = [
+            'external_checkout' => 'External checkout',
+            'platform_checkout' => 'Platform checkout',
+            'developer_storefront' => 'Developer Storefront',
+            'manual' => 'Manual order',
+        ];
+        $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual order');
+        $gatewayLabel = $order->payment_gateway ? str($order->payment_gateway)->replace('_', ' ')->title() : null;
+        $platformCheckoutNumber = data_get($order->meta, 'platform_checkout.checkout_number');
+        $paymentConnectionLabel = data_get($order->meta, 'platform_checkout.connection_label');
+        $connectedAccountId = data_get($order->meta, 'platform_checkout.provider_account_id');
 
-<div class="w-full py-2 md:py-4 space-y-4">
-    @include('user_view.partials.flash_success')
+        $card = 'rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/[0.03]';
+        $cardHeader = 'border-b border-slate-100 px-5 py-4 md:px-6';
+        $metaTile = 'rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3';
+    @endphp
 
-    @if ($errors->any())
-        <div class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
-            {{ $errors->first() }}
-        </div>
-    @endif
+    <div class="mx-auto max-w-[1480px] space-y-6 pb-10 pt-2 md:space-y-8 md:pt-4">
+        @include('user_view.partials.flash_success')
 
-    <nav class="flex flex-wrap items-center gap-2 text-sm text-[#64748B]">
-        <a href="{{ route('dashboard') }}" class="hover:text-[#0F172A]">Dashboard</a>
-        <span>&gt;</span>
-        <a href="{{ route('orders') }}" class="hover:text-[#0F172A]">Orders</a>
-        <span>&gt;</span>
-        <span class="font-medium text-[#0F172A]">{{ strtoupper($order->order_number) }}</span>
-    </nav>
-
-    <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div class="min-w-0">
-                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Order snapshot</p>
-                <h2 class="mt-1 text-2xl md:text-3xl font-poppins font-semibold text-[#0F172A]">Order {{ strtoupper($order->order_number) }}</h2>
-                <p class="mt-1 text-sm text-[#64748B]">
-                    Placed {{ $order->placed_at ? $order->placed_at->format('F d, Y \a\t h:i A') : 'date not recorded' }}
-                    by {{ $customerName }}
-                </p>
+        @if ($errors->any())
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-sm" role="alert">
+                {{ $errors->first() }}
             </div>
+        @endif
 
-            <div class="flex flex-wrap gap-2">
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[.6px] {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">
-                    Order: {{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}
-                </span>
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[.6px] {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
-                    Payment: {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
-                </span>
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[.6px] {{ \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
-                    Fulfillment: {{ \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
-                </span>
-            </div>
-        </div>
+        <nav class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500" aria-label="Breadcrumb">
+            <a href="{{ route('dashboard') }}" class="font-medium transition hover:text-indigo-700">Dashboard</a>
+            <span class="text-slate-300" aria-hidden="true">/</span>
+            <a href="{{ route('orders') }}" class="font-medium transition hover:text-indigo-700">Orders</a>
+            <span class="text-slate-300" aria-hidden="true">/</span>
+            <span class="font-semibold text-slate-800">{{ strtoupper($order->order_number) }}</span>
+        </nav>
 
-        <div class="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-semibold text-[#64748B]">Items</p>
-                <p class="mt-1 text-lg font-bold text-[#0F172A]">{{ $order->item_count ?: $order->items->count() }}</p>
-            </div>
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-semibold text-[#64748B]">Quantity</p>
-                <p class="mt-1 text-lg font-bold text-[#0F172A]">{{ $order->total_quantity ?: $order->items->sum('quantity') }}</p>
-            </div>
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-semibold text-[#64748B]">Source</p>
-                <p class="mt-1 truncate text-lg font-bold text-[#0F172A]">{{ $sourceLabel }}</p>
-            </div>
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-semibold text-[#64748B]">Total</p>
-                <p class="mt-1 text-lg font-bold text-[#0052CC]">{{ $currency }}{{ number_format($displayTotal, 2) }}</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-        <div class="space-y-4">
-            <article class="overflow-hidden rounded-2xl border border-[#CBD5E1] bg-white">
-                <div class="border-b border-[#E2E8F0] px-5 md:px-6 py-4">
-                    <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order items</h3>
-                    <p class="text-sm text-[#64748B]">Product and variant snapshots captured when the order was placed.</p>
+        {{-- Hero snapshot --}}
+        <section class="{{ $card }} overflow-hidden p-5 md:p-7">
+            <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div class="min-w-0 flex-1 space-y-2">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Order snapshot</p>
+                    <h2 class="font-[Poppins] text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">Order {{ strtoupper($order->order_number) }}</h2>
+                    <p class="max-w-2xl text-sm leading-relaxed text-slate-600">
+                        Placed {{ $order->placed_at ? $order->placed_at->format('F j, Y \a\t g:i A') : 'date not recorded' }}
+                        <span class="text-slate-400">·</span>
+                        <span class="font-medium text-slate-800">{{ $customerName }}</span>
+                    </p>
                 </div>
-
-                <div class="divide-y divide-[#F1F5F9]">
-                    @forelse($order->items as $item)
-                        @php
-                            $imagePath = $item->product_image_snapshot ?: $item->product?->images?->first()?->image_path;
-                        @endphp
-                        <div class="p-5 md:p-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div class="flex items-start gap-4 min-w-0">
-                                @if($imagePath)
-                                    <img src="{{ \Illuminate\Support\Facades\Storage::url($imagePath) }}" class="h-16 w-16 rounded-xl object-cover border border-[#E2E8F0]" alt="{{ $item->product_name }}">
-                                @else
-                                    <div class="h-16 w-16 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] grid place-items-center text-xs font-semibold text-[#94A3B8]">IMG</div>
-                                @endif
-
-                                <div class="min-w-0">
-                                    <h4 class="truncate text-base md:text-lg font-semibold text-[#0F172A]">{{ $item->product_name }}</h4>
-                                    <p class="mt-1 text-sm text-[#64748B]">{{ $item->variant_label ?: 'Default option' }}</p>
-                                    <div class="mt-2 flex flex-wrap gap-2 text-xs text-[#64748B]">
-                                        @if($item->sku_snapshot)
-                                            <span class="rounded-full bg-[#F8FAFC] px-2 py-1">SKU {{ $item->sku_snapshot }}</span>
-                                        @endif
-                                        @if($item->brand_name_snapshot)
-                                            <span class="rounded-full bg-[#F8FAFC] px-2 py-1">{{ $item->brand_name_snapshot }}</span>
-                                        @endif
-                                        @if($item->product_type_snapshot)
-                                            <span class="rounded-full bg-[#F8FAFC] px-2 py-1">{{ ucfirst($item->product_type_snapshot) }}</span>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="sm:text-right shrink-0">
-                                <p class="text-sm text-[#64748B]">Qty {{ $item->quantity }} x {{ $currency }}{{ number_format((float) $item->unit_price, 2) }}</p>
-                                <p class="mt-1 text-xl font-bold text-[#0F172A]">{{ $currency }}{{ number_format((float) $item->total, 2) }}</p>
-                            </div>
-                        </div>
-                    @empty
-                        <div class="px-6 py-10 text-center text-sm text-[#64748B]">No line items are attached to this order.</div>
-                    @endforelse
-                </div>
-            </article>
-
-            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Payment summary</h3>
-                        <p class="text-sm text-[#64748B]">
-                            @if($gatewayLabel)
-                                {{ $gatewayLabel }}{{ $order->payment_method ? ' - '.str($order->payment_method)->replace('_', ' ')->title() : '' }}
-                            @else
-                                {{ $order->payment_method ? str($order->payment_method)->replace('_', ' ')->title() : 'Payment method not recorded' }}
-                            @endif
-                        </p>
-                    </div>
-                    <span class="inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[.6px] {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
-                        {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
+                <div class="flex flex-wrap gap-2 lg:max-w-md lg:justify-end">
+                    <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">
+                        Order: {{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}
+                    </span>
+                    <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
+                        Payment: {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
+                    </span>
+                    <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
+                        Fulfillment: {{ \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
                     </span>
                 </div>
+            </div>
 
-                <div class="mt-5 space-y-3 text-sm text-[#334155]">
-                    <div class="flex justify-between gap-4">
-                        <span>Subtotal</span>
-                        <span class="font-semibold">{{ $currency }}{{ number_format((float) $order->subtotal, 2) }}</span>
-                    </div>
-                    <div class="flex justify-between gap-4">
-                        <span>Shipping</span>
-                        <span class="font-semibold">{{ $currency }}{{ number_format((float) $order->shipping, 2) }}</span>
-                    </div>
-                    <div class="flex justify-between gap-4">
-                        <span>Tax</span>
-                        <span class="font-semibold">{{ $currency }}{{ number_format((float) $order->tax, 2) }}</span>
-                    </div>
-                    @if((float) $order->discount > 0)
-                        <div class="flex justify-between gap-4 text-[#15803D]">
-                            <span>Discount</span>
-                            <span class="font-semibold">-{{ $currency }}{{ number_format((float) $order->discount, 2) }}</span>
-                        </div>
-                    @endif
+            <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+                <div class="{{ $metaTile }}">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
+                    <p class="mt-1.5 text-xl font-semibold tabular-nums text-slate-900">{{ $order->item_count ?: $order->items->count() }}</p>
                 </div>
-
-                <div class="mt-5 border-t border-[#E2E8F0] pt-5 flex items-end justify-between gap-4">
-                    <span class="text-base font-semibold text-[#0F172A]">Total</span>
-                    <span class="text-2xl md:text-3xl font-bold text-[#0052CC]">{{ $currency }}{{ number_format($displayTotal, 2) }}</span>
+                <div class="{{ $metaTile }}">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</p>
+                    <p class="mt-1.5 text-xl font-semibold tabular-nums text-slate-900">{{ $order->total_quantity ?: $order->items->sum('quantity') }}</p>
                 </div>
-            </article>
-
-            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Payment and source</h3>
-                <p class="mt-1 text-sm text-[#64748B]">
-                    @if($order->order_source === 'external_checkout')
-                        Payment status recorded from external checkout.
-                    @elseif($order->order_source === 'platform_checkout')
-                        Payment was confirmed through platform checkout.
-                    @else
-                        Source and payment details captured for this order.
-                    @endif
-                </p>
-
-                <div class="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Source</p>
-                        <p class="mt-1 font-semibold text-[#0F172A]">{{ $sourceLabel }}</p>
-                    </div>
-                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Channel</p>
-                        <p class="mt-1 font-semibold text-[#0F172A]">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
-                    </div>
-                    @if($order->external_order_number)
-                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">External order</p>
-                            <p class="mt-1 font-semibold text-[#0F172A]">{{ $order->external_order_number }}</p>
-                        </div>
-                    @endif
-                    @if($order->external_checkout_reference)
-                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Checkout reference</p>
-                            <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $order->external_checkout_reference }}</p>
-                        </div>
-                    @endif
-                    @if($platformCheckoutNumber)
-                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Checkout</p>
-                            <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $platformCheckoutNumber }}</p>
-                        </div>
-                    @endif
-                    @if($paymentConnectionLabel)
-                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Stripe connection</p>
-                            <p class="mt-1 font-semibold text-[#0F172A]">{{ $paymentConnectionLabel }}</p>
-                        </div>
-                    @endif
-                    @if($gatewayLabel)
-                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Gateway</p>
-                            <p class="mt-1 font-semibold text-[#0F172A]">{{ $gatewayLabel }}</p>
-                        </div>
-                    @endif
-                    @if($order->payment_method)
-                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Method</p>
-                            <p class="mt-1 font-semibold text-[#0F172A]">{{ str($order->payment_method)->replace('_', ' ')->title() }}</p>
-                        </div>
-                    @endif
-                    @if($order->payment_reference)
-                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3 sm:col-span-2">
-                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Payment reference</p>
-                            <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $order->payment_reference }}</p>
-                        </div>
-                    @endif
-                    @if($connectedAccountId)
-                        <div class="rounded-xl bg-[#F8FAFC] px-4 py-3 sm:col-span-2">
-                            <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Connected account</p>
-                            <p class="mt-1 break-all font-semibold text-[#0F172A]">{{ $connectedAccountId }}</p>
-                        </div>
-                    @endif
+                <div class="{{ $metaTile }} min-w-0">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Source</p>
+                    <p class="mt-1.5 truncate text-lg font-semibold text-slate-900" title="{{ $sourceLabel }}">{{ $sourceLabel }}</p>
                 </div>
-            </article>
+                <div class="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/90 to-white px-4 py-3 ring-1 ring-indigo-100/80">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-800/80">Total</p>
+                    <p class="mt-1.5 text-xl font-bold tabular-nums text-indigo-700 md:text-2xl">{{ $currency }}{{ number_format($displayTotal, 2) }}</p>
+                </div>
+            </div>
+        </section>
 
-            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order activity</h3>
-                <p class="text-sm text-[#64748B]">Recorded events for this order.</p>
-
-                <div class="relative mt-5">
-                    @if($order->events->count() > 1)
-                        <div class="absolute left-[11px] top-7 bottom-7 w-px bg-[#CBD5E1]" aria-hidden="true"></div>
-                    @endif
-
-                    <div class="space-y-5">
-                        @forelse($order->events as $event)
-                            <div class="relative flex items-start gap-3">
-                                <span class="mt-1 h-6 w-6 shrink-0 rounded-full border-4 border-white bg-[#0052CC] shadow-[0_0_0_1px_#CBD5E1]" aria-hidden="true"></span>
-                                <div class="min-w-0">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <p class="font-semibold text-[#0F172A]">{{ $event->title }}</p>
-                                        <span class="rounded-full bg-[#F8FAFC] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[.6px] text-[#64748B]">
-                                            {{ \App\Support\OrderLifecycle::eventTypeLabel($event->event_type) }}
-                                        </span>
-                                    </div>
-                                    @if($event->description)
-                                        <p class="mt-1 text-sm text-[#64748B]">{{ $event->description }}</p>
+        <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start xl:gap-8">
+            <div class="min-w-0 space-y-6">
+                {{-- Line items --}}
+                <article class="{{ $card }} overflow-hidden">
+                    <div class="{{ $cardHeader }}">
+                        <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Order items</h3>
+                        <p class="mt-1 text-sm leading-relaxed text-slate-600">What the customer bought—names, options, and prices are frozen from checkout.</p>
+                    </div>
+                    <div class="space-y-3 p-4 md:p-5">
+                        @forelse ($order->items as $item)
+                            @php
+                                $imagePath = $item->product_image_snapshot ?: $item->product?->images?->first()?->image_path;
+                            @endphp
+                            <div class="flex flex-col gap-4 rounded-xl border border-slate-100 bg-slate-50/40 p-4 transition hover:border-slate-200 hover:bg-white hover:shadow-sm sm:flex-row sm:items-start sm:justify-between sm:p-5">
+                                <div class="flex min-w-0 flex-1 items-start gap-4">
+                                    @if ($imagePath)
+                                        <img src="{{ \Illuminate\Support\Facades\Storage::url($imagePath) }}" class="h-20 w-20 shrink-0 rounded-xl border border-slate-200/80 object-cover shadow-sm" alt="{{ $item->product_name }}">
+                                    @else
+                                        <div class="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-dashed border-slate-200 bg-white text-slate-400" aria-hidden="true">
+                                            <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true">
+                                                <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 20h16a2 2 0 002-2V8a2 2 0 00-2-2h-3.17a2 2 0 01-1.41-.59l-1.83-1.83A2 2 0 0010.17 4H4a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                        </div>
                                     @endif
-                                    <p class="mt-1 text-xs text-[#94A3B8]">
-                                        {{ $event->actor?->name ?? 'System' }} - {{ $event->created_at?->format('M d, Y h:i A') ?? 'Time not recorded' }}
-                                    </p>
+                                    <div class="min-w-0 flex-1">
+                                        <h4 class="text-base font-semibold leading-snug text-slate-900 md:text-lg">{{ $item->product_name }}</h4>
+                                        <p class="mt-1 text-sm text-slate-600">{{ $item->variant_label ?: 'Default option' }}</p>
+                                        <div class="mt-3 flex flex-wrap gap-2">
+                                            @if ($item->sku_snapshot)
+                                                <span class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">SKU {{ $item->sku_snapshot }}</span>
+                                            @endif
+                                            @if ($item->brand_name_snapshot)
+                                                <span class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">{{ $item->brand_name_snapshot }}</span>
+                                            @endif
+                                            @if ($item->product_type_snapshot)
+                                                <span class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">{{ ucfirst($item->product_type_snapshot) }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="shrink-0 border-t border-slate-100 pt-3 text-left sm:border-0 sm:pt-0 sm:text-right">
+                                    <p class="text-sm text-slate-500">Qty {{ $item->quantity }} × {{ $currency }}{{ number_format((float) $item->unit_price, 2) }}</p>
+                                    <p class="mt-1 text-lg font-bold tabular-nums text-slate-900 md:text-xl">{{ $currency }}{{ number_format((float) $item->total, 2) }}</p>
                                 </div>
                             </div>
                         @empty
-                            <div class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
-                                No order activity has been recorded yet. Future status changes and important actions will appear here.
+                            <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-12 text-center">
+                                <p class="text-sm font-medium text-slate-700">No line items on this order</p>
+                                <p class="mt-1 text-sm text-slate-500">If something looks wrong, check the original channel or contact support.</p>
                             </div>
                         @endforelse
                     </div>
-                </div>
-            </article>
-        </div>
+                </article>
 
-        <aside class="space-y-4">
-            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order status</h3>
-                <p class="mt-1 text-sm text-[#64748B]">Move the order through the approved lifecycle.</p>
-
-                @if($canManageOrders && $availableOrderStatuses->count() > 1)
-                    <form action="{{ route('orders.updateStatus', $order->id) }}" method="POST" class="mt-4 space-y-3">
-                        @csrf
-                        @method('PATCH')
-                        <label for="status" class="block text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Next state</label>
-                        <select name="status" id="status" class="w-full rounded-lg border border-[#CBD5E1] bg-white p-2.5 text-sm text-[#334155] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                            @foreach($availableOrderStatuses as $status)
-                                <option value="{{ $status }}" {{ $order->status === $status ? 'selected' : '' }}>
-                                    {{ \App\Support\OrderLifecycle::orderStatusLabel($status) }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <button type="submit" class="w-full h-10 rounded-lg bg-[#0052CC] text-white font-semibold text-sm hover:bg-[#0047B3]">
-                            Save status
-                        </button>
-                    </form>
-                @elseif($canManageOrders)
-                    <p class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
-                        No further status changes are available for this order.
-                    </p>
-                @else
-                    <p class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
-                        You can view this order, but your store role cannot change its status.
-                    </p>
-                @endif
-            </article>
-
-            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer</h3>
-                <div class="mt-4 flex items-center gap-3">
-                    <div class="h-11 w-11 rounded-full bg-[#EFF6FF] text-[#1D4ED8] grid place-items-center font-bold shrink-0">
-                        {{ strtoupper($customerInitials) ?: 'C' }}
-                    </div>
-                    <div class="min-w-0">
-                        <p class="truncate font-bold text-[#0F172A]">{{ $customerName }}</p>
-                        <p class="truncate text-sm text-[#64748B]">{{ $order->customer_email ?? 'Email not recorded' }}</p>
-                    </div>
-                </div>
-
-                <div class="mt-5 space-y-4 text-sm">
-                    <div>
-                        <p class="text-xs uppercase tracking-[1px] text-[#94A3B8] font-bold">Phone</p>
-                        <p class="mt-1 text-[#334155]">{{ $order->customer_phone ?? $shipping?->phone ?? 'Not recorded' }}</p>
-                    </div>
-
-                    <div>
-                        <p class="text-xs uppercase tracking-[1px] text-[#94A3B8] font-bold">Shipping address</p>
-                        @if($shipping)
-                            <p class="mt-1 text-[#334155]">
-                                {{ $shipping->address_line1 }}@if($shipping->address_line2), {{ $shipping->address_line2 }}@endif<br>
-                                {{ $shipping->city }}, {{ $shipping->state }} {{ $shipping->postal_code }}<br>
-                                {{ $shipping->country }}
+                {{-- Payment summary --}}
+                <article class="{{ $card }} p-5 md:p-6">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Payment summary</h3>
+                            <p class="mt-1 text-sm text-slate-600">
+                                @if ($gatewayLabel)
+                                    {{ $gatewayLabel }}{{ $order->payment_method ? ' · ' . str($order->payment_method)->replace('_', ' ')->title() : '' }}
+                                @else
+                                    {{ $order->payment_method ? str($order->payment_method)->replace('_', ' ')->title() : 'Payment method not recorded' }}
+                                @endif
                             </p>
-                        @else
-                            <p class="mt-1 text-[#64748B]">Not recorded</p>
-                        @endif
-                    </div>
-
-                    <div>
-                        <p class="text-xs uppercase tracking-[1px] text-[#94A3B8] font-bold">Billing address</p>
-                        @if($billing)
-                            <p class="mt-1 text-[#334155]">
-                                {{ $billing->address_line1 }}@if($billing->address_line2), {{ $billing->address_line2 }}@endif<br>
-                                {{ $billing->city }}, {{ $billing->state }} {{ $billing->postal_code }}<br>
-                                {{ $billing->country }}
-                            </p>
-                        @elseif($order->billing_same_as_shipping && $shipping)
-                            <p class="mt-1 text-[#64748B]">Same as shipping address</p>
-                        @else
-                            <p class="mt-1 text-[#64748B]">Not recorded</p>
-                        @endif
-                    </div>
-                </div>
-
-                @if($order->customer_id)
-                    <a href="{{ route('customersProfile', $order->customer_id) }}" class="mt-5 inline-flex w-full h-10 items-center justify-center rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">
-                        View customer
-                    </a>
-                @endif
-            </article>
-
-            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Shipments</h3>
-                <p class="mt-4 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
-                    No shipments have been created yet. Fulfillment tracking will appear here after shipping is implemented.
-                </p>
-            </article>
-
-            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order notes</h3>
-                @if($canManageOrders)
-                    <form action="{{ route('orders.notes.store', $order) }}" method="POST" class="mt-4 space-y-3">
-                        @csrf
-                        <textarea name="body" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Add an internal note for your team"></textarea>
-                        <button type="submit" class="w-full h-10 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Add note</button>
-                    </form>
-                @endif
-
-                <div class="mt-4 space-y-3">
-                    @forelse($noteEvents as $note)
-                        <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm">
-                            <p class="whitespace-pre-line text-[#334155]">{{ $note->description }}</p>
-                            <p class="mt-2 text-xs text-[#94A3B8]">{{ $note->actor?->name ?? 'System' }} - {{ $note->created_at?->format('M d, Y h:i A') }}</p>
                         </div>
-                    @empty
-                        @if($order->notes)
-                            <p class="whitespace-pre-line text-sm text-[#334155]">{{ $order->notes }}</p>
-                        @else
-                            <p class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
-                                No notes yet.
-                            </p>
-                        @endif
-                    @endforelse
-                </div>
-            </article>
+                        <span class="inline-flex w-fit items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
+                            {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
+                        </span>
+                    </div>
 
-            <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Returns and refunds</h3>
-                <p class="mt-4 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-sm text-[#64748B]">
-                    No returns or refunds are recorded yet. Returns and refunds will be added in a later commerce phase.
-                </p>
-            </article>
-        </aside>
-    </section>
-</div>
+                    <div class="mt-6 divide-y divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/50">
+                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
+                            <span>Subtotal</span>
+                            <span class="font-semibold tabular-nums">{{ $currency }}{{ number_format((float) $order->subtotal, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
+                            <span>Shipping</span>
+                            <span class="font-semibold tabular-nums">{{ $currency }}{{ number_format((float) $order->shipping, 2) }}</span>
+                        </div>
+                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
+                            <span>Tax</span>
+                            <span class="font-semibold tabular-nums">{{ $currency }}{{ number_format((float) $order->tax, 2) }}</span>
+                        </div>
+                        @if ((float) $order->discount > 0)
+                            <div class="flex justify-between gap-4 px-4 py-3 text-sm text-emerald-800">
+                                <span>Discount</span>
+                                <span class="font-semibold tabular-nums">−{{ $currency }}{{ number_format((float) $order->discount, 2) }}</span>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="mt-6 flex flex-wrap items-end justify-between gap-4 rounded-xl bg-indigo-50/70 px-4 py-4 ring-1 ring-indigo-100/80 md:px-5">
+                        <span class="text-base font-semibold text-slate-900">Total</span>
+                        <span class="text-2xl font-bold tabular-nums text-indigo-800 md:text-3xl">{{ $currency }}{{ number_format($displayTotal, 2) }}</span>
+                    </div>
+                </article>
+
+                {{-- Payment & source --}}
+                <article class="{{ $card }} p-5 md:p-6">
+                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Payment and source</h3>
+                    <p class="mt-1 text-sm leading-relaxed text-slate-600">
+                        @if ($order->order_source === 'external_checkout')
+                            Payment status recorded from external checkout.
+                        @elseif ($order->order_source === 'platform_checkout')
+                            Payment was confirmed through platform checkout.
+                        @else
+                            Source and payment details captured for this order.
+                        @endif
+                    </p>
+
+                    <div class="mt-6 grid gap-3 text-sm sm:grid-cols-2">
+                        <div class="{{ $metaTile }}">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Source</p>
+                            <p class="mt-1.5 font-semibold text-slate-900">{{ $sourceLabel }}</p>
+                        </div>
+                        <div class="{{ $metaTile }}">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Channel</p>
+                            <p class="mt-1.5 font-semibold text-slate-900">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
+                        </div>
+                        @if ($order->external_order_number)
+                            <div class="{{ $metaTile }}">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">External order</p>
+                                <p class="mt-1.5 font-semibold text-slate-900">{{ $order->external_order_number }}</p>
+                            </div>
+                        @endif
+                        @if ($order->external_checkout_reference)
+                            <div class="{{ $metaTile }}">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Checkout reference</p>
+                                <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $order->external_checkout_reference }}</p>
+                            </div>
+                        @endif
+                        @if ($platformCheckoutNumber)
+                            <div class="{{ $metaTile }}">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Checkout</p>
+                                <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $platformCheckoutNumber }}</p>
+                            </div>
+                        @endif
+                        @if ($paymentConnectionLabel)
+                            <div class="{{ $metaTile }}">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Stripe connection</p>
+                                <p class="mt-1.5 font-semibold text-slate-900">{{ $paymentConnectionLabel }}</p>
+                            </div>
+                        @endif
+                        @if ($gatewayLabel)
+                            <div class="{{ $metaTile }}">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gateway</p>
+                                <p class="mt-1.5 font-semibold text-slate-900">{{ $gatewayLabel }}</p>
+                            </div>
+                        @endif
+                        @if ($order->payment_method)
+                            <div class="{{ $metaTile }}">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Method</p>
+                                <p class="mt-1.5 font-semibold text-slate-900">{{ str($order->payment_method)->replace('_', ' ')->title() }}</p>
+                            </div>
+                        @endif
+                        @if ($order->payment_reference)
+                            <div class="{{ $metaTile }} sm:col-span-2">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment reference</p>
+                                <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $order->payment_reference }}</p>
+                            </div>
+                        @endif
+                        @if ($connectedAccountId)
+                            <div class="{{ $metaTile }} sm:col-span-2">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Connected account</p>
+                                <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $connectedAccountId }}</p>
+                            </div>
+                        @endif
+                    </div>
+                </article>
+
+                {{-- Activity --}}
+                <article class="{{ $card }} p-5 md:p-6">
+                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Order activity</h3>
+                    <p class="mt-1 text-sm text-slate-600">A clear history of what changed and when—helpful for support and audits.</p>
+
+                    <div class="relative mt-6">
+                        @if ($order->events->count() > 1)
+                            <div class="absolute bottom-8 left-[15px] top-8 w-px bg-slate-200" aria-hidden="true"></div>
+                        @endif
+
+                        <div class="space-y-6">
+                            @forelse ($order->events as $event)
+                                <div class="relative flex gap-4 pl-1">
+                                    <span class="relative z-10 mt-1.5 h-3 w-3 shrink-0 rounded-full border-[3px] border-white bg-indigo-600 shadow-[0_0_0_1px_rgba(148,163,184,0.5)]" aria-hidden="true"></span>
+                                    <div class="min-w-0 flex-1 pb-1">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <p class="font-semibold text-slate-900">{{ $event->title }}</p>
+                                            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                                {{ \App\Support\OrderLifecycle::eventTypeLabel($event->event_type) }}
+                                            </span>
+                                        </div>
+                                        @if ($event->description)
+                                            <p class="mt-1.5 text-sm leading-relaxed text-slate-600">{{ $event->description }}</p>
+                                        @endif
+                                        <p class="mt-2 text-xs text-slate-400">
+                                            {{ $event->actor?->name ?? 'System' }} · {{ $event->created_at?->format('M j, Y g:i A') ?? 'Time not recorded' }}
+                                        </p>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-5 py-10 text-center">
+                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">
+                                        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    </div>
+                                    <p class="mx-auto mt-4 max-w-md text-sm leading-relaxed text-slate-600">No order activity has been recorded yet. Future status changes and important actions will appear here.</p>
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <aside class="space-y-6 xl:sticky xl:top-6">
+                <article class="{{ $card }} p-5 md:p-6">
+                    <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Operations</p>
+                    <h3 class="mt-1 font-[Poppins] text-lg font-semibold text-slate-900">Order status</h3>
+                    <p class="mt-1 text-sm text-slate-600">Move this order only through allowed steps for your store.</p>
+
+                    @if ($canManageOrders && $availableOrderStatuses->count() > 1)
+                        <form action="{{ route('orders.updateStatus', $order->id) }}" method="POST" class="mt-5 space-y-4">
+                            @csrf
+                            @method('PATCH')
+                            <div>
+                                <label for="status" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Next state</label>
+                                <select name="status" id="status" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                    @foreach ($availableOrderStatuses as $status)
+                                        <option value="{{ $status }}" @selected($order->status === $status)>
+                                            {{ \App\Support\OrderLifecycle::orderStatusLabel($status) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <button type="submit" class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700">
+                                Save status
+                            </button>
+                        </form>
+                    @elseif ($canManageOrders)
+                        <div class="mt-5 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                            No further status changes are available for this order.
+                        </div>
+                    @else
+                        <div class="mt-5 rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+                            You can view this order, but your store role cannot change its status.
+                        </div>
+                    @endif
+                </article>
+
+                <article class="{{ $card }} p-5 md:p-6">
+                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Customer</h3>
+                    <div class="mt-4 flex items-center gap-3">
+                        <div class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-800 ring-2 ring-white shadow-sm">
+                            {{ strtoupper($customerInitials) ?: 'C' }}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="truncate font-semibold text-slate-900">{{ $customerName }}</p>
+                            <p class="truncate text-sm text-slate-600">{{ $order->customer_email ?? 'Email not recorded' }}</p>
+                        </div>
+                    </div>
+
+                    <dl class="mt-6 space-y-5 text-sm">
+                        <div>
+                            <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Phone</dt>
+                            <dd class="mt-1.5 text-slate-800">{{ $order->customer_phone ?? $shipping?->phone ?? 'Not recorded' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Shipping address</dt>
+                            <dd class="mt-1.5 text-slate-800">
+                                @if ($shipping)
+                                    {{ $shipping->address_line1 }}@if ($shipping->address_line2), {{ $shipping->address_line2 }}@endif<br>
+                                    {{ $shipping->city }}, {{ $shipping->state }} {{ $shipping->postal_code }}<br>
+                                    {{ $shipping->country }}
+                                @else
+                                    <span class="text-slate-500">Not recorded</span>
+                                @endif
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Billing address</dt>
+                            <dd class="mt-1.5 text-slate-800">
+                                @if ($billing)
+                                    {{ $billing->address_line1 }}@if ($billing->address_line2), {{ $billing->address_line2 }}@endif<br>
+                                    {{ $billing->city }}, {{ $billing->state }} {{ $billing->postal_code }}<br>
+                                    {{ $billing->country }}
+                                @elseif ($order->billing_same_as_shipping && $shipping)
+                                    <span class="text-slate-600">Same as shipping address</span>
+                                @else
+                                    <span class="text-slate-500">Not recorded</span>
+                                @endif
+                            </dd>
+                        </div>
+                    </dl>
+
+                    @if ($order->customer_id)
+                        <a href="{{ route('customersProfile', $order->customer_id) }}" class="mt-6 flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-900">
+                            View customer
+                        </a>
+                    @endif
+                </article>
+
+                <article class="{{ $card }} p-5 md:p-6">
+                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Shipments</h3>
+                    <p class="mt-1 text-sm text-slate-600">Labels, carriers, and tracking will show up here when fulfillment is connected.</p>
+                    <div class="mt-5 flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">
+                            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <p class="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-slate-600">No shipments have been created yet. Fulfillment tracking will appear here after shipping is implemented.</p>
+                    </div>
+                </article>
+
+                <article class="{{ $card }} p-5 md:p-6">
+                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Order notes</h3>
+                    <p class="mt-1 text-sm text-slate-600">Internal notes stay in your team—customers do not see them.</p>
+
+                    @if ($canManageOrders)
+                        <form action="{{ route('orders.notes.store', $order) }}" method="POST" class="mt-5 space-y-3">
+                            @csrf
+                            <label for="order-note-body" class="sr-only">Note for your team</label>
+                            <textarea id="order-note-body" name="body" rows="3" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="e.g. Customer asked for gift receipt"></textarea>
+                            <button type="submit" class="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700">Add note</button>
+                        </form>
+                    @endif
+
+                    <div class="mt-5 space-y-3">
+                        @forelse ($noteEvents as $note)
+                            <div class="rounded-xl border border-slate-100 bg-slate-50/90 p-4 text-sm shadow-sm">
+                                <p class="whitespace-pre-line leading-relaxed text-slate-800">{{ $note->description }}</p>
+                                <p class="mt-3 text-xs text-slate-400">{{ $note->actor?->name ?? 'System' }} · {{ $note->created_at?->format('M j, Y g:i A') }}</p>
+                            </div>
+                        @empty
+                            @if ($order->notes)
+                                <p class="whitespace-pre-line text-sm leading-relaxed text-slate-800">{{ $order->notes }}</p>
+                            @else
+                                <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-500">No notes yet.</div>
+                            @endif
+                        @endforelse
+                    </div>
+                </article>
+
+                <article class="{{ $card }} p-5 md:p-6">
+                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Returns and refunds</h3>
+                    <p class="mt-1 text-sm text-slate-600">RMAs and refund history will live here when returns are enabled for your store.</p>
+                    <div class="mt-5 flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">
+                            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                <path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        <p class="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-slate-600">No returns or refunds are recorded yet. Returns and refunds will be added in a later commerce phase.</p>
+                    </div>
+                </article>
+            </aside>
+        </div>
+    </div>
 @endsection
