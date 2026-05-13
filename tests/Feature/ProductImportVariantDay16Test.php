@@ -208,13 +208,13 @@ CSV;
         config(['product_import.async_image_processing' => false]);
 
         Http::fake([
-            'https://img.example/red.png' => Http::response("\x89PNG\r\n\x1a\n".str_repeat('x', 40), 200, ['Content-Type' => 'image/png']),
+            'https://1.1.1.1/red.png' => Http::response("\x89PNG\r\n\x1a\n".str_repeat('x', 40), 200, ['Content-Type' => 'image/png']),
         ]);
 
         $owner = $this->createMerchantUser('var-img@example.com');
         $store = $this->createMemberStore($owner, 'Img Var Store', Store::ROLE_OWNER);
 
-        $csv = "parent_sku,product_name,o1n,o1v,vsku,vprice,vstock,vimg\nP-IMG,Mug,Color,R,VM1,5,1,https://img.example/red.png\n";
+        $csv = "parent_sku,product_name,o1n,o1v,vsku,vprice,vstock,vimg\nP-IMG,Mug,Color,R,VM1,5,1,https://1.1.1.1/red.png\n";
         $file = UploadedFile::fake()->createWithContent('vim.csv', $csv);
 
         $this->actingAs($owner)

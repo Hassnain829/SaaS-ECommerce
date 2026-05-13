@@ -1,59 +1,81 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SaaS E-Commerce (Laravel merchant platform)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Multi-store merchant dashboard and APIs for catalog, imports, inventory, orders, and developer-channel checkout. A separate `dev-test-storefront` Vite + React app exercises public catalog and order APIs locally.
 
-## About Laravel
+## Tech stack
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Backend:** PHP 8.2+, Laravel 12  
+- **Merchant UI:** Blade, Tailwind CSS, Vite 7  
+- **Developer simulator:** React 19 + Vite (`dev-test-storefront`)  
+- **Payments:** Stripe (PHP SDK + webhooks)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## PHP extensions
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Required for day-to-day development and CI:
 
-## Learning Laravel
+- `ctype`, `curl`, `dom`, `fileinfo`, `mbstring`, `openssl`, `pdo`, `tokenizer`, `xml`, `xmlwriter`  
+- SQLite (`pdo_sqlite`) for the default test suite, **or** MySQL client extensions if you use MySQL locally.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## Node.js
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Use **Node 20+** locally; CI uses **Node 22**. Match CI when debugging asset or storefront build issues.
 
-## Laravel Sponsors
+## Quick start
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+See **[docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)** for step-by-step instructions.
 
-### Premium Partners
+Minimal path:
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+```bash
+composer install
+copy .env.example .env   # or cp on Unix
+php artisan key:generate
+php artisan migrate
+npm ci && npm run build
+php artisan serve
+```
 
-## Contributing
+## Environment variables
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Copy **`.env.example`** to `.env` and fill values. Never commit real secrets. Payment and webhook variables are documented inline in `.env.example`.
 
-## Code of Conduct
+Developer storefront client env: **`dev-test-storefront/.env.example`**.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Running tests
 
-## Security Vulnerabilities
+```bash
+php artisan config:clear
+php artisan route:clear
+php artisan test
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+`phpunit.xml` pins testing env (`APP_KEY`, in-memory SQLite, sync queues). See `docs/LOCAL_SETUP.md` if you use `php artisan migrate:fresh --env=testing` with a file-based DB.
 
-## License
+## Build commands
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Location | Command |
+|----------|---------|
+| Laravel root | `npm ci` / `npm run build` |
+| `dev-test-storefront/` | `npm ci` / `npm run build` |
+
+## Security & release hygiene
+
+- **`SECURITY_ROTATION_REQUIRED.md`** — what to rotate after a leak.  
+- **`docs/SECURITY_HARDENING.md`** — image download SSRF controls and API throttle / webhook notes.  
+- **`docs/RELEASE_CHECKLIST.md`** — pre-release checks (no `vendor/`, no `.env`, CI green).
+
+Do not commit: `.env`, `vendor/`, `node_modules/`, `database/*.sqlite`, `storage/logs/*.log`, `bootstrap/cache/*.php`, `.phpunit.cache/`.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---------|----------------|
+| `php artisan test` fails loading XML | Install `dom`, `xml`, `xmlwriter`. |
+| Import jobs stuck “queued” in tests | Delete `bootstrap/cache/config.php` if present; tests remove common cache files in `Tests\TestCase`. |
+| Vite / API 419 or session issues | Session driver and `APP_URL` must match how you open the app (host + port). |
+| Developer storefront 401 | `VITE_STOREFRONT_TOKEN` must match the token issued in the merchant dashboard; restart Vite after changing `.env`. |
+
+## Further reading
+
+- **[docs/REFACTORING_ROADMAP.md](docs/REFACTORING_ROADMAP.md)** — large-file refactors deferred intentionally.  
+- **`ENTERPRISE_PROJECT_CONTEXT.md`** / **`ENTERPRISE_ROADMAP_2026.md`** — product scope and build order.

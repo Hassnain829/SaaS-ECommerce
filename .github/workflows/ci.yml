@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php-and-node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fail if forbidden paths are tracked
+        run: |
+          set -euo pipefail
+          fail=0
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "Tracked .env file must not exist in the repository."
+            fail=1
+          fi
+          while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            case "$f" in
+              .env.example|.env.testing.example|dev-test-storefront/.env.example) continue ;;
+            esac
+            if [[ "$f" == .env* ]] || [[ "$f" == */.env ]] || [[ "$f" == */.env.* ]]; then
+              echo "Tracked non-example env file: $f"
+              fail=1
+            fi
+          done < <(git ls-files)
+          if git ls-files | grep -q '^vendor/'; then echo "vendor/ must not be tracked"; fail=1; fi
+          if git ls-files | grep -q '^node_modules/'; then echo "root node_modules/ must not be tracked"; fail=1; fi
+          if git ls-files | grep -q '^dev-test-storefront/node_modules/'; then echo "dev-test-storefront/node_modules/ must not be tracked"; fail=1; fi
+          if git ls-files | grep -q '^\.phpunit\.cache/'; then echo ".phpunit.cache/ must not be tracked"; fail=1; fi
+          if git ls-files | grep -qE '^database/.*\.sqlite$'; then echo "database/*.sqlite must not be tracked"; fail=1; fi
+          if git ls-files | grep -qE '^storage/logs/.*\.log$'; then echo "storage/logs/*.log must not be tracked"; fail=1; fi
+          if git ls-files | grep -qE '^bootstrap/cache/.*\.php$'; then echo "bootstrap/cache/*.php must not be tracked"; fail=1; fi
+          if [[ "$fail" -ne 0 ]]; then
+            echo "See docs/RELEASE_CHECKLIST.md"
+            exit 1
+          fi
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: dom, mbstring, xml, xmlwriter, ctype, fileinfo, curl, sqlite3, pdo_sqlite
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Composer validate
+        run: composer validate --strict
+
+      - name: PHP syntax check (app and routes)
+        run: find app routes bootstrap -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Laravel Pint (dry run)
+        run: |
+          if [[ -x vendor/bin/pint ]]; then
+            vendor/bin/pint --test
+          fi
+
+      - name: Run PHPUnit
+        run: php artisan test
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: npm ci (root)
+        run: npm ci
+
+      - name: npm run build (root)
+        run: npm run build
+
+      - name: npm ci (dev-test-storefront)
+        working-directory: dev-test-storefront
+        run: npm ci
+
+      - name: npm run build (dev-test-storefront)
+        working-directory: dev-test-storefront
+        run: npm run build

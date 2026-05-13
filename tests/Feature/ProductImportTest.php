@@ -221,13 +221,13 @@ class ProductImportTest extends TestCase
         Storage::fake('public');
 
         Http::fake([
-            'https://example.test/image.png' => Http::response("\x89PNG\r\n\x1a\n".str_repeat('x', 50), 200, ['Content-Type' => 'image/png']),
+            'https://1.1.1.1/image.png' => Http::response("\x89PNG\r\n\x1a\n".str_repeat('x', 50), 200, ['Content-Type' => 'image/png']),
         ]);
 
         $owner = $this->createMerchantUser('img@example.com');
         $store = $this->createMemberStore($owner, 'Img Store', Store::ROLE_OWNER);
 
-        $csv = "Title,SKU,Price,Images\nImg P,IMG-P,1,https://example.test/image.png\n";
+        $csv = "Title,SKU,Price,Images\nImg P,IMG-P,1,https://1.1.1.1/image.png\n";
         $file = UploadedFile::fake()->createWithContent('img.csv', $csv);
 
         $imgResponse = $this->actingAs($owner)

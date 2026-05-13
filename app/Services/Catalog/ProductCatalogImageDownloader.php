@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\ProductImport;
 use App\Models\Store;
 use App\Support\ProductImageStorage;
+use App\Support\Security\ServerSideImageHttpUrlValidator;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -168,11 +169,19 @@ final class ProductCatalogImageDownloader
             return null;
         }
 
+        if (! ServerSideImageHttpUrlValidator::isSafeRemoteHttpUrl($url)) {
+            return null;
+        }
+
         $maxBytes = 3 * 1024 * 1024;
 
         try {
-            $response = Http::timeout(25)
-                ->withOptions(['verify' => true])
+            $response = Http::connectTimeout(8)
+                ->timeout(25)
+                ->withOptions([
+                    'verify' => true,
+                    'allow_redirects' => false,
+                ])
                 ->withHeaders(['User-Agent' => 'BaaS-Core-ProductImport/1.0'])
                 ->get($url);
             if (! $response->successful()) {

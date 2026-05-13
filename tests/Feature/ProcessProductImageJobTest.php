@@ -23,7 +23,7 @@ class ProcessProductImageJobTest extends TestCase
     {
         Storage::fake('public');
         Http::fake([
-            'https://example.test/p.png' => Http::response("\x89PNG\r\n\x1a\n".str_repeat('x', 40), 200, ['Content-Type' => 'image/png']),
+            'https://1.1.1.1/p.png' => Http::response("\x89PNG\r\n\x1a\n".str_repeat('x', 40), 200, ['Content-Type' => 'image/png']),
         ]);
 
         $owner = $this->createMerchantUser('img-job@example.com');
@@ -62,7 +62,7 @@ class ProcessProductImageJobTest extends TestCase
         $row = ProductImage::query()->create([
             'product_id' => $product->id,
             'image_path' => ProductImage::PENDING_DISK_PATH,
-            'source_url' => 'https://example.test/p.png',
+            'source_url' => 'https://1.1.1.1/p.png',
             'sort_order' => 0,
             'is_primary' => true,
             'status' => ProductImage::STATUS_QUEUED,
@@ -138,7 +138,7 @@ class ProcessProductImageJobTest extends TestCase
         ProductImage::query()->create([
             'product_id' => $product->id,
             'image_path' => ProductImage::PENDING_DISK_PATH,
-            'source_url' => 'https://example.test/x.png',
+            'source_url' => 'https://1.1.1.1/x.png',
             'sort_order' => 0,
             'is_primary' => true,
             'status' => ProductImage::STATUS_QUEUED,

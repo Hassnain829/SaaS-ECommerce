@@ -35,11 +35,11 @@ class AdminController extends Controller
         return view('admin_view.admin_profile');
     }
     public function admin_infrastructure_add_logistic(){
-        return view('admin_view.admin_infrastucture_add_logistic');
+        return view('admin_view.admin_infrastructure_add_logistic');
     }
 
     public function admin_settings_security(){
-        return view('admin_view.admin_settings_security&Auth');
+        return view('admin_view.admin_settings_security_auth');
     }
     public function admin_settings_notifications(){
         return view('admin_view.admin_settings_notification');

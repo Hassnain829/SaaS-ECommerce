@@ -17,11 +17,13 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['dev.storefront.token'])
     ->prefix('developer-storefront')
     ->group(function (): void {
-        Route::get('/catalog', [DeveloperStorefrontCatalogController::class, 'catalog']);
-        Route::post('/orders', [DeveloperStorefrontCatalogController::class, 'placeOrder']);
+        Route::middleware('throttle:api-dev-catalog')
+            ->get('catalog', [DeveloperStorefrontCatalogController::class, 'catalog']);
+        Route::middleware('throttle:api-dev-orders')
+            ->post('orders', [DeveloperStorefrontCatalogController::class, 'placeOrder']);
     });
 
-Route::middleware(['dev.storefront.token'])
+Route::middleware(['dev.storefront.token', 'throttle:api-dev-catalog'])
     ->prefix('v1/catalog')
     ->group(function (): void {
         Route::get('/products', [CatalogApiV1Controller::class, 'products']);
@@ -31,13 +33,13 @@ Route::middleware(['dev.storefront.token'])
         Route::get('/attributes', [CatalogApiV1Controller::class, 'attributes']);
     });
 
-Route::middleware(['dev.storefront.token'])
+Route::middleware(['dev.storefront.token', 'throttle:api-dev-external'])
     ->prefix('v1/external')
     ->group(function (): void {
         Route::post('/orders', [ExternalOrderSyncController::class, 'store']);
     });
 
-Route::middleware(['dev.storefront.token'])
+Route::middleware(['dev.storefront.token', 'throttle:api-dev-checkout'])
     ->prefix('v1/checkout')
     ->group(function (): void {
         Route::post('/', [PlatformCheckoutController::class, 'store']);
