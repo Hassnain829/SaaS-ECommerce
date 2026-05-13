@@ -40,6 +40,9 @@ Route::get('/logout', [DashboardController::class, 'logout'])
 Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
+    Route::get('/products/create', [DashboardController::class, 'createProduct'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('products.create');
     Route::post('/products/catalog-list-highlights', [DashboardController::class, 'saveProductListDetailKeys'])
         ->middleware('store.permission:catalog.manage')
         ->name('products.catalog-list-highlights');

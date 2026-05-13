@@ -1125,9 +1125,7 @@ class OnboardingController extends Controller
 
         $this->syncActiveStoreSessions($request, $store);
 
-        return redirect()->route('products', [
-            'openAddProduct' => 1,
-        ]);
+        return redirect()->route('products.create');
     }
 
     public function updateStoreFromManagement(Request $request, $storeId): RedirectResponse
@@ -1841,7 +1839,8 @@ class OnboardingController extends Controller
         $validated['default_stock'] = $validated['bulk_stock'];
         $validated['brand_id'] = $validated['brand_id'] ?? null;
 
-        $isCatalogQuickAdd = $request->boolean('_open_add_product_modal');
+        $isCatalogQuickAdd = $request->boolean('_open_add_product_modal')
+            || $request->boolean('_from_product_create_page');
         if ($isCatalogQuickAdd) {
             $validated['variation_types'] = [];
         }

@@ -22,7 +22,6 @@
         'cf_value' => $filters['cf_value'] ?? '',
     ];
 
-    $openProductModal = request()->boolean('openAddProduct') || old('_open_add_product_modal');
     $brandCount = $brandCount ?? 0;
     $activeBrandFilter = $activeBrandFilter ?? null;
     $activeTagFilter = $activeTagFilter ?? null;
@@ -112,12 +111,12 @@
         </form>
 
         <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-            <button type="button" data-open-product-modal class="hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
+            <a href="{{ route('products.create') }}" class="hidden sm:inline-flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
                 </svg>
                 <span>Add Product</span>
-            </button>
+            </a>
             @if ($canManageBrands || $canManageTags || $canManageCategories)
                 <details id="products-catalog-more-menu" class="group relative hidden sm:block" data-products-more-actions>
                     <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#475569] shadow-sm hover:border-[#CBD5E1] hover:bg-[#F8FAFC] [&::-webkit-details-marker]:hidden" aria-label="More catalog actions">
@@ -238,12 +237,12 @@
                     </div>
                 </details>
             @endif
-            <button type="button" data-open-product-modal class="sm:hidden flex items-center justify-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2.5 rounded-lg">
+            <a href="{{ route('products.create') }}" class="sm:hidden inline-flex items-center justify-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2.5 rounded-lg">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
                 </svg>
                 Add Product
-            </button>
+            </a>
         </div>
     </div>
 
@@ -768,15 +767,6 @@
         </div>
     </div>
 
-    @include('user_view.partials.product_create_modal', [
-        'productModalSelectedStore' => $selectedStore,
-        'productModalIsOpen' => $openProductModal,
-        'productModalOpenQuery' => 'openAddProduct',
-        'catalogBrands' => $catalogBrands ?? collect(),
-        'catalogTags' => $catalogTags ?? collect(),
-        'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
-        'catalogImagesForVariantPicker' => [],
-    ])
     @include('user_view.partials.product_edit_modal', [
         'catalogBrands' => $catalogBrands ?? collect(),
         'catalogTags' => $catalogTags ?? collect(),

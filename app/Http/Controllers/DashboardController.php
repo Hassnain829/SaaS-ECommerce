@@ -171,9 +171,146 @@ class DashboardController extends Controller
         return redirect()->route('dashboard');
     }
 
-    public function index()
+    public function index(Request $request): View
     {
-        return view('user_view.dashboard');
+        $store = $request->attributes->get('currentStore');
+
+        return view('user_view.dashboard', [
+            'dashboard' => $this->merchantDashboardSnapshot($store),
+        ]);
+    }
+
+    /**
+     * Store-scoped metrics for the merchant dashboard home.
+     *
+     * @return array<string, mixed>
+     */
+    protected function merchantDashboardSnapshot(?Store $store): array
+    {
+        if (! $store instanceof Store) {
+            return ['has_store' => false];
+        }
+
+        $storeId = $store->id;
+        $since30 = now()->subDays(30);
+        $since7 = now()->subDays(7);
+        $excludeStatuses = [Order::STATUS_CANCELLED, Order::STATUS_REFUNDED];
+        $activeStatuses = [
+            Order::STATUS_PENDING,
+            Order::STATUS_CONFIRMED,
+            Order::STATUS_PROCESSING,
+        ];
+
+        $ordersBase = Order::query()->where('store_id', $storeId);
+
+        $revenue30d = (float) (clone $ordersBase)
+            ->whereNotIn('status', $excludeStatuses)
+            ->where(function ($q) use ($since30): void {
+                $q->where(function ($q2) use ($since30): void {
+                    $q2->whereNotNull('placed_at')->where('placed_at', '>=', $since30);
+                })->orWhere(function ($q2) use ($since30): void {
+                    $q2->whereNull('placed_at')->where('created_at', '>=', $since30);
+                });
+            })
+            ->sum('grand_total');
+
+        $orders30dCount = (clone $ordersBase)
+            ->whereNotIn('status', $excludeStatuses)
+            ->where(function ($q) use ($since30): void {
+                $q->where(function ($q2) use ($since30): void {
+                    $q2->whereNotNull('placed_at')->where('placed_at', '>=', $since30);
+                })->orWhere(function ($q2) use ($since30): void {
+                    $q2->whereNull('placed_at')->where('created_at', '>=', $since30);
+                });
+            })
+            ->count();
+
+        $activeOrdersCount = (clone $ordersBase)
+            ->whereIn('status', $activeStatuses)
+            ->count();
+
+        $customersCount = Customer::query()->where('store_id', $storeId)->count();
+        $customersNew30d = Customer::query()
+            ->where('store_id', $storeId)
+            ->where('created_at', '>=', $since30)
+            ->count();
+
+        $productsCount = Product::query()->where('store_id', $storeId)->count();
+
+        $ordersLast7 = (clone $ordersBase)
+            ->whereNotIn('status', $excludeStatuses)
+            ->where(function ($q) use ($since7): void {
+                $q->where(function ($q2) use ($since7): void {
+                    $q2->whereNotNull('placed_at')->where('placed_at', '>=', $since7);
+                })->orWhere(function ($q2) use ($since7): void {
+                    $q2->whereNull('placed_at')->where('created_at', '>=', $since7);
+                });
+            })
+            ->get(['placed_at', 'created_at', 'grand_total']);
+
+        $chartDays = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $day = now()->subDays($i)->startOfDay();
+            $chartDays[$day->format('Y-m-d')] = [
+                'label' => $day->format('D'),
+                'total' => 0.0,
+            ];
+        }
+        foreach ($ordersLast7 as $order) {
+            $dt = $order->placed_at ?? $order->created_at;
+            if (! $dt) {
+                continue;
+            }
+            $key = $dt->clone()->startOfDay()->format('Y-m-d');
+            if (! isset($chartDays[$key])) {
+                continue;
+            }
+            $chartDays[$key]['total'] += (float) $order->grand_total;
+        }
+        $chartDays = array_values($chartDays);
+
+        $recentOrders = (clone $ordersBase)
+            ->orderByDesc(DB::raw('COALESCE(placed_at, created_at)'))
+            ->limit(6)
+            ->get(['id', 'order_number', 'status', 'grand_total', 'placed_at', 'created_at']);
+
+        $topProducts = DB::table('order_items')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->leftJoin('products', 'products.id', '=', 'order_items.product_id')
+            ->where('orders.store_id', $storeId)
+            ->whereNotIn('orders.status', $excludeStatuses)
+            ->where(function ($q) use ($since30): void {
+                $q->where(function ($q2) use ($since30): void {
+                    $q2->whereNotNull('orders.placed_at')->where('orders.placed_at', '>=', $since30);
+                })->orWhere(function ($q2) use ($since30): void {
+                    $q2->whereNull('orders.placed_at')->where('orders.created_at', '>=', $since30);
+                });
+            })
+            ->whereNotNull('order_items.product_id')
+            ->groupBy('order_items.product_id')
+            ->orderByDesc(DB::raw('SUM(order_items.total)'))
+            ->limit(5)
+            ->get([
+                'order_items.product_id',
+                DB::raw('MAX(COALESCE(products.name, order_items.product_name)) as display_name'),
+                DB::raw('SUM(order_items.quantity) as units_sold'),
+                DB::raw('SUM(order_items.total) as revenue'),
+            ]);
+
+        return [
+            'has_store' => true,
+            'store' => $store,
+            'currency' => $store->currency ?: 'USD',
+            'revenue_30d' => $revenue30d,
+            'orders_30d_count' => $orders30dCount,
+            'active_orders_count' => $activeOrdersCount,
+            'customers_count' => $customersCount,
+            'customers_new_30d' => $customersNew30d,
+            'products_count' => $productsCount,
+            'chart_days' => $chartDays,
+            'recent_orders' => $recentOrders,
+            'top_products' => $topProducts,
+        ];
     }
 
     public function product(Request $request): \Illuminate\View\View|RedirectResponse|StreamedResponse
@@ -186,6 +323,10 @@ class DashboardController extends Controller
             return redirect()
                 ->route('store-management')
                 ->withErrors(['store' => 'No accessible store was found for your account. Create a store or ask for access first.']);
+        }
+
+        if ($request->boolean('openAddProduct')) {
+            return redirect()->route('products.create');
         }
 
         $search = trim((string) $request->query('q', ''));
@@ -523,6 +664,46 @@ class DashboardController extends Controller
                 'product_types_in_view' => $distinctProductTypeCount,
             ],
             'bulkSelectableProductIds' => $bulkSelectableProductIds,
+        ]);
+    }
+
+    public function createProduct(Request $request): View|RedirectResponse
+    {
+        $stores = $request->attributes->get('availableStores')
+            ?? $request->user()->memberStores()->orderBy('stores.name')->get();
+        $selectedStore = $request->attributes->get('currentStore');
+
+        if (! $selectedStore) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No accessible store was found for your account. Create a store or ask for access first.']);
+        }
+
+        $user = $request->user();
+        abort_unless($user && $user->hasStorePermission($selectedStore, StorePermission::CATALOG_MANAGE), 403);
+
+        $catalogTaxonomyCategories = $selectedStore->categories()
+            ->where('status', 'active')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'parent_id']);
+
+        $catalogBrands = $selectedStore->brands()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $catalogTags = $selectedStore->tags()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'color']);
+
+        return view('user_view.product_create', [
+            'selectedStore' => $selectedStore,
+            'stores' => $stores,
+            'catalogBrands' => $catalogBrands,
+            'catalogTags' => $catalogTags,
+            'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
         ]);
     }
 

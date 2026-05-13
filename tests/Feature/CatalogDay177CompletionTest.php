@@ -50,6 +50,53 @@ class CatalogDay177CompletionTest extends TestCase
         $this->assertSame(1, $product->variants()->count());
     }
 
+    public function test_add_product_page_submit_redirects_to_full_editor(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('product.store'), [
+                '_from_product_create_page' => '1',
+                'name' => 'Page Flow Tee',
+                'description' => null,
+                'bulk_price' => 12,
+                'bulk_stock' => 10,
+                'stock_alert' => 1,
+                'product_type' => 'physical',
+                'sku' => 'PFT-001',
+                'inventory_variant_stock_mode' => 'split_total',
+            ]);
+
+        $product = Product::query()->where('store_id', $store->id)->where('name', 'Page Flow Tee')->firstOrFail();
+        $response->assertRedirect(route('products.edit', ['product' => $product->id]));
+    }
+
+    public function test_open_add_product_query_redirects_to_create_page(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products', ['openAddProduct' => 1]))
+            ->assertRedirect(route('products.create'));
+    }
+
+    public function test_products_create_page_loads(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.create'))
+            ->assertOk()
+            ->assertSee('Add product', false)
+            ->assertSee('id="product-create-form"', false);
+    }
+
     public function test_products_page_collapses_advanced_filters_and_table_settings(): void
     {
         $owner = $this->merchantUser();
@@ -481,19 +528,17 @@ class CatalogDay177CompletionTest extends TestCase
         $this->assertSame([], $payload['image_paths']);
     }
 
-    public function test_quick_add_create_modal_has_no_variant_form_fields(): void
+    public function test_create_product_page_renders_form_without_variant_fields(): void
     {
         $store = $this->makeStore($this->merchantUser());
 
-        $html = View::make('user_view.partials.product_create_modal', [
+        $html = View::make('user_view.partials.product_create_form', [
             'errors' => new ViewErrorBag,
             'productModalSelectedStore' => $store,
-            'productModalIsOpen' => false,
-            'productModalOpenQuery' => 'openAddProduct',
             'catalogBrands' => collect(),
             'catalogTags' => collect(),
             'catalogTaxonomyCategories' => collect(),
-            'catalogImagesForVariantPicker' => [],
+            'productCreateCancelUrl' => '/products',
         ])->render();
 
         $this->assertStringContainsString('id="product-create-form"', $html);
