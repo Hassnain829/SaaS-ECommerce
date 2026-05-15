@@ -73,7 +73,7 @@
                 <section class="overflow-hidden rounded-2xl border border-[#D8E1EC] bg-white">
                     <div class="flex h-16 items-center justify-between border-b border-[#E2E8F0] px-5 md:px-6">
                         <h2 class="text-2xl font-poppins leading-tight text-[#0F172A]">Integrated Courier Services - Preview</h2>
-                        <button type="button" disabled class="text-base font-inter font-medium text-[#94A3B8]">+ Add carrier later</button>
+                        <button type="button" disabled class="text-base font-inter font-medium text-[#94A3B8]">+ Add carrier </button>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2">
                         <article class="flex items-center justify-between gap-3 border-b border-[#EEF2F7] p-5 md:border-r"><div class="flex items-center gap-3"><div class="grid h-11 w-11 place-items-center rounded-xl bg-[#F1F5F9] font-semibold text-[#64748B]">UPS</div><div><h3 class="text-xl leading-tight">UPS</h3><p class="text-sm text-[#64748B]">Next Day Air, Ground</p></div></div><span class="rounded-md bg-[#E0F2FE] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Preview</span></article>

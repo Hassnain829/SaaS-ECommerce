@@ -1389,7 +1389,622 @@ Replace direct test order creation with production checkout lifecycle.
 
 ---
 
-# PHASE 6 — Fulfillment and Shipping
+# PHASE 6 — Fulfillment, Shipping, Delivery Methods, and Carrier Foundation
+
+## Goal
+
+Build the fulfillment and shipping foundation after checkout/payment is complete.
+
+Phase 6 must answer:
+
+> How does the store owner deliver confirmed orders to the customer?
+
+The platform must support simple local stores and future global stores with multiple locations, multiple shipping zones, multiple carriers, and different delivery methods.
+
+Do not start with courier automation or live DHL/UPS/FedEx APIs.
+
+Start with manual fulfillment and clean shipping settings.
+
+---
+
+## Business Scenarios Phase 6 Must Support
+
+### Scenario 1 — One store, one location
+
+A simple store owner has one shop or warehouse and ships orders manually or with one local courier.
+
+The system should be easy and not require advanced global setup.
+
+### Scenario 2 — One store, multiple locations
+
+A global store owner may have multiple warehouses/shops.
+
+Examples:
+
+- New York warehouse;
+- Dubai warehouse;
+- London warehouse;
+- Karachi warehouse.
+
+The platform must allow shipments to originate from the correct fulfillment location.
+
+Future routing can select the best location based on stock, destination, carrier availability, and delivery strategy.
+
+### Scenario 3 — Multiple separate stores
+
+A user may own multiple stores.
+
+Each store has separate:
+
+- locations;
+- shipping zones;
+- carrier accounts;
+- delivery methods;
+- shipping rules;
+- shipments.
+
+No cross-store leakage is allowed.
+
+### Scenario 4 — Regional carrier availability
+
+A store may use:
+
+- DHL for international express;
+- UPS for USA orders;
+- FedEx for express delivery;
+- local courier for city delivery;
+- store pickup for shop locations.
+
+The platform must support multiple carrier services and only offer services that are valid for the customer destination.
+
+---
+
+## Phase 6 Concepts
+
+### Location
+
+Where stock exists or orders ship from.
+
+Examples:
+
+- warehouse;
+- shop;
+- stock room;
+- restaurant branch;
+- third-party fulfillment warehouse.
+
+### Shipping Zone
+
+Where the store delivers.
+
+Examples:
+
+- United States;
+- Canada;
+- Europe;
+- Middle East;
+- South Asia;
+- local city zone;
+- international zone.
+
+### Carrier / Courier
+
+Who delivers the package.
+
+Examples:
+
+- DHL;
+- UPS;
+- FedEx;
+- USPS;
+- local courier;
+- manual delivery;
+- store pickup.
+
+### Carrier Service
+
+A delivery service under a carrier.
+
+Examples:
+
+- DHL Express;
+- UPS Ground;
+- FedEx 2Day;
+- Local same-day delivery;
+- Store pickup.
+
+### Delivery Method
+
+What the customer sees at checkout.
+
+Examples:
+
+- Economy delivery;
+- Standard delivery;
+- Express delivery;
+- Local delivery;
+- Store pickup.
+
+The customer should not see internal routing strategy names like:
+
+- cheapest reliable;
+- balanced optimizer;
+- carrier automation score.
+
+Those are internal store-owner/admin concepts for future automation.
+
+---
+
+## 6A — Manual Fulfillment Foundation
+
+### Purpose
+
+Create the real fulfillment foundation before live carrier automation.
+
+### Tables
+
+Create:
+
+- `carriers`
+- `carrier_accounts`
+- `shipping_zones`
+- `shipping_methods`
+- `shipments`
+- `shipment_items`
+
+Optional later:
+
+- `shipment_events`
+- `shipment_packages`
+
+### `carriers`
+
+Purpose:
+
+Global or system-defined carrier catalog.
+
+Fields:
+
+- `id`
+- `name`
+- `code`
+- `type`
+  - manual
+  - courier
+  - pickup
+  - local_delivery
+  - third_party
+- `website_url` nullable
+- `tracking_url_template` nullable
+- `is_system` boolean
+- `is_active` boolean
+- timestamps
+
+Seed basic carriers:
+
+- Manual delivery
+- Store pickup
+- DHL
+- UPS
+- FedEx
+- USPS
+- Local courier
+
+Live carrier APIs are not required yet.
+
+### `carrier_accounts`
+
+Purpose:
+
+Store-scoped carrier setup.
+
+Fields:
+
+- `id`
+- `store_id`
+- `carrier_id`
+- `display_name`
+- `connection_type`
+  - manual
+  - api
+  - external
+- `status`
+  - setup_required
+  - enabled
+  - disabled
+  - internal_only
+- `credentials_encrypted` nullable
+- `settings` json nullable
+- `supported_countries` json nullable
+- `enabled_for_checkout` boolean
+- `created_by`
+- timestamps
+- soft deletes if consistent
+
+Rules:
+
+- Store-scoped.
+- Store A cannot use Store B carrier account.
+- Do not store real courier API credentials unless encrypted.
+- API carrier integrations are deferred.
+
+### `shipping_zones`
+
+Purpose:
+
+Define where the store delivers.
+
+Fields:
+
+- `id`
+- `store_id`
+- `name`
+- `countries` json nullable
+- `regions` json nullable
+- `postal_patterns` json nullable
+- `is_active` boolean
+- `sort_order`
+- timestamps
+
+Examples:
+
+- United States
+- Local delivery area
+- Europe
+- International
+
+### `shipping_methods`
+
+Purpose:
+
+Define customer-facing delivery options.
+
+Fields:
+
+- `id`
+- `store_id`
+- `shipping_zone_id`
+- `carrier_account_id` nullable
+- `name`
+- `code`
+- `description` nullable
+- `delivery_speed_label` nullable
+  - Economy
+  - Standard
+  - Express
+  - Pickup
+- `rate_type`
+  - flat
+  - free
+  - manual
+  - carrier_calculated_later
+- `flat_rate`
+- `free_over_amount` nullable
+- `min_order_amount` nullable
+- `max_order_amount` nullable
+- `estimated_min_days` nullable
+- `estimated_max_days` nullable
+- `enabled_for_checkout` boolean
+- `is_active` boolean
+- `sort_order`
+- timestamps
+
+Rules:
+
+- Customer sees shipping method name, price, and estimated delivery.
+- Do not show internal courier routing strategy to customer.
+- If no method matches destination, checkout should return a clear no-method-available message.
+
+### `shipments`
+
+Purpose:
+
+Represent actual fulfillment of an order.
+
+Fields:
+
+- `id`
+- `store_id`
+- `order_id`
+- `shipment_number`
+- `origin_location_id` nullable
+- `carrier_account_id` nullable
+- `shipping_method_id` nullable
+- `status`
+  - pending
+  - label_created
+  - shipped
+  - in_transit
+  - delivered
+  - failed
+  - returned
+  - cancelled
+- `tracking_number` nullable
+- `tracking_url` nullable
+- `carrier_service` nullable
+- `package_count` default 1
+- `package_weight` nullable
+- `shipping_cost` nullable
+- `label_url` nullable
+- `shipped_at` nullable
+- `delivered_at` nullable
+- `shipped_by` nullable
+- `metadata` json nullable
+- timestamps
+- soft deletes if consistent
+
+Rules:
+
+- No fake label generation.
+- Tracking number can be manually entered.
+- Tracking URL can be generated from carrier template or manually entered.
+- Shipment status is separate from order status.
+
+### `shipment_items`
+
+Purpose:
+
+Track which order items and quantities are included in a shipment.
+
+Fields:
+
+- `id`
+- `store_id`
+- `shipment_id`
+- `order_item_id`
+- `quantity`
+- timestamps
+
+Rules:
+
+- Quantity must not exceed remaining unshipped quantity.
+- Supports partial shipments.
+- Supports split shipments across locations/carriers later.
+
+---
+
+## 6A Flow
+
+### Create shipment from order
+
+From order detail, store owner can:
+
+1. Open Fulfillment panel.
+2. Select items and quantities to ship.
+3. Select origin location.
+4. Select carrier account or manual delivery.
+5. Enter tracking number/tracking URL if available.
+6. Create shipment.
+
+### Shipment actions
+
+Allowed manual actions:
+
+- create shipment;
+- add/update tracking number;
+- mark as shipped;
+- mark as delivered;
+- mark as failed;
+- cancel pending shipment if safe.
+
+Do not add:
+
+- buy label;
+- schedule pickup;
+- live tracking sync;
+- carrier API purchase;
+- refund/return controls.
+
+Those are future phases.
+
+### Fulfillment status calculation
+
+Order fulfillment status should be calculated from shipment items:
+
+- no shipped items: `unfulfilled`
+- some quantity shipped: `partial`
+- all quantity shipped: `fulfilled`
+
+Returned status belongs to returns phase.
+
+Do not set order status to `shipped`.
+
+### Order events
+
+Create order events for:
+
+- `shipment.created`
+- `shipment.tracking_added`
+- `shipment.status_changed`
+- `fulfillment.status_changed`
+
+Timeline should show real shipment activity.
+
+---
+
+## 6A UI Requirements
+
+### Shipping & Delivery settings
+
+Replace static Shipping Automation preview with real setup areas:
+
+1. Shipping zones
+   - Where does this store deliver?
+
+2. Delivery methods
+   - What choices can customers select at checkout?
+
+3. Carriers & accounts
+   - Which courier services can this store use?
+
+4. Fulfillment locations
+   - Where do orders ship from?
+
+5. Automation
+   - Coming later after manual fulfillment is stable.
+
+Do not show fake save/export/toggle controls.
+
+### Order detail Fulfillment panel
+
+Add a real fulfillment panel to order detail:
+
+- fulfillment status;
+- shipment list;
+- remaining items to ship;
+- create shipment action;
+- tracking number;
+- carrier;
+- shipment status;
+- shipped/delivered timestamps.
+
+Empty state:
+
+> No shipments have been created yet. Create a shipment when this order is ready to fulfill.
+
+---
+
+## 6A Tests
+
+Add tests for:
+
+1. owner can create carrier account;
+2. staff cannot manage carrier accounts;
+3. shipping zones are store-scoped;
+4. shipping methods are store-scoped;
+5. same carrier can be used by multiple stores with separate accounts;
+6. Store A cannot use Store B carrier account;
+7. shipment can be created from order;
+8. shipment items cannot exceed ordered quantity;
+9. partial shipment sets fulfillment status to partial;
+10. full shipment sets fulfillment status to fulfilled;
+11. tracking number can be added;
+12. shipment can be marked shipped;
+13. shipment can be marked delivered;
+14. order events are created;
+15. order detail shows fulfillment panel;
+16. no fake label/pickup buttons are shown;
+17. `migrate:fresh --seed` passes;
+18. full suite passes.
+
+---
+
+## 6B — Shipping Settings and Checkout Delivery Methods
+
+### Purpose
+
+Allow checkout to offer customer-facing delivery methods.
+
+Build after 6A.
+
+### Features
+
+- destination country/region matching;
+- active shipping zones;
+- active shipping methods;
+- flat rate shipping;
+- free shipping threshold;
+- delivery estimates;
+- checkout shipping selection;
+- shipping snapshots on checkout and order.
+
+### Customer checkout display
+
+Customer sees:
+
+- Economy delivery;
+- Standard delivery;
+- Express delivery;
+- Local delivery;
+- Store pickup.
+
+Each option should show:
+
+- name;
+- price;
+- estimated delivery;
+- short description.
+
+### Rules
+
+- Hide unsupported delivery methods.
+- Hide methods that do not match destination.
+- If no method is available, return clear checkout error.
+- Do not show internal carrier automation strategy to customer.
+
+### Tests
+
+Add tests for:
+
+1. checkout returns delivery methods for destination;
+2. unsupported country has no methods;
+3. free shipping threshold works;
+4. flat rate shipping is added to checkout totals;
+5. selected shipping method is snapshotted on order;
+6. external checkout sync can still pass external shipping values;
+7. platform checkout still works.
+
+---
+
+## 6C — Carrier API Integrations and Automation
+
+### Purpose
+
+Add real courier integrations after manual fulfillment and shipping methods are stable.
+
+Do not start 6C until 6A and 6B are complete.
+
+### Future features
+
+- DHL sandbox;
+- UPS sandbox;
+- FedEx sandbox;
+- live rate quotes;
+- label purchase;
+- tracking sync;
+- pickup scheduling;
+- carrier API retry jobs;
+- shipment background jobs;
+- routing preference:
+  - cheapest available;
+  - fastest available;
+  - balanced;
+  - manual selection;
+- automation insights.
+
+### Rules
+
+- No fake live carrier buttons.
+- API credentials must be encrypted.
+- Carrier failures must not corrupt shipment/order state.
+- Shipment jobs must be retryable.
+- Every carrier action should create a shipment/order event.
+
+---
+
+## Phase 6 Acceptance Criteria
+
+Phase 6 is complete only if:
+
+1. Manual fulfillment works.
+2. Shipments and shipment items exist.
+3. Fulfillment status is separate from order status.
+4. Partial fulfillment works.
+5. Split-shipment-ready schema exists.
+6. Carrier accounts are store-scoped.
+7. Shipping zones are store-scoped.
+8. Shipping methods are customer-friendly.
+9. Unsupported regions do not show unavailable courier services.
+10. Order detail shows real fulfillment/shipment data.
+11. Static shipping automation preview is removed or converted into real setup UI.
+12. No fake label/carrier automation buttons exist.
+13. Store scoping is tested.
+14. Staff permissions are tested.
+15. `migrate:fresh --seed` passes.
+16. Full suite passes.
+17. Carrier API integrations remain deferred until foundation is stable.
+
+---
 
 ## Goal
 

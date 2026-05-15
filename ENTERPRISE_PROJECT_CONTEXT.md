@@ -860,6 +860,506 @@ Use:
 
 ---
 
+## 14.1 Fulfillment, Shipping, Locations, and Delivery Strategy
+
+Phase 6 must build fulfillment and shipping in a way that supports simple local stores and future global store owners.
+
+Do not confuse these concepts:
+
+### Store
+
+A store is the user/store owner’s sales workspace in the SaaS platform.
+
+A user/store owner may have:
+
+- one store with one location;
+- one store with multiple locations/warehouses;
+- multiple separate stores;
+- a global store selling into different regions.
+
+Each store must keep its own shipping setup, carrier accounts, delivery methods, fulfillment locations, shipments, and rules.
+
+### Location
+
+A location is where stock exists or where orders can ship from.
+
+Examples:
+
+- warehouse;
+- physical shop;
+- stock room;
+- restaurant branch;
+- third-party fulfillment warehouse;
+- local pickup location.
+
+A location answers:
+
+> Where is the stock or fulfillment operation?
+
+Locations are used for:
+
+- inventory levels;
+- inventory reservations;
+- stock movements;
+- shipment origin;
+- local pickup;
+- future carrier pickup scheduling;
+- future fulfillment routing.
+
+A location is not a selling market, currency, or customer-facing region.
+
+### Market / Shipping Zone
+
+A market or shipping zone is where the store sells or delivers.
+
+Examples:
+
+- United States;
+- Canada;
+- United Kingdom;
+- Europe;
+- Middle East;
+- South Asia;
+- local delivery area;
+- international delivery zone.
+
+A shipping zone answers:
+
+> Where can this store deliver?
+
+Shipping zones are used for:
+
+- destination country/region matching;
+- available delivery methods;
+- available carrier services;
+- shipping rates;
+- free shipping thresholds;
+- future region-specific taxes, prices, and delivery promises.
+
+A shipping zone is not the same as an inventory location.
+
+### Carrier / Courier
+
+A carrier or courier is the service that delivers the shipment.
+
+Examples:
+
+- DHL;
+- UPS;
+- FedEx;
+- USPS;
+- Canada Post;
+- local courier;
+- manual delivery;
+- store pickup;
+- third-party fulfillment provider.
+
+A carrier answers:
+
+> Who delivers the package?
+
+A store owner may connect or configure multiple carriers, but a carrier must only be offered where it actually supports delivery.
+
+### Delivery Method
+
+A delivery method is what the customer sees at checkout.
+
+Examples:
+
+- Economy delivery;
+- Standard delivery;
+- Express delivery;
+- Local delivery;
+- Store pickup.
+
+The customer should not see complex courier-routing language such as:
+
+- cheapest reliable;
+- balanced optimizer;
+- carrier automation score;
+- fulfillment routing strategy.
+
+Those are internal store-owner settings, not customer checkout labels.
+
+The customer should see clear choices:
+
+- Economy delivery — lower cost, slower delivery;
+- Standard delivery — balanced delivery;
+- Express delivery — faster delivery;
+- Store pickup — no shipping.
+
+Behind the scenes, delivery methods can map to carrier services and shipping rules.
+
+---
+
+## 14.2 Global Shipping Scenarios
+
+The platform must support these scenarios:
+
+### Scenario 1 — One store, one location
+
+Example:
+
+- Store: Local clothing shop
+- Location: Main shop
+- Carrier: Manual delivery or local courier
+
+This should be simple and not require advanced setup.
+
+### Scenario 2 — One store, multiple warehouses/shops
+
+Example:
+
+- Store: Global fashion brand
+- Locations:
+  - New York warehouse
+  - Dubai warehouse
+  - London warehouse
+  - Karachi warehouse
+
+The platform should eventually decide which location can fulfill the order based on:
+
+- stock availability;
+- customer destination;
+- shipping zone;
+- carrier availability;
+- store-owner routing preference.
+
+### Scenario 3 — Multiple separate stores
+
+Example:
+
+- Store 1: USA store
+- Store 2: UAE store
+- Store 3: Pakistan store
+
+Each store has separate:
+
+- locations;
+- carrier accounts;
+- shipping zones;
+- delivery methods;
+- shipping rules;
+- shipments.
+
+Store A must never use Store B carrier account, location, shipping rule, or shipment.
+
+### Scenario 4 — Global delivery with regional carrier availability
+
+Example:
+
+- DHL enabled for international express;
+- UPS enabled only for USA;
+- local courier enabled only for one city;
+- store pickup enabled only for physical shop locations.
+
+The platform must hide unsupported carrier services for destinations they cannot serve.
+
+If no delivery method is available for a customer address, the checkout should show a clear message:
+
+> No delivery options are available for this address.
+
+The dashboard should guide the store owner:
+
+> No active shipping method covers this destination. Add a shipping zone or enable a carrier service for this region.
+
+---
+
+## 14.3 Carrier and Courier Strategy
+
+The store owner should be able to add multiple courier/carrier services.
+
+The correct structure is:
+
+- Carrier: DHL, UPS, FedEx, Manual Courier, Store Pickup
+- Carrier Account: the store owner’s account/configuration for that carrier
+- Carrier Service: DHL Express, UPS Ground, FedEx 2Day, Manual Local Delivery
+- Shipping Zone Availability: where the carrier service is allowed
+- Checkout Visibility: whether the customer can choose it
+- Status: connected, enabled, setup required, internal only, disabled
+
+Do not use only one global active/inactive toggle.
+
+A carrier can be connected but only used for specific zones or delivery methods.
+
+Examples:
+
+- DHL connected but only available for international express.
+- UPS active only for United States deliveries.
+- FedEx active only for express shipping.
+- Manual courier active only for local delivery.
+- Store pickup active only for selected shop locations.
+
+Carrier statuses should be user-friendly:
+
+- Not configured
+- Setup required
+- Enabled
+- Internal only
+- Disabled
+
+Do not show fake carrier API buttons before real integrations exist.
+
+---
+
+## 14.4 Shipping Rules Strategy
+
+Shipping rules decide which delivery methods and rates are available.
+
+Start simple before building automation.
+
+Phase 6 should support simple store-owner rules first:
+
+- destination country/region;
+- origin location;
+- delivery method;
+- carrier account/service;
+- flat shipping rate;
+- free shipping above order total;
+- active/inactive;
+- checkout visibility.
+
+Future rules can add:
+
+- product weight;
+- package dimensions;
+- product category;
+- product type;
+- customer group;
+- market-specific pricing;
+- live carrier rates;
+- cutoff times;
+- carrier pickup windows;
+- delivery promises.
+
+Shipping rules must stay store-scoped.
+
+Do not build a complex automation/routing engine before manual fulfillment and basic shipping setup are stable.
+
+---
+
+## 14.5 Fulfillment and Shipment Strategy
+
+Fulfillment must be separate from orders.
+
+Do not use `shipped` or `delivered` as generic order statuses.
+
+Order statuses, payment statuses, fulfillment statuses, and shipment statuses are different.
+
+### Order status
+
+Examples:
+
+- pending;
+- confirmed;
+- processing;
+- completed;
+- cancelled;
+- refunded.
+
+### Payment status
+
+Examples:
+
+- pending;
+- authorized;
+- paid;
+- failed;
+- refunded;
+- partially_refunded.
+
+### Fulfillment status
+
+Examples:
+
+- unfulfilled;
+- partial;
+- fulfilled;
+- returned.
+
+### Shipment status
+
+Examples:
+
+- pending;
+- label_created;
+- shipped;
+- in_transit;
+- delivered;
+- failed;
+- returned;
+- cancelled.
+
+A shipment should have:
+
+- store_id;
+- order_id;
+- shipment_number;
+- origin_location_id;
+- carrier_account_id;
+- shipping_method_id;
+- tracking_number;
+- tracking_url;
+- status;
+- package count;
+- package weight;
+- shipped_at;
+- delivered_at;
+- shipped_by;
+- metadata.
+
+A shipment item should have:
+
+- shipment_id;
+- order_item_id;
+- quantity.
+
+This is required for partial and split shipments.
+
+Examples:
+
+- one order ships from one warehouse;
+- one order ships in multiple packages;
+- item A ships from New York;
+- item B ships from Dubai;
+- part of an order ships now and the rest ships later.
+
+The system must prevent shipping more quantity than ordered.
+
+---
+
+## 14.6 Customer Checkout Delivery Choice
+
+At checkout, the customer should choose a simple delivery option.
+
+Customer-facing examples:
+
+- Economy delivery;
+- Standard delivery;
+- Express delivery;
+- Store pickup;
+- Local delivery.
+
+The customer should not choose internal courier strategy names like:
+
+- cheapest reliable;
+- fastest carrier automation;
+- balanced optimizer.
+
+Internal routing preferences can exist later for the store owner:
+
+- cheapest available;
+- fastest available;
+- balanced;
+- manual selection.
+
+But checkout must remain simple.
+
+---
+
+## 14.7 Phase 6 UI/UX Rule
+
+The current static Shipping Automation preview page must not become the first real Phase 6 page.
+
+It is too advanced and mixes future automation, courier integrations, region settings, currency, timezone, and notification preferences before the foundation exists.
+
+Replace or evolve it into real setup areas:
+
+1. Shipping zones  
+   Where does this store deliver?
+
+2. Delivery methods  
+   What choices can customers select at checkout?
+
+3. Carriers & accounts  
+   Which courier services can this store use?
+
+4. Fulfillment locations  
+   Where do orders ship from?
+
+5. Fulfillment workflow  
+   Create shipment, add tracking, mark shipped/delivered.
+
+6. Automation  
+   Coming later after manual fulfillment, shipping rules, and carrier services are stable.
+
+Do not show fake save/export/toggle controls.
+
+If a feature is not implemented, hide it or clearly mark it as coming later.
+
+---
+
+## 14.8 Phase 6 Implementation Priority
+
+Build Phase 6 in this order:
+
+### Phase 6A — Manual Fulfillment Foundation
+
+Build first:
+
+- carriers;
+- carrier accounts;
+- shipping zones;
+- delivery methods;
+- shipments;
+- shipment items;
+- manual tracking number;
+- manual tracking URL;
+- create shipment from order;
+- mark shipment as shipped;
+- mark shipment as delivered;
+- fulfillment status recalculation;
+- order events;
+- shipment events if needed;
+- order detail fulfillment panel.
+
+Do not integrate live DHL/UPS/FedEx APIs in Phase 6A.
+
+### Phase 6B — Shipping Settings and Checkout Delivery Methods
+
+Build second:
+
+- flat rate shipping;
+- free shipping threshold;
+- country/region-based shipping zones;
+- delivery methods visible in checkout;
+- checkout shipping selection;
+- shipping snapshots on checkout/order;
+- simple fallback if no method is available.
+
+### Phase 6C — Carrier API Integrations and Automation
+
+Build later:
+
+- DHL/UPS/FedEx sandbox integrations;
+- live carrier rates;
+- label purchase;
+- tracking sync;
+- pickup scheduling;
+- carrier API retries;
+- async jobs;
+- routing preferences;
+- automation insights.
+
+Do not start Phase 6C before Phase 6A and 6B are stable.
+
+---
+
+## 14.9 Non-Negotiable Phase 6 Rules
+
+- Store scoping is mandatory.
+- Store A cannot access Store B carriers, zones, delivery methods, locations, shipments, or shipment items.
+- Shipment must not mutate order status incorrectly.
+- Fulfillment status must be calculated from shipment items.
+- Do not ship more quantity than ordered.
+- Do not show carrier services that do not support the customer destination.
+- Do not show fake label purchase buttons.
+- Do not show fake automation toggles.
+- Manual fulfillment must work before live carrier APIs.
+- Shipping data must be snapshotted on orders.
+- Important shipment changes must create order events.
+---
+
 ## 15. Returns and Refunds Rules
 
 Returns/refunds are core commerce, not optional polish.
