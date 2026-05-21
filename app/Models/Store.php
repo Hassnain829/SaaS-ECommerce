@@ -171,6 +171,26 @@ class Store extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function carrierAccounts(): HasMany
+    {
+        return $this->hasMany(CarrierAccount::class);
+    }
+
+    public function shippingZones(): HasMany
+    {
+        return $this->hasMany(ShippingZone::class);
+    }
+
+    public function shippingMethods(): HasMany
+    {
+        return $this->hasMany(ShippingMethod::class);
+    }
+
+    public function shipments(): HasMany
+    {
+        return $this->hasMany(Shipment::class);
+    }
+
     public function securityLogs(): HasMany
     {
         return $this->hasMany(SecurityLog::class);

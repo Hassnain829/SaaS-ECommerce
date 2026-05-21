@@ -1,139 +1,363 @@
-﻿@extends('layouts.user.user-sidebar')
+@extends('layouts.user.user-sidebar')
 
-@section('title', 'Shipping Automation Settings | BaaS Core')
-@section('sidebar_brand_title', 'BaaS Platform')
-@section('sidebar_brand_subtitle', 'Management Console')
+@section('title', 'Shipping & Delivery | BaaS Core')
+
+@php
+    $connectionLabels = [
+        'manual' => 'Manual',
+        'api' => 'API connection later',
+        'external' => 'External account',
+    ];
+    $accountStatusLabels = [
+        'setup_required' => 'Setup required',
+        'enabled' => 'Enabled',
+        'disabled' => 'Disabled',
+        'internal_only' => 'Internal only',
+    ];
+    $rateLabels = [
+        'flat' => 'Flat rate',
+        'free' => 'Free',
+        'manual' => 'Manual price',
+        'carrier_calculated_later' => 'Carrier calculated later',
+    ];
+    $statusBadge = fn (bool $active) => $active
+        ? 'bg-[#ECFDF5] text-[#047857]'
+        : 'bg-[#F1F5F9] text-[#64748B]';
+@endphp
 
 @section('topbar')
-    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center gap-3">
+    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
         <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
             <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
         </button>
-
-        <div class="relative hidden md:block w-full max-w-[330px]">
-            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
-                <svg width="16" height="16" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z" fill="currentColor"/></svg>
-            </span>
-            <input type="search" placeholder="Search preview sections..." class="h-11 w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
-        </div>
-
-        <div class="ml-auto flex items-center gap-1.5 md:gap-2">
-            <button class="grid h-10 w-10 place-items-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]" aria-label="Notifications">
-                <svg width="18" height="18" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 17V15H2V8C2 6.61667 2.41667 5.3875 3.25 4.3125C4.08333 3.2375 5.16667 2.53333 6.5 2.2V1.5C6.5 1.08333 6.64583 0.729167 6.9375 0.4375C7.22917 0.145833 7.58333 0 8 0C8.41667 0 8.77083 0.145833 9.0625 0.4375C9.35417 0.729167 9.5 1.08333 9.5 1.5V2.2C10.8333 2.53333 11.9167 3.2375 12.75 4.3125C13.5833 5.3875 14 6.61667 14 8V15H16V17H0ZM8 20C7.45 20 6.97917 19.8042 6.5875 19.4125C6.19583 19.0208 6 18.55 6 18H10C10 18.55 9.80417 19.0208 9.4125 19.4125C9.02083 19.8042 8.55 20 8 20Z" fill="currentColor"/></svg>
-            </button>
-            <a href="{{ route('generalSettings') }}" class="grid h-10 w-10 place-items-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]" aria-label="Settings">
-                <svg width="18" height="18" viewBox="0 0 21 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7.3 20L6.9 16.8C6.68333 16.7167 6.47917 16.6167 6.2875 16.5C6.09583 16.3833 5.90833 16.2583 5.725 16.125L2.75 17.375L0 12.625L2.575 10.675C2.55833 10.5583 2.55 10.4458 2.55 10.3375C2.55 10.2292 2.55 10.1167 2.55 10C2.55 9.88333 2.55 9.77083 2.55 9.6625C2.55 9.55417 2.55833 9.44167 2.575 9.325L0 7.375L2.75 2.625L5.725 3.875C5.90833 3.74167 6.1 3.61667 6.3 3.5C6.5 3.38333 6.7 3.28333 6.9 3.2L7.3 0H12.8L13.2 3.2C13.4167 3.28333 13.6208 3.38333 13.8125 3.5C14.0042 3.61667 14.1917 3.74167 14.375 3.875L17.35 2.625L20.1 7.375L17.525 9.325C17.5417 9.44167 17.55 9.55417 17.55 9.6625C17.55 9.77083 17.55 9.88333 17.55 10C17.55 10.1167 17.55 10.2292 17.55 10.3375C17.55 10.4458 17.5333 10.5583 17.5 10.675L20.075 12.625L17.325 17.375L14.375 16.125C14.1917 16.2583 14 16.3833 13.8 16.5C13.6 16.6167 13.4 16.7167 13.2 16.8L12.8 20H7.3Z" fill="currentColor"/></svg>
-            </a>
+        <div class="min-w-0">
+            <h1 class="truncate text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Shipping &amp; Delivery</h1>
+            <p class="hidden text-xs text-[#64748B] sm:block">Delivery areas, delivery methods, carriers, and fulfillment origins.</p>
         </div>
     </header>
 @endsection
 
 @section('content')
-    <div class="mx-auto w-full max-w-[1440px]">
-        <div class="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#64748B]">
-            <a href="{{ route('generalSettings') }}" class="hover:text-[#0F172A]">Settings</a>
-            <span>&gt;</span>
-            <span class="font-inter font-medium text-[#0F172A]">Shipping automation preview</span>
-        </div>
+    <div class="mx-auto max-w-[1360px] space-y-6">
+        @include('user_view.partials.flash_success')
 
-        <section class="mb-6 rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] p-5">
-            <p class="text-xs font-bold uppercase tracking-[0.12em] text-[#2563EB]">Shipping automation preview</p>
-            <h1 class="mt-1 text-2xl font-poppins text-[#0F172A]">Future fulfillment and courier automation</h1>
-            <p class="mt-2 max-w-4xl text-sm leading-relaxed text-[#475569]">This page is a design preview for future fulfillment and courier automation. Carrier setup, label generation, pickup scheduling, and smart routing will be connected in the fulfillment phase.</p>
+        @if ($errors->any())
+            <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {{ $errors->first() }}
+            </div>
+        @endif
+
+        <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="max-w-3xl">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Store shipping setup</p>
+                    <h2 class="mt-1 text-2xl font-poppins font-semibold text-[#0F172A]">Shipping &amp; Delivery</h2>
+                    <p class="mt-2 text-sm leading-6 text-[#475569]">
+                        Set where this store delivers, which delivery options customers can choose, and how orders are fulfilled.
+                    </p>
+                </div>
+                <div class="grid gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
+                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Zones</p>
+                        <p class="mt-1 text-xl font-semibold text-[#0F172A]">{{ $shippingZones->count() }}</p>
+                    </div>
+                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Methods</p>
+                        <p class="mt-1 text-xl font-semibold text-[#0F172A]">{{ $shippingMethods->count() }}</p>
+                    </div>
+                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Carriers</p>
+                        <p class="mt-1 text-xl font-semibold text-[#0F172A]">{{ $carrierAccounts->count() }}</p>
+                    </div>
+                </div>
+            </div>
         </section>
 
-        <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-                <h2 class="text-3xl md:text-4xl font-poppins text-[#0F172A]">Shipping Automation Settings</h2>
-                <p class="mt-1.5 text-base md:text-lg text-[#64748B]">Review the planned courier integrations and fulfillment logic. These controls are not connected yet.</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <button type="button" disabled class="h-12 rounded-xl border border-[#D1D9E6] bg-white px-6 text-lg font-inter font-medium text-[#94A3B8]">Export preview</button>
-                <button type="button" disabled class="h-12 rounded-xl bg-[#CBD5E1] px-6 text-lg font-inter font-medium text-white">Save unavailable</button>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
+        <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
             <div class="space-y-6">
-                <section class="rounded-2xl border border-[#D8E1EC] bg-white p-5 md:p-6">
-                    <div class="flex items-center justify-between gap-4">
-                        <div class="flex items-center gap-4">
-                            <div class="grid h-14 w-14 place-items-center rounded-2xl bg-[#EEF4FF] text-[#0052CC]">
-                                <svg width="26" height="26" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.75 19.9375L11.8125 15.625L7.5 13.6875L11.8125 11.7188L13.75 7.4375L15.7188 11.7188L20 13.6875L15.7188 15.625L13.75 19.9375ZM13.75 27.4375C11.5 27.4375 9.39062 26.9219 7.42188 25.8906C5.45312 24.8594 3.8125 23.4167 2.5 21.5625V24.9375H0V17.4375H7.5V19.9375H4.4375C5.5 21.5 6.84896 22.724 8.48438 23.6094C10.1198 24.4948 11.875 24.9375 13.75 24.9375C16.1458 24.9375 18.3177 24.25 20.2656 22.875C22.2135 21.5 23.5833 19.6771 24.375 17.4062L26.8125 17.9688C25.875 20.8021 24.2083 23.0885 21.8125 24.8281C19.4167 26.5677 16.7292 27.4375 13.75 27.4375Z" fill="currentColor"/></svg>
+                <section class="overflow-hidden rounded-2xl border border-[#CBD5E1] bg-white shadow-sm">
+                    <div class="border-b border-[#F1F5F9] px-5 py-4">
+                        <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Shipping zones</h2>
+                        <p class="mt-1 text-sm text-[#64748B]">Choose where this store delivers. Delivery methods are shown only when they match the customer's address.</p>
+                    </div>
+
+                    @if ($canManageShipping)
+                        <form method="POST" action="{{ route('settings.shipping.zones.store') }}" class="grid gap-3 border-b border-[#F1F5F9] bg-[#F8FAFC] p-5 md:grid-cols-4">
+                            @csrf
+                            <label class="space-y-1 md:col-span-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Zone name</span>
+                                <input name="name" value="{{ old('name') }}" placeholder="United States" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1 md:col-span-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Countries</span>
+                                <input name="countries" value="{{ old('countries') }}" placeholder="US, CA" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1 md:col-span-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Regions</span>
+                                <input name="regions" value="{{ old('regions') }}" placeholder="California, Ontario" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <div class="flex items-end">
+                                <input type="hidden" name="is_active" value="1">
+                                <button class="h-10 w-full rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Add zone</button>
                             </div>
-                            <div>
-                                <h2 class="text-2xl font-poppins leading-tight text-[#0F172A]">Global Automation Preview</h2>
-                                <p class="text-sm text-[#64748B]">Planned carrier selection, labels, and tracking automation for the fulfillment phase.</p>
+                        </form>
+                    @endif
+
+                    <div class="divide-y divide-[#F1F5F9]">
+                        @forelse ($shippingZones as $zone)
+                            <article class="p-5">
+                                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <h3 class="text-lg font-semibold text-[#0F172A]">{{ $zone->name }}</h3>
+                                            <span class="rounded-full {{ $statusBadge((bool) $zone->is_active) }} px-2.5 py-1 text-xs font-bold">{{ $zone->is_active ? 'Active' : 'Inactive' }}</span>
+                                        </div>
+                                        <p class="mt-2 text-sm text-[#64748B]">
+                                            Countries: {{ collect($zone->countries)->filter()->implode(', ') ?: 'Not limited' }}
+                                            @if (collect($zone->regions)->filter()->isNotEmpty())
+                                                <span class="text-[#CBD5E1]">|</span> Regions: {{ collect($zone->regions)->filter()->implode(', ') }}
+                                            @endif
+                                        </p>
+                                        <p class="mt-1 text-xs text-[#94A3B8]">{{ $zone->shippingMethods->count() }} delivery method(s)</p>
+                                    </div>
+                                    @if ($canManageShipping)
+                                        <div class="flex flex-wrap justify-end gap-2">
+                                            <details class="text-right">
+                                                <summary class="inline-flex cursor-pointer rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-semibold text-[#475569]">Edit</summary>
+                                                <form method="POST" action="{{ route('settings.shipping.zones.update', $zone) }}" class="mt-3 grid min-w-[300px] gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-left">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <input type="hidden" name="is_active" value="0">
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Name</span><input name="name" value="{{ old('name', $zone->name) }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Countries</span><input name="countries" value="{{ collect($zone->countries)->filter()->implode(', ') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Regions</span><input name="regions" value="{{ collect($zone->regions)->filter()->implode(', ') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="is_active" value="1" @checked($zone->is_active) class="rounded border-[#CBD5E1]"> Active</label>
+                                                    <button class="rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-bold text-white">Save zone</button>
+                                                </form>
+                                            </details>
+                                            <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button>
+                                            </form>
+                                        </div>
+                                    @endif
+                                </div>
+                            </article>
+                        @empty
+                            <div class="p-8 text-center">
+                                <p class="font-semibold text-[#0F172A]">No shipping zones yet.</p>
+                                <p class="mt-1 text-sm text-[#64748B]">Add a zone such as United States, Local delivery area, or International.</p>
                             </div>
-                        </div>
-                        <button type="button" disabled class="relative h-8 w-16 rounded-full bg-[#E2E8F0]" aria-label="Automation preview only"><span class="absolute left-0.5 top-0.5 h-7 w-7 rounded-full bg-white"></span></button>
+                        @endforelse
                     </div>
                 </section>
 
-                <section class="overflow-hidden rounded-2xl border border-[#D8E1EC] bg-white">
-                    <div class="flex h-16 items-center justify-between border-b border-[#E2E8F0] px-5 md:px-6">
-                        <h2 class="text-2xl font-poppins leading-tight text-[#0F172A]">Integrated Courier Services - Preview</h2>
-                        <button type="button" disabled class="text-base font-inter font-medium text-[#94A3B8]">+ Add carrier </button>
+                <section class="overflow-hidden rounded-2xl border border-[#CBD5E1] bg-white shadow-sm">
+                    <div class="border-b border-[#F1F5F9] px-5 py-4">
+                        <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Delivery methods</h2>
+                        <p class="mt-1 text-sm text-[#64748B]">These are the delivery choices customers can select at checkout later, such as Standard delivery, Express delivery, Local delivery, or Store pickup.</p>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2">
-                        <article class="flex items-center justify-between gap-3 border-b border-[#EEF2F7] p-5 md:border-r"><div class="flex items-center gap-3"><div class="grid h-11 w-11 place-items-center rounded-xl bg-[#F1F5F9] font-semibold text-[#64748B]">UPS</div><div><h3 class="text-xl leading-tight">UPS</h3><p class="text-sm text-[#64748B]">Next Day Air, Ground</p></div></div><span class="rounded-md bg-[#E0F2FE] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Preview</span></article>
-                        <article class="flex items-center justify-between gap-3 border-b border-[#EEF2F7] p-5"><div class="flex items-center gap-3"><div class="grid h-11 w-11 place-items-center rounded-xl bg-[#F1F5F9] font-semibold text-[#64748B]">FDX</div><div><h3 class="text-xl leading-tight">FedEx</h3><p class="text-sm text-[#64748B]">Priority Overnight</p></div></div><span class="rounded-md bg-[#E0F2FE] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Preview</span></article>
-                        <article class="flex items-center justify-between gap-3 border-b border-[#EEF2F7] p-5 md:border-r"><div class="flex items-center gap-3"><div class="grid h-11 w-11 place-items-center rounded-xl bg-[#F1F5F9] font-semibold text-[#64748B]">USP</div><div><h3 class="text-xl leading-tight">USPS</h3><p class="text-sm text-[#64748B]">Priority Mail</p></div></div><span class="rounded-md bg-[#E0F2FE] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Preview</span></article>
-                        <article class="flex items-center justify-between gap-3 border-b border-[#EEF2F7] p-5"><div class="flex items-center gap-3"><div class="grid h-11 w-11 place-items-center rounded-xl bg-[#F1F5F9] font-semibold text-[#64748B]">DHL</div><div><h3 class="text-xl leading-tight">DHL Express</h3><p class="text-sm text-[#64748B]">Global forwarding</p></div></div><span class="rounded-md bg-[#E0F2FE] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Preview</span></article>
-                        <article class="flex items-center justify-between gap-3 border-b border-[#EEF2F7] p-5 md:border-r md:border-b-0"><div class="flex items-center gap-3"><div class="grid h-11 w-11 place-items-center rounded-xl bg-[#F1F5F9] font-semibold text-[#64748B]">PUR</div><div><h3 class="text-xl leading-tight">Purolator</h3><p class="text-sm text-[#64748B]">Domestic Canada</p></div></div><span class="rounded-md bg-[#E0F2FE] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Preview</span></article>
-                        <article class="flex items-center justify-between gap-3 p-5"><div class="flex items-center gap-3"><div class="grid h-11 w-11 place-items-center rounded-xl bg-[#F1F5F9] font-semibold text-[#64748B]">CAN</div><div><h3 class="text-xl leading-tight">Canada Post</h3><p class="text-sm text-[#64748B]">Expedited Parcel</p></div></div><span class="rounded-md bg-[#E0F2FE] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#0369A1]">Preview</span></article>
-                    </div>
-                </section>
 
-                <section class="rounded-2xl border border-[#D8E1EC] bg-white p-5 md:p-6">
-                    <div class="mb-4 flex items-center justify-between">
-                        <h2 class="text-2xl leading-tight text-[#0F172A]">Smart Routing Rules - Coming later</h2>
-                        <span class="rounded-md bg-[#F1F5F9] px-2 py-1 text-xs font-inter font-medium text-[#94A3B8]">Design preview</span>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="rounded-xl border border-[#BFD5FF] bg-[#F5F9FF] p-4"><div class="flex gap-3"><span class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#0052CC]"><span class="h-2.5 w-2.5 rounded-full bg-[#0052CC]"></span></span><div class="flex-1"><div class="mb-1 flex items-center justify-between gap-2"><h3 class="text-lg leading-tight">Cheapest Reliable</h3><span class="text-xs font-semibold tracking-wide text-[#0052CC]">RECOMMENDED</span></div><p class="text-sm text-[#64748B]">Algorithm selects the lowest cost carrier that maintains a &gt;95% on-time delivery rate for the specific route.</p></div></div></div>
-                        <div class="rounded-xl border border-[#E2E8F0] p-4"><div class="flex gap-3"><span class="mt-0.5 h-5 w-5 rounded-full border border-[#94A3B8]"></span><div><h3 class="text-lg leading-tight">Fastest Delivery</h3><p class="text-sm text-[#64748B]">Prioritize speed above all else. Selects the service with the earliest estimated delivery window.</p></div></div></div>
-                        <div class="rounded-xl border border-[#E2E8F0] p-4"><div class="flex gap-3"><span class="mt-0.5 h-5 w-5 rounded-full border border-[#94A3B8]"></span><div><h3 class="text-lg leading-tight">Balanced Optimizer</h3><p class="text-sm text-[#64748B]">Optimizes for a mix of cost-effectiveness and premium tracking visibility for higher customer satisfaction.</p></div></div></div>
+                    @if ($canManageShipping)
+                        <form method="POST" action="{{ route('settings.shipping.methods.store') }}" class="grid gap-3 border-b border-[#F1F5F9] bg-[#F8FAFC] p-5 md:grid-cols-3">
+                            @csrf
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Method name</span>
+                                <input name="name" value="{{ old('name') }}" placeholder="Standard delivery" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Zone</span>
+                                <select name="shipping_zone_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                    @foreach ($shippingZones as $zone)
+                                        <option value="{{ $zone->id }}">{{ $zone->name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Carrier account</span>
+                                <select name="carrier_account_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                    <option value="">No carrier account</option>
+                                    @foreach ($carrierAccounts as $account)
+                                        <option value="{{ $account->id }}">{{ $account->display_name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Rate type</span>
+                                <select name="rate_type" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                    @foreach ($rateTypes as $rateType)
+                                        <option value="{{ $rateType }}">{{ $rateLabels[$rateType] ?? str($rateType)->replace('_', ' ')->title() }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Flat rate</span>
+                                <input name="flat_rate" value="{{ old('flat_rate', '0.00') }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Estimated days</span>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input name="estimated_min_days" value="{{ old('estimated_min_days') }}" type="number" min="0" class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" placeholder="Min">
+                                    <input name="estimated_max_days" value="{{ old('estimated_max_days') }}" type="number" min="0" class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" placeholder="Max">
+                                </div>
+                            </label>
+                            <label class="space-y-1 md:col-span-2">
+                                <span class="text-xs font-semibold text-[#64748B]">Description</span>
+                                <input name="description" value="{{ old('description') }}" placeholder="Arrives in 2-4 business days" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <div class="flex items-end gap-3">
+                                <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="enabled_for_checkout" value="1" checked class="rounded border-[#CBD5E1]"> Checkout</label>
+                                <input type="hidden" name="is_active" value="1">
+                                <button class="ml-auto h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Add method</button>
+                            </div>
+                        </form>
+                    @endif
+
+                    <div class="divide-y divide-[#F1F5F9]">
+                        @forelse ($shippingMethods as $method)
+                            <article class="p-5">
+                                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <h3 class="text-lg font-semibold text-[#0F172A]">{{ $method->name }}</h3>
+                                            <span class="rounded-full {{ $statusBadge((bool) $method->is_active) }} px-2.5 py-1 text-xs font-bold">{{ $method->is_active ? 'Active' : 'Inactive' }}</span>
+                                            @if ($method->enabled_for_checkout)
+                                                <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Checkout</span>
+                                            @endif
+                                        </div>
+                                        <p class="mt-2 text-sm text-[#64748B]">
+                                            {{ $method->shippingZone?->name ?? 'No zone' }}
+                                            <span class="text-[#CBD5E1]">|</span>
+                                            {{ $rateLabels[$method->rate_type] ?? str($method->rate_type)->replace('_', ' ')->title() }}
+                                            @if ((float) $method->flat_rate > 0)
+                                                <span class="text-[#CBD5E1]">|</span> {{ $selectedStore->currency ?? 'USD' }} {{ number_format((float) $method->flat_rate, 2) }}
+                                            @endif
+                                        </p>
+                                        <p class="mt-1 text-xs text-[#94A3B8]">{{ $method->carrierAccount?->display_name ?? 'No carrier account assigned' }}</p>
+                                    </div>
+                                    @if ($canManageShipping)
+                                        <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </article>
+                        @empty
+                            <div class="p-8 text-center">
+                                <p class="font-semibold text-[#0F172A]">No delivery methods yet.</p>
+                                <p class="mt-1 text-sm text-[#64748B]">Add Standard delivery, Express delivery, Local delivery, or Store pickup.</p>
+                            </div>
+                        @endforelse
                     </div>
                 </section>
             </div>
 
             <aside class="space-y-6">
-                <section class="rounded-2xl border border-[#D8E1EC] bg-white p-5 md:p-6">
-                    <h2 class="mb-4 text-2xl font-poppins leading-tight">Regional Preferences - Coming later</h2>
-                    <label class="mb-3 block"><span class="mb-1.5 block text-xs font-bold uppercase tracking-widest text-[#94A3B8]">Primary Market</span><select disabled class="h-11 w-full rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] px-3 text-sm"><option>United States (US)</option></select></label>
-                    <div class="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] p-4">
-                        <div class="mb-2 flex items-center justify-between"><p class="text-sm font-semibold text-[#2563EB]">Regional Logic Applied - Coming later</p><button type="button" disabled class="relative h-6 w-11 rounded-full bg-[#CBD5E1]" aria-label="Regional logic preview only"><span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white"></span></button></div>
-                        <p class="text-sm text-[#2563EB]">Future routing can prioritize carriers by destination market once fulfillment rules are implemented.</p>
-                        <label class="mt-3 block"><span class="mb-1.5 block text-base font-inter font-medium text-[#737373]">Store Currency</span><select disabled class="h-11 w-full rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] px-3 text-[#94A3B8]"><option>USD - United States Dollar ($)</option></select></label>
-                        <label class="mt-3 block"><span class="mb-1.5 block text-base font-inter font-medium text-[#737373]">Time Zone</span><select disabled class="h-11 w-full rounded-xl border border-[#CBD5E1] bg-[#F8FAFC] px-3 text-[#94A3B8]"><option>(UTC-08:00) Pacific Time (US)</option></select></label>
-                    </div>
-                </section>
+                <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
+                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Carriers &amp; accounts</h2>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Add the courier services this store can use. Live carrier API connections will be added later; manual carriers work now.</p>
 
-                <section class="rounded-2xl border border-[#D8E1EC] bg-white p-5 md:p-6">
-                    <h2 class="mb-4 text-2xl font-poppins leading-tight">Automation Insights - Demo preview</h2>
-                    <div class="space-y-4">
-                        <div class="flex items-start justify-between"><div><p class="text-lg leading-tight">Active Label Gen</p><p class="text-sm text-[#64748B]">2,450 labels/mo</p></div><p class="text-lg leading-tight font-semibold text-[#16A34A]">+12.5%</p></div>
-                        <div class="flex items-start justify-between"><div><p class="text-lg leading-tight">Smart Selection</p><p class="text-sm text-[#64748B]">98% of orders</p></div><p class="text-lg leading-tight text-[#2563EB]">↗</p></div>
-                        <hr class="border-[#E2E8F0]" />
-                        <div>
-                            <p class="mb-3 text-xs font-bold uppercase tracking-widest text-[#94A3B8]">Carrier Health</p>
-                            <div class="space-y-3 text-sm">
-                                <div><p>UPS Performance</p><div class="mt-1.5 h-2 rounded-full bg-[#E2E8F0]"><div class="h-2 w-[88%] rounded-full bg-[#22C55E]"></div></div></div>
-                                <div><p>FedEx Reliability</p><div class="mt-1.5 h-2 rounded-full bg-[#E2E8F0]"><div class="h-2 w-[84%] rounded-full bg-[#22C55E]"></div></div></div>
-                                <div><p>Canada Post Efficiency</p><div class="mt-1.5 h-2 rounded-full bg-[#E2E8F0]"><div class="h-2 w-[74%] rounded-full bg-[#EAB308]"></div></div></div>
+                    @if ($canManageShipping)
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.store') }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                            @csrf
+                            <label class="space-y-1 block">
+                                <span class="text-xs font-semibold text-[#64748B]">Carrier</span>
+                                <select name="carrier_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                    @foreach ($carriers as $carrier)
+                                        <option value="{{ $carrier->id }}">{{ $carrier->name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="space-y-1 block">
+                                <span class="text-xs font-semibold text-[#64748B]">Display name</span>
+                                <input name="display_name" value="{{ old('display_name') }}" placeholder="Main DHL account" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <label class="space-y-1 block">
+                                    <span class="text-xs font-semibold text-[#64748B]">Connection</span>
+                                    <select name="connection_type" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                        @foreach ($connectionTypes as $type)
+                                            <option value="{{ $type }}">{{ $connectionLabels[$type] ?? str($type)->replace('_', ' ')->title() }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1 block">
+                                    <span class="text-xs font-semibold text-[#64748B]">Status</span>
+                                    <select name="status" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                        @foreach ($carrierAccountStatuses as $status)
+                                            <option value="{{ $status }}" @selected($status === 'enabled')>{{ $accountStatusLabels[$status] ?? str($status)->replace('_', ' ')->title() }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
                             </div>
-                        </div>
+                            <label class="space-y-1 block">
+                                <span class="text-xs font-semibold text-[#64748B]">Supported countries</span>
+                                <input name="supported_countries" value="{{ old('supported_countries') }}" placeholder="US, CA, PK" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="enabled_for_checkout" value="1" checked class="rounded border-[#CBD5E1]"> Available for checkout later</label>
+                            <button class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Add carrier account</button>
+                        </form>
+                    @endif
+
+                    <div class="mt-4 space-y-3">
+                        @forelse ($carrierAccounts as $account)
+                            <article class="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="font-semibold text-[#0F172A]">{{ $account->display_name }}</p>
+                                        <p class="mt-1 text-sm text-[#64748B]">{{ $account->carrier?->name ?? 'Carrier removed' }} | {{ $connectionLabels[$account->connection_type] ?? str($account->connection_type)->replace('_', ' ')->title() }}</p>
+                                    </div>
+                                    <span class="rounded-full {{ $account->status === 'enabled' ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#F1F5F9] text-[#64748B]' }} px-2.5 py-1 text-xs font-bold">
+                                        {{ $accountStatusLabels[$account->status] ?? str($account->status)->replace('_', ' ')->title() }}
+                                    </span>
+                                </div>
+                                <p class="mt-3 text-xs text-[#94A3B8]">Countries: {{ collect($account->supported_countries)->filter()->implode(', ') ?: 'Not limited' }}</p>
+                                @if ($canManageShipping)
+                                    <div class="mt-3 flex justify-end">
+                                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.destroy', $account) }}">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button>
+                                        </form>
+                                    </div>
+                                @endif
+                            </article>
+                        @empty
+                            <div class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-8 text-center">
+                                <p class="font-semibold text-[#0F172A]">No carrier accounts yet.</p>
+                                <p class="mt-1 text-sm text-[#64748B]">Add Manual delivery, Store pickup, DHL, UPS, FedEx, USPS, or Local courier.</p>
+                            </div>
+                        @endforelse
                     </div>
                 </section>
 
-                <section class="rounded-2xl border border-[#D8E1EC] bg-white p-5 md:p-6">
-                    <h2 class="mb-4 text-2xl font-poppins leading-tight text-[#0F172A]">Notification Preferences - Coming later</h2>
-                    <div class="space-y-4">
-                        <label class="flex items-start justify-between gap-3"><span><span class="block text-lg leading-tight">Email Notifications</span><span class="text-sm text-[#64748B]">Future daily transaction summaries.</span></span><input type="checkbox" disabled class="mt-1 h-6 w-6 accent-[#0052CC]" /></label>
-                        <label class="flex items-start justify-between gap-3"><span><span class="block text-lg leading-tight">SMS Alerts</span><span class="text-sm text-[#64748B]">Future critical shipping alerts.</span></span><input type="checkbox" disabled class="mt-1 h-6 w-6 accent-[#0052CC]" /></label>
-                        <button type="button" disabled class="h-11 w-full rounded-xl bg-[#F1F5F9] text-sm font-semibold text-[#94A3B8]">Add email and number later</button>
+                <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
+                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Fulfillment locations</h2>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Inventory locations are where orders can ship from.</p>
+                    <div class="mt-4 space-y-3">
+                        @forelse ($locations as $location)
+                            <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <p class="font-semibold text-[#0F172A]">{{ $location->name }}</p>
+                                    @if ($location->is_default)
+                                        <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Default</span>
+                                    @endif
+                                </div>
+                                <p class="mt-1 text-sm text-[#64748B]">{{ collect([$location->address_line1, $location->city, $location->state, $location->postal_code, $location->country_code])->filter()->implode(', ') ?: 'No address saved' }}</p>
+                            </div>
+                        @empty
+                            <div class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-8 text-center text-sm text-[#64748B]">No inventory locations are available yet.</div>
+                        @endforelse
                     </div>
+                    <a href="{{ route('settings.locations.index') }}" class="mt-4 inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Manage locations</a>
+                </section>
+
+                <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
+                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Automation</h2>
+                    <p class="mt-2 text-sm leading-6 text-[#64748B]">Carrier labels, live rates, pickup scheduling, and routing automation will be available after manual fulfillment and delivery methods are stable.</p>
                 </section>
             </aside>
         </div>

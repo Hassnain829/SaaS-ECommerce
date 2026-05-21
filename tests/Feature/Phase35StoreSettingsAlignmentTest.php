@@ -175,9 +175,9 @@ class Phase35StoreSettingsAlignmentTest extends TestCase
             ->assertSee('Locations are for stock, not selling rules', false)
             ->assertSee('Manage locations', false)
             ->assertSee(route('settings.locations.index'), false)
-            ->assertSee('Configure shipping &amp; courier', false)
+            ->assertSee('Configure shipping &amp; delivery', false)
             ->assertSee(route('shippingAutomation'), false)
-            ->assertSee('Preview shipping automation settings. Full carrier setup, labels, pickup windows, and routing will be implemented in a later fulfillment phase.', false)
+            ->assertSee('Set delivery zones, delivery methods, carrier accounts, and the locations orders can ship from.', false)
             ->assertDontSee('Integrated Carriers', false)
             ->assertDontSee('Generate New Key', false)
             ->assertDontSee('Automated Tax Calculation', false)
@@ -193,7 +193,7 @@ class Phase35StoreSettingsAlignmentTest extends TestCase
             ->assertSee('Full multi-market selling, regional currencies, and price lists will be added later.', false);
     }
 
-    public function test_shipping_automation_page_is_static_preview_and_has_no_fake_persistence(): void
+    public function test_shipping_page_is_real_setup_and_has_no_fake_preview_controls(): void
     {
         $owner = $this->merchant('phase35-shipping-preview@example.test');
         $store = $this->storeFor($owner, 'Shipping Preview Store');
@@ -202,13 +202,21 @@ class Phase35StoreSettingsAlignmentTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSee('Shipping automation preview', false)
-            ->assertSee('This page is a design preview for future fulfillment and courier automation. Carrier setup, label generation, pickup scheduling, and smart routing will be connected in the fulfillment phase.', false)
-            ->assertSee('Integrated Courier Services - Preview', false)
-            ->assertSee('Smart Routing Rules - Coming later', false)
-            ->assertSee('Automation Insights - Demo preview', false)
-            ->assertSee('Regional Logic Applied - Coming later', false)
-            ->assertSee('Save unavailable', false)
+            ->assertSee('Shipping &amp; Delivery', false)
+            ->assertSee('Set where this store delivers, which delivery options customers can choose, and how orders are fulfilled.', false)
+            ->assertSee('Shipping zones', false)
+            ->assertSee('Delivery methods', false)
+            ->assertSee('Carriers &amp; accounts', false)
+            ->assertSee('Fulfillment locations', false)
+            ->assertSee('Add zone', false)
+            ->assertSee('Add carrier account', false)
+            ->assertSee('Carrier labels, live rates, pickup scheduling, and routing automation will be available after manual fulfillment and delivery methods are stable.', false)
+            ->assertDontSee('Shipping automation preview', false)
+            ->assertDontSee('Integrated Courier Services - Preview', false)
+            ->assertDontSee('Smart Routing Rules - Coming later', false)
+            ->assertDontSee('Automation Insights - Demo preview', false)
+            ->assertDontSee('Save unavailable', false)
+            ->assertDontSee('Export preview', false)
             ->assertDontSee('Connected', false)
             ->assertDontSee('Save Changes', false);
 

@@ -15,6 +15,7 @@ use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Models\UserSession;
 use App\Services\CustomerMetricsService;
+use App\Services\Fulfillment\FulfillmentStatusService;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\OrderEventRecorder;
 use App\Services\SecurityLogRecorder;
@@ -839,18 +840,43 @@ class DashboardController extends Controller
         }
 
         $order->load([
-            'items',
+            'items.shipmentItems.shipment',
             'customer',
             'addresses',
             'items.product.images',
             'items.variant.options.variationType',
             'events.actor',
+            'shipments.items.orderItem',
+            'shipments.carrierAccount.carrier',
+            'shipments.shippingMethod',
+            'shipments.originLocation',
+            'shipments.shippedBy',
         ]);
 
         return view('user_view.orderViewDetails', [
             'order' => $order,
             'orderStatuses' => OrderLifecycle::orderStatuses(),
             'selectedStore' => $selectedStore,
+            'fulfillmentLocations' => $selectedStore->locations()
+                ->where('is_active', true)
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(),
+            'carrierAccounts' => $selectedStore->carrierAccounts()
+                ->with('carrier')
+                ->whereIn('status', [
+                    \App\Models\CarrierAccount::STATUS_ENABLED,
+                    \App\Models\CarrierAccount::STATUS_INTERNAL_ONLY,
+                ])
+                ->orderBy('display_name')
+                ->get(),
+            'shippingMethods' => $selectedStore->shippingMethods()
+                ->with(['shippingZone', 'carrierAccount.carrier'])
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(),
+            'remainingFulfillmentQuantities' => app(FulfillmentStatusService::class)->remainingQuantities($order),
         ]);
     }
 

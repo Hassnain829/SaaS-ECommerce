@@ -171,7 +171,7 @@ class OrderEventsTimelineTest extends TestCase
             ->assertOk()
             ->assertSeeText('Order placed')
             ->assertSeeText('This event came from the order event table.')
-            ->assertSeeText('No shipments have been created yet. Fulfillment tracking will appear here after shipping is implemented.')
+            ->assertSeeText('No shipments have been created yet.')
             ->assertDontSeeText('DHL Express')
             ->assertDontSeeText('Print Label')
             ->assertDontSeeText('Pending carrier generation')

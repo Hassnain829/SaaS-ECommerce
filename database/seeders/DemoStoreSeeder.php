@@ -3,8 +3,12 @@
 namespace Database\Seeders;
 
 use App\Models\Brand;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ShippingMethod;
+use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\Tag;
 use App\Models\User;
@@ -75,6 +79,62 @@ class DemoStoreSeeder extends Seeder
         $digitalStore->members()->syncWithoutDetaching([
             $merchant->id => ['role' => Store::ROLE_OWNER],
         ]);
+
+        $manualCarrier = Carrier::query()->where('code', 'manual-delivery')->first();
+        if ($manualCarrier) {
+            $manualAccount = CarrierAccount::query()->updateOrCreate(
+                [
+                    'store_id' => $fashionStore->id,
+                    'carrier_id' => $manualCarrier->id,
+                    'display_name' => 'Demo manual delivery',
+                ],
+                [
+                    'connection_type' => CarrierAccount::CONNECTION_MANUAL,
+                    'status' => CarrierAccount::STATUS_ENABLED,
+                    'supported_countries' => ['PK'],
+                    'enabled_for_checkout' => true,
+                    'created_by' => $merchant->id,
+                ]
+            );
+
+            $localZone = ShippingZone::query()->updateOrCreate(
+                [
+                    'store_id' => $fashionStore->id,
+                    'name' => 'Pakistan delivery area',
+                ],
+                [
+                    'countries' => ['PK'],
+                    'regions' => ['Sindh', 'Punjab'],
+                    'postal_patterns' => null,
+                    'is_active' => true,
+                    'sort_order' => 1,
+                ]
+            );
+
+            ShippingMethod::query()->updateOrCreate(
+                [
+                    'store_id' => $fashionStore->id,
+                    'code' => 'standard-local-delivery',
+                ],
+                [
+                    'shipping_zone_id' => $localZone->id,
+                    'carrier_account_id' => $manualAccount->id,
+                    'name' => 'Standard local delivery',
+                    'description' => 'Manual delivery option for local demo orders.',
+                    'delivery_speed_label' => '2-4 business days',
+                    'rate_type' => ShippingMethod::RATE_FLAT,
+                    'flat_rate' => 250,
+                    'free_over_amount' => null,
+                    'min_order_amount' => null,
+                    'max_order_amount' => null,
+                    'estimated_min_days' => 2,
+                    'estimated_max_days' => 4,
+                    'enabled_for_checkout' => true,
+                    'is_active' => true,
+                    'sort_order' => 1,
+                ]
+            );
+        }
 
         $brandRows = [
             [

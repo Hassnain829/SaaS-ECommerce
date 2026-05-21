@@ -25,11 +25,12 @@ final class OrderLifecycle
 
     public const SHIPMENT_PENDING = 'pending';
     public const SHIPMENT_LABEL_CREATED = 'label_created';
-    public const SHIPMENT_PICKED_UP = 'picked_up';
+    public const SHIPMENT_SHIPPED = 'shipped';
     public const SHIPMENT_IN_TRANSIT = 'in_transit';
     public const SHIPMENT_DELIVERED = 'delivered';
     public const SHIPMENT_FAILED = 'failed';
     public const SHIPMENT_RETURNED = 'returned';
+    public const SHIPMENT_CANCELLED = 'cancelled';
 
     public const EVENT_ORDER_CREATED = 'order.created';
     public const EVENT_EXTERNAL_ORDER_RECEIVED = 'external_order.received';
@@ -46,6 +47,9 @@ final class OrderLifecycle
     public const EVENT_ORDER_CANCELLED = 'order.cancelled';
     public const EVENT_ORDER_COMPLETED = 'order.completed';
     public const EVENT_ORDER_REFUNDED = 'order.refunded';
+    public const EVENT_SHIPMENT_CREATED = 'shipment.created';
+    public const EVENT_SHIPMENT_TRACKING_ADDED = 'shipment.tracking_added';
+    public const EVENT_SHIPMENT_STATUS_CHANGED = 'shipment.status_changed';
 
     private const ORDER_STATUS_LABELS = [
         self::ORDER_PENDING => 'Pending',
@@ -73,13 +77,14 @@ final class OrderLifecycle
     ];
 
     private const SHIPMENT_STATUS_LABELS = [
-        self::SHIPMENT_PENDING => 'Pending',
+        self::SHIPMENT_PENDING => 'Pending shipment',
         self::SHIPMENT_LABEL_CREATED => 'Label created',
-        self::SHIPMENT_PICKED_UP => 'Picked up',
+        self::SHIPMENT_SHIPPED => 'Shipped',
         self::SHIPMENT_IN_TRANSIT => 'In transit',
         self::SHIPMENT_DELIVERED => 'Delivered',
         self::SHIPMENT_FAILED => 'Failed',
         self::SHIPMENT_RETURNED => 'Returned',
+        self::SHIPMENT_CANCELLED => 'Cancelled',
     ];
 
     private const EVENT_TYPE_LABELS = [
@@ -98,6 +103,9 @@ final class OrderLifecycle
         self::EVENT_ORDER_CANCELLED => 'Order cancelled',
         self::EVENT_ORDER_COMPLETED => 'Order completed',
         self::EVENT_ORDER_REFUNDED => 'Order refunded',
+        self::EVENT_SHIPMENT_CREATED => 'Shipment created',
+        self::EVENT_SHIPMENT_TRACKING_ADDED => 'Tracking added',
+        self::EVENT_SHIPMENT_STATUS_CHANGED => 'Shipment status changed',
     ];
 
     /**
@@ -207,6 +215,18 @@ final class OrderLifecycle
             self::FULFILLMENT_PARTIAL => 'bg-[#EEF2FF] text-[#4F46E5]',
             self::FULFILLMENT_FULFILLED => 'bg-[#ECFDF5] text-[#059669]',
             self::FULFILLMENT_RETURNED => 'bg-[#F5F3FF] text-[#6D28D9]',
+            default => 'bg-[#F8FAFC] text-[#475569]',
+        };
+    }
+
+    public static function shipmentStatusBadgeClass(?string $status): string
+    {
+        return match ($status) {
+            self::SHIPMENT_SHIPPED, self::SHIPMENT_IN_TRANSIT => 'bg-[#EEF2FF] text-[#4F46E5]',
+            self::SHIPMENT_DELIVERED => 'bg-[#ECFDF5] text-[#059669]',
+            self::SHIPMENT_FAILED, self::SHIPMENT_CANCELLED => 'bg-[#FEF2F2] text-[#BA1A1A]',
+            self::SHIPMENT_RETURNED => 'bg-[#F5F3FF] text-[#6D28D9]',
+            self::SHIPMENT_LABEL_CREATED => 'bg-[#EFF6FF] text-[#1D4ED8]',
             default => 'bg-[#F8FAFC] text-[#475569]',
         };
     }

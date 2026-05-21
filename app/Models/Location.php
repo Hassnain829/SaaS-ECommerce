@@ -60,6 +60,11 @@ class Location extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function shipments(): HasMany
+    {
+        return $this->hasMany(Shipment::class, 'origin_location_id');
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

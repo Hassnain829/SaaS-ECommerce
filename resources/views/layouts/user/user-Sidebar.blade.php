@@ -74,7 +74,7 @@
     @php
         $navSelling = request()->routeIs('products', 'products.' . 'create', 'orders', 'orderViewDetails', 'customers');
         $navActivity = request()->routeIs('team-members.index', 'analytics', 'notifications');
-        $navSettings = request()->routeIs('billingSubscription', 'generalSettings', 'settings.payments.*', 'settings.locations.*', 'developer-storefront.*', 'security');
+        $navSettings = request()->routeIs('billingSubscription', 'generalSettings', 'settings.payments.*', 'settings.locations.*', 'shippingAutomation', 'settings.shipping.*', 'developer-storefront.*', 'security');
     @endphp
 
     <nav id="merchantNav" class="sidebar-nav-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2.5 pb-3 pt-1">
@@ -183,12 +183,12 @@
                     </svg>
                     <span>Locations</span>
                 </a>
-
-    <!--    <a href="{{ route('shippingAutomation') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150 {{ request()->routeIs('shippingAutomation') ? 'bg-white/10 text-white shadow-sm shadow-black/20' : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100' }}">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M6 17C5.45 17 4.97917 16.8042 4.5875 16.4125C4.19583 16.0208 4 15.55 4 15C4 14.45 4.19583 13.9792 4.5875 13.5875C4.97917 13.1958 5.45 13 6 13C6.55 13 7.02083 13.1958 7.4125 13.5875C7.80417 13.9792 8 14.45 8 15C8 15.55 7.80417 16.0208 7.4125 16.4125C7.02083 16.8042 6.55 17 6 17ZM14 17C13.45 17 12.9792 16.8042 12.5875 16.4125C12.1958 16.0208 12 15.55 12 15C12 14.45 12.1958 13.9792 12.5875 13.5875C12.9792 13.1958 13.45 13 14 13C14.55 13 15.0208 13.1958 15.4125 13.5875C15.8042 13.9792 16 14.45 16 15C16 15.55 15.8042 16.0208 15.4125 16.4125C15.0208 16.8042 14.55 17 14 17ZM3 3H7L9 7H17C17.2833 7 17.5208 7.09583 17.7125 7.2875C17.9042 7.47917 18 7.71667 18 8C18 8.08333 17.9917 8.17083 17.975 8.2625C17.9583 8.35417 17.925 8.44167 17.875 8.525L16.1 11.75C15.9167 12.0833 15.6708 12.3333 15.3625 12.5C15.0542 12.6667 14.7167 12.75 14.35 12.75H8.25C7.88333 12.75 7.56667 12.675 7.3 12.525C7.03333 12.375 6.83333 12.1667 6.7 11.9L3 4H1V2H3V3Z" fill="currentColor"/>
-            </svg>
-            <span class="text-sm {{ request()->routeIs('shippingAutomation') ? 'font-semibold' : 'font-medium' }}">Shipping</span></a> -->
+                <a href="{{ route('shippingAutomation') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('shippingAutomation', 'settings.shipping.*')])>
+                    <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M6 17C5.45 17 4.97917 16.8042 4.5875 16.4125C4.19583 16.0208 4 15.55 4 15C4 14.45 4.19583 13.9792 4.5875 13.5875C4.97917 13.1958 5.45 13 6 13C6.55 13 7.02083 13.1958 7.4125 13.5875C7.80417 13.9792 8 14.45 8 15C8 15.55 7.80417 16.0208 7.4125 16.4125C7.02083 16.8042 6.55 17 6 17ZM14 17C13.45 17 12.9792 16.8042 12.5875 16.4125C12.1958 16.0208 12 15.55 12 15C12 14.45 12.1958 13.9792 12.5875 13.5875C12.9792 13.1958 13.45 13 14 13C14.55 13 15.0208 13.1958 15.4125 13.5875C15.8042 13.9792 16 14.45 16 15C16 15.55 15.8042 16.0208 15.4125 16.4125C15.0208 16.8042 14.55 17 14 17ZM3 3H7L9 7H17C17.2833 7 17.5208 7.09583 17.7125 7.2875C17.9042 7.47917 18 7.71667 18 8C18 8.08333 17.9917 8.17083 17.975 8.2625C17.9583 8.35417 17.925 8.44167 17.875 8.525L16.1 11.75C15.9167 12.0833 15.6708 12.3333 15.3625 12.5C15.0542 12.6667 14.7167 12.75 14.35 12.75H8.25C7.88333 12.75 7.56667 12.675 7.3 12.525C7.03333 12.375 6.83333 12.1667 6.7 11.9L3 4H1V2H3V3Z" fill="currentColor"/>
+                    </svg>
+                    <span>Shipping</span>
+                </a>
 
                 <a href="{{ route('developer-storefront.settings') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('developer-storefront.*')])>
                     <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

@@ -426,15 +426,180 @@
                 </article>
 
                 <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Shipments</h3>
-                    <p class="mt-1 text-sm text-slate-600">Labels, carriers, and tracking will show up here when fulfillment is connected.</p>
-                    <div class="mt-5 flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">
-                            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                                <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
+                    @php
+                        $remainingFulfillmentQuantities = $remainingFulfillmentQuantities ?? [];
+                        $remainingTotal = collect($remainingFulfillmentQuantities)->sum();
+                    @endphp
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Fulfillment</h3>
+                            <p class="mt-1 text-sm text-slate-600">Create shipments, add tracking, and keep fulfillment status accurate.</p>
                         </div>
-                        <p class="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-slate-600">No shipments have been created yet. Fulfillment tracking will appear here after shipping is implemented.</p>
+                        <span class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
+                            {{ \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
+                        </span>
+                    </div>
+
+                    <div class="mt-5 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+                        <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Remaining to fulfill</p>
+                        <div class="mt-3 space-y-2">
+                            @foreach ($order->items as $item)
+                                @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
+                                <div class="flex items-center justify-between gap-3 text-sm">
+                                    <span class="min-w-0 truncate text-slate-700">{{ $item->product_name }}</span>
+                                    <span class="font-semibold tabular-nums text-slate-900">{{ $remaining }} / {{ $item->quantity }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    @if ($canManageOrders && $remainingTotal > 0)
+                        <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="mt-5 space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+                            @csrf
+                            <p class="font-semibold text-slate-900">Create shipment</p>
+                            <div class="grid gap-3">
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ship from</span>
+                                    <select name="origin_location_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        <option value="">No location selected</option>
+                                        @foreach ($fulfillmentLocations as $location)
+                                            <option value="{{ $location->id }}">{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Carrier account</span>
+                                    <select name="carrier_account_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        <option value="">No carrier selected</option>
+                                        @foreach ($carrierAccounts as $account)
+                                            <option value="{{ $account->id }}">{{ $account->display_name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Delivery method</span>
+                                    <select name="shipping_method_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        <option value="">No delivery method selected</option>
+                                        @foreach ($shippingMethods as $method)
+                                            <option value="{{ $method->id }}">{{ $method->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                            </div>
+
+                            <div class="space-y-2">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
+                                @foreach ($order->items as $item)
+                                    @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
+                                    @if ($remaining > 0)
+                                        <label class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                                            <span class="min-w-0">
+                                                <span class="block truncate font-medium text-slate-800">{{ $item->product_name }}</span>
+                                                <span class="text-xs text-slate-500">{{ $remaining }} remaining</span>
+                                            </span>
+                                            <input name="items[{{ $item->id }}]" type="number" min="0" max="{{ $remaining }}" value="{{ $remaining }}" class="h-9 w-20 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm">
+                                        </label>
+                                    @endif
+                                @endforeach
+                            </div>
+
+                            <div class="grid gap-3">
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking number</span>
+                                    <input name="tracking_number" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional">
+                                </label>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking link</span>
+                                    <input name="tracking_url" type="url" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="https://">
+                                </label>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <label class="space-y-1">
+                                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Packages</span>
+                                        <input name="package_count" type="number" min="1" value="1" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </label>
+                                    <label class="space-y-1">
+                                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Weight</span>
+                                        <input name="package_weight" type="number" min="0" step="0.001" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </label>
+                                    <label class="space-y-1">
+                                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</span>
+                                        <input name="shipping_cost" type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                    </label>
+                                </div>
+                                <label class="space-y-1">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Internal note</span>
+                                    <textarea name="note" rows="2" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional"></textarea>
+                                </label>
+                            </div>
+                            <button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700">Create shipment</button>
+                        </form>
+                    @elseif ($canManageOrders && $remainingTotal === 0)
+                        <div class="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                            All items on this order are fulfilled.
+                        </div>
+                    @endif
+
+                    <div class="mt-5 space-y-4">
+                        @forelse ($order->shipments as $shipment)
+                            <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <p class="font-semibold text-slate-900">{{ $shipment->shipment_number }}</p>
+                                        <p class="mt-1 text-sm text-slate-600">{{ $shipment->carrierAccount?->display_name ?? 'No carrier account' }}{{ $shipment->shippingMethod ? ' | '.$shipment->shippingMethod->name : '' }}</p>
+                                    </div>
+                                    <span class="rounded-full px-2.5 py-1 text-xs font-bold {{ \App\Support\OrderLifecycle::shipmentStatusBadgeClass($shipment->status) }}">
+                                        {{ \App\Support\OrderLifecycle::shipmentStatusLabel($shipment->status) }}
+                                    </span>
+                                </div>
+                                <div class="mt-3 space-y-1 text-sm text-slate-600">
+                                    @foreach ($shipment->items as $shipmentItem)
+                                        <p>{{ $shipmentItem->quantity }} x {{ $shipmentItem->orderItem?->product_name ?? 'Order item' }}</p>
+                                    @endforeach
+                                    <p>Created {{ $shipment->created_at?->format('M j, Y g:i A') }}</p>
+                                    @if ($shipment->shipped_at)<p>Shipped {{ $shipment->shipped_at->format('M j, Y g:i A') }}</p>@endif
+                                    @if ($shipment->delivered_at)<p>Delivered {{ $shipment->delivered_at->format('M j, Y g:i A') }}</p>@endif
+                                </div>
+                                @if ($shipment->tracking_number || $shipment->tracking_url)
+                                    <div class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                                        <p class="font-semibold text-slate-900">{{ $shipment->tracking_number ?: 'Tracking link' }}</p>
+                                        @if ($shipment->tracking_url)
+                                            <a href="{{ $shipment->tracking_url }}" target="_blank" rel="noopener" class="mt-1 inline-flex text-indigo-700 hover:underline">Open tracking</a>
+                                        @endif
+                                    </div>
+                                @endif
+
+                                @if ($canManageOrders)
+                                    <form method="POST" action="{{ route('shipments.tracking.update', $shipment) }}" class="mt-4 grid gap-2">
+                                        @csrf
+                                        @method('PATCH')
+                                        <input name="tracking_number" value="{{ $shipment->tracking_number }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Tracking number">
+                                        <input name="tracking_url" value="{{ $shipment->tracking_url }}" type="url" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Tracking link">
+                                        <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Update tracking</button>
+                                    </form>
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        @if (in_array($shipment->status, [\App\Models\Shipment::STATUS_PENDING, \App\Models\Shipment::STATUS_LABEL_CREATED], true))
+                                            <form method="POST" action="{{ route('shipments.mark-shipped', $shipment) }}">@csrf<button class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white">Mark shipped</button></form>
+                                            <form method="POST" action="{{ route('shipments.cancel', $shipment) }}">@csrf<button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Cancel</button></form>
+                                        @endif
+                                        @if (in_array($shipment->status, [\App\Models\Shipment::STATUS_SHIPPED, \App\Models\Shipment::STATUS_IN_TRANSIT], true))
+                                            <form method="POST" action="{{ route('shipments.mark-delivered', $shipment) }}">@csrf<button class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Mark delivered</button></form>
+                                        @endif
+                                        @if (! in_array($shipment->status, [\App\Models\Shipment::STATUS_DELIVERED, \App\Models\Shipment::STATUS_FAILED, \App\Models\Shipment::STATUS_CANCELLED], true))
+                                            <form method="POST" action="{{ route('shipments.mark-failed', $shipment) }}">@csrf<button class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">Mark failed</button></form>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                        @empty
+                            <div class="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center">
+                                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">
+                                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <p class="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-slate-600">No shipments have been created yet.</p>
+                            </div>
+                        @endforelse
                     </div>
                 </article>
 

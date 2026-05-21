@@ -17,6 +17,8 @@ use App\Http\Controllers\ProductBulkController;
 use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductWorkspaceController;
 use App\Http\Controllers\ProductWorkspaceDataController;
+use App\Http\Controllers\ShipmentController;
+use App\Http\Controllers\ShippingSettingsController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TeamMemberController;
 use Illuminate\Support\Facades\Route;
@@ -114,6 +116,24 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/orders/{order}/notes', [OrderController::class, 'storeNote'])
         ->middleware('store.permission:orders.manage')
         ->name('orders.notes.store');
+    Route::post('/orders/{order}/shipments', [ShipmentController::class, 'store'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.shipments.store');
+    Route::patch('/shipments/{shipment}/tracking', [ShipmentController::class, 'updateTracking'])
+        ->middleware('store.permission:orders.manage')
+        ->name('shipments.tracking.update');
+    Route::post('/shipments/{shipment}/mark-shipped', [ShipmentController::class, 'markShipped'])
+        ->middleware('store.permission:orders.manage')
+        ->name('shipments.mark-shipped');
+    Route::post('/shipments/{shipment}/mark-delivered', [ShipmentController::class, 'markDelivered'])
+        ->middleware('store.permission:orders.manage')
+        ->name('shipments.mark-delivered');
+    Route::post('/shipments/{shipment}/mark-failed', [ShipmentController::class, 'markFailed'])
+        ->middleware('store.permission:orders.manage')
+        ->name('shipments.mark-failed');
+    Route::post('/shipments/{shipment}/cancel', [ShipmentController::class, 'cancel'])
+        ->middleware('store.permission:orders.manage')
+        ->name('shipments.cancel');
     Route::post('/draft-orders', [DraftOrderController::class, 'store'])
         ->middleware('store.permission:orders.manage')
         ->name('draft-orders.store');
@@ -223,7 +243,36 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/settings/payments/stripe/disable', [PaymentSettingsController::class, 'disable'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.stripe.disable');
-    Route::get('/shippingAutomation', [DashboardController::class, 'shippingAutomation'])->name('shippingAutomation');
+    Route::get('/shippingAutomation', [ShippingSettingsController::class, 'index'])
+        ->middleware('store.permission:settings.view')
+        ->name('shippingAutomation');
+    Route::post('/settings/shipping/carrier-accounts', [ShippingSettingsController::class, 'storeCarrierAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.store');
+    Route::patch('/settings/shipping/carrier-accounts/{carrierAccount}', [ShippingSettingsController::class, 'updateCarrierAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.update');
+    Route::delete('/settings/shipping/carrier-accounts/{carrierAccount}', [ShippingSettingsController::class, 'destroyCarrierAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.destroy');
+    Route::post('/settings/shipping/zones', [ShippingSettingsController::class, 'storeZone'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.zones.store');
+    Route::patch('/settings/shipping/zones/{shippingZone}', [ShippingSettingsController::class, 'updateZone'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.zones.update');
+    Route::delete('/settings/shipping/zones/{shippingZone}', [ShippingSettingsController::class, 'destroyZone'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.zones.destroy');
+    Route::post('/settings/shipping/methods', [ShippingSettingsController::class, 'storeMethod'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.methods.store');
+    Route::patch('/settings/shipping/methods/{shippingMethod}', [ShippingSettingsController::class, 'updateMethod'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.methods.update');
+    Route::delete('/settings/shipping/methods/{shippingMethod}', [ShippingSettingsController::class, 'destroyMethod'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.methods.destroy');
     Route::get('/security', [DashboardController::class, 'security'])
         ->middleware('store.permission:security.view')
         ->name('security');
