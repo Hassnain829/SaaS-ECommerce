@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Payments\PaymentProviderManager;
+use App\Services\Shipping\DeliveryOptionService;
 use App\Support\CheckoutMode;
 use App\Support\ProductVariantLabel;
 use Illuminate\Support\Collection;
@@ -26,6 +27,7 @@ class CheckoutService
         private readonly OrderNumberGenerator $numberGenerator,
         private readonly PaymentProviderManager $paymentProviderManager,
         private readonly CheckoutEventRecorder $eventRecorder,
+        private readonly DeliveryOptionService $deliveryOptionService,
     ) {
     }
 
@@ -37,7 +39,6 @@ class CheckoutService
         return DB::transaction(function () use ($store, $payload): Checkout {
             $customer = $this->upsertCustomer($store, $payload['customer']);
             $items = $this->prepareItems($store, $payload['items']);
-            $totals = $this->totals($items, $payload);
             $provider = (string) config('payments.default_provider', 'stripe');
 
             if (CheckoutMode::forStore($store) !== CheckoutMode::PLATFORM) {
@@ -54,6 +55,32 @@ class CheckoutService
             }
             $currencyCode = strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD'));
             $shippingAddress = $payload['shipping_address'];
+            $shippingMethodId = filled($payload['shipping_method_id'] ?? null) ? (int) $payload['shipping_method_id'] : null;
+            $shippingSnapshot = null;
+            $shippingTotal = 0.0;
+            $subtotal = $this->subtotal($items);
+
+            if ($shippingMethodId) {
+                $option = $this->deliveryOptionService->optionForMethodId(
+                    $store,
+                    $shippingMethodId,
+                    $shippingAddress,
+                    $subtotal,
+                    $currencyCode,
+                );
+
+                if (! $option) {
+                    throw ValidationException::withMessages([
+                        'shipping_method_id' => 'Choose an available delivery method for this address.',
+                    ]);
+                }
+
+                $shippingTotal = $this->money($option['amount']);
+                $shippingSnapshot = $option['snapshot'];
+                $shippingSnapshot['selected_at'] = now()->toISOString();
+            }
+
+            $totals = $this->totals($items, $shippingTotal);
             $billingSameAsShipping = $this->billingSameAsShipping($payload);
 
             $checkout = Checkout::query()->create([
@@ -67,6 +94,8 @@ class CheckoutService
                 'subtotal' => $totals['subtotal'],
                 'discount_total' => $totals['discount'],
                 'shipping_total' => $totals['shipping'],
+                'shipping_method_id' => $shippingMethodId,
+                'shipping_snapshot' => $shippingSnapshot,
                 'tax_total' => $totals['tax'],
                 'grand_total' => $totals['grand_total'],
                 'payment_provider' => $provider,
@@ -75,6 +104,7 @@ class CheckoutService
                     'billing_same_as_shipping' => $billingSameAsShipping,
                     'received_at' => now()->toISOString(),
                     'server_totals' => true,
+                    'shipping' => $shippingSnapshot,
                     'payment_connection_type' => $providerAccount->connection_type,
                     'payment_provider_account_id' => $providerAccount->id,
                     'connected_account_id' => $providerAccount->provider_account_id,
@@ -158,6 +188,20 @@ class CheckoutService
                 'Stock was reserved while the customer completes payment.',
                 ['reservation_count' => $reservationCount]
             );
+
+            if ($shippingSnapshot) {
+                $this->eventRecorder->record(
+                    $checkout,
+                    'shipping.method_selected',
+                    'Delivery method selected',
+                    'Customer selected '.$shippingSnapshot['method_name'].' for this checkout.',
+                    [
+                        'shipping_method_id' => $shippingMethodId,
+                        'shipping_total' => $shippingTotal,
+                        'currency_code' => $checkout->currency_code,
+                    ]
+                );
+            }
 
             $result = $this->paymentProviderManager
                 ->driver($provider)
@@ -332,13 +376,12 @@ class CheckoutService
 
     /**
      * @param  list<array<string, mixed>>  $items
-     * @param  array<string, mixed>  $payload
      * @return array{subtotal: float, shipping: float, tax: float, discount: float, grand_total: float}
      */
-    private function totals(array $items, array $payload): array
+    private function totals(array $items, float $shippingTotal): array
     {
-        $subtotal = $this->money(array_sum(array_map(fn (array $item): float => (float) $item['subtotal'], $items)));
-        $shipping = $this->money($payload['shipping_total'] ?? 0);
+        $subtotal = $this->subtotal($items);
+        $shipping = $this->money($shippingTotal);
         $tax = 0.0;
         $discount = 0.0;
 
@@ -349,6 +392,14 @@ class CheckoutService
             'discount' => $discount,
             'grand_total' => $this->money(max(0, $subtotal + $shipping + $tax - $discount)),
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     */
+    private function subtotal(array $items): float
+    {
+        return $this->money(array_sum(array_map(fn (array $item): float => (float) $item['subtotal'], $items)));
     }
 
     /**

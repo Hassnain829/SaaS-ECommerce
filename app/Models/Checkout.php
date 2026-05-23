@@ -28,6 +28,8 @@ class Checkout extends Model
         'subtotal',
         'discount_total',
         'shipping_total',
+        'shipping_method_id',
+        'shipping_snapshot',
         'tax_total',
         'grand_total',
         'payment_provider',
@@ -43,6 +45,7 @@ class Checkout extends Model
         'subtotal' => 'decimal:2',
         'discount_total' => 'decimal:2',
         'shipping_total' => 'decimal:2',
+        'shipping_snapshot' => 'array',
         'tax_total' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'metadata' => 'array',
@@ -78,6 +81,11 @@ class Checkout extends Model
     public function paymentProviderAccount(): BelongsTo
     {
         return $this->belongsTo(PaymentProviderAccount::class);
+    }
+
+    public function shippingMethod(): BelongsTo
+    {
+        return $this->belongsTo(ShippingMethod::class);
     }
 
     public function paymentIntents(): HasMany

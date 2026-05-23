@@ -117,6 +117,7 @@ class ExternalOrderSyncService
                 'placed_at' => $placedAt,
                 'confirmed_at' => $orderStatus === OrderLifecycle::ORDER_CONFIRMED ? $placedAt : null,
                 'meta' => [
+                    'shipping' => $this->externalShippingSnapshot($payload, $totals, $store),
                     'external_checkout' => [
                         'request_hash' => $requestHash,
                         'received_at' => now()->toISOString(),
@@ -374,6 +375,24 @@ class ExternalOrderSyncService
             'tax' => $tax,
             'discount' => $discount,
             'grand_total' => $this->money(max(0, $subtotal + $shipping + $tax - $discount)),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array{subtotal: float, shipping: float, tax: float, discount: float, grand_total: float}  $totals
+     * @return array<string, mixed>
+     */
+    private function externalShippingSnapshot(array $payload, array $totals, Store $store): array
+    {
+        return [
+            'source' => self::SOURCE,
+            'method_name' => $payload['shipping_method_name'] ?? null,
+            'carrier_name' => $payload['shipping_carrier_name'] ?? null,
+            'delivery_speed_label' => $payload['shipping_delivery_speed_label'] ?? null,
+            'amount' => $totals['shipping'],
+            'currency_code' => strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD')),
+            'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
         ];
     }
 

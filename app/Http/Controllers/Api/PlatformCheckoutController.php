@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Services\CheckoutConversionService;
 use App\Services\CheckoutService;
 use App\Services\Payments\PaymentProviderManager;
+use App\Services\Shipping\CheckoutShippingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -60,6 +61,38 @@ class PlatformCheckoutController extends Controller
         return response()->json($this->checkoutResponse(
             $checkout->load(['items', 'addresses', 'paymentIntents', 'convertedOrder'])
         ));
+    }
+
+    public function deliveryOptions(Request $request, Checkout $checkout, CheckoutShippingService $checkoutShippingService): JsonResponse
+    {
+        /** @var Store|null $store */
+        $store = $request->attributes->get('developerStorefrontStore');
+        abort_unless($store && (int) $checkout->store_id === (int) $store->id, 404);
+
+        $payload = $this->validatedDeliveryPayload($request);
+
+        return response()->json([
+            'delivery_options' => collect($checkoutShippingService->deliveryOptions($checkout, $payload['shipping_address'] ?? null))
+                ->map(fn (array $option): array => $this->publicDeliveryOption($option))
+                ->values()
+                ->all(),
+        ]);
+    }
+
+    public function selectShippingMethod(Request $request, Checkout $checkout, CheckoutShippingService $checkoutShippingService): JsonResponse
+    {
+        /** @var Store|null $store */
+        $store = $request->attributes->get('developerStorefrontStore');
+        abort_unless($store && (int) $checkout->store_id === (int) $store->id, 404);
+
+        $payload = $this->validatedShippingSelectionPayload($request);
+        $checkout = $checkoutShippingService->selectShippingMethod(
+            $checkout,
+            (int) $payload['shipping_method_id'],
+            $payload['shipping_address'] ?? null,
+        );
+
+        return response()->json($this->checkoutResponse($checkout));
     }
 
     public function confirm(
@@ -122,6 +155,7 @@ class PlatformCheckoutController extends Controller
             'source_channel' => ['nullable', 'string', 'max:64'],
             'currency_code' => ['nullable', 'string', 'max:8'],
             'shipping_total' => ['nullable', 'numeric', 'min:0'],
+            'shipping_method_id' => ['nullable', 'integer'],
             'customer' => ['required', 'array'],
             'customer.email' => ['required', 'email', 'max:255'],
             'customer.first_name' => ['nullable', 'string', 'max:100'],
@@ -181,6 +215,41 @@ class PlatformCheckoutController extends Controller
     /**
      * @return array<string, mixed>
      */
+    private function validatedDeliveryPayload(Request $request): array
+    {
+        return Validator::make($request->all(), [
+            'shipping_address' => ['nullable', 'array'],
+            'shipping_address.address_line1' => ['nullable', 'string', 'max:255'],
+            'shipping_address.city' => ['nullable', 'string', 'max:100'],
+            'shipping_address.state' => ['nullable', 'string', 'max:100'],
+            'shipping_address.province_code' => ['nullable', 'string', 'max:32'],
+            'shipping_address.postal_code' => ['nullable', 'string', 'max:32'],
+            'shipping_address.country' => ['nullable', 'string', 'max:100'],
+            'shipping_address.country_code' => ['nullable', 'string', 'max:8'],
+        ])->validate();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validatedShippingSelectionPayload(Request $request): array
+    {
+        return Validator::make($request->all(), [
+            'shipping_method_id' => ['required', 'integer'],
+            'shipping_address' => ['nullable', 'array'],
+            'shipping_address.address_line1' => ['nullable', 'string', 'max:255'],
+            'shipping_address.city' => ['nullable', 'string', 'max:100'],
+            'shipping_address.state' => ['nullable', 'string', 'max:100'],
+            'shipping_address.province_code' => ['nullable', 'string', 'max:32'],
+            'shipping_address.postal_code' => ['nullable', 'string', 'max:32'],
+            'shipping_address.country' => ['nullable', 'string', 'max:100'],
+            'shipping_address.country_code' => ['nullable', 'string', 'max:8'],
+        ])->validate();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function checkoutResponse(?Checkout $checkout): array
     {
         abort_unless($checkout, 404);
@@ -201,6 +270,8 @@ class PlatformCheckoutController extends Controller
                 'currency_code' => $checkout->currency_code,
                 'subtotal' => number_format((float) $checkout->subtotal, 2, '.', ''),
                 'shipping_total' => number_format((float) $checkout->shipping_total, 2, '.', ''),
+                'shipping_method_id' => $checkout->shipping_method_id,
+                'shipping_snapshot' => $checkout->shipping_snapshot,
                 'tax_total' => number_format((float) $checkout->tax_total, 2, '.', ''),
                 'discount_total' => number_format((float) $checkout->discount_total, 2, '.', ''),
                 'grand_total' => number_format((float) $checkout->grand_total, 2, '.', ''),
@@ -232,6 +303,27 @@ class PlatformCheckoutController extends Controller
                 'client_secret' => $paymentIntent?->client_secret,
                 'publishable_key' => config('payments.stripe.key'),
             ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $option
+     * @return array<string, mixed>
+     */
+    private function publicDeliveryOption(array $option): array
+    {
+        return [
+            'id' => $option['id'],
+            'shipping_method_id' => $option['shipping_method_id'],
+            'name' => $option['name'],
+            'description' => $option['description'],
+            'delivery_speed_label' => $option['delivery_speed_label'],
+            'amount' => $option['amount'],
+            'amount_formatted' => $option['amount_formatted'],
+            'currency_code' => $option['currency_code'],
+            'estimated_min_days' => $option['estimated_min_days'],
+            'estimated_max_days' => $option['estimated_max_days'],
+            'carrier_name' => $option['carrier_name'],
         ];
     }
 

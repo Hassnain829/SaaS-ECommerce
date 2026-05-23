@@ -62,6 +62,9 @@ export default function App() {
   const [postalCode, setPostalCode] = useState('94105');
   const [country, setCountry] = useState('US');
   const [orderResult, setOrderResult] = useState(null);
+  const [platformCheckoutDraft, setPlatformCheckoutDraft] = useState(null);
+  const [deliveryOptions, setDeliveryOptions] = useState([]);
+  const [selectedDeliveryOptionId, setSelectedDeliveryOptionId] = useState('');
   const [platformPayment, setPlatformPayment] = useState(null);
   const [stripeFormReady, setStripeFormReady] = useState(false);
   const [stripePaymentProcessing, setStripePaymentProcessing] = useState(false);
@@ -74,6 +77,18 @@ export default function App() {
   const externalBase = useMemo(() => externalApiBase(base), [base]);
   const checkoutBase = useMemo(() => checkoutApiBase(base), [base]);
   const cartTotal = cart.reduce((sum, line) => sum + Number(line.unit_price || 0) * Number(line.quantity || 1), 0);
+  const selectedDeliveryOption = useMemo(
+    () => deliveryOptions.find((option) => String(option.id) === String(selectedDeliveryOptionId)) || null,
+    [deliveryOptions, selectedDeliveryOptionId]
+  );
+  const displayedTotal = cartTotal + (selectedDeliveryOption ? Number(selectedDeliveryOption.amount || 0) : 0);
+
+  const resetPlatformCheckout = () => {
+    setPlatformPayment(null);
+    setPlatformCheckoutDraft(null);
+    setDeliveryOptions([]);
+    setSelectedDeliveryOptionId('');
+  };
 
   useEffect(() => {
     if (!platformPayment?.payment?.publishable_key || !platformPayment?.payment?.client_secret || !cardContainerRef.current) {
@@ -180,7 +195,7 @@ export default function App() {
   );
 
   const addToCart = (product, variant) => {
-    setPlatformPayment(null);
+    resetPlatformCheckout();
     setCart((prev) => {
       const key = `${product.id}-${variant.id}`;
       const idx = prev.findIndex((line) => `${line.product_id}-${line.variant_id}` === key);
@@ -205,12 +220,12 @@ export default function App() {
 
   const updateQty = (key, qty) => {
     const quantity = Math.max(1, Number(qty) || 1);
-    setPlatformPayment(null);
+    resetPlatformCheckout();
     setCart((prev) => prev.map((line) => (`${line.product_id}-${line.variant_id}` === key ? { ...line, quantity } : line)));
   };
 
   const removeLine = (key) => {
-    setPlatformPayment(null);
+    resetPlatformCheckout();
     setCart((prev) => prev.filter((line) => `${line.product_id}-${line.variant_id}` !== key));
   };
 
@@ -255,6 +270,16 @@ export default function App() {
     };
   };
 
+  const shippingAddressPayload = () => ({
+    name: customerName.trim(),
+    address_line1: addressLine1.trim(),
+    city: city.trim(),
+    state: stateRegion.trim(),
+    postal_code: postalCode.trim(),
+    country: country.trim(),
+    phone: customerPhone.trim() || null,
+  });
+
   const platformPayload = () => ({
     source_channel: 'dev_storefront',
     currency_code: catalog?.store?.currency || 'USD',
@@ -264,15 +289,7 @@ export default function App() {
       email: customerEmail.trim(),
       phone: customerPhone.trim() || null,
     },
-    shipping_address: {
-      name: customerName.trim(),
-      address_line1: addressLine1.trim(),
-      city: city.trim(),
-      state: stateRegion.trim(),
-      postal_code: postalCode.trim(),
-      country: country.trim(),
-      phone: customerPhone.trim() || null,
-    },
+    shipping_address: shippingAddressPayload(),
     billing_address: {
       same_as_shipping: true,
     },
@@ -302,6 +319,53 @@ export default function App() {
     try {
       const external = checkoutMode === 'external';
       const platform = checkoutMode === 'platform';
+      if (platform && platformCheckoutDraft && deliveryOptions.length) {
+        if (!selectedDeliveryOptionId) {
+          throw new Error('Choose a delivery option before showing the Stripe payment form.');
+        }
+
+        const selectRes = await fetch(`${checkoutBase}/${platformCheckoutDraft.id}/shipping-method`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+          },
+          body: JSON.stringify({
+            shipping_method_id: selectedDeliveryOptionId,
+            shipping_address: shippingAddressPayload(),
+          }),
+        });
+        const selectRaw = await selectRes.text();
+        let selectData = {};
+        try {
+          selectData = selectRaw ? JSON.parse(selectRaw) : {};
+        } catch {
+          selectData = {};
+        }
+        if (!selectRes.ok) {
+          throw new Error(
+            selectData.message ||
+              (selectData.errors && JSON.stringify(selectData.errors)) ||
+              (selectRaw.startsWith('<') ? `HTTP ${selectRes.status}: server returned HTML.` : selectRes.statusText) ||
+              'Could not save the selected delivery option.'
+          );
+        }
+        const payment = selectData.payment || {};
+        if (!payment.publishable_key || !payment.client_secret) {
+          throw new Error(selectData.message || 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.');
+        }
+        setPlatformPayment({
+          checkout: selectData.checkout,
+          payment,
+        });
+        setPlatformCheckoutDraft(null);
+        setDeliveryOptions([]);
+        setSelectedDeliveryOptionId('');
+        await loadCatalog({ quiet: true });
+        return;
+      }
+
       const endpoint = platform ? checkoutBase : `${externalBase}/orders`;
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -328,6 +392,33 @@ export default function App() {
         throw new Error(msg);
       }
       if (platform) {
+        const optionsRes = await fetch(`${checkoutBase}/${data.checkout?.id}/delivery-options`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+          },
+          body: JSON.stringify({
+            shipping_address: shippingAddressPayload(),
+          }),
+        });
+        const optionsRaw = await optionsRes.text();
+        let optionsData = {};
+        try {
+          optionsData = optionsRaw ? JSON.parse(optionsRaw) : {};
+        } catch {
+          optionsData = {};
+        }
+        if (optionsRes.ok && Array.isArray(optionsData.delivery_options) && optionsData.delivery_options.length) {
+          setPlatformCheckoutDraft(data.checkout);
+          setDeliveryOptions(optionsData.delivery_options);
+          setSelectedDeliveryOptionId(String(optionsData.delivery_options[0].id));
+          setPlatformPayment(null);
+          await loadCatalog({ quiet: true });
+          return;
+        }
+
         const payment = data.payment || {};
         if (!payment.publishable_key || !payment.client_secret) {
           throw new Error(data.message || 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.');
@@ -339,7 +430,7 @@ export default function App() {
         await loadCatalog({ quiet: true });
       } else {
         setOrderResult({ ...data.order, externalMode: external });
-        setPlatformPayment(null);
+        resetPlatformCheckout();
         setCart([]);
         await loadCatalog({ quiet: true });
       }
@@ -652,8 +743,21 @@ export default function App() {
             })}
           </ul>
 
-          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', marginTop: '0.5rem', fontWeight: 700 }}>
-            Total {money(cartTotal)} {catalog?.store?.currency || 'USD'}
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', color: '#475569' }}>
+              <span>Items</span>
+              <span>{money(cartTotal)} {catalog?.store?.currency || 'USD'}</span>
+            </div>
+            {selectedDeliveryOption && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#475569' }}>
+                <span>{selectedDeliveryOption.name}</span>
+                <span>{money(selectedDeliveryOption.amount)} {selectedDeliveryOption.currency_code || catalog?.store?.currency || 'USD'}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontWeight: 700 }}>
+              <span>Total</span>
+              <span>{money(displayedTotal)} {catalog?.store?.currency || 'USD'}</span>
+            </div>
           </div>
 
           <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
@@ -662,7 +766,7 @@ export default function App() {
               This switch is only for local testing. A real storefront should use the checkout mode selected in the SaaS dashboard.
             </p>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
-              <input type="radio" checked={checkoutMode === 'external'} onChange={() => { setCheckoutMode('external'); setPlatformPayment(null); }} />
+              <input type="radio" checked={checkoutMode === 'external'} onChange={() => { setCheckoutMode('external'); resetPlatformCheckout(); }} />
               External checkout sync
             </label>
             {checkoutMode === 'external' && (
@@ -671,7 +775,7 @@ export default function App() {
               </p>
             )}
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
-              <input type="radio" checked={checkoutMode === 'platform'} onChange={() => setCheckoutMode('platform')} />
+              <input type="radio" checked={checkoutMode === 'platform'} onChange={() => { setCheckoutMode('platform'); resetPlatformCheckout(); }} />
               Platform checkout
             </label>
             {checkoutMode === 'platform' && (
@@ -685,7 +789,7 @@ export default function App() {
               Customer name
               <input
                 value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
+                onChange={(e) => { setCustomerName(e.target.value); resetPlatformCheckout(); }}
                 style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
               />
             </label>
@@ -695,7 +799,7 @@ export default function App() {
                 <input
                   type="email"
                   value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  onChange={(e) => { setCustomerEmail(e.target.value); resetPlatformCheckout(); }}
                   style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </label>
@@ -704,7 +808,7 @@ export default function App() {
                 <input
                   type="tel"
                   value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  onChange={(e) => { setCustomerPhone(e.target.value); resetPlatformCheckout(); }}
                   style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </label>
@@ -715,7 +819,7 @@ export default function App() {
               Address line 1
               <input
                 value={addressLine1}
-                onChange={(e) => setAddressLine1(e.target.value)}
+                onChange={(e) => { setAddressLine1(e.target.value); resetPlatformCheckout(); }}
                 style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
               />
             </label>
@@ -724,7 +828,7 @@ export default function App() {
                 City
                 <input
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
+                  onChange={(e) => { setCity(e.target.value); resetPlatformCheckout(); }}
                   style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </label>
@@ -732,7 +836,7 @@ export default function App() {
                 State/region
                 <input
                   value={stateRegion}
-                  onChange={(e) => setStateRegion(e.target.value)}
+                  onChange={(e) => { setStateRegion(e.target.value); resetPlatformCheckout(); }}
                   style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </label>
@@ -742,7 +846,7 @@ export default function App() {
                 Postal code
                 <input
                   value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
+                  onChange={(e) => { setPostalCode(e.target.value); resetPlatformCheckout(); }}
                   style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </label>
@@ -750,11 +854,57 @@ export default function App() {
                 Country
                 <input
                   value={country}
-                  onChange={(e) => setCountry(e.target.value)}
+                  onChange={(e) => { setCountry(e.target.value); resetPlatformCheckout(); }}
                   style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                 />
               </label>
             </div>
+
+            {checkoutMode === 'platform' && platformCheckoutDraft && deliveryOptions.length > 0 && (
+              <div
+                style={{
+                  marginTop: '0.5rem',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 10,
+                  padding: '0.75rem',
+                  background: '#f8fafc',
+                }}
+              >
+                <h3 style={{ margin: 0, fontSize: '0.9rem', color: '#0f172a' }}>Delivery options</h3>
+                <div style={{ marginTop: '0.6rem', display: 'grid', gap: '0.5rem' }}>
+                  {deliveryOptions.map((option) => (
+                    <label
+                      key={option.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'auto 1fr auto',
+                        gap: '0.55rem',
+                        alignItems: 'start',
+                        padding: '0.65rem',
+                        borderRadius: 8,
+                        border: String(option.id) === String(selectedDeliveryOptionId) ? '1px solid #0052cc' : '1px solid #e2e8f0',
+                        background: '#fff',
+                        fontSize: '0.84rem',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        checked={String(option.id) === String(selectedDeliveryOptionId)}
+                        onChange={() => setSelectedDeliveryOptionId(String(option.id))}
+                        style={{ marginTop: 2 }}
+                      />
+                      <span>
+                        <strong style={{ display: 'block', color: '#0f172a' }}>{option.name}</strong>
+                        <span style={{ color: '#64748b', fontSize: '0.76rem' }}>
+                          {[option.delivery_speed_label, option.description].filter(Boolean).join(' - ') || 'Delivery option'}
+                        </span>
+                      </span>
+                      <strong style={{ color: '#0f172a' }}>{money(option.amount)}</strong>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <button
               type="button"
@@ -770,7 +920,13 @@ export default function App() {
                 fontWeight: 600,
               }}
             >
-              {checkoutMode === 'platform' ? (platformPayment ? 'Stripe form ready' : 'Show Stripe payment form') : 'Sync external checkout order'}
+              {checkoutMode === 'platform'
+                ? platformPayment
+                  ? 'Stripe form ready'
+                  : platformCheckoutDraft && deliveryOptions.length
+                    ? 'Use delivery option and show Stripe'
+                    : 'Show delivery options'
+                : 'Sync external checkout order'}
             </button>
 
             {checkoutMode === 'platform' && platformPayment && (

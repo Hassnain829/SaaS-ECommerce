@@ -82,7 +82,7 @@
                     </div>
 
                     @if ($canManageShipping)
-                        <form method="POST" action="{{ route('settings.shipping.zones.store') }}" class="grid gap-3 border-b border-[#F1F5F9] bg-[#F8FAFC] p-5 md:grid-cols-4">
+                        <form method="POST" action="{{ route('settings.shipping.zones.store') }}" class="grid gap-3 border-b border-[#F1F5F9] bg-[#F8FAFC] p-5 md:grid-cols-6">
                             @csrf
                             <label class="space-y-1 md:col-span-1">
                                 <span class="text-xs font-semibold text-[#64748B]">Zone name</span>
@@ -95,6 +95,14 @@
                             <label class="space-y-1 md:col-span-1">
                                 <span class="text-xs font-semibold text-[#64748B]">Regions</span>
                                 <input name="regions" value="{{ old('regions') }}" placeholder="California, Ontario" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1 md:col-span-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Postal codes</span>
+                                <input name="postal_patterns" value="{{ old('postal_patterns') }}" placeholder="941*, 10001" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1 md:col-span-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Sort</span>
+                                <input name="sort_order" value="{{ old('sort_order', 0) }}" type="number" min="0" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
                             </label>
                             <div class="flex items-end">
                                 <input type="hidden" name="is_active" value="1">
@@ -117,6 +125,9 @@
                                             @if (collect($zone->regions)->filter()->isNotEmpty())
                                                 <span class="text-[#CBD5E1]">|</span> Regions: {{ collect($zone->regions)->filter()->implode(', ') }}
                                             @endif
+                                            @if (collect($zone->postal_patterns)->filter()->isNotEmpty())
+                                                <span class="text-[#CBD5E1]">|</span> Postal: {{ collect($zone->postal_patterns)->filter()->implode(', ') }}
+                                            @endif
                                         </p>
                                         <p class="mt-1 text-xs text-[#94A3B8]">{{ $zone->shippingMethods->count() }} delivery method(s)</p>
                                     </div>
@@ -131,6 +142,8 @@
                                                     <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Name</span><input name="name" value="{{ old('name', $zone->name) }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
                                                     <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Countries</span><input name="countries" value="{{ collect($zone->countries)->filter()->implode(', ') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
                                                     <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Regions</span><input name="regions" value="{{ collect($zone->regions)->filter()->implode(', ') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Postal codes</span><input name="postal_patterns" value="{{ collect($zone->postal_patterns)->filter()->implode(', ') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Sort</span><input name="sort_order" value="{{ $zone->sort_order }}" type="number" min="0" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
                                                     <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="is_active" value="1" @checked($zone->is_active) class="rounded border-[#CBD5E1]"> Active</label>
                                                     <button class="rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-bold text-white">Save zone</button>
                                                 </form>
@@ -156,11 +169,11 @@
                 <section class="overflow-hidden rounded-2xl border border-[#CBD5E1] bg-white shadow-sm">
                     <div class="border-b border-[#F1F5F9] px-5 py-4">
                         <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Delivery methods</h2>
-                        <p class="mt-1 text-sm text-[#64748B]">These are the delivery choices customers can select at checkout later, such as Standard delivery, Express delivery, Local delivery, or Store pickup.</p>
+                        <p class="mt-1 text-sm text-[#64748B]">These are the delivery choices customers can select at checkout, such as Standard delivery, Express delivery, Local delivery, or Store pickup.</p>
                     </div>
 
                     @if ($canManageShipping)
-                        <form method="POST" action="{{ route('settings.shipping.methods.store') }}" class="grid gap-3 border-b border-[#F1F5F9] bg-[#F8FAFC] p-5 md:grid-cols-3">
+                        <form method="POST" action="{{ route('settings.shipping.methods.store') }}" class="grid gap-3 border-b border-[#F1F5F9] bg-[#F8FAFC] p-5 md:grid-cols-4">
                             @csrf
                             <label class="space-y-1">
                                 <span class="text-xs font-semibold text-[#64748B]">Method name</span>
@@ -192,8 +205,23 @@
                                 </select>
                             </label>
                             <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Customer label</span>
+                                <input name="delivery_speed_label" value="{{ old('delivery_speed_label') }}" placeholder="2-4 business days" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1">
                                 <span class="text-xs font-semibold text-[#64748B]">Flat rate</span>
                                 <input name="flat_rate" value="{{ old('flat_rate', '0.00') }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Free over</span>
+                                <input name="free_over_amount" value="{{ old('free_over_amount') }}" type="number" min="0" step="0.01" placeholder="Optional" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Order range</span>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input name="min_order_amount" value="{{ old('min_order_amount') }}" type="number" min="0" step="0.01" class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" placeholder="Min">
+                                    <input name="max_order_amount" value="{{ old('max_order_amount') }}" type="number" min="0" step="0.01" class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" placeholder="Max">
+                                </div>
                             </label>
                             <label class="space-y-1">
                                 <span class="text-xs font-semibold text-[#64748B]">Estimated days</span>
@@ -206,9 +234,13 @@
                                 <span class="text-xs font-semibold text-[#64748B]">Description</span>
                                 <input name="description" value="{{ old('description') }}" placeholder="Arrives in 2-4 business days" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
                             </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Sort</span>
+                                <input name="sort_order" value="{{ old('sort_order', 0) }}" type="number" min="0" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
                             <div class="flex items-end gap-3">
                                 <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="enabled_for_checkout" value="1" checked class="rounded border-[#CBD5E1]"> Checkout</label>
-                                <input type="hidden" name="is_active" value="1">
+                                <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="is_active" value="1" checked class="rounded border-[#CBD5E1]"> Active</label>
                                 <button class="ml-auto h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Add method</button>
                             </div>
                         </form>
@@ -233,15 +265,59 @@
                                             @if ((float) $method->flat_rate > 0)
                                                 <span class="text-[#CBD5E1]">|</span> {{ $selectedStore->currency ?? 'USD' }} {{ number_format((float) $method->flat_rate, 2) }}
                                             @endif
+                                            @if ((float) $method->free_over_amount > 0)
+                                                <span class="text-[#CBD5E1]">|</span> Free over {{ $selectedStore->currency ?? 'USD' }} {{ number_format((float) $method->free_over_amount, 2) }}
+                                            @endif
                                         </p>
-                                        <p class="mt-1 text-xs text-[#94A3B8]">{{ $method->carrierAccount?->display_name ?? 'No carrier account assigned' }}</p>
+                                        <p class="mt-1 text-xs text-[#94A3B8]">
+                                            {{ collect([
+                                                $method->delivery_speed_label,
+                                                $method->carrierAccount?->display_name ?? 'No carrier account assigned',
+                                                $method->estimated_min_days !== null && $method->estimated_max_days !== null ? $method->estimated_min_days.'-'.$method->estimated_max_days.' days' : null,
+                                            ])->filter()->implode(' | ') }}
+                                        </p>
                                     </div>
                                     @if ($canManageShipping)
-                                        <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button>
-                                        </form>
+                                        <div class="flex flex-wrap justify-end gap-2">
+                                            <details class="text-right">
+                                                <summary class="inline-flex cursor-pointer rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-semibold text-[#475569]">Edit</summary>
+                                                <form method="POST" action="{{ route('settings.shipping.methods.update', $method) }}" class="mt-3 grid min-w-[340px] gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-left">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <input type="hidden" name="enabled_for_checkout" value="0">
+                                                    <input type="hidden" name="is_active" value="0">
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Name</span><input name="name" value="{{ $method->name }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Zone</span><select name="shipping_zone_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">@foreach ($shippingZones as $zone)<option value="{{ $zone->id }}" @selected($zone->id === $method->shipping_zone_id)>{{ $zone->name }}</option>@endforeach</select></label>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Carrier account</span><select name="carrier_account_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"><option value="">No carrier account</option>@foreach ($carrierAccounts as $account)<option value="{{ $account->id }}" @selected($account->id === $method->carrier_account_id)>{{ $account->display_name }}</option>@endforeach</select></label>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Rate type</span><select name="rate_type" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">@foreach ($rateTypes as $rateType)<option value="{{ $rateType }}" @selected($rateType === $method->rate_type)>{{ $rateLabels[$rateType] ?? str($rateType)->replace('_', ' ')->title() }}</option>@endforeach</select></label>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Customer label</span><input name="delivery_speed_label" value="{{ $method->delivery_speed_label }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    <div class="grid grid-cols-2 gap-2">
+                                                        <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Flat rate</span><input name="flat_rate" value="{{ $method->flat_rate }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                        <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Free over</span><input name="free_over_amount" value="{{ $method->free_over_amount }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    </div>
+                                                    <div class="grid grid-cols-2 gap-2">
+                                                        <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Min order</span><input name="min_order_amount" value="{{ $method->min_order_amount }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                        <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Max order</span><input name="max_order_amount" value="{{ $method->max_order_amount }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    </div>
+                                                    <div class="grid grid-cols-3 gap-2">
+                                                        <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Min days</span><input name="estimated_min_days" value="{{ $method->estimated_min_days }}" type="number" min="0" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                        <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Max days</span><input name="estimated_max_days" value="{{ $method->estimated_max_days }}" type="number" min="0" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                        <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Sort</span><input name="sort_order" value="{{ $method->sort_order }}" type="number" min="0" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    </div>
+                                                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Description</span><input name="description" value="{{ $method->description }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                                    <div class="flex items-center gap-4">
+                                                        <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="enabled_for_checkout" value="1" @checked($method->enabled_for_checkout) class="rounded border-[#CBD5E1]"> Checkout</label>
+                                                        <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="is_active" value="1" @checked($method->is_active) class="rounded border-[#CBD5E1]"> Active</label>
+                                                    </div>
+                                                    <button class="rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-bold text-white">Save method</button>
+                                                </form>
+                                            </details>
+                                            <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button>
+                                            </form>
+                                        </div>
                                     @endif
                                 </div>
                             </article>
@@ -297,7 +373,7 @@
                                 <span class="text-xs font-semibold text-[#64748B]">Supported countries</span>
                                 <input name="supported_countries" value="{{ old('supported_countries') }}" placeholder="US, CA, PK" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
                             </label>
-                            <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="enabled_for_checkout" value="1" checked class="rounded border-[#CBD5E1]"> Available for checkout later</label>
+                            <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="enabled_for_checkout" value="1" checked class="rounded border-[#CBD5E1]"> Available for checkout</label>
                             <button class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Add carrier account</button>
                         </form>
                     @endif

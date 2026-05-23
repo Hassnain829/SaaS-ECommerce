@@ -33,6 +33,7 @@ class CheckoutConversionService
             $paymentIntent = LocalPaymentIntent::query()
                 ->where('provider', 'stripe')
                 ->where('provider_intent_id', $result->providerIntentId)
+                ->where('status', '!=', 'superseded')
                 ->when($result->providerAccountId, function ($query) use ($result): void {
                     $query->where(function ($inner) use ($result): void {
                         $inner->where('provider_account_id', $result->providerAccountId)
@@ -134,6 +135,7 @@ class CheckoutConversionService
                 'placed_at' => now(),
                 'confirmed_at' => now(),
                 'meta' => [
+                    'shipping' => $checkout->shipping_snapshot,
                     'platform_checkout' => [
                         'checkout_id' => $checkout->id,
                         'checkout_number' => $checkout->checkout_number,
@@ -308,6 +310,7 @@ class CheckoutConversionService
             $paymentIntent = LocalPaymentIntent::query()
                 ->where('provider', 'stripe')
                 ->where('provider_intent_id', $result->providerIntentId)
+                ->where('status', '!=', 'superseded')
                 ->when($result->providerAccountId, function ($query) use ($result): void {
                     $query->where(function ($inner) use ($result): void {
                         $inner->where('provider_account_id', $result->providerAccountId)

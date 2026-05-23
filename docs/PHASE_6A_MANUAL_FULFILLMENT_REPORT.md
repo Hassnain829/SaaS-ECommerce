@@ -312,6 +312,8 @@ Intentionally not implemented in Phase 6A:
 - API keys, webhooks, event outbox, automation
 - SaaS billing
 
+Phase 6B now implements checkout delivery method selection and shipping snapshots. See `docs/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md`.
+
 ## Final Phase 6A Status
 
 Complete.

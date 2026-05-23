@@ -54,6 +54,12 @@
         $platformCheckoutNumber = data_get($order->meta, 'platform_checkout.checkout_number');
         $paymentConnectionLabel = data_get($order->meta, 'platform_checkout.connection_label');
         $connectedAccountId = data_get($order->meta, 'platform_checkout.provider_account_id');
+        $shippingSnapshot = data_get($order->meta, 'shipping', []);
+        $selectedDeliveryMethod = data_get($shippingSnapshot, 'method_name');
+        $selectedCarrierName = data_get($shippingSnapshot, 'carrier_name');
+        $selectedDeliverySpeed = data_get($shippingSnapshot, 'delivery_speed_label');
+        $estimatedMinDays = data_get($shippingSnapshot, 'estimated_min_days');
+        $estimatedMaxDays = data_get($shippingSnapshot, 'estimated_max_days');
 
         $card = 'rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/[0.03]';
         $cardHeader = 'border-b border-slate-100 px-5 py-4 md:px-6';
@@ -289,6 +295,23 @@
                             <div class="{{ $metaTile }} sm:col-span-2">
                                 <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Connected account</p>
                                 <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $connectedAccountId }}</p>
+                            </div>
+                        @endif
+                        @if ($selectedDeliveryMethod)
+                            <div class="{{ $metaTile }} sm:col-span-2">
+                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Delivery method</p>
+                                <p class="mt-1.5 font-semibold text-slate-900">{{ $selectedDeliveryMethod }}</p>
+                                @if ($selectedDeliverySpeed || $selectedCarrierName || $estimatedMinDays !== null || $estimatedMaxDays !== null)
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        {{ collect([
+                                            $selectedDeliverySpeed,
+                                            $selectedCarrierName,
+                                            $estimatedMinDays !== null && $estimatedMaxDays !== null
+                                                ? $estimatedMinDays . '-' . $estimatedMaxDays . ' days'
+                                                : null,
+                                        ])->filter()->implode(' | ') }}
+                                    </p>
+                                @endif
                             </div>
                         @endif
                     </div>

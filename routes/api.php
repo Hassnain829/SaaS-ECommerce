@@ -44,6 +44,8 @@ Route::middleware(['dev.storefront.token', 'throttle:api-dev-checkout'])
     ->group(function (): void {
         Route::post('/', [PlatformCheckoutController::class, 'store']);
         Route::get('/{checkout}', [PlatformCheckoutController::class, 'show']);
+        Route::post('/{checkout}/delivery-options', [PlatformCheckoutController::class, 'deliveryOptions']);
+        Route::post('/{checkout}/shipping-method', [PlatformCheckoutController::class, 'selectShippingMethod']);
         Route::post('/{checkout}/confirm', [PlatformCheckoutController::class, 'confirm']);
     });
 
