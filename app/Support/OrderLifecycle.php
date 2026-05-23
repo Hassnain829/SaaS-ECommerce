@@ -43,6 +43,7 @@ final class OrderLifecycle
     public const EVENT_FULFILLMENT_STATUS_CHANGED = 'fulfillment.status_changed';
     public const EVENT_INVENTORY_RESERVED = 'inventory.reserved';
     public const EVENT_INVENTORY_DEDUCTED = 'inventory.deducted';
+    public const EVENT_INVENTORY_EXTERNAL_MANAGED = 'inventory.external_managed';
     public const EVENT_ORDER_NOTE_ADDED = 'order.note_added';
     public const EVENT_ORDER_CANCELLED = 'order.cancelled';
     public const EVENT_ORDER_COMPLETED = 'order.completed';
@@ -50,6 +51,9 @@ final class OrderLifecycle
     public const EVENT_SHIPMENT_CREATED = 'shipment.created';
     public const EVENT_SHIPMENT_TRACKING_ADDED = 'shipment.tracking_added';
     public const EVENT_SHIPMENT_STATUS_CHANGED = 'shipment.status_changed';
+    public const EVENT_EXTERNAL_SHIPPING_RECORDED = 'external_shipping.recorded';
+    public const EVENT_EXTERNAL_FULFILLMENT_RECORDED = 'external_fulfillment.recorded';
+    public const EVENT_EXTERNAL_SHIPMENT_UPDATED = 'external_shipment.updated';
 
     private const ORDER_STATUS_LABELS = [
         self::ORDER_PENDING => 'Pending',
@@ -99,6 +103,7 @@ final class OrderLifecycle
         self::EVENT_FULFILLMENT_STATUS_CHANGED => 'Fulfillment status changed',
         self::EVENT_INVENTORY_RESERVED => 'Inventory reserved',
         self::EVENT_INVENTORY_DEDUCTED => 'Inventory deducted',
+        self::EVENT_INVENTORY_EXTERNAL_MANAGED => 'Inventory managed externally',
         self::EVENT_ORDER_NOTE_ADDED => 'Order note added',
         self::EVENT_ORDER_CANCELLED => 'Order cancelled',
         self::EVENT_ORDER_COMPLETED => 'Order completed',
@@ -106,6 +111,9 @@ final class OrderLifecycle
         self::EVENT_SHIPMENT_CREATED => 'Shipment created',
         self::EVENT_SHIPMENT_TRACKING_ADDED => 'Tracking added',
         self::EVENT_SHIPMENT_STATUS_CHANGED => 'Shipment status changed',
+        self::EVENT_EXTERNAL_SHIPPING_RECORDED => 'External shipping recorded',
+        self::EVENT_EXTERNAL_FULFILLMENT_RECORDED => 'External fulfillment recorded',
+        self::EVENT_EXTERNAL_SHIPMENT_UPDATED => 'External shipment updated',
     ];
 
     /**

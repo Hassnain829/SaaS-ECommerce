@@ -853,10 +853,15 @@ class DashboardController extends Controller
             'shipments.shippedBy',
         ]);
 
+        $channelOwnership = app(\App\Services\Channels\ChannelOwnershipService::class);
+
         return view('user_view.orderViewDetails', [
             'order' => $order,
             'orderStatuses' => OrderLifecycle::orderStatuses(),
             'selectedStore' => $selectedStore,
+            'isOrderExternallyManaged' => $channelOwnership->isOrderExternallyManaged($order),
+            'externalFulfillmentSnapshot' => data_get($order->meta, 'fulfillment', []),
+            'externalShipmentsMeta' => data_get($order->meta, 'external_shipments', []),
             'fulfillmentLocations' => $selectedStore->locations()
                 ->where('is_active', true)
                 ->orderByDesc('is_default')

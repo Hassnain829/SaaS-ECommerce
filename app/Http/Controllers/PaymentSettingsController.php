@@ -7,6 +7,7 @@ use App\Models\SecurityLog;
 use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\StripeConnectService;
 use App\Services\SecurityLogRecorder;
+use App\Services\Channels\ChannelOwnershipService;
 use App\Support\CheckoutMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ use Illuminate\View\View;
 
 class PaymentSettingsController extends Controller
 {
-    public function index(Request $request, PaymentProviderManager $paymentProviderManager): View|RedirectResponse
+    public function index(Request $request, PaymentProviderManager $paymentProviderManager, ChannelOwnershipService $channelOwnership): View|RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
 
@@ -34,6 +35,7 @@ class PaymentSettingsController extends Controller
 
         $connectAccount = $accounts->firstWhere('connection_type', 'connect');
         $platformAccount = $accounts->firstWhere('connection_type', 'platform');
+        $store = $channelOwnership->ensureChannelsStructure($store);
 
         return view('user_view.payment_settings', [
             'selectedStore' => $store,
@@ -42,6 +44,12 @@ class PaymentSettingsController extends Controller
             'platformAccount' => $platformAccount,
             'activeConnectAccount' => $paymentProviderManager->activeConnectedAccountForStore($store),
             'checkoutMode' => CheckoutMode::forStore($store),
+            'externalChannelConfig' => $channelOwnership->externalCheckoutConfig($store),
+            'platformChannelConfig' => $channelOwnership->platformCheckoutConfig($store),
+            'isExternalManaged' => $channelOwnership->isExternalManaged($store),
+            'isPlatformManaged' => $channelOwnership->isPlatformManaged($store),
+            'externalInventoryOwner' => $channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
+            'usesPlatformInventoryForExternal' => $channelOwnership->usesPlatformInventory($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
             'stripeConfig' => [
                 'mode' => (string) config('payments.stripe.mode', 'test'),
                 'publishable_key' => filled(config('payments.stripe.key')),
@@ -92,6 +100,45 @@ class PaymentSettingsController extends Controller
         return redirect()
             ->route('settings.payments.index')
             ->with('success', 'Checkout mode updated to '.CheckoutMode::label($targetMode).'.');
+    }
+
+    public function updateExternalInventory(
+        Request $request,
+        ChannelOwnershipService $channelOwnership,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && $request->user(), 404);
+
+        $validated = $request->validate([
+            'inventory_owner' => ['required', Rule::in([
+                ChannelOwnershipService::OWNER_PLATFORM,
+                ChannelOwnershipService::OWNER_EXTERNAL,
+            ])],
+        ]);
+
+        $previousOwner = $channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL);
+        $targetOwner = $validated['inventory_owner'];
+
+        if ($previousOwner !== $targetOwner) {
+            $store = $channelOwnership->setExternalCheckoutInventoryOwner($store, $targetOwner);
+
+            $securityLogRecorder->record(
+                $request,
+                'payment.external_inventory_owner_changed',
+                store: $store,
+                metadata: [
+                    'previous_inventory_owner' => $previousOwner,
+                    'new_inventory_owner' => $targetOwner,
+                ]
+            );
+        }
+
+        return redirect()
+            ->route('settings.payments.index')
+            ->with('success', $targetOwner === ChannelOwnershipService::OWNER_PLATFORM
+                ? 'External orders will now reduce dashboard stock when they sync.'
+                : 'External orders will be recorded without changing dashboard stock.');
     }
 
     public function connect(

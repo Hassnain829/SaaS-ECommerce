@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Store;
+use App\Services\Channels\ChannelOwnershipService;
 
 final class CheckoutMode
 {
@@ -33,11 +34,7 @@ final class CheckoutMode
     public static function setForStore(Store $store, string $mode): Store
     {
         $mode = in_array($mode, self::ALL, true) ? $mode : self::EXTERNAL;
-        $settings = $store->settings ?? [];
-        $settings['checkout_mode'] = $mode;
 
-        $store->forceFill(['settings' => $settings])->save();
-
-        return $store->fresh();
+        return app(ChannelOwnershipService::class)->syncActiveCheckoutMode($store, $mode);
     }
 }

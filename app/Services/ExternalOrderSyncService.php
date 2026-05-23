@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\Store;
+use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Support\OrderLifecycle;
@@ -30,12 +31,25 @@ class ExternalOrderSyncService
         'bank_transfer_pending' => OrderLifecycle::PAYMENT_PENDING,
     ];
 
+    private const EXTERNAL_FULFILLMENT_STATUS_MAP = [
+        'pending' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+        'open' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+        'unfulfilled' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+        'processing' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+        'partial' => OrderLifecycle::FULFILLMENT_PARTIAL,
+        'partially_shipped' => OrderLifecycle::FULFILLMENT_PARTIAL,
+        'shipped' => OrderLifecycle::FULFILLMENT_PARTIAL,
+        'delivered' => OrderLifecycle::FULFILLMENT_FULFILLED,
+        'fulfilled' => OrderLifecycle::FULFILLMENT_FULFILLED,
+    ];
+
     public function __construct(
         private readonly InventorySyncService $syncService,
         private readonly InventoryReservationService $reservationService,
         private readonly OrderEventRecorder $eventRecorder,
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
+        private readonly ChannelOwnershipService $channelOwnership,
     ) {
     }
 
@@ -84,6 +98,12 @@ class ExternalOrderSyncService
             $placedAt = filled($payload['placed_at'] ?? null)
                 ? Carbon::parse($payload['placed_at'])
                 : now();
+            $shippingSnapshot = $this->shippingSnapshot($payload, $totals, $store);
+            $fulfillmentSnapshot = $this->fulfillmentSnapshot($payload);
+            $fulfillmentStatus = $this->mapFulfillmentStatus($fulfillmentSnapshot);
+            $ownershipSnapshot = $this->channelOwnership->externalCheckoutConfig($store);
+            $inventoryOwner = $this->channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL);
+            $usesPlatformInventory = $inventoryOwner === ChannelOwnershipService::OWNER_PLATFORM;
 
             $order = Order::query()->create([
                 'store_id' => $store->id,
@@ -93,7 +113,7 @@ class ExternalOrderSyncService
                 'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
                 'status' => $orderStatus,
                 'payment_status' => $paymentStatus,
-                'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                'fulfillment_status' => $fulfillmentStatus,
                 'order_source' => self::SOURCE,
                 'channel' => self::CHANNEL,
                 'currency_code' => strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD')),
@@ -116,8 +136,16 @@ class ExternalOrderSyncService
                 'notes' => $payload['notes'] ?? null,
                 'placed_at' => $placedAt,
                 'confirmed_at' => $orderStatus === OrderLifecycle::ORDER_CONFIRMED ? $placedAt : null,
-                'meta' => [
-                    'shipping' => $this->externalShippingSnapshot($payload, $totals, $store),
+                'meta' => array_filter([
+                    'shipping' => $shippingSnapshot !== [] ? $shippingSnapshot : null,
+                    'fulfillment' => $fulfillmentSnapshot !== [] ? $fulfillmentSnapshot : null,
+                    'channel_ownership' => [
+                        'checkout_owner' => $ownershipSnapshot['checkout_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
+                        'payment_owner' => $ownershipSnapshot['payment_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
+                        'shipping_owner' => $ownershipSnapshot['shipping_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
+                        'fulfillment_owner' => $ownershipSnapshot['fulfillment_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
+                        'inventory_owner' => $inventoryOwner,
+                    ],
                     'external_checkout' => [
                         'request_hash' => $requestHash,
                         'received_at' => now()->toISOString(),
@@ -125,7 +153,7 @@ class ExternalOrderSyncService
                         'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
                         'discounts' => $payload['discounts'] ?? [],
                     ],
-                ],
+                ], fn ($value): bool => $value !== null),
             ]);
 
             $this->createOrderAddress($order, 'shipping', $payload['shipping_address'], $customer);
@@ -139,41 +167,44 @@ class ExternalOrderSyncService
             foreach ($items as $item) {
                 /** @var ProductVariant $variant */
                 $variant = $item['variant'];
-                $inventoryItem = $this->syncService->ensureInventoryItemForVariant($variant);
-                $reservation = $this->reservationService->reserve(
-                    $inventoryItem,
-                    (int) $item['quantity'],
-                    'external_order',
-                    (string) $order->id,
-                    null,
-                    null,
-                    [
-                        'order' => $order,
+
+                if ($usesPlatformInventory) {
+                    $inventoryItem = $this->syncService->ensureInventoryItemForVariant($variant);
+                    $reservation = $this->reservationService->reserve(
+                        $inventoryItem,
+                        (int) $item['quantity'],
+                        'external_order',
+                        (string) $order->id,
+                        null,
+                        null,
+                        [
+                            'order' => $order,
+                            'source' => self::SOURCE,
+                            'reference_type' => 'order',
+                            'reference_id' => $order->id,
+                            'reference_code' => $order->order_number,
+                            'checkout_reference' => $payload['external_checkout_reference'] ?? null,
+                            'metadata' => [
+                                'external_order_number' => $order->external_order_number,
+                                'external_line_id' => $item['external_line_id'],
+                            ],
+                        ]
+                    );
+
+                    $this->reservationService->commit($reservation, [
                         'source' => self::SOURCE,
                         'reference_type' => 'order',
                         'reference_id' => $order->id,
                         'reference_code' => $order->order_number,
-                        'checkout_reference' => $payload['external_checkout_reference'] ?? null,
-                        'metadata' => [
-                            'external_order_number' => $order->external_order_number,
-                            'external_line_id' => $item['external_line_id'],
-                        ],
-                    ]
-                );
-
-                $this->reservationService->commit($reservation, [
-                    'source' => self::SOURCE,
-                    'reference_type' => 'order',
-                    'reference_id' => $order->id,
-                    'reference_code' => $order->order_number,
-                ]);
-                $this->reservationService->deductCommitted($reservation, [
-                    'source' => self::SOURCE,
-                    'reference_type' => 'order',
-                    'reference_id' => $order->id,
-                    'reference_code' => $order->order_number,
-                ]);
-                $reservationCount++;
+                    ]);
+                    $this->reservationService->deductCommitted($reservation, [
+                        'source' => self::SOURCE,
+                        'reference_type' => 'order',
+                        'reference_id' => $order->id,
+                        'reference_code' => $order->order_number,
+                    ]);
+                    $reservationCount++;
+                }
 
                 $product = $variant->product;
                 $primaryImage = $product?->primaryImage();
@@ -236,20 +267,50 @@ class ExternalOrderSyncService
                     'payment_reference' => $order->payment_reference,
                 ],
             );
-            $this->eventRecorder->record(
-                $order,
-                OrderLifecycle::EVENT_INVENTORY_RESERVED,
-                'Inventory reserved',
-                'Stock was reserved for the synced external order.',
-                ['reservation_count' => $reservationCount, 'total_quantity' => $order->total_quantity],
-            );
-            $this->eventRecorder->record(
-                $order,
-                OrderLifecycle::EVENT_INVENTORY_DEDUCTED,
-                'Inventory deducted',
-                'Stock was deducted for the synced external order.',
-                ['item_count' => $order->item_count, 'total_quantity' => $order->total_quantity],
-            );
+            if ($usesPlatformInventory) {
+                $this->eventRecorder->record(
+                    $order,
+                    OrderLifecycle::EVENT_INVENTORY_RESERVED,
+                    'Inventory reserved',
+                    'Stock was reserved because this store uses dashboard inventory for external orders.',
+                    ['reservation_count' => $reservationCount, 'total_quantity' => $order->total_quantity],
+                );
+                $this->eventRecorder->record(
+                    $order,
+                    OrderLifecycle::EVENT_INVENTORY_DEDUCTED,
+                    'Inventory deducted',
+                    'Stock was deducted because this store uses dashboard inventory for external orders.',
+                    ['item_count' => $order->item_count, 'total_quantity' => $order->total_quantity],
+                );
+            } else {
+                $this->eventRecorder->record(
+                    $order,
+                    OrderLifecycle::EVENT_INVENTORY_EXTERNAL_MANAGED,
+                    'Inventory managed externally',
+                    'Dashboard stock was not changed for this external order.',
+                    ['inventory_owner' => $inventoryOwner],
+                );
+            }
+
+            if ($shippingSnapshot !== []) {
+                $this->eventRecorder->record(
+                    $order,
+                    OrderLifecycle::EVENT_EXTERNAL_SHIPPING_RECORDED,
+                    'External shipping recorded',
+                    'Shipping details were recorded from the external storefront.',
+                    $shippingSnapshot,
+                );
+            }
+
+            if ($fulfillmentSnapshot !== []) {
+                $this->eventRecorder->record(
+                    $order,
+                    OrderLifecycle::EVENT_EXTERNAL_FULFILLMENT_RECORDED,
+                    'External fulfillment recorded',
+                    'Fulfillment details were recorded from the external storefront.',
+                    $fulfillmentSnapshot,
+                );
+            }
 
             $this->customerMetricsService->recalculate($customer);
 
@@ -267,6 +328,9 @@ class ExternalOrderSyncService
     {
         $email = strtolower(trim((string) $customerData['email']));
         $fullName = trim((string) ($customerData['full_name'] ?? ''));
+        if ($fullName === '') {
+            $fullName = trim((string) ($customerData['name'] ?? ''));
+        }
         $firstName = trim((string) ($customerData['first_name'] ?? ''));
         $lastName = trim((string) ($customerData['last_name'] ?? ''));
 
@@ -364,18 +428,57 @@ class ExternalOrderSyncService
      */
     private function totals(array $items, array $payload): array
     {
-        $subtotal = $this->money(array_sum(array_map(fn (array $item): float => (float) $item['subtotal'], $items)));
-        $shipping = $this->money($payload['shipping_total'] ?? 0);
-        $tax = $this->money($payload['tax_total'] ?? 0);
-        $discount = $this->money($payload['discount_total'] ?? 0);
+        $totalsBlock = is_array($payload['totals'] ?? null) ? $payload['totals'] : [];
+        $subtotal = $this->money($totalsBlock['subtotal'] ?? array_sum(array_map(fn (array $item): float => (float) $item['subtotal'], $items)));
+        $shipping = $this->money($totalsBlock['shipping'] ?? $payload['shipping_total'] ?? 0);
+        $tax = $this->money($totalsBlock['tax'] ?? $payload['tax_total'] ?? 0);
+        $discount = $this->money($totalsBlock['discount'] ?? $payload['discount_total'] ?? 0);
+        $grandTotal = $this->money($totalsBlock['total'] ?? $totalsBlock['grand_total'] ?? null);
+
+        if ($grandTotal === 0.0 && ! isset($totalsBlock['total'], $totalsBlock['grand_total'])) {
+            $grandTotal = $this->money(max(0, $subtotal + $shipping + $tax - $discount));
+        }
 
         return [
             'subtotal' => $subtotal,
             'shipping' => $shipping,
             'tax' => $tax,
             'discount' => $discount,
-            'grand_total' => $this->money(max(0, $subtotal + $shipping + $tax - $discount)),
+            'grand_total' => $grandTotal,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function hasExplicitShippingData(array $payload): bool
+    {
+        $shipping = is_array($payload['shipping'] ?? null) ? $payload['shipping'] : [];
+        if ($shipping !== [] && $this->hasShippingObjectData($shipping)) {
+            return true;
+        }
+
+        foreach (['shipping_method_name', 'shipping_carrier_name', 'shipping_delivery_speed_label'] as $field) {
+            if (filled($payload[$field] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $shipping
+     */
+    private function hasShippingObjectData(array $shipping): bool
+    {
+        foreach (['method_name', 'carrier_name', 'delivery_speed_label'] as $field) {
+            if (filled($shipping[$field] ?? null)) {
+                return true;
+            }
+        }
+
+        return isset($shipping['amount']) && $this->money($shipping['amount']) > 0;
     }
 
     /**
@@ -383,17 +486,69 @@ class ExternalOrderSyncService
      * @param  array{subtotal: float, shipping: float, tax: float, discount: float, grand_total: float}  $totals
      * @return array<string, mixed>
      */
-    private function externalShippingSnapshot(array $payload, array $totals, Store $store): array
+    private function shippingSnapshot(array $payload, array $totals, Store $store): array
     {
-        return [
-            'source' => self::SOURCE,
-            'method_name' => $payload['shipping_method_name'] ?? null,
-            'carrier_name' => $payload['shipping_carrier_name'] ?? null,
-            'delivery_speed_label' => $payload['shipping_delivery_speed_label'] ?? null,
-            'amount' => $totals['shipping'],
-            'currency_code' => strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD')),
+        if (! $this->hasExplicitShippingData($payload)) {
+            return [];
+        }
+
+        $shipping = is_array($payload['shipping'] ?? null) ? $payload['shipping'] : [];
+        $currency = strtoupper((string) ($shipping['currency'] ?? $shipping['currency_code'] ?? $payload['currency_code'] ?? $store->currency ?? 'USD'));
+
+        $snapshot = [
+            'source' => (string) ($shipping['source'] ?? 'external'),
+            'method_name' => $shipping['method_name'] ?? $payload['shipping_method_name'] ?? null,
+            'carrier_name' => $shipping['carrier_name'] ?? $payload['shipping_carrier_name'] ?? null,
+            'delivery_speed_label' => $shipping['delivery_speed_label'] ?? $payload['shipping_delivery_speed_label'] ?? null,
+            'amount' => $this->money($shipping['amount'] ?? $totals['shipping']),
+            'currency_code' => $currency,
             'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
+            'synced_at' => now()->toISOString(),
         ];
+
+        return collect($snapshot)
+            ->reject(fn ($value, string $key): bool => $key !== 'amount' && ($value === null || $value === ''))
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function fulfillmentSnapshot(array $payload): array
+    {
+        $fulfillment = is_array($payload['fulfillment'] ?? null) ? $payload['fulfillment'] : [];
+        if ($fulfillment === []) {
+            return [];
+        }
+
+        return collect([
+            'managed_by' => (string) ($fulfillment['managed_by'] ?? ChannelOwnershipService::OWNER_EXTERNAL),
+            'status' => isset($fulfillment['status']) ? strtolower(trim((string) $fulfillment['status'])) : null,
+            'external_fulfillment_id' => $fulfillment['external_fulfillment_id'] ?? null,
+            'external_shipment_id' => $fulfillment['external_shipment_id'] ?? null,
+            'carrier_name' => $fulfillment['carrier_name'] ?? null,
+            'tracking_number' => $fulfillment['tracking_number'] ?? null,
+            'tracking_url' => $fulfillment['tracking_url'] ?? null,
+            'shipped_at' => $fulfillment['shipped_at'] ?? null,
+            'delivered_at' => $fulfillment['delivered_at'] ?? null,
+            'synced_at' => now()->toISOString(),
+        ])
+            ->reject(fn ($value): bool => $value === null || $value === '')
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $fulfillmentSnapshot
+     */
+    private function mapFulfillmentStatus(array $fulfillmentSnapshot): string
+    {
+        if ($fulfillmentSnapshot === []) {
+            return OrderLifecycle::FULFILLMENT_UNFULFILLED;
+        }
+
+        // External fulfillment snapshots are informational until item-level shipment sync arrives.
+        return OrderLifecycle::FULFILLMENT_UNFULFILLED;
     }
 
     /**

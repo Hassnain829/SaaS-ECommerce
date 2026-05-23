@@ -172,9 +172,9 @@ class Phase5PaymentUxCleanupTest extends TestCase
     {
         $source = file_get_contents(base_path('dev-test-storefront/src/App.jsx'));
 
-        $this->assertStringContainsString('Developer simulator mode', $source);
-        $this->assertStringContainsString('This switch is only for local testing.', $source);
-        $this->assertStringContainsString('External checkout sync', $source);
+        $this->assertStringContainsString('Developer payload simulator', $source);
+        $this->assertStringContainsString('This screen is only for local testing.', $source);
+        $this->assertStringContainsString('Sync external checkout order', $source);
         $this->assertStringContainsString('Platform checkout', $source);
         $this->assertStringNotContainsString('Legacy direct dev order', $source);
     }

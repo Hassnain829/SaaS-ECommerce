@@ -60,6 +60,22 @@
         $selectedDeliverySpeed = data_get($shippingSnapshot, 'delivery_speed_label');
         $estimatedMinDays = data_get($shippingSnapshot, 'estimated_min_days');
         $estimatedMaxDays = data_get($shippingSnapshot, 'estimated_max_days');
+        $isOrderExternallyManaged = $isOrderExternallyManaged ?? false;
+        $externalFulfillmentSnapshot = is_array($externalFulfillmentSnapshot ?? null) ? $externalFulfillmentSnapshot : [];
+        $externalShipmentsMeta = is_array($externalShipmentsMeta ?? null) ? $externalShipmentsMeta : [];
+        $externalCarrierName = $externalFulfillmentSnapshot['carrier_name'] ?? $selectedCarrierName;
+        $externalTrackingNumber = $externalFulfillmentSnapshot['tracking_number'] ?? null;
+        $externalTrackingUrl = $externalFulfillmentSnapshot['tracking_url'] ?? null;
+        $externalFulfillmentStatus = $externalFulfillmentSnapshot['status'] ?? null;
+        $externalShippedAt = $externalFulfillmentSnapshot['shipped_at'] ?? null;
+        $externalDeliveredAt = $externalFulfillmentSnapshot['delivered_at'] ?? null;
+        $hasExternalFulfillmentDetails = filled($externalCarrierName)
+            || filled($externalTrackingNumber)
+            || filled($externalTrackingUrl)
+            || filled($externalFulfillmentStatus)
+            || filled($externalShippedAt)
+            || filled($externalDeliveredAt)
+            || $externalShipmentsMeta !== [];
 
         $card = 'rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/[0.03]';
         $cardHeader = 'border-b border-slate-100 px-5 py-4 md:px-6';
@@ -102,8 +118,8 @@
                     <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
                         Payment: {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
                     </span>
-                    <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
-                        Fulfillment: {{ \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
+                    <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ $isOrderExternallyManaged ? 'bg-sky-100 text-sky-800' : \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
+                        Fulfillment: {{ $isOrderExternallyManaged ? 'Externally managed' : \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
                     </span>
                 </div>
             </div>
@@ -456,27 +472,102 @@
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
                             <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Fulfillment</h3>
-                            <p class="mt-1 text-sm text-slate-600">Create shipments, add tracking, and keep fulfillment status accurate.</p>
+                            @if ($isOrderExternallyManaged)
+                                <p class="mt-1 text-sm text-slate-600">Fulfillment managed externally. Updates appear here when the external storefront sends shipment snapshots.</p>
+                            @else
+                                <p class="mt-1 text-sm text-slate-600">Create shipments, add tracking, and keep fulfillment status accurate.</p>
+                            @endif
                         </div>
-                        <span class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
-                            {{ \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
+                        <span class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide {{ $isOrderExternallyManaged ? 'bg-sky-100 text-sky-800' : \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
+                            {{ $isOrderExternallyManaged ? 'Externally managed' : \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
                         </span>
                     </div>
 
-                    <div class="mt-5 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-                        <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Remaining to fulfill</p>
-                        <div class="mt-3 space-y-2">
-                            @foreach ($order->items as $item)
-                                @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
-                                <div class="flex items-center justify-between gap-3 text-sm">
-                                    <span class="min-w-0 truncate text-slate-700">{{ $item->product_name }}</span>
-                                    <span class="font-semibold tabular-nums text-slate-900">{{ $remaining }} / {{ $item->quantity }}</span>
-                                </div>
-                            @endforeach
+                    @if ($isOrderExternallyManaged)
+                        <div class="mt-5 rounded-xl border border-sky-100 bg-sky-50/80 p-4">
+                            <p class="text-xs font-bold uppercase tracking-wide text-sky-800/80">Fulfillment managed externally</p>
+                            @if ($hasExternalFulfillmentDetails)
+                                <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                                    @if ($externalCarrierName)
+                                        <div>
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Carrier</dt>
+                                            <dd class="mt-1 font-semibold text-slate-900">{{ $externalCarrierName }}</dd>
+                                        </div>
+                                    @endif
+                                    @if ($externalFulfillmentStatus)
+                                        <div>
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">External status</dt>
+                                            <dd class="mt-1 font-semibold text-slate-900">{{ str($externalFulfillmentStatus)->replace('_', ' ')->title() }}</dd>
+                                        </div>
+                                    @endif
+                                    @if ($externalTrackingNumber)
+                                        <div class="sm:col-span-2">
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking number</dt>
+                                            <dd class="mt-1 break-all font-semibold text-slate-900">{{ $externalTrackingNumber }}</dd>
+                                        </div>
+                                    @endif
+                                    @if ($externalTrackingUrl)
+                                        <div class="sm:col-span-2">
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking link</dt>
+                                            <dd class="mt-1"><a href="{{ $externalTrackingUrl }}" target="_blank" rel="noopener" class="font-semibold text-indigo-700 hover:underline">Open tracking</a></dd>
+                                        </div>
+                                    @elseif (! $externalTrackingNumber)
+                                        <div class="sm:col-span-2">
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking</dt>
+                                            <dd class="mt-1 text-sm text-slate-600">No tracking update received yet.</dd>
+                                        </div>
+                                    @endif
+                                    @if ($externalShippedAt)
+                                        <div>
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Shipped at</dt>
+                                            <dd class="mt-1 font-semibold text-slate-900">{{ $externalShippedAt }}</dd>
+                                        </div>
+                                    @endif
+                                    @if ($externalDeliveredAt)
+                                        <div>
+                                            <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Delivered at</dt>
+                                            <dd class="mt-1 font-semibold text-slate-900">{{ $externalDeliveredAt }}</dd>
+                                        </div>
+                                    @endif
+                                </dl>
+                            @else
+                                <p class="mt-3 text-sm leading-relaxed text-slate-700">
+                                    Fulfillment is managed by the external storefront. No shipment update has been received yet.
+                                </p>
+                            @endif
                         </div>
-                    </div>
+                    @endif
 
-                    @if ($canManageOrders && $remainingTotal > 0)
+                    @if ($isOrderExternallyManaged)
+                        <details class="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
+                            <summary class="cursor-pointer text-xs font-bold uppercase tracking-wide text-slate-500">Internal fulfillment quantities (advanced)</summary>
+                            <div class="mt-3 space-y-2">
+                                @foreach ($order->items as $item)
+                                    @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
+                                    <div class="flex items-center justify-between gap-3 text-sm">
+                                        <span class="min-w-0 truncate text-slate-700">{{ $item->product_name }}</span>
+                                        <span class="font-semibold tabular-nums text-slate-900">{{ $remaining }} / {{ $item->quantity }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <p class="mt-3 text-xs leading-relaxed text-slate-500">These counts reflect dashboard-managed shipments only. External storefront fulfillment is shown above.</p>
+                        </details>
+                    @else
+                        <div class="mt-5 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+                            <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Remaining to fulfill</p>
+                            <div class="mt-3 space-y-2">
+                                @foreach ($order->items as $item)
+                                    @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
+                                    <div class="flex items-center justify-between gap-3 text-sm">
+                                        <span class="min-w-0 truncate text-slate-700">{{ $item->product_name }}</span>
+                                        <span class="font-semibold tabular-nums text-slate-900">{{ $remaining }} / {{ $item->quantity }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if ($canManageOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
                         <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="mt-5 space-y-4 rounded-xl border border-slate-200 bg-white p-4">
                             @csrf
                             <p class="font-semibold text-slate-900">Create shipment</p>
@@ -556,19 +647,61 @@
                             </div>
                             <button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700">Create shipment</button>
                         </form>
-                    @elseif ($canManageOrders && $remainingTotal === 0)
+                    @elseif ($canManageOrders && $remainingTotal === 0 && ! $isOrderExternallyManaged)
                         <div class="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                             All items on this order are fulfilled.
                         </div>
+                    @elseif ($isOrderExternallyManaged && $canManageOrders && $remainingTotal > 0)
+                        <details class="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
+                            <summary class="cursor-pointer text-sm font-semibold text-slate-700">Advanced: create internal shipment override</summary>
+                            <p class="mt-2 text-xs leading-relaxed text-slate-500">Only use this if you need to record fulfillment inside the dashboard in addition to external updates.</p>
+                            <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+                                @csrf
+                                <p class="font-semibold text-slate-900">Create shipment</p>
+                                <div class="grid gap-3">
+                                    <label class="space-y-1">
+                                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ship from</span>
+                                        <select name="origin_location_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                            <option value="">No location selected</option>
+                                            @foreach ($fulfillmentLocations as $location)
+                                                <option value="{{ $location->id }}">{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
+                                            @endforeach
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="space-y-2">
+                                    @foreach ($order->items as $item)
+                                        @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
+                                        @if ($remaining > 0)
+                                            <label class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                                                <span class="min-w-0 truncate font-medium text-slate-800">{{ $item->product_name }}</span>
+                                                <input name="items[{{ $item->id }}]" type="number" min="0" max="{{ $remaining }}" value="{{ $remaining }}" class="h-9 w-20 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm">
+                                            </label>
+                                        @endif
+                                    @endforeach
+                                </div>
+                                <button class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800">Create internal shipment</button>
+                            </form>
+                        </details>
                     @endif
 
                     <div class="mt-5 space-y-4">
                         @forelse ($order->shipments as $shipment)
+                            @php
+                                $isExternalShipment = data_get($shipment->metadata, 'source') === 'external';
+                                $externalShipmentCarrier = data_get($shipment->metadata, 'carrier_name');
+                            @endphp
                             <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
                                     <div>
                                         <p class="font-semibold text-slate-900">{{ $shipment->shipment_number }}</p>
-                                        <p class="mt-1 text-sm text-slate-600">{{ $shipment->carrierAccount?->display_name ?? 'No carrier account' }}{{ $shipment->shippingMethod ? ' | '.$shipment->shippingMethod->name : '' }}</p>
+                                        <p class="mt-1 text-sm text-slate-600">
+                                            @if ($isExternalShipment)
+                                                {{ $externalShipmentCarrier ?: 'External carrier' }} · Synced from external storefront
+                                            @else
+                                                {{ $shipment->carrierAccount?->display_name ?? 'No carrier account' }}{{ $shipment->shippingMethod ? ' | '.$shipment->shippingMethod->name : '' }}
+                                            @endif
+                                        </p>
                                     </div>
                                     <span class="rounded-full px-2.5 py-1 text-xs font-bold {{ \App\Support\OrderLifecycle::shipmentStatusBadgeClass($shipment->status) }}">
                                         {{ \App\Support\OrderLifecycle::shipmentStatusLabel($shipment->status) }}
@@ -591,7 +724,7 @@
                                     </div>
                                 @endif
 
-                                @if ($canManageOrders)
+                                @if ($canManageOrders && ! $isExternalShipment)
                                     <form method="POST" action="{{ route('shipments.tracking.update', $shipment) }}" class="mt-4 grid gap-2">
                                         @csrf
                                         @method('PATCH')

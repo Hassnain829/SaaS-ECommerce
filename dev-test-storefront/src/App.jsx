@@ -62,6 +62,17 @@ export default function App() {
   const [postalCode, setPostalCode] = useState('94105');
   const [country, setCountry] = useState('US');
   const [orderResult, setOrderResult] = useState(null);
+  const [externalPaymentStatus, setExternalPaymentStatus] = useState('paid');
+  const [externalPaymentGateway, setExternalPaymentGateway] = useState('external_test');
+  const [externalShippingMethod, setExternalShippingMethod] = useState('');
+  const [externalShippingAmount, setExternalShippingAmount] = useState('0');
+  const [externalCarrierName, setExternalCarrierName] = useState('');
+  const [externalFulfillmentStatus, setExternalFulfillmentStatus] = useState('');
+  const [externalTrackingNumber, setExternalTrackingNumber] = useState('');
+  const [externalTrackingUrl, setExternalTrackingUrl] = useState('');
+  const [includeShippingSnapshot, setIncludeShippingSnapshot] = useState(false);
+  const [includeFulfillmentSnapshot, setIncludeFulfillmentSnapshot] = useState(false);
+  const [shipmentSyncMessage, setShipmentSyncMessage] = useState('');
   const [platformCheckoutDraft, setPlatformCheckoutDraft] = useState(null);
   const [deliveryOptions, setDeliveryOptions] = useState([]);
   const [selectedDeliveryOptionId, setSelectedDeliveryOptionId] = useState('');
@@ -231,12 +242,13 @@ export default function App() {
 
   const externalPayload = () => {
     const stamp = Date.now();
+    const shippingAmount = money(externalShippingAmount);
 
-    return {
+    const payload = {
       external_order_number: `WEB-${stamp}`,
       external_checkout_reference: `checkout-${stamp}`,
-      payment_status: 'paid',
-      payment_gateway: 'external_test',
+      payment_status: externalPaymentStatus,
+      payment_gateway: externalPaymentGateway,
       payment_method: 'card',
       payment_reference: `pay-${stamp}`,
       placed_at: new Date().toISOString(),
@@ -268,6 +280,32 @@ export default function App() {
         external_line_id: `line-${stamp}-${index + 1}`,
       })),
     };
+
+    if (includeShippingSnapshot && (externalShippingMethod.trim() || externalCarrierName.trim() || Number(shippingAmount) > 0)) {
+      payload.shipping_total = shippingAmount;
+      payload.shipping = {
+        source: 'external',
+        method_name: externalShippingMethod.trim() || null,
+        carrier_name: externalCarrierName.trim() || null,
+        amount: shippingAmount,
+        currency: catalog?.store?.currency || 'USD',
+      };
+    }
+
+    if (includeFulfillmentSnapshot && externalFulfillmentStatus.trim()) {
+      payload.fulfillment = {
+        managed_by: 'external',
+        status: externalFulfillmentStatus.trim(),
+        external_fulfillment_id: `ful-${stamp}`,
+        external_shipment_id: `ship-${stamp}`,
+        carrier_name: externalCarrierName.trim() || null,
+        tracking_number: externalTrackingNumber.trim() || null,
+        tracking_url: externalTrackingUrl.trim() || null,
+        shipped_at: externalFulfillmentStatus === 'shipped' || externalFulfillmentStatus === 'delivered' ? new Date().toISOString() : null,
+      };
+    }
+
+    return payload;
   };
 
   const shippingAddressPayload = () => ({
@@ -430,6 +468,7 @@ export default function App() {
         await loadCatalog({ quiet: true });
       } else {
         setOrderResult({ ...data.order, externalMode: external });
+        setShipmentSyncMessage('');
         resetPlatformCheckout();
         setCart([]);
         await loadCatalog({ quiet: true });
@@ -440,6 +479,52 @@ export default function App() {
           ? 'Could not reach the API. Check Laravel, Vite proxy, VITE_API_BASE, and VITE_EXTERNAL_API_BASE.'
           : e.message || 'Order failed';
       setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncExternalShipment = async () => {
+    setError('');
+    setShipmentSyncMessage('');
+    if (!orderResult?.external_order_number) {
+      setError('Sync an external order first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const stamp = Date.now();
+      const res = await fetch(`${externalBase}/shipments`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...authHeaders(),
+        },
+        body: JSON.stringify({
+          external_order_number: orderResult.external_order_number,
+          external_shipment_id: `SHIP-${stamp}`,
+          status: externalFulfillmentStatus || 'shipped',
+          carrier_name: externalCarrierName.trim(),
+          tracking_number: externalTrackingNumber.trim(),
+          tracking_url: externalTrackingUrl.trim() || null,
+          shipped_at: new Date().toISOString(),
+        }),
+      });
+      const raw = await res.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = {};
+      }
+      if (!res.ok) {
+        throw new Error(data.message || (data.errors && JSON.stringify(data.errors)) || 'Shipment sync failed');
+      }
+      setShipmentSyncMessage(data.message || 'External shipment synced.');
+    } catch (e) {
+      setError(e.message || 'Shipment sync failed');
     } finally {
       setLoading(false);
     }
@@ -627,6 +712,26 @@ export default function App() {
               , total {orderResult.total} {orderResult.currency_code || orderResult.currency}.
             </div>
           )}
+          {orderResult.externalMode && orderResult.external_order_number ? (
+            <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={syncExternalShipment}
+                disabled={loading}
+                style={{
+                  padding: '0.45rem 0.8rem',
+                  borderRadius: 8,
+                  border: '1px solid #6ee7b7',
+                  background: '#fff',
+                  color: '#065f46',
+                  fontWeight: 600,
+                }}
+              >
+                Send shipment update
+              </button>
+              {shipmentSyncMessage ? <span style={{ fontSize: '0.85rem' }}>{shipmentSyncMessage}</span> : null}
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -761,17 +866,28 @@ export default function App() {
           </div>
 
           <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
-            <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Developer simulator mode</h3>
+            <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a' }}>Developer payload simulator</h3>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '0.78rem', lineHeight: 1.55 }}>
+              This screen is only for local testing. A real external website may collect these values from checkout, payment provider, shipping plugin, fulfillment app, or merchant admin. Customers normally do not enter tracking or fulfillment fields during checkout.
+            </p>
             <p style={{ margin: 0, color: '#64748b', fontSize: '0.78rem', lineHeight: 1.5 }}>
-              This switch is only for local testing. A real storefront should use the checkout mode selected in the SaaS dashboard.
+              Use the checkout mode selected in the SaaS dashboard on a real storefront. This simulator sends test payloads only.
             </p>
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
               <input type="radio" checked={checkoutMode === 'external'} onChange={() => { setCheckoutMode('external'); resetPlatformCheckout(); }} />
-              External checkout sync
+              External managed order
             </label>
             {checkoutMode === 'external' && (
               <p style={{ margin: '-0.25rem 0 0 1.45rem', color: '#64748b', fontSize: '0.78rem', lineHeight: 1.5 }}>
-                Simulates a website that already collected payment and sends the completed order into the dashboard.
+                Simulates a website that manages checkout, payment, shipping, and fulfillment, then sends snapshots into the dashboard.
+              </p>
+            )}
+            {checkoutMode === 'external' && (
+              <p style={{ margin: '-0.25rem 0 0 1.45rem', color: '#64748b', fontSize: '0.78rem', lineHeight: 1.5 }}>
+                Inventory behavior: {catalog?.store?.external_checkout?.inventory_owner === 'external' ? 'External inventory' : 'Dashboard inventory'}.
+                {catalog?.store?.external_checkout?.inventory_owner === 'external'
+                  ? ' External orders are recorded here without changing dashboard stock.'
+                  : ' This simulator sends orders that reduce SaaS dashboard stock because the test storefront fetches products from the SaaS catalog.'}
               </p>
             )}
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.85rem' }}>
@@ -784,7 +900,11 @@ export default function App() {
               </p>
             )}
 
-            <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Customer details</h3>
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+              <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.85rem', color: '#334155' }}>A. Customer checkout data</h4>
+              <p style={{ margin: '0 0 0.65rem', color: '#64748b', fontSize: '0.76rem', lineHeight: 1.5 }}>
+                These fields usually come from the customer checkout form.
+              </p>
             <label style={{ fontSize: '0.8rem' }}>
               Customer name
               <input
@@ -814,8 +934,7 @@ export default function App() {
               </label>
             </div>
 
-            <h3 style={{ margin: '0.5rem 0 0', fontSize: '0.9rem', color: '#334155' }}>Shipping address</h3>
-            <label style={{ fontSize: '0.8rem' }}>
+            <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
               Address line 1
               <input
                 value={addressLine1}
@@ -859,6 +978,121 @@ export default function App() {
                 />
               </label>
             </div>
+            </div>
+
+            {checkoutMode === 'external' && (
+              <>
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+                  <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.85rem', color: '#334155' }}>B. External payment snapshot</h4>
+                  <p style={{ margin: '0 0 0.65rem', color: '#64748b', fontSize: '0.76rem', lineHeight: 1.5 }}>
+                    These values usually come from the external website or payment gateway. This SaaS records them but does not process payment again.
+                  </p>
+                  <label style={{ fontSize: '0.8rem' }}>
+                    Payment status
+                    <select
+                      value={externalPaymentStatus}
+                      onChange={(e) => setExternalPaymentStatus(e.target.value)}
+                      style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    >
+                      <option value="paid">paid</option>
+                      <option value="pending">pending</option>
+                      <option value="authorized">authorized</option>
+                      <option value="cod_pending">cod_pending</option>
+                    </select>
+                  </label>
+                  <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
+                    Payment gateway
+                    <input
+                      value={externalPaymentGateway}
+                      onChange={(e) => setExternalPaymentGateway(e.target.value)}
+                      style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    />
+                  </label>
+                </div>
+
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>
+                    <input type="checkbox" checked={includeShippingSnapshot} onChange={(e) => setIncludeShippingSnapshot(e.target.checked)} />
+                    C. Include external shipping snapshot
+                  </label>
+                  <p style={{ margin: '0.35rem 0 0.65rem', color: '#64748b', fontSize: '0.76rem', lineHeight: 1.5 }}>
+                    These values usually come from the external storefront shipping rules or shipping plugin. Optional unless your test scenario needs shipping totals.
+                  </p>
+                  {includeShippingSnapshot && (
+                    <>
+                      <label style={{ fontSize: '0.8rem' }}>
+                        Shipping method
+                        <input
+                          value={externalShippingMethod}
+                          onChange={(e) => setExternalShippingMethod(e.target.value)}
+                          style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                        />
+                      </label>
+                      <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
+                        Shipping amount
+                        <input
+                          value={externalShippingAmount}
+                          onChange={(e) => setExternalShippingAmount(e.target.value)}
+                          style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                        />
+                      </label>
+                      <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
+                        Carrier name (optional)
+                        <input
+                          value={externalCarrierName}
+                          onChange={(e) => setExternalCarrierName(e.target.value)}
+                          style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>
+                    <input type="checkbox" checked={includeFulfillmentSnapshot} onChange={(e) => setIncludeFulfillmentSnapshot(e.target.checked)} />
+                    D. Include external fulfillment update
+                  </label>
+                  <p style={{ margin: '0.35rem 0 0.65rem', color: '#64748b', fontSize: '0.76rem', lineHeight: 1.5 }}>
+                    These are post-order fulfillment values. In real integrations they often arrive later through a shipment update, not during checkout.
+                  </p>
+                  {includeFulfillmentSnapshot && (
+                    <>
+                      <label style={{ fontSize: '0.8rem' }}>
+                        Fulfillment status
+                        <select
+                          value={externalFulfillmentStatus}
+                          onChange={(e) => setExternalFulfillmentStatus(e.target.value)}
+                          style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                        >
+                          <option value="">Select status</option>
+                          <option value="pending">pending</option>
+                          <option value="processing">processing</option>
+                          <option value="shipped">shipped</option>
+                          <option value="delivered">delivered</option>
+                        </select>
+                      </label>
+                      <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
+                        Tracking number (optional)
+                        <input
+                          value={externalTrackingNumber}
+                          onChange={(e) => setExternalTrackingNumber(e.target.value)}
+                          style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                        />
+                      </label>
+                      <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
+                        Tracking URL (optional)
+                        <input
+                          value={externalTrackingUrl}
+                          onChange={(e) => setExternalTrackingUrl(e.target.value)}
+                          style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
 
             {checkoutMode === 'platform' && platformCheckoutDraft && deliveryOptions.length > 0 && (
               <div

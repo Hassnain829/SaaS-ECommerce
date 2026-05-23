@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\OrderEventRecorder;
@@ -19,9 +20,10 @@ use Illuminate\Validation\ValidationException;
 
 class DeveloperStorefrontCatalogController extends Controller
 {
-    public function catalog(Request $request): JsonResponse
+    public function catalog(Request $request, ChannelOwnershipService $channelOwnership): JsonResponse
     {
         $store = $request->attributes->get('developerStorefrontStore');
+        $store = $channelOwnership->ensureChannelsStructure($store);
 
         $products = Product::query()
             ->where('store_id', $store->id)
@@ -39,6 +41,9 @@ class DeveloperStorefrontCatalogController extends Controller
                 'id' => $store->id,
                 'name' => $store->name,
                 'currency' => $store->currency,
+                'external_checkout' => [
+                    'inventory_owner' => $channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
+                ],
             ],
             'products' => $products->map(fn (Product $p) => $this->serializeProduct($p)),
         ]);

@@ -169,6 +169,14 @@ Intentionally not implemented in Phase 6B:
 - B2B, Markets, and price lists
 - SaaS billing
 
+## External Managed Channel Mode Cross-Reference
+
+Phase 6B platform delivery options apply to **platform checkout** only.
+
+**External checkout** can remain fully external-managed: the external storefront manages payment, shipping, delivery, and fulfillment, then sends snapshots into the SaaS dashboard. The SaaS records and displays that data without requiring internal shipping zones, delivery methods, carrier accounts, or Stripe PaymentIntents.
+
+See `docs/EXTERNAL_MANAGED_CHANNEL_MODE_REPORT.md` for Patch A ownership settings, external fulfillment/shipment sync, UI changes, and **explicit external checkout inventory ownership** (`platform` vs `external`).
+
 ## Final Phase 6B Status
 
 Complete.

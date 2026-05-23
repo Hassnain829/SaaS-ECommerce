@@ -6,6 +6,7 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
+use App\Services\Channels\ChannelOwnershipService;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ use Illuminate\View\View;
 
 class ShippingSettingsController extends Controller
 {
-    public function index(Request $request): View|RedirectResponse
+    public function index(Request $request, ChannelOwnershipService $channelOwnership): View|RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         if (! $store) {
@@ -24,8 +25,12 @@ class ShippingSettingsController extends Controller
                 ->withErrors(['store' => 'No active store was found.']);
         }
 
+        $store = $channelOwnership->ensureChannelsStructure($store);
+
         return view('user_view.shippingAutomation', [
             'selectedStore' => $store,
+            'isExternalManaged' => $channelOwnership->isExternalManaged($store),
+            'isPlatformManaged' => $channelOwnership->isPlatformManaged($store),
             'carriers' => Carrier::query()
                 ->where('is_active', true)
                 ->orderBy('name')

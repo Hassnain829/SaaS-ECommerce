@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\DeveloperStorefrontCatalogController;
 use App\Http\Controllers\Api\CatalogApiV1Controller;
 use App\Http\Controllers\Api\ExternalOrderSyncController;
+use App\Http\Controllers\Api\ExternalShipmentSyncController;
 use App\Http\Controllers\Api\PlatformCheckoutController;
 use App\Http\Controllers\Api\StripeConnectWebhookController;
 use App\Http\Controllers\Api\StripeWebhookController;
@@ -37,6 +38,7 @@ Route::middleware(['dev.storefront.token', 'throttle:api-dev-external'])
     ->prefix('v1/external')
     ->group(function (): void {
         Route::post('/orders', [ExternalOrderSyncController::class, 'store']);
+        Route::post('/shipments', [ExternalShipmentSyncController::class, 'store']);
     });
 
 Route::middleware(['dev.storefront.token', 'throttle:api-dev-checkout'])

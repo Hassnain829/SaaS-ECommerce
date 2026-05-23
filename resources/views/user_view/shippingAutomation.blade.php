@@ -47,6 +47,29 @@
             </div>
         @endif
 
+        @if ($isExternalManaged ?? false)
+            <section class="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 md:px-6">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="max-w-3xl">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-sky-800">External managed checkout is active</p>
+                        <p class="mt-2 text-sm leading-6 text-sky-950">
+                            Your external storefront currently manages checkout, payment, shipping, and fulfillment. The Shipping &amp; Delivery settings below apply to platform checkout or dashboard-managed fulfillment. External orders can still send shipping, tracking, and delivery snapshots into this dashboard.
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <a href="{{ route('settings.payments.index') }}" class="inline-flex h-10 items-center justify-center rounded-lg border border-sky-300 bg-white px-4 text-sm font-semibold text-sky-900 hover:bg-sky-100/60">Payments &amp; Channels</a>
+                        @if (Route::has('developer-storefront.settings'))
+                            <a href="{{ route('developer-storefront.settings') }}" class="inline-flex h-10 items-center justify-center rounded-lg border border-sky-300 bg-white px-4 text-sm font-semibold text-sky-900 hover:bg-sky-100/60">View integration instructions</a>
+                        @endif
+                    </div>
+                </div>
+            </section>
+        @elseif ($isPlatformManaged ?? false)
+            <section class="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-5 py-4 md:px-6">
+                <p class="text-sm leading-6 text-emerald-950">These delivery methods can be shown to customers during platform checkout.</p>
+            </section>
+        @endif
+
         <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="max-w-3xl">

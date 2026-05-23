@@ -192,6 +192,106 @@
         </div>
     </section>
 
+    <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
+        <div class="flex flex-col gap-1">
+            <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Checkout and fulfillment mode</h3>
+            <p class="text-sm text-[#64748B]">Ownership shows who manages checkout, payment, shipping, and fulfillment for this store.</p>
+        </div>
+
+        <div class="mt-5 grid gap-4 lg:grid-cols-2">
+            <article class="rounded-2xl border {{ ($isExternalManaged ?? false) ? 'border-[#0052CC] bg-[#F8FBFF]' : 'border-[#CBD5E1] bg-white' }} p-5">
+                <div class="flex items-start justify-between gap-3">
+                    <h4 class="text-lg font-poppins font-semibold text-[#0F172A]">External managed</h4>
+                    @if($isExternalManaged ?? false)
+                        <span class="shrink-0 rounded-full bg-[#DCFCE7] px-3 py-1 text-xs font-bold uppercase tracking-[.6px] text-[#166534]">Active</span>
+                    @endif
+                </div>
+                <p class="mt-2 text-sm leading-6 text-[#64748B]">
+                    External storefront manages checkout, payment, shipping, and fulfillment. This dashboard records orders, customers, payment references, shipping details, shipment updates, and delivery history.
+                </p>
+                <ul class="mt-4 space-y-1 text-xs text-[#475569]">
+                    <li>Checkout: {{ ucfirst($externalChannelConfig['checkout_owner'] ?? 'external') }}</li>
+                    <li>Payment: {{ ucfirst($externalChannelConfig['payment_owner'] ?? 'external') }}</li>
+                    <li>Shipping: {{ ucfirst($externalChannelConfig['shipping_owner'] ?? 'external') }}</li>
+                    <li>Fulfillment: {{ ucfirst($externalChannelConfig['fulfillment_owner'] ?? 'external') }}</li>
+                    <li>
+                        Inventory:
+                        {{ ($usesPlatformInventoryForExternal ?? true) ? 'Platform managed' : 'External managed' }}
+                    </li>
+                </ul>
+
+                <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                    <p class="text-sm font-semibold text-[#0F172A]">Inventory source for external orders</p>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">
+                        Choose where stock is managed for external checkout orders.
+                    </p>
+                    @if($usesPlatformInventoryForExternal ?? true)
+                        <p class="mt-2 text-sm leading-6 text-[#475569]">
+                            External orders reduce dashboard stock when they sync.
+                        </p>
+                    @else
+                        <p class="mt-2 text-sm leading-6 text-[#475569]">
+                            External orders are recorded here, but dashboard stock is not changed.
+                        </p>
+                    @endif
+
+                    @if($canManagePayments ?? false)
+                        <form method="POST" action="{{ route('settings.payments.external-inventory') }}" class="mt-4 space-y-3">
+                            @csrf
+                            <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                <input
+                                    type="radio"
+                                    name="inventory_owner"
+                                    value="platform"
+                                    @checked(($externalInventoryOwner ?? 'platform') === 'platform')
+                                    class="mt-1"
+                                >
+                                <span>
+                                    <span class="font-semibold text-[#0F172A]">Use dashboard inventory</span>
+                                    <span class="mt-0.5 block text-xs text-[#64748B]">Best when your external storefront reads products and stock from this platform.</span>
+                                </span>
+                            </label>
+                            <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                <input
+                                    type="radio"
+                                    name="inventory_owner"
+                                    value="external"
+                                    @checked(($externalInventoryOwner ?? 'platform') === 'external')
+                                    class="mt-1"
+                                >
+                                <span>
+                                    <span class="font-semibold text-[#0F172A]">Inventory managed by external storefront</span>
+                                    <span class="mt-0.5 block text-xs text-[#64748B]">Best when Shopify, WooCommerce, or another system is the stock source of truth.</span>
+                                </span>
+                            </label>
+                            <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">
+                                Save inventory source
+                            </button>
+                        </form>
+                    @endif
+                </div>
+            </article>
+
+            <article class="rounded-2xl border {{ ($isPlatformManaged ?? false) ? 'border-[#0052CC] bg-[#F8FBFF]' : 'border-[#CBD5E1] bg-white' }} p-5">
+                <div class="flex items-start justify-between gap-3">
+                    <h4 class="text-lg font-poppins font-semibold text-[#0F172A]">Platform managed</h4>
+                    @if($isPlatformManaged ?? false)
+                        <span class="shrink-0 rounded-full bg-[#DCFCE7] px-3 py-1 text-xs font-bold uppercase tracking-[.6px] text-[#166534]">Active</span>
+                    @endif
+                </div>
+                <p class="mt-2 text-sm leading-6 text-[#64748B]">
+                    Platform checkout manages checkout, payment, delivery options, and fulfillment from this dashboard.
+                </p>
+                <ul class="mt-4 space-y-1 text-xs text-[#475569]">
+                    <li>Checkout: {{ ucfirst($platformChannelConfig['checkout_owner'] ?? 'platform') }}</li>
+                    <li>Payment: {{ ucfirst($platformChannelConfig['payment_owner'] ?? 'platform') }}</li>
+                    <li>Shipping: {{ ucfirst($platformChannelConfig['shipping_owner'] ?? 'platform') }}</li>
+                    <li>Fulfillment: {{ ucfirst($platformChannelConfig['fulfillment_owner'] ?? 'platform') }}</li>
+                </ul>
+            </article>
+        </div>
+    </section>
+
     <section id="stripe-provider-card" class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div class="max-w-3xl">
