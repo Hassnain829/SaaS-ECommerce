@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PaymentProviderAccount;
 use App\Models\SecurityLog;
 use App\Services\CheckoutConversionService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\JsonResponse;
@@ -21,10 +22,14 @@ class StripeConnectWebhookController extends Controller
         StripeConnectService $connectService,
         CheckoutConversionService $conversionService,
         SecurityLogRecorder $securityLogRecorder,
+        StripeConfig $stripeConfig,
+        string $mode = 'test',
     ): JsonResponse {
-        $secret = (string) config('payments.stripe.connect_webhook_secret', '');
-        if ($secret === '') {
-            Log::warning('Stripe Connect webhook secret is not configured.');
+        $mode = strtolower($mode);
+        $secret = $stripeConfig->stripeConnectWebhookSecret($mode);
+
+        if ($secret === null || $secret === '') {
+            Log::warning('Stripe Connect webhook secret is not configured.', ['mode' => $mode]);
 
             return response()->json(['message' => 'Stripe Connect webhook is not configured.'], 400);
         }
@@ -37,6 +42,7 @@ class StripeConnectWebhookController extends Controller
             );
         } catch (\Throwable $exception) {
             Log::warning('Stripe Connect webhook verification failed', [
+                'mode' => $mode,
                 'error' => $exception->getMessage(),
             ]);
 
@@ -48,9 +54,9 @@ class StripeConnectWebhookController extends Controller
         $providerAccountId = $this->providerAccountId($event, $rawObject);
 
         match ((string) $event->type) {
-            'account.updated' => $this->handleAccountUpdated($providerAccountId, $rawObject, $connectService, $securityLogRecorder),
-            'payment_intent.succeeded' => $conversionService->handleSucceededPayment($this->paymentResult($event, $rawObject, $providerAccountId)),
-            'payment_intent.payment_failed', 'payment_intent.canceled' => $conversionService->handleFailedPayment($this->paymentResult($event, $rawObject, $providerAccountId)),
+            'account.updated' => $this->handleAccountUpdated($providerAccountId, $rawObject, $mode, $connectService, $securityLogRecorder),
+            'payment_intent.succeeded' => $conversionService->handleSucceededPayment($this->paymentResult($event, $rawObject, $providerAccountId, $mode)),
+            'payment_intent.payment_failed', 'payment_intent.canceled' => $conversionService->handleFailedPayment($this->paymentResult($event, $rawObject, $providerAccountId, $mode)),
             default => null,
         };
 
@@ -63,6 +69,7 @@ class StripeConnectWebhookController extends Controller
     private function handleAccountUpdated(
         ?string $providerAccountId,
         array $rawObject,
+        string $mode,
         StripeConnectService $connectService,
         SecurityLogRecorder $securityLogRecorder,
     ): void {
@@ -71,8 +78,9 @@ class StripeConnectWebhookController extends Controller
         }
 
         $account = PaymentProviderAccount::query()
-            ->where('provider', 'stripe')
-            ->where('connection_type', 'connect')
+            ->stripe()
+            ->connect()
+            ->mode($mode)
             ->where('provider_account_id', $providerAccountId)
             ->first();
 
@@ -92,6 +100,7 @@ class StripeConnectWebhookController extends Controller
                 'provider_account_id' => $account->provider_account_id,
                 'status' => $account->status,
                 'charges_enabled' => $account->charges_enabled,
+                'mode' => $mode,
             ]
         );
     }
@@ -99,7 +108,7 @@ class StripeConnectWebhookController extends Controller
     /**
      * @param  array<string, mixed>  $rawObject
      */
-    private function paymentResult(object $event, array $rawObject, ?string $providerAccountId): PaymentWebhookResult
+    private function paymentResult(object $event, array $rawObject, ?string $providerAccountId, string $mode): PaymentWebhookResult
     {
         $failure = $rawObject['last_payment_error'] ?? [];
 
@@ -120,6 +129,7 @@ class StripeConnectWebhookController extends Controller
                 'object' => $rawObject,
             ],
             providerAccountId: $providerAccountId,
+            mode: $mode,
         );
     }
 

@@ -32,9 +32,21 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             'payments.stripe.key' => 'pk_test_platform_checkout',
             'payments.stripe.secret' => 'sk_test_platform_checkout',
             'payments.stripe.webhook_secret' => 'whsec_platform_checkout',
+            'payments.stripe.modes' => [
+                'test' => [
+                    'key' => 'pk_test_platform_checkout',
+                    'secret' => 'sk_test_platform_checkout',
+                    'webhook_secret' => 'whsec_platform_checkout',
+                ],
+                'live' => [
+                    'key' => null,
+                    'secret' => null,
+                    'webhook_secret' => null,
+                ],
+            ],
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class extends StripePlatformPaymentProvider {
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
                 return new PaymentIntentResult(
@@ -51,7 +63,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
                 );
             }
 
-            public function retrievePaymentIntent(string $providerIntentId): PaymentWebhookResult
+            public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult
             {
                 return new PaymentWebhookResult(
                     eventType: 'payment_intent.succeeded',

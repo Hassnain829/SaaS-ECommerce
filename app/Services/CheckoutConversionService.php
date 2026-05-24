@@ -34,6 +34,7 @@ class CheckoutConversionService
                 ->where('provider', 'stripe')
                 ->where('provider_intent_id', $result->providerIntentId)
                 ->where('status', '!=', 'superseded')
+                ->when($result->mode, fn ($query) => $query->where('mode', $result->mode))
                 ->when($result->providerAccountId, function ($query) use ($result): void {
                     $query->where(function ($inner) use ($result): void {
                         $inner->where('provider_account_id', $result->providerAccountId)
@@ -102,7 +103,10 @@ class CheckoutConversionService
             $customer = $checkout->customer;
             $providerAccount = $checkout->paymentProviderAccount;
             $connectionType = $providerAccount?->connection_type ?? data_get($checkout->metadata, 'payment_connection_type', 'platform');
-            $connectionLabel = $connectionType === 'connect' ? 'Connected Stripe account' : 'Platform test mode';
+            $paymentMode = (string) ($providerAccount?->mode ?? data_get($checkout->metadata, 'platform_payment_mode', 'test'));
+            $connectionLabel = $connectionType === 'connect'
+                ? ($paymentMode === 'live' ? 'Stripe live account connected for this store' : 'Stripe test account connected for this store')
+                : 'Platform test mode';
             $order = Order::query()->create([
                 'store_id' => $checkout->store_id,
                 'customer_id' => $customer?->id,
@@ -311,6 +315,7 @@ class CheckoutConversionService
                 ->where('provider', 'stripe')
                 ->where('provider_intent_id', $result->providerIntentId)
                 ->where('status', '!=', 'superseded')
+                ->when($result->mode, fn ($query) => $query->where('mode', $result->mode))
                 ->when($result->providerAccountId, function ($query) use ($result): void {
                     $query->where(function ($inner) use ($result): void {
                         $inner->where('provider_account_id', $result->providerAccountId)

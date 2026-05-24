@@ -13,17 +13,28 @@ use Stripe\Webhook;
 
 class StripePlatformPaymentProvider implements PaymentProviderInterface
 {
+    public function __construct(
+        private readonly StripeConfig $stripeConfig,
+    ) {
+    }
+
     public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
     {
-        $secret = (string) config('payments.stripe.secret', '');
-        if ($secret === '') {
-            throw new \RuntimeException('Stripe platform secret is not configured.');
+        $providerAccount = $options['provider_account'] ?? $checkout->paymentProviderAccount;
+        $providerAccount = $providerAccount instanceof PaymentProviderAccount ? $providerAccount : null;
+        $mode = (string) ($options['mode'] ?? $providerAccount?->mode ?? $this->stripeConfig->defaultMode());
+        $secret = $this->stripeConfig->stripeSecretKey($mode);
+
+        if ($secret === null || $secret === '') {
+            throw new \RuntimeException('Stripe is not configured for '.$mode.' mode.');
+        }
+
+        if ($providerAccount && $providerAccount->mode !== $mode) {
+            throw new \RuntimeException('The selected Stripe account does not match the checkout payment mode.');
         }
 
         $amountMinor = $this->amountMinor((float) $checkout->grand_total, (string) $checkout->currency_code);
         $client = new StripeClient($secret);
-        $providerAccount = $options['provider_account'] ?? $checkout->paymentProviderAccount;
-        $providerAccount = $providerAccount instanceof PaymentProviderAccount ? $providerAccount : null;
         $requestOptions = $providerAccount ? $this->requestOptionsForAccount($providerAccount) : [];
         $intent = $client->paymentIntents->create([
             'amount' => $amountMinor,
@@ -36,6 +47,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
                 'source_channel' => (string) $checkout->source_channel,
                 'payment_provider_account_id' => (string) ($providerAccount?->id ?? ''),
                 'connected_account_id' => (string) ($providerAccount?->provider_account_id ?? ''),
+                'payment_mode' => $mode,
             ],
             'description' => 'Checkout '.$checkout->checkout_number,
         ], $requestOptions);
@@ -51,14 +63,15 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
             currencyCode: strtoupper((string) $checkout->currency_code),
             raw: $raw,
             providerAccountId: $providerAccount?->provider_account_id,
+            mode: $mode,
         );
     }
 
-    public function verifyWebhook(string $payload, string $signature): PaymentWebhookResult
+    public function verifyWebhook(string $payload, string $signature, string $mode = 'test'): PaymentWebhookResult
     {
-        $secret = (string) config('payments.stripe.webhook_secret', '');
-        if ($secret === '') {
-            throw new \RuntimeException('Stripe webhook secret is not configured.');
+        $secret = $this->stripeConfig->stripeWebhookSecret($mode);
+        if ($secret === null || $secret === '') {
+            throw new \RuntimeException('Stripe webhook secret is not configured for '.$mode.' mode.');
         }
 
         $event = Webhook::constructEvent($payload, $signature, $secret);
@@ -80,23 +93,27 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
                 'object' => $rawObject,
             ],
             providerAccountId: isset($event->account) ? (string) $event->account : null,
+            mode: $mode,
         );
     }
 
-    public function retrievePaymentIntent(string $providerIntentId): PaymentWebhookResult
+    public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult
     {
-        $secret = (string) config('payments.stripe.secret', '');
-        if ($secret === '') {
-            throw new \RuntimeException('Stripe platform secret is not configured.');
-        }
-
-        $client = new StripeClient($secret);
         $localPaymentIntent = LocalPaymentIntent::query()
             ->with('paymentProviderAccount')
             ->where('provider', 'stripe')
             ->where('provider_intent_id', $providerIntentId)
             ->latest('id')
             ->first();
+
+        $mode = $mode ?? (string) ($localPaymentIntent?->mode ?? $this->stripeConfig->defaultMode());
+        $secret = $this->stripeConfig->stripeSecretKey($mode);
+
+        if ($secret === null || $secret === '') {
+            throw new \RuntimeException('Stripe is not configured for '.$mode.' mode.');
+        }
+
+        $client = new StripeClient($secret);
         $providerAccount = $localPaymentIntent?->paymentProviderAccount;
         $requestOptions = $providerAccount instanceof PaymentProviderAccount
             ? $this->requestOptionsForAccount($providerAccount)
@@ -120,6 +137,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
                 'object' => $raw,
             ],
             providerAccountId: $providerAccount?->provider_account_id,
+            mode: $mode,
         );
     }
 
@@ -128,7 +146,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
      */
     private function requestOptionsForAccount(PaymentProviderAccount $account): array
     {
-        if ($account->connection_type !== 'connect' || ! filled($account->provider_account_id)) {
+        if ($account->connection_type !== PaymentProviderAccount::CONNECTION_CONNECT || ! filled($account->provider_account_id)) {
             return [];
         }
 

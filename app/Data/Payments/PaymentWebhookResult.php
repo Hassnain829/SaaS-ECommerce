@@ -17,6 +17,7 @@ class PaymentWebhookResult
         public readonly ?string $failureMessage = null,
         public readonly array $raw = [],
         public readonly ?string $providerAccountId = null,
+        public readonly ?string $mode = null,
     ) {
     }
 }

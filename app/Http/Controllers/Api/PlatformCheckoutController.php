@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Services\CheckoutConversionService;
 use App\Services\CheckoutService;
 use App\Services\Payments\PaymentProviderManager;
+use App\Services\Payments\StripeConfig;
 use App\Services\Shipping\CheckoutShippingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -117,7 +118,7 @@ class PlatformCheckoutController extends Controller
 
         $result = $paymentProviderManager
             ->driver($paymentIntent->provider)
-            ->retrievePaymentIntent($paymentIntent->provider_intent_id);
+            ->retrievePaymentIntent($paymentIntent->provider_intent_id, $paymentIntent->mode);
 
         if ($result->status === 'succeeded') {
             $order = $conversionService->handleSucceededPayment($result);
@@ -250,15 +251,18 @@ class PlatformCheckoutController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function checkoutResponse(?Checkout $checkout): array
+    private function checkoutResponse(?Checkout $checkout, ?StripeConfig $stripeConfig = null): array
     {
         abort_unless($checkout, 404);
+
+        $stripeConfig ??= app(StripeConfig::class);
 
         $checkout->loadMissing(['items', 'addresses', 'paymentIntents', 'convertedOrder']);
         $checkout->loadMissing('paymentProviderAccount');
         /** @var PaymentIntent|null $paymentIntent */
         $paymentIntent = $checkout->paymentIntents->sortByDesc('id')->first();
         $providerAccount = $checkout->paymentProviderAccount;
+        $paymentMode = (string) ($paymentIntent?->mode ?? data_get($checkout->metadata, 'platform_payment_mode', 'test'));
 
         return [
             'message' => 'Platform checkout created.',
@@ -297,11 +301,12 @@ class PlatformCheckoutController extends Controller
                 'provider_account_id' => $paymentIntent?->provider_account_id ?: $providerAccount?->provider_account_id,
                 'connection_type' => $providerAccount?->connection_type,
                 'connection_label' => $providerAccount?->connection_type === 'connect'
-                    ? 'Connected Stripe account'
+                    ? ($paymentMode === 'live' ? 'Stripe live account connected for this store' : 'Stripe test account connected for this store')
                     : 'Platform test mode',
+                'payment_mode' => $paymentMode,
                 'status' => $paymentIntent?->status,
                 'client_secret' => $paymentIntent?->client_secret,
-                'publishable_key' => config('payments.stripe.key'),
+                'publishable_key' => $stripeConfig->stripePublicKey($paymentMode),
             ],
         ];
     }

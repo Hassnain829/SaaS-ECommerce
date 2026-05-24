@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\PaymentProviderAccount;
 use App\Models\SecurityLog;
 use App\Services\Payments\PaymentProviderManager;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
 use App\Services\SecurityLogRecorder;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Support\CheckoutMode;
+use App\Support\PlatformPaymentMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -16,8 +18,12 @@ use Illuminate\View\View;
 
 class PaymentSettingsController extends Controller
 {
-    public function index(Request $request, PaymentProviderManager $paymentProviderManager, ChannelOwnershipService $channelOwnership): View|RedirectResponse
-    {
+    public function index(
+        Request $request,
+        PaymentProviderManager $paymentProviderManager,
+        ChannelOwnershipService $channelOwnership,
+        StripeConfig $stripeConfig,
+    ): View|RedirectResponse {
         $store = $request->attributes->get('currentStore');
 
         if (! $store) {
@@ -33,16 +39,25 @@ class PaymentSettingsController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
-        $connectAccount = $accounts->firstWhere('connection_type', 'connect');
-        $platformAccount = $accounts->firstWhere('connection_type', 'platform');
         $store = $channelOwnership->ensureChannelsStructure($store);
+        $platformPaymentMode = PlatformPaymentMode::forStore($store);
+        $testConnectAccount = $paymentProviderManager->connectAccountForStore($store, PlatformPaymentMode::TEST);
+        $liveConnectAccount = $paymentProviderManager->connectAccountForStore($store, PlatformPaymentMode::LIVE);
+        $testConnectReady = $paymentProviderManager->activeConnectedAccountForStore($store, PlatformPaymentMode::TEST) !== null;
+        $liveConnectReady = $paymentProviderManager->activeConnectedAccountForStore($store, PlatformPaymentMode::LIVE) !== null;
+        $activeConnectAccount = $paymentProviderManager->activeConnectedAccountForStore($store, $platformPaymentMode);
 
         return view('user_view.payment_settings', [
             'selectedStore' => $store,
             'accounts' => $accounts,
-            'connectAccount' => $connectAccount,
-            'platformAccount' => $platformAccount,
-            'activeConnectAccount' => $paymentProviderManager->activeConnectedAccountForStore($store),
+            'connectAccount' => $testConnectAccount,
+            'platformAccount' => $accounts->firstWhere('connection_type', 'platform'),
+            'testConnectAccount' => $testConnectAccount,
+            'liveConnectAccount' => $liveConnectAccount,
+            'testConnectReady' => $testConnectReady,
+            'liveConnectReady' => $liveConnectReady,
+            'activeConnectAccount' => $activeConnectAccount,
+            'platformPaymentMode' => $platformPaymentMode,
             'checkoutMode' => CheckoutMode::forStore($store),
             'externalChannelConfig' => $channelOwnership->externalCheckoutConfig($store),
             'platformChannelConfig' => $channelOwnership->platformCheckoutConfig($store),
@@ -51,12 +66,21 @@ class PaymentSettingsController extends Controller
             'externalInventoryOwner' => $channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
             'usesPlatformInventoryForExternal' => $channelOwnership->usesPlatformInventory($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
             'stripeConfig' => [
-                'mode' => (string) config('payments.stripe.mode', 'test'),
-                'publishable_key' => filled(config('payments.stripe.key')),
-                'secret_key' => filled(config('payments.stripe.secret')),
-                'platform_webhook_secret' => filled(config('payments.stripe.webhook_secret')),
-                'connect_webhook_secret' => filled(config('payments.stripe.connect_webhook_secret')),
-                'sandbox_fallback' => $paymentProviderManager->canUsePlatformSandboxFallback(),
+                'test' => [
+                    'configured' => $stripeConfig->isModeConfigured(PlatformPaymentMode::TEST),
+                    'connect_configured' => $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::TEST),
+                    'publishable_key' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::TEST)),
+                    'webhook_secret' => filled($stripeConfig->stripeWebhookSecret(PlatformPaymentMode::TEST)),
+                    'connect_webhook_secret' => filled($stripeConfig->stripeConnectWebhookSecret(PlatformPaymentMode::TEST)),
+                ],
+                'live' => [
+                    'configured' => $stripeConfig->isModeConfigured(PlatformPaymentMode::LIVE),
+                    'connect_configured' => $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::LIVE),
+                    'publishable_key' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::LIVE)),
+                    'webhook_secret' => filled($stripeConfig->stripeWebhookSecret(PlatformPaymentMode::LIVE)),
+                    'connect_webhook_secret' => filled($stripeConfig->stripeConnectWebhookSecret(PlatformPaymentMode::LIVE)),
+                ],
+                'sandbox_fallback' => $paymentProviderManager->canUsePlatformSandboxFallback(PlatformPaymentMode::TEST),
             ],
             'canManagePayments' => $request->user()?->canManageSettings($store) ?? false,
         ]);
@@ -77,7 +101,7 @@ class PaymentSettingsController extends Controller
         $targetMode = $validated['checkout_mode'];
         $previousMode = CheckoutMode::forStore($store);
 
-        if ($targetMode === CheckoutMode::PLATFORM && ! $paymentProviderManager->activeConnectedAccountForStore($store)) {
+        if ($targetMode === CheckoutMode::PLATFORM && ! $paymentProviderManager->isCheckoutReady($store)) {
             return redirect()
                 ->route('settings.payments.index')
                 ->withErrors(['checkout_mode' => 'Connect Stripe before enabling platform checkout.']);
@@ -141,35 +165,68 @@ class PaymentSettingsController extends Controller
                 : 'External orders will be recorded without changing dashboard stock.');
     }
 
-    public function connect(
+    public function updatePlatformPaymentMode(
         Request $request,
-        StripeConnectService $connectService,
+        PaymentProviderManager $paymentProviderManager,
         SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless($store && $request->user(), 404);
 
-        try {
-            $account = $connectService->createOrRetrieveConnectedAccount($store, $request->user());
-            $url = $connectService->createAccountOnboardingLink($account);
-        } catch (\RuntimeException $exception) {
+        $validated = $request->validate([
+            'platform_payment_mode' => ['required', Rule::in(PlatformPaymentMode::ALL)],
+        ]);
+
+        $targetMode = $validated['platform_payment_mode'];
+        $previousMode = PlatformPaymentMode::forStore($store);
+
+        if ($targetMode === PlatformPaymentMode::LIVE && ! $paymentProviderManager->activeConnectedAccountForStore($store, PlatformPaymentMode::LIVE)) {
             return redirect()
                 ->route('settings.payments.index')
-                ->withErrors(['stripe' => $exception->getMessage()]);
+                ->withErrors(['platform_payment_mode' => 'Connect an active Stripe live account before enabling live platform checkout payments.']);
         }
 
-        $securityLogRecorder->record(
-            $request,
-            'stripe_connect_started',
-            store: $store,
-            metadata: [
-                'payment_provider_account_id' => $account->id,
-                'provider_account_id' => $account->provider_account_id,
-                'mode' => $account->mode,
-            ]
-        );
+        if ($previousMode !== $targetMode) {
+            $store = PlatformPaymentMode::setForStore($store, $targetMode);
 
-        return redirect()->away($url);
+            $securityLogRecorder->record(
+                $request,
+                'platform_payment_mode_changed',
+                store: $store,
+                metadata: [
+                    'previous_mode' => $previousMode,
+                    'new_mode' => $targetMode,
+                ]
+            );
+        }
+
+        return redirect()
+            ->route('settings.payments.index')
+            ->with('success', 'Platform checkout payment mode updated to '.PlatformPaymentMode::label($targetMode).'.');
+    }
+
+    public function connect(
+        Request $request,
+        StripeConnectService $connectService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->connectForMode($request, $connectService, $securityLogRecorder, PlatformPaymentMode::TEST);
+    }
+
+    public function connectTest(
+        Request $request,
+        StripeConnectService $connectService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->connectForMode($request, $connectService, $securityLogRecorder, PlatformPaymentMode::TEST);
+    }
+
+    public function connectLive(
+        Request $request,
+        StripeConnectService $connectService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->connectForMode($request, $connectService, $securityLogRecorder, PlatformPaymentMode::LIVE);
     }
 
     public function stripeReturn(
@@ -177,10 +234,21 @@ class PaymentSettingsController extends Controller
         StripeConnectService $connectService,
         SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
+        return $this->connectReturn($request, $connectService, $securityLogRecorder, PlatformPaymentMode::TEST);
+    }
+
+    public function connectReturn(
+        Request $request,
+        StripeConnectService $connectService,
+        SecurityLogRecorder $securityLogRecorder,
+        string $mode,
+    ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
 
-        $account = $this->currentConnectAccount($store->id);
+        $mode = strtolower($mode);
+        $account = $connectService->handleReturn($store, $mode);
+
         if ($account) {
             try {
                 $account = $connectService->refreshAccountStatus($account);
@@ -199,6 +267,7 @@ class PaymentSettingsController extends Controller
                     'provider_account_id' => $account->provider_account_id,
                     'status' => $account->status,
                     'charges_enabled' => $account->charges_enabled,
+                    'mode' => $account->mode,
                 ]
             );
         }
@@ -206,20 +275,34 @@ class PaymentSettingsController extends Controller
         return redirect()
             ->route('settings.payments.index')
             ->with('success', $account?->status === 'active'
-                ? 'Stripe is connected and ready for platform checkout.'
+                ? 'Stripe '.($mode === PlatformPaymentMode::LIVE ? 'live' : 'test').' account is connected and ready.'
                 : 'Stripe onboarding was saved. Continue onboarding if Stripe still needs more details.');
     }
 
-    public function refreshOnboarding(Request $request, StripeConnectService $connectService): RedirectResponse
+    public function refreshOnboarding(Request $request, StripeConnectService $connectService, PaymentProviderManager $paymentProviderManager, ?PaymentProviderAccount $account = null): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
 
-        $account = $this->currentConnectAccount($store->id);
+        $account ??= $paymentProviderManager->connectAccountForStore($store, PlatformPaymentMode::TEST);
         if (! $account) {
             return redirect()
                 ->route('settings.payments.index')
                 ->withErrors(['stripe' => 'Connect Stripe before continuing onboarding.']);
+        }
+
+        return $this->refreshConnectAccount($request, $connectService, $account);
+    }
+
+    public function refreshConnectAccount(Request $request, StripeConnectService $connectService, PaymentProviderAccount $account): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $account->store_id === (int) $store->id, 404);
+
+        if (! $account->isConnect()) {
+            return redirect()
+                ->route('settings.payments.index')
+                ->withErrors(['stripe' => 'Only connected Stripe accounts can continue onboarding.']);
         }
 
         return redirect()->away($connectService->createAccountOnboardingLink($account));
@@ -229,12 +312,32 @@ class PaymentSettingsController extends Controller
         Request $request,
         StripeConnectService $connectService,
         SecurityLogRecorder $securityLogRecorder,
+        PaymentProviderManager $paymentProviderManager,
+        ?PaymentProviderAccount $account = null,
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
 
-        $account = $this->currentConnectAccount($store->id);
+        $account ??= $paymentProviderManager->connectAccountForStore($store, PlatformPaymentMode::TEST);
         if (! $account) {
+            return redirect()
+                ->route('settings.payments.index')
+                ->withErrors(['stripe' => 'No connected Stripe account was found for this store.']);
+        }
+
+        return $this->refreshConnectAccountStatus($request, $connectService, $securityLogRecorder, $account);
+    }
+
+    public function refreshConnectAccountStatus(
+        Request $request,
+        StripeConnectService $connectService,
+        SecurityLogRecorder $securityLogRecorder,
+        PaymentProviderAccount $account,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $account->store_id === (int) $store->id, 404);
+
+        if (! $account->isConnect()) {
             return redirect()
                 ->route('settings.payments.index')
                 ->withErrors(['stripe' => 'No connected Stripe account was found for this store.']);
@@ -258,6 +361,7 @@ class PaymentSettingsController extends Controller
                 'status' => $account->status,
                 'charges_enabled' => $account->charges_enabled,
                 'payouts_enabled' => $account->payouts_enabled,
+                'mode' => $account->mode,
             ]
         );
 
@@ -270,46 +374,92 @@ class PaymentSettingsController extends Controller
         Request $request,
         StripeConnectService $connectService,
         SecurityLogRecorder $securityLogRecorder,
+        PaymentProviderManager $paymentProviderManager,
+        ?PaymentProviderAccount $account = null,
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
 
-        $account = $this->currentConnectAccount($store->id);
+        $account ??= $paymentProviderManager->connectAccountForStore($store, PlatformPaymentMode::TEST);
         if (! $account) {
             return redirect()
                 ->route('settings.payments.index')
                 ->withErrors(['stripe' => 'No connected Stripe account was found for this store.']);
         }
 
-        $account = $connectService->disableLocally($account);
-        if (CheckoutMode::forStore($store) === CheckoutMode::PLATFORM) {
+        return $this->disconnectConnectAccount($request, $connectService, $securityLogRecorder, $account);
+    }
+
+    public function disconnectConnectAccount(
+        Request $request,
+        StripeConnectService $connectService,
+        SecurityLogRecorder $securityLogRecorder,
+        PaymentProviderAccount $account,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $account->store_id === (int) $store->id, 404);
+
+        if (! $account->isConnect()) {
+            return redirect()
+                ->route('settings.payments.index')
+                ->withErrors(['stripe' => 'No connected Stripe account was found for this store.']);
+        }
+
+        $account = $connectService->disconnectAccount($account);
+
+        if (
+            CheckoutMode::forStore($store) === CheckoutMode::PLATFORM
+            && PlatformPaymentMode::forStore($store) === $account->mode
+        ) {
             $store = CheckoutMode::setForStore($store, CheckoutMode::EXTERNAL);
         }
 
         $securityLogRecorder->record(
             $request,
-            'stripe_provider_disabled',
+            'stripe_provider_disconnected',
             SecurityLog::SEVERITY_WARNING,
             store: $store,
             metadata: [
                 'payment_provider_account_id' => $account->id,
                 'provider_account_id' => $account->provider_account_id,
+                'mode' => $account->mode,
             ]
         );
 
         return redirect()
             ->route('settings.payments.index')
-            ->with('success', 'Stripe platform checkout was disabled for this store. You can reconnect anytime.');
+            ->with('success', 'Stripe '.($account->mode === PlatformPaymentMode::LIVE ? 'live' : 'test').' account was disabled for this store.');
     }
 
-    private function currentConnectAccount(int $storeId): ?PaymentProviderAccount
-    {
-        return PaymentProviderAccount::query()
-            ->where('store_id', $storeId)
-            ->where('provider', 'stripe')
-            ->where('mode', (string) config('payments.stripe.mode', 'test'))
-            ->where('connection_type', 'connect')
-            ->latest('id')
-            ->first();
+    private function connectForMode(
+        Request $request,
+        StripeConnectService $connectService,
+        SecurityLogRecorder $securityLogRecorder,
+        string $mode,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && $request->user(), 404);
+
+        try {
+            $url = $connectService->startOnboarding($store, $request->user(), $mode);
+            $account = $connectService->connectedAccountForStore($store, $mode);
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('settings.payments.index')
+                ->withErrors(['stripe' => $exception->getMessage()]);
+        }
+
+        $securityLogRecorder->record(
+            $request,
+            $mode === PlatformPaymentMode::LIVE ? 'stripe_connect_live_started' : 'stripe_connect_test_started',
+            store: $store,
+            metadata: [
+                'payment_provider_account_id' => $account?->id,
+                'provider_account_id' => $account?->provider_account_id,
+                'mode' => $mode,
+            ]
+        );
+
+        return redirect()->away($url);
     }
 }

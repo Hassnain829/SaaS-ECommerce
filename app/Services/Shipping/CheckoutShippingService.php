@@ -141,9 +141,14 @@ class CheckoutShippingService
             ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'superseded'])
             ->update(['status' => 'superseded']);
 
+        $paymentMode = $this->paymentProviderManager->platformPaymentModeForStore($checkout->store);
+
         $result = $this->paymentProviderManager
             ->driver((string) $checkout->payment_provider)
-            ->createPaymentIntent($checkout, ['provider_account' => $providerAccount]);
+            ->createPaymentIntent($checkout, [
+                'provider_account' => $providerAccount,
+                'mode' => $paymentMode,
+            ]);
 
         $paymentIntent = PaymentIntent::query()->updateOrCreate(
             [
@@ -154,7 +159,7 @@ class CheckoutShippingService
                 'store_id' => $checkout->store_id,
                 'checkout_id' => $checkout->id,
                 'payment_provider_account_id' => $providerAccount->id,
-                'mode' => (string) config('payments.stripe.mode', 'test'),
+                'mode' => $result->mode ?? $paymentMode,
                 'provider_account_id' => $result->providerAccountId ?? $providerAccount->provider_account_id,
                 'client_secret' => $result->clientSecret,
                 'status' => $result->status,

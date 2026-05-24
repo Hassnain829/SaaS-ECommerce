@@ -268,3 +268,7 @@ The legacy direct dev order mode is hidden because direct final order creation i
 - `php artisan test`: `342 passed, 1661 assertions`.
 - `npm.cmd run build`: passed.
 - `npm.cmd run build` in `dev-test-storefront`: passed.
+
+## Stripe Sandbox Connect Support Patch
+
+Merchants can now connect a Stripe test/sandbox account separately from a live account. Platform checkout resolves payment mode safely and prevents test/live account mixing. See `docs/STRIPE_SANDBOX_CONNECT_SUPPORT_REPORT.md`.

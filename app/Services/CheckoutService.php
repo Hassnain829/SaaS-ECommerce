@@ -48,6 +48,7 @@ class CheckoutService
             }
 
             $providerAccount = $this->paymentProviderManager->accountForCheckout($store);
+            $paymentMode = $this->paymentProviderManager->platformPaymentModeForStore($store);
             if (! $providerAccount) {
                 throw ValidationException::withMessages([
                     'payment' => 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.',
@@ -108,6 +109,7 @@ class CheckoutService
                     'payment_connection_type' => $providerAccount->connection_type,
                     'payment_provider_account_id' => $providerAccount->id,
                     'connected_account_id' => $providerAccount->provider_account_id,
+                    'platform_payment_mode' => $paymentMode,
                 ],
                 'expires_at' => now()->addHours(2),
             ]);
@@ -205,14 +207,17 @@ class CheckoutService
 
             $result = $this->paymentProviderManager
                 ->driver($provider)
-                ->createPaymentIntent($checkout, ['provider_account' => $providerAccount]);
+                ->createPaymentIntent($checkout, [
+                    'provider_account' => $providerAccount,
+                    'mode' => $paymentMode,
+                ]);
 
             $paymentIntent = PaymentIntent::query()->create([
                 'store_id' => $store->id,
                 'checkout_id' => $checkout->id,
                 'payment_provider_account_id' => $providerAccount->id,
                 'provider' => $result->provider,
-                'mode' => (string) config('payments.stripe.mode', 'test'),
+                'mode' => $result->mode ?? $paymentMode,
                 'provider_intent_id' => $result->providerIntentId,
                 'provider_account_id' => $result->providerAccountId ?? $providerAccount->provider_account_id,
                 'client_secret' => $result->clientSecret,

@@ -67,10 +67,10 @@ class Phase5PaymentUxCleanupTest extends TestCase
         $this->assertStringNotContainsString('Platform secret key', $mainCards);
 
         $this->assertStringContainsString('Developer diagnostics', $html);
-        $this->assertStringContainsString('Platform webhook', $html);
-        $this->assertStringContainsString('Connect webhook', $html);
+        $this->assertStringContainsString('Test webhook', $html);
+        $this->assertStringContainsString('Test connect webhook', $html);
         $this->assertStringContainsString('Platform sandbox fallback', $html);
-        $this->assertStringContainsString('Local/testing only', $html);
+        $this->assertStringContainsString('Enabled for local/testing', $html);
     }
 
     public function test_store_owner_can_enable_external_checkout_mode(): void
@@ -92,6 +92,8 @@ class Phase5PaymentUxCleanupTest extends TestCase
 
     public function test_store_owner_cannot_enable_platform_checkout_without_active_provider(): void
     {
+        config(['payments.stripe.allow_platform_sandbox_fallback' => false]);
+
         [$store, $owner] = $this->storeWithUser();
 
         $this->actingAs($owner)
@@ -139,7 +141,7 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->get(route('settings.payments.index'))
             ->assertOk()
             ->assertSeeText('Stripe')
-            ->assertSeeText('Connect Stripe to accept payments through platform checkout.')
+            ->assertSeeText('Connect separate Stripe test and live accounts for platform checkout.')
             ->assertSeeText('You do not need to paste secret keys.')
             ->assertDontSeeText('Paste your Stripe secret key')
             ->assertDontSeeText('edit .env');

@@ -10,15 +10,28 @@ use Stripe\StripeClient;
 
 class StripeConnectService
 {
-    public function createOrRetrieveConnectedAccount(Store $store, User $user): PaymentProviderAccount
+    public function __construct(
+        private readonly StripeConfig $stripeConfig,
+    ) {
+    }
+
+    public function startOnboarding(Store $store, User $user, string $mode): string
     {
-        $mode = $this->mode();
+        $account = $this->createOrRetrieveConnectedAccount($store, $user, $mode);
+
+        return $this->createAccountOnboardingLink($account, $mode);
+    }
+
+    public function createOrRetrieveConnectedAccount(Store $store, User $user, string $mode): PaymentProviderAccount
+    {
+        $mode = $this->normalizeMode($mode);
+        $this->ensureModeConfigured($mode);
 
         $existing = PaymentProviderAccount::query()
-            ->where('store_id', $store->id)
-            ->where('provider', 'stripe')
-            ->where('mode', $mode)
-            ->where('connection_type', 'connect')
+            ->forStore($store)
+            ->stripe()
+            ->connect()
+            ->mode($mode)
             ->whereNotNull('provider_account_id')
             ->where('status', '!=', 'disabled')
             ->latest('id')
@@ -30,7 +43,7 @@ class StripeConnectService
             return $existing->fresh();
         }
 
-        $client = $this->client();
+        $client = $this->clientForMode($mode);
         $account = $client->accounts->create([
             'type' => 'express',
             'country' => strtoupper((string) ($store->country_code ?? 'US')),
@@ -43,6 +56,7 @@ class StripeConnectService
                 'store_id' => (string) $store->id,
                 'store_name' => (string) $store->name,
                 'created_by_user_id' => (string) $user->id,
+                'connect_mode' => $mode,
             ],
         ]);
 
@@ -54,8 +68,10 @@ class StripeConnectService
                 'provider' => 'stripe',
                 'provider_account_id' => (string) ($raw['id'] ?? ''),
                 'mode' => $mode,
-                'connection_type' => 'connect',
-                'display_name' => 'Connected Stripe account',
+                'connection_type' => PaymentProviderAccount::CONNECTION_CONNECT,
+                'display_name' => $mode === PaymentProviderAccount::MODE_LIVE
+                    ? 'Stripe live account'
+                    : 'Stripe test account',
                 'status' => 'pending',
                 'is_default' => true,
                 'settings' => [
@@ -65,6 +81,7 @@ class StripeConnectService
                 'capabilities' => $raw['capabilities'] ?? null,
                 'metadata' => [
                     'created_from' => 'payments_settings',
+                    'connect_mode' => $mode,
                 ],
                 'created_by' => $user->id,
                 'charges_enabled' => (bool) ($raw['charges_enabled'] ?? false),
@@ -80,20 +97,34 @@ class StripeConnectService
         });
     }
 
-    public function createAccountOnboardingLink(PaymentProviderAccount $account): string
+    public function createAccountOnboardingLink(PaymentProviderAccount $account, ?string $mode = null): string
     {
         if (! filled($account->provider_account_id)) {
             throw new \RuntimeException('This Stripe account is missing its account ID.');
         }
 
-        $link = $this->client()->accountLinks->create([
+        $mode = $this->normalizeMode($mode ?? (string) $account->mode);
+        $this->ensureModeConfigured($mode);
+
+        if ($account->mode !== $mode) {
+            throw new \RuntimeException('This Stripe account does not match the selected payment mode.');
+        }
+
+        $link = $this->clientForMode($mode)->accountLinks->create([
             'account' => (string) $account->provider_account_id,
-            'refresh_url' => $this->configuredUrl('connect_refresh_url', route('settings.payments.stripe.refresh', [], true)),
-            'return_url' => $this->configuredUrl('connect_return_url', route('settings.payments.stripe.return', [], true)),
+            'refresh_url' => $this->stripeConfig->connectRefreshUrl($mode),
+            'return_url' => $this->stripeConfig->connectReturnUrl($mode),
             'type' => 'account_onboarding',
         ]);
 
         return (string) ($link->url ?? '');
+    }
+
+    public function handleReturn(Store $store, string $mode): ?PaymentProviderAccount
+    {
+        $account = $this->connectedAccountForStore($store, $mode);
+
+        return $account ? $this->refreshAccountStatus($account) : null;
     }
 
     public function refreshAccountStatus(PaymentProviderAccount $account): PaymentProviderAccount
@@ -102,7 +133,8 @@ class StripeConnectService
             return $account;
         }
 
-        $stripeAccount = $this->client()->accounts->retrieve((string) $account->provider_account_id, []);
+        $mode = $this->normalizeMode((string) $account->mode);
+        $stripeAccount = $this->clientForMode($mode)->accounts->retrieve((string) $account->provider_account_id, []);
         $raw = method_exists($stripeAccount, 'toArray') ? $stripeAccount->toArray() : (array) $stripeAccount;
 
         return $this->applyAccountStatus($account, $raw);
@@ -149,7 +181,7 @@ class StripeConnectService
         return $account->fresh();
     }
 
-    public function disableLocally(PaymentProviderAccount $account): PaymentProviderAccount
+    public function disconnectAccount(PaymentProviderAccount $account): PaymentProviderAccount
     {
         $account->forceFill([
             'status' => 'disabled',
@@ -160,37 +192,68 @@ class StripeConnectService
         return $account->fresh();
     }
 
+    public function disableLocally(PaymentProviderAccount $account): PaymentProviderAccount
+    {
+        return $this->disconnectAccount($account);
+    }
+
+    public function connectedAccountForStore(Store $store, string $mode): ?PaymentProviderAccount
+    {
+        return PaymentProviderAccount::query()
+            ->forStore($store)
+            ->stripe()
+            ->connect()
+            ->mode($this->normalizeMode($mode))
+            ->where('status', '!=', 'disabled')
+            ->latest('id')
+            ->first();
+    }
+
+    public function resolveSecretKeyForMode(string $mode): string
+    {
+        $secret = $this->stripeConfig->stripeSecretKey($this->normalizeMode($mode));
+        if ($secret === null || $secret === '') {
+            throw new \RuntimeException('Stripe is not configured for '.($mode === 'live' ? 'live' : 'test').' mode.');
+        }
+
+        return $secret;
+    }
+
+    public function clientForMode(string $mode): StripeClient
+    {
+        return new StripeClient($this->resolveSecretKeyForMode($mode));
+    }
+
     private function markDefault(PaymentProviderAccount $account): void
     {
         PaymentProviderAccount::query()
-            ->where('store_id', $account->store_id)
-            ->where('provider', $account->provider)
-            ->where('mode', $account->mode)
+            ->forStore($account->store)
+            ->stripe()
+            ->connect()
+            ->mode((string) $account->mode)
             ->whereKeyNot($account->id)
             ->update(['is_default' => false]);
 
         $account->forceFill(['is_default' => true])->save();
     }
 
-    private function client(): StripeClient
+    private function normalizeMode(string $mode): string
     {
-        $secret = (string) config('payments.stripe.secret', '');
-        if ($secret === '') {
-            throw new \RuntimeException('Stripe platform secret is not configured.');
+        $mode = strtolower(trim($mode));
+
+        return in_array($mode, [PaymentProviderAccount::MODE_TEST, PaymentProviderAccount::MODE_LIVE], true)
+            ? $mode
+            : PaymentProviderAccount::MODE_TEST;
+    }
+
+    private function ensureModeConfigured(string $mode): void
+    {
+        if (! $this->stripeConfig->isConnectModeConfigured($mode)) {
+            throw new \RuntimeException(
+                $mode === PaymentProviderAccount::MODE_LIVE
+                    ? 'Stripe live mode is not configured yet. Add live Stripe keys before connecting a live account.'
+                    : 'Stripe test mode is not configured yet. Add test Stripe keys before connecting a test account.'
+            );
         }
-
-        return new StripeClient($secret);
-    }
-
-    private function mode(): string
-    {
-        return (string) config('payments.stripe.mode', 'test');
-    }
-
-    private function configuredUrl(string $key, string $fallback): string
-    {
-        $value = trim((string) config('payments.stripe.'.$key, ''));
-
-        return $value !== '' ? $value : $fallback;
     }
 }

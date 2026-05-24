@@ -51,5 +51,7 @@ Route::middleware(['dev.storefront.token', 'throttle:api-dev-checkout'])
         Route::post('/{checkout}/confirm', [PlatformCheckoutController::class, 'confirm']);
     });
 
-Route::post('/webhooks/stripe', StripeWebhookController::class);
-Route::post('/webhooks/stripe/connect', StripeConnectWebhookController::class);
+Route::post('/webhooks/stripe/{mode}', StripeWebhookController::class)->where('mode', 'test|live');
+Route::post('/webhooks/stripe', StripeWebhookController::class)->defaults('mode', 'test');
+Route::post('/webhooks/stripe/connect/{mode}', StripeConnectWebhookController::class)->where('mode', 'test|live');
+Route::post('/webhooks/stripe/connect', StripeConnectWebhookController::class)->defaults('mode', 'test');

@@ -13,7 +13,7 @@ interface PaymentProviderInterface
      */
     public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult;
 
-    public function verifyWebhook(string $payload, string $signature): PaymentWebhookResult;
+    public function verifyWebhook(string $payload, string $signature, string $mode = 'test'): PaymentWebhookResult;
 
-    public function retrievePaymentIntent(string $providerIntentId): PaymentWebhookResult;
+    public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult;
 }

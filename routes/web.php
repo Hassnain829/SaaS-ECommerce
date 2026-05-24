@@ -231,19 +231,41 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/settings/payments/external-inventory', [PaymentSettingsController::class, 'updateExternalInventory'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.external-inventory');
+    Route::post('/settings/payments/platform-payment-mode', [PaymentSettingsController::class, 'updatePlatformPaymentMode'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.platform-payment-mode');
+    Route::post('/settings/payments/stripe/connect/test/start', [PaymentSettingsController::class, 'connectTest'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.connect.test');
+    Route::post('/settings/payments/stripe/connect/live/start', [PaymentSettingsController::class, 'connectLive'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.connect.live');
+    Route::get('/settings/payments/stripe/connect/{mode}/return', [PaymentSettingsController::class, 'connectReturn'])
+        ->middleware('store.permission:settings.manage')
+        ->where('mode', 'test|live')
+        ->name('settings.payments.stripe.connect.return');
+    Route::post('/settings/payments/stripe/connect/{account}/refresh', [PaymentSettingsController::class, 'refreshConnectAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.connect.refresh');
+    Route::post('/settings/payments/stripe/connect/{account}/status', [PaymentSettingsController::class, 'refreshConnectAccountStatus'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.connect.status');
+    Route::post('/settings/payments/stripe/connect/{account}/disconnect', [PaymentSettingsController::class, 'disconnectConnectAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.payments.stripe.connect.disconnect');
     Route::post('/settings/payments/stripe/connect', [PaymentSettingsController::class, 'connect'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.stripe.connect');
     Route::get('/settings/payments/stripe/return', [PaymentSettingsController::class, 'stripeReturn'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.stripe.return');
-    Route::get('/settings/payments/stripe/refresh', [PaymentSettingsController::class, 'refreshOnboarding'])
+    Route::get('/settings/payments/stripe/refresh/{account?}', [PaymentSettingsController::class, 'refreshOnboarding'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.stripe.refresh');
-    Route::post('/settings/payments/stripe/status', [PaymentSettingsController::class, 'status'])
+    Route::post('/settings/payments/stripe/status/{account?}', [PaymentSettingsController::class, 'status'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.stripe.status');
-    Route::post('/settings/payments/stripe/disable', [PaymentSettingsController::class, 'disable'])
+    Route::post('/settings/payments/stripe/disable/{account?}', [PaymentSettingsController::class, 'disable'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.stripe.disable');
     Route::get('/shippingAutomation', [ShippingSettingsController::class, 'index'])

@@ -15,17 +15,25 @@ class StripeWebhookController extends Controller
         Request $request,
         PaymentProviderManager $paymentProviderManager,
         CheckoutConversionService $conversionService,
+        string $mode = 'test',
     ): JsonResponse {
+        $mode = strtolower($mode);
+
         try {
             $result = $paymentProviderManager
                 ->driver('stripe')
-                ->verifyWebhook($request->getContent(), (string) $request->header('Stripe-Signature', ''));
+                ->verifyWebhook($request->getContent(), (string) $request->header('Stripe-Signature', ''), $mode);
         } catch (\Throwable $exception) {
             Log::warning('Stripe webhook verification failed', [
+                'mode' => $mode,
                 'error' => $exception->getMessage(),
             ]);
 
             return response()->json(['message' => 'Invalid Stripe webhook.'], 400);
+        }
+
+        if ($result->mode !== null && $result->mode !== $mode) {
+            return response()->json(['message' => 'Stripe webhook mode mismatch.'], 400);
         }
 
         match ($result->eventType) {

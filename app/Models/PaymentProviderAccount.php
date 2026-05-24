@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class PaymentProviderAccount extends Model
 {
     use SoftDeletes;
+
+    public const MODE_TEST = 'test';
+
+    public const MODE_LIVE = 'live';
+
+    public const CONNECTION_CONNECT = 'connect';
+
+    public const CONNECTION_PLATFORM = 'platform';
 
     protected $fillable = [
         'store_id',
@@ -61,9 +70,82 @@ class PaymentProviderAccount extends Model
 
     public function isConnectedStripeAccount(): bool
     {
-        return $this->provider === 'stripe'
-            && $this->connection_type === 'connect'
-            && filled($this->provider_account_id);
+        return $this->isStripe() && $this->isConnect() && filled($this->provider_account_id);
+    }
+
+    public function isStripe(): bool
+    {
+        return $this->provider === 'stripe';
+    }
+
+    public function isConnect(): bool
+    {
+        return $this->connection_type === self::CONNECTION_CONNECT;
+    }
+
+    public function isTestMode(): bool
+    {
+        return $this->mode === self::MODE_TEST;
+    }
+
+    public function isLiveMode(): bool
+    {
+        return $this->mode === self::MODE_LIVE;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+  /**
+     * @param  Builder<PaymentProviderAccount>  $query
+     * @return Builder<PaymentProviderAccount>
+     */
+    public function scopeForStore(Builder $query, Store $store): Builder
+    {
+        return $query->where('store_id', $store->id);
+    }
+
+    /**
+     * @param  Builder<PaymentProviderAccount>  $query
+     * @return Builder<PaymentProviderAccount>
+     */
+    public function scopeStripe(Builder $query): Builder
+    {
+        return $query->where('provider', 'stripe');
+    }
+
+    /**
+     * @param  Builder<PaymentProviderAccount>  $query
+     * @return Builder<PaymentProviderAccount>
+     */
+    public function scopeConnect(Builder $query): Builder
+    {
+        return $query->where('connection_type', self::CONNECTION_CONNECT);
+    }
+
+    /**
+     * @param  Builder<PaymentProviderAccount>  $query
+     * @return Builder<PaymentProviderAccount>
+     */
+    public function scopeMode(Builder $query, string $mode): Builder
+    {
+        return $query->where('mode', strtolower($mode));
+    }
+
+    public function maskedProviderAccountId(): ?string
+    {
+        if (! filled($this->provider_account_id)) {
+            return null;
+        }
+
+        $id = (string) $this->provider_account_id;
+        if (strlen($id) <= 8) {
+            return $id;
+        }
+
+        return substr($id, 0, 5).'••••'.substr($id, -4);
     }
 
     public function isReadyForCheckout(): bool

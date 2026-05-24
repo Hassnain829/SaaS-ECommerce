@@ -38,16 +38,30 @@ class Phase5StripeConnectFoundationTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_platform_checkout',
             'payments.stripe.connect_webhook_secret' => 'whsec_connect_foundation',
             'payments.stripe.allow_platform_sandbox_fallback' => true,
+            'payments.stripe.modes' => [
+                'test' => [
+                    'key' => 'pk_test_connect_foundation',
+                    'secret' => 'sk_test_connect_foundation',
+                    'webhook_secret' => 'whsec_platform_checkout',
+                    'connect_webhook_secret' => 'whsec_connect_foundation',
+                ],
+                'live' => [
+                    'key' => null,
+                    'secret' => null,
+                    'webhook_secret' => null,
+                    'connect_webhook_secret' => null,
+                ],
+            ],
         ]);
 
-        $this->app->instance(StripeConnectService::class, new class extends StripeConnectService {
-            public function createOrRetrieveConnectedAccount(Store $store, User $user): PaymentProviderAccount
+        $this->app->instance(StripeConnectService::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripeConnectService {
+            public function createOrRetrieveConnectedAccount(Store $store, User $user, string $mode = 'test'): PaymentProviderAccount
             {
                 $account = PaymentProviderAccount::query()->firstOrCreate(
                     [
                         'store_id' => $store->id,
                         'provider' => 'stripe',
-                        'mode' => 'test',
+                        'mode' => $mode,
                         'connection_type' => 'connect',
                     ],
                     [
@@ -66,14 +80,14 @@ class Phase5StripeConnectFoundationTest extends TestCase
                 PaymentProviderAccount::query()
                     ->where('store_id', $store->id)
                     ->where('provider', 'stripe')
-                    ->where('mode', 'test')
+                    ->where('mode', $mode)
                     ->whereKeyNot($account->id)
                     ->update(['is_default' => false]);
 
                 return $account->fresh();
             }
 
-            public function createAccountOnboardingLink(PaymentProviderAccount $account): string
+            public function createAccountOnboardingLink(PaymentProviderAccount $account, ?string $mode = null): string
             {
                 return 'https://connect.stripe.test/onboarding/'.$account->provider_account_id;
             }
@@ -94,7 +108,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             }
         });
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class extends StripePlatformPaymentProvider {
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
                 $account = $options['provider_account'] ?? null;
@@ -116,7 +130,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
                 );
             }
 
-            public function retrievePaymentIntent(string $providerIntentId): PaymentWebhookResult
+            public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult
             {
                 $intent = PaymentIntent::query()
                     ->where('provider_intent_id', $providerIntentId)
@@ -183,7 +197,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
         ]);
         $this->assertDatabaseHas('security_logs', [
             'store_id' => $store->id,
-            'event_type' => 'stripe_connect_started',
+            'event_type' => 'stripe_connect_test_started',
         ]);
 
         $this->actingAs($owner)
@@ -226,7 +240,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('payment.connection_type', 'connect')
             ->assertJsonPath('payment.provider_account_id', $account->provider_account_id)
-            ->assertJsonPath('payment.connection_label', 'Connected Stripe account');
+            ->assertJsonPath('payment.connection_label', 'Stripe test account connected for this store');
 
         $this->assertDatabaseHas('checkouts', [
             'store_id' => $store->id,
@@ -338,7 +352,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             'payment_reference' => 'pi_connect_checkout_'.$checkout->id,
             'payment_status' => OrderLifecycle::PAYMENT_PAID,
         ]);
-        $this->assertSame('Connected Stripe account', data_get($order->meta, 'platform_checkout.connection_label'));
+        $this->assertSame('Stripe test account connected for this store', data_get($order->meta, 'platform_checkout.connection_label'));
         $this->assertSame($account->provider_account_id, data_get($order->meta, 'platform_checkout.provider_account_id'));
     }
 
@@ -377,7 +391,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
         $this->assertFalse($account->is_default);
         $this->assertDatabaseHas('security_logs', [
             'store_id' => $store->id,
-            'event_type' => 'stripe_provider_disabled',
+            'event_type' => 'stripe_provider_disconnected',
             'severity' => SecurityLog::SEVERITY_WARNING,
         ]);
 

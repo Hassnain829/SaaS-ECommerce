@@ -1174,6 +1174,11 @@ export default function App() {
                 }}
               >
                 <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a' }}>Stripe payment</h3>
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                  Payment mode:{' '}
+                  <strong>{platformPayment.payment?.payment_mode === 'live' ? 'Live' : 'Test'}</strong>
+                  {platformPayment.payment?.payment_mode !== 'live' && ' — sandbox only, no real charges.'}
+                </p>
                 <p style={{ margin: '0.35rem 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }}>
                   Enter a Stripe test card. Try <code>4242 4242 4242 4242</code>, any future date, any CVC.
                   {platformPayment.payment?.connection_label ? ` ${platformPayment.payment.connection_label}.` : ''}
