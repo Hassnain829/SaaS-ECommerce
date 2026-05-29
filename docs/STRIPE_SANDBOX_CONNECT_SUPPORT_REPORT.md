@@ -105,3 +105,40 @@ No new migrations (schema already had `mode` on accounts and intents).
 ## Final Status
 
 **Complete** — acceptance criteria met; full suite and dev storefront build pass.
+
+## Stripe Connect No-Key UX Cleanup
+
+Store owners do not paste Stripe test or live secret keys into the dashboard.
+
+Stripe test and live accounts are connected through Stripe hosted onboarding/account links.
+
+Platform Stripe keys are platform/server configuration only and belong in `.env` or a secret manager controlled by the SaaS/platform owner.
+
+The app stores only connected account IDs, status, capabilities, requirements, and safe metadata in `payment_provider_accounts`.
+
+Normal user-facing UI does not mention `.env`, `STRIPE_*`, or secret-key setup. Technical configuration diagnostics are restricted to Developer diagnostics in local/testing environments only.
+
+### UX changes
+
+- Replaced “Add the live/test Stripe keys” messages with merchant-friendly unavailable copy directing users to contact the platform admin.
+- Connect card buttons renamed to “Connect Stripe test/live account”, “Continue test/live onboarding”, “Refresh test/live status”.
+- Each connect card states: hosted onboarding flow; no secret keys entered in dashboard.
+- Developer diagnostics moved behind `local`/`testing` environment gate; shows `STRIPE_*` configured yes/no without values.
+
+## Stripe Live Platform Configuration
+
+Real live Stripe Connect requires platform live Stripe configuration on the server.
+
+Store owners do not paste live or test Stripe secret keys into the dashboard.
+
+The SaaS/platform owner configures in `.env` or a secret manager:
+
+- `STRIPE_LIVE_KEY`
+- `STRIPE_LIVE_SECRET`
+- `STRIPE_LIVE_WEBHOOK_SECRET`
+- `STRIPE_CONNECT_LIVE_WEBHOOK_SECRET`
+- `STRIPE_CONNECT_LIVE_CLIENT_ID`
+
+Store owners connect through Stripe hosted onboarding. The app stores only connected account IDs, status, capabilities, requirements, and safe metadata in `payment_provider_accounts`.
+
+`STRIPE_LOCAL_MIRROR_TEST_KEYS_FOR_LIVE` is a local/testing convenience only. It must be `false` when real live keys are configured. Placeholder values such as `pk_live_REPLACE_ME` are ignored and do not count as real live config.

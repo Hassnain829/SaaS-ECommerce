@@ -1066,6 +1066,7 @@ Fields:
 
 - Do not store raw card data.
 - Do not ask merchants to paste Stripe secret keys for production connected payments.
+- Platform Stripe keys belong in server `.env`/secret manager (platform owner only). Store owners use Stripe hosted onboarding for test/live connected accounts — never key-paste forms in Payments UI.
 - Use Stripe Connect later for merchant-owned Stripe accounts.
 - Credentials must be encrypted if credentials are ever stored.
 - All provider accounts must be store-scoped.

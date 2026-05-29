@@ -4,6 +4,12 @@ namespace App\Services\Payments;
 
 final class StripeConfig
 {
+    public const LIVE_CONFIG_REAL = 'real';
+
+    public const LIVE_CONFIG_LOCAL_MIRROR = 'local_mirror';
+
+    public const LIVE_CONFIG_MISSING = 'missing';
+
     public function defaultMode(): string
     {
         $mode = strtolower((string) config('payments.default_mode', 'test'));
@@ -13,6 +19,12 @@ final class StripeConfig
 
     public function stripePublicKey(string $mode): ?string
     {
+        $mode = strtolower($mode);
+
+        if ($mode === 'live' && $this->liveKeysMirroredFromTest()) {
+            return $this->stripePublicKey('test');
+        }
+
         $key = (string) ($this->modeConfig($mode)['key'] ?? '');
 
         return $key !== '' ? $key : null;
@@ -20,6 +32,12 @@ final class StripeConfig
 
     public function stripeSecretKey(string $mode): ?string
     {
+        $mode = strtolower($mode);
+
+        if ($mode === 'live' && $this->liveKeysMirroredFromTest()) {
+            return $this->stripeSecretKey('test');
+        }
+
         $secret = (string) ($this->modeConfig($mode)['secret'] ?? '');
 
         return $secret !== '' ? $secret : null;
@@ -54,6 +72,42 @@ final class StripeConfig
     public function isConnectModeConfigured(string $mode): bool
     {
         return $this->isModeConfigured($mode);
+    }
+
+    public function liveKeysMirroredFromTest(): bool
+    {
+        if ($this->hasDedicatedLiveKeys()) {
+            return false;
+        }
+
+        return (bool) config('payments.stripe.live_mirrors_test_keys', false);
+    }
+
+    public function hasDedicatedLiveKeys(): bool
+    {
+        return (bool) config('payments.stripe.live_has_dedicated_env_keys', false);
+    }
+
+    public function liveConfigSource(): string
+    {
+        if ($this->hasDedicatedLiveKeys()) {
+            return self::LIVE_CONFIG_REAL;
+        }
+
+        if ($this->liveKeysMirroredFromTest()) {
+            return self::LIVE_CONFIG_LOCAL_MIRROR;
+        }
+
+        return self::LIVE_CONFIG_MISSING;
+    }
+
+    public function liveConfigSourceLabel(): string
+    {
+        return match ($this->liveConfigSource()) {
+            self::LIVE_CONFIG_REAL => 'Real live configured',
+            self::LIVE_CONFIG_LOCAL_MIRROR => 'Local simulation using test keys',
+            default => 'Missing',
+        };
     }
 
     public function connectRefreshUrl(string $mode): string

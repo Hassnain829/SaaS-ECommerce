@@ -272,3 +272,7 @@ The legacy direct dev order mode is hidden because direct final order creation i
 ## Stripe Sandbox Connect Support Patch
 
 Merchants can now connect a Stripe test/sandbox account separately from a live account. Platform checkout resolves payment mode safely and prevents test/live account mixing. See `docs/STRIPE_SANDBOX_CONNECT_SUPPORT_REPORT.md`.
+
+## Stripe Connect No-Key UX Cleanup
+
+Store owners connect Stripe through hosted onboarding only — never by pasting secret keys. Platform Stripe keys remain server-side platform configuration. See cleanup section in `docs/STRIPE_SANDBOX_CONNECT_SUPPORT_REPORT.md`.

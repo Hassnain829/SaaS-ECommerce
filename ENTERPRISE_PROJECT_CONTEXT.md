@@ -737,6 +737,8 @@ Rules:
 - Store connected account IDs and provider account status.
 - Use hosted Stripe onboarding when Stripe Connect is implemented.
 
+**Stripe Connect no-key UX (Patch B cleanup):** Platform Stripe keys (`STRIPE_TEST_*`, `STRIPE_LIVE_*`) are configured by the SaaS/platform owner in server environment only. Store owners connect test/live Stripe accounts through Stripe hosted onboarding/account links. The dashboard stores connected account IDs and status only — never merchant secret keys. Normal Payments UI must not mention `.env`, `STRIPE_*` variable names, or key-paste instructions; technical config visibility belongs in local/testing Developer diagnostics only.
+
 Future Stripe Connect support should store data in `payment_provider_accounts`, such as:
 
 - provider: `stripe`;

@@ -297,7 +297,7 @@
             <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Payment provider</p>
             <h3 class="mt-1 text-xl font-poppins font-semibold text-[#0F172A]">Stripe</h3>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">
-                Connect separate Stripe test and live accounts for platform checkout. Stripe handles secure onboarding. You do not need to paste secret keys.
+                Connect separate Stripe test and live accounts for platform checkout through secure Stripe hosted onboarding. No Stripe secret keys are entered or stored in this dashboard.
             </p>
         </div>
 
@@ -346,28 +346,35 @@
         </div>
     </section>
 
-    @if($canManagePayments)
+    @if($showDeveloperDiagnostics ?? false)
         <details id="developer-diagnostics" class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
             <summary class="cursor-pointer text-lg font-poppins font-semibold text-[#0F172A]">Developer diagnostics</summary>
+            <p class="mt-2 text-xs text-[#64748B]">Platform/server Stripe configuration only. Store owners connect accounts through Stripe hosted onboarding — they never paste keys here.</p>
             <div class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                @foreach(['test' => 'Test', 'live' => 'Live'] as $modeKey => $modeLabel)
+                @foreach($stripeConfig['diagnostics'] ?? [] as $label => $configured)
                     <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                        <p class="font-semibold text-[#0F172A]">{{ $modeLabel }} publishable key</p>
-                        <p class="mt-1 {{ ($stripeConfig[$modeKey]['publishable_key'] ?? false) ? 'text-[#059669]' : 'text-[#B91C1C]' }}">{{ ($stripeConfig[$modeKey]['publishable_key'] ?? false) ? 'Configured' : 'Missing' }}</p>
-                    </div>
-                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                        <p class="font-semibold text-[#0F172A]">{{ $modeLabel }} webhook</p>
-                        <p class="mt-1 {{ ($stripeConfig[$modeKey]['webhook_secret'] ?? false) ? 'text-[#059669]' : 'text-[#B91C1C]' }}">{{ ($stripeConfig[$modeKey]['webhook_secret'] ?? false) ? 'Configured' : 'Missing' }}</p>
-                    </div>
-                    <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                        <p class="font-semibold text-[#0F172A]">{{ $modeLabel }} connect webhook</p>
-                        <p class="mt-1 {{ ($stripeConfig[$modeKey]['connect_webhook_secret'] ?? false) ? 'text-[#059669]' : 'text-[#B91C1C]' }}">{{ ($stripeConfig[$modeKey]['connect_webhook_secret'] ?? false) ? 'Configured' : 'Missing' }}</p>
+                        <p class="font-semibold text-[#0F172A]">{{ $label }} configured</p>
+                        <p class="mt-1 {{ $configured ? 'text-[#059669]' : 'text-[#B91C1C]' }}">{{ $configured ? 'Yes' : 'No' }}</p>
                     </div>
                 @endforeach
                 <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
                     <p class="font-semibold text-[#0F172A]">Platform sandbox fallback</p>
                     <p class="mt-1 text-[#64748B]">{{ ($stripeConfig['sandbox_fallback'] ?? false) ? 'Enabled for local/testing' : 'Disabled' }}</p>
                 </div>
+                <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
+                    <p class="font-semibold text-[#0F172A]">Live Stripe config</p>
+                    <p class="mt-1 text-[#64748B]">{{ $stripeConfig['live_config_source_label'] ?? 'Missing' }}</p>
+                </div>
+                @if($stripeConfig['live_mirrors_test_keys'] ?? false)
+                    <div class="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 sm:col-span-2 lg:col-span-3">
+                        <p class="font-semibold text-[#92400E]">Local dev: live Stripe uses test platform keys</p>
+                        <p class="mt-1 text-xs text-[#92400E]">Add real STRIPE_LIVE_KEY and STRIPE_LIVE_SECRET to server config for production live Connect. Values are never shown here.</p>
+                    </div>
+                @elseif(($stripeConfig['live_config_source'] ?? 'missing') === 'real')
+                    <div class="rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 sm:col-span-2 lg:col-span-3">
+                        <p class="font-semibold text-[#166534]">Real live Stripe platform config is active on this server.</p>
+                    </div>
+                @endif
             </div>
         </details>
     @endif

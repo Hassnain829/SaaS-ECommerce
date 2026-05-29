@@ -63,6 +63,9 @@ class StripeConnectService
         $raw = method_exists($account, 'toArray') ? $account->toArray() : (array) $account;
 
         return DB::transaction(function () use ($store, $user, $mode, $raw): PaymentProviderAccount {
+            $usesLocalMirror = $mode === PaymentProviderAccount::MODE_LIVE
+                && $this->stripeConfig->liveKeysMirroredFromTest();
+
             $account = PaymentProviderAccount::query()->create([
                 'store_id' => $store->id,
                 'provider' => 'stripe',
@@ -77,6 +80,8 @@ class StripeConnectService
                 'settings' => [
                     'account_type' => 'express',
                     'onboarding_started_at' => now()->toISOString(),
+                    'local_live_key_mirror' => $usesLocalMirror,
+                    'simulated_live' => false,
                 ],
                 'capabilities' => $raw['capabilities'] ?? null,
                 'metadata' => [
@@ -251,8 +256,8 @@ class StripeConnectService
         if (! $this->stripeConfig->isConnectModeConfigured($mode)) {
             throw new \RuntimeException(
                 $mode === PaymentProviderAccount::MODE_LIVE
-                    ? 'Stripe live mode is not configured yet. Add live Stripe keys before connecting a live account.'
-                    : 'Stripe test mode is not configured yet. Add test Stripe keys before connecting a test account.'
+                    ? 'Live Stripe connection is not available on this platform environment yet. Use test mode for now or contact the platform admin.'
+                    : 'Stripe test connection is not available on this platform environment yet. Contact the platform admin.'
             );
         }
     }

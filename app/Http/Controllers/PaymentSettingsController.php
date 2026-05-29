@@ -47,6 +47,8 @@ class PaymentSettingsController extends Controller
         $liveConnectReady = $paymentProviderManager->activeConnectedAccountForStore($store, PlatformPaymentMode::LIVE) !== null;
         $activeConnectAccount = $paymentProviderManager->activeConnectedAccountForStore($store, $platformPaymentMode);
 
+        $canManagePayments = $request->user()?->canManageSettings($store) ?? false;
+
         return view('user_view.payment_settings', [
             'selectedStore' => $store,
             'accounts' => $accounts,
@@ -79,10 +81,26 @@ class PaymentSettingsController extends Controller
                     'publishable_key' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::LIVE)),
                     'webhook_secret' => filled($stripeConfig->stripeWebhookSecret(PlatformPaymentMode::LIVE)),
                     'connect_webhook_secret' => filled($stripeConfig->stripeConnectWebhookSecret(PlatformPaymentMode::LIVE)),
+                    'uses_local_mirror' => $stripeConfig->liveKeysMirroredFromTest(),
+                    'has_real_keys' => $stripeConfig->hasDedicatedLiveKeys(),
+                    'config_source' => $stripeConfig->liveConfigSource(),
                 ],
                 'sandbox_fallback' => $paymentProviderManager->canUsePlatformSandboxFallback(PlatformPaymentMode::TEST),
+                'live_mirrors_test_keys' => $stripeConfig->liveKeysMirroredFromTest(),
+                'live_config_source' => $stripeConfig->liveConfigSource(),
+                'live_config_source_label' => $stripeConfig->liveConfigSourceLabel(),
+                'diagnostics' => [
+                    'STRIPE_TEST_KEY' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::TEST)),
+                    'STRIPE_TEST_SECRET' => filled($stripeConfig->stripeSecretKey(PlatformPaymentMode::TEST)),
+                    'STRIPE_CONNECT_TEST_CLIENT_ID' => filled($stripeConfig->stripeConnectClientId(PlatformPaymentMode::TEST)),
+                    'STRIPE_LIVE_KEY' => $stripeConfig->hasDedicatedLiveKeys(),
+                    'STRIPE_LIVE_SECRET' => $stripeConfig->hasDedicatedLiveKeys(),
+                    'STRIPE_CONNECT_LIVE_CLIENT_ID' => filled($stripeConfig->stripeConnectClientId(PlatformPaymentMode::LIVE))
+                        && $stripeConfig->hasDedicatedLiveKeys(),
+                ],
             ],
-            'canManagePayments' => $request->user()?->canManageSettings($store) ?? false,
+            'canManagePayments' => $canManagePayments,
+            'showDeveloperDiagnostics' => $canManagePayments && app()->environment(['local', 'testing']),
         ]);
     }
 

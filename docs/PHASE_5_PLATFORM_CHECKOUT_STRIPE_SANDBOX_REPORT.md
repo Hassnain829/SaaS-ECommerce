@@ -194,3 +194,7 @@ Platform checkout with Stripe sandbox is implemented, store-scoped, inventory-sa
 ## Stripe Sandbox Connect Support Patch
 
 Merchants can now connect a Stripe test/sandbox account separately from a live account. Platform checkout resolves payment mode safely and prevents test/live account mixing. See `docs/STRIPE_SANDBOX_CONNECT_SUPPORT_REPORT.md`.
+
+## Stripe Connect No-Key UX Cleanup
+
+Store owners connect through Stripe hosted onboarding only. See `docs/STRIPE_SANDBOX_CONNECT_SUPPORT_REPORT.md`.

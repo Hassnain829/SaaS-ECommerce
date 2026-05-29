@@ -24,6 +24,15 @@
         $statusLabel = 'Disabled';
         $statusClass = 'bg-[#FEE2E2] text-[#991B1B]';
     }
+
+    $isLive = ($mode ?? 'test') === 'live';
+    $unavailableMessage = $isLive
+        ? 'Live Stripe connection is not available on this platform environment yet. Use test mode for now or contact the platform admin.'
+        : 'Stripe test connection is not available on this platform environment yet. Contact the platform admin.';
+    $connectButtonLabel = $isLive ? 'Connect Stripe live account' : 'Connect Stripe test account';
+    $continueButtonLabel = $isLive ? 'Continue live onboarding' : 'Continue test onboarding';
+    $refreshButtonLabel = $isLive ? 'Refresh live status' : 'Refresh test status';
+    $reconnectButtonLabel = $isLive ? 'Reconnect Stripe live account' : 'Reconnect Stripe test account';
 @endphp
 
 <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
@@ -35,9 +44,20 @@
         <span class="shrink-0 rounded-full {{ $statusClass }} px-3 py-1 text-xs font-bold uppercase tracking-[.6px]">{{ $statusLabel }}</span>
     </div>
 
+    <ul class="mt-3 space-y-1 text-xs text-[#475569]">
+        <li>You will connect through Stripe hosted onboarding.</li>
+        <li>No Stripe secret keys are entered here.</li>
+    </ul>
+
+    @if($isLive && ($modeConfig['uses_local_mirror'] ?? false))
+        <div class="mt-3 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
+            Local simulation: live Stripe setup is using test platform keys.
+        </div>
+    @endif
+
     @if(! ($modeConfig['connect_configured'] ?? false))
         <div class="mt-4 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
-            Stripe {{ $mode }} mode is not configured on this environment yet. Add the {{ $mode }} Stripe keys before connecting.
+            {{ $unavailableMessage }}
         </div>
     @elseif($account)
         <div class="mt-4 grid gap-3 text-sm md:grid-cols-2">
@@ -61,7 +81,7 @@
 
         @if($needsAction)
             <div class="mt-4 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
-                Stripe needs more account details before this {{ $mode }} account can accept platform checkout payments.
+                Stripe needs more account details before this {{ $isLive ? 'live' : 'test' }} account can accept platform checkout payments.
             </div>
         @endif
 
@@ -70,7 +90,8 @@
         @endif
     @else
         <div class="mt-4 rounded-xl bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
-            No Stripe {{ $mode }} account is connected for this store yet.
+            No Stripe {{ $isLive ? 'live' : 'test' }} account is connected for this store yet.
+            You will be redirected to Stripe to connect your account securely.
         </div>
     @endif
 
@@ -81,27 +102,27 @@
                     <form method="POST" action="{{ $connectRoute }}">
                         @csrf
                         <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">
-                            {{ $accountDisabled ? 'Reconnect '.$mode.' account' : 'Connect '.$mode.' account' }}
+                            {{ $accountDisabled ? $reconnectButtonLabel : $connectButtonLabel }}
                         </button>
                     </form>
                 @endif
             @elseif($accountReady)
                 <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}">
                     @csrf
-                    <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Refresh status</button>
+                    <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">{{ $refreshButtonLabel }}</button>
                 </form>
-                <form method="POST" action="{{ route('settings.payments.stripe.connect.disconnect', $account) }}" onsubmit="return confirm('Disable this Stripe {{ $mode }} account for this store? Existing orders stay unchanged.');">
+                <form method="POST" action="{{ route('settings.payments.stripe.connect.disconnect', $account) }}" onsubmit="return confirm('Disable this Stripe {{ $isLive ? 'live' : 'test' }} account for this store? Existing orders stay unchanged.');">
                     @csrf
                     <button class="h-10 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 text-sm font-semibold text-[#991B1B] hover:bg-[#FEE2E2]">Disconnect</button>
                 </form>
             @else
                 <form method="POST" action="{{ route('settings.payments.stripe.connect.refresh', $account) }}">
                     @csrf
-                    <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">Continue onboarding</button>
+                    <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">{{ $continueButtonLabel }}</button>
                 </form>
                 <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}">
                     @csrf
-                    <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Refresh status</button>
+                    <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">{{ $refreshButtonLabel }}</button>
                 </form>
             @endif
         </div>

@@ -44,14 +44,45 @@ class StripeSandboxConnectSupportTest extends TestCase
             ->assertSeeText('Stripe test account')
             ->assertSeeText('Stripe live account')
             ->assertSeeText('Test mode is for safe sandbox payments. Live mode charges real customers.')
-            ->assertSeeText('Connect separate Stripe test and live accounts for platform checkout.');
+            ->assertSeeText('Connect separate Stripe test and live accounts for platform checkout through secure Stripe hosted onboarding.');
     }
 
-    public function test_missing_live_config_disables_live_connect_with_message(): void
+    public function test_payments_page_never_asks_store_owner_for_stripe_keys(): void
     {
         config([
             'payments.stripe.modes.live.key' => null,
             'payments.stripe.modes.live.secret' => null,
+            'payments.stripe.modes.test.key' => null,
+            'payments.stripe.modes.test.secret' => null,
+        ]);
+
+        [$store, $owner] = $this->ownedStore();
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk();
+
+        $mainUi = Str::before($response->content(), 'id="developer-diagnostics"');
+
+        $this->assertStringNotContainsString('.env', $mainUi);
+        $this->assertStringNotContainsString('STRIPE_LIVE_SECRET', $mainUi);
+        $this->assertStringNotContainsString('STRIPE_TEST_SECRET', $mainUi);
+        $this->assertStringNotContainsString('Add the live Stripe keys', $mainUi);
+        $this->assertStringNotContainsString('Add the test Stripe keys', $mainUi);
+        $this->assertStringContainsString('You will connect through Stripe hosted onboarding', $mainUi);
+        $this->assertStringContainsString('No Stripe secret keys are entered here', $mainUi);
+        $this->assertStringNotContainsString('publishable key', $mainUi);
+        $this->assertStringContainsString('Contact the platform admin', $mainUi);
+    }
+
+    public function test_missing_test_config_shows_merchant_friendly_unavailable_message(): void
+    {
+        config([
+            'payments.stripe.modes.test.key' => null,
+            'payments.stripe.modes.test.secret' => null,
+            'payments.stripe.key' => null,
+            'payments.stripe.secret' => null,
         ]);
 
         [$store, $owner] = $this->ownedStore();
@@ -60,7 +91,141 @@ class StripeSandboxConnectSupportTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.payments.index'))
             ->assertOk()
-            ->assertSeeText('Stripe live mode is not configured on this environment yet');
+            ->assertSeeText('Stripe test connection is not available on this platform environment yet')
+            ->assertDontSeeText('Add the test Stripe keys');
+    }
+
+    public function test_stripe_live_connect_starts_hosted_onboarding(): void
+    {
+        [$store, $owner] = $this->ownedStore();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.payments.stripe.connect.live'))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('payment_provider_accounts', [
+            'store_id' => $store->id,
+            'mode' => 'live',
+            'connection_type' => 'connect',
+        ]);
+    }
+
+    public function test_missing_live_config_disables_live_connect_with_message(): void
+    {
+        config([
+            'payments.stripe.modes.live.key' => null,
+            'payments.stripe.modes.live.secret' => null,
+            'payments.stripe.live_mirrors_test_keys' => false,
+            'payments.stripe.allow_local_live_key_mirror' => false,
+        ]);
+
+        app()->detectEnvironment(fn () => 'production');
+
+        [$store, $owner] = $this->ownedStore();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk()
+            ->assertSeeText('Live Stripe connection is not available on this platform environment yet')
+            ->assertDontSeeText('Add the live Stripe keys');
+
+        app()->detectEnvironment(fn () => 'testing');
+    }
+
+    public function test_local_live_connect_enabled_when_only_test_platform_keys_exist(): void
+    {
+        app()->detectEnvironment(fn () => 'local');
+
+        config([
+            'payments.stripe.live_has_dedicated_env_keys' => false,
+            'payments.stripe.modes.live.key' => null,
+            'payments.stripe.modes.live.secret' => null,
+            'payments.stripe.modes.test.key' => 'pk_test_mirror',
+            'payments.stripe.modes.test.secret' => 'sk_test_mirror',
+            'payments.stripe.live_mirrors_test_keys' => true,
+            'payments.stripe.allow_local_live_key_mirror' => true,
+        ]);
+
+        [$store, $owner] = $this->ownedStore();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk()
+            ->assertSeeText('Connect Stripe live account')
+            ->assertDontSeeText('Live Stripe connection is not available on this platform environment yet');
+    }
+
+    public function test_real_live_keys_override_local_mirror(): void
+    {
+        config([
+            'payments.stripe.live_has_dedicated_env_keys' => true,
+            'payments.stripe.live_mirrors_test_keys' => true,
+            'payments.stripe.allow_local_live_key_mirror' => true,
+            'payments.stripe.modes.live.key' => 'pk_live_real',
+            'payments.stripe.modes.live.secret' => 'sk_live_real',
+        ]);
+
+        $stripeConfig = app(\App\Services\Payments\StripeConfig::class);
+
+        $this->assertTrue($stripeConfig->hasDedicatedLiveKeys());
+        $this->assertFalse($stripeConfig->liveKeysMirroredFromTest());
+        $this->assertSame(\App\Services\Payments\StripeConfig::LIVE_CONFIG_REAL, $stripeConfig->liveConfigSource());
+    }
+
+    public function test_placeholder_live_keys_are_not_treated_as_real_config(): void
+    {
+        config([
+            'payments.stripe.live_has_dedicated_env_keys' => false,
+            'payments.stripe.live_mirrors_test_keys' => false,
+            'payments.stripe.modes.live.key' => 'pk_live_REPLACE_ME',
+            'payments.stripe.modes.live.secret' => 'sk_live_REPLACE_ME',
+        ]);
+
+        $this->assertFalse(app(\App\Services\Payments\StripeConfig::class)->hasDedicatedLiveKeys());
+    }
+
+    public function test_real_live_config_shows_connect_without_local_simulation_copy(): void
+    {
+        config([
+            'payments.stripe.live_has_dedicated_env_keys' => true,
+            'payments.stripe.live_mirrors_test_keys' => false,
+            'payments.stripe.modes.live.key' => 'pk_live_ui',
+            'payments.stripe.modes.live.secret' => 'sk_live_ui',
+        ]);
+
+        [$store, $owner] = $this->ownedStore();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk()
+            ->assertSeeText('Connect Stripe live account')
+            ->assertDontSeeText('Local simulation: live Stripe setup is using test platform keys.');
+    }
+
+    public function test_local_mirror_shows_simulation_copy_on_live_card(): void
+    {
+        app()->detectEnvironment(fn () => 'local');
+
+        config([
+            'payments.stripe.live_has_dedicated_env_keys' => false,
+            'payments.stripe.live_mirrors_test_keys' => true,
+            'payments.stripe.modes.live.key' => 'pk_test_mirror',
+            'payments.stripe.modes.live.secret' => 'sk_test_mirror',
+            'payments.stripe.modes.test.key' => 'pk_test_mirror',
+            'payments.stripe.modes.test.secret' => 'sk_test_mirror',
+        ]);
+
+        [$store, $owner] = $this->ownedStore();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk()
+            ->assertSeeText('Local simulation: live Stripe setup is using test platform keys.');
     }
 
     public function test_store_can_hold_both_test_and_live_connected_accounts(): void
@@ -187,6 +352,8 @@ class StripeSandboxConnectSupportTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_test_platform',
             'payments.stripe.connect_webhook_secret' => 'whsec_test_connect',
             'payments.stripe.allow_platform_sandbox_fallback' => true,
+            'payments.stripe.live_has_dedicated_env_keys' => true,
+            'payments.stripe.live_mirrors_test_keys' => false,
             'payments.stripe.modes' => [
                 'test' => [
                     'key' => 'pk_test_sandbox',

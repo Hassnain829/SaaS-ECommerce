@@ -67,10 +67,49 @@ class Phase5PaymentUxCleanupTest extends TestCase
         $this->assertStringNotContainsString('Platform secret key', $mainCards);
 
         $this->assertStringContainsString('Developer diagnostics', $html);
-        $this->assertStringContainsString('Test webhook', $html);
-        $this->assertStringContainsString('Test connect webhook', $html);
+        $this->assertStringContainsString('STRIPE_TEST_KEY configured', $html);
+        $this->assertStringContainsString('STRIPE_LIVE_SECRET configured', $html);
         $this->assertStringContainsString('Platform sandbox fallback', $html);
         $this->assertStringContainsString('Enabled for local/testing', $html);
+        $this->assertStringNotContainsString('STRIPE_TEST_SECRET', $mainCards);
+        $this->assertStringNotContainsString('Add the live Stripe keys', $mainCards);
+    }
+
+    public function test_production_store_owner_does_not_see_developer_diagnostics(): void
+    {
+        app()->detectEnvironment(fn () => 'production');
+
+        [$store, $owner] = $this->storeWithUser();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk()
+            ->assertDontSee('Developer diagnostics', false)
+            ->assertDontSee('STRIPE_TEST_KEY', false)
+            ->assertDontSee('STRIPE_LIVE_SECRET', false);
+    }
+
+    public function test_payments_page_never_mentions_env_or_key_setup_in_store_owner_ui(): void
+    {
+        [$store, $owner] = $this->storeWithUser();
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk()
+            ->content();
+
+        $storeOwnerUi = Str::before($html, 'id="developer-diagnostics"');
+
+        $this->assertStringNotContainsString('.env', $storeOwnerUi);
+        $this->assertStringNotContainsString('STRIPE_TEST_SECRET', $storeOwnerUi);
+        $this->assertStringNotContainsString('STRIPE_LIVE_SECRET', $storeOwnerUi);
+        $this->assertStringNotContainsString('Add the live Stripe keys', $storeOwnerUi);
+        $this->assertStringNotContainsString('Add the test Stripe keys', $storeOwnerUi);
+        $this->assertStringNotContainsString('type="password"', $storeOwnerUi);
+        $this->assertStringContainsString('You will connect through Stripe hosted onboarding', $storeOwnerUi);
+        $this->assertStringContainsString('No Stripe secret keys are entered here', $storeOwnerUi);
     }
 
     public function test_store_owner_can_enable_external_checkout_mode(): void
@@ -141,10 +180,13 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->get(route('settings.payments.index'))
             ->assertOk()
             ->assertSeeText('Stripe')
-            ->assertSeeText('Connect separate Stripe test and live accounts for platform checkout.')
-            ->assertSeeText('You do not need to paste secret keys.')
+            ->assertSeeText('Connect separate Stripe test and live accounts for platform checkout through secure Stripe hosted onboarding.')
+            ->assertSeeText('You will connect through Stripe hosted onboarding')
+            ->assertSeeText('No Stripe secret keys are entered here')
             ->assertDontSeeText('Paste your Stripe secret key')
-            ->assertDontSeeText('edit .env');
+            ->assertDontSeeText('edit .env')
+            ->assertDontSeeText('Add the live Stripe keys')
+            ->assertDontSeeText('Add the test Stripe keys');
     }
 
     public function test_staff_cannot_change_checkout_mode(): void
