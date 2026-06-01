@@ -1,0 +1,9 @@
+transforming...
+G£τ 31 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.41 kB Gφι gzip:  0.27 kB
+dist/assets/index-CRgq0bhO.css    0.37 kB Gφι gzip:  0.27 kB
+dist/assets/index-ComrSAnd.js   229.08 kB Gφι gzip: 69.64 kB
+G£τ built in 1.32s
+```
