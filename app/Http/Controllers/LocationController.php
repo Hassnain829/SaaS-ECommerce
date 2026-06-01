@@ -156,6 +156,69 @@ class LocationController extends Controller
             'postal_code' => ['nullable', 'string', 'max:40'],
             'country_code' => ['nullable', 'string', 'size:2'],
             'phone' => ['nullable', 'string', 'max:60'],
+            'fulfills_online_orders' => ['nullable', 'boolean'],
+            'pickup_enabled' => ['nullable', 'boolean'],
+            'routing_priority' => ['nullable', 'integer', 'min:1', 'max:9999'],
+            'service_countries' => ['nullable', 'string', 'max:1000'],
+            'service_regions' => ['nullable', 'string', 'max:1000'],
+            'service_postal_patterns' => ['nullable', 'string', 'max:1000'],
         ]);
+
+        $validated['country_code'] = filled($validated['country_code'] ?? null)
+            ? strtoupper((string) $validated['country_code'])
+            : null;
+        $validated['fulfills_online_orders'] = $request->has('fulfills_online_orders')
+            ? $request->boolean('fulfills_online_orders')
+            : true;
+        $validated['pickup_enabled'] = $request->boolean('pickup_enabled');
+        $validated['routing_priority'] = (int) ($validated['routing_priority'] ?? 100);
+        $validated['service_countries'] = $this->normalizeCountries($request->input('service_countries'));
+        $validated['service_regions'] = $this->normalizeList($request->input('service_regions'));
+        $validated['service_postal_patterns'] = $this->normalizeList($request->input('service_postal_patterns'), preserveWildcard: true);
+
+        return $validated;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function normalizeCountries(mixed $value): ?array
+    {
+        $countries = collect($this->normalizeList($value))
+            ->map(fn (string $country): string => match ($country) {
+                'UNITED STATES', 'UNITED STATES OF AMERICA', 'USA' => 'US',
+                'UNITED KINGDOM', 'UK' => 'GB',
+                'CANADA' => 'CA',
+                'PAKISTAN' => 'PK',
+                'UNITED ARAB EMIRATES', 'UAE' => 'AE',
+                default => strlen($country) === 2 ? $country : '',
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $countries === [] ? null : $countries;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function normalizeList(mixed $value, bool $preserveWildcard = false): ?array
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        $items = preg_split('/[\r\n,]+/', (string) $value) ?: [];
+        $normalized = collect($items)
+            ->map(fn ($item): string => strtoupper(trim((string) $item)))
+            ->map(fn (string $item): string => $preserveWildcard ? str_replace(' ', '', $item) : $item)
+            ->filter(fn (string $item): bool => $item !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        return $normalized === [] ? null : $normalized;
     }
 }

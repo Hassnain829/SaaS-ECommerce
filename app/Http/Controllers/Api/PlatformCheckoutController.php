@@ -91,6 +91,7 @@ class PlatformCheckoutController extends Controller
             $checkout,
             (int) $payload['shipping_method_id'],
             $payload['shipping_address'] ?? null,
+            filled($payload['pickup_location_id'] ?? null) ? (int) $payload['pickup_location_id'] : null,
         );
 
         return response()->json($this->checkoutResponse($checkout));
@@ -157,6 +158,7 @@ class PlatformCheckoutController extends Controller
             'currency_code' => ['nullable', 'string', 'max:8'],
             'shipping_total' => ['nullable', 'numeric', 'min:0'],
             'shipping_method_id' => ['nullable', 'integer'],
+            'pickup_location_id' => ['nullable', 'integer'],
             'customer' => ['required', 'array'],
             'customer.email' => ['required', 'email', 'max:255'],
             'customer.first_name' => ['nullable', 'string', 'max:100'],
@@ -237,6 +239,7 @@ class PlatformCheckoutController extends Controller
     {
         return Validator::make($request->all(), [
             'shipping_method_id' => ['required', 'integer'],
+            'pickup_location_id' => ['nullable', 'integer'],
             'shipping_address' => ['nullable', 'array'],
             'shipping_address.address_line1' => ['nullable', 'string', 'max:255'],
             'shipping_address.city' => ['nullable', 'string', 'max:100'],
@@ -257,7 +260,7 @@ class PlatformCheckoutController extends Controller
 
         $stripeConfig ??= app(StripeConfig::class);
 
-        $checkout->loadMissing(['items', 'addresses', 'paymentIntents', 'convertedOrder']);
+        $checkout->loadMissing(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'fulfillmentOriginLocation', 'pickupLocation']);
         $checkout->loadMissing('paymentProviderAccount');
         /** @var PaymentIntent|null $paymentIntent */
         $paymentIntent = $checkout->paymentIntents->sortByDesc('id')->first();
@@ -276,6 +279,22 @@ class PlatformCheckoutController extends Controller
                 'shipping_total' => number_format((float) $checkout->shipping_total, 2, '.', ''),
                 'shipping_method_id' => $checkout->shipping_method_id,
                 'shipping_snapshot' => $checkout->shipping_snapshot,
+                'fulfillment_origin_location_id' => $checkout->fulfillment_origin_location_id,
+                'pickup_location_id' => $checkout->pickup_location_id,
+                'fulfillment_routing_snapshot' => $checkout->fulfillment_routing_snapshot,
+                'fulfillment_origin' => $checkout->fulfillmentOriginLocation ? [
+                    'location_id' => $checkout->fulfillmentOriginLocation->id,
+                    'name' => $checkout->fulfillmentOriginLocation->name,
+                    'type' => $checkout->fulfillmentOriginLocation->type,
+                ] : null,
+                'pickup_location' => $checkout->pickupLocation ? [
+                    'id' => $checkout->pickupLocation->id,
+                    'name' => $checkout->pickupLocation->name,
+                    'type' => $checkout->pickupLocation->type,
+                    'city' => $checkout->pickupLocation->city,
+                    'state' => $checkout->pickupLocation->state,
+                    'postal_code' => $checkout->pickupLocation->postal_code,
+                ] : null,
                 'tax_total' => number_format((float) $checkout->tax_total, 2, '.', ''),
                 'discount_total' => number_format((float) $checkout->discount_total, 2, '.', ''),
                 'grand_total' => number_format((float) $checkout->grand_total, 2, '.', ''),
@@ -329,6 +348,9 @@ class PlatformCheckoutController extends Controller
             'estimated_min_days' => $option['estimated_min_days'],
             'estimated_max_days' => $option['estimated_max_days'],
             'carrier_name' => $option['carrier_name'],
+            'fulfillment_origin' => $option['fulfillment_origin'] ?? null,
+            'pickup_required' => (bool) ($option['pickup_required'] ?? false),
+            'pickup_locations' => $option['pickup_locations'] ?? [],
         ];
     }
 

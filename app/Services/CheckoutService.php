@@ -6,7 +6,9 @@ use App\Models\Checkout;
 use App\Models\Customer;
 use App\Models\PaymentIntent;
 use App\Models\ProductVariant;
+use App\Models\ShippingMethod;
 use App\Models\Store;
+use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Payments\PaymentProviderManager;
@@ -28,6 +30,7 @@ class CheckoutService
         private readonly PaymentProviderManager $paymentProviderManager,
         private readonly CheckoutEventRecorder $eventRecorder,
         private readonly DeliveryOptionService $deliveryOptionService,
+        private readonly FulfillmentOriginRouter $originRouter,
     ) {
     }
 
@@ -57,9 +60,11 @@ class CheckoutService
             $currencyCode = strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD'));
             $shippingAddress = $payload['shipping_address'];
             $shippingMethodId = filled($payload['shipping_method_id'] ?? null) ? (int) $payload['shipping_method_id'] : null;
+            $pickupLocationId = filled($payload['pickup_location_id'] ?? null) ? (int) $payload['pickup_location_id'] : null;
             $shippingSnapshot = null;
             $shippingTotal = 0.0;
             $subtotal = $this->subtotal($items);
+            $shippingMethod = null;
 
             if ($shippingMethodId) {
                 $option = $this->deliveryOptionService->optionForMethodId(
@@ -79,7 +84,21 @@ class CheckoutService
                 $shippingTotal = $this->money($option['amount']);
                 $shippingSnapshot = $option['snapshot'];
                 $shippingSnapshot['selected_at'] = now()->toISOString();
+                $shippingMethod = ShippingMethod::query()
+                    ->with('carrierAccount.carrier')
+                    ->where('store_id', $store->id)
+                    ->whereKey($shippingMethodId)
+                    ->first();
             }
+
+            $routingResult = $this->originRouter->routeForCheckout(
+                $store,
+                $items,
+                $shippingAddress,
+                $shippingMethod,
+                $pickupLocationId,
+            );
+            $routingSnapshot = $routingResult->toSnapshot();
 
             $totals = $this->totals($items, $shippingTotal);
             $billingSameAsShipping = $this->billingSameAsShipping($payload);
@@ -97,6 +116,9 @@ class CheckoutService
                 'shipping_total' => $totals['shipping'],
                 'shipping_method_id' => $shippingMethodId,
                 'shipping_snapshot' => $shippingSnapshot,
+                'fulfillment_origin_location_id' => $routingResult->originLocation->id,
+                'pickup_location_id' => $routingResult->pickupLocation?->id,
+                'fulfillment_routing_snapshot' => $routingSnapshot,
                 'tax_total' => $totals['tax'],
                 'grand_total' => $totals['grand_total'],
                 'payment_provider' => $provider,
@@ -106,6 +128,7 @@ class CheckoutService
                     'received_at' => now()->toISOString(),
                     'server_totals' => true,
                     'shipping' => $shippingSnapshot,
+                    'fulfillment_routing' => $routingSnapshot,
                     'payment_connection_type' => $providerAccount->connection_type,
                     'payment_provider_account_id' => $providerAccount->id,
                     'connected_account_id' => $providerAccount->provider_account_id,
@@ -133,7 +156,7 @@ class CheckoutService
                     (int) $item['quantity'],
                     'checkout',
                     (string) $checkout->id,
-                    null,
+                    $routingResult->originLocation,
                     $checkout->expires_at,
                     [
                         'source' => self::SOURCE,
@@ -146,7 +169,7 @@ class CheckoutService
                             'checkout_number' => $checkout->checkout_number,
                             'variant_id' => $variant->id,
                         ],
-                    ]
+                    ],
                 );
                 $reservationCount++;
 
@@ -182,6 +205,13 @@ class CheckoutService
                 'Checkout created',
                 'A platform checkout was created from the storefront.',
                 ['source_channel' => $checkout->source_channel]
+            );
+            $this->eventRecorder->record(
+                $checkout,
+                'fulfillment.origin_selected',
+                'Fulfillment origin selected',
+                'Best eligible origin selected: '.$routingResult->originLocation->name.'.',
+                $routingSnapshot
             );
             $this->eventRecorder->record(
                 $checkout,
@@ -261,7 +291,7 @@ class CheckoutService
                 ]
             );
 
-            return $checkout->load(['items', 'addresses', 'events', 'paymentIntents']);
+            return $checkout->load(['items', 'addresses', 'events', 'paymentIntents', 'fulfillmentOriginLocation', 'pickupLocation']);
         });
     }
 

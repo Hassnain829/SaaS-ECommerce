@@ -30,6 +30,9 @@ class Checkout extends Model
         'shipping_total',
         'shipping_method_id',
         'shipping_snapshot',
+        'fulfillment_origin_location_id',
+        'pickup_location_id',
+        'fulfillment_routing_snapshot',
         'tax_total',
         'grand_total',
         'payment_provider',
@@ -46,6 +49,7 @@ class Checkout extends Model
         'discount_total' => 'decimal:2',
         'shipping_total' => 'decimal:2',
         'shipping_snapshot' => 'array',
+        'fulfillment_routing_snapshot' => 'array',
         'tax_total' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'metadata' => 'array',
@@ -86,6 +90,16 @@ class Checkout extends Model
     public function shippingMethod(): BelongsTo
     {
         return $this->belongsTo(ShippingMethod::class);
+    }
+
+    public function fulfillmentOriginLocation(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'fulfillment_origin_location_id');
+    }
+
+    public function pickupLocation(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'pickup_location_id');
     }
 
     public function paymentIntents(): HasMany

@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Services\Channels\ChannelOwnershipService;
+use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Support\OrderLifecycle;
@@ -50,6 +51,7 @@ class ExternalOrderSyncService
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
         private readonly ChannelOwnershipService $channelOwnership,
+        private readonly FulfillmentOriginRouter $originRouter,
     ) {
     }
 
@@ -104,6 +106,10 @@ class ExternalOrderSyncService
             $ownershipSnapshot = $this->channelOwnership->externalCheckoutConfig($store);
             $inventoryOwner = $this->channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL);
             $usesPlatformInventory = $inventoryOwner === ChannelOwnershipService::OWNER_PLATFORM;
+            $routingResult = $usesPlatformInventory
+                ? $this->originRouter->routeForCheckout($store, $items, $payload['shipping_address'])
+                : null;
+            $routingSnapshot = $routingResult?->toSnapshot();
 
             $order = Order::query()->create([
                 'store_id' => $store->id,
@@ -139,6 +145,7 @@ class ExternalOrderSyncService
                 'meta' => array_filter([
                     'shipping' => $shippingSnapshot !== [] ? $shippingSnapshot : null,
                     'fulfillment' => $fulfillmentSnapshot !== [] ? $fulfillmentSnapshot : null,
+                    'fulfillment_routing' => $routingSnapshot,
                     'channel_ownership' => [
                         'checkout_owner' => $ownershipSnapshot['checkout_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
                         'payment_owner' => $ownershipSnapshot['payment_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
@@ -175,7 +182,7 @@ class ExternalOrderSyncService
                         (int) $item['quantity'],
                         'external_order',
                         (string) $order->id,
-                        null,
+                        $routingResult?->originLocation,
                         null,
                         [
                             'order' => $order,
@@ -268,6 +275,15 @@ class ExternalOrderSyncService
                 ],
             );
             if ($usesPlatformInventory) {
+                if (is_array($routingSnapshot) && $routingSnapshot !== []) {
+                    $this->eventRecorder->record(
+                        $order,
+                        OrderLifecycle::EVENT_FULFILLMENT_ORIGIN_SELECTED,
+                        'Fulfillment origin selected',
+                        'This order will be fulfilled from '.(data_get($routingSnapshot, 'origin_name') ?: 'the selected fulfillment location').'.',
+                        $routingSnapshot,
+                    );
+                }
                 $this->eventRecorder->record(
                     $order,
                     OrderLifecycle::EVENT_INVENTORY_RESERVED,

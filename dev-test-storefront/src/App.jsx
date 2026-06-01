@@ -76,6 +76,7 @@ export default function App() {
   const [platformCheckoutDraft, setPlatformCheckoutDraft] = useState(null);
   const [deliveryOptions, setDeliveryOptions] = useState([]);
   const [selectedDeliveryOptionId, setSelectedDeliveryOptionId] = useState('');
+  const [selectedPickupLocationId, setSelectedPickupLocationId] = useState('');
   const [platformPayment, setPlatformPayment] = useState(null);
   const [stripeFormReady, setStripeFormReady] = useState(false);
   const [stripePaymentProcessing, setStripePaymentProcessing] = useState(false);
@@ -99,7 +100,24 @@ export default function App() {
     setPlatformCheckoutDraft(null);
     setDeliveryOptions([]);
     setSelectedDeliveryOptionId('');
+    setSelectedPickupLocationId('');
   };
+
+  useEffect(() => {
+    if (!selectedDeliveryOption?.pickup_required) {
+      setSelectedPickupLocationId('');
+      return;
+    }
+
+    if (selectedDeliveryOption.pickup_locations?.length === 1) {
+      setSelectedPickupLocationId(String(selectedDeliveryOption.pickup_locations[0].id));
+      return;
+    }
+
+    if (!selectedDeliveryOption.pickup_locations?.some((location) => String(location.id) === String(selectedPickupLocationId))) {
+      setSelectedPickupLocationId('');
+    }
+  }, [selectedDeliveryOption, selectedPickupLocationId]);
 
   useEffect(() => {
     if (!platformPayment?.payment?.publishable_key || !platformPayment?.payment?.client_secret || !cardContainerRef.current) {
@@ -361,6 +379,9 @@ export default function App() {
         if (!selectedDeliveryOptionId) {
           throw new Error('Choose a delivery option before showing the Stripe payment form.');
         }
+        if (selectedDeliveryOption?.pickup_required && selectedDeliveryOption.pickup_locations?.length > 1 && !selectedPickupLocationId) {
+          throw new Error('Choose a pickup location before showing the Stripe payment form.');
+        }
 
         const selectRes = await fetch(`${checkoutBase}/${platformCheckoutDraft.id}/shipping-method`, {
           method: 'POST',
@@ -371,6 +392,7 @@ export default function App() {
           },
           body: JSON.stringify({
             shipping_method_id: selectedDeliveryOptionId,
+            pickup_location_id: selectedDeliveryOption?.pickup_required ? selectedPickupLocationId || null : null,
             shipping_address: shippingAddressPayload(),
           }),
         });
@@ -1132,6 +1154,28 @@ export default function App() {
                         <span style={{ color: '#64748b', fontSize: '0.76rem' }}>
                           {[option.delivery_speed_label, option.description].filter(Boolean).join(' - ') || 'Delivery option'}
                         </span>
+                        {option.fulfillment_origin?.name && (
+                          <span style={{ display: 'block', marginTop: 4, color: '#475569', fontSize: '0.74rem' }}>
+                            Fulfillment origin: {option.fulfillment_origin.name}
+                          </span>
+                        )}
+                        {option.pickup_required && option.pickup_locations?.length > 0 && String(option.id) === String(selectedDeliveryOptionId) && (
+                          <span style={{ display: 'block', marginTop: 8 }}>
+                            <span style={{ display: 'block', marginBottom: 4, color: '#475569', fontSize: '0.74rem' }}>Pickup location</span>
+                            <select
+                              value={selectedPickupLocationId}
+                              onChange={(event) => setSelectedPickupLocationId(event.target.value)}
+                              style={{ width: '100%', padding: '0.35rem 0.45rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                            >
+                              <option value="">Choose pickup location</option>
+                              {option.pickup_locations.map((location) => (
+                                <option key={location.id} value={location.id}>
+                                  {[location.name, location.city, location.state, location.postal_code].filter(Boolean).join(' - ')}
+                                </option>
+                              ))}
+                            </select>
+                          </span>
+                        )}
                       </span>
                       <strong style={{ color: '#0f172a' }}>{money(option.amount)}</strong>
                     </label>

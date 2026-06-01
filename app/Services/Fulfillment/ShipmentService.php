@@ -56,6 +56,11 @@ class ShipmentService
                 ]);
             }
 
+            $routedOriginId = (int) data_get($order->meta, 'fulfillment_routing.origin_location_id');
+            $originSelection = $routedOriginId > 0
+                ? ((int) ($origin?->id ?? 0) === $routedOriginId ? 'routed_origin' : 'manual_override')
+                : ($origin ? 'manual_selection' : 'not_selected');
+
             $shipment = Shipment::query()->create([
                 'store_id' => $order->store_id,
                 'order_id' => $order->id,
@@ -70,9 +75,12 @@ class ShipmentService
                 'package_count' => max(1, (int) ($payload['package_count'] ?? 1)),
                 'package_weight' => $this->decimalOrNull($payload['package_weight'] ?? null),
                 'shipping_cost' => $this->decimalOrNull($payload['shipping_cost'] ?? null),
-                'metadata' => [
+                'metadata' => array_filter([
                     'note' => $this->blankToNull($payload['note'] ?? null),
-                ],
+                    'routed_origin_location_id' => $routedOriginId > 0 ? $routedOriginId : null,
+                    'selected_origin_location_id' => $origin?->id,
+                    'origin_selection' => $originSelection,
+                ], fn ($value): bool => $value !== null),
             ]);
 
             foreach ($shipmentLines as $orderItemId => $quantity) {
@@ -92,6 +100,9 @@ class ShipmentService
                     'shipment_id' => $shipment->id,
                     'shipment_number' => $shipment->shipment_number,
                     'item_count' => count($shipmentLines),
+                    'routed_origin_location_id' => $routedOriginId > 0 ? $routedOriginId : null,
+                    'selected_origin_location_id' => $origin?->id,
+                    'origin_selection' => $originSelection,
                 ],
                 $actor
             );

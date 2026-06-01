@@ -41,6 +41,7 @@
                     <h2 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Inventory locations</h2>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations are places where you store or fulfill inventory, such as a warehouse, shop, stock room, restaurant branch, or third-party storage.</p>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations control where stock is stored. Markets and currencies control where and how you sell. Market-specific selling settings will be added later.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Use service areas to control which destinations this location can fulfill. This routing is based on configured service areas, stock availability, and your priority settings.</p>
 
                     <div class="mt-5 grid gap-4 md:grid-cols-2">
                         <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
@@ -93,6 +94,33 @@
                                 <span class="text-xs font-semibold text-[#64748B]">Country code</span>
                                 <input name="country_code" value="{{ old('country_code') }}" maxlength="2" placeholder="US" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
                             </label>
+                            <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
+                                <input type="hidden" name="fulfills_online_orders" value="0">
+                                <input type="checkbox" name="fulfills_online_orders" value="1" @checked(old('fulfills_online_orders', '1'))>
+                                Fulfill online orders
+                            </label>
+                            <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
+                                <input type="hidden" name="pickup_enabled" value="0">
+                                <input type="checkbox" name="pickup_enabled" value="1" @checked(old('pickup_enabled'))>
+                                Offer pickup
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
+                                <input name="routing_priority" type="number" min="1" max="9999" value="{{ old('routing_priority', 100) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Service countries</span>
+                                <input name="service_countries" value="{{ old('service_countries') }}" placeholder="US, CA" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Service regions</span>
+                                <input name="service_regions" value="{{ old('service_regions') }}" placeholder="CA, TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Service postal patterns</span>
+                                <input name="service_postal_patterns" value="{{ old('service_postal_patterns') }}" placeholder="60601, 606*" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                <span class="text-[11px] text-[#94A3B8]">Use exact postal codes or prefix patterns such as 60601 or 606*.</span>
+                            </label>
                         </div>
                         <button type="submit" class="mt-4 inline-flex rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Add location</button>
                     </form>
@@ -117,6 +145,7 @@
                             <th class="px-5 py-3">Location</th>
                             <th class="px-5 py-3">Type</th>
                             <th class="px-5 py-3">Address</th>
+                            <th class="px-5 py-3">Routing</th>
                             <th class="px-5 py-3">Default</th>
                             <th class="px-5 py-3">Status</th>
                             <th class="px-5 py-3 text-right">Actions</th>
@@ -132,6 +161,20 @@
                                 <td class="px-5 py-4 align-top text-[#334155]">{{ $typeLabels[$location->type] ?? \Illuminate\Support\Str::title(str_replace('_', ' ', $location->type)) }}</td>
                                 <td class="px-5 py-4 align-top text-[#64748B]">
                                     {{ collect([$location->address_line1, $location->city, $location->state, $location->postal_code, $location->country_code])->filter()->implode(', ') ?: 'No address saved' }}
+                                </td>
+                                <td class="px-5 py-4 align-top text-[#64748B]">
+                                    <div class="space-y-1">
+                                        <p class="text-xs font-semibold text-[#334155]">Priority {{ $location->routing_priority ?? 100 }}</p>
+                                        <p class="text-xs">{{ $location->fulfills_online_orders ? 'Online fulfillment' : 'Not used for online fulfillment' }}</p>
+                                        <p class="text-xs">{{ $location->pickup_enabled ? 'Pickup offered' : 'Pickup off' }}</p>
+                                        <p class="text-xs">Countries: {{ collect($location->service_countries)->filter()->implode(', ') ?: ($location->country_code ?: 'Store default') }}</p>
+                                        @if (collect($location->service_regions)->filter()->isNotEmpty())
+                                            <p class="text-xs">Regions: {{ collect($location->service_regions)->filter()->implode(', ') }}</p>
+                                        @endif
+                                        @if (collect($location->service_postal_patterns)->filter()->isNotEmpty())
+                                            <p class="text-xs">Postal: {{ collect($location->service_postal_patterns)->filter()->implode(', ') }}</p>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="px-5 py-4 align-top">
                                     @if ($location->is_default)
@@ -185,6 +228,33 @@
                                                     <label class="space-y-1">
                                                         <span class="text-xs font-semibold text-[#64748B]">Country code</span>
                                                         <input name="country_code" value="{{ old('country_code', $location->country_code) }}" maxlength="2" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                    </label>
+                                                    <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
+                                                        <input type="hidden" name="fulfills_online_orders" value="0">
+                                                        <input type="checkbox" name="fulfills_online_orders" value="1" @checked(old('fulfills_online_orders', $location->fulfills_online_orders))>
+                                                        Fulfill online orders
+                                                    </label>
+                                                    <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
+                                                        <input type="hidden" name="pickup_enabled" value="0">
+                                                        <input type="checkbox" name="pickup_enabled" value="1" @checked(old('pickup_enabled', $location->pickup_enabled))>
+                                                        Offer pickup
+                                                    </label>
+                                                    <label class="space-y-1">
+                                                        <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
+                                                        <input name="routing_priority" type="number" min="1" max="9999" value="{{ old('routing_priority', $location->routing_priority ?? 100) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                                    </label>
+                                                    <label class="space-y-1">
+                                                        <span class="text-xs font-semibold text-[#64748B]">Service countries</span>
+                                                        <input name="service_countries" value="{{ old('service_countries', collect($location->service_countries)->filter()->implode(', ')) }}" placeholder="US, CA" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                    </label>
+                                                    <label class="space-y-1">
+                                                        <span class="text-xs font-semibold text-[#64748B]">Service regions</span>
+                                                        <input name="service_regions" value="{{ old('service_regions', collect($location->service_regions)->filter()->implode(', ')) }}" placeholder="CA, TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                    </label>
+                                                    <label class="space-y-1">
+                                                        <span class="text-xs font-semibold text-[#64748B]">Service postal patterns</span>
+                                                        <input name="service_postal_patterns" value="{{ old('service_postal_patterns', collect($location->service_postal_patterns)->filter()->implode(', ')) }}" placeholder="60601, 606*" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                        <span class="text-[11px] text-[#94A3B8]">Use exact postal codes or prefix patterns such as 60601 or 606*.</span>
                                                     </label>
                                                     <div class="sm:col-span-2">
                                                         <button class="rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-bold text-white">Save location</button>

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Checkout;
 use App\Models\InventoryReservation;
+use App\Models\Location;
 use App\Models\Order;
 use App\Models\PaymentCapture;
 use App\Models\PaymentIntent as LocalPaymentIntent;
@@ -81,7 +82,7 @@ class CheckoutConversionService
 
             /** @var Checkout|null $checkout */
             $checkout = Checkout::query()
-                ->with(['items.variant', 'addresses', 'customer', 'store'])
+                ->with(['items.variant', 'addresses', 'customer', 'store', 'fulfillmentOriginLocation', 'pickupLocation'])
                 ->with('paymentProviderAccount')
                 ->whereKey($paymentIntent->checkout_id)
                 ->lockForUpdate()
@@ -107,6 +108,8 @@ class CheckoutConversionService
             $connectionLabel = $connectionType === 'connect'
                 ? ($paymentMode === 'live' ? 'Stripe live account connected for this store' : 'Stripe test account connected for this store')
                 : 'Platform test mode';
+            $routingSnapshot = $checkout->fulfillment_routing_snapshot
+                ?: data_get($checkout->metadata, 'fulfillment_routing');
             $order = Order::query()->create([
                 'store_id' => $checkout->store_id,
                 'customer_id' => $customer?->id,
@@ -140,6 +143,7 @@ class CheckoutConversionService
                 'confirmed_at' => now(),
                 'meta' => [
                     'shipping' => $checkout->shipping_snapshot,
+                    'fulfillment_routing' => $routingSnapshot,
                     'platform_checkout' => [
                         'checkout_id' => $checkout->id,
                         'checkout_number' => $checkout->checkout_number,
@@ -208,6 +212,7 @@ class CheckoutConversionService
 
             if ($reservations->isEmpty()) {
                 $reservations = collect();
+                $originLocation = $this->checkoutOriginLocation($checkout, $routingSnapshot);
                 foreach ($checkout->items as $checkoutItem) {
                     if (! $checkoutItem->variant) {
                         continue;
@@ -219,7 +224,7 @@ class CheckoutConversionService
                         (int) $checkoutItem->quantity,
                         'checkout',
                         (string) $checkout->id,
-                        null,
+                        $originLocation,
                         null,
                         [
                             'order' => $order,
@@ -291,6 +296,15 @@ class CheckoutConversionService
                     'provider_account_id' => $providerAccount?->provider_account_id,
                 ]
             );
+            if (is_array($routingSnapshot) && $routingSnapshot !== []) {
+                $this->orderEventRecorder->record(
+                    $order,
+                    OrderLifecycle::EVENT_FULFILLMENT_ORIGIN_SELECTED,
+                    'Fulfillment origin selected',
+                    'This order will be fulfilled from '.(data_get($routingSnapshot, 'origin_name') ?: 'the selected fulfillment location').'.',
+                    $routingSnapshot
+                );
+            }
             $this->orderEventRecorder->record(
                 $order,
                 OrderLifecycle::EVENT_INVENTORY_DEDUCTED,
@@ -388,5 +402,25 @@ class CheckoutConversionService
         $zeroDecimal = in_array(strtolower($currency), ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'], true);
 
         return (int) round($amount * ($zeroDecimal ? 1 : 100));
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $routingSnapshot
+     */
+    private function checkoutOriginLocation(Checkout $checkout, ?array $routingSnapshot): ?Location
+    {
+        if ($checkout->fulfillmentOriginLocation) {
+            return $checkout->fulfillmentOriginLocation;
+        }
+
+        $locationId = (int) data_get($routingSnapshot, 'origin_location_id');
+        if ($locationId <= 0) {
+            return null;
+        }
+
+        return Location::query()
+            ->where('store_id', $checkout->store_id)
+            ->whereKey($locationId)
+            ->first();
     }
 }

@@ -36,6 +36,12 @@ class Location extends Model
         'phone',
         'is_default',
         'is_active',
+        'fulfills_online_orders',
+        'pickup_enabled',
+        'routing_priority',
+        'service_countries',
+        'service_regions',
+        'service_postal_patterns',
         'created_by',
         'updated_by',
     ];
@@ -43,6 +49,12 @@ class Location extends Model
     protected $casts = [
         'is_default' => 'boolean',
         'is_active' => 'boolean',
+        'fulfills_online_orders' => 'boolean',
+        'pickup_enabled' => 'boolean',
+        'routing_priority' => 'integer',
+        'service_countries' => 'array',
+        'service_regions' => 'array',
+        'service_postal_patterns' => 'array',
     ];
 
     public function store(): BelongsTo
@@ -63,6 +75,16 @@ class Location extends Model
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class, 'origin_location_id');
+    }
+
+    public function checkoutOrigins(): HasMany
+    {
+        return $this->hasMany(Checkout::class, 'fulfillment_origin_location_id');
+    }
+
+    public function pickupCheckouts(): HasMany
+    {
+        return $this->hasMany(Checkout::class, 'pickup_location_id');
     }
 
     public function createdBy(): BelongsTo

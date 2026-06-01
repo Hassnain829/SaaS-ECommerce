@@ -1955,6 +1955,27 @@ Add real courier integrations after manual fulfillment and shipping methods are 
 
 Do not start 6C until 6A and 6B are complete.
 
+### 6C-0A — Nearest eligible fulfillment origin routing
+
+Before live carrier APIs, the platform must choose the best eligible fulfillment origin from configured store locations.
+
+This routing is service-area and stock based. It does not calculate physical distance, latitude/longitude, geocoding, miles, or kilometers. Optional coordinate/geocoding-based routing belongs to 6C-0B.
+
+Implemented/required behavior:
+
+- locations can opt into online fulfillment;
+- locations can opt into store pickup;
+- locations have routing priority;
+- locations can define service countries, regions, and postal patterns;
+- platform checkout stores a fulfillment routing snapshot;
+- checkout reservations are placed at the selected origin;
+- selected shipping/pickup changes can reroute reservations safely;
+- external checkout sync routes only when dashboard inventory owns stock;
+- orders copy the routing snapshot into order metadata;
+- order detail preselects the routed origin for manual shipment creation.
+
+Customer/store-owner wording must say "nearest eligible fulfillment location", "best eligible origin", "fulfillment origin", "service area routing", or "stock-aware routing". Do not claim distance-based routing until 6C-0B exists.
+
 ### Future features
 
 - DHL sandbox;

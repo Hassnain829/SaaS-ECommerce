@@ -21,6 +21,10 @@ class DefaultLocationService
         return DB::transaction(function () use ($store, $actor): Location {
             $location = $this->ensureDefaultLocation($store, $actor);
             $updates = $this->blankAddressUpdates($location, $store);
+            $updates = [
+                ...$updates,
+                ...$this->blankFulfillmentUpdates($location, $store),
+            ];
 
             if ($updates !== []) {
                 $location->update([
@@ -118,13 +122,17 @@ class DefaultLocationService
             'country_code' => $this->storeCountryCode($store),
             'is_default' => true,
             'is_active' => true,
+            'fulfills_online_orders' => true,
+            'pickup_enabled' => false,
+            'routing_priority' => 100,
+            'service_countries' => $this->storeCountryCode($store) ? [$this->storeCountryCode($store)] : null,
             'created_by' => $actor?->id,
             'updated_by' => $actor?->id,
         ]);
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     private function blankAddressUpdates(Location $location, Store $store): array
     {
@@ -141,6 +149,33 @@ class DefaultLocationService
             if (filled($value) && blank($location->{$field})) {
                 $updates[$field] = $value;
             }
+        }
+
+        return $updates;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function blankFulfillmentUpdates(Location $location, Store $store): array
+    {
+        $updates = [];
+        $countryCode = $this->storeCountryCode($store);
+
+        if ($location->routing_priority === null) {
+            $updates['routing_priority'] = 100;
+        }
+
+        if ($location->fulfills_online_orders === null) {
+            $updates['fulfills_online_orders'] = true;
+        }
+
+        if ($location->pickup_enabled === null) {
+            $updates['pickup_enabled'] = false;
+        }
+
+        if ($countryCode && blank($location->service_countries)) {
+            $updates['service_countries'] = [$countryCode];
         }
 
         return $updates;
@@ -165,7 +200,7 @@ class DefaultLocationService
 
     private function storeCountryCode(Store $store): ?string
     {
-        $value = $this->storeSetting($store, ['country_code', 'business_country_code', 'store_country_code']);
+        $value = $this->storeSetting($store, ['country_code', 'business_country_code', 'store_country_code', 'primary_market']);
 
         if (! $value) {
             return null;
@@ -173,6 +208,13 @@ class DefaultLocationService
 
         $normalized = strtoupper(trim($value));
 
-        return strlen($normalized) === 2 ? $normalized : null;
+        return match ($normalized) {
+            'UNITED STATES', 'UNITED STATES OF AMERICA', 'USA' => 'US',
+            'UNITED KINGDOM', 'UK' => 'GB',
+            'CANADA' => 'CA',
+            'PAKISTAN' => 'PK',
+            'UNITED ARAB EMIRATES', 'UAE' => 'AE',
+            default => strlen($normalized) === 2 ? $normalized : null,
+        };
     }
 }

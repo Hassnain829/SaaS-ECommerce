@@ -1027,6 +1027,8 @@ The platform should eventually decide which location can fulfill the order based
 - carrier availability;
 - store-owner routing preference.
 
+Phase 6C-0A implements the first routing layer: nearest eligible fulfillment origin routing based on configured service areas, stock availability, pickup eligibility, and store-owner priority. It is not physical distance routing. Do not describe it as geocoded or mile/km based; optional coordinate/geocoding-based routing belongs to a later phase.
+
 ### Scenario 3 — Multiple separate stores
 
 Example:
@@ -1330,6 +1332,13 @@ Build second:
 - simple fallback if no method is available.
 
 ### Phase 6C — Carrier API Integrations and Automation
+
+Build first:
+
+- service-area and stock-aware fulfillment origin routing;
+- pickup location selection for checkout pickup methods;
+- checkout/order routing snapshots;
+- shipment origin prefill from the routed order origin.
 
 Build later:
 

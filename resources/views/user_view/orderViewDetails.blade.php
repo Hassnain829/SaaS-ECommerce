@@ -60,6 +60,9 @@
         $selectedDeliverySpeed = data_get($shippingSnapshot, 'delivery_speed_label');
         $estimatedMinDays = data_get($shippingSnapshot, 'estimated_min_days');
         $estimatedMaxDays = data_get($shippingSnapshot, 'estimated_max_days');
+        $fulfillmentRouting = data_get($order->meta, 'fulfillment_routing', []);
+        $routedOriginLocationId = (int) data_get($fulfillmentRouting, 'origin_location_id');
+        $pickupLocationName = data_get($fulfillmentRouting, 'pickup_name');
         $isOrderExternallyManaged = $isOrderExternallyManaged ?? false;
         $externalFulfillmentSnapshot = is_array($externalFulfillmentSnapshot ?? null) ? $externalFulfillmentSnapshot : [];
         $externalShipmentsMeta = is_array($externalShipmentsMeta ?? null) ? $externalShipmentsMeta : [];
@@ -571,13 +574,22 @@
                         <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="mt-5 space-y-4 rounded-xl border border-slate-200 bg-white p-4">
                             @csrf
                             <p class="font-semibold text-slate-900">Create shipment</p>
+                            @if ($routedOriginLocationId || $pickupLocationName)
+                                <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs leading-relaxed text-indigo-900">
+                                    Fulfillment origin selected by service area routing{{ $routedOriginLocationId ? ': '.($fulfillmentLocations->firstWhere('id', $routedOriginLocationId)?->name ?? data_get($fulfillmentRouting, 'origin_name', 'Selected location')) : '' }}.
+                                    @if ($pickupLocationName)
+                                        Pickup location selected: {{ $pickupLocationName }}.
+                                    @endif
+                                    You can override the ship-from location before creating the shipment.
+                                </div>
+                            @endif
                             <div class="grid gap-3">
                                 <label class="space-y-1">
                                     <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ship from</span>
                                     <select name="origin_location_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                         <option value="">No location selected</option>
                                         @foreach ($fulfillmentLocations as $location)
-                                            <option value="{{ $location->id }}">{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
+                                            <option value="{{ $location->id }}" @selected((string) old('origin_location_id', $routedOriginLocationId ?: '') === (string) $location->id)>{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
                                         @endforeach
                                     </select>
                                 </label>
@@ -664,7 +676,7 @@
                                         <select name="origin_location_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                             <option value="">No location selected</option>
                                             @foreach ($fulfillmentLocations as $location)
-                                                <option value="{{ $location->id }}">{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
+                                                <option value="{{ $location->id }}" @selected((string) old('origin_location_id', $routedOriginLocationId ?: '') === (string) $location->id)>{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
                                             @endforeach
                                         </select>
                                     </label>

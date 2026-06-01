@@ -41,6 +41,7 @@ final class OrderLifecycle
     public const EVENT_PAYMENT_FAILED = 'payment.failed';
     public const EVENT_CHECKOUT_COMPLETED = 'checkout.completed';
     public const EVENT_FULFILLMENT_STATUS_CHANGED = 'fulfillment.status_changed';
+    public const EVENT_FULFILLMENT_ORIGIN_SELECTED = 'fulfillment.origin_selected';
     public const EVENT_INVENTORY_RESERVED = 'inventory.reserved';
     public const EVENT_INVENTORY_DEDUCTED = 'inventory.deducted';
     public const EVENT_INVENTORY_EXTERNAL_MANAGED = 'inventory.external_managed';
@@ -101,6 +102,7 @@ final class OrderLifecycle
         self::EVENT_PAYMENT_FAILED => 'Payment failed',
         self::EVENT_CHECKOUT_COMPLETED => 'Checkout completed',
         self::EVENT_FULFILLMENT_STATUS_CHANGED => 'Fulfillment status changed',
+        self::EVENT_FULFILLMENT_ORIGIN_SELECTED => 'Fulfillment origin selected',
         self::EVENT_INVENTORY_RESERVED => 'Inventory reserved',
         self::EVENT_INVENTORY_DEDUCTED => 'Inventory deducted',
         self::EVENT_INVENTORY_EXTERNAL_MANAGED => 'Inventory managed externally',
