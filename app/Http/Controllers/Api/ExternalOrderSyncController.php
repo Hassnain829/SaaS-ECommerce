@@ -36,9 +36,10 @@ class ExternalOrderSyncController extends Controller
             ]);
         }
 
-        $payload = $this->validatedPayload($request);
-        $requestHash = $this->requestHash($payload);
         $idempotencyKey = trim((string) $request->header('Idempotency-Key', ''));
+        $payload = $this->validatedPayload($request);
+        $this->assertExternalOrderIdentityPresent($payload);
+        $requestHash = $this->requestHash($payload);
 
         if ($idempotencyKey !== '') {
             if (strlen($idempotencyKey) > 191) {
@@ -95,6 +96,7 @@ class ExternalOrderSyncController extends Controller
     private function validatedPayload(Request $request): array
     {
         $validator = Validator::make($request->all(), [
+            'external_order_id' => ['nullable', 'string', 'max:191'],
             'external_order_number' => ['nullable', 'string', 'max:191'],
             'external_checkout_reference' => ['nullable', 'string', 'max:191'],
             'payment_status' => ['required', 'string', Rule::in([
@@ -207,6 +209,20 @@ class ExternalOrderSyncController extends Controller
     /**
      * @param  array<string, mixed>  $payload
      */
+    private function assertExternalOrderIdentityPresent(array $payload): void
+    {
+        if (filled($payload['external_order_id'] ?? null) || filled($payload['external_order_number'] ?? null)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'external_order' => 'External order sync requires external_order_id or external_order_number. Idempotency-Key is supported as replay protection but cannot be the only order identity.',
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     private function requestHash(array $payload): string
     {
         $normalized = $this->sortRecursive($payload);
@@ -264,6 +280,7 @@ class ExternalOrderSyncController extends Controller
                 'id' => $order->id,
                 'order_number' => $order->order_number,
                 'external_order_number' => $order->external_order_number,
+                'external_order_id' => $order->external_order_id,
                 'external_checkout_reference' => $order->external_checkout_reference,
                 'status' => $order->status,
                 'payment_status' => $order->payment_status,

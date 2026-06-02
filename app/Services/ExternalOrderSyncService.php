@@ -61,25 +61,9 @@ class ExternalOrderSyncService
      */
     public function sync(Store $store, array $payload, string $requestHash): array
     {
-        if (filled($payload['external_order_number'] ?? null)) {
-            $existing = Order::query()
-                ->where('store_id', $store->id)
-                ->where('order_source', self::SOURCE)
-                ->where('channel', self::CHANNEL)
-                ->where('external_order_number', $payload['external_order_number'])
-                ->first();
-
-            if ($existing) {
-                $existingHash = data_get($existing->meta, 'external_checkout.request_hash');
-                if (is_string($existingHash) && hash_equals($existingHash, $requestHash)) {
-                    return [
-                        'order' => $existing->load(['items', 'addresses', 'customer', 'events']),
-                        'created' => false,
-                    ];
-                }
-
-                throw new ExternalOrderConflictException('An order with this external order number already exists for a different request.');
-            }
+        $existingResult = $this->resolveExistingExternalOrder($store, $payload, $requestHash);
+        if ($existingResult !== null) {
+            return $existingResult;
         }
 
         $rawPaymentStatus = (string) ($payload['payment_status'] ?? '');
@@ -116,6 +100,7 @@ class ExternalOrderSyncService
                 'customer_id' => $customer->id,
                 'order_number' => $this->orderNumberGenerator->generate($store),
                 'external_order_number' => $payload['external_order_number'] ?? null,
+                'external_order_id' => $payload['external_order_id'] ?? null,
                 'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
                 'status' => $orderStatus,
                 'payment_status' => $paymentStatus,
@@ -157,6 +142,7 @@ class ExternalOrderSyncService
                         'request_hash' => $requestHash,
                         'received_at' => now()->toISOString(),
                         'raw_payment_status' => $rawPaymentStatus,
+                        'external_order_id' => $payload['external_order_id'] ?? null,
                         'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
                         'discounts' => $payload['discounts'] ?? [],
                     ],
@@ -335,6 +321,49 @@ class ExternalOrderSyncService
                 'created' => true,
             ];
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{order: Order, created: bool}|null
+     */
+    private function resolveExistingExternalOrder(Store $store, array $payload, string $requestHash): ?array
+    {
+        $existing = null;
+
+        if (filled($payload['external_order_id'] ?? null)) {
+            $existing = Order::query()
+                ->where('store_id', $store->id)
+                ->where('order_source', self::SOURCE)
+                ->where('channel', self::CHANNEL)
+                ->where('external_order_id', $payload['external_order_id'])
+                ->first();
+        } elseif (filled($payload['external_order_number'] ?? null)) {
+            $existing = Order::query()
+                ->where('store_id', $store->id)
+                ->where('order_source', self::SOURCE)
+                ->where('channel', self::CHANNEL)
+                ->where('external_order_number', $payload['external_order_number'])
+                ->first();
+        }
+
+        if (! $existing) {
+            return null;
+        }
+
+        $existingHash = data_get($existing->meta, 'external_checkout.request_hash');
+        if (is_string($existingHash) && hash_equals($existingHash, $requestHash)) {
+            return [
+                'order' => $existing->load(['items', 'addresses', 'customer', 'events']),
+                'created' => false,
+            ];
+        }
+
+        $reference = filled($payload['external_order_id'] ?? null)
+            ? 'external order id'
+            : 'external order number';
+
+        throw new ExternalOrderConflictException("An order with this {$reference} already exists for a different request.");
     }
 
     /**

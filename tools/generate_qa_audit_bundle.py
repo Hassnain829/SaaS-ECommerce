@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "ENTERPRISE_QA_AUDIT_BUNDLE.md"
+OUT = ROOT / "docs" / "audit" / "ENTERPRISE_QA_AUDIT_BUNDLE.md"
 
 SECRET_PATTERNS = [
     re.compile(r"sk_(live|test)_[A-Za-z0-9]+"),

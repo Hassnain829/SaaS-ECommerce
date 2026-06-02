@@ -21,6 +21,7 @@ class Order extends Model
         'customer_id',
         'order_number',
         'external_order_number',
+        'external_order_id',
         'external_checkout_reference',
         'status',
         'fulfillment_status',

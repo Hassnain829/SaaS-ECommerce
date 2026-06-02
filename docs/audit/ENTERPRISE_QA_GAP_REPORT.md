@@ -1,20 +1,43 @@
 # Enterprise QA Gap Report
 
 Read-only analysis from audit bundle + source inspection.  
-Branch: `main` · Commit: `54a2f8d` · Step 1 tests: **426 passed**  
-Generated: 2026-05-24
+Branch: `main` · Commit: `54a2f8d` · Step 1 tests: **426 passed** · Step 3 tests: **442 passed**  
+Generated: 2026-05-24 · **Step 3 remediation:** 2026-05-24 · **Step 3C:** 2026-05-24 — see `docs/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`
+
+---
+
+## Step 3C remediation status (strict external order identity)
+
+| Item | Step 3 | Step 3C |
+|------|--------|---------|
+| Dedup without any identity | 422 if missing Idempotency-Key **and** external id/number | Unchanged |
+| Idempotency-Key only | **Allowed** (Step 3) | **Rejected** — requires `external_order_id` or `external_order_number` |
+| Idempotency-Key + external identity | Supported | Supported (optional replay protection) |
+| QA audit artifacts | Project root | **`docs/audit/`** |
+
+---
+
+## Step 3 remediation status (must-fix before 6C-1)
+
+| Finding | Step 2 status | Step 3 status |
+|---------|---------------|---------------|
+| QA-001 External order dedup | Confirmed gap | **Fixed** — Step 3: dedup validation + `external_order_id`; Step 3C: **external_order_id or external_order_number required**; Idempotency-Key optional only; 10 tests |
+| QA-007 Routing test depth | Confirmed gap | **Fixed** — 9 hardening tests; no new routing features |
+
+**Phase 6C-1 can proceed** on must-fix items. Remaining Step 2 items (QA-002, QA-004, QA-006) are not Step 3 blockers.
 
 ---
 
 ## Executive verdict
 
-- **Can development continue to Phase 6C-1?** **YES WITH CONDITIONS**
+- **Can development continue to Phase 6C-1?** **YES** (must-fix QA-001 and QA-007 addressed in Step 3)
 - **Critical blockers:** None confirmed in code review or existing test suite.
-- **High-priority blockers:**
-  - External order sync can create duplicate orders when callers omit both `Idempotency-Key` and `external_order_number` (MySQL unique index allows multiple NULLs).
-  - Phase 6C-0A origin routing has thin negative/concurrency test coverage relative to carrier-phase dependency on stable paid-order → origin → shipment flows.
+- **High-priority blockers (Step 3 resolved):**
+  - ~~External order sync duplicate risk without dedup identity~~ → **fixed**
+  - ~~Phase 6C-0A thin routing tests~~ → **fixed**
+- **Remaining high-priority (not Step 3):**
   - `DashboardController` remains a large multi-domain surface (~1,219 lines) with uneven inline authorization patterns on GET routes.
-- **Recommended next action:** Run Step 3 hardening focused on external-sync dedup guarantees, routing edge-case tests, and permission/read-route alignment — then proceed to Phase 6C-1 carrier sandbox behind those guardrails.
+- **Recommended next action:** Proceed to Phase 6C-1 carrier sandbox; address QA-002/004 in parallel hardening if desired before beta/live.
 
 ---
 
@@ -38,7 +61,7 @@ Generated: 2026-05-24
 
 **Severity:** High  
 **Area:** External checkout / order sync  
-**Status:** Confirmed gap  
+**Status:** Fixed in Phase Q Step 3 (2026-05-24) — was confirmed gap  
 **Evidence:**
 - `ExternalOrderSyncController::store()` — idempotency is optional (`Idempotency-Key` header); sync proceeds without it.
 - `ExternalOrderSyncService::sync()` — service-level dedup runs only when `external_order_number` is filled (lines 64–83); otherwise always creates a new order.
@@ -173,7 +196,7 @@ Generated: 2026-05-24
 
 **Severity:** High  
 **Area:** Shipping / origin routing  
-**Status:** Confirmed gap (test depth)  
+**Status:** Fixed in Phase Q Step 3 (2026-05-24) — was confirmed gap (test depth)  
 **Evidence:**
 - `tests/Feature/Phase6NearestEligibleOriginRoutingTest.php` — 5 tests (service-area selection, pickup reroute, exact-stock reservation math, order/shipment snapshot, external inventory owner split).
 - `FulfillmentOriginRouter` — postal/service-area scoring, not lat/lng (correct for 6C-0A scope).

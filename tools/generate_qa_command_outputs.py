@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "ENTERPRISE_QA_COMMAND_OUTPUTS.md"
+OUT = ROOT / "docs" / "audit" / "ENTERPRISE_QA_COMMAND_OUTPUTS.md"
 
 
 def run(cmd: list[str], cwd: Path | None = None, timeout: int = 600) -> str:

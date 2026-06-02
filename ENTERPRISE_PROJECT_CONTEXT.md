@@ -682,7 +682,7 @@ This is the closest match to the current `dev-test-storefront` concept.
 
 External orders should store:
 
-- `external_order_number`;
+- `external_order_id` or `external_order_number` (at least one required on create);
 - `external_checkout_reference`;
 - `payment_status`;
 - `payment_gateway`;
@@ -1028,6 +1028,10 @@ The platform should eventually decide which location can fulfill the order based
 - store-owner routing preference.
 
 Phase 6C-0A implements the first routing layer: nearest eligible fulfillment origin routing based on configured service areas, stock availability, pickup eligibility, and store-owner priority. It is not physical distance routing. Do not describe it as geocoded or mile/km based; optional coordinate/geocoding-based routing belongs to a later phase.
+
+**Phase Q Step 3 (2026-05-24):** Must-fix QA hardening completed — external order sync dedup and 6C-0A routing negative/edge tests expanded. See `docs/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`.
+
+**Phase Q Step 3C (2026-05-24):** Strict external order identity — `external_order_id` or `external_order_number` is **required** for external order creation; `Idempotency-Key` is optional replay protection only and cannot be the sole identity. QA audit artifacts live under `docs/audit/`. Safe to proceed to Phase 6C-1 carrier sandbox.
 
 ### Scenario 3 — Multiple separate stores
 

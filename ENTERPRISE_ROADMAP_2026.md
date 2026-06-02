@@ -1976,6 +1976,12 @@ Implemented/required behavior:
 
 Customer/store-owner wording must say "nearest eligible fulfillment location", "best eligible origin", "fulfillment origin", "service area routing", or "stock-aware routing". Do not claim distance-based routing until 6C-0B exists.
 
+**Phase Q Step 3 gate (2026-05-24):** QA-001 external dedup and QA-007 routing hardening tests complete (`docs/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`).
+
+**Phase Q Step 3C (2026-05-24):** External order creation requires `external_order_id` or `external_order_number`; `Idempotency-Key` alone is rejected. QA audit bundle/gap/risk files archived under `docs/audit/`.
+
+**Next:** Phase 6C-1 carrier sandbox (not implemented).
+
 ### Future features
 
 - DHL sandbox;
