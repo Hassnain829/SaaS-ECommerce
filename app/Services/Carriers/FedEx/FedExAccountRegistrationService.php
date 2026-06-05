@@ -8,6 +8,7 @@ use App\Models\Store;
 use App\Services\Carriers\CarrierApiEventLogger;
 use App\Services\Carriers\DTO\CarrierApiResult;
 use Illuminate\Support\Arr;
+use RuntimeException;
 
 class FedExAccountRegistrationService
 {
@@ -47,13 +48,9 @@ class FedExAccountRegistrationService
             );
         }
 
-        $requestSummary = [
-            'endpoint' => $registrationPath,
-            'account_number' => (string) ($accountDetails['provider_account_number'] ?? $account->provider_account_number),
-            'company_name' => (string) ($accountDetails['company_name'] ?? ''),
-            'city' => (string) ($accountDetails['city'] ?? ''),
-            'country_code' => (string) ($accountDetails['country_code'] ?? ''),
-        ];
+        $accountNumber = $this->resolveAccountNumber($account, $accountDetails);
+        $payload = $this->buildV2Payload($accountNumber, $accountDetails);
+        $requestSummary = $this->buildRequestSummary($registrationPath, $accountNumber, $payload, $accountDetails);
 
         $event = $this->eventLogger->start(
             store: $store,
@@ -64,23 +61,16 @@ class FedExAccountRegistrationService
             environment: $environment,
         );
 
-        $payload = [
-            'customerName' => (string) ($accountDetails['company_name'] ?? ''),
-            'accountNumber' => [
-                'key' => '',
-                'value' => (string) ($accountDetails['provider_account_number'] ?? $account->provider_account_number),
-            ],
-            'address' => [
-                'streetLines' => array_values(array_filter([
-                    (string) ($accountDetails['address_line1'] ?? ''),
-                ])),
-                'city' => (string) ($accountDetails['city'] ?? ''),
-                'stateOrProvinceCode' => (string) ($accountDetails['state'] ?? ''),
-                'postalCode' => (string) ($accountDetails['postal_code'] ?? ''),
-                'countryCode' => strtoupper((string) ($accountDetails['country_code'] ?? '')),
-                'residential' => (bool) ($accountDetails['residential'] ?? false),
-            ],
-        ];
+        if ($accountNumber === '' || strlen($accountNumber) !== 9) {
+            $result = CarrierApiResult::failure(
+                message: 'FedEx account number must be 9 digits.',
+                code: 'invalid_account_number',
+                requestSummary: $requestSummary,
+            );
+            $this->eventLogger->complete($event, $result);
+
+            return $result;
+        }
 
         $result = $this->httpClient->postJson(
             environment: $environment,
@@ -132,7 +122,7 @@ class FedExAccountRegistrationService
             }
         } else {
             $result = CarrierApiResult::failure(
-                message: $result->errorMessage ?? 'FedEx account registration failed.',
+                message: $this->registrationFailureMessage($result, $accountNumber),
                 code: $result->errorCode,
                 requestId: $result->requestId,
                 durationMs: $result->durationMs,
@@ -144,5 +134,174 @@ class FedExAccountRegistrationService
         $this->eventLogger->complete($event, $result);
 
         return $result;
+    }
+
+    /**
+     * Real registration payload for explicit developer use in local/testing only.
+     * Never persisted to the database or shown in normal merchant UI.
+     *
+     * @return array<string, mixed>
+     */
+    public function debugRegistrationPayload(CarrierAccount $account): array
+    {
+        $this->assertDebugEnvironment();
+
+        $details = $this->registrationDetailsForAccount($account);
+        $accountNumber = $this->resolveAccountNumber($account, $details);
+
+        return $this->buildV2Payload($accountNumber, $details);
+    }
+
+    /**
+     * Redacted registration payload for FedEx Developer Portal API Validation.
+     *
+     * @return array<string, mixed>
+     */
+    public function redactedRegistrationPayload(CarrierAccount $account): array
+    {
+        $this->assertDebugEnvironment();
+
+        $payload = $this->debugRegistrationPayload($account);
+        $accountNumber = (string) ($payload['accountNumber'] ?? '');
+
+        if ($accountNumber !== '') {
+            $payload['accountNumber'] = strlen($accountNumber) >= 4
+                ? str_repeat('*', max(0, strlen($accountNumber) - 4)).substr($accountNumber, -4)
+                : str_repeat('*', strlen($accountNumber));
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function registrationDetailsForAccount(CarrierAccount $account): array
+    {
+        return array_merge($account->registrationDetails(), [
+            'provider_account_number' => $account->provider_account_number
+                ?: data_get($account->settings, 'registration.provider_account_number'),
+            'residential' => (bool) data_get($account->settings, 'registration.residential', false),
+        ]);
+    }
+
+    private function assertDebugEnvironment(): void
+    {
+        if (! app()->environment(['local', 'testing'])) {
+            throw new RuntimeException('FedEx registration debug payload is only available in local/testing.');
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $accountDetails
+     */
+    private function resolveAccountNumber(CarrierAccount $account, array $accountDetails): string
+    {
+        $rawAccountNumber = $account->provider_account_number
+            ?: data_get($account->settings, 'registration.provider_account_number')
+            ?: data_get($accountDetails, 'provider_account_number')
+            ?: data_get($accountDetails, 'account_number');
+
+        return preg_replace('/\D+/', '', (string) $rawAccountNumber);
+    }
+
+    /**
+     * @param  array<string, mixed>  $accountDetails
+     * @return array<string, mixed>
+     */
+    private function buildV2Payload(string $accountNumber, array $accountDetails): array
+    {
+        $customerName = trim((string) (
+            $accountDetails['company_name']
+            ?? $accountDetails['contact_name']
+            ?? ''
+        ));
+
+        $residentialSetting = (bool) data_get($accountDetails, 'residential', false);
+        $address = [
+            'streetLines' => array_values(array_filter([
+                trim((string) ($accountDetails['address_line1'] ?? '')),
+            ])),
+            'city' => strtoupper(trim((string) ($accountDetails['city'] ?? ''))),
+            'stateOrProvinceCode' => strtoupper(trim((string) ($accountDetails['state'] ?? ''))),
+            'postalCode' => trim((string) ($accountDetails['postal_code'] ?? '')),
+            'countryCode' => strtoupper(trim((string) ($accountDetails['country_code'] ?? 'US'))),
+        ];
+
+        return [
+            'customerName' => $customerName,
+            'accountNumber' => $accountNumber,
+            'address' => $this->applyRegistrationResidential($address, $residentialSetting),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $address
+     * @return array<string, mixed>
+     */
+    private function applyRegistrationResidential(array $address, bool $residentialSetting): array
+    {
+        $mode = $this->config->accountRegistrationResidentialMode();
+
+        if ($mode === 'boolean') {
+            $address['residential'] = $residentialSetting;
+        } elseif ($mode === 'string') {
+            $address['residential'] = $residentialSetting ? 'true' : 'false';
+        }
+
+        return $address;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $accountDetails
+     * @return array<string, mixed>
+     */
+    private function buildRequestSummary(
+        string $registrationPath,
+        string $accountNumber,
+        array $payload,
+        array $accountDetails,
+    ): array {
+        $residentialSetting = (bool) data_get($accountDetails, 'residential', false);
+        $residentialMode = $this->config->accountRegistrationResidentialMode();
+        $residentialSent = array_key_exists('residential', $payload['address'] ?? []);
+
+        return [
+            'endpoint' => $registrationPath,
+            'account_number_present' => $accountNumber !== '',
+            'account_number_digits_len' => strlen($accountNumber),
+            'account_number_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
+            'customer_name_present' => filled($payload['customerName'] ?? null),
+            'customer_name_length' => strlen((string) ($payload['customerName'] ?? '')),
+            'street_lines_count' => count($payload['address']['streetLines'] ?? []),
+            'city' => $payload['address']['city'] ?? null,
+            'city_present' => filled($payload['address']['city'] ?? null),
+            'state_or_province_code' => $payload['address']['stateOrProvinceCode'] ?? null,
+            'state_present' => filled($payload['address']['stateOrProvinceCode'] ?? null),
+            'postal_code' => $payload['address']['postalCode'] ?? null,
+            'postal_code_present' => filled($payload['address']['postalCode'] ?? null),
+            'country_code' => $payload['address']['countryCode'] ?? null,
+            'residential_setting' => $residentialSetting,
+            'residential_sent' => $residentialSent,
+            'residential_mode' => $residentialMode,
+            'payload_root_keys' => array_keys($payload),
+            'address_keys' => array_keys($payload['address'] ?? []),
+        ];
+    }
+
+    private function registrationFailureMessage(CarrierApiResult $result, string $accountNumber): string
+    {
+        $httpStatus = (int) ($result->responseSummary['http_status'] ?? 0);
+
+        if ($httpStatus === 422) {
+            return 'FedEx rejected one of the registration fields. Confirm the account owner name and billing address exactly match FedEx records. If the details are correct, this FedEx account may not be eligible for Integrator Credential Registration without FedEx support.';
+        }
+
+        if ($httpStatus === 400 && strlen($accountNumber) === 9) {
+            return 'FedEx rejected the account registration details. Confirm the 9-digit account number, account owner name, and billing address exactly match FedEx records.';
+        }
+
+        return $result->errorMessage ?? 'FedEx account registration failed.';
     }
 }

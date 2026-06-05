@@ -70,6 +70,10 @@ class CarrierAccount extends Model
 
     public const CONNECTION_FAILED = 'failed';
 
+    public const CONNECTION_BLOCKED_BY_FEDEX = 'blocked_by_fedex';
+
+    public const CONNECTION_SANDBOX_PLATFORM_FALLBACK = 'sandbox_platform_fallback';
+
     public const CONNECTION_DISABLED = 'disabled';
 
     public const CONNECTION_STATUSES = [
@@ -78,6 +82,8 @@ class CarrierAccount extends Model
         self::CONNECTION_PENDING_VALIDATION,
         self::CONNECTION_CONNECTED,
         self::CONNECTION_FAILED,
+        self::CONNECTION_BLOCKED_BY_FEDEX,
+        self::CONNECTION_SANDBOX_PLATFORM_FALLBACK,
         self::CONNECTION_DISABLED,
     ];
 
@@ -169,6 +175,21 @@ class CarrierAccount extends Model
         return $this->connection_status === self::CONNECTION_CONNECTED;
     }
 
+    public function isBlockedByFedEx(): bool
+    {
+        return $this->connection_status === self::CONNECTION_BLOCKED_BY_FEDEX;
+    }
+
+    public function isSandboxPlatformFallback(): bool
+    {
+        return $this->connection_status === self::CONNECTION_SANDBOX_PLATFORM_FALLBACK;
+    }
+
+    public function usesSandboxPlatformFallback(): bool
+    {
+        return (bool) data_get($this->settings, 'sandbox_platform_fallback', false);
+    }
+
     /**
      * @param  array<string, mixed>  $capabilities
      */
@@ -190,6 +211,38 @@ class CarrierAccount extends Model
             'connection_status' => self::CONNECTION_FAILED,
             'last_error_code' => $code,
             'last_error_message' => $message,
+        ])->save();
+    }
+
+    public function markBlockedByFedEx(string $message, ?string $code = null): void
+    {
+        $this->forceFill([
+            'connection_status' => self::CONNECTION_BLOCKED_BY_FEDEX,
+            'last_error_code' => $code,
+            'last_error_message' => $message,
+        ])->save();
+    }
+
+    /**
+     * @param  array<string, mixed>  $capabilities
+     */
+    public function markSandboxPlatformFallback(array $capabilities = []): void
+    {
+        $this->forceFill([
+            'connection_status' => self::CONNECTION_SANDBOX_PLATFORM_FALLBACK,
+            'status' => self::STATUS_ENABLED,
+            'last_verified_at' => now(),
+            'last_error_code' => null,
+            'last_error_message' => null,
+            'credentials_encrypted' => null,
+            'capabilities' => $capabilities !== [] ? $capabilities : [
+                'rates' => true,
+                'labels' => false,
+                'tracking' => false,
+                'sandbox_connection' => true,
+                'sandbox_platform_fallback' => true,
+                'merchant_owned_connection' => false,
+            ],
         ])->save();
     }
 

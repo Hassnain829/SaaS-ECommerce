@@ -10,6 +10,10 @@ use App\Services\Carriers\DTO\CarrierConnectionTestResult;
 
 class FedExCarrierProvider implements CarrierProviderInterface
 {
+    private const BLOCKED_BY_FEDEX_MESSAGE = 'FedEx rejected Credential Registration. This account may require FedEx support or Integrator enablement.';
+
+    private const FALLBACK_WARNING = 'Local sandbox fallback: this uses platform FedEx sandbox credentials only. It is not a production merchant-owned FedEx connection.';
+
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExAccountRegistrationService $registrationService,
@@ -41,6 +45,8 @@ class FedExCarrierProvider implements CarrierProviderInterface
         $account->loadMissing('store');
         $steps = [];
         $registered = false;
+        $useFallback = $account->usesSandboxPlatformFallback()
+            && $this->config->allowsSandboxPlatformFallback();
 
         $platformEvent = $this->eventLogger->start(
             store: $account->store,
@@ -70,14 +76,16 @@ class FedExCarrierProvider implements CarrierProviderInterface
             );
         }
 
+        if ($useFallback) {
+            return $this->completeSandboxPlatformFallback($account, $steps);
+        }
+
         $platformToken = [
             'access_token' => (string) ($platformResult->data['access_token'] ?? ''),
         ];
 
         if (! $account->hasMerchantCredentials()) {
-            $details = array_merge($account->registrationDetails(), [
-                'provider_account_number' => $account->provider_account_number,
-            ]);
+            $details = $this->registrationService->registrationDetailsForAccount($account);
 
             if (! filled($details['provider_account_number'] ?? null)) {
                 return CarrierConnectionTestResult::failed(
@@ -99,6 +107,17 @@ class FedExCarrierProvider implements CarrierProviderInterface
                 : CarrierApiEvent::STATUS_FAILED;
 
             if (! $registration->success) {
+                if ($this->isCredentialRegistrationBlocked($registration)) {
+                    $account->markBlockedByFedEx(self::BLOCKED_BY_FEDEX_MESSAGE, $registration->errorCode);
+
+                    return CarrierConnectionTestResult::blockedByFedEx(
+                        'FedEx platform credentials are valid, but Credential Registration was rejected by FedEx.',
+                        $registration->errorCode,
+                        $steps,
+                        self::BLOCKED_BY_FEDEX_MESSAGE,
+                    );
+                }
+
                 $account->markFailed(
                     $registration->errorMessage ?? 'FedEx account registration failed.',
                     $registration->errorCode,
@@ -159,6 +178,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
             'labels' => false,
             'tracking' => false,
             'sandbox_connection' => true,
+            'merchant_owned_connection' => true,
         ];
 
         $account->markConnected($capabilities);
@@ -171,9 +191,15 @@ class FedExCarrierProvider implements CarrierProviderInterface
         );
     }
 
-    public function supportsRates(): bool
+    public function supportsRates(?CarrierAccount $account = null): bool
     {
-        return false;
+        if ($account === null) {
+            return false;
+        }
+
+        return $account->isSandboxPlatformFallback()
+            && $account->isSandbox()
+            && app()->environment(['local', 'testing']);
     }
 
     public function supportsLabels(): bool
@@ -184,5 +210,36 @@ class FedExCarrierProvider implements CarrierProviderInterface
     public function supportsTracking(): bool
     {
         return false;
+    }
+
+    /**
+     * @param  array<string, string>  $steps
+     */
+    private function completeSandboxPlatformFallback(CarrierAccount $account, array $steps): CarrierConnectionTestResult
+    {
+        $steps[CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION] = 'skipped_fallback';
+        $steps[CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN] = 'skipped_fallback';
+
+        $capabilities = [
+            'rates' => true,
+            'labels' => false,
+            'tracking' => false,
+            'sandbox_connection' => true,
+            'sandbox_platform_fallback' => true,
+            'merchant_owned_connection' => false,
+        ];
+
+        $account->markSandboxPlatformFallback($capabilities);
+
+        return CarrierConnectionTestResult::sandboxPlatformFallback(
+            self::FALLBACK_WARNING,
+            $capabilities,
+            $steps,
+        );
+    }
+
+    private function isCredentialRegistrationBlocked(\App\Services\Carriers\DTO\CarrierApiResult $registration): bool
+    {
+        return (int) ($registration->responseSummary['http_status'] ?? 0) === 422;
     }
 }

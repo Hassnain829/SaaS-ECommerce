@@ -8,9 +8,11 @@ use App\Models\CarrierApiEvent;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Services\Carriers\CarrierProviderManager;
+use App\Services\Carriers\FedEx\FedExAccountRegistrationService;
 use App\Services\Carriers\FedEx\FedExConfig;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Services\SecurityLogRecorder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -57,7 +59,10 @@ class ShippingSettingsController extends Controller
             'fedExPlatformConfigured' => $fedExConfig->isConfigured(),
             'fedExEnabled' => $fedExConfig->isEnabled(),
             'fedExRegistrationPath' => $fedExConfig->accountRegistrationPath(CarrierAccount::ENVIRONMENT_SANDBOX),
+            'fedExRegistrationResidentialMode' => $fedExConfig->accountRegistrationResidentialMode(),
             'fedExStepDiagnostics' => $this->fedExLatestStepDiagnostics($store),
+            'fedExRegistrationRequestDiagnostics' => $this->fedExRegistrationRequestDiagnostics($store),
+            'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
             'shippingZones' => $store->shippingZones()
                 ->with('shippingMethods.carrierAccount.carrier')
                 ->orderByDesc('is_active')
@@ -197,6 +202,7 @@ class ShippingSettingsController extends Controller
             'country_code' => ['required', 'string', 'size:2'],
             'phone' => ['required', 'string', 'max:40'],
             'email' => ['required', 'email', 'max:160'],
+            'residential' => ['nullable', 'boolean'],
             'default_origin_location_id' => [
                 'nullable',
                 'integer',
@@ -221,6 +227,7 @@ class ShippingSettingsController extends Controller
                 'phone' => $validated['phone'],
                 'email' => $validated['email'],
                 'provider_account_number' => $validated['provider_account_number'],
+                'residential' => $request->boolean('residential'),
             ],
         ];
 
@@ -253,6 +260,89 @@ class ShippingSettingsController extends Controller
 
         return back()
             ->with('success', 'FedEx sandbox account saved. Run Test connection to verify registration.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function updateFedExRegistrationSettings(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $carrierAccount->store_id === (int) $store->id, 404);
+        abort_unless($carrierAccount->isFedEx(), 404);
+
+        $request->validate([
+            'residential' => ['nullable', 'boolean'],
+        ]);
+
+        $settings = $carrierAccount->settings ?? [];
+        $registration = is_array($settings['registration'] ?? null) ? $settings['registration'] : [];
+        $registration['residential'] = $request->boolean('residential');
+        $settings['registration'] = $registration;
+
+        $carrierAccount->forceFill(['settings' => $settings])->save();
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_registration_settings_updated',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $carrierAccount->id,
+                'residential' => $registration['residential'],
+            ]
+        );
+
+        return back()
+            ->with('success', 'FedEx registration settings updated. Run Test connection again.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function exportFedExDebugPayload(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExAccountRegistrationService $registrationService,
+    ): JsonResponse {
+        abort_unless(app()->environment(['local', 'testing']), 404);
+
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $carrierAccount->store_id === (int) $store->id, 404);
+        abort_unless($carrierAccount->isFedEx(), 404);
+
+        return response()->json(
+            $registrationService->redactedRegistrationPayload($carrierAccount),
+            200,
+            [],
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
+        );
+    }
+
+    public function enableFedExSandboxPlatformFallback(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $fedExConfig,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        abort_unless(app()->environment(['local', 'testing']), 404);
+        abort_unless($fedExConfig->allowsSandboxPlatformFallback(), 403);
+
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $carrierAccount->store_id === (int) $store->id, 404);
+        abort_unless($carrierAccount->isFedEx(), 404);
+
+        $settings = $carrierAccount->settings ?? [];
+        $settings['sandbox_platform_fallback'] = true;
+        $carrierAccount->forceFill(['settings' => $settings])->save();
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_sandbox_platform_fallback_enabled',
+            store: $store,
+            metadata: ['carrier_account_id' => $carrierAccount->id],
+        );
+
+        return back()
+            ->with('success', 'Sandbox platform fallback enabled for this FedEx account. Run Test connection to verify platform OAuth only.')
             ->with('success_title', 'Shipping & delivery');
     }
 
@@ -293,13 +383,15 @@ class ShippingSettingsController extends Controller
                 ->withErrors(['fedex' => $result->detailMessage ?? $result->message])
                 ->with('error_title', 'Shipping & delivery')
                 ->with('fedex_connection_message', $result->message)
-                ->with('fedex_connection_steps', $result->steps);
+                ->with('fedex_connection_steps', $result->steps)
+                ->with('fedex_connection_status', $result->connectionStatus);
         }
 
         return back()
             ->with('success', $result->message)
             ->with('success_title', 'Shipping & delivery')
-            ->with('fedex_connection_steps', $result->steps);
+            ->with('fedex_connection_steps', $result->steps)
+            ->with('fedex_connection_status', $result->connectionStatus);
     }
 
     public function disableCarrierAccount(
@@ -595,6 +687,39 @@ class ShippingSettingsController extends Controller
                     'error_message' => $event->error_message,
                 ];
             }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array<int, array{request: array<string, mixed>, response: array<string, mixed>, error_message: ?string}>
+     */
+    private function fedExRegistrationRequestDiagnostics(\App\Models\Store $store): array
+    {
+        $accountIds = $store->carrierAccounts()
+            ->where('provider', CarrierAccount::PROVIDER_FEDEX)
+            ->pluck('id');
+
+        $diagnostics = [];
+
+        foreach ($accountIds as $accountId) {
+            $event = CarrierApiEvent::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $accountId)
+                ->where('action', CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION)
+                ->latest('id')
+                ->first();
+
+            if ($event === null) {
+                continue;
+            }
+
+            $diagnostics[$accountId] = [
+                'request' => is_array($event->request_summary) ? $event->request_summary : [],
+                'response' => is_array($event->response_summary) ? $event->response_summary : [],
+                'error_message' => $event->error_message,
+            ];
         }
 
         return $diagnostics;

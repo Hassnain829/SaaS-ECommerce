@@ -18,12 +18,16 @@
         'not_connected' => 'Not connected',
         'setup_required' => 'Setup required',
         'pending_validation' => 'Pending validation',
-        'connected' => 'Connected',
+        'connected' => 'Merchant-owned connected',
         'failed' => 'Failed',
+        'blocked_by_fedex' => 'Blocked by FedEx validation',
+        'sandbox_platform_fallback' => 'Local sandbox platform fallback',
         'disabled' => 'Disabled',
     ];
     $connectionStatusBadge = fn (string $status) => match ($status) {
         'connected' => 'bg-[#ECFDF5] text-[#047857]',
+        'sandbox_platform_fallback' => 'bg-[#FFF7ED] text-[#C2410C]',
+        'blocked_by_fedex' => 'bg-[#FEF2F2] text-[#991B1B]',
         'failed' => 'bg-[#FEF2F2] text-[#991B1B]',
         'disabled' => 'bg-[#F1F5F9] text-[#64748B]',
         default => 'bg-[#FEF3C7] text-[#92400E]',
@@ -381,6 +385,8 @@
                             <p class="mt-1">FedEx sandbox platform config: {{ ($fedExPlatformConfigured ?? false) ? 'present' : 'missing' }}</p>
                             <p class="mt-1">Account registration endpoint: <code>{{ $fedExRegistrationPath ?? 'not configured' }}</code></p>
                             <p class="mt-1 text-slate-600">Must match the current Credential Registration API path in your FedEx Developer Portal project (default: <code>/registration/v2/address/keysgeneration</code>). Deprecated paths such as <code>/irc/v2/customerkeys</code> must not be used.</p>
+                            <p class="mt-1">Credential registration residential mode: <code>{{ $fedExRegistrationResidentialMode ?? 'omit' }}</code> (diagnostic only; production always omits <code>address.residential</code>)</p>
+                            <p class="mt-1">Sandbox platform fallback: {{ ($fedExSandboxPlatformFallbackAllowed ?? false) ? 'enabled in this environment' : 'disabled' }}</p>
                         </div>
                     @elseif (! ($fedExEnabled ?? false) || ! ($fedExPlatformConfigured ?? false))
                         <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -443,6 +449,11 @@
                                     </select>
                                 </label>
                             </div>
+                            <label class="flex items-start gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
+                                <input type="hidden" name="residential" value="0">
+                                <input type="checkbox" name="residential" value="1" @checked(old('residential')) class="mt-0.5">
+                                <span class="text-xs leading-5 text-[#475569]">This is a residential FedEx account/address. Saved for future rate/label validation. It is not sent during FedEx credential registration unless diagnostics enable it.</span>
+                            </label>
                             <button class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save FedEx sandbox account</button>
                         </form>
                     @endif
@@ -465,9 +476,18 @@
                                 @if ($account->last_verified_at)
                                     <p class="mt-2 text-xs text-[#64748B]">Last verified {{ $account->last_verified_at->timezone($selectedStore->timezone ?? 'UTC')->format('M j, Y g:i A') }}</p>
                                 @endif
-                                @if ($account->last_error_message && $account->connection_status === 'failed')
+                                @if ($account->last_error_message && in_array($account->connection_status, ['failed', 'blocked_by_fedex'], true))
                                     <p class="mt-2 text-xs text-red-700">{{ $account->last_error_message }}</p>
                                 @endif
+                                @if ($account->connection_status === 'sandbox_platform_fallback')
+                                    <p class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                                        Local sandbox fallback: this uses platform FedEx sandbox credentials only. It is not a production merchant-owned FedEx connection.
+                                    </p>
+                                @endif
+                                @if ($account->connection_status === 'connected')
+                                    <p class="mt-2 text-xs text-[#047857]">Merchant-owned FedEx sandbox connection verified.</p>
+                                @endif
+                                <p class="mt-2 text-xs text-[#64748B]">Residential setting: {{ data_get($account->settings, 'registration.residential') ? 'true' : 'false' }}</p>
                                 @php($stepDiagnostics = ($fedExStepDiagnostics[$account->id] ?? []))
                                 @if ($stepDiagnostics !== [])
                                     <div class="mt-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
@@ -494,12 +514,56 @@
                                         </ul>
                                     </div>
                                 @endif
+                                @php($registrationDiagnostics = ($fedExRegistrationRequestDiagnostics[$account->id] ?? null))
+                                @if (app()->environment(['local', 'testing']) && $registrationDiagnostics)
+                                    <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                                        <p class="font-semibold text-slate-900">FedEx request diagnostics</p>
+                                        <dl class="mt-2 grid gap-1 sm:grid-cols-2">
+                                            <div><dt class="font-semibold text-slate-900">Endpoint</dt><dd>{{ data_get($registrationDiagnostics, 'request.endpoint', '—') }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">Account digits</dt><dd>{{ data_get($registrationDiagnostics, 'request.account_number_digits_len', '—') }} · last4 {{ data_get($registrationDiagnostics, 'request.account_number_last4', '—') }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">Customer name length</dt><dd>{{ data_get($registrationDiagnostics, 'request.customer_name_length', '—') }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">Residential setting</dt><dd>{{ data_get($registrationDiagnostics, 'request.residential_setting') ? 'true' : 'false' }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">Residential sent</dt><dd>{{ data_get($registrationDiagnostics, 'request.residential_sent') ? 'true' : 'false' }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">Residential mode</dt><dd>{{ data_get($registrationDiagnostics, 'request.residential_mode', 'omit') }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">City</dt><dd>{{ data_get($registrationDiagnostics, 'request.city', '—') }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">State</dt><dd>{{ data_get($registrationDiagnostics, 'request.state_or_province_code', '—') }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">Postal code</dt><dd>{{ data_get($registrationDiagnostics, 'request.postal_code', '—') }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">Country</dt><dd>{{ data_get($registrationDiagnostics, 'request.country_code', '—') }}</dd></div>
+                                            <div class="sm:col-span-2"><dt class="font-semibold text-slate-900">Payload root keys</dt><dd>{{ implode(', ', data_get($registrationDiagnostics, 'request.payload_root_keys', [])) }}</dd></div>
+                                            <div class="sm:col-span-2"><dt class="font-semibold text-slate-900">Address keys</dt><dd>{{ implode(', ', data_get($registrationDiagnostics, 'request.address_keys', [])) }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">HTTP status</dt><dd>{{ data_get($registrationDiagnostics, 'response.http_status', '—') }}</dd></div>
+                                            <div><dt class="font-semibold text-slate-900">FedEx txn</dt><dd>{{ Str::limit((string) data_get($registrationDiagnostics, 'response.fedex_transaction_id', '—'), 24) }}</dd></div>
+                                            @if ($fedExError = data_get($registrationDiagnostics, 'response.errors.0.code'))
+                                                <div class="sm:col-span-2"><dt class="font-semibold text-slate-900">FedEx error</dt><dd>HTTP {{ data_get($registrationDiagnostics, 'response.http_status') }} · {{ $fedExError }}</dd></div>
+                                            @endif
+                                        </dl>
+                                    </div>
+                                @endif
                                 @if ($canManageShipping)
+                                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.registration.update', $account) }}" class="mt-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                                        @csrf
+                                        @php($isResidential = (bool) data_get($account->settings, 'registration.residential', false))
+                                        <label class="flex items-start gap-2 text-xs text-[#475569]">
+                                            <input type="hidden" name="residential" value="0">
+                                            <input type="checkbox" name="residential" value="1" @checked($isResidential) class="mt-0.5">
+                                            <span>Saved for future rate/label validation. It is not sent during FedEx credential registration unless diagnostics enable it.</span>
+                                        </label>
+                                        <button class="mt-2 rounded-lg border border-[#BFDBFE] bg-white px-3 py-1.5 text-xs font-semibold text-[#1D4ED8]">Save registration setting</button>
+                                    </form>
                                     <div class="mt-3 flex flex-wrap justify-end gap-2">
                                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test', $account) }}">
                                             @csrf
                                             <button class="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-xs font-semibold text-[#1D4ED8]">Test connection</button>
                                         </form>
+                                        @if (app()->environment(['local', 'testing']))
+                                            <a href="{{ route('settings.shipping.carrier-accounts.fedex.debug-payload', $account) }}" target="_blank" rel="noopener" class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">Export redacted API Validation payload</a>
+                                        @endif
+                                        @if (app()->environment(['local', 'testing']) && ($fedExSandboxPlatformFallbackAllowed ?? false) && ! $account->usesSandboxPlatformFallback())
+                                            <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback', $account) }}">
+                                                @csrf
+                                                <button class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">Enable sandbox platform fallback</button>
+                                            </form>
+                                        @endif
                                         @if ($account->connection_status !== 'disabled')
                                             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}">
                                                 @csrf
@@ -530,6 +594,23 @@
                                         @endif
                                         @if (data_get($event->response_summary, 'http_status'))
                                             <p class="mt-1">HTTP {{ data_get($event->response_summary, 'http_status') }}@if (data_get($event->response_summary, 'fedex_transaction_id')) · FedEx txn {{ Str::limit((string) data_get($event->response_summary, 'fedex_transaction_id'), 16) }} @endif</p>
+                                        @endif
+                                        @if (app()->environment(['local', 'testing']) && is_array(data_get($event->response_summary, 'errors')))
+                                            <ul class="mt-1 space-y-1">
+                                                @foreach (data_get($event->response_summary, 'errors', []) as $fedExError)
+                                                    <li>
+                                                        @if (data_get($fedExError, 'code'))
+                                                            <span class="font-semibold text-[#0F172A]">{{ data_get($fedExError, 'code') }}</span>
+                                                        @endif
+                                                        @if (data_get($fedExError, 'message'))
+                                                            · {{ data_get($fedExError, 'message') }}
+                                                        @endif
+                                                        @if (data_get($fedExError, 'field') || data_get($fedExError, 'path') || data_get($fedExError, 'parameter'))
+                                                            · {{ collect([data_get($fedExError, 'field'), data_get($fedExError, 'path'), data_get($fedExError, 'parameter')])->filter()->implode(' / ') }}
+                                                        @endif
+                                                    </li>
+                                                @endforeach
+                                            </ul>
                                         @endif
                                         @if ($event->error_message)
                                             <p class="mt-1 text-red-700">{{ $event->error_message }}</p>

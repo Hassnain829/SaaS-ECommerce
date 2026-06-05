@@ -274,9 +274,18 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/settings/shipping/carrier-accounts/fedex', [ShippingSettingsController::class, 'storeFedExCarrierAccount'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.store');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/registration', [ShippingSettingsController::class, 'updateFedExRegistrationSettings'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.registration.update');
+    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/debug-payload', [ShippingSettingsController::class, 'exportFedExDebugPayload'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.debug-payload');
     Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test', [ShippingSettingsController::class, 'testFedExCarrierAccount'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.test');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/sandbox-platform-fallback', [ShippingSettingsController::class, 'enableFedExSandboxPlatformFallback'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback');
     Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/disable', [ShippingSettingsController::class, 'disableCarrierAccount'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.disable');

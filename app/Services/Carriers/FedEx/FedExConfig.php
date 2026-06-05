@@ -101,4 +101,34 @@ final class FedExConfig
 
         return $environment === CarrierAccount::ENVIRONMENT_SANDBOX;
     }
+
+    /**
+     * Credential Registration residential field mode. Production always omits the field.
+     * Local/testing may set FEDEX_ACCOUNT_REGISTRATION_RESIDENTIAL_MODE for diagnostics.
+     */
+    public function accountRegistrationResidentialMode(): string
+    {
+        if (! app()->environment(['local', 'testing'])) {
+            return 'omit';
+        }
+
+        $mode = strtolower((string) config('carriers.fedex.account_registration_residential_mode', 'omit'));
+
+        return in_array($mode, ['omit', 'boolean', 'string'], true) ? $mode : 'omit';
+    }
+
+    /**
+     * Sandbox platform OAuth fallback is never available in production.
+     */
+    public function allowsSandboxPlatformFallback(): bool
+    {
+        if (! app()->environment(['local', 'testing'])) {
+            return false;
+        }
+
+        return filter_var(
+            config('carriers.fedex.sandbox_allow_platform_fallback', false),
+            FILTER_VALIDATE_BOOL,
+        );
+    }
 }

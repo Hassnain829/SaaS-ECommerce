@@ -16,6 +16,7 @@ final class CarrierConnectionTestResult
         public readonly bool $registered = false,
         public readonly array $steps = [],
         public readonly ?string $detailMessage = null,
+        public readonly ?string $connectionStatus = null,
     ) {
     }
 
@@ -35,6 +36,7 @@ final class CarrierConnectionTestResult
             capabilities: $capabilities,
             registered: $registered,
             steps: $steps,
+            connectionStatus: 'connected',
         );
     }
 
@@ -53,6 +55,44 @@ final class CarrierConnectionTestResult
             errorCode: $errorCode,
             steps: $steps,
             detailMessage: $detailMessage,
+            connectionStatus: 'failed',
+        );
+    }
+
+    /**
+     * @param  array<string, string>  $steps
+     */
+    public static function blockedByFedEx(
+        string $message,
+        ?string $errorCode = null,
+        array $steps = [],
+        ?string $detailMessage = null,
+    ): self {
+        return new self(
+            success: false,
+            message: $message,
+            errorCode: $errorCode,
+            steps: $steps,
+            detailMessage: $detailMessage,
+            connectionStatus: 'blocked_by_fedex',
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $capabilities
+     * @param  array<string, string>  $steps
+     */
+    public static function sandboxPlatformFallback(
+        string $message,
+        array $capabilities = [],
+        array $steps = [],
+    ): self {
+        return new self(
+            success: true,
+            message: $message,
+            capabilities: $capabilities,
+            steps: $steps,
+            connectionStatus: 'sandbox_platform_fallback',
         );
     }
 

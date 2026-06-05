@@ -197,25 +197,58 @@ class FedExHttpClient
      */
     private function sanitizeResponse(array $json): array
     {
-        unset(
-            $json['access_token'],
-            $json['child_Key'],
-            $json['child_key'],
-            $json['childSecret'],
-            $json['child_secret'],
-            $json['transactionId'],
-        );
+        $summary = [];
 
-        if (isset($json['output']) && is_array($json['output'])) {
-            unset(
-                $json['output']['child_Key'],
-                $json['output']['child_key'],
-                $json['output']['childSecret'],
-                $json['output']['child_secret'],
-                $json['output']['accountAuthToken'],
-            );
+        if (isset($json['errors']) && is_array($json['errors'])) {
+            $summary['errors'] = $this->sanitizeFedExErrors($json['errors']);
         }
 
-        return $json;
+        if (isset($json['output']) && is_array($json['output'])) {
+            $output = $json['output'];
+            unset(
+                $output['child_Key'],
+                $output['child_key'],
+                $output['childSecret'],
+                $output['child_secret'],
+                $output['accountAuthToken'],
+                $output['customerKey'],
+                $output['customerPassword'],
+            );
+
+            if ($output !== []) {
+                $summary['output'] = $output;
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param  array<int, mixed>  $errors
+     * @return array<int, array<string, mixed>>
+     */
+    private function sanitizeFedExErrors(array $errors): array
+    {
+        $sanitized = [];
+
+        foreach ($errors as $error) {
+            if (! is_array($error)) {
+                $sanitized[] = ['message' => (string) $error];
+
+                continue;
+            }
+
+            $entry = [];
+
+            foreach (['code', 'message', 'parameterList', 'parameter', 'field', 'path'] as $key) {
+                if (array_key_exists($key, $error)) {
+                    $entry[$key] = $error[$key];
+                }
+            }
+
+            $sanitized[] = $entry;
+        }
+
+        return $sanitized;
     }
 }

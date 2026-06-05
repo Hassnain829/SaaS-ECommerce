@@ -11,7 +11,7 @@ interface CarrierProviderInterface
 
     public function testConnection(CarrierAccount $account): CarrierConnectionTestResult;
 
-    public function supportsRates(): bool;
+    public function supportsRates(?CarrierAccount $account = null): bool;
 
     public function supportsLabels(): bool;
 
