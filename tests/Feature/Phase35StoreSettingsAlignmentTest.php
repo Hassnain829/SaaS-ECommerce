@@ -210,7 +210,7 @@ class Phase35StoreSettingsAlignmentTest extends TestCase
             ->assertSee('Fulfillment locations', false)
             ->assertSee('Add zone', false)
             ->assertSee('Add carrier account', false)
-            ->assertSee('Carrier labels, live rates, pickup scheduling, and routing automation will be available after manual fulfillment and delivery methods are stable.', false)
+            ->assertSee('FedEx sandbox rate quotes, label purchase, and routing automation will be added in later carrier phases after sandbox connection is verified.', false)
             ->assertDontSee('Shipping automation preview', false)
             ->assertDontSee('Integrated Courier Services - Preview', false)
             ->assertDontSee('Smart Routing Rules - Coming later', false)

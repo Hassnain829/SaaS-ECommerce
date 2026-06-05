@@ -5,7 +5,7 @@
 @php
     $connectionLabels = [
         'manual' => 'Manual',
-        'api' => 'API connection later',
+        'api' => 'API connection',
         'external' => 'External account',
     ];
     $accountStatusLabels = [
@@ -14,6 +14,20 @@
         'disabled' => 'Disabled',
         'internal_only' => 'Internal only',
     ];
+    $connectionStatusLabels = [
+        'not_connected' => 'Not connected',
+        'setup_required' => 'Setup required',
+        'pending_validation' => 'Pending validation',
+        'connected' => 'Connected',
+        'failed' => 'Failed',
+        'disabled' => 'Disabled',
+    ];
+    $connectionStatusBadge = fn (string $status) => match ($status) {
+        'connected' => 'bg-[#ECFDF5] text-[#047857]',
+        'failed' => 'bg-[#FEF2F2] text-[#991B1B]',
+        'disabled' => 'bg-[#F1F5F9] text-[#64748B]',
+        default => 'bg-[#FEF3C7] text-[#92400E]',
+    };
     $rateLabels = [
         'flat' => 'Flat rate',
         'free' => 'Free',
@@ -356,8 +370,180 @@
 
             <aside class="space-y-6">
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
+                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">FedEx sandbox</h2>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">
+                        Connect a FedEx sandbox account to test carrier setup. Live FedEx labels and customer checkout rates will be added after sandbox testing is verified.
+                    </p>
+
+                    @if (app()->environment(['local', 'testing']))
+                        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+                            <p class="font-semibold text-slate-900">Developer diagnostics</p>
+                            <p class="mt-1">FedEx sandbox platform config: {{ ($fedExPlatformConfigured ?? false) ? 'present' : 'missing' }}</p>
+                            <p class="mt-1">Account registration endpoint: <code>{{ $fedExRegistrationPath ?? 'not configured' }}</code></p>
+                            <p class="mt-1 text-slate-600">Must match the current Credential Registration API path in your FedEx Developer Portal project (default: <code>/registration/v2/address/keysgeneration</code>). Deprecated paths such as <code>/irc/v2/customerkeys</code> must not be used.</p>
+                        </div>
+                    @elseif (! ($fedExEnabled ?? false) || ! ($fedExPlatformConfigured ?? false))
+                        <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                            FedEx sandbox connection is not available on this platform environment yet. Contact the platform admin.
+                        </div>
+                    @endif
+
+                    @if (session('fedex_connection_steps'))
+                        <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
+                            <p class="font-semibold text-[#0F172A]">Latest connection test steps</p>
+                            <ul class="mt-2 space-y-1 text-xs text-[#475569]">
+                                @foreach (session('fedex_connection_steps') as $step => $status)
+                                    <li><span class="font-semibold text-[#0F172A]">{{ str($step)->replace('_', ' ')->title() }}:</span> {{ str($status)->replace('_', ' ')->title() }}</li>
+                                @endforeach
+                            </ul>
+                            @if (session('fedex_connection_message'))
+                                <p class="mt-2 text-xs text-[#64748B]">{{ session('fedex_connection_message') }}</p>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if (($fedExEnabled ?? false) && ($fedExPlatformConfigured ?? false) && ($canManageShipping ?? false))
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.store') }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                            @csrf
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Sandbox only</span>
+                            </div>
+                            <input type="hidden" name="environment" value="sandbox">
+                            <label class="space-y-1 block">
+                                <span class="text-xs font-semibold text-[#64748B]">Display name</span>
+                                <input name="display_name" value="{{ old('display_name', 'FedEx sandbox account') }}" placeholder="FedEx sandbox account" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1 block">
+                                <span class="text-xs font-semibold text-[#64748B]">FedEx account number</span>
+                                <input name="provider_account_number" value="{{ old('provider_account_number') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Company name</span><input name="company_name" value="{{ old('company_name') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Contact name</span><input name="contact_name" value="{{ old('contact_name') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                            </div>
+                            <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Address line 1</span><input name="address_line1" value="{{ old('address_line1') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                            <div class="grid gap-3 sm:grid-cols-3">
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">City</span><input name="city" value="{{ old('city') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">State</span><input name="state" value="{{ old('state') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Postal code</span><input name="postal_code" value="{{ old('postal_code') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                            </div>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Country code</span><input name="country_code" value="{{ old('country_code', 'US') }}" maxlength="2" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Phone</span><input name="phone" value="{{ old('phone') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                            </div>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Email</span><input name="email" type="email" value="{{ old('email') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                <label class="space-y-1 block">
+                                    <span class="text-xs font-semibold text-[#64748B]">Default origin location</span>
+                                    <select name="default_origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                        <option value="">No default origin</option>
+                                        @foreach ($locations as $location)
+                                            <option value="{{ $location->id }}" @selected((string) old('default_origin_location_id') === (string) $location->id)>{{ $location->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                            </div>
+                            <button class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save FedEx sandbox account</button>
+                        </form>
+                    @endif
+
+                    <div class="mt-4 space-y-3">
+                        @forelse (($fedExAccounts ?? collect()) as $account)
+                            <article class="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="font-semibold text-[#0F172A]">{{ $account->display_name }}</p>
+                                        <p class="mt-1 text-sm text-[#64748B]">FedEx Express | Account {{ $account->maskedAccountNumber() }}</p>
+                                    </div>
+                                    <div class="flex flex-wrap justify-end gap-2">
+                                        <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Sandbox</span>
+                                        <span class="rounded-full {{ $connectionStatusBadge($account->connection_status) }} px-2.5 py-1 text-xs font-bold">
+                                            {{ $connectionStatusLabels[$account->connection_status] ?? str($account->connection_status)->replace('_', ' ')->title() }}
+                                        </span>
+                                    </div>
+                                </div>
+                                @if ($account->last_verified_at)
+                                    <p class="mt-2 text-xs text-[#64748B]">Last verified {{ $account->last_verified_at->timezone($selectedStore->timezone ?? 'UTC')->format('M j, Y g:i A') }}</p>
+                                @endif
+                                @if ($account->last_error_message && $account->connection_status === 'failed')
+                                    <p class="mt-2 text-xs text-red-700">{{ $account->last_error_message }}</p>
+                                @endif
+                                @php($stepDiagnostics = ($fedExStepDiagnostics[$account->id] ?? []))
+                                @if ($stepDiagnostics !== [])
+                                    <div class="mt-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
+                                        <p class="font-semibold text-[#0F172A]">Connection step diagnostics</p>
+                                        <ul class="mt-2 space-y-1">
+                                            @foreach ([
+                                                'platform_oauth_token' => 'Platform OAuth',
+                                                'account_registration' => 'Account Registration',
+                                                'merchant_oauth_token' => 'Merchant OAuth',
+                                            ] as $stepKey => $stepLabel)
+                                                @if (isset($stepDiagnostics[$stepKey]))
+                                                    <li>
+                                                        {{ $stepLabel }}:
+                                                        <span class="font-semibold">{{ str($stepDiagnostics[$stepKey]['status'])->replace('_', ' ')->title() }}</span>
+                                                        @if ($stepDiagnostics[$stepKey]['endpoint'])
+                                                            · {{ $stepDiagnostics[$stepKey]['endpoint'] }}
+                                                        @endif
+                                                        @if ($stepDiagnostics[$stepKey]['http_status'])
+                                                            · HTTP {{ $stepDiagnostics[$stepKey]['http_status'] }}
+                                                        @endif
+                                                    </li>
+                                                @endif
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+                                @if ($canManageShipping)
+                                    <div class="mt-3 flex flex-wrap justify-end gap-2">
+                                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test', $account) }}">
+                                            @csrf
+                                            <button class="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-xs font-semibold text-[#1D4ED8]">Test connection</button>
+                                        </form>
+                                        @if ($account->connection_status !== 'disabled')
+                                            <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}">
+                                                @csrf
+                                                <button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Disable</button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                @endif
+                            </article>
+                        @empty
+                            <div class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-center text-sm text-[#64748B]">No FedEx sandbox accounts yet.</div>
+                        @endforelse
+                    </div>
+
+                    @if (($fedExApiEvents ?? collect())->isNotEmpty())
+                        <div class="mt-5 border-t border-[#F1F5F9] pt-4">
+                            <h3 class="text-sm font-semibold text-[#0F172A]">Recent FedEx API activity</h3>
+                            <div class="mt-3 space-y-2">
+                                @foreach ($fedExApiEvents as $event)
+                                    <div class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <span class="font-semibold text-[#0F172A]">{{ str($event->action)->replace('_', ' ')->title() }}</span>
+                                            <span class="rounded-full {{ $connectionStatusBadge($event->status === 'succeeded' ? 'connected' : ($event->status === 'failed' ? 'failed' : 'setup_required')) }} px-2 py-0.5 font-bold">{{ str($event->status)->title() }}</span>
+                                        </div>
+                                        <p class="mt-1">{{ $event->created_at->timezone($selectedStore->timezone ?? 'UTC')->format('M j, Y g:i A') }}@if ($event->duration_ms) · {{ $event->duration_ms }} ms @endif @if ($event->request_id) · Ref {{ Str::limit($event->request_id, 12) }} @endif</p>
+                                        @if (data_get($event->request_summary, 'endpoint'))
+                                            <p class="mt-1">Endpoint: {{ data_get($event->request_summary, 'endpoint') }}</p>
+                                        @endif
+                                        @if (data_get($event->response_summary, 'http_status'))
+                                            <p class="mt-1">HTTP {{ data_get($event->response_summary, 'http_status') }}@if (data_get($event->response_summary, 'fedex_transaction_id')) · FedEx txn {{ Str::limit((string) data_get($event->response_summary, 'fedex_transaction_id'), 16) }} @endif</p>
+                                        @endif
+                                        @if ($event->error_message)
+                                            <p class="mt-1 text-red-700">{{ $event->error_message }}</p>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </section>
+
+                <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
                     <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Carriers &amp; accounts</h2>
-                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Add the courier services this store can use. Live carrier API connections will be added later; manual carriers work now.</p>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Add manual courier accounts for fulfillment today. FedEx sandbox API setup is managed in the section above.</p>
 
                     @if ($canManageShipping)
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.store') }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
@@ -456,7 +642,7 @@
 
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
                     <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Automation</h2>
-                    <p class="mt-2 text-sm leading-6 text-[#64748B]">Carrier labels, live rates, pickup scheduling, and routing automation will be available after manual fulfillment and delivery methods are stable.</p>
+                    <p class="mt-2 text-sm leading-6 text-[#64748B]">FedEx sandbox rate quotes, label purchase, and routing automation will be added in later carrier phases after sandbox connection is verified.</p>
                 </section>
             </aside>
         </div>

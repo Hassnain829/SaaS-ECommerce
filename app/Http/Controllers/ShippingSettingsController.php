@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\CarrierApiEvent;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
+use App\Services\Carriers\CarrierProviderManager;
+use App\Services\Carriers\FedEx\FedExConfig;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
@@ -16,7 +19,7 @@ use Illuminate\View\View;
 
 class ShippingSettingsController extends Controller
 {
-    public function index(Request $request, ChannelOwnershipService $channelOwnership): View|RedirectResponse
+    public function index(Request $request, ChannelOwnershipService $channelOwnership, FedExConfig $fedExConfig): View|RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         if (! $store) {
@@ -40,6 +43,21 @@ class ShippingSettingsController extends Controller
                 ->orderByDesc('status')
                 ->orderBy('display_name')
                 ->get(),
+            'fedExCarrier' => Carrier::query()->where('code', 'fedex')->first(),
+            'fedExAccounts' => $store->carrierAccounts()
+                ->where('provider', CarrierAccount::PROVIDER_FEDEX)
+                ->with('carrier')
+                ->orderByDesc('updated_at')
+                ->get(),
+            'fedExApiEvents' => $store->carrierApiEvents()
+                ->where('provider', CarrierAccount::PROVIDER_FEDEX)
+                ->latest('id')
+                ->limit(8)
+                ->get(),
+            'fedExPlatformConfigured' => $fedExConfig->isConfigured(),
+            'fedExEnabled' => $fedExConfig->isEnabled(),
+            'fedExRegistrationPath' => $fedExConfig->accountRegistrationPath(CarrierAccount::ENVIRONMENT_SANDBOX),
+            'fedExStepDiagnostics' => $this->fedExLatestStepDiagnostics($store),
             'shippingZones' => $store->shippingZones()
                 ->with('shippingMethods.carrierAccount.carrier')
                 ->orderByDesc('is_active')
@@ -80,6 +98,13 @@ class ShippingSettingsController extends Controller
 
         $account = $store->carrierAccounts()->create([
             ...$validated,
+            'provider' => CarrierAccount::PROVIDER_MANUAL,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'connection_mode' => CarrierAccount::CONNECTION_MODE_MANUAL,
+            'billing_owner' => CarrierAccount::BILLING_OWNER_MERCHANT,
+            'connection_status' => $validated['status'] === CarrierAccount::STATUS_ENABLED
+                ? CarrierAccount::CONNECTION_CONNECTED
+                : CarrierAccount::CONNECTION_NOT_CONNECTED,
             'supported_countries' => $this->listFromInput($validated['supported_countries'] ?? null),
             'enabled_for_checkout' => $request->boolean('enabled_for_checkout'),
             'created_by' => $request->user()?->id,
@@ -145,6 +170,157 @@ class ShippingSettingsController extends Controller
 
         return back()
             ->with('success', 'Carrier account removed.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function storeFedExCarrierAccount(Request $request, FedExConfig $fedExConfig, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        if (! $fedExConfig->isConfigured()) {
+            return back()
+                ->withErrors(['fedex' => 'FedEx sandbox connection is not available on this platform environment yet. Contact the platform admin.'])
+                ->with('error_title', 'Shipping & delivery');
+        }
+
+        $validated = $request->validate([
+            'display_name' => ['nullable', 'string', 'max:120'],
+            'environment' => ['required', Rule::in(['sandbox'])],
+            'provider_account_number' => ['required', 'string', 'max:32'],
+            'company_name' => ['required', 'string', 'max:120'],
+            'contact_name' => ['required', 'string', 'max:120'],
+            'address_line1' => ['required', 'string', 'max:160'],
+            'city' => ['required', 'string', 'max:80'],
+            'state' => ['nullable', 'string', 'max:80'],
+            'postal_code' => ['required', 'string', 'max:32'],
+            'country_code' => ['required', 'string', 'size:2'],
+            'phone' => ['required', 'string', 'max:40'],
+            'email' => ['required', 'email', 'max:160'],
+            'default_origin_location_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('locations', 'id')->where('store_id', $store->id),
+            ],
+        ]);
+
+        $fedExCarrier = Carrier::query()->where('code', 'fedex')->where('is_active', true)->firstOrFail();
+        $displayName = filled($validated['display_name'] ?? null)
+            ? $validated['display_name']
+            : 'FedEx sandbox account';
+
+        $settings = [
+            'registration' => [
+                'company_name' => $validated['company_name'],
+                'contact_name' => $validated['contact_name'],
+                'address_line1' => $validated['address_line1'],
+                'city' => $validated['city'],
+                'state' => $validated['state'] ?? null,
+                'postal_code' => $validated['postal_code'],
+                'country_code' => strtoupper($validated['country_code']),
+                'phone' => $validated['phone'],
+                'email' => $validated['email'],
+                'provider_account_number' => $validated['provider_account_number'],
+            ],
+        ];
+
+        if (filled($validated['default_origin_location_id'] ?? null)) {
+            $settings['default_origin_location_id'] = (int) $validated['default_origin_location_id'];
+        }
+
+        $account = $store->carrierAccounts()->create([
+            'carrier_id' => $fedExCarrier->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'display_name' => $displayName,
+            'connection_type' => CarrierAccount::CONNECTION_API,
+            'connection_mode' => CarrierAccount::CONNECTION_MODE_FEDEX_INTEGRATOR,
+            'billing_owner' => CarrierAccount::BILLING_OWNER_MERCHANT,
+            'provider_account_number' => $validated['provider_account_number'],
+            'status' => CarrierAccount::STATUS_SETUP_REQUIRED,
+            'connection_status' => CarrierAccount::CONNECTION_SETUP_REQUIRED,
+            'settings' => $settings,
+            'enabled_for_checkout' => false,
+            'created_by' => $request->user()?->id,
+        ]);
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_carrier_account_created',
+            store: $store,
+            metadata: ['carrier_account_id' => $account->id, 'display_name' => $account->display_name]
+        );
+
+        return back()
+            ->with('success', 'FedEx sandbox account saved. Run Test connection to verify registration.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function testFedExCarrierAccount(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        CarrierProviderManager $providerManager,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $carrierAccount->store_id === (int) $store->id, 404);
+        abort_unless($carrierAccount->isFedEx(), 404);
+
+        try {
+            $result = $providerManager->provider(CarrierAccount::PROVIDER_FEDEX)->testConnection(
+                $carrierAccount->load('store')
+            );
+        } catch (\Throwable) {
+            $carrierAccount->markFailed('FedEx connection test failed. Please try again.');
+
+            return back()
+                ->withErrors(['fedex' => 'FedEx connection test failed. Please try again.'])
+                ->with('error_title', 'Shipping & delivery');
+        }
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_carrier_account_tested',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $carrierAccount->id,
+                'success' => $result->success,
+            ]
+        );
+
+        if (! $result->success) {
+            return back()
+                ->withErrors(['fedex' => $result->detailMessage ?? $result->message])
+                ->with('error_title', 'Shipping & delivery')
+                ->with('fedex_connection_message', $result->message)
+                ->with('fedex_connection_steps', $result->steps);
+        }
+
+        return back()
+            ->with('success', $result->message)
+            ->with('success_title', 'Shipping & delivery')
+            ->with('fedex_connection_steps', $result->steps);
+    }
+
+    public function disableCarrierAccount(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $carrierAccount->store_id === (int) $store->id, 404);
+
+        $carrierAccount->markDisabled();
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.carrier_account_disabled',
+            store: $store,
+            metadata: ['carrier_account_id' => $carrierAccount->id, 'display_name' => $carrierAccount->display_name]
+        );
+
+        return back()
+            ->with('success', 'Carrier account disabled.')
             ->with('success_title', 'Shipping & delivery');
     }
 
@@ -380,5 +556,47 @@ class ShippingSettingsController extends Controller
         }
 
         return $code;
+    }
+
+    /**
+     * @return array<int, array<string, array{status: string, endpoint: ?string, http_status: mixed, error_message: ?string}>>
+     */
+    private function fedExLatestStepDiagnostics(\App\Models\Store $store): array
+    {
+        $actions = [
+            CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN,
+            CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
+            CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN,
+        ];
+
+        $accountIds = $store->carrierAccounts()
+            ->where('provider', CarrierAccount::PROVIDER_FEDEX)
+            ->pluck('id');
+
+        $diagnostics = [];
+
+        foreach ($accountIds as $accountId) {
+            foreach ($actions as $action) {
+                $event = CarrierApiEvent::query()
+                    ->where('store_id', $store->id)
+                    ->where('carrier_account_id', $accountId)
+                    ->where('action', $action)
+                    ->latest('id')
+                    ->first();
+
+                if ($event === null) {
+                    continue;
+                }
+
+                $diagnostics[$accountId][$action] = [
+                    'status' => $event->status,
+                    'endpoint' => data_get($event->request_summary, 'endpoint'),
+                    'http_status' => data_get($event->response_summary, 'http_status'),
+                    'error_message' => $event->error_message,
+                ];
+            }
+        }
+
+        return $diagnostics;
     }
 }

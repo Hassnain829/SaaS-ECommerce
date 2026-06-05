@@ -1031,7 +1031,9 @@ Phase 6C-0A implements the first routing layer: nearest eligible fulfillment ori
 
 **Phase Q Step 3 (2026-05-24):** Must-fix QA hardening completed — external order sync dedup and 6C-0A routing negative/edge tests expanded. See `docs/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`.
 
-**Phase Q Step 3C (2026-05-24):** Strict external order identity — `external_order_id` or `external_order_number` is **required** for external order creation; `Idempotency-Key` is optional replay protection only and cannot be the sole identity. QA audit artifacts live under `docs/audit/`. Safe to proceed to Phase 6C-1 carrier sandbox.
+**Phase Q Step 3C (2026-05-24):** Strict external order identity — `external_order_id` or `external_order_number` is **required** for external order creation; `Idempotency-Key` is optional replay protection only and cannot be the sole identity. QA audit artifacts live under `docs/audit/`.
+
+**Phase 6C-1A (2026-06-04):** FedEx sandbox carrier connection foundation — provider-neutral carrier interface, encrypted merchant credentials, Account Registration + OAuth test connection, carrier API event logs, Shipping & Delivery UI. **Not implemented:** labels, checkout live rates, tracking sync, live/production FedEx. See `docs/PHASE_6C_1A_FEDEX_SANDBOX_CARRIER_FOUNDATION_REPORT.md`.
 
 ### Scenario 3 — Multiple separate stores
 

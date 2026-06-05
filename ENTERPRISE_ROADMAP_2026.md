@@ -1980,7 +1980,7 @@ Customer/store-owner wording must say "nearest eligible fulfillment location", "
 
 **Phase Q Step 3C (2026-05-24):** External order creation requires `external_order_id` or `external_order_number`; `Idempotency-Key` alone is rejected. QA audit bundle/gap/risk files archived under `docs/audit/`.
 
-**Next:** Phase 6C-1 carrier sandbox (not implemented).
+**Phase 6C-1A (2026-06-04):** FedEx sandbox connection foundation complete (provider architecture, registration, OAuth test, encrypted credentials, API event logs, merchant UI). **Next:** 6C-1B sandbox rate quotes. **Not implemented:** labels, checkout live rates, tracking sync, live FedEx mode.
 
 ### Future features
 

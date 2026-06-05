@@ -271,6 +271,15 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/shippingAutomation', [ShippingSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('shippingAutomation');
+    Route::post('/settings/shipping/carrier-accounts/fedex', [ShippingSettingsController::class, 'storeFedExCarrierAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.store');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test', [ShippingSettingsController::class, 'testFedExCarrierAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.test');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/disable', [ShippingSettingsController::class, 'disableCarrierAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.disable');
     Route::post('/settings/shipping/carrier-accounts', [ShippingSettingsController::class, 'storeCarrierAccount'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.store');

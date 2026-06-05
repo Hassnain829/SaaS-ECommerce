@@ -176,6 +176,11 @@ class Store extends Model
         return $this->hasMany(CarrierAccount::class);
     }
 
+    public function carrierApiEvents(): HasMany
+    {
+        return $this->hasMany(CarrierApiEvent::class);
+    }
+
     public function shippingZones(): HasMany
     {
         return $this->hasMany(ShippingZone::class);
