@@ -5,48 +5,40 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CarrierApiEvent extends Model
+class CarrierRateQuote extends Model
 {
-    public const STATUS_STARTED = 'started';
-
     public const STATUS_SUCCEEDED = 'succeeded';
 
     public const STATUS_FAILED = 'failed';
-
-    public const ACTION_ACCOUNT_REGISTRATION = 'account_registration';
-
-    public const ACTION_OAUTH_TOKEN = 'oauth_token';
-
-    public const ACTION_PLATFORM_OAUTH_TOKEN = 'platform_oauth_token';
-
-    public const ACTION_MERCHANT_OAUTH_TOKEN = 'merchant_oauth_token';
-
-    public const ACTION_TEST_CONNECTION = 'test_connection';
-
-    public const ACTION_ADDRESS_VALIDATION = 'address_validation';
-
-    public const ACTION_DOMESTIC_RATE_QUOTE = 'domestic_rate_quote';
 
     protected $fillable = [
         'store_id',
         'carrier_account_id',
         'shipment_id',
+        'order_id',
+        'package_id',
         'provider',
         'environment',
-        'action',
+        'origin_postal_code',
+        'destination_postal_code',
+        'service_code',
+        'service_name',
+        'amount',
+        'currency',
+        'estimated_days',
         'status',
-        'request_id',
-        'duration_ms',
         'request_summary',
         'response_summary',
         'error_code',
         'error_message',
+        'created_by',
     ];
 
     protected $casts = [
+        'amount' => 'decimal:2',
         'request_summary' => 'array',
         'response_summary' => 'array',
-        'duration_ms' => 'integer',
+        'estimated_days' => 'integer',
     ];
 
     public function store(): BelongsTo
@@ -62,5 +54,15 @@ class CarrierApiEvent extends Model
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function package(): BelongsTo
+    {
+        return $this->belongsTo(ShipmentPackage::class, 'package_id');
     }
 }

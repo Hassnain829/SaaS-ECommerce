@@ -39,4 +39,26 @@ return [
             ),
         ],
     ],
+
+    'usps' => [
+        'enabled' => env('USPS_ENABLED', false),
+        'environment' => env('USPS_ENVIRONMENT', 'testing'),
+        'base_url' => env('USPS_BASE_URL', 'https://apis-tem.usps.com'),
+        'consumer_key' => env('USPS_CONSUMER_KEY'),
+        'consumer_secret' => env('USPS_CONSUMER_SECRET'),
+        'crid' => env('USPS_CRID'),
+        'master_mid' => env('USPS_MASTER_MID'),
+        'labeler_mid' => env('USPS_LABELER_MID'),
+        'labels_enabled' => env('USPS_LABELS_ENABLED', false),
+        'platform_label_purchase' => env('USPS_PLATFORM_LABEL_PURCHASE', false),
+        'oauth_path' => env('USPS_OAUTH_PATH', '/oauth2/v3/token'),
+        'address_validation_path' => env('USPS_ADDRESS_VALIDATION_PATH', '/addresses/v3/address'),
+        'domestic_base_rates_path' => env('USPS_DOMESTIC_BASE_RATES_PATH', '/prices/v3/base-rates/search'),
+        'default_mail_class' => env('USPS_DEFAULT_MAIL_CLASS', 'USPS_GROUND_ADVANTAGE'),
+        'default_price_type' => env('USPS_DEFAULT_PRICE_TYPE', 'RETAIL'),
+        'timeouts' => [
+            'connect' => (int) env('USPS_HTTP_CONNECT_TIMEOUT', 10),
+            'request' => (int) env('USPS_HTTP_REQUEST_TIMEOUT', 30),
+        ],
+    ],
 ];

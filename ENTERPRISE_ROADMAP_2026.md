@@ -1980,7 +1980,9 @@ Customer/store-owner wording must say "nearest eligible fulfillment location", "
 
 **Phase Q Step 3C (2026-05-24):** External order creation requires `external_order_id` or `external_order_number`; `Idempotency-Key` alone is rejected. QA audit bundle/gap/risk files archived under `docs/audit/`.
 
-**Phase 6C-1A (2026-06-04):** FedEx sandbox connection foundation complete (provider architecture, registration, OAuth test, encrypted credentials, API event logs, merchant UI). **Next:** 6C-1B sandbox rate quotes. **Not implemented:** labels, checkout live rates, tracking sync, live FedEx mode.
+**Phase 6C-1A (2026-06-04):** FedEx sandbox connection foundation complete (provider architecture, registration, OAuth test, encrypted credentials, API event logs, merchant UI). FedEx Credential Registration may remain blocked pending FedEx support.
+
+**Phase 6C-1B-USPS (2026-06-02):** USPS public API foundation — platform OAuth, address validation, domestic test rate quotes, package builder, safe API event logs. Uses platform USPS credentials from `.env`. **Not implemented:** labels, EPS/payment authorization, pickup, production live mode, checkout live rates. See `docs/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`.
 
 ### Future features
 

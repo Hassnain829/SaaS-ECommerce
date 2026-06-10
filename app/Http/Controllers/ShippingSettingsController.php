@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
+use App\Models\ShipmentPackage;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Services\Carriers\CarrierProviderManager;
 use App\Services\Carriers\FedEx\FedExAccountRegistrationService;
 use App\Services\Carriers\FedEx\FedExConfig;
+use App\Services\Carriers\USPS\USPSConfig;
+use App\Services\Carriers\USPS\USPSDomesticRateQuoteService;
+use App\Services\Carriers\USPS\USPSOAuthTokenService;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +25,7 @@ use Illuminate\View\View;
 
 class ShippingSettingsController extends Controller
 {
-    public function index(Request $request, ChannelOwnershipService $channelOwnership, FedExConfig $fedExConfig): View|RedirectResponse
+    public function index(Request $request, ChannelOwnershipService $channelOwnership, FedExConfig $fedExConfig, USPSConfig $uspsConfig): View|RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         if (! $store) {
@@ -63,6 +67,28 @@ class ShippingSettingsController extends Controller
             'fedExStepDiagnostics' => $this->fedExLatestStepDiagnostics($store),
             'fedExRegistrationRequestDiagnostics' => $this->fedExRegistrationRequestDiagnostics($store),
             'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
+            'uspsCarrier' => Carrier::query()->where('code', 'usps')->first(),
+            'uspsAccounts' => $store->carrierAccounts()
+                ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->with('carrier')
+                ->orderByDesc('updated_at')
+                ->get(),
+            'uspsApiEvents' => $store->carrierApiEvents()
+                ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->latest('id')
+                ->limit(8)
+                ->get(),
+            'uspsPlatformConfigured' => $uspsConfig->isConfigured(),
+            'uspsEnabled' => $uspsConfig->isEnabled(),
+            'uspsBaseUrl' => $uspsConfig->baseUrl(),
+            'uspsOAuthPath' => $uspsConfig->oauthPath(),
+            'uspsLabelsEnabled' => $uspsConfig->labelsEnabled(),
+            'uspsRecentQuotes' => $store->carrierRateQuotes()
+                ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->latest('id')
+                ->limit(5)
+                ->get(),
+            'uspsStepDiagnostics' => $this->uspsLatestStepDiagnostics($store),
             'shippingZones' => $store->shippingZones()
                 ->with('shippingMethods.carrierAccount.carrier')
                 ->orderByDesc('is_active')
@@ -394,6 +420,198 @@ class ShippingSettingsController extends Controller
             ->with('fedex_connection_status', $result->connectionStatus);
     }
 
+    public function storeUspsCarrierAccount(Request $request, USPSConfig $uspsConfig, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        if (! $uspsConfig->isConfigured()) {
+            return back()
+                ->withErrors(['usps' => 'USPS public API connection is not available on this platform environment yet. Contact the platform admin.'])
+                ->with('error_title', 'Shipping & delivery');
+        }
+
+        $validated = $request->validate([
+            'display_name' => ['nullable', 'string', 'max:120'],
+            'environment' => ['required', Rule::in(['testing'])],
+            'default_origin_location_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('locations', 'id')->where('store_id', $store->id),
+            ],
+            'enabled_for_checkout' => ['nullable', 'boolean'],
+        ]);
+
+        $uspsCarrier = Carrier::query()->where('code', 'usps')->where('is_active', true)->firstOrFail();
+        $displayName = filled($validated['display_name'] ?? null)
+            ? $validated['display_name']
+            : 'USPS testing account';
+
+        $settings = [];
+        if (filled($validated['default_origin_location_id'] ?? null)) {
+            $settings['default_origin_location_id'] = (int) $validated['default_origin_location_id'];
+        }
+
+        $account = $store->carrierAccounts()->create([
+            'carrier_id' => $uspsCarrier->id,
+            'provider' => CarrierAccount::PROVIDER_USPS,
+            'environment' => CarrierAccount::ENVIRONMENT_TESTING,
+            'display_name' => $displayName,
+            'connection_type' => CarrierAccount::CONNECTION_API,
+            'connection_mode' => CarrierAccount::CONNECTION_MODE_USPS_PLATFORM,
+            'billing_owner' => CarrierAccount::BILLING_OWNER_PLATFORM,
+            'status' => CarrierAccount::STATUS_SETUP_REQUIRED,
+            'connection_status' => CarrierAccount::CONNECTION_SETUP_REQUIRED,
+            'settings' => $settings,
+            'supported_countries' => ['US'],
+            'enabled_for_checkout' => $request->boolean('enabled_for_checkout'),
+            'created_by' => $request->user()?->id,
+        ]);
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.usps_carrier_account_created',
+            store: $store,
+            metadata: ['carrier_account_id' => $account->id, 'display_name' => $account->display_name]
+        );
+
+        return back()
+            ->with('success', 'USPS testing account saved. Run Test connection to verify OAuth.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function testUspsCarrierAccount(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        CarrierProviderManager $providerManager,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $carrierAccount->store_id === (int) $store->id, 404);
+        abort_unless($carrierAccount->isUsps(), 404);
+
+        try {
+            $result = $providerManager->provider(CarrierAccount::PROVIDER_USPS)->testConnection(
+                $carrierAccount->load('store')
+            );
+        } catch (\Throwable) {
+            $carrierAccount->markFailed('USPS connection test failed. Please try again.');
+
+            return back()
+                ->withErrors(['usps' => 'USPS connection test failed. Please try again.'])
+                ->with('error_title', 'Shipping & delivery');
+        }
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.usps_carrier_account_tested',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $carrierAccount->id,
+                'success' => $result->success,
+            ]
+        );
+
+        if (! $result->success) {
+            return back()
+                ->withErrors(['usps' => $result->detailMessage ?? $result->message])
+                ->with('error_title', 'Shipping & delivery')
+                ->with('usps_connection_message', $result->message)
+                ->with('usps_connection_steps', $result->steps);
+        }
+
+        return back()
+            ->with('success', $result->message)
+            ->with('success_title', 'Shipping & delivery')
+            ->with('usps_connection_steps', $result->steps);
+    }
+
+    public function storeUspsTestPackage(Request $request, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $validated = $request->validate([
+            'origin_location_id' => [
+                'required',
+                'integer',
+                Rule::exists('locations', 'id')->where('store_id', $store->id),
+            ],
+            'destination_postal_code' => ['required', 'string', 'max:16'],
+            'weight_value' => ['required', 'numeric', 'gt:0'],
+            'length' => ['required', 'numeric', 'gt:0'],
+            'width' => ['required', 'numeric', 'gt:0'],
+            'height' => ['required', 'numeric', 'gt:0'],
+            'mail_class' => ['nullable', 'string', 'max:64'],
+            'carrier_account_id' => [
+                'required',
+                'integer',
+                Rule::exists('carrier_accounts', 'id')->where('store_id', $store->id),
+            ],
+        ]);
+
+        $package = $store->shipmentPackages()->create([
+            'origin_location_id' => $validated['origin_location_id'] ?? null,
+            'name' => 'USPS test package',
+            'weight_value' => $validated['weight_value'],
+            'weight_unit' => 'lb',
+            'length' => $validated['length'],
+            'width' => $validated['width'],
+            'height' => $validated['height'],
+            'dimension_unit' => 'in',
+            'package_type' => 'parcel',
+            'metadata' => [
+                'destination_postal_code' => $validated['destination_postal_code'],
+                'mail_class' => $validated['mail_class'] ?? null,
+            ],
+            'created_by' => $request->user()?->id,
+        ]);
+
+        $account = CarrierAccount::query()
+            ->where('store_id', $store->id)
+            ->where('provider', CarrierAccount::PROVIDER_USPS)
+            ->whereKey((int) $validated['carrier_account_id'])
+            ->firstOrFail();
+
+        $oauth = app(USPSOAuthTokenService::class)->accessToken();
+        if ($oauth === null) {
+            return back()
+                ->withErrors(['usps' => 'USPS OAuth token is unavailable. Test the USPS connection first.'])
+                ->with('error_title', 'Shipping & delivery');
+        }
+
+        ['result' => $quoteResult] = app(USPSDomesticRateQuoteService::class)->quotePackage(
+            $store,
+            $account,
+            $package,
+            $validated['destination_postal_code'],
+            $oauth['access_token'],
+            $request->user(),
+            $validated['mail_class'] ?? null,
+        );
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.usps_test_rate_quote_requested',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $account->id,
+                'package_id' => $package->id,
+                'success' => $quoteResult->success,
+            ]
+        );
+
+        if (! $quoteResult->success) {
+            return back()
+                ->withErrors(['usps' => $quoteResult->errorMessage ?? 'USPS rate quote failed.'])
+                ->with('error_title', 'Shipping & delivery');
+        }
+
+        return back()
+            ->with('success', 'USPS test rate quote saved. This quote is informational only and does not change checkout totals.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
     public function disableCarrierAccount(
         Request $request,
         CarrierAccount $carrierAccount,
@@ -653,6 +871,45 @@ class ShippingSettingsController extends Controller
     /**
      * @return array<int, array<string, array{status: string, endpoint: ?string, http_status: mixed, error_message: ?string}>>
      */
+    private function uspsLatestStepDiagnostics(\App\Models\Store $store): array
+    {
+        $actions = [
+            CarrierApiEvent::ACTION_OAUTH_TOKEN,
+            CarrierApiEvent::ACTION_ADDRESS_VALIDATION,
+            CarrierApiEvent::ACTION_DOMESTIC_RATE_QUOTE,
+        ];
+
+        $accountIds = $store->carrierAccounts()
+            ->where('provider', CarrierAccount::PROVIDER_USPS)
+            ->pluck('id');
+
+        $diagnostics = [];
+
+        foreach ($accountIds as $accountId) {
+            foreach ($actions as $action) {
+                $event = CarrierApiEvent::query()
+                    ->where('store_id', $store->id)
+                    ->where('carrier_account_id', $accountId)
+                    ->where('action', $action)
+                    ->latest('id')
+                    ->first();
+
+                if ($event === null) {
+                    continue;
+                }
+
+                $diagnostics[$accountId][$action] = [
+                    'status' => $event->status,
+                    'endpoint' => data_get($event->request_summary, 'endpoint'),
+                    'http_status' => data_get($event->response_summary, 'http_status'),
+                    'error_message' => $event->error_message,
+                ];
+            }
+        }
+
+        return $diagnostics;
+    }
+
     private function fedExLatestStepDiagnostics(\App\Models\Store $store): array
     {
         $actions = [

@@ -623,8 +623,173 @@
                 </section>
 
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
+                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">USPS public API (testing)</h2>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">
+                        Verify USPS OAuth, address validation, and domestic test rate quotes using platform USPS credentials. Label purchase, EPS charges, and production live mode are not part of this phase.
+                    </p>
+
+                    @if (app()->environment(['local', 'testing']))
+                        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+                            <p class="font-semibold text-slate-900">Developer diagnostics</p>
+                            <p class="mt-1">USPS platform config: {{ ($uspsPlatformConfigured ?? false) ? 'present' : 'missing' }}</p>
+                            <p class="mt-1">Base URL: <code>{{ $uspsBaseUrl ?? 'not configured' }}</code></p>
+                            <p class="mt-1">OAuth endpoint: <code>{{ $uspsOAuthPath ?? '/oauth2/v3/token' }}</code></p>
+                            <p class="mt-1">Labels enabled: {{ ($uspsLabelsEnabled ?? false) ? 'true' : 'false' }}</p>
+                        </div>
+                    @elseif (! ($uspsEnabled ?? false) || ! ($uspsPlatformConfigured ?? false))
+                        <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                            USPS public API connection is not available on this platform environment yet. Contact the platform admin.
+                        </div>
+                    @endif
+
+                    @if (session('usps_connection_steps'))
+                        <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
+                            <p class="font-semibold text-[#0F172A]">Latest USPS connection test steps</p>
+                            <ul class="mt-2 space-y-1 text-xs text-[#475569]">
+                                @foreach (session('usps_connection_steps') as $step => $status)
+                                    <li><span class="font-semibold text-[#0F172A]">{{ str($step)->replace('_', ' ')->title() }}:</span> {{ str($status)->replace('_', ' ')->title() }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    @if (($uspsEnabled ?? false) && ($uspsPlatformConfigured ?? false) && ($canManageShipping ?? false))
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.usps.store') }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                            @csrf
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Testing only</span>
+                            </div>
+                            <input type="hidden" name="environment" value="testing">
+                            <label class="space-y-1 block">
+                                <span class="text-xs font-semibold text-[#64748B]">Display name</span>
+                                <input name="display_name" value="{{ old('display_name', 'USPS testing account') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <label class="space-y-1 block">
+                                <span class="text-xs font-semibold text-[#64748B]">Default origin location</span>
+                                <select name="default_origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                    <option value="">No default origin</option>
+                                    @foreach ($locations as $location)
+                                        <option value="{{ $location->id }}" @selected((string) old('default_origin_location_id') === (string) $location->id)>{{ $location->name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="flex items-start gap-2 text-xs text-[#475569]">
+                                <input type="hidden" name="enabled_for_checkout" value="0">
+                                <input type="checkbox" name="enabled_for_checkout" value="1" @checked(old('enabled_for_checkout')) class="mt-0.5">
+                                <span>Available for checkout (saved only — live checkout USPS rates are not enabled in this phase)</span>
+                            </label>
+                            <button class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save USPS testing account</button>
+                        </form>
+                    @endif
+
+                    <div class="mt-4 space-y-3">
+                        @forelse (($uspsAccounts ?? collect()) as $account)
+                            <article class="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="font-semibold text-[#0F172A]">{{ $account->display_name }}</p>
+                                        <p class="mt-1 text-sm text-[#64748B]">USPS public API · Platform credentials</p>
+                                    </div>
+                                    <div class="flex flex-wrap justify-end gap-2">
+                                        <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Testing</span>
+                                        <span class="rounded-full {{ $connectionStatusBadge($account->connection_status) }} px-2.5 py-1 text-xs font-bold">
+                                            {{ $connectionStatusLabels[$account->connection_status] ?? str($account->connection_status)->replace('_', ' ')->title() }}
+                                        </span>
+                                    </div>
+                                </div>
+                                @if ($account->last_error_message && in_array($account->connection_status, ['failed'], true))
+                                    <p class="mt-2 text-xs text-red-700">{{ $account->last_error_message }}</p>
+                                @endif
+                                @if ($canManageShipping)
+                                    <div class="mt-3 flex flex-wrap justify-end gap-2">
+                                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.usps.test', $account) }}">
+                                            @csrf
+                                            <button class="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-xs font-semibold text-[#1D4ED8]">Test connection</button>
+                                        </form>
+                                    </div>
+                                @endif
+                            </article>
+                        @empty
+                            <div class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-center text-sm text-[#64748B]">No USPS testing accounts yet.</div>
+                        @endforelse
+                    </div>
+
+                    @if (($uspsAccounts ?? collect())->isNotEmpty() && ($canManageShipping ?? false))
+                        @php($primaryUspsAccount = ($uspsAccounts ?? collect())->first())
+                        <form method="POST" action="{{ route('settings.shipping.usps.test-package-quote') }}" class="mt-5 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                            @csrf
+                            <input type="hidden" name="carrier_account_id" value="{{ $primaryUspsAccount->id }}">
+                            <p class="text-sm font-semibold text-[#0F172A]">USPS package quote tester</p>
+                            <p class="text-xs text-[#64748B]">Informational domestic quote only. Does not buy labels, authorize EPS payments, or change order totals.</p>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <label class="space-y-1 block">
+                                    <span class="text-xs font-semibold text-[#64748B]">Origin location</span>
+                                    <select name="origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                        <option value="">Select origin</option>
+                                        @foreach ($locations as $location)
+                                            <option value="{{ $location->id }}">{{ $location->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="space-y-1 block">
+                                    <span class="text-xs font-semibold text-[#64748B]">Destination ZIP</span>
+                                    <input name="destination_postal_code" value="{{ old('destination_postal_code') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                </label>
+                            </div>
+                            <div class="grid gap-3 sm:grid-cols-4">
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Weight (lb)</span><input name="weight_value" type="number" step="0.01" min="0.01" value="{{ old('weight_value', '1') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Length (in)</span><input name="length" type="number" step="0.01" min="0.01" value="{{ old('length', '9') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Width (in)</span><input name="width" type="number" step="0.01" min="0.01" value="{{ old('width', '6') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Height (in)</span><input name="height" type="number" step="0.01" min="0.01" value="{{ old('height', '2') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                            </div>
+                            <label class="space-y-1 block">
+                                <span class="text-xs font-semibold text-[#64748B]">Mail class</span>
+                                <input name="mail_class" value="{{ old('mail_class', 'USPS_GROUND_ADVANTAGE') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            </label>
+                            <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Get USPS test quote</button>
+                        </form>
+                    @endif
+
+                    @if (($uspsRecentQuotes ?? collect())->isNotEmpty())
+                        <div class="mt-5 border-t border-[#F1F5F9] pt-4">
+                            <h3 class="text-sm font-semibold text-[#0F172A]">Recent USPS test quotes</h3>
+                            <div class="mt-3 space-y-2">
+                                @foreach ($uspsRecentQuotes as $quote)
+                                    <div class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
+                                        <p class="font-semibold text-[#0F172A]">{{ $quote->service_name ?? $quote->service_code ?? 'USPS quote' }}</p>
+                                        <p class="mt-1">{{ $quote->origin_postal_code }} → {{ $quote->destination_postal_code }} · {{ str($quote->status)->title() }}</p>
+                                        @if ($quote->amount !== null)
+                                            <p class="mt-1">${{ number_format((float) $quote->amount, 2) }} {{ $quote->currency }}</p>
+                                        @endif
+                                        @if ($quote->error_message)
+                                            <p class="mt-1 text-red-700">{{ $quote->error_message }}</p>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+
+                    @if (($uspsApiEvents ?? collect())->isNotEmpty())
+                        <div class="mt-5 border-t border-[#F1F5F9] pt-4">
+                            <h3 class="text-sm font-semibold text-[#0F172A]">Recent USPS API activity</h3>
+                            <div class="mt-3 space-y-2">
+                                @foreach ($uspsApiEvents as $event)
+                                    <div class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
+                                        <p class="font-semibold text-[#0F172A]">{{ str($event->action)->replace('_', ' ')->title() }} · {{ str($event->status)->title() }}</p>
+                                        @if (data_get($event->response_summary, 'http_status'))
+                                            <p class="mt-1">HTTP {{ data_get($event->response_summary, 'http_status') }}</p>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </section>
+
+                <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
                     <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Carriers &amp; accounts</h2>
-                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Add manual courier accounts for fulfillment today. FedEx sandbox API setup is managed in the section above.</p>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Add manual courier accounts for fulfillment today. FedEx and USPS API setup is managed in the sections above.</p>
 
                     @if ($canManageShipping)
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.store') }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">

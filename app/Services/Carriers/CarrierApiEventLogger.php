@@ -91,9 +91,14 @@ class CarrierApiEventLogger
             || str_contains($key, 'password')
             || str_contains($key, 'token')
             || str_contains($key, 'client_id')
+            || str_contains($key, 'consumer_key')
+            || str_contains($key, 'consumer_secret')
             || str_contains($key, 'customer_key')
             || str_contains($key, 'child_key')
-            || str_contains($key, 'child_secret');
+            || str_contains($key, 'child_secret')
+            || str_contains($key, 'crid')
+            || str_contains($key, 'master_mid')
+            || str_contains($key, 'labeler_mid');
     }
 
     private function maskAccountNumber(string $number): string

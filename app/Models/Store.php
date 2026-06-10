@@ -181,6 +181,16 @@ class Store extends Model
         return $this->hasMany(CarrierApiEvent::class);
     }
 
+    public function shipmentPackages(): HasMany
+    {
+        return $this->hasMany(ShipmentPackage::class);
+    }
+
+    public function carrierRateQuotes(): HasMany
+    {
+        return $this->hasMany(CarrierRateQuote::class);
+    }
+
     public function shippingZones(): HasMany
     {
         return $this->hasMany(ShippingZone::class);

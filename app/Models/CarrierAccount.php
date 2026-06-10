@@ -37,7 +37,11 @@ class CarrierAccount extends Model
 
     public const CONNECTION_MODE_FEDEX_INTEGRATOR = 'fedex_integrator_account';
 
+    public const CONNECTION_MODE_USPS_PLATFORM = 'usps_platform_api';
+
     public const ENVIRONMENT_SANDBOX = 'sandbox';
+
+    public const ENVIRONMENT_TESTING = 'testing';
 
     public const ENVIRONMENT_LIVE = 'live';
 
@@ -157,6 +161,17 @@ class CarrierAccount extends Model
     {
         return $this->provider === self::PROVIDER_FEDEX
             || $this->carrier?->code === 'fedex';
+    }
+
+    public function isUsps(): bool
+    {
+        return $this->provider === self::PROVIDER_USPS
+            || $this->carrier?->code === 'usps';
+    }
+
+    public function isTestingEnvironment(): bool
+    {
+        return $this->environment === self::ENVIRONMENT_TESTING;
     }
 
     public function isManualProvider(): bool

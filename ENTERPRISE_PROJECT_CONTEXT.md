@@ -1035,6 +1035,8 @@ Phase 6C-0A implements the first routing layer: nearest eligible fulfillment ori
 
 **Phase 6C-1A (2026-06-04):** FedEx sandbox carrier connection foundation — provider-neutral carrier interface, encrypted merchant credentials, Account Registration + OAuth test connection, carrier API event logs, Shipping & Delivery UI. **Not implemented:** labels, checkout live rates, tracking sync, live/production FedEx. See `docs/PHASE_6C_1A_FEDEX_SANDBOX_CARRIER_FOUNDATION_REPORT.md`.
 
+**Phase 6C-1B-USPS:** USPS public API OAuth, address validation, and domestic test rate quotes using platform USPS credentials. Does not buy labels, authorize EPS payments, schedule pickups, or enable production live labels. Merchant-owned label purchase remains deferred. See `docs/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`.
+
 ### Scenario 3 — Multiple separate stores
 
 Example:
