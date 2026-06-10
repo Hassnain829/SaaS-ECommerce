@@ -40,7 +40,7 @@ class Phase6USPSPublicApiFoundationTest extends TestCase
             ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSeeText('USPS public API (testing)')
-            ->assertSeeText('Save USPS testing account');
+            ->assertSeeText('Connect USPS for testing');
     }
 
     public function test_missing_usps_config_shows_friendly_setup_required_message(): void

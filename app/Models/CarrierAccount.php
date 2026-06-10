@@ -49,6 +49,44 @@ class CarrierAccount extends Model
 
     public const BILLING_OWNER_PLATFORM = 'platform';
 
+    public const BILLING_OWNER_EXTERNAL = 'external';
+
+    public const BILLING_OWNER_NONE = 'none';
+
+    public const OWNERSHIP_PLATFORM_TESTING = 'platform_testing';
+
+    public const OWNERSHIP_MERCHANT_OWNED = 'merchant_owned';
+
+    public const OWNERSHIP_MANUAL = 'manual';
+
+    public const OWNERSHIP_EXTERNAL_MANAGED = 'external_managed';
+
+    public const CONNECTION_OWNER_PLATFORM = 'platform';
+
+    public const CONNECTION_OWNER_MERCHANT = 'merchant';
+
+    public const CONNECTION_OWNER_EXTERNAL = 'external';
+
+    public const CONNECTION_OWNER_NONE = 'none';
+
+    public const CREDENTIALS_PLATFORM_ENV = 'platform_env';
+
+    public const CREDENTIALS_MERCHANT_ENCRYPTED = 'merchant_encrypted';
+
+    public const CREDENTIALS_MERCHANT_OAUTH = 'merchant_oauth';
+
+    public const CREDENTIALS_MANUAL_ENTRY = 'manual_entry';
+
+    public const CREDENTIALS_EXTERNAL_SYSTEM = 'external_system';
+
+    public const CREDENTIALS_NONE = 'none';
+
+    public const ORIGIN_VALIDATION_READY = 'ready';
+
+    public const ORIGIN_VALIDATION_NEEDS_ATTENTION = 'needs_attention';
+
+    public const ORIGIN_VALIDATION_MISSING = 'missing';
+
     public const STATUS_SETUP_REQUIRED = 'setup_required';
 
     public const STATUS_ENABLED = 'enabled';
@@ -100,6 +138,12 @@ class CarrierAccount extends Model
         'connection_type',
         'connection_mode',
         'billing_owner',
+        'ownership_mode',
+        'connection_owner',
+        'credentials_source',
+        'default_origin_location_id',
+        'origin_validation_status',
+        'origin_validation_summary',
         'provider_account_number',
         'status',
         'connection_status',
@@ -135,6 +179,11 @@ class CarrierAccount extends Model
     public function carrier(): BelongsTo
     {
         return $this->belongsTo(Carrier::class);
+    }
+
+    public function defaultOriginLocation(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'default_origin_location_id');
     }
 
     public function creator(): BelongsTo
@@ -246,6 +295,10 @@ class CarrierAccount extends Model
         $this->forceFill([
             'connection_status' => self::CONNECTION_SANDBOX_PLATFORM_FALLBACK,
             'status' => self::STATUS_ENABLED,
+            'ownership_mode' => self::OWNERSHIP_PLATFORM_TESTING,
+            'connection_owner' => self::CONNECTION_OWNER_PLATFORM,
+            'credentials_source' => self::CREDENTIALS_PLATFORM_ENV,
+            'billing_owner' => self::BILLING_OWNER_PLATFORM,
             'last_verified_at' => now(),
             'last_error_code' => null,
             'last_error_message' => null,
@@ -254,6 +307,7 @@ class CarrierAccount extends Model
                 'rates' => true,
                 'labels' => false,
                 'tracking' => false,
+                'pickup' => false,
                 'sandbox_connection' => true,
                 'sandbox_platform_fallback' => true,
                 'merchant_owned_connection' => false,
@@ -266,6 +320,144 @@ class CarrierAccount extends Model
         $this->forceFill([
             'connection_status' => self::CONNECTION_DISABLED,
             'status' => self::STATUS_DISABLED,
+        ])->save();
+    }
+
+    public function isPlatformTesting(): bool
+    {
+        return $this->ownership_mode === self::OWNERSHIP_PLATFORM_TESTING
+            || $this->connection_mode === self::CONNECTION_MODE_USPS_PLATFORM
+            || $this->connection_status === self::CONNECTION_SANDBOX_PLATFORM_FALLBACK;
+    }
+
+    public function isMerchantOwned(): bool
+    {
+        return $this->ownership_mode === self::OWNERSHIP_MERCHANT_OWNED
+            || ($this->connection_owner === self::CONNECTION_OWNER_MERCHANT
+                && ! $this->isManualProvider()
+                && ! $this->isPlatformTesting());
+    }
+
+    public function usesPlatformCredentials(): bool
+    {
+        return $this->credentials_source === self::CREDENTIALS_PLATFORM_ENV;
+    }
+
+    public function usesMerchantCredentials(): bool
+    {
+        return in_array($this->credentials_source, [
+            self::CREDENTIALS_MERCHANT_ENCRYPTED,
+            self::CREDENTIALS_MERCHANT_OAUTH,
+        ], true);
+    }
+
+    public function supportsRates(): bool
+    {
+        return (bool) data_get($this->capabilities, 'rates', false);
+    }
+
+    public function supportsLabels(): bool
+    {
+        return (bool) data_get($this->capabilities, 'labels', false);
+    }
+
+    public function supportsTracking(): bool
+    {
+        return (bool) data_get($this->capabilities, 'tracking', false);
+    }
+
+    public function supportsPickup(): bool
+    {
+        return (bool) data_get($this->capabilities, 'pickup', false);
+    }
+
+    public function defaultOriginLocationId(): ?int
+    {
+        if (filled($this->default_origin_location_id)) {
+            return (int) $this->default_origin_location_id;
+        }
+
+        $settingsId = data_get($this->settings, 'default_origin_location_id');
+
+        return filled($settingsId) ? (int) $settingsId : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    public static function ownershipAttributesForManual(): array
+    {
+        return [
+            'ownership_mode' => self::OWNERSHIP_MANUAL,
+            'connection_owner' => self::CONNECTION_OWNER_MERCHANT,
+            'credentials_source' => self::CREDENTIALS_MANUAL_ENTRY,
+            'billing_owner' => self::BILLING_OWNER_MERCHANT,
+            'capabilities' => [
+                'rates' => false,
+                'labels' => false,
+                'tracking' => false,
+                'pickup' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function ownershipAttributesForUspsPlatformTesting(): array
+    {
+        return [
+            'ownership_mode' => self::OWNERSHIP_PLATFORM_TESTING,
+            'connection_owner' => self::CONNECTION_OWNER_PLATFORM,
+            'credentials_source' => self::CREDENTIALS_PLATFORM_ENV,
+            'billing_owner' => self::BILLING_OWNER_PLATFORM,
+            'capabilities' => [
+                'rates' => true,
+                'labels' => false,
+                'tracking' => false,
+                'pickup' => false,
+                'sandbox_connection' => true,
+                'platform_credentials' => true,
+                'merchant_owned_connection' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function ownershipAttributesForFedExMerchantOwned(): array
+    {
+        return [
+            'ownership_mode' => self::OWNERSHIP_MERCHANT_OWNED,
+            'connection_owner' => self::CONNECTION_OWNER_MERCHANT,
+            'credentials_source' => self::CREDENTIALS_MERCHANT_ENCRYPTED,
+            'billing_owner' => self::BILLING_OWNER_MERCHANT,
+        ];
+    }
+
+    public function syncOriginValidation(?string $status, ?string $summary): void
+    {
+        $this->forceFill([
+            'origin_validation_status' => $status,
+            'origin_validation_summary' => $summary,
+        ])->save();
+    }
+
+    public function assignDefaultOriginLocation(?int $locationId): void
+    {
+        $settings = is_array($this->settings) ? $this->settings : [];
+
+        if ($locationId === null) {
+            unset($settings['default_origin_location_id']);
+        } else {
+            $settings['default_origin_location_id'] = $locationId;
+        }
+
+        $this->forceFill([
+            'default_origin_location_id' => $locationId,
+            'settings' => $settings,
         ])->save();
     }
 

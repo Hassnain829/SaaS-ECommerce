@@ -322,9 +322,10 @@ class Phase6CarrierOriginReadinessTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shippingAutomation'))
+            ->get(route('shipping.carriers.connect.show', 'usps'))
             ->assertOk()
-            ->assertSeeText('Main location — 738 FAWN VALLEY DR, ALLEN, TX 75002, US');
+            ->assertSeeText('Main location')
+            ->assertSeeText('738 FAWN VALLEY DR, ALLEN, TX 75002, US');
     }
 
     public function test_store_business_address_copy_does_not_claim_to_be_carrier_origin(): void

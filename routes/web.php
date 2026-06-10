@@ -18,6 +18,7 @@ use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductWorkspaceController;
 use App\Http\Controllers\ProductWorkspaceDataController;
 use App\Http\Controllers\ShipmentController;
+use App\Http\Controllers\CarrierConnectionWizardController;
 use App\Http\Controllers\ShippingSettingsController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TeamMemberController;
@@ -271,6 +272,24 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/shippingAutomation', [ShippingSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('shippingAutomation');
+    Route::get('/settings/shipping/carriers/connect', [CarrierConnectionWizardController::class, 'index'])
+        ->middleware('store.permission:settings.manage')
+        ->name('shipping.carriers.connect.index');
+    Route::get('/settings/shipping/carriers/connect/{carrier}', [CarrierConnectionWizardController::class, 'show'])
+        ->middleware('store.permission:settings.manage')
+        ->name('shipping.carriers.connect.show');
+    Route::post('/settings/shipping/carriers/connect/{carrier}/origin', [CarrierConnectionWizardController::class, 'storeOrigin'])
+        ->middleware('store.permission:settings.manage')
+        ->name('shipping.carriers.connect.origin');
+    Route::post('/settings/shipping/carriers/connect/{carrier}/ownership', [CarrierConnectionWizardController::class, 'storeOwnership'])
+        ->middleware('store.permission:settings.manage')
+        ->name('shipping.carriers.connect.ownership');
+    Route::post('/settings/shipping/carriers/connect/fedex/details', [CarrierConnectionWizardController::class, 'storeFedExDetails'])
+        ->middleware('store.permission:settings.manage')
+        ->name('shipping.carriers.connect.fedex.details');
+    Route::post('/settings/shipping/carriers/connect/{carrier}/test', [CarrierConnectionWizardController::class, 'test'])
+        ->middleware('store.permission:settings.manage')
+        ->name('shipping.carriers.connect.test');
     Route::post('/settings/shipping/carrier-accounts/fedex', [ShippingSettingsController::class, 'storeFedExCarrierAccount'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.store');

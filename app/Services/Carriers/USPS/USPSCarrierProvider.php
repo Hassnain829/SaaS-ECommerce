@@ -152,7 +152,7 @@ class USPSCarrierProvider implements CarrierProviderInterface
 
     private function resolveDefaultOriginLocation(CarrierAccount $account): ?Location
     {
-        $locationId = data_get($account->settings, 'default_origin_location_id');
+        $locationId = $account->defaultOriginLocationId();
 
         if (! filled($locationId)) {
             return null;

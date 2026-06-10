@@ -610,7 +610,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSeeText('FedEx sandbox')
-            ->assertSeeText('Save FedEx sandbox account')
+            ->assertSeeText('Start FedEx setup')
             ->assertDontSeeText('Buy label')
             ->assertDontSeeText('Generate label')
             ->assertDontSeeText('Live rates')
@@ -1132,14 +1132,34 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
     {
         [$owner, $store] = $this->ownerStore('FedEx Manual Still Works');
         $manual = Carrier::query()->where('code', 'manual-delivery')->firstOrFail();
+        $location = Location::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Main warehouse',
+            'type' => Location::TYPE_WAREHOUSE,
+            'address_line1' => '100 Warehouse Rd',
+            'city' => 'Memphis',
+            'state' => 'TN',
+            'postal_code' => '38118',
+            'country_code' => 'US',
+            'is_default' => true,
+            'is_active' => true,
+            'fulfills_online_orders' => true,
+        ]);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.shipping.carrier-accounts.store'), [
+            ->post(route('shipping.carriers.connect.origin', 'manual'), [
+                'origin_location_id' => $location->id,
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('shipping.carriers.connect.ownership', 'manual'), [
+                'origin_location_id' => $location->id,
+                'ownership_mode' => CarrierAccount::OWNERSHIP_MANUAL,
                 'carrier_id' => $manual->id,
                 'display_name' => 'Main manual delivery',
-                'connection_type' => CarrierAccount::CONNECTION_MANUAL,
-                'status' => CarrierAccount::STATUS_ENABLED,
             ])
             ->assertRedirect();
 

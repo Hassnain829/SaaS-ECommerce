@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -42,8 +43,10 @@ class Phase6ManualFulfillmentTest extends TestCase
             ->assertSeeText('Shipping & Delivery')
             ->assertSeeText('Shipping zones')
             ->assertSeeText('Delivery methods')
-            ->assertSeeText('Carriers & accounts')
+            ->assertSeeText('Carrier accounts')
+            ->assertSeeText('Connect carrier account')
             ->assertSeeText('Fulfillment locations')
+            ->assertDontSeeText('Add carrier account')
             ->assertDontSeeText('Save unavailable')
             ->assertDontSeeText('Export preview')
             ->assertDontSeeText('Global Automation Preview')
@@ -66,6 +69,38 @@ class Phase6ManualFulfillmentTest extends TestCase
                 'display_name' => 'Main manual delivery',
                 'connection_type' => CarrierAccount::CONNECTION_MANUAL,
                 'status' => CarrierAccount::STATUS_ENABLED,
+            ])
+            ->assertRedirect(route('shipping.carriers.connect.index'))
+            ->assertSessionHas('success');
+
+        $location = Location::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Main warehouse',
+            'type' => Location::TYPE_WAREHOUSE,
+            'address_line1' => '100 Warehouse Rd',
+            'city' => 'Memphis',
+            'state' => 'TN',
+            'postal_code' => '38118',
+            'country_code' => 'US',
+            'is_default' => true,
+            'is_active' => true,
+            'fulfills_online_orders' => true,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('shipping.carriers.connect.origin', 'manual'), [
+                'origin_location_id' => $location->id,
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('shipping.carriers.connect.ownership', 'manual'), [
+                'origin_location_id' => $location->id,
+                'ownership_mode' => CarrierAccount::OWNERSHIP_MANUAL,
+                'carrier_id' => $carrier->id,
+                'display_name' => 'Main manual delivery',
                 'supported_countries' => 'US, CA',
                 'enabled_for_checkout' => '1',
             ])
@@ -79,7 +114,7 @@ class Phase6ManualFulfillmentTest extends TestCase
         ]);
         $this->assertDatabaseHas('security_logs', [
             'store_id' => $store->id,
-            'event_type' => 'shipping.carrier_account_created',
+            'event_type' => 'shipping.carrier_wizard_ownership_saved',
             'severity' => SecurityLog::SEVERITY_INFO,
         ]);
     }

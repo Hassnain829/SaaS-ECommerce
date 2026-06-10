@@ -117,6 +117,35 @@ class CarrierOriginReadinessService
 
     public function assess(Location $location, string $carrierContext = self::CARRIER_USPS): CarrierOriginReadinessResult
     {
+        return $this->assessForFulfillmentOrigin($location, $carrierContext);
+    }
+
+    public function assessForFulfillmentOrigin(Location $location, string $carrierContext = self::CARRIER_USPS): CarrierOriginReadinessResult
+    {
+        if (! $location->is_active) {
+            return $this->result(
+                ready: false,
+                status: CarrierOriginReadinessResult::STATUS_MISSING_FIELDS,
+                missingFields: ['Active location'],
+                normalizedAddress: $this->normalizedFromLocation($location),
+                originZip5: null,
+                merchantMessage: 'This location is inactive. Activate it before using it as a ship-from location.',
+                badgeLabel: 'Needs attention',
+            );
+        }
+
+        if (! $location->fulfills_online_orders) {
+            return $this->result(
+                ready: false,
+                status: CarrierOriginReadinessResult::STATUS_MISSING_FIELDS,
+                missingFields: ['Online fulfillment'],
+                normalizedAddress: $this->normalizedFromLocation($location),
+                originZip5: null,
+                merchantMessage: 'This location is not enabled for online fulfillment. Turn on fulfillment for this location first.',
+                badgeLabel: 'Not enabled for fulfillment',
+            );
+        }
+
         return $this->assessAttributes($location->only([
             'address_line1',
             'address_line2',
@@ -127,9 +156,24 @@ class CarrierOriginReadinessService
         ]), $carrierContext);
     }
 
+    /**
+     * @return array<string, string|null>
+     */
+    private function normalizedFromLocation(Location $location): array
+    {
+        return [
+            'address_line1' => $location->address_line1,
+            'address_line2' => $location->address_line2,
+            'city' => $location->city,
+            'state' => $location->state,
+            'postal_code' => $location->postal_code,
+            'country_code' => $location->country_code,
+        ];
+    }
+
     public function assessForAccount(CarrierAccount $account, string $carrierContext = self::CARRIER_USPS): ?CarrierOriginReadinessResult
     {
-        $locationId = data_get($account->settings, 'default_origin_location_id');
+        $locationId = $account->defaultOriginLocationId();
 
         if (! filled($locationId)) {
             return null;
@@ -140,14 +184,17 @@ class CarrierOriginReadinessService
             ->whereKey((int) $locationId)
             ->first();
 
-        return $location ? $this->assess($location, $carrierContext) : null;
+        return $location ? $this->assessForFulfillmentOrigin($location, $carrierContext) : null;
     }
 
     public function locationIsCarrierDefaultOrigin(Location $location): bool
     {
         return CarrierAccount::query()
             ->where('store_id', $location->store_id)
-            ->where('settings->default_origin_location_id', $location->id)
+            ->where(function ($query) use ($location): void {
+                $query->where('default_origin_location_id', $location->id)
+                    ->orWhere('settings->default_origin_location_id', $location->id);
+            })
             ->exists();
     }
 

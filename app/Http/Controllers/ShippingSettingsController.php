@@ -62,7 +62,7 @@ class ShippingSettingsController extends Controller
                 ->orderBy('name')
                 ->get(),
             'carrierAccounts' => $store->carrierAccounts()
-                ->with(['carrier', 'shippingMethods'])
+                ->with(['carrier', 'shippingMethods', 'defaultOriginLocation'])
                 ->orderByDesc('status')
                 ->orderBy('display_name')
                 ->get(),
@@ -128,43 +128,17 @@ class ShippingSettingsController extends Controller
         ]);
     }
 
-    public function storeCarrierAccount(Request $request, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    /**
+     * Legacy route — raw carrier account creation was removed from merchant UI in Phase 6C-1C-FIX.
+     * Redirect merchants to the guided carrier connection wizard.
+     */
+    public function storeCarrierAccount(Request $request): RedirectResponse
     {
-        $store = $request->attributes->get('currentStore');
-        abort_unless($store, 404);
+        abort_unless($request->attributes->get('currentStore'), 404);
 
-        $validated = $request->validate([
-            'carrier_id' => ['required', 'integer', Rule::exists('carriers', 'id')->where('is_active', true)],
-            'display_name' => ['required', 'string', 'max:120'],
-            'connection_type' => ['required', Rule::in(CarrierAccount::CONNECTION_TYPES)],
-            'status' => ['required', Rule::in(CarrierAccount::STATUSES)],
-            'supported_countries' => ['nullable'],
-            'enabled_for_checkout' => ['nullable', 'boolean'],
-        ]);
-
-        $account = $store->carrierAccounts()->create([
-            ...$validated,
-            'provider' => CarrierAccount::PROVIDER_MANUAL,
-            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
-            'connection_mode' => CarrierAccount::CONNECTION_MODE_MANUAL,
-            'billing_owner' => CarrierAccount::BILLING_OWNER_MERCHANT,
-            'connection_status' => $validated['status'] === CarrierAccount::STATUS_ENABLED
-                ? CarrierAccount::CONNECTION_CONNECTED
-                : CarrierAccount::CONNECTION_NOT_CONNECTED,
-            'supported_countries' => $this->listFromInput($validated['supported_countries'] ?? null),
-            'enabled_for_checkout' => $request->boolean('enabled_for_checkout'),
-            'created_by' => $request->user()?->id,
-        ]);
-
-        $securityLogRecorder->record(
-            $request,
-            'shipping.carrier_account_created',
-            store: $store,
-            metadata: ['carrier_account_id' => $account->id, 'display_name' => $account->display_name]
-        );
-
-        return back()
-            ->with('success', 'Carrier account added.')
+        return redirect()
+            ->route('shipping.carriers.connect.index')
+            ->with('success', 'Carrier accounts are now managed through the guided setup.')
             ->with('success_title', 'Shipping & delivery');
     }
 
@@ -283,13 +257,16 @@ class ShippingSettingsController extends Controller
             'display_name' => $displayName,
             'connection_type' => CarrierAccount::CONNECTION_API,
             'connection_mode' => CarrierAccount::CONNECTION_MODE_FEDEX_INTEGRATOR,
-            'billing_owner' => CarrierAccount::BILLING_OWNER_MERCHANT,
             'provider_account_number' => $validated['provider_account_number'],
             'status' => CarrierAccount::STATUS_SETUP_REQUIRED,
             'connection_status' => CarrierAccount::CONNECTION_SETUP_REQUIRED,
             'settings' => $settings,
+            'default_origin_location_id' => filled($validated['default_origin_location_id'] ?? null)
+                ? (int) $validated['default_origin_location_id']
+                : null,
             'enabled_for_checkout' => false,
             'created_by' => $request->user()?->id,
+            ...CarrierAccount::ownershipAttributesForFedExMerchantOwned(),
         ]);
 
         $securityLogRecorder->record(
@@ -474,13 +451,16 @@ class ShippingSettingsController extends Controller
             'display_name' => $displayName,
             'connection_type' => CarrierAccount::CONNECTION_API,
             'connection_mode' => CarrierAccount::CONNECTION_MODE_USPS_PLATFORM,
-            'billing_owner' => CarrierAccount::BILLING_OWNER_PLATFORM,
             'status' => CarrierAccount::STATUS_SETUP_REQUIRED,
             'connection_status' => CarrierAccount::CONNECTION_SETUP_REQUIRED,
             'settings' => $settings,
+            'default_origin_location_id' => filled($validated['default_origin_location_id'] ?? null)
+                ? (int) $validated['default_origin_location_id']
+                : null,
             'supported_countries' => ['US'],
             'enabled_for_checkout' => $request->boolean('enabled_for_checkout'),
             'created_by' => $request->user()?->id,
+            ...CarrierAccount::ownershipAttributesForUspsPlatformTesting(),
         ]);
 
         $securityLogRecorder->record(

@@ -18,10 +18,10 @@
         'not_connected' => 'Not connected',
         'setup_required' => 'Setup required',
         'pending_validation' => 'Pending validation',
-        'connected' => 'Merchant-owned connected',
+        'connected' => 'Connected',
         'failed' => 'Failed',
-        'blocked_by_fedex' => 'Blocked by FedEx validation',
-        'sandbox_platform_fallback' => 'Local sandbox platform fallback',
+        'blocked_by_fedex' => 'Carrier support required',
+        'sandbox_platform_fallback' => 'Connected for testing',
         'disabled' => 'Disabled',
     ];
     $connectionStatusBadge = fn (string $status) => match ($status) {
@@ -380,6 +380,24 @@
 
             <aside class="space-y-6">
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
+                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Carrier accounts</h2>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Connect carrier accounts through the guided setup. Manual/local delivery, USPS testing, FedEx setup, and future carriers all start from the same setup flow.</p>
+                    @if ($canManageShipping ?? false)
+                        <div class="mt-4 space-y-2">
+                            <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect carrier account</a>
+                            <a href="{{ route('shipping.carriers.connect.show', 'manual') }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Add manual/local delivery</a>
+                        </div>
+                    @endif
+                    <div class="mt-4 space-y-3">
+                        @forelse ($carrierAccounts as $account)
+                            @include('user_view.partials.carrier_account_card', ['account' => $account, 'canManageShipping' => $canManageShipping ?? false])
+                        @empty
+                            <div class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-6 text-center text-sm text-[#64748B]">No carrier accounts yet. Use the connection wizard to get started.</div>
+                        @endforelse
+                    </div>
+                </section>
+
+                <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
                     <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">FedEx sandbox</h2>
                     <p class="mt-1 text-sm leading-6 text-[#64748B]">
                         Connect a FedEx sandbox account to test carrier setup. Live FedEx labels and customer checkout rates will be added after sandbox testing is verified.
@@ -415,57 +433,10 @@
                     @endif
 
                     @if (($fedExEnabled ?? false) && ($fedExPlatformConfigured ?? false) && ($canManageShipping ?? false))
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.store') }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                            @csrf
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Sandbox only</span>
-                            </div>
-                            <input type="hidden" name="environment" value="sandbox">
-                            <label class="space-y-1 block">
-                                <span class="text-xs font-semibold text-[#64748B]">Display name</span>
-                                <input name="display_name" value="{{ old('display_name', 'FedEx sandbox account') }}" placeholder="FedEx sandbox account" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                            </label>
-                            <label class="space-y-1 block">
-                                <span class="text-xs font-semibold text-[#64748B]">FedEx account number</span>
-                                <input name="provider_account_number" value="{{ old('provider_account_number') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                            </label>
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Company name</span><input name="company_name" value="{{ old('company_name') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Contact name</span><input name="contact_name" value="{{ old('contact_name') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                            </div>
-                            <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Address line 1</span><input name="address_line1" value="{{ old('address_line1') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                            <div class="grid gap-3 sm:grid-cols-3">
-                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">City</span><input name="city" value="{{ old('city') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">State</span><input name="state" value="{{ old('state') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Postal code</span><input name="postal_code" value="{{ old('postal_code') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                            </div>
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Country code</span><input name="country_code" value="{{ old('country_code', 'US') }}" maxlength="2" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Phone</span><input name="phone" value="{{ old('phone') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                            </div>
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Email</span><input name="email" type="email" value="{{ old('email') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                                <label class="space-y-1 block">
-                                    <span class="text-xs font-semibold text-[#64748B]">Default origin location</span>
-                                    <p class="text-[11px] leading-5 text-[#64748B]">Ship-from address for FedEx sandbox testing. This is a fulfillment location, not your store business address.</p>
-                                    <select name="default_origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                                        <option value="">No default origin</option>
-                                        @foreach ($locations as $location)
-                                            @php($readiness = $originReadinessByLocationId[$location->id] ?? null)
-                                            <option value="{{ $location->id }}" @selected((string) old('default_origin_location_id') === (string) $location->id)>
-                                                {{ $location->name }} — {{ $readiness?->displayAddress ?: 'No ship-from address saved' }}@if ($readiness && ! $readiness->ready) · {{ $readiness->badgeLabel }}@endif
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </label>
-                            </div>
-                            <label class="flex items-start gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
-                                <input type="hidden" name="residential" value="0">
-                                <input type="checkbox" name="residential" value="1" @checked(old('residential')) class="mt-0.5">
-                                <span class="text-xs leading-5 text-[#475569]">This is a residential FedEx account/address. Saved for future rate/label validation. It is not sent during FedEx credential registration unless diagnostics enable it.</span>
-                            </label>
-                            <button class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save FedEx sandbox account</button>
-                        </form>
+                        <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-sm text-[#475569]">
+                            <p>Use the carrier connection wizard to add a FedEx sandbox account and choose a ship-from fulfillment location.</p>
+                            <a href="{{ route('shipping.carriers.connect.show', 'fedex') }}" class="mt-3 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Start FedEx setup</a>
+                        </div>
                     @endif
 
                     <div class="mt-4 space-y-3">
@@ -508,8 +479,10 @@
                                         Local sandbox fallback: this uses platform FedEx sandbox credentials only. It is not a production merchant-owned FedEx connection.
                                     </p>
                                 @endif
-                                @if ($account->connection_status === 'connected')
+                                @if ($account->connection_status === 'connected' && $account->isMerchantOwned())
                                     <p class="mt-2 text-xs text-[#047857]">Merchant-owned FedEx sandbox connection verified.</p>
+                                @elseif ($account->connection_status === 'connected' && $account->isPlatformTesting())
+                                    <p class="mt-2 text-xs text-[#C2410C]">Platform testing connection verified. This is not a merchant-owned FedEx account.</p>
                                 @endif
                                 <p class="mt-2 text-xs text-[#64748B]">Residential setting: {{ data_get($account->settings, 'registration.residential') ? 'true' : 'false' }}</p>
                                 @php($stepDiagnostics = ($fedExStepDiagnostics[$account->id] ?? []))
@@ -686,36 +659,10 @@
                     @endif
 
                     @if (($uspsEnabled ?? false) && ($uspsPlatformConfigured ?? false) && ($canManageShipping ?? false))
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.usps.store') }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                            @csrf
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Testing only</span>
-                            </div>
-                            <input type="hidden" name="environment" value="testing">
-                            <label class="space-y-1 block">
-                                <span class="text-xs font-semibold text-[#64748B]">Display name</span>
-                                <input name="display_name" value="{{ old('display_name', 'USPS testing account') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                            </label>
-                            <label class="space-y-1 block">
-                                <span class="text-xs font-semibold text-[#64748B]">Default origin location</span>
-                                <p class="text-[11px] leading-5 text-[#64748B]">Ship-from address for USPS testing. This is a fulfillment location, not your store business address.</p>
-                                <select name="default_origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                                    <option value="">No default origin</option>
-                                    @foreach ($locations as $location)
-                                        @php($readiness = $originReadinessByLocationId[$location->id] ?? null)
-                                        <option value="{{ $location->id }}" @selected((string) old('default_origin_location_id') === (string) $location->id)>
-                                            {{ $location->name }} — {{ $readiness?->displayAddress ?: 'No ship-from address saved' }}@if ($readiness && ! $readiness->ready) · {{ $readiness->badgeLabel }}@endif
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <label class="flex items-start gap-2 text-xs text-[#475569]">
-                                <input type="hidden" name="enabled_for_checkout" value="0">
-                                <input type="checkbox" name="enabled_for_checkout" value="1" @checked(old('enabled_for_checkout')) class="mt-0.5">
-                                <span>Available for checkout (saved only — live checkout USPS rates are not enabled in this phase)</span>
-                            </label>
-                            <button class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save USPS testing account</button>
-                        </form>
+                        <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-sm text-[#475569]">
+                            <p>Use the carrier connection wizard to add a platform testing USPS account and choose a ship-from fulfillment location.</p>
+                            <a href="{{ route('shipping.carriers.connect.show', 'usps') }}" class="mt-3 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect USPS for testing</a>
+                        </div>
                     @endif
 
                     <div class="mt-4 space-y-3">
@@ -724,7 +671,7 @@
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <p class="font-semibold text-[#0F172A]">{{ $account->display_name }}</p>
-                                        <p class="mt-1 text-sm text-[#64748B]">USPS public API · Platform credentials</p>
+                                        <p class="mt-1 text-sm text-[#64748B]">Platform testing connection</p>
                                     </div>
                                     <div class="flex flex-wrap justify-end gap-2">
                                         <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Testing</span>
@@ -768,11 +715,12 @@
 
                     @if (($uspsAccounts ?? collect())->isNotEmpty() && ($canManageShipping ?? false))
                         @php($primaryUspsAccount = ($uspsAccounts ?? collect())->first())
-                        <form method="POST" action="{{ route('settings.shipping.usps.test-package-quote') }}" class="mt-5 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                        <details class="mt-5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                            <summary class="cursor-pointer text-sm font-semibold text-[#0F172A]">Testing tools — USPS package quote tester</summary>
+                            <p class="mt-3 text-xs text-[#64748B]">Informational domestic quote only. Does not buy labels, authorize USPS payments, or change order totals.</p>
+                        <form method="POST" action="{{ route('settings.shipping.usps.test-package-quote') }}" class="mt-3 space-y-3">
                             @csrf
                             <input type="hidden" name="carrier_account_id" value="{{ $primaryUspsAccount->id }}">
-                            <p class="text-sm font-semibold text-[#0F172A]">USPS package quote tester</p>
-                            <p class="text-xs text-[#64748B]">Informational domestic quote only. Does not buy labels, authorize EPS payments, or change order totals.</p>
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <label class="space-y-1 block">
                                     <span class="text-xs font-semibold text-[#64748B]">Origin location</span>
@@ -809,6 +757,7 @@
                                 <p class="text-xs text-[#64748B]"><a href="{{ route('settings.locations.index') }}" class="font-semibold text-[#1D4ED8]">Manage fulfillment locations</a> to complete the ship-from address.</p>
                             @endif
                         </form>
+                        </details>
                     @endif
 
                     @if (($uspsRecentQuotes ?? collect())->isNotEmpty())
@@ -846,84 +795,6 @@
                             </div>
                         </div>
                     @endif
-                </section>
-
-                <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
-                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Carriers &amp; accounts</h2>
-                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Add manual courier accounts for fulfillment today. FedEx and USPS API setup is managed in the sections above.</p>
-
-                    @if ($canManageShipping)
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.store') }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                            @csrf
-                            <label class="space-y-1 block">
-                                <span class="text-xs font-semibold text-[#64748B]">Carrier</span>
-                                <select name="carrier_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                                    @foreach ($carriers as $carrier)
-                                        <option value="{{ $carrier->id }}">{{ $carrier->name }}</option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <label class="space-y-1 block">
-                                <span class="text-xs font-semibold text-[#64748B]">Display name</span>
-                                <input name="display_name" value="{{ old('display_name') }}" placeholder="Main DHL account" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                            </label>
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                <label class="space-y-1 block">
-                                    <span class="text-xs font-semibold text-[#64748B]">Connection</span>
-                                    <select name="connection_type" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                                        @foreach ($connectionTypes as $type)
-                                            <option value="{{ $type }}">{{ $connectionLabels[$type] ?? str($type)->replace('_', ' ')->title() }}</option>
-                                        @endforeach
-                                    </select>
-                                </label>
-                                <label class="space-y-1 block">
-                                    <span class="text-xs font-semibold text-[#64748B]">Status</span>
-                                    <select name="status" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                                        @foreach ($carrierAccountStatuses as $status)
-                                            <option value="{{ $status }}" @selected($status === 'enabled')>{{ $accountStatusLabels[$status] ?? str($status)->replace('_', ' ')->title() }}</option>
-                                        @endforeach
-                                    </select>
-                                </label>
-                            </div>
-                            <label class="space-y-1 block">
-                                <span class="text-xs font-semibold text-[#64748B]">Supported countries</span>
-                                <input name="supported_countries" value="{{ old('supported_countries') }}" placeholder="US, CA, PK" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                            </label>
-                            <label class="inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="enabled_for_checkout" value="1" checked class="rounded border-[#CBD5E1]"> Available for checkout</label>
-                            <button class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Add carrier account</button>
-                        </form>
-                    @endif
-
-                    <div class="mt-4 space-y-3">
-                        @forelse ($carrierAccounts as $account)
-                            <article class="rounded-xl border border-[#E2E8F0] bg-white p-4">
-                                <div class="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p class="font-semibold text-[#0F172A]">{{ $account->display_name }}</p>
-                                        <p class="mt-1 text-sm text-[#64748B]">{{ $account->carrier?->name ?? 'Carrier removed' }} | {{ $connectionLabels[$account->connection_type] ?? str($account->connection_type)->replace('_', ' ')->title() }}</p>
-                                    </div>
-                                    <span class="rounded-full {{ $account->status === 'enabled' ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#F1F5F9] text-[#64748B]' }} px-2.5 py-1 text-xs font-bold">
-                                        {{ $accountStatusLabels[$account->status] ?? str($account->status)->replace('_', ' ')->title() }}
-                                    </span>
-                                </div>
-                                <p class="mt-3 text-xs text-[#94A3B8]">Countries: {{ collect($account->supported_countries)->filter()->implode(', ') ?: 'Not limited' }}</p>
-                                @if ($canManageShipping)
-                                    <div class="mt-3 flex justify-end">
-                                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.destroy', $account) }}">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button>
-                                        </form>
-                                    </div>
-                                @endif
-                            </article>
-                        @empty
-                            <div class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-8 text-center">
-                                <p class="font-semibold text-[#0F172A]">No carrier accounts yet.</p>
-                                <p class="mt-1 text-sm text-[#64748B]">Add Manual delivery, Store pickup, DHL, UPS, FedEx, USPS, or Local courier.</p>
-                            </div>
-                        @endforelse
-                    </div>
                 </section>
 
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
