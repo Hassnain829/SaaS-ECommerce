@@ -43,6 +43,12 @@
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations control where stock is stored. Markets and currencies control where and how you sell. Market-specific selling settings will be added later.</p>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Use service areas to control which destinations this location can fulfill. This routing is based on configured service areas, stock availability, and your priority settings.</p>
 
+                    <div class="mt-5 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-4">
+                        <p class="text-sm font-semibold text-[#0F172A]">Fulfillment origins</p>
+                        <p class="mt-2 text-sm leading-relaxed text-[#475569]">Carrier rates use fulfillment locations as the ship-from address. Your store business address can be different and is used for store profile, invoices, and admin context.</p>
+                        <p class="mt-2 text-sm leading-relaxed text-[#475569]">USPS and FedEx testing use the default origin location selected on Shipping &amp; Delivery — not the store business address.</p>
+                    </div>
+
                     <div class="mt-5 grid gap-4 md:grid-cols-2">
                         <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                             <h3 class="text-sm font-semibold text-[#0F172A]">What locations are used for</h3>
@@ -83,16 +89,24 @@
                                 </select>
                             </label>
                             <label class="space-y-1 sm:col-span-2">
-                                <span class="text-xs font-semibold text-[#64748B]">Address</span>
-                                <input name="address_line1" value="{{ old('address_line1') }}" placeholder="Street, building, or storage note" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                <span class="text-xs font-semibold text-[#64748B]">Address line 1</span>
+                                <input name="address_line1" value="{{ old('address_line1') }}" placeholder="738 Fawn Valley Dr" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                             </label>
                             <label class="space-y-1">
                                 <span class="text-xs font-semibold text-[#64748B]">City</span>
                                 <input name="city" value="{{ old('city') }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                             </label>
                             <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">State/Province</span>
+                                <input name="state" value="{{ old('state') }}" placeholder="TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Postal/ZIP code</span>
+                                <input name="postal_code" value="{{ old('postal_code') }}" placeholder="75002" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                            </label>
+                            <label class="space-y-1">
                                 <span class="text-xs font-semibold text-[#64748B]">Country code</span>
-                                <input name="country_code" value="{{ old('country_code') }}" maxlength="2" placeholder="US" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                <input name="country_code" value="{{ old('country_code', 'US') }}" placeholder="US" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
                             </label>
                             <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
                                 <input type="hidden" name="fulfills_online_orders" value="0">
@@ -146,6 +160,7 @@
                             <th class="px-5 py-3">Type</th>
                             <th class="px-5 py-3">Address</th>
                             <th class="px-5 py-3">Routing</th>
+                            <th class="px-5 py-3">Ship-from readiness</th>
                             <th class="px-5 py-3">Default</th>
                             <th class="px-5 py-3">Status</th>
                             <th class="px-5 py-3 text-right">Actions</th>
@@ -153,10 +168,14 @@
                     </thead>
                     <tbody class="divide-y divide-[#F1F5F9]">
                         @foreach ($locations as $location)
+                            @php($readiness = $originReadinessByLocationId[$location->id] ?? null)
                             <tr>
                                 <td class="px-5 py-4 align-top">
                                     <p class="font-semibold text-[#0F172A]">{{ $location->name }}</p>
                                     <p class="mt-1 text-xs text-[#94A3B8]">{{ $location->inventory_levels_count }} inventory row(s)</p>
+                                    @if ($location->is_default)
+                                        <p class="mt-1 text-xs font-semibold text-[#1D4ED8]">Default fulfillment origin</p>
+                                    @endif
                                 </td>
                                 <td class="px-5 py-4 align-top text-[#334155]">{{ $typeLabels[$location->type] ?? \Illuminate\Support\Str::title(str_replace('_', ' ', $location->type)) }}</td>
                                 <td class="px-5 py-4 align-top text-[#64748B]">
@@ -175,6 +194,16 @@
                                             <p class="text-xs">Postal: {{ collect($location->service_postal_patterns)->filter()->implode(', ') }}</p>
                                         @endif
                                     </div>
+                                </td>
+                                <td class="px-5 py-4 align-top">
+                                    @if ($readiness)
+                                        <span class="rounded-full {{ $readiness->ready ? 'bg-[#ECFDF5] text-[#047857]' : ($readiness->status === 'unsupported_country' ? 'bg-[#FFF7ED] text-[#C2410C]' : 'bg-[#FEF2F2] text-[#991B1B]') }} px-2.5 py-1 text-xs font-bold">{{ $readiness->badgeLabel }}</span>
+                                        @if (! $readiness->ready && $readiness->missingFields !== [])
+                                            <p class="mt-2 text-xs text-[#64748B]">Missing: {{ implode(', ', $readiness->missingFields) }}</p>
+                                        @elseif (! $readiness->ready)
+                                            <p class="mt-2 text-xs text-[#64748B]">{{ $readiness->merchantMessage }}</p>
+                                        @endif
+                                    @endif
                                 </td>
                                 <td class="px-5 py-4 align-top">
                                     @if ($location->is_default)
@@ -218,7 +247,7 @@
                                                         </select>
                                                     </label>
                                                     <label class="space-y-1 sm:col-span-2">
-                                                        <span class="text-xs font-semibold text-[#64748B]">Address</span>
+                                                        <span class="text-xs font-semibold text-[#64748B]">Address line 1</span>
                                                         <input name="address_line1" value="{{ old('address_line1', $location->address_line1) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                                                     </label>
                                                     <label class="space-y-1">
@@ -226,8 +255,16 @@
                                                         <input name="city" value="{{ old('city', $location->city) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                                                     </label>
                                                     <label class="space-y-1">
+                                                        <span class="text-xs font-semibold text-[#64748B]">State/Province</span>
+                                                        <input name="state" value="{{ old('state', $location->state) }}" placeholder="TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                    </label>
+                                                    <label class="space-y-1">
+                                                        <span class="text-xs font-semibold text-[#64748B]">Postal/ZIP code</span>
+                                                        <input name="postal_code" value="{{ old('postal_code', $location->postal_code) }}" placeholder="75002" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                                    </label>
+                                                    <label class="space-y-1">
                                                         <span class="text-xs font-semibold text-[#64748B]">Country code</span>
-                                                        <input name="country_code" value="{{ old('country_code', $location->country_code) }}" maxlength="2" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                        <input name="country_code" value="{{ old('country_code', $location->country_code) }}" placeholder="US" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
                                                     </label>
                                                     <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
                                                         <input type="hidden" name="fulfills_online_orders" value="0">

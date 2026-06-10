@@ -3,16 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\Location;
+use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
 use App\Support\StorePermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class LocationController extends Controller
 {
+    public function __construct(
+        private readonly CarrierOriginReadinessService $originReadiness,
+    ) {
+    }
+
     public function index(Request $request): View
     {
         $store = $request->attributes->get('currentStore');
@@ -20,16 +27,25 @@ class LocationController extends Controller
 
         app(DefaultLocationService::class)->ensureFromStoreDefaults($store, $request->user());
 
+        $locations = $store->locations()
+            ->withCount('inventoryLevels')
+            ->orderByDesc('is_default')
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get();
+
+        $originReadinessByLocationId = $locations
+            ->mapWithKeys(fn (Location $location): array => [
+                $location->id => $this->originReadiness->assess($location),
+            ])
+            ->all();
+
         return view('user_view.locations', [
             'selectedStore' => $store,
-            'locations' => $store->locations()
-                ->withCount('inventoryLevels')
-                ->orderByDesc('is_default')
-                ->orderByDesc('is_active')
-                ->orderBy('name')
-                ->get(),
+            'locations' => $locations,
             'locationTypes' => Location::TYPES,
             'canManageLocations' => $request->user()?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE) ?? false,
+            'originReadinessByLocationId' => $originReadinessByLocationId,
         ]);
     }
 
@@ -69,7 +85,7 @@ class LocationController extends Controller
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $location->store_id === (int) $store->id, 404);
 
-        $validated = $this->validateLocation($request);
+        $validated = $this->validateLocation($request, $location);
         $location->update([
             ...$validated,
             'updated_by' => $request->user()?->id,
@@ -144,9 +160,9 @@ class LocationController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function validateLocation(Request $request): array
+    private function validateLocation(Request $request, ?Location $existing = null): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'type' => ['required', 'string', Rule::in(Location::TYPES)],
             'address_line1' => ['nullable', 'string', 'max:255'],
@@ -154,7 +170,7 @@ class LocationController extends Controller
             'city' => ['nullable', 'string', 'max:120'],
             'state' => ['nullable', 'string', 'max:120'],
             'postal_code' => ['nullable', 'string', 'max:40'],
-            'country_code' => ['nullable', 'string', 'size:2'],
+            'country_code' => ['nullable', 'string', 'max:64'],
             'phone' => ['nullable', 'string', 'max:60'],
             'fulfills_online_orders' => ['nullable', 'boolean'],
             'pickup_enabled' => ['nullable', 'boolean'],
@@ -164,9 +180,24 @@ class LocationController extends Controller
             'service_postal_patterns' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $validated['country_code'] = filled($validated['country_code'] ?? null)
-            ? strtoupper((string) $validated['country_code'])
+        $rawCountry = filled($validated['country_code'] ?? null)
+            ? trim((string) $validated['country_code'])
             : null;
+
+        if ($rawCountry !== null) {
+            $normalizedCountry = $this->originReadiness->normalizeCountryCode($rawCountry);
+
+            if ($normalizedCountry === null || in_array($normalizedCountry, ['UN', 'XX', 'ZZ'], true)) {
+                throw ValidationException::withMessages([
+                    'country_code' => 'Country code must be a 2-letter country code like US.',
+                ]);
+            }
+
+            $validated['country_code'] = $normalizedCountry;
+        } else {
+            $validated['country_code'] = null;
+        }
+
         $validated['fulfills_online_orders'] = $request->has('fulfills_online_orders')
             ? $request->boolean('fulfills_online_orders')
             : true;
@@ -175,6 +206,49 @@ class LocationController extends Controller
         $validated['service_countries'] = $this->normalizeCountries($request->input('service_countries'));
         $validated['service_regions'] = $this->normalizeList($request->input('service_regions'));
         $validated['service_postal_patterns'] = $this->normalizeList($request->input('service_postal_patterns'), preserveWildcard: true);
+
+        if ($validated['fulfills_online_orders']) {
+            $fulfillmentMissing = collect([
+                'address_line1' => 'Address line 1',
+                'city' => 'City',
+                'country_code' => 'Country code',
+            ])->filter(fn (string $label, string $field): bool => ! filled($validated[$field] ?? null));
+
+            if ($fulfillmentMissing->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'address_line1' => 'Online fulfillment locations need a complete ship-from address (street, city, and country code).',
+                ]);
+            }
+        }
+
+        $candidateAttributes = array_merge(
+            $existing?->only([
+                'address_line1',
+                'address_line2',
+                'city',
+                'state',
+                'postal_code',
+                'country_code',
+            ]) ?? [],
+            array_intersect_key($validated, array_flip([
+                'address_line1',
+                'address_line2',
+                'city',
+                'state',
+                'postal_code',
+                'country_code',
+            ])),
+        );
+
+        if ($existing !== null && $this->originReadiness->locationIsCarrierDefaultOrigin($existing)) {
+            $readiness = $this->originReadiness->assessAttributes($candidateAttributes);
+
+            if (! $readiness->ready) {
+                throw ValidationException::withMessages([
+                    'address_line1' => $readiness->merchantMessage.' Update the ship-from address or choose a different default origin on Shipping & Delivery.',
+                ]);
+            }
+        }
 
         return $validated;
     }
@@ -185,14 +259,7 @@ class LocationController extends Controller
     private function normalizeCountries(mixed $value): ?array
     {
         $countries = collect($this->normalizeList($value))
-            ->map(fn (string $country): string => match ($country) {
-                'UNITED STATES', 'UNITED STATES OF AMERICA', 'USA' => 'US',
-                'UNITED KINGDOM', 'UK' => 'GB',
-                'CANADA' => 'CA',
-                'PAKISTAN' => 'PK',
-                'UNITED ARAB EMIRATES', 'UAE' => 'AE',
-                default => strlen($country) === 2 ? $country : '',
-            })
+            ->map(fn (string $country): string => $this->originReadiness->normalizeCountryCode($country) ?? '')
             ->filter()
             ->unique()
             ->values()
@@ -212,7 +279,8 @@ class LocationController extends Controller
 
         $items = preg_split('/[\r\n,]+/', (string) $value) ?: [];
         $normalized = collect($items)
-            ->map(fn ($item): string => strtoupper(trim((string) $item)))
+            ->map(fn ($item): string => strtoupper(trim((string) $item))
+            )
             ->map(fn (string $item): string => $preserveWildcard ? str_replace(' ', '', $item) : $item)
             ->filter(fn (string $item): bool => $item !== '')
             ->unique()

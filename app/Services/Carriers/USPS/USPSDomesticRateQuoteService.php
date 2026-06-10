@@ -9,7 +9,9 @@ use App\Models\ShipmentPackage;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\CarrierApiEventLogger;
+use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\DTO\CarrierOriginReadinessResult;
 use Illuminate\Support\Arr;
 
 class USPSDomesticRateQuoteService
@@ -18,6 +20,7 @@ class USPSDomesticRateQuoteService
         private readonly USPSConfig $config,
         private readonly USPSHttpClient $httpClient,
         private readonly CarrierApiEventLogger $eventLogger,
+        private readonly CarrierOriginReadinessService $originReadiness,
     ) {
     }
 
@@ -33,9 +36,30 @@ class USPSDomesticRateQuoteService
         ?User $actor = null,
         ?string $mailClass = null,
     ): array {
-        $originPostalCode = $this->resolveOriginPostalCode($package);
+        $originReadiness = $this->resolveOriginReadiness($package);
+        $originPostalCode = $originReadiness?->originZip5;
         $mailClass = $mailClass ?: $this->config->defaultMailClass();
         $priceType = $this->config->defaultPriceType();
+
+        if ($originReadiness === null || ! $originReadiness->ready || $originPostalCode === null) {
+            $message = $originReadiness?->merchantMessage
+                ?? 'Select a carrier-ready fulfillment origin before requesting a USPS test quote.';
+
+            $result = CarrierApiResult::failure(
+                message: $message,
+                code: 'origin_not_ready',
+                requestSummary: [
+                    'endpoint' => $this->config->domesticBaseRatesPath(),
+                    'local_validation' => true,
+                    'origin_status' => $originReadiness?->status ?? 'missing_origin',
+                    'missing_fields' => $originReadiness?->missingFields ?? [],
+                ],
+            );
+
+            $quote = $this->persistQuote($store, $account, $package, $destinationPostalCode, $originPostalCode, $mailClass, $result, $actor);
+
+            return ['result' => $result, 'quote' => $quote];
+        }
 
         $payload = [
             'originZIPCode' => $originPostalCode,
@@ -176,15 +200,15 @@ class USPSDomesticRateQuoteService
         ]);
     }
 
-    private function resolveOriginPostalCode(ShipmentPackage $package): ?string
+    private function resolveOriginReadiness(ShipmentPackage $package): ?CarrierOriginReadinessResult
     {
         $package->loadMissing('originLocation');
 
-        if ($package->originLocation) {
-            return $this->normalizeZip($package->originLocation->postal_code);
+        if (! $package->originLocation) {
+            return null;
         }
 
-        return null;
+        return $this->originReadiness->assess($package->originLocation, CarrierOriginReadinessService::CARRIER_USPS);
     }
 
     private function normalizeZip(?string $postalCode): ?string

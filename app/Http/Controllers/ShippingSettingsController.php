@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
+use App\Models\Location;
 use App\Models\ShipmentPackage;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
+use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Carriers\CarrierProviderManager;
 use App\Services\Carriers\FedEx\FedExAccountRegistrationService;
 use App\Services\Carriers\FedEx\FedExConfig;
@@ -25,7 +27,7 @@ use Illuminate\View\View;
 
 class ShippingSettingsController extends Controller
 {
-    public function index(Request $request, ChannelOwnershipService $channelOwnership, FedExConfig $fedExConfig, USPSConfig $uspsConfig): View|RedirectResponse
+    public function index(Request $request, ChannelOwnershipService $channelOwnership, FedExConfig $fedExConfig, USPSConfig $uspsConfig, CarrierOriginReadinessService $originReadiness): View|RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         if (! $store) {
@@ -35,6 +37,21 @@ class ShippingSettingsController extends Controller
         }
 
         $store = $channelOwnership->ensureChannelsStructure($store);
+
+        $locations = $store->locations()
+            ->orderByDesc('is_default')
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get();
+
+        $originReadinessByLocationId = $locations
+            ->mapWithKeys(fn (Location $location): array => [
+                $location->id => $originReadiness->assess($location, CarrierOriginReadinessService::CARRIER_USPS),
+            ])
+            ->all();
+
+        $hasCarrierReadyOrigin = collect($originReadinessByLocationId)
+            ->contains(fn ($readiness): bool => $readiness->ready);
 
         return view('user_view.shippingAutomation', [
             'selectedStore' => $store,
@@ -101,11 +118,9 @@ class ShippingSettingsController extends Controller
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(),
-            'locations' => $store->locations()
-                ->orderByDesc('is_default')
-                ->orderByDesc('is_active')
-                ->orderBy('name')
-                ->get(),
+            'locations' => $locations,
+            'originReadinessByLocationId' => $originReadinessByLocationId,
+            'hasCarrierReadyOrigin' => $hasCarrierReadyOrigin,
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
             'connectionTypes' => CarrierAccount::CONNECTION_TYPES,
             'carrierAccountStatuses' => CarrierAccount::STATUSES,
@@ -573,11 +588,26 @@ class ShippingSettingsController extends Controller
             ->whereKey((int) $validated['carrier_account_id'])
             ->firstOrFail();
 
-        $oauth = app(USPSOAuthTokenService::class)->accessToken();
-        if ($oauth === null) {
-            return back()
-                ->withErrors(['usps' => 'USPS OAuth token is unavailable. Test the USPS connection first.'])
-                ->with('error_title', 'Shipping & delivery');
+        $originLocation = Location::query()
+            ->where('store_id', $store->id)
+            ->whereKey((int) $validated['origin_location_id'])
+            ->firstOrFail();
+
+        $originReadiness = app(CarrierOriginReadinessService::class)->assess(
+            $originLocation,
+            CarrierOriginReadinessService::CARRIER_USPS,
+        );
+
+        $accessToken = '';
+        if ($originReadiness->ready) {
+            $oauth = app(USPSOAuthTokenService::class)->accessToken();
+            if ($oauth === null) {
+                return back()
+                    ->withErrors(['usps' => 'USPS OAuth token is unavailable. Test the USPS connection first.'])
+                    ->with('error_title', 'Shipping & delivery');
+            }
+
+            $accessToken = (string) ($oauth['access_token'] ?? '');
         }
 
         ['result' => $quoteResult] = app(USPSDomesticRateQuoteService::class)->quotePackage(
@@ -585,7 +615,7 @@ class ShippingSettingsController extends Controller
             $account,
             $package,
             $validated['destination_postal_code'],
-            $oauth['access_token'],
+            $accessToken,
             $request->user(),
             $validated['mail_class'] ?? null,
         );

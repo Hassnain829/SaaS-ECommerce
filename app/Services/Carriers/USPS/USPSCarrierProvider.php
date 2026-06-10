@@ -6,6 +6,7 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Location;
 use App\Services\Carriers\CarrierApiEventLogger;
+use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Carriers\CarrierProviderInterface;
 use App\Services\Carriers\DTO\CarrierConnectionTestResult;
 
@@ -16,6 +17,7 @@ class USPSCarrierProvider implements CarrierProviderInterface
         private readonly USPSOAuthTokenService $oauthTokenService,
         private readonly USPSAddressValidationService $addressValidationService,
         private readonly CarrierApiEventLogger $eventLogger,
+        private readonly CarrierOriginReadinessService $originReadiness,
     ) {
     }
 
@@ -75,8 +77,11 @@ class USPSCarrierProvider implements CarrierProviderInterface
 
         $token = (string) ($oauthResult->data['access_token'] ?? '');
         $originLocation = $this->resolveDefaultOriginLocation($account);
+        $originReadiness = $originLocation
+            ? $this->originReadiness->assess($originLocation, CarrierOriginReadinessService::CARRIER_USPS)
+            : null;
 
-        if ($originLocation !== null && $token !== '') {
+        if ($originLocation !== null && $originReadiness?->ready && $token !== '') {
             $addressResult = $this->addressValidationService->validateOriginLocation(
                 $account->store,
                 $account,
@@ -87,8 +92,10 @@ class USPSCarrierProvider implements CarrierProviderInterface
             $steps[CarrierApiEvent::ACTION_ADDRESS_VALIDATION] = $addressResult->success
                 ? CarrierApiEvent::STATUS_SUCCEEDED
                 : CarrierApiEvent::STATUS_FAILED;
+        } elseif ($originLocation !== null && ! ($originReadiness?->ready ?? false)) {
+            $steps[CarrierApiEvent::ACTION_ADDRESS_VALIDATION] = 'origin_setup_required';
         } else {
-            $steps[CarrierApiEvent::ACTION_ADDRESS_VALIDATION] = 'skipped';
+            $steps[CarrierApiEvent::ACTION_ADDRESS_VALIDATION] = 'origin_setup_required';
         }
 
         $capabilities = [
@@ -103,9 +110,16 @@ class USPSCarrierProvider implements CarrierProviderInterface
 
         $account->markConnected($capabilities);
 
-        $message = 'USPS testing connection verified successfully.';
-        if (($steps[CarrierApiEvent::ACTION_ADDRESS_VALIDATION] ?? null) === CarrierApiEvent::STATUS_FAILED) {
-            $message = 'USPS OAuth succeeded. Address validation did not pass for the default origin location, but the connection is available for rate quote testing.';
+        $message = 'USPS OAuth connected successfully.';
+        $addressStep = $steps[CarrierApiEvent::ACTION_ADDRESS_VALIDATION] ?? null;
+
+        if ($addressStep === CarrierApiEvent::STATUS_SUCCEEDED) {
+            $message = 'USPS OAuth connected. Address validation passed for the default fulfillment origin. Rate quote testing is available.';
+        } elseif ($addressStep === CarrierApiEvent::STATUS_FAILED) {
+            $message = 'USPS OAuth connected. Address validation did not pass for the default fulfillment origin. Fix the ship-from address or choose another origin before rate quote testing.';
+        } elseif ($addressStep === 'origin_setup_required') {
+            $message = $originReadiness?->merchantMessage
+                ?? 'USPS OAuth connected. Set up a carrier-ready fulfillment origin before address validation and rate quotes.';
         }
 
         return CarrierConnectionTestResult::connected(

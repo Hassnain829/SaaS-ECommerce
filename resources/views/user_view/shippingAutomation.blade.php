@@ -96,6 +96,12 @@
                     <p class="mt-2 text-sm leading-6 text-[#475569]">
                         Set where this store delivers, which delivery options customers can choose, and how orders are fulfilled.
                     </p>
+                    <div class="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-4">
+                        <p class="text-sm font-semibold text-[#0F172A]">Store business address vs. fulfillment origin</p>
+                        <p class="mt-2 text-sm leading-6 text-[#475569]"><span class="font-semibold text-[#0F172A]">Store business address</span> is used for store profile, invoices, and admin context.</p>
+                        <p class="mt-2 text-sm leading-6 text-[#475569]"><span class="font-semibold text-[#0F172A]">Fulfillment origin</span> is the ship-from address used for carrier rates, labels, and fulfillment. USPS and FedEx testing use the selected fulfillment location — not the store business address.</p>
+                        <a href="{{ route('settings.locations.index') }}" class="mt-3 inline-flex text-sm font-semibold text-[#1D4ED8]">Manage fulfillment locations</a>
+                    </div>
                 </div>
                 <div class="grid gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
                     <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
@@ -441,10 +447,14 @@
                                 <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">Email</span><input name="email" type="email" value="{{ old('email') }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
                                 <label class="space-y-1 block">
                                     <span class="text-xs font-semibold text-[#64748B]">Default origin location</span>
+                                    <p class="text-[11px] leading-5 text-[#64748B]">Ship-from address for FedEx sandbox testing. This is a fulfillment location, not your store business address.</p>
                                     <select name="default_origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
                                         <option value="">No default origin</option>
                                         @foreach ($locations as $location)
-                                            <option value="{{ $location->id }}" @selected((string) old('default_origin_location_id') === (string) $location->id)>{{ $location->name }}</option>
+                                            @php($readiness = $originReadinessByLocationId[$location->id] ?? null)
+                                            <option value="{{ $location->id }}" @selected((string) old('default_origin_location_id') === (string) $location->id)>
+                                                {{ $location->name }} — {{ $readiness?->displayAddress ?: 'No ship-from address saved' }}@if ($readiness && ! $readiness->ready) · {{ $readiness->badgeLabel }}@endif
+                                            </option>
                                         @endforeach
                                     </select>
                                 </label>
@@ -478,6 +488,20 @@
                                 @endif
                                 @if ($account->last_error_message && in_array($account->connection_status, ['failed', 'blocked_by_fedex'], true))
                                     <p class="mt-2 text-xs text-red-700">{{ $account->last_error_message }}</p>
+                                @endif
+                                @php($fedExOriginId = (int) data_get($account->settings, 'default_origin_location_id'))
+                                @php($fedExOriginReadiness = $fedExOriginId > 0 ? ($originReadinessByLocationId[$fedExOriginId] ?? null) : null)
+                                @if ($fedExOriginId > 0)
+                                    <div class="mt-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
+                                        <p class="font-semibold text-[#0F172A]">Default fulfillment origin</p>
+                                        @if ($fedExOriginReadiness)
+                                            <p class="mt-1">{{ collect($locations)->firstWhere('id', $fedExOriginId)?->name }} — {{ $fedExOriginReadiness->displayAddress ?: 'No ship-from address saved' }}</p>
+                                            <p class="mt-1"><span class="rounded-full {{ $fedExOriginReadiness->ready ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#FEF2F2] text-[#991B1B]' }} px-2 py-0.5 font-bold">{{ $fedExOriginReadiness->badgeLabel }}</span></p>
+                                            @if (! $fedExOriginReadiness->ready)
+                                                <p class="mt-1">{{ $fedExOriginReadiness->merchantMessage }}</p>
+                                            @endif
+                                        @endif
+                                    </div>
                                 @endif
                                 @if ($account->connection_status === 'sandbox_platform_fallback')
                                     <p class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
@@ -628,6 +652,14 @@
                         Verify USPS OAuth, address validation, and domestic test rate quotes using platform USPS credentials. Label purchase, EPS charges, and production live mode are not part of this phase.
                     </p>
 
+                    @if (! ($hasCarrierReadyOrigin ?? false))
+                        <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                            <p class="font-semibold">Set up a carrier-ready fulfillment origin first.</p>
+                            <p class="mt-1">USPS address validation and test rate quotes need a complete US ship-from address on a fulfillment location (street, city, state, ZIP, country).</p>
+                            <a href="{{ route('settings.locations.index') }}" class="mt-2 inline-flex text-sm font-semibold text-amber-900 underline">Manage fulfillment locations</a>
+                        </div>
+                    @endif
+
                     @if (app()->environment(['local', 'testing']))
                         <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
                             <p class="font-semibold text-slate-900">Developer diagnostics</p>
@@ -666,10 +698,14 @@
                             </label>
                             <label class="space-y-1 block">
                                 <span class="text-xs font-semibold text-[#64748B]">Default origin location</span>
+                                <p class="text-[11px] leading-5 text-[#64748B]">Ship-from address for USPS testing. This is a fulfillment location, not your store business address.</p>
                                 <select name="default_origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
                                     <option value="">No default origin</option>
                                     @foreach ($locations as $location)
-                                        <option value="{{ $location->id }}" @selected((string) old('default_origin_location_id') === (string) $location->id)>{{ $location->name }}</option>
+                                        @php($readiness = $originReadinessByLocationId[$location->id] ?? null)
+                                        <option value="{{ $location->id }}" @selected((string) old('default_origin_location_id') === (string) $location->id)>
+                                            {{ $location->name }} — {{ $readiness?->displayAddress ?: 'No ship-from address saved' }}@if ($readiness && ! $readiness->ready) · {{ $readiness->badgeLabel }}@endif
+                                        </option>
                                     @endforeach
                                 </select>
                             </label>
@@ -700,6 +736,22 @@
                                 @if ($account->last_error_message && in_array($account->connection_status, ['failed'], true))
                                     <p class="mt-2 text-xs text-red-700">{{ $account->last_error_message }}</p>
                                 @endif
+                                @php($uspsOriginId = (int) data_get($account->settings, 'default_origin_location_id'))
+                                @php($uspsOriginReadiness = $uspsOriginId > 0 ? ($originReadinessByLocationId[$uspsOriginId] ?? null) : null)
+                                @if ($uspsOriginId > 0)
+                                    <div class="mt-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
+                                        <p class="font-semibold text-[#0F172A]">Default fulfillment origin</p>
+                                        @if ($uspsOriginReadiness)
+                                            <p class="mt-1">{{ collect($locations)->firstWhere('id', $uspsOriginId)?->name }} — {{ $uspsOriginReadiness->displayAddress ?: 'No ship-from address saved' }}</p>
+                                            <p class="mt-1"><span class="rounded-full {{ $uspsOriginReadiness->ready ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#FEF2F2] text-[#991B1B]' }} px-2 py-0.5 font-bold">{{ $uspsOriginReadiness->badgeLabel }}</span></p>
+                                            @if (! $uspsOriginReadiness->ready)
+                                                <p class="mt-1">{{ $uspsOriginReadiness->merchantMessage }}</p>
+                                            @endif
+                                        @endif
+                                    </div>
+                                @else
+                                    <p class="mt-2 text-xs text-amber-800">No default fulfillment origin selected for this USPS account.</p>
+                                @endif
                                 @if ($canManageShipping)
                                     <div class="mt-3 flex flex-wrap justify-end gap-2">
                                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.usps.test', $account) }}">
@@ -724,12 +776,18 @@
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <label class="space-y-1 block">
                                     <span class="text-xs font-semibold text-[#64748B]">Origin location</span>
-                                    <select name="origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                    <select name="origin_location_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" @disabled(! ($hasCarrierReadyOrigin ?? false)) required>
                                         <option value="">Select origin</option>
                                         @foreach ($locations as $location)
-                                            <option value="{{ $location->id }}">{{ $location->name }}</option>
+                                            @php($readiness = $originReadinessByLocationId[$location->id] ?? null)
+                                            <option value="{{ $location->id }}" @selected((string) old('origin_location_id') === (string) $location->id) @disabled(! ($readiness?->ready ?? false))>
+                                                {{ $location->name }} — {{ $readiness?->displayAddress ?: 'No ship-from address saved' }}@if ($readiness && ! $readiness->ready) · {{ $readiness->badgeLabel }}@endif
+                                            </option>
                                         @endforeach
                                     </select>
+                                    @if (! ($hasCarrierReadyOrigin ?? false))
+                                        <p class="text-[11px] leading-5 text-amber-800">Add a complete US ship-from address on a fulfillment location before requesting quotes.</p>
+                                    @endif
                                 </label>
                                 <label class="space-y-1 block">
                                     <span class="text-xs font-semibold text-[#64748B]">Destination ZIP</span>
@@ -746,7 +804,10 @@
                                 <span class="text-xs font-semibold text-[#64748B]">Mail class</span>
                                 <input name="mail_class" value="{{ old('mail_class', 'USPS_GROUND_ADVANTAGE') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
                             </label>
-                            <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Get USPS test quote</button>
+                            <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" @disabled(! ($hasCarrierReadyOrigin ?? false))>Get USPS test quote</button>
+                            @if (! ($hasCarrierReadyOrigin ?? false))
+                                <p class="text-xs text-[#64748B]"><a href="{{ route('settings.locations.index') }}" class="font-semibold text-[#1D4ED8]">Manage fulfillment locations</a> to complete the ship-from address.</p>
+                            @endif
                         </form>
                     @endif
 
@@ -757,7 +818,7 @@
                                 @foreach ($uspsRecentQuotes as $quote)
                                     <div class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
                                         <p class="font-semibold text-[#0F172A]">{{ $quote->service_name ?? $quote->service_code ?? 'USPS quote' }}</p>
-                                        <p class="mt-1">{{ $quote->origin_postal_code }} → {{ $quote->destination_postal_code }} · {{ str($quote->status)->title() }}</p>
+                                        <p class="mt-1">{{ $quote->origin_postal_code ?: 'Origin not set' }} → {{ $quote->destination_postal_code }} · {{ $quote->error_code === 'origin_not_ready' ? 'Local origin setup error' : str($quote->status)->title() }}</p>
                                         @if ($quote->amount !== null)
                                             <p class="mt-1">${{ number_format((float) $quote->amount, 2) }} {{ $quote->currency }}</p>
                                         @endif
@@ -867,17 +928,26 @@
 
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
                     <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Fulfillment locations</h2>
-                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Inventory locations are where orders can ship from.</p>
+                    <p class="mt-1 text-sm leading-6 text-[#64748B]">Inventory locations are where orders ship from. Carrier APIs use these addresses — not your store business address.</p>
                     <div class="mt-4 space-y-3">
                         @forelse ($locations as $location)
+                            @php($readiness = $originReadinessByLocationId[$location->id] ?? null)
                             <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                                 <div class="flex items-center justify-between gap-3">
                                     <p class="font-semibold text-[#0F172A]">{{ $location->name }}</p>
-                                    @if ($location->is_default)
-                                        <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Default</span>
-                                    @endif
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        @if ($location->is_default)
+                                            <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Default fulfillment origin</span>
+                                        @endif
+                                        @if ($readiness)
+                                            <span class="rounded-full {{ $readiness->ready ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#FEF2F2] text-[#991B1B]' }} px-2.5 py-1 text-xs font-bold">{{ $readiness->badgeLabel }}</span>
+                                        @endif
+                                    </div>
                                 </div>
-                                <p class="mt-1 text-sm text-[#64748B]">{{ collect([$location->address_line1, $location->city, $location->state, $location->postal_code, $location->country_code])->filter()->implode(', ') ?: 'No address saved' }}</p>
+                                <p class="mt-1 text-sm text-[#64748B]">{{ $readiness?->displayAddress ?: (collect([$location->address_line1, $location->city, $location->state, $location->postal_code, $location->country_code])->filter()->implode(', ') ?: 'No address saved') }}</p>
+                                @if ($readiness && ! $readiness->ready)
+                                    <p class="mt-2 text-xs text-[#64748B]">{{ $readiness->merchantMessage }}</p>
+                                @endif
                             </div>
                         @empty
                             <div class="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-8 text-center text-sm text-[#64748B]">No inventory locations are available yet.</div>
