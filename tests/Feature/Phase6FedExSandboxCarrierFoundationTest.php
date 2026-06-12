@@ -309,10 +309,15 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->where('action', CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION)
             ->first();
 
-        $this->assertNotNull($registrationEvent);
-        $this->assertSame(CarrierApiEvent::STATUS_FAILED, $registrationEvent->status);
-        $this->assertSame('FedEx account number must be 9 digits.', $registrationEvent->error_message);
-        $this->assertSame(5, data_get($registrationEvent->request_summary, 'account_number_digits_len'));
+        $this->assertNull($registrationEvent);
+
+        $oauthEvent = CarrierApiEvent::query()
+            ->where('carrier_account_id', $account->id)
+            ->where('action', CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN)
+            ->first();
+
+        $this->assertNotNull($oauthEvent);
+        $this->assertSame(CarrierApiEvent::STATUS_SUCCEEDED, $oauthEvent->status);
     }
 
     public function test_empty_account_number_after_normalization_fails_locally_before_fedex_api_call(): void
@@ -889,20 +894,43 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSeeText('FedEx request diagnostics')
-            ->assertSeeText('Export redacted API Validation payload');
+            ->assertSeeText('Export redacted FedEx validation summary');
 
         $debugResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.shipping.carrier-accounts.fedex.debug-payload', $account))
             ->assertOk()
-            ->assertJsonFragment(['accountNumber' => '*****7240'])
+            ->assertJsonFragment(['account_last4' => '7240', 'country_code' => 'US'])
             ->assertJsonStructure([
-                'customerName',
-                'accountNumber',
-                'address' => ['streetLines', 'city', 'stateOrProvinceCode', 'postalCode', 'countryCode'],
+                'exported_at',
+                'carrier',
+                'endpoint',
+                'account_last4',
+                'country_code',
+                'state_code',
+                'postal_code',
+                'note',
+                'oauth_note',
             ]);
 
-        $this->assertArrayNotHasKey('residential', $debugResponse->json('address') ?? []);
+        $this->assertArrayNotHasKey('accountNumber', $debugResponse->json());
+        $this->assertArrayNotHasKey('customerName', $debugResponse->json());
+    }
+
+    public function test_legacy_fedex_store_rejects_invalid_country_un(): void
+    {
+        [$owner, $store] = $this->ownerStore('FedEx Legacy UN Store');
+
+        Http::fake();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.store'), array_merge($this->fedExPayload(), [
+                'country_code' => 'UN',
+            ]))
+            ->assertSessionHasErrors(['country_code']);
+
+        Http::assertNothingSent();
     }
 
     public function test_fedex_debug_payload_is_blocked_outside_local_testing(): void

@@ -212,9 +212,9 @@ class ShippingSettingsController extends Controller
             'contact_name' => ['required', 'string', 'max:120'],
             'address_line1' => ['required', 'string', 'max:160'],
             'city' => ['required', 'string', 'max:80'],
-            'state' => ['nullable', 'string', 'max:80'],
+            'state' => ['required', 'string', 'max:80'],
             'postal_code' => ['required', 'string', 'max:32'],
-            'country_code' => ['required', 'string', 'size:2'],
+            'country_code' => ['required', 'string', 'max:40'],
             'phone' => ['required', 'string', 'max:40'],
             'email' => ['required', 'email', 'max:160'],
             'residential' => ['nullable', 'boolean'],
@@ -224,6 +224,9 @@ class ShippingSettingsController extends Controller
                 Rule::exists('locations', 'id')->where('store_id', $store->id),
             ],
         ]);
+
+        $validated = app(\App\Services\Carriers\FedEx\FedExRegistrationInputValidator::class)->validateOrFail($validated);
+        $accountNumber = (string) $validated['provider_account_number'];
 
         $fedExCarrier = Carrier::query()->where('code', 'fedex')->where('is_active', true)->firstOrFail();
         $displayName = filled($validated['display_name'] ?? null)
@@ -238,10 +241,10 @@ class ShippingSettingsController extends Controller
                 'city' => $validated['city'],
                 'state' => $validated['state'] ?? null,
                 'postal_code' => $validated['postal_code'],
-                'country_code' => strtoupper($validated['country_code']),
+                'country_code' => $validated['country_code'],
                 'phone' => $validated['phone'],
                 'email' => $validated['email'],
-                'provider_account_number' => $validated['provider_account_number'],
+                'provider_account_number' => $accountNumber,
                 'residential' => $request->boolean('residential'),
             ],
         ];
@@ -257,7 +260,7 @@ class ShippingSettingsController extends Controller
             'display_name' => $displayName,
             'connection_type' => CarrierAccount::CONNECTION_API,
             'connection_mode' => CarrierAccount::CONNECTION_MODE_FEDEX_INTEGRATOR,
-            'provider_account_number' => $validated['provider_account_number'],
+            'provider_account_number' => $accountNumber,
             'status' => CarrierAccount::STATUS_SETUP_REQUIRED,
             'connection_status' => CarrierAccount::CONNECTION_SETUP_REQUIRED,
             'settings' => $settings,
@@ -328,7 +331,7 @@ class ShippingSettingsController extends Controller
         abort_unless($carrierAccount->isFedEx(), 404);
 
         return response()->json(
-            $registrationService->redactedRegistrationPayload($carrierAccount),
+            $registrationService->redactedValidationSummary($carrierAccount),
             200,
             [],
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES,
@@ -419,7 +422,7 @@ class ShippingSettingsController extends Controller
 
         if (! $uspsConfig->isConfigured()) {
             return back()
-                ->withErrors(['usps' => 'USPS public API connection is not available on this platform environment yet. Contact the platform admin.'])
+                ->withErrors(['usps' => 'USPS testing connection is not available on this platform environment yet. Contact the platform admin.'])
                 ->with('error_title', 'Shipping & delivery');
         }
 

@@ -31,7 +31,7 @@ class USPSOAuthTokenService
     {
         if (! $this->config->isConfigured()) {
             return CarrierApiResult::failure(
-                message: 'USPS public API connection is not available on this platform environment yet. Contact the platform admin.',
+                message: 'USPS testing connection is not available on this platform environment yet. Contact the platform admin.',
                 code: 'platform_config_missing',
                 requestSummary: [
                     'endpoint' => $this->config->oauthPath(),

@@ -71,6 +71,8 @@ class CarrierAccount extends Model
 
     public const CREDENTIALS_PLATFORM_ENV = 'platform_env';
 
+    public const CREDENTIALS_MERCHANT_ACCOUNT = 'merchant_account';
+
     public const CREDENTIALS_MERCHANT_ENCRYPTED = 'merchant_encrypted';
 
     public const CREDENTIALS_MERCHANT_OAUTH = 'merchant_oauth';
@@ -346,6 +348,7 @@ class CarrierAccount extends Model
     public function usesMerchantCredentials(): bool
     {
         return in_array($this->credentials_source, [
+            self::CREDENTIALS_MERCHANT_ACCOUNT,
             self::CREDENTIALS_MERCHANT_ENCRYPTED,
             self::CREDENTIALS_MERCHANT_OAUTH,
         ], true);
@@ -432,8 +435,16 @@ class CarrierAccount extends Model
         return [
             'ownership_mode' => self::OWNERSHIP_MERCHANT_OWNED,
             'connection_owner' => self::CONNECTION_OWNER_MERCHANT,
-            'credentials_source' => self::CREDENTIALS_MERCHANT_ENCRYPTED,
+            'credentials_source' => self::CREDENTIALS_MERCHANT_ACCOUNT,
             'billing_owner' => self::BILLING_OWNER_MERCHANT,
+            'capabilities' => [
+                'rates' => false,
+                'labels' => false,
+                'tracking' => false,
+                'pickup' => false,
+                'checkout_rates' => false,
+                'merchant_owned_connection' => true,
+            ],
         ];
     }
 

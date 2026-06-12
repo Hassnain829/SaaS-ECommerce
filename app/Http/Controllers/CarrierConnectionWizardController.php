@@ -9,9 +9,11 @@ use App\Services\Carriers\CarrierConnectionWizardService;
 use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Carriers\CarrierProviderManager;
 use App\Services\Carriers\FedEx\FedExConfig;
+use App\Services\Carriers\FedEx\FedExMerchantAccountConnectionService;
 use App\Services\Carriers\USPS\USPSConfig;
 use App\Services\SecurityLogRecorder;
 use App\Support\CarrierAccountStatusPresenter;
+use App\Support\CarrierCountryOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -59,6 +61,27 @@ class CarrierConnectionWizardController extends Controller
             ? CarrierOriginReadinessService::CARRIER_USPS
             : CarrierOriginReadinessService::CARRIER_GENERIC;
 
+        $originLocationId = (int) $request->query('origin_location_id', $account?->defaultOriginLocationId());
+        $fedExOriginLocation = null;
+        $fedExPrefill = [];
+
+        if ($carrier === CarrierConnectionWizardService::CARRIER_FEDEX && $step === 'fedex_details' && $originLocationId > 0) {
+            $fedExOriginLocation = Location::query()
+                ->where('store_id', $store->id)
+                ->whereKey($originLocationId)
+                ->first();
+
+            if ($fedExOriginLocation !== null && $request->boolean('prefill_from_origin')) {
+                $fedExPrefill = [
+                    'address_line1' => $fedExOriginLocation->address_line1,
+                    'city' => $fedExOriginLocation->city,
+                    'state' => $fedExOriginLocation->state,
+                    'postal_code' => $fedExOriginLocation->postal_code,
+                    'country_code' => CarrierCountryOptions::defaultFedExCountry($fedExOriginLocation->country_code),
+                ];
+            }
+        }
+
         return view('user_view.carrier_connection_wizard.show', [
             'selectedStore' => $store,
             'carrier' => $carrier,
@@ -70,6 +93,10 @@ class CarrierConnectionWizardController extends Controller
             'ownershipOptions' => $wizard->ownershipOptions($carrier, $uspsConfig),
             'carriers' => Carrier::query()->where('is_active', true)->orderBy('name')->get(),
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'fedExCountryOptions' => CarrierCountryOptions::fedExOptions(),
+            'fedExOriginLocation' => $fedExOriginLocation,
+            'fedExPrefill' => $fedExPrefill,
+            'originLocationId' => $originLocationId,
         ]);
     }
 
@@ -115,11 +142,12 @@ class CarrierConnectionWizardController extends Controller
         }
 
         $accountId = (int) ($validated['carrier_account_id'] ?? 0);
+        $nextStep = $carrier === CarrierConnectionWizardService::CARRIER_FEDEX ? 'fedex_details' : 'ownership';
 
         return redirect()
             ->route('shipping.carriers.connect.show', [
                 'carrier' => $carrier,
-                'step' => 'ownership',
+                'step' => $nextStep,
                 'origin_location_id' => $location->id,
                 'account' => $accountId > 0 ? $accountId : null,
             ])
@@ -230,13 +258,12 @@ class CarrierConnectionWizardController extends Controller
 
     public function storeFedExDetails(
         Request $request,
-        CarrierConnectionWizardService $wizard,
-        FedExConfig $fedExConfig,
+        FedExMerchantAccountConnectionService $fedExConnection,
         SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
-        abort_unless($fedExConfig->isConfigured(), 404);
+        abort_unless(app(FedExConfig::class)->isConfigured(), 404);
 
         $validated = $request->validate([
             'origin_location_id' => [
@@ -249,10 +276,11 @@ class CarrierConnectionWizardController extends Controller
             'company_name' => ['required', 'string', 'max:120'],
             'contact_name' => ['required', 'string', 'max:120'],
             'address_line1' => ['required', 'string', 'max:160'],
+            'address_line2' => ['nullable', 'string', 'max:160'],
             'city' => ['required', 'string', 'max:80'],
-            'state' => ['nullable', 'string', 'max:80'],
+            'state' => ['required', 'string', 'max:80'],
             'postal_code' => ['required', 'string', 'max:32'],
-            'country_code' => ['required', 'string', 'size:2'],
+            'country_code' => ['required', 'string', 'max:40'],
             'phone' => ['required', 'string', 'max:40'],
             'email' => ['required', 'email', 'max:160'],
             'residential' => ['nullable', 'boolean'],
@@ -263,39 +291,12 @@ class CarrierConnectionWizardController extends Controller
             ->whereKey((int) $validated['origin_location_id'])
             ->firstOrFail();
 
-        $fedExCarrier = Carrier::query()->where('code', 'fedex')->where('is_active', true)->firstOrFail();
-
-        $account = $store->carrierAccounts()->create([
-            'carrier_id' => $fedExCarrier->id,
-            'provider' => CarrierAccount::PROVIDER_FEDEX,
-            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
-            'display_name' => filled($validated['display_name'] ?? null) ? $validated['display_name'] : 'FedEx sandbox account',
-            'connection_type' => CarrierAccount::CONNECTION_API,
-            'connection_mode' => CarrierAccount::CONNECTION_MODE_FEDEX_INTEGRATOR,
-            'provider_account_number' => $validated['provider_account_number'],
-            'status' => CarrierAccount::STATUS_SETUP_REQUIRED,
-            'connection_status' => CarrierAccount::CONNECTION_SETUP_REQUIRED,
-            'enabled_for_checkout' => false,
-            'settings' => [
-                'registration' => [
-                    'company_name' => $validated['company_name'],
-                    'contact_name' => $validated['contact_name'],
-                    'address_line1' => $validated['address_line1'],
-                    'city' => $validated['city'],
-                    'state' => $validated['state'] ?? null,
-                    'postal_code' => $validated['postal_code'],
-                    'country_code' => strtoupper($validated['country_code']),
-                    'phone' => $validated['phone'],
-                    'email' => $validated['email'],
-                    'provider_account_number' => $validated['provider_account_number'],
-                    'residential' => $request->boolean('residential'),
-                ],
-            ],
-            'created_by' => $request->user()?->id,
-            ...CarrierAccount::ownershipAttributesForFedExMerchantOwned(),
-        ]);
-
-        $wizard->applyOriginSelection($account, $location, CarrierOriginReadinessService::CARRIER_GENERIC);
+        $account = $fedExConnection->saveMerchantAccount(
+            $store,
+            $validated,
+            $location,
+            $request->user()?->id,
+        );
 
         $securityLogRecorder->record(
             $request,
@@ -310,14 +311,14 @@ class CarrierConnectionWizardController extends Controller
                 'step' => 'test',
                 'account' => $account->id,
             ])
-            ->with('success', 'FedEx sandbox account saved. Run the connection test next.');
+            ->with('success', 'FedEx account saved. Run the connection check next. Labels are not enabled in this phase.');
     }
 
     public function test(
         Request $request,
         string $carrier,
         CarrierConnectionWizardService $wizard,
-        CarrierProviderManager $providerManager,
+        FedExMerchantAccountConnectionService $fedExConnection,
         SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
@@ -342,6 +343,43 @@ class CarrierConnectionWizardController extends Controller
             return redirect()
                 ->route('shippingAutomation')
                 ->with('success', 'Manual/local delivery account is ready to use.');
+        }
+
+        if ($carrier === CarrierConnectionWizardService::CARRIER_FEDEX) {
+            $result = $fedExConnection->runVerification($account);
+
+            $securityLogRecorder->record(
+                $request,
+                'shipping.carrier_wizard_tested',
+                store: $store,
+                metadata: [
+                    'carrier_account_id' => $account->id,
+                    'success' => $result->isVerificationSuccess(),
+                    'status' => $result->status,
+                ]
+            );
+
+            if ($result->isVerificationSuccess()) {
+                return redirect()
+                    ->route('shippingAutomation')
+                    ->with('success', $result->message)
+                    ->with('success_title', 'FedEx account');
+            }
+
+            if ($result->requiresCarrierSupport() || $result->accountPersisted) {
+                return redirect()
+                    ->route('shippingAutomation')
+                    ->with('success', $result->message)
+                    ->with('success_title', 'FedEx account saved');
+            }
+
+            return redirect()
+                ->route('shipping.carriers.connect.show', [
+                    'carrier' => $carrier,
+                    'step' => 'test',
+                    'account' => $account->id,
+                ])
+                ->withErrors(['connection' => $result->detailMessage ?? $result->message]);
         }
 
         $result = $wizard->testConnection($account);

@@ -67,11 +67,11 @@ class CarrierConnectionWizardService
             self::CARRIER_FEDEX => [
                 'code' => self::CARRIER_FEDEX,
                 'name' => 'FedEx',
-                'summary' => 'Sandbox merchant-owned setup. Carrier account validation may require FedEx support.',
+                'summary' => 'Connect a merchant-owned FedEx account for account setup and testing. Labels and FedEx billing remain handled by the merchant.',
                 'available' => $fedExConfig->isConfigured(),
                 'deferred' => false,
                 'blocked' => $this->storeHasBlockedFedExAccount($store),
-                'action' => $fedExConfig->isConfigured() ? 'Start FedEx setup' : 'Sandbox setup unavailable',
+                'action' => $fedExConfig->isConfigured() ? 'Start FedEx setup' : 'Setup unavailable',
             ],
             self::CARRIER_UPS => [
                 'code' => self::CARRIER_UPS,
@@ -143,8 +143,8 @@ class CarrierConnectionWizardService
             ])),
             self::CARRIER_FEDEX => [[
                 'value' => CarrierAccount::OWNERSHIP_MERCHANT_OWNED,
-                'label' => 'Merchant-owned FedEx sandbox account',
-                'description' => 'Connect your FedEx sandbox account number and registration details.',
+                'label' => 'Merchant-owned FedEx account',
+                'description' => 'Connect your FedEx account number and registration details. FedEx billing stays between you and FedEx.',
             ]],
             self::CARRIER_MANUAL => [[
                 'value' => CarrierAccount::OWNERSHIP_MANUAL,

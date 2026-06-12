@@ -79,6 +79,12 @@ class CarrierApiEventLogger
                 continue;
             }
 
+            if (in_array($normalizedKey, ['email', 'phone', 'authorization'], true)) {
+                $masked[$key] = '[redacted]';
+
+                continue;
+            }
+
             $masked[$key] = $value;
         }
 
@@ -90,6 +96,7 @@ class CarrierApiEventLogger
         return str_contains($key, 'secret')
             || str_contains($key, 'password')
             || str_contains($key, 'token')
+            || str_contains($key, 'authorization')
             || str_contains($key, 'client_id')
             || str_contains($key, 'consumer_key')
             || str_contains($key, 'consumer_secret')
@@ -98,7 +105,9 @@ class CarrierApiEventLogger
             || str_contains($key, 'child_secret')
             || str_contains($key, 'crid')
             || str_contains($key, 'master_mid')
-            || str_contains($key, 'labeler_mid');
+            || str_contains($key, 'labeler_mid')
+            || str_contains($key, 'access_token')
+            || str_contains($key, 'refresh_token');
     }
 
     private function maskAccountNumber(string $number): string

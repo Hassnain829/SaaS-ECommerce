@@ -398,23 +398,23 @@
                 </section>
 
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
-                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">FedEx sandbox</h2>
+                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">FedEx merchant account</h2>
                     <p class="mt-1 text-sm leading-6 text-[#64748B]">
-                        Connect a FedEx sandbox account to test carrier setup. Live FedEx labels and customer checkout rates will be added after sandbox testing is verified.
+                        Connect a merchant-owned FedEx account for setup and testing. FedEx billing stays between you and FedEx. Labels and checkout live rates are not enabled in this phase.
                     </p>
 
                     @if (app()->environment(['local', 'testing']))
-                        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
-                            <p class="font-semibold text-slate-900">Developer diagnostics</p>
-                            <p class="mt-1">FedEx sandbox platform config: {{ ($fedExPlatformConfigured ?? false) ? 'present' : 'missing' }}</p>
-                            <p class="mt-1">Account registration endpoint: <code>{{ $fedExRegistrationPath ?? 'not configured' }}</code></p>
-                            <p class="mt-1 text-slate-600">Must match the current Credential Registration API path in your FedEx Developer Portal project (default: <code>/registration/v2/address/keysgeneration</code>). Deprecated paths such as <code>/irc/v2/customerkeys</code> must not be used.</p>
-                            <p class="mt-1">Credential registration residential mode: <code>{{ $fedExRegistrationResidentialMode ?? 'omit' }}</code> (diagnostic only; production always omits <code>address.residential</code>)</p>
+                        <details class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+                            <summary class="cursor-pointer font-semibold text-slate-900">Local testing details</summary>
+                            <p class="mt-2">FedEx platform config: {{ ($fedExPlatformConfigured ?? false) ? 'present' : 'missing' }}</p>
+                            <p class="mt-1">Account registration path: <code>{{ $fedExRegistrationPath ?? 'not configured' }}</code></p>
+                            <p class="mt-1 text-slate-600">Must match the current Credential Registration path in your FedEx Developer Portal project.</p>
+                            <p class="mt-1">Credential registration residential mode: <code>{{ $fedExRegistrationResidentialMode ?? 'omit' }}</code></p>
                             <p class="mt-1">Sandbox platform fallback: {{ ($fedExSandboxPlatformFallbackAllowed ?? false) ? 'enabled in this environment' : 'disabled' }}</p>
-                        </div>
+                        </details>
                     @elseif (! ($fedExEnabled ?? false) || ! ($fedExPlatformConfigured ?? false))
                         <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                            FedEx sandbox connection is not available on this platform environment yet. Contact the platform admin.
+                            FedEx account setup is not available on this platform environment yet. Contact the platform admin.
                         </div>
                     @endif
 
@@ -434,7 +434,7 @@
 
                     @if (($fedExEnabled ?? false) && ($fedExPlatformConfigured ?? false) && ($canManageShipping ?? false))
                         <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-sm text-[#475569]">
-                            <p>Use the carrier connection wizard to add a FedEx sandbox account and choose a ship-from fulfillment location.</p>
+                            <p>Use the carrier connection wizard to add your merchant-owned FedEx account and choose a ship-from fulfillment location.</p>
                             <a href="{{ route('shipping.carriers.connect.show', 'fedex') }}" class="mt-3 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Start FedEx setup</a>
                         </div>
                     @endif
@@ -445,7 +445,7 @@
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <p class="font-semibold text-[#0F172A]">{{ $account->display_name }}</p>
-                                        <p class="mt-1 text-sm text-[#64748B]">FedEx Express | Account {{ $account->maskedAccountNumber() }}</p>
+                                        <p class="mt-1 text-sm text-[#64748B]">FedEx | Account {{ $account->maskedAccountNumber() }}</p>
                                     </div>
                                     <div class="flex flex-wrap justify-end gap-2">
                                         <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">Sandbox</span>
@@ -480,20 +480,22 @@
                                     </p>
                                 @endif
                                 @if ($account->connection_status === 'connected' && $account->isMerchantOwned())
-                                    <p class="mt-2 text-xs text-[#047857]">Merchant-owned FedEx sandbox connection verified.</p>
+                                    <p class="mt-2 text-xs text-[#047857]">Merchant-owned FedEx account connected for testing. Billing handled by merchant.</p>
                                 @elseif ($account->connection_status === 'connected' && $account->isPlatformTesting())
                                     <p class="mt-2 text-xs text-[#C2410C]">Platform testing connection verified. This is not a merchant-owned FedEx account.</p>
                                 @endif
+                                @if (app()->environment(['local', 'testing']))
                                 <p class="mt-2 text-xs text-[#64748B]">Residential setting: {{ data_get($account->settings, 'registration.residential') ? 'true' : 'false' }}</p>
+                                @endif
                                 @php($stepDiagnostics = ($fedExStepDiagnostics[$account->id] ?? []))
-                                @if ($stepDiagnostics !== [])
+                                @if (app()->environment(['local', 'testing']) && $stepDiagnostics !== [])
                                     <div class="mt-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#475569]">
-                                        <p class="font-semibold text-[#0F172A]">Connection step diagnostics</p>
+                                        <p class="font-semibold text-[#0F172A]">Connection step details</p>
                                         <ul class="mt-2 space-y-1">
                                             @foreach ([
-                                                'platform_oauth_token' => 'Platform OAuth',
-                                                'account_registration' => 'Account Registration',
-                                                'merchant_oauth_token' => 'Merchant OAuth',
+                                                'platform_oauth_token' => 'Platform connection check',
+                                                'account_registration' => 'Account registration',
+                                                'merchant_oauth_token' => 'Merchant connection check',
                                             ] as $stepKey => $stepLabel)
                                                 @if (isset($stepDiagnostics[$stepKey]))
                                                     <li>
@@ -526,7 +528,7 @@
                                             <div><dt class="font-semibold text-slate-900">State</dt><dd>{{ data_get($registrationDiagnostics, 'request.state_or_province_code', '—') }}</dd></div>
                                             <div><dt class="font-semibold text-slate-900">Postal code</dt><dd>{{ data_get($registrationDiagnostics, 'request.postal_code', '—') }}</dd></div>
                                             <div><dt class="font-semibold text-slate-900">Country</dt><dd>{{ data_get($registrationDiagnostics, 'request.country_code', '—') }}</dd></div>
-                                            <div class="sm:col-span-2"><dt class="font-semibold text-slate-900">Payload root keys</dt><dd>{{ implode(', ', data_get($registrationDiagnostics, 'request.payload_root_keys', [])) }}</dd></div>
+                                            <div class="sm:col-span-2"><dt class="font-semibold text-slate-900">Registration field groups</dt><dd>{{ implode(', ', data_get($registrationDiagnostics, 'request.payload_root_keys', [])) }}</dd></div>
                                             <div class="sm:col-span-2"><dt class="font-semibold text-slate-900">Address keys</dt><dd>{{ implode(', ', data_get($registrationDiagnostics, 'request.address_keys', [])) }}</dd></div>
                                             <div><dt class="font-semibold text-slate-900">HTTP status</dt><dd>{{ data_get($registrationDiagnostics, 'response.http_status', '—') }}</dd></div>
                                             <div><dt class="font-semibold text-slate-900">FedEx txn</dt><dd>{{ Str::limit((string) data_get($registrationDiagnostics, 'response.fedex_transaction_id', '—'), 24) }}</dd></div>
@@ -553,7 +555,9 @@
                                             <button class="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-xs font-semibold text-[#1D4ED8]">Test connection</button>
                                         </form>
                                         @if (app()->environment(['local', 'testing']))
-                                            <a href="{{ route('settings.shipping.carrier-accounts.fedex.debug-payload', $account) }}" target="_blank" rel="noopener" class="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">Export redacted API Validation payload</a>
+                                            <p class="mt-3 text-xs text-slate-600">Platform connection check success only confirms platform API access. FedEx account registration is a separate merchant account validation step.</p>
+                                            <a href="{{ route('settings.shipping.carrier-accounts.fedex.debug-payload', $account) }}" target="_blank" rel="noopener" class="mt-2 inline-flex rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">Export redacted FedEx validation summary</a>
+                                            <p class="mt-1 text-[11px] text-slate-600">Export a redacted validation summary for FedEx support. It does not include full account number, tokens, or secrets.</p>
                                         @endif
                                         @if (app()->environment(['local', 'testing']) && ($fedExSandboxPlatformFallbackAllowed ?? false) && ! $account->usesSandboxPlatformFallback())
                                             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback', $account) }}">
@@ -620,9 +624,9 @@
                 </section>
 
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
-                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">USPS public API (testing)</h2>
+                    <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">USPS testing tools</h2>
                     <p class="mt-1 text-sm leading-6 text-[#64748B]">
-                        Verify USPS OAuth, address validation, and domestic test rate quotes using platform USPS credentials. Label purchase, EPS charges, and production live mode are not part of this phase.
+                        Test USPS address checks and domestic sample quotes using the platform testing connection. This does not buy labels, charge postage, or change order totals.
                     </p>
 
                     @if (! ($hasCarrierReadyOrigin ?? false))
@@ -634,16 +638,16 @@
                     @endif
 
                     @if (app()->environment(['local', 'testing']))
-                        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
-                            <p class="font-semibold text-slate-900">Developer diagnostics</p>
-                            <p class="mt-1">USPS platform config: {{ ($uspsPlatformConfigured ?? false) ? 'present' : 'missing' }}</p>
+                        <details class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+                            <summary class="cursor-pointer font-semibold text-slate-900">Local testing details</summary>
+                            <p class="mt-2">USPS platform config: {{ ($uspsPlatformConfigured ?? false) ? 'present' : 'missing' }}</p>
                             <p class="mt-1">Base URL: <code>{{ $uspsBaseUrl ?? 'not configured' }}</code></p>
-                            <p class="mt-1">OAuth endpoint: <code>{{ $uspsOAuthPath ?? '/oauth2/v3/token' }}</code></p>
+                            <p class="mt-1">Connection check path: <code>{{ $uspsOAuthPath ?? '/oauth2/v3/token' }}</code></p>
                             <p class="mt-1">Labels enabled: {{ ($uspsLabelsEnabled ?? false) ? 'true' : 'false' }}</p>
-                        </div>
+                        </details>
                     @elseif (! ($uspsEnabled ?? false) || ! ($uspsPlatformConfigured ?? false))
                         <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                            USPS public API connection is not available on this platform environment yet. Contact the platform admin.
+                            USPS testing connection is not available on this platform environment yet. Contact the platform admin.
                         </div>
                     @endif
 

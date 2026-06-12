@@ -55,7 +55,9 @@ final class CarrierAccountStatusPresenter
         }
 
         return match ($this->account->connection_status) {
-            CarrierAccount::CONNECTION_CONNECTED => 'Connected for rates',
+            CarrierAccount::CONNECTION_CONNECTED => $this->account->isMerchantOwned() && $this->account->isFedEx()
+                ? 'Connected for testing'
+                : 'Connected for rates',
             CarrierAccount::CONNECTION_SETUP_REQUIRED, CarrierAccount::CONNECTION_NOT_CONNECTED => 'Setup required',
             CarrierAccount::CONNECTION_PENDING_VALIDATION => 'Pending validation',
             CarrierAccount::CONNECTION_FAILED => 'Setup required',
@@ -81,7 +83,15 @@ final class CarrierAccountStatusPresenter
         }
 
         if ($this->account->isConnected() && $this->account->isMerchantOwned()) {
+            if ($this->account->isFedEx()) {
+                return 'Your merchant-owned FedEx account is connected for testing. FedEx billing stays between you and FedEx. This platform does not pay FedEx charges or buy labels.';
+            }
+
             return 'Your merchant-owned carrier account is connected.';
+        }
+
+        if ($this->account->isMerchantOwned() && $this->account->isFedEx()) {
+            return 'FedEx account saved. Complete the connection check to verify your account details. Labels are not enabled in this phase.';
         }
 
         return 'Finish carrier setup to use this account.';
@@ -94,10 +104,18 @@ final class CarrierAccountStatusPresenter
     {
         $labels = [];
 
+        if ($this->account->isMerchantOwned() && $this->account->isFedEx()) {
+            $labels[] = $this->billingLabel();
+        }
+
         if ($this->account->supportsRates()) {
-            $labels[] = $this->account->isPlatformTesting()
-                ? 'Rates: testing only'
-                : 'Rates: enabled';
+            if ($this->account->isPlatformTesting()) {
+                $labels[] = 'Rates: testing only';
+            } elseif ($this->account->isMerchantOwned() && $this->account->isFedEx() && ! $this->account->enabled_for_checkout) {
+                $labels[] = 'Rates: testing only (not checkout)';
+            } else {
+                $labels[] = 'Rates: enabled';
+            }
         } else {
             $labels[] = 'Rates: not enabled';
         }
@@ -115,6 +133,24 @@ final class CarrierAccountStatusPresenter
             : 'Pickup not enabled';
 
         return $labels;
+    }
+
+    public function billingLabel(): string
+    {
+        return match ($this->account->billing_owner) {
+            CarrierAccount::BILLING_OWNER_MERCHANT => 'Billing handled by merchant',
+            CarrierAccount::BILLING_OWNER_PLATFORM => 'Platform testing only',
+            default => 'Billing handled by merchant',
+        };
+    }
+
+    public function maskedAccountNumberLabel(): ?string
+    {
+        if (! $this->account->isFedEx() || ! filled($this->account->provider_account_number)) {
+            return null;
+        }
+
+        return 'Account '.$this->account->maskedAccountNumber();
     }
 
     public function nextActionLabel(): string

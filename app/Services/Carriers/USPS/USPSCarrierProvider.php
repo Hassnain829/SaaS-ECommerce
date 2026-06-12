@@ -37,7 +37,7 @@ class USPSCarrierProvider implements CarrierProviderInterface
 
         if (! $this->config->isConfigured()) {
             return CarrierConnectionTestResult::platformUnavailable(
-                'USPS public API connection is not available on this platform environment yet. Contact the platform admin.'
+                'USPS testing connection is not available on this platform environment yet. Contact the platform admin.'
             );
         }
 

@@ -39,7 +39,7 @@ class Phase6USPSPublicApiFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('USPS public API (testing)')
+            ->assertSeeText('USPS testing tools')
             ->assertSeeText('Connect USPS for testing');
     }
 
@@ -58,7 +58,7 @@ class Phase6USPSPublicApiFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('USPS public API connection is not available on this platform environment yet');
+            ->assertSeeText('USPS testing connection is not available on this platform environment yet');
     }
 
     public function test_usps_oauth_token_success_marks_account_connected(): void
@@ -517,8 +517,7 @@ class Phase6USPSPublicApiFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('USPS public API (testing)')
-            ->assertSeeText('Labels enabled: false')
+            ->assertSeeText('USPS testing tools')
             ->assertDontSeeText('Buy label')
             ->assertDontSeeText('Generate label')
             ->assertDontSeeText('Purchase label')

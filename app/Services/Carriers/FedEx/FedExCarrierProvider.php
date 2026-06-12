@@ -174,9 +174,11 @@ class FedExCarrierProvider implements CarrierProviderInterface
         }
 
         $capabilities = [
-            'rates' => false,
+            'rates' => true,
             'labels' => false,
             'tracking' => false,
+            'pickup' => false,
+            'checkout_rates' => false,
             'sandbox_connection' => true,
             'merchant_owned_connection' => true,
         ];
@@ -184,7 +186,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
         $account->markConnected($capabilities);
 
         return CarrierConnectionTestResult::connected(
-            'FedEx sandbox account connected successfully.',
+            'FedEx merchant account connected for testing. FedEx billing stays between you and FedEx. Labels are not enabled in this phase.',
             $capabilities,
             $registered,
             $steps,

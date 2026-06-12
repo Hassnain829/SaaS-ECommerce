@@ -14,7 +14,21 @@
 
 @section('content')
     @php
-        $originLocationId = (int) request('origin_location_id', $account?->defaultOriginLocationId());
+        $originLocationId = (int) ($originLocationId ?? request('origin_location_id', $account?->defaultOriginLocationId()));
+        $fedExFormValues = [
+            'display_name' => old('display_name'),
+            'provider_account_number' => old('provider_account_number'),
+            'company_name' => old('company_name', $fedExPrefill['company_name'] ?? ''),
+            'contact_name' => old('contact_name', $fedExPrefill['contact_name'] ?? ''),
+            'address_line1' => old('address_line1', $fedExPrefill['address_line1'] ?? ''),
+            'address_line2' => old('address_line2', $fedExPrefill['address_line2'] ?? ''),
+            'city' => old('city', $fedExPrefill['city'] ?? ''),
+            'state' => old('state', $fedExPrefill['state'] ?? ''),
+            'postal_code' => old('postal_code', $fedExPrefill['postal_code'] ?? ''),
+            'country_code' => old('country_code', $fedExPrefill['country_code'] ?? \App\Support\CarrierCountryOptions::defaultFedExCountry($fedExOriginLocation?->country_code)),
+            'phone' => old('phone'),
+            'email' => old('email'),
+        ];
         $steps = ['origin' => 'Ship-from location', 'ownership' => 'Account type', 'fedex_details' => 'FedEx details', 'test' => 'Connection test'];
     @endphp
 
@@ -36,7 +50,7 @@
                 @foreach ($steps as $stepKey => $stepLabel)
                     @continue(! in_array($stepKey, ['origin', 'ownership', 'fedex_details', 'test'], true))
                     @continue($stepKey === 'fedex_details' && $carrier !== 'fedex')
-                    @continue($stepKey === 'ownership' && $carrier === 'manual')
+                    @continue($stepKey === 'ownership' && in_array($carrier, ['manual', 'fedex'], true))
                     <span class="rounded-full {{ $step === $stepKey ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#64748B]' }} px-3 py-1 text-xs font-bold">{{ $stepLabel }}</span>
                 @endforeach
             </div>
@@ -115,22 +129,42 @@
                     <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save and continue</button>
                 </form>
             @elseif ($step === 'fedex_details')
-                <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 3 — FedEx sandbox account details</h2>
-                <p class="mt-2 text-sm text-[#64748B]">Enter your FedEx sandbox account registration details. FedEx may require carrier support before registration succeeds.</p>
+                <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 3 — Enter FedEx account details</h2>
+                <p class="mt-2 text-sm leading-6 text-[#64748B]">This should match your FedEx account records. FedEx may reject setup if the account number, contact, or billing address does not match.</p>
+                <div class="mt-4 space-y-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
+                    <p><span class="font-semibold text-[#0F172A]">Billing:</span> FedEx billing stays between you and FedEx. This platform does not pay FedEx charges or buy labels for you.</p>
+                    <p><span class="font-semibold text-[#0F172A]">Labels:</span> Labels are not enabled in this phase.</p>
+                    <p><span class="font-semibold text-[#0F172A]">Rates:</span> Test quotes are for setup verification only and do not change checkout totals.</p>
+                    <p><span class="font-semibold text-[#0F172A]">Account match:</span> Account name and address must match your FedEx records.</p>
+                </div>
+                @if (($fedExOriginLocation ?? null) && ($canManageShipping ?? false))
+                    <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#475569]">
+                        <p class="font-semibold text-[#0F172A]">Ship-from location: {{ $fedExOriginLocation->name }}</p>
+                        <p class="mt-1">Use this only if your FedEx account address matches your ship-from location.</p>
+                        <a href="{{ route('shipping.carriers.connect.show', ['carrier' => 'fedex', 'step' => 'fedex_details', 'origin_location_id' => $originLocationId, 'prefill_from_origin' => 1]) }}" class="mt-2 inline-flex text-sm font-semibold text-[#1D4ED8]">Use selected ship-from location address</a>
+                    </div>
+                @endif
                 <form method="POST" action="{{ route('shipping.carriers.connect.fedex.details') }}" class="mt-5 grid gap-3 sm:grid-cols-2">
                     @csrf
                     <input type="hidden" name="origin_location_id" value="{{ $originLocationId }}">
-                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Display name</span><input name="display_name" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">FedEx account number</span><input name="provider_account_number" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Company name</span><input name="company_name" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Contact name</span><input name="contact_name" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Address line 1</span><input name="address_line1" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">City</span><input name="city" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">State</span><input name="state" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Postal code</span><input name="postal_code" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Country code</span><input name="country_code" value="US" maxlength="2" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm uppercase"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Phone</span><input name="phone" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Email</span><input name="email" type="email" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Account nickname</span><input name="display_name" value="{{ $fedExFormValues['display_name'] }}" placeholder="Main FedEx account" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">FedEx account number</span><input name="provider_account_number" value="{{ $fedExFormValues['provider_account_number'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" autocomplete="off" inputmode="numeric"></label>
+                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Account holder / company name</span><input name="company_name" value="{{ $fedExFormValues['company_name'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Contact name</span><input name="contact_name" value="{{ $fedExFormValues['contact_name'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Address line 1</span><input name="address_line1" value="{{ $fedExFormValues['address_line1'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Address line 2</span><input name="address_line2" value="{{ $fedExFormValues['address_line2'] }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">City</span><input name="city" value="{{ $fedExFormValues['city'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">State / region</span><input name="state" value="{{ $fedExFormValues['state'] }}" required maxlength="2" pattern="[A-Za-z]{2}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm uppercase" placeholder="TX"></label>
+                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Postal code</span><input name="postal_code" value="{{ $fedExFormValues['postal_code'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" placeholder="75002"></label>
+                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Country</span>
+                        <select name="country_code" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            @foreach (($fedExCountryOptions ?? \App\Support\CarrierCountryOptions::fedExOptions()) as $code => $label)
+                                <option value="{{ $code }}" @selected((string) $fedExFormValues['country_code'] === (string) $code)>{{ $label }} ({{ $code }})</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Contact phone</span><input name="phone" value="{{ $fedExFormValues['phone'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Contact email</span><input name="email" type="email" value="{{ $fedExFormValues['email'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
                     <div class="sm:col-span-2"><button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save FedEx account</button></div>
                 </form>
             @elseif ($step === 'test' && $account)
@@ -138,6 +172,10 @@
                 @if ($presenter)
                     <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 text-sm text-[#475569]">
                         <p><span class="font-semibold text-[#0F172A]">Ownership:</span> {{ $presenter->ownershipLabel() }}</p>
+                        @if ($presenter->maskedAccountNumberLabel())
+                            <p class="mt-2"><span class="font-semibold text-[#0F172A]">Account:</span> {{ $presenter->maskedAccountNumberLabel() }}</p>
+                        @endif
+                        <p class="mt-2"><span class="font-semibold text-[#0F172A]">Billing:</span> {{ $presenter->billingLabel() }}</p>
                         <p class="mt-2"><span class="font-semibold text-[#0F172A]">Status:</span> {{ $presenter->connectionStatusLabel() }}</p>
                         <p class="mt-2">{{ $presenter->merchantStatusLabel() }}</p>
                         <ul class="mt-3 space-y-1">
@@ -151,7 +189,7 @@
                     <form method="POST" action="{{ route('shipping.carriers.connect.test', $carrier) }}" class="mt-4">
                         @csrf
                         <input type="hidden" name="carrier_account_id" value="{{ $account->id }}">
-                        <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Test connection</button>
+                        <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Run connection check</button>
                     </form>
                 @endif
                 <a href="{{ route('shippingAutomation') }}" class="mt-4 inline-flex text-sm font-semibold text-[#1D4ED8]">Return to Shipping &amp; Delivery</a>

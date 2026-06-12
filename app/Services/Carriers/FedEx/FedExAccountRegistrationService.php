@@ -49,6 +49,20 @@ class FedExAccountRegistrationService
         }
 
         $accountNumber = $this->resolveAccountNumber($account, $accountDetails);
+        $validation = app(FedExRegistrationInputValidator::class)->validate($accountDetails);
+
+        if ($validation['errors'] !== []) {
+            return CarrierApiResult::failure(
+                message: (string) reset($validation['errors']),
+                code: 'invalid_registration_input',
+                requestSummary: [
+                    'endpoint' => $registrationPath,
+                    'validation_errors' => array_keys($validation['errors']),
+                ],
+            );
+        }
+
+        $accountDetails = $validation['normalized'];
         $payload = $this->buildV2Payload($accountNumber, $accountDetails);
         $requestSummary = $this->buildRequestSummary($registrationPath, $accountNumber, $payload, $accountDetails);
 
@@ -153,7 +167,55 @@ class FedExAccountRegistrationService
     }
 
     /**
-     * Redacted registration payload for FedEx Developer Portal API Validation.
+     * Redacted validation summary for FedEx support — no secrets or full account number.
+     *
+     * @return array<string, mixed>
+     */
+    public function redactedValidationSummary(CarrierAccount $account): array
+    {
+        $this->assertDebugEnvironment();
+
+        $details = $this->registrationDetailsForAccount($account);
+        $accountNumber = $this->resolveAccountNumber($account, $details);
+        $environment = $this->config->environment($account->environment);
+        $registrationPath = $this->config->accountRegistrationPath($environment);
+
+        $latestEvent = $account->apiEvents()
+            ->where('action', CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION)
+            ->latest('id')
+            ->first();
+
+        $requestSummary = is_array($latestEvent?->request_summary) ? $latestEvent->request_summary : [];
+        $responseSummary = is_array($latestEvent?->response_summary) ? $latestEvent->response_summary : [];
+
+        return [
+            'exported_at' => now()->toIso8601String(),
+            'carrier' => CarrierAccount::PROVIDER_FEDEX,
+            'environment' => $environment,
+            'endpoint' => $requestSummary['endpoint'] ?? $registrationPath,
+            'http_status' => $responseSummary['http_status'] ?? null,
+            'fedex_transaction_id' => $responseSummary['fedex_transaction_id'] ?? $latestEvent?->request_id,
+            'account_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
+            'account_digit_count' => strlen($accountNumber),
+            'customer_name_length' => strlen(trim((string) ($details['company_name'] ?? $details['contact_name'] ?? ''))),
+            'country_code' => $requestSummary['country_code'] ?? strtoupper((string) ($details['country_code'] ?? 'US')),
+            'state_code' => $requestSummary['state_or_province_code'] ?? strtoupper((string) ($details['state'] ?? '')),
+            'postal_code' => $requestSummary['postal_code'] ?? ($details['postal_code'] ?? null),
+            'address_line1_present' => filled($details['address_line1'] ?? null),
+            'city_present' => filled($details['city'] ?? null),
+            'payload_root_keys' => $requestSummary['payload_root_keys'] ?? ['customerName', 'accountNumber', 'address'],
+            'address_keys' => $requestSummary['address_keys'] ?? ['streetLines', 'city', 'stateOrProvinceCode', 'postalCode', 'countryCode'],
+            'residential_mode' => $requestSummary['residential_mode'] ?? $this->config->accountRegistrationResidentialMode(),
+            'residential_sent' => $requestSummary['residential_sent'] ?? false,
+            'fedex_error_code' => data_get($responseSummary, 'errors.0.code'),
+            'fedex_error_message' => data_get($responseSummary, 'errors.0.message'),
+            'note' => 'Full account number, tokens, secrets, phone, and email are redacted from this export.',
+            'oauth_note' => 'Platform connection check success only confirms platform API access. FedEx account registration is a separate merchant account validation step.',
+        ];
+    }
+
+    /**
+     * @deprecated Use redactedValidationSummary() for merchant exports.
      *
      * @return array<string, mixed>
      */
@@ -218,10 +280,12 @@ class FedExAccountRegistrationService
         ));
 
         $residentialSetting = (bool) data_get($accountDetails, 'residential', false);
+        $streetLines = array_values(array_filter([
+            trim((string) ($accountDetails['address_line1'] ?? '')),
+            filled($accountDetails['address_line2'] ?? null) ? trim((string) $accountDetails['address_line2']) : null,
+        ]));
         $address = [
-            'streetLines' => array_values(array_filter([
-                trim((string) ($accountDetails['address_line1'] ?? '')),
-            ])),
+            'streetLines' => $streetLines,
             'city' => strtoupper(trim((string) ($accountDetails['city'] ?? ''))),
             'stateOrProvinceCode' => strtoupper(trim((string) ($accountDetails['state'] ?? ''))),
             'postalCode' => trim((string) ($accountDetails['postal_code'] ?? '')),
@@ -295,7 +359,7 @@ class FedExAccountRegistrationService
         $httpStatus = (int) ($result->responseSummary['http_status'] ?? 0);
 
         if ($httpStatus === 422) {
-            return 'FedEx rejected one of the registration fields. Confirm the account owner name and billing address exactly match FedEx records. If the details are correct, this FedEx account may not be eligible for Integrator Credential Registration without FedEx support.';
+            return 'FedEx rejected the account registration details. Check that the account number, account name, and address match your FedEx account records exactly. If they are correct, this account may require FedEx support or integrator enablement.';
         }
 
         if ($httpStatus === 400 && strlen($accountNumber) === 9) {
