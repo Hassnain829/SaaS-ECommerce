@@ -14,10 +14,15 @@ class FedExCarrierProvider implements CarrierProviderInterface
 
     private const FALLBACK_WARNING = 'Local sandbox fallback: this uses platform FedEx sandbox credentials only. It is not a production merchant-owned FedEx connection.';
 
+    private const MERCHANT_CREDENTIALS_CONNECTED_MESSAGE = 'FedEx merchant credentials verified. Connected using merchant credentials. FedEx billing stays between you and FedEx. Labels are not enabled in this phase.';
+
+    private const MERCHANT_CREDENTIALS_FAILED_MESSAGE = 'FedEx credentials could not be verified. Check the API key, secret key, environment, and account number.';
+
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExAccountRegistrationService $registrationService,
         private readonly FedExOAuthTokenService $oauthTokenService,
+        private readonly FedExMerchantCredentialsOAuthService $merchantCredentialsOAuth,
         private readonly CarrierApiEventLogger $eventLogger,
     ) {
     }
@@ -28,6 +33,136 @@ class FedExCarrierProvider implements CarrierProviderInterface
     }
 
     public function testConnection(CarrierAccount $account): CarrierConnectionTestResult
+    {
+        if ($account->usesMerchantFedExDeveloperCredentials()) {
+            return $this->testMerchantCredentialsConnection($account);
+        }
+
+        return $this->testLegacyIntegratorConnection($account);
+    }
+
+    public function supportsRates(?CarrierAccount $account = null): bool
+    {
+        if ($account === null) {
+            return false;
+        }
+
+        if ($account->usesMerchantFedExDeveloperCredentials()) {
+            return false;
+        }
+
+        return $account->isSandboxPlatformFallback()
+            && $account->isSandbox()
+            && app()->environment(['local', 'testing']);
+    }
+
+    public function supportsLabels(): bool
+    {
+        return false;
+    }
+
+    public function supportsTracking(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Merchant-owned FedEx Developer credentials — OAuth only, no Credential Registration.
+     */
+    private function testMerchantCredentialsConnection(CarrierAccount $account): CarrierConnectionTestResult
+    {
+        if (! $this->config->allowsMerchantCredentialsEnvironment($account->environment)) {
+            return CarrierConnectionTestResult::failed(
+                'This FedEx environment is not supported for merchant credential connections.',
+                'environment_not_supported',
+            );
+        }
+
+        if (! $account->hasMerchantFedExDeveloperCredentials()) {
+            return CarrierConnectionTestResult::failed(
+                'FedEx API credentials are missing. Save your API key and secret, then run the connection check again.',
+                'missing_merchant_credentials',
+            );
+        }
+
+        if (! filled($account->provider_account_number)) {
+            return CarrierConnectionTestResult::failed(
+                'FedEx account number is required before testing the connection.',
+                'missing_account_number',
+            );
+        }
+
+        $account->loadMissing('store');
+        $steps = [
+            CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN => 'skipped_merchant_credentials',
+            CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION => 'skipped_merchant_credentials',
+        ];
+
+        $clientId = (string) ($account->merchantFedExClientId() ?? '');
+        $accountNumber = (string) ($account->provider_account_number ?? '');
+
+        $merchantEvent = $this->eventLogger->start(
+            store: $account->store,
+            provider: $this->providerCode(),
+            action: CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN,
+            account: $account,
+            requestSummary: [
+                'endpoint' => $this->config->oauthPath(),
+                'environment' => $account->environment,
+                'client_id_present' => true,
+                'client_id_last4' => strlen($clientId) >= 4 ? substr($clientId, -4) : null,
+                'account_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
+                'credentials_mode' => 'merchant_developer',
+            ],
+            environment: $account->environment,
+        );
+
+        $merchantResult = $this->merchantCredentialsOAuth->fetchTokenResult($account, fresh: true);
+        $this->eventLogger->complete($merchantEvent, $merchantResult);
+        $steps[CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN] = $merchantResult->success
+            ? CarrierApiEvent::STATUS_SUCCEEDED
+            : CarrierApiEvent::STATUS_FAILED;
+
+        if (! $merchantResult->success) {
+            $account->markFailed(
+                self::MERCHANT_CREDENTIALS_FAILED_MESSAGE,
+                $merchantResult->errorCode,
+            );
+
+            return CarrierConnectionTestResult::failed(
+                self::MERCHANT_CREDENTIALS_FAILED_MESSAGE,
+                $merchantResult->errorCode,
+                $steps,
+                $merchantResult->errorMessage,
+            );
+        }
+
+        $capabilities = [
+            'rates' => false,
+            'labels' => false,
+            'tracking' => false,
+            'pickup' => false,
+            'checkout_rates' => false,
+            'sandbox_connection' => $account->isSandbox(),
+            'merchant_owned_connection' => true,
+            'merchant_credentials_mode' => true,
+        ];
+
+        $account->markConnected($capabilities);
+        $this->syncMerchantCredentialsVerification($account);
+
+        return CarrierConnectionTestResult::connected(
+            self::MERCHANT_CREDENTIALS_CONNECTED_MESSAGE,
+            $capabilities,
+            false,
+            $steps,
+        );
+    }
+
+    /**
+     * Legacy integrator Credential Registration path — local/testing diagnostics only.
+     */
+    private function testLegacyIntegratorConnection(CarrierAccount $account): CarrierConnectionTestResult
     {
         if (! $this->config->allowsEnvironment($account->environment)) {
             return CarrierConnectionTestResult::failed(
@@ -84,7 +219,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
             'access_token' => (string) ($platformResult->data['access_token'] ?? ''),
         ];
 
-        if (! $account->hasMerchantCredentials()) {
+        if (! $account->hasLegacyFedExChildCredentials()) {
             $details = $this->registrationService->registrationDetailsForAccount($account);
 
             if (! filled($details['provider_account_number'] ?? null)) {
@@ -161,7 +296,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
                 $merchantResult->errorCode,
             );
 
-            $message = $registered || $account->hasMerchantCredentials()
+            $message = $registered || $account->hasLegacyFedExChildCredentials()
                 ? 'FedEx platform credentials are valid, but merchant OAuth failed.'
                 : ($merchantResult->errorMessage ?? 'FedEx connection test failed.');
 
@@ -193,27 +328,6 @@ class FedExCarrierProvider implements CarrierProviderInterface
         );
     }
 
-    public function supportsRates(?CarrierAccount $account = null): bool
-    {
-        if ($account === null) {
-            return false;
-        }
-
-        return $account->isSandboxPlatformFallback()
-            && $account->isSandbox()
-            && app()->environment(['local', 'testing']);
-    }
-
-    public function supportsLabels(): bool
-    {
-        return false;
-    }
-
-    public function supportsTracking(): bool
-    {
-        return false;
-    }
-
     /**
      * @param  array<string, string>  $steps
      */
@@ -243,5 +357,16 @@ class FedExCarrierProvider implements CarrierProviderInterface
     private function isCredentialRegistrationBlocked(\App\Services\Carriers\DTO\CarrierApiResult $registration): bool
     {
         return (int) ($registration->responseSummary['http_status'] ?? 0) === 422;
+    }
+
+    private function syncMerchantCredentialsVerification(CarrierAccount $account): void
+    {
+        $settings = is_array($account->settings) ? $account->settings : [];
+        $settings['verification_status'] = 'connected_for_testing';
+        $settings['verification_summary'] = self::MERCHANT_CREDENTIALS_CONNECTED_MESSAGE;
+        $settings['last_tested_at'] = now()->toIso8601String();
+        $settings['connection_mode'] = 'merchant_credentials';
+
+        $account->forceFill(['settings' => $settings])->save();
     }
 }

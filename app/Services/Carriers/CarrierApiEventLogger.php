@@ -67,7 +67,7 @@ class CarrierApiEventLogger
                 continue;
             }
 
-            if ($this->isSensitiveKey($normalizedKey)) {
+            if ($this->isSensitiveKey($normalizedKey) && ! str_ends_with($normalizedKey, '_last4')) {
                 $masked[$key] = '[redacted]';
 
                 continue;

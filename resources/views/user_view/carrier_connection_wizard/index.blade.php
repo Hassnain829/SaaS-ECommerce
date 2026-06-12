@@ -21,8 +21,8 @@
         @endif
 
         <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
-            <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Step 1 — Choose carrier</h2>
-            <p class="mt-2 text-sm leading-6 text-[#64748B]">Pick the carrier you want to connect. Platform testing connections use platform credentials and are not your merchant-owned carrier account.</p>
+            <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Choose a carrier</h2>
+            <p class="mt-2 text-sm leading-6 text-[#64748B]">FedEx uses your own Developer credentials (merchant-owned). USPS is platform sandbox testing only. Manual/local delivery is for couriers and store pickup without a live carrier API.</p>
 
             <div class="mt-5 grid gap-4 md:grid-cols-2">
                 @foreach ($carrierCards as $card)

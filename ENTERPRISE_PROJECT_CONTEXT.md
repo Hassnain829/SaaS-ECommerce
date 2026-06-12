@@ -1037,6 +1037,123 @@ Phase 6C-0A implements the first routing layer: nearest eligible fulfillment ori
 
 **Phase 6C-1B-USPS:** USPS public API OAuth, address validation, and domestic test rate quotes using platform USPS credentials. Does not buy labels, authorize EPS payments, schedule pickups, or enable production live labels. Merchant-owned label purchase remains deferred. See `docs/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`.
 
+
+## FedEx Carrier Strategy Decision — Model B Active, Model A Deferred
+
+### Current FedEx decision
+
+The platform currently uses **Model B — FedEx Merchant Credentials Mode** as the active FedEx integration model.
+
+This means:
+
+* each merchant/store connects their own FedEx Developer API key/client ID;
+* each merchant/store connects their own FedEx secret/client secret;
+* each merchant/store enters their own FedEx account number;
+* credentials are stored encrypted;
+* OAuth uses the merchant’s own FedEx credentials;
+* FedEx billing remains between the merchant and FedEx;
+* the SaaS platform does not pay FedEx charges;
+* the SaaS platform does not buy FedEx labels on behalf of merchants;
+* labels, pickup, tracking sync, and checkout live FedEx rates remain deferred until later phases.
+
+### Why Model B is active now
+
+FedEx Credential Registration / official Integrator Provider onboarding was tested but blocked.
+
+Observed result:
+
+* FedEx OAuth succeeded;
+* FedEx Credential Registration endpoint `/registration/v2/address/keysgeneration` repeatedly returned HTTP 422 `INVALID.INPUT.EXCEPTION`;
+* country/state/postal validation was fixed;
+* address line 2 duplication was identified and fixed/avoided;
+* FedEx still required Integrator Validation before production credentials;
+* FedEx email confirmed production keys require the Integrator Validation process.
+
+Because Model A requires PIW, Validation Cover Sheet, GUI screenshots, EULA flow, Account Registration API, MFA/invoice validation, sandbox transactions, and FedEx approval, it is paused for now.
+
+### Active FedEx MVP model
+
+Use Model B for the near-term MVP:
+
+* merchant-owned FedEx credentials;
+* encrypted credential storage;
+* merchant OAuth verification;
+* clear “Billing handled by merchant” UI;
+* masked API key and account number;
+* no platform-paid postage;
+* no fake production label buttons;
+* no fake live rates;
+* no fake FedEx production readiness.
+
+The current successful FedEx state is:
+
+* `connection_mode = fedex_merchant_credentials`;
+* `credentials_source = merchant_encrypted`;
+* `ownership_mode = merchant_owned`;
+* `billing_owner = merchant`;
+* merchant OAuth `/oauth/token` succeeds in sandbox;
+* account number and API key are masked in UI;
+* labels, tracking, pickup, and checkout live rates remain disabled.
+
+### Deferred FedEx Model A — Official Integrator Provider
+
+Model A is the long-term official FedEx SaaS provider model.
+
+It should be implemented only when the platform is ready for FedEx Integrator Validation.
+
+Model A requires:
+
+* FedEx provider/parent credentials;
+* FedEx EULA display and acceptance inside the platform;
+* full EULA scroll requirement;
+* checkbox acknowledgement;
+* EULA acceptance audit records;
+* Account Registration API;
+* Factor 1 account/address validation;
+* Factor 2 MFA validation by SMS/phone/email or invoice;
+* child credentials returned by FedEx;
+* encrypted child credential storage per merchant;
+* FedEx validation package builder;
+* GUI screenshots;
+* sandbox JSON transactions;
+* PIW;
+* Validation Cover Sheet;
+* submission to FedEx validation team;
+* FedEx production approval.
+
+Model A should allow merchants to connect FedEx without creating their own FedEx Developer Portal project, but it is a larger certification project and must not block the current MVP.
+
+### Merchant billing rule
+
+Regardless of Model A or Model B:
+
+* FedEx shipment charges must bill the merchant’s FedEx account;
+* platform SaaS billing is separate from FedEx carrier billing;
+* platform must never imply that FedEx shipping is paid by the SaaS platform;
+* every FedEx label/rate/shipment must be traceable to the merchant’s connected FedEx account.
+
+### What not to do now
+
+Do not start these until FedEx Model B is polished and the Shipping & Delivery UX is cleaned up:
+
+* FedEx labels;
+* FedEx pickup;
+* FedEx tracking sync;
+* checkout live FedEx rates;
+* UPS;
+* DHL;
+* USPS merchant-owned labels;
+* FedEx Model A Account Registration/MFA flow;
+* FedEx validation package submission.
+
+Current next practical direction:
+
+1. Polish Model B FedEx merchant credentials mode.
+2. Clean up Shipping & Delivery UX.
+3. Add FedEx sandbox address/service/rate checks using merchant credentials.
+4. Keep Model A documented as deferred future provider roadmap.
+
+
 ### Scenario 3 — Multiple separate stores
 
 Example:

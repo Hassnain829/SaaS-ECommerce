@@ -614,8 +614,9 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('FedEx sandbox')
-            ->assertSeeText('Start FedEx setup')
+            ->assertSeeText('FedEx Merchant Account')
+            ->assertSeeText('Sandbox')
+            ->assertSeeText('Connect FedEx credentials')
             ->assertDontSeeText('Buy label')
             ->assertDontSeeText('Generate label')
             ->assertDontSeeText('Live rates')
@@ -893,8 +894,8 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('FedEx request diagnostics')
-            ->assertSeeText('Export redacted FedEx validation summary');
+            ->assertSeeText('Legacy FedEx integrator registration diagnostic')
+            ->assertSeeText('Export legacy registration diagnostic');
 
         $debugResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])

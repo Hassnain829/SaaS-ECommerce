@@ -37,6 +37,8 @@ class CarrierAccount extends Model
 
     public const CONNECTION_MODE_FEDEX_INTEGRATOR = 'fedex_integrator_account';
 
+    public const CONNECTION_MODE_FEDEX_MERCHANT_CREDENTIALS = 'fedex_merchant_credentials';
+
     public const CONNECTION_MODE_USPS_PLATFORM = 'usps_platform_api';
 
     public const ENVIRONMENT_SANDBOX = 'sandbox';
@@ -432,11 +434,45 @@ class CarrierAccount extends Model
      */
     public static function ownershipAttributesForFedExMerchantOwned(): array
     {
+        return self::ownershipAttributesForFedExMerchantCredentials();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function ownershipAttributesForFedExMerchantCredentials(): array
+    {
+        return [
+            'ownership_mode' => self::OWNERSHIP_MERCHANT_OWNED,
+            'connection_owner' => self::CONNECTION_OWNER_MERCHANT,
+            'credentials_source' => self::CREDENTIALS_MERCHANT_ENCRYPTED,
+            'billing_owner' => self::BILLING_OWNER_MERCHANT,
+            'connection_mode' => self::CONNECTION_MODE_FEDEX_MERCHANT_CREDENTIALS,
+            'capabilities' => [
+                'rates' => false,
+                'labels' => false,
+                'tracking' => false,
+                'pickup' => false,
+                'checkout_rates' => false,
+                'merchant_owned_connection' => true,
+                'merchant_credentials_mode' => true,
+            ],
+        ];
+    }
+
+    /**
+     * Legacy integrator registration attributes (local/testing diagnostics only).
+     *
+     * @return array<string, mixed>
+     */
+    public static function ownershipAttributesForFedExIntegratorRegistration(): array
+    {
         return [
             'ownership_mode' => self::OWNERSHIP_MERCHANT_OWNED,
             'connection_owner' => self::CONNECTION_OWNER_MERCHANT,
             'credentials_source' => self::CREDENTIALS_MERCHANT_ACCOUNT,
             'billing_owner' => self::BILLING_OWNER_MERCHANT,
+            'connection_mode' => self::CONNECTION_MODE_FEDEX_INTEGRATOR,
             'capabilities' => [
                 'rates' => false,
                 'labels' => false,
@@ -505,10 +541,66 @@ class CarrierAccount extends Model
 
     public function hasMerchantCredentials(): bool
     {
+        return $this->hasMerchantFedExDeveloperCredentials()
+            || $this->hasLegacyFedExChildCredentials();
+    }
+
+    public function hasMerchantFedExDeveloperCredentials(): bool
+    {
+        $credentials = $this->credentials();
+
+        return filled($credentials['client_id'] ?? null)
+            && filled($credentials['client_secret'] ?? null);
+    }
+
+    public function hasLegacyFedExChildCredentials(): bool
+    {
         $credentials = $this->credentials();
 
         return filled($credentials['customer_key'] ?? null)
             && filled($credentials['customer_password'] ?? null);
+    }
+
+    public function usesMerchantFedExDeveloperCredentials(): bool
+    {
+        return $this->connection_mode === self::CONNECTION_MODE_FEDEX_MERCHANT_CREDENTIALS
+            || $this->credentials_source === self::CREDENTIALS_MERCHANT_ENCRYPTED;
+    }
+
+    public function usesLegacyFedExIntegratorRegistration(): bool
+    {
+        return $this->isFedEx()
+            && $this->connection_mode === self::CONNECTION_MODE_FEDEX_INTEGRATOR
+            && ! $this->usesMerchantFedExDeveloperCredentials();
+    }
+
+    public function merchantFedExClientId(): ?string
+    {
+        $clientId = (string) ($this->credentials()['client_id'] ?? '');
+
+        return $clientId !== '' ? $clientId : null;
+    }
+
+    public function merchantFedExClientSecret(): ?string
+    {
+        $secret = (string) ($this->credentials()['client_secret'] ?? '');
+
+        return $secret !== '' ? $secret : null;
+    }
+
+    public function maskedMerchantClientId(): string
+    {
+        $clientId = (string) ($this->merchantFedExClientId() ?? '');
+
+        if ($clientId === '') {
+            return '—';
+        }
+
+        if (strlen($clientId) <= 4) {
+            return str_repeat('*', strlen($clientId));
+        }
+
+        return str_repeat('*', max(0, strlen($clientId) - 4)).substr($clientId, -4);
     }
 
     /**

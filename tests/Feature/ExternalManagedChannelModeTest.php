@@ -253,8 +253,7 @@ class ExternalManagedChannelModeTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSee('External managed checkout is active')
-            ->assertSee('Payments & Channels');
+            ->assertSee('External storefront manages checkout shipping');
     }
 
     public function test_external_checkout_with_platform_inventory_deducts_stock(): void

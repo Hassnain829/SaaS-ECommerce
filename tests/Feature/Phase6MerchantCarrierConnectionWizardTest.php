@@ -188,7 +188,7 @@ class Phase6MerchantCarrierConnectionWizardTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Connect carrier account')
+            ->assertSeeText('Connect carrier')
             ->assertSeeText('Add manual/local delivery')
             ->assertSee(route('shipping.carriers.connect.index'), false);
     }
@@ -202,7 +202,7 @@ class Phase6MerchantCarrierConnectionWizardTest extends TestCase
             ->get(route('shippingAutomation'));
 
         $response->assertOk()
-            ->assertSeeText('Connect carrier account')
+            ->assertSeeText('Connect carrier')
             ->assertDontSee('Add carrier account', false)
             ->assertDontSee('name="connection_type"', false)
             ->assertDontSee('settings/shipping/carrier-accounts', false);

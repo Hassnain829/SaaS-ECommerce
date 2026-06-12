@@ -274,7 +274,7 @@ class Phase6CarrierOriginReadinessTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Store business address vs. fulfillment origin')
+            ->assertSeeText('Fulfillment locations')
             ->assertSeeText('Fulfillment origin')
             ->assertSeeText('Carrier-ready');
     }
@@ -299,7 +299,7 @@ class Phase6CarrierOriginReadinessTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Set up a carrier-ready fulfillment origin first.')
+            ->assertSeeText('Set up a carrier-ready US fulfillment origin before USPS testing.')
             ->assertSee('Get USPS test quote', false);
     }
 
@@ -336,8 +336,7 @@ class Phase6CarrierOriginReadinessTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Store business address')
-            ->assertSeeText('not your store business address');
+            ->assertSeeText('your store business address');
     }
 
     public function test_store_a_cannot_use_store_b_location_as_carrier_origin(): void

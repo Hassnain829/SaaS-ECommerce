@@ -39,7 +39,7 @@ class Phase6USPSPublicApiFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('USPS testing tools')
+            ->assertSeeText('USPS Sandbox Tools')
             ->assertSeeText('Connect USPS for testing');
     }
 
@@ -517,7 +517,7 @@ class Phase6USPSPublicApiFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('USPS testing tools')
+            ->assertSeeText('USPS Sandbox Tools')
             ->assertDontSeeText('Buy label')
             ->assertDontSeeText('Generate label')
             ->assertDontSeeText('Purchase label')

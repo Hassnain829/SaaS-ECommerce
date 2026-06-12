@@ -27,31 +27,35 @@ class FedExMerchantAccountConnectionService
     {
         abort_unless((int) $location->store_id === (int) $store->id, 404);
 
-        $input = app(FedExRegistrationInputValidator::class)->validateOrFail($input);
+        $input = app(FedExMerchantCredentialsInputValidator::class)->validateOrFail($input);
         $accountNumber = (string) $input['provider_account_number'];
+        $environment = (string) $input['environment'];
         $fedExCarrier = Carrier::query()->where('code', 'fedex')->where('is_active', true)->firstOrFail();
 
         $account = $store->carrierAccounts()->create([
             'carrier_id' => $fedExCarrier->id,
             'provider' => CarrierAccount::PROVIDER_FEDEX,
-            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
-            'display_name' => filled($input['display_name'] ?? null)
-                ? (string) $input['display_name']
-                : 'FedEx merchant account',
+            'environment' => $environment,
+            'display_name' => (string) $input['display_name'],
             'connection_type' => CarrierAccount::CONNECTION_API,
-            'connection_mode' => CarrierAccount::CONNECTION_MODE_FEDEX_INTEGRATOR,
             'provider_account_number' => $accountNumber,
             'status' => CarrierAccount::STATUS_SETUP_REQUIRED,
             'connection_status' => CarrierAccount::CONNECTION_SETUP_REQUIRED,
             'enabled_for_checkout' => false,
             'settings' => [
-                'registration' => $this->normalizedRegistrationDetails($input, $accountNumber),
                 'verification_status' => 'pending',
-                'verification_summary' => 'FedEx account saved. Run the connection check to verify account details.',
+                'verification_summary' => 'FedEx credentials saved. Run the connection check to verify your API key and secret.',
+                'connection_mode' => 'merchant_credentials',
             ],
             'created_by' => $createdBy,
-            ...CarrierAccount::ownershipAttributesForFedExMerchantOwned(),
+            ...CarrierAccount::ownershipAttributesForFedExMerchantCredentials(),
         ]);
+
+        $account->setCredentials([
+            'client_id' => (string) $input['fedex_client_id'],
+            'client_secret' => (string) $input['fedex_client_secret'],
+        ]);
+        $account->save();
 
         $this->wizard->applyOriginSelection($account, $location, CarrierOriginReadinessService::CARRIER_GENERIC);
 
@@ -76,13 +80,13 @@ class FedExMerchantAccountConnectionService
         if ($testResult->success) {
             $this->syncVerificationSummary(
                 $account,
-                'verified',
-                'FedEx account saved and testing connection is available. Labels are not enabled in this phase.',
+                'connected_for_testing',
+                'FedEx merchant credentials verified. Connected using merchant credentials. Labels are not enabled in this phase.',
             );
 
             return FedExMerchantConnectionResult::connectedForTesting(
                 $account->fresh(),
-                'FedEx account saved and testing connection is available. FedEx billing stays between you and FedEx.',
+                'FedEx merchant credentials verified. FedEx billing stays between you and FedEx.',
             );
         }
 
@@ -104,42 +108,15 @@ class FedExMerchantAccountConnectionService
         $this->syncVerificationSummary(
             $account,
             'setup_required',
-            $testResult->detailMessage ?? $testResult->message ?? 'Complete carrier verification before using FedEx services.',
+            $testResult->detailMessage ?? $testResult->message ?? 'FedEx credentials could not be verified.',
         );
 
         return FedExMerchantConnectionResult::failedSafe(
             $account->fresh(),
-            'FedEx account saved. Complete carrier verification before using FedEx services.',
+            'FedEx credentials saved. Check the API key, secret key, environment, and account number, then run the connection check again.',
             $testResult->detailMessage ?? $testResult->message,
             $testResult->errorCode,
         );
-    }
-
-    /**
-     * @param  array<string, mixed>  $input
-     * @return array<string, mixed>
-     */
-    private function normalizedRegistrationDetails(array $input, string $accountNumber): array
-    {
-        return [
-            'company_name' => trim((string) ($input['company_name'] ?? '')),
-            'contact_name' => trim((string) ($input['contact_name'] ?? '')),
-            'address_line1' => trim((string) ($input['address_line1'] ?? '')),
-            'address_line2' => filled($input['address_line2'] ?? null) ? trim((string) $input['address_line2']) : null,
-            'city' => trim((string) ($input['city'] ?? '')),
-            'state' => filled($input['state'] ?? null) ? trim((string) $input['state']) : null,
-            'postal_code' => trim((string) ($input['postal_code'] ?? '')),
-            'country_code' => (string) $input['country_code'],
-            'phone' => (string) $input['phone'],
-            'email' => (string) $input['email'],
-            'provider_account_number' => $accountNumber,
-            'residential' => (bool) ($input['residential'] ?? false),
-        ];
-    }
-
-    private function normalizeAccountNumber(string $value): string
-    {
-        return preg_replace('/\D+/', '', $value) ?? '';
     }
 
     private function syncVerificationSummary(CarrierAccount $account, string $status, string $summary): void

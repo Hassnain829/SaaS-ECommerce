@@ -84,6 +84,10 @@ final class CarrierAccountStatusPresenter
 
         if ($this->account->isConnected() && $this->account->isMerchantOwned()) {
             if ($this->account->isFedEx()) {
+                if ($this->account->usesMerchantFedExDeveloperCredentials()) {
+                    return 'Your merchant-owned FedEx account is connected using merchant credentials. FedEx billing stays between you and FedEx. This platform does not pay FedEx charges or buy labels.';
+                }
+
                 return 'Your merchant-owned FedEx account is connected for testing. FedEx billing stays between you and FedEx. This platform does not pay FedEx charges or buy labels.';
             }
 
@@ -91,6 +95,10 @@ final class CarrierAccountStatusPresenter
         }
 
         if ($this->account->isMerchantOwned() && $this->account->isFedEx()) {
+            if ($this->account->usesMerchantFedExDeveloperCredentials()) {
+                return 'FedEx credentials saved. Run the connection check to verify your API key and secret. Labels are not enabled in this phase.';
+            }
+
             return 'FedEx account saved. Complete the connection check to verify your account details. Labels are not enabled in this phase.';
         }
 
@@ -106,6 +114,10 @@ final class CarrierAccountStatusPresenter
 
         if ($this->account->isMerchantOwned() && $this->account->isFedEx()) {
             $labels[] = $this->billingLabel();
+
+            if ($this->account->usesMerchantFedExDeveloperCredentials() && $this->account->isConnected()) {
+                $labels[] = 'Connected using merchant credentials';
+            }
         }
 
         if ($this->account->supportsRates()) {
@@ -151,6 +163,19 @@ final class CarrierAccountStatusPresenter
         }
 
         return 'Account '.$this->account->maskedAccountNumber();
+    }
+
+    public function maskedClientIdLabel(): ?string
+    {
+        if (! $this->account->isFedEx() || ! $this->account->usesMerchantFedExDeveloperCredentials()) {
+            return null;
+        }
+
+        if (! $this->account->hasMerchantFedExDeveloperCredentials()) {
+            return null;
+        }
+
+        return $this->account->maskedMerchantClientId();
     }
 
     public function nextActionLabel(): string

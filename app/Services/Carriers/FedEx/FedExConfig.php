@@ -102,6 +102,16 @@ final class FedExConfig
         return $environment === CarrierAccount::ENVIRONMENT_SANDBOX;
     }
 
+    public function allowsMerchantCredentialsEnvironment(string $environment): bool
+    {
+        $environment = strtolower($environment);
+
+        return in_array($environment, [
+            CarrierAccount::ENVIRONMENT_SANDBOX,
+            CarrierAccount::ENVIRONMENT_LIVE,
+        ], true);
+    }
+
     /**
      * Credential Registration residential field mode. Production always omits the field.
      * Local/testing may set FEDEX_ACCOUNT_REGISTRATION_RESIDENTIAL_MODE for diagnostics.

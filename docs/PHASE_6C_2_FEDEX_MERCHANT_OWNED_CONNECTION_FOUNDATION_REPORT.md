@@ -61,6 +61,7 @@ Phase 6C-2 establishes the first **merchant-owned carrier account connectivity**
 - Phase 6C-1C: Carrier connection wizard foundation
 - Phase 6C-1C-FIX: Raw carrier form removal
 - Phase 6C-1A: FedEx sandbox carrier foundation (preserved)
+- Phase 6C-2B: FedEx Merchant Credentials Mode (primary path — see `docs/PHASE_6C_2B_FEDEX_MERCHANT_CREDENTIALS_MODE_REPORT.md`)
 
 ## Phase 6C-2A — Registration field validation + export cleanup
 

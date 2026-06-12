@@ -18,18 +18,10 @@
         $fedExFormValues = [
             'display_name' => old('display_name'),
             'provider_account_number' => old('provider_account_number'),
-            'company_name' => old('company_name', $fedExPrefill['company_name'] ?? ''),
-            'contact_name' => old('contact_name', $fedExPrefill['contact_name'] ?? ''),
-            'address_line1' => old('address_line1', $fedExPrefill['address_line1'] ?? ''),
-            'address_line2' => old('address_line2', $fedExPrefill['address_line2'] ?? ''),
-            'city' => old('city', $fedExPrefill['city'] ?? ''),
-            'state' => old('state', $fedExPrefill['state'] ?? ''),
-            'postal_code' => old('postal_code', $fedExPrefill['postal_code'] ?? ''),
-            'country_code' => old('country_code', $fedExPrefill['country_code'] ?? \App\Support\CarrierCountryOptions::defaultFedExCountry($fedExOriginLocation?->country_code)),
-            'phone' => old('phone'),
-            'email' => old('email'),
+            'fedex_client_id' => old('fedex_client_id'),
+            'environment' => old('environment', \App\Models\CarrierAccount::ENVIRONMENT_SANDBOX),
         ];
-        $steps = ['origin' => 'Ship-from location', 'ownership' => 'Account type', 'fedex_details' => 'FedEx details', 'test' => 'Connection test'];
+        $steps = ['origin' => 'Ship-from location', 'ownership' => 'Account type', 'fedex_details' => 'FedEx credentials', 'test' => 'Connection test'];
     @endphp
 
     <div class="mx-auto max-w-[960px] space-y-6">
@@ -37,12 +29,6 @@
 
         @if ($errors->any())
             <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>
-        @endif
-
-        @if ($carrierCard['blocked'] ?? false)
-            <section class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-950">
-                FedEx setup is blocked by carrier account validation. Contact FedEx support or use manual delivery for now.
-            </section>
         @endif
 
         <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
@@ -129,43 +115,34 @@
                     <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save and continue</button>
                 </form>
             @elseif ($step === 'fedex_details')
-                <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 3 — Enter FedEx account details</h2>
-                <p class="mt-2 text-sm leading-6 text-[#64748B]">This should match your FedEx account records. FedEx may reject setup if the account number, contact, or billing address does not match.</p>
+                <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 3 — Enter FedEx credentials</h2>
+                <p class="mt-2 text-sm leading-6 text-[#64748B]">Use the API key and secret from your own FedEx Developer project. This platform stores them encrypted and uses them only for your store’s FedEx connection.</p>
                 <div class="mt-4 space-y-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                     <p><span class="font-semibold text-[#0F172A]">Billing:</span> FedEx billing stays between you and FedEx. This platform does not pay FedEx charges or buy labels for you.</p>
                     <p><span class="font-semibold text-[#0F172A]">Labels:</span> Labels are not enabled in this phase.</p>
-                    <p><span class="font-semibold text-[#0F172A]">Rates:</span> Test quotes are for setup verification only and do not change checkout totals.</p>
-                    <p><span class="font-semibold text-[#0F172A]">Account match:</span> Account name and address must match your FedEx records.</p>
+                    <p><span class="font-semibold text-[#0F172A]">Connection check:</span> Verifies your credentials can obtain a FedEx OAuth token. It does not buy labels or charge anything.</p>
                 </div>
                 @if (($fedExOriginLocation ?? null) && ($canManageShipping ?? false))
                     <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#475569]">
                         <p class="font-semibold text-[#0F172A]">Ship-from location: {{ $fedExOriginLocation->name }}</p>
-                        <p class="mt-1">Use this only if your FedEx account address matches your ship-from location.</p>
-                        <a href="{{ route('shipping.carriers.connect.show', ['carrier' => 'fedex', 'step' => 'fedex_details', 'origin_location_id' => $originLocationId, 'prefill_from_origin' => 1]) }}" class="mt-2 inline-flex text-sm font-semibold text-[#1D4ED8]">Use selected ship-from location address</a>
+                        <p class="mt-1">{{ $fedExOriginLocation->address_line1 }}, {{ $fedExOriginLocation->city }}, {{ $fedExOriginLocation->state }} {{ $fedExOriginLocation->postal_code }}</p>
                     </div>
                 @endif
-                <form method="POST" action="{{ route('shipping.carriers.connect.fedex.details') }}" class="mt-5 grid gap-3 sm:grid-cols-2">
+                <form method="POST" action="{{ route('shipping.carriers.connect.fedex.details') }}" class="mt-5 grid gap-3 sm:grid-cols-2" autocomplete="off">
                     @csrf
                     <input type="hidden" name="origin_location_id" value="{{ $originLocationId }}">
-                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Account nickname</span><input name="display_name" value="{{ $fedExFormValues['display_name'] }}" placeholder="Main FedEx account" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Account nickname</span><input name="display_name" value="{{ $fedExFormValues['display_name'] }}" placeholder="Main FedEx account" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
                     <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">FedEx account number</span><input name="provider_account_number" value="{{ $fedExFormValues['provider_account_number'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" autocomplete="off" inputmode="numeric"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Account holder / company name</span><input name="company_name" value="{{ $fedExFormValues['company_name'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Contact name</span><input name="contact_name" value="{{ $fedExFormValues['contact_name'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Address line 1</span><input name="address_line1" value="{{ $fedExFormValues['address_line1'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Address line 2</span><input name="address_line2" value="{{ $fedExFormValues['address_line2'] }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">City</span><input name="city" value="{{ $fedExFormValues['city'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">State / region</span><input name="state" value="{{ $fedExFormValues['state'] }}" required maxlength="2" pattern="[A-Za-z]{2}" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm uppercase" placeholder="TX"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Postal code</span><input name="postal_code" value="{{ $fedExFormValues['postal_code'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" placeholder="75002"></label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Country</span>
-                        <select name="country_code" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                            @foreach (($fedExCountryOptions ?? \App\Support\CarrierCountryOptions::fedExOptions()) as $code => $label)
-                                <option value="{{ $code }}" @selected((string) $fedExFormValues['country_code'] === (string) $code)>{{ $label }} ({{ $code }})</option>
-                            @endforeach
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">FedEx API key / Client ID</span><input name="fedex_client_id" value="{{ $fedExFormValues['fedex_client_id'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" autocomplete="off"></label>
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">FedEx secret key / Client secret</span><input name="fedex_client_secret" type="password" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm" autocomplete="new-password"></label>
+                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Environment</span>
+                        <select name="environment" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                            <option value="sandbox" @selected($fedExFormValues['environment'] === 'sandbox')>Sandbox (testing)</option>
+                            <option value="live" @selected($fedExFormValues['environment'] === 'live')>Production</option>
                         </select>
+                        <span class="text-xs text-[#64748B]">Use the environment that matches your FedEx Developer project. Production connection does not enable labels or checkout live rates.</span>
                     </label>
-                    <label class="space-y-1"><span class="text-xs font-semibold text-[#64748B]">Contact phone</span><input name="phone" value="{{ $fedExFormValues['phone'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <label class="space-y-1 sm:col-span-2"><span class="text-xs font-semibold text-[#64748B]">Contact email</span><input name="email" type="email" value="{{ $fedExFormValues['email'] }}" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
-                    <div class="sm:col-span-2"><button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save FedEx account</button></div>
+                    <div class="sm:col-span-2"><button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save FedEx credentials</button></div>
                 </form>
             @elseif ($step === 'test' && $account)
                 <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 4 — Connection readiness</h2>
@@ -174,6 +151,9 @@
                         <p><span class="font-semibold text-[#0F172A]">Ownership:</span> {{ $presenter->ownershipLabel() }}</p>
                         @if ($presenter->maskedAccountNumberLabel())
                             <p class="mt-2"><span class="font-semibold text-[#0F172A]">Account:</span> {{ $presenter->maskedAccountNumberLabel() }}</p>
+                        @endif
+                        @if ($presenter->maskedClientIdLabel())
+                            <p class="mt-2"><span class="font-semibold text-[#0F172A]">API key:</span> {{ $presenter->maskedClientIdLabel() }}</p>
                         @endif
                         <p class="mt-2"><span class="font-semibold text-[#0F172A]">Billing:</span> {{ $presenter->billingLabel() }}</p>
                         <p class="mt-2"><span class="font-semibold text-[#0F172A]">Status:</span> {{ $presenter->connectionStatusLabel() }}</p>

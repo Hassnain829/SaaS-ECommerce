@@ -67,11 +67,11 @@ class CarrierConnectionWizardService
             self::CARRIER_FEDEX => [
                 'code' => self::CARRIER_FEDEX,
                 'name' => 'FedEx',
-                'summary' => 'Connect a merchant-owned FedEx account for account setup and testing. Labels and FedEx billing remain handled by the merchant.',
-                'available' => $fedExConfig->isConfigured(),
+                'summary' => 'Connect your own FedEx Developer credentials and FedEx account number. FedEx billing stays between you and FedEx. Labels and checkout live rates are not enabled in this phase.',
+                'available' => $fedExConfig->isEnabled(),
                 'deferred' => false,
-                'blocked' => $this->storeHasBlockedFedExAccount($store),
-                'action' => $fedExConfig->isConfigured() ? 'Start FedEx setup' : 'Setup unavailable',
+                'blocked' => false,
+                'action' => $fedExConfig->isEnabled() ? 'Connect FedEx credentials' : 'Setup unavailable',
             ],
             self::CARRIER_UPS => [
                 'code' => self::CARRIER_UPS,
@@ -143,8 +143,8 @@ class CarrierConnectionWizardService
             ])),
             self::CARRIER_FEDEX => [[
                 'value' => CarrierAccount::OWNERSHIP_MERCHANT_OWNED,
-                'label' => 'Merchant-owned FedEx account',
-                'description' => 'Connect your FedEx account number and registration details. FedEx billing stays between you and FedEx.',
+                'label' => 'Merchant FedEx credentials',
+                'description' => 'Connect your FedEx Developer API key, secret, and account number. FedEx billing stays between you and FedEx.',
             ]],
             self::CARRIER_MANUAL => [[
                 'value' => CarrierAccount::OWNERSHIP_MANUAL,
