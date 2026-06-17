@@ -10,8 +10,10 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\FedExMerchantCheckPresenter;
+use App\Services\Carriers\FedEx\FedExMerchantCredentialsOAuthService;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -216,6 +218,7 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
                 'destination_country' => 'US',
                 'destination_postal_code' => '75002',
                 'destination_state' => 'TX',
+                'destination_city' => 'Allen',
             ])
             ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
             ->assertSessionHas('success');
@@ -256,6 +259,7 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
                 'destination_country' => 'US',
                 'destination_postal_code' => '75002',
                 'destination_state' => 'TX',
+                'destination_city' => 'Allen',
             ])
             ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
             ->assertSessionHas('success');
@@ -270,6 +274,382 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
         $this->assertStringNotContainsString('packageOptions', $encoded);
         $this->assertSame(12, data_get($event->response_summary, 'output_summary.service_count'));
         $this->assertCount(10, data_get($event->response_summary, 'output_summary.service_samples'));
+    }
+
+    public function test_service_availability_http_500_returns_friendly_message_without_disconnecting_account(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Service Availability 500 Store');
+
+        Http::fake([
+            'https://apis-sandbox.fedex.com/oauth/token' => Http::response([
+                'access_token' => 'fedex-service-test-token',
+                'token_type' => 'bearer',
+                'expires_in' => 3600,
+            ], 200),
+            'https://apis-sandbox.fedex.com/availability/v1/packageandserviceoptions' => Http::response(null, 500, [
+                'Content-Type' => 'text/html',
+                'x-customer-transaction-id' => 'fedex-service-txn-500',
+            ]),
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '75002',
+                'destination_state' => 'TX',
+                'destination_city' => 'Allen',
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHas('fedex_test_result')
+            ->assertSessionDoesntHaveErrors(['fedex']);
+
+        $result = session('fedex_test_result');
+        $this->assertFalse($result['success']);
+        $this->assertSame('fedex_api', $result['failure_kind']);
+        $this->assertStringContainsString('temporary service-availability error', $result['message']);
+        $this->assertStringContainsString('credentials are connected', $result['message']);
+        $this->assertSame(500, data_get($result, 'response_summary.http_status'));
+        $this->assertSame('fedex-service-txn-500', data_get($result, 'response_summary.fedex_transaction_id'));
+
+        $account->refresh();
+        $this->assertSame(CarrierAccount::CONNECTION_CONNECTED, $account->connection_status);
+        $this->assertSame(CarrierAccount::STATUS_ENABLED, $account->status);
+
+        $event = CarrierApiEvent::query()
+            ->where('store_id', $store->id)
+            ->where('action', CarrierApiEvent::ACTION_FEDEX_SERVICE_AVAILABILITY)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(CarrierApiEvent::STATUS_FAILED, $event->status);
+        $this->assertStringNotContainsString('packageOptions', json_encode($event->response_summary));
+    }
+
+    public function test_missing_us_destination_state_fails_validation_before_calling_fedex(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Service Availability Validation Store');
+        $availabilityCalled = false;
+
+        Http::fake(function ($request) use (&$availabilityCalled) {
+            if (str_contains($request->url(), '/availability/v1/packageandserviceoptions')) {
+                $availabilityCalled = true;
+            }
+
+            return Http::response(['errors' => [['message' => 'Should not be called']]], 500);
+        });
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '75002',
+                'destination_city' => 'Allen',
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHasErrors(['destination_state']);
+
+        $this->assertFalse($availabilityCalled);
+        $this->assertDatabaseMissing('carrier_api_events', [
+            'store_id' => $store->id,
+            'action' => CarrierApiEvent::ACTION_FEDEX_SERVICE_AVAILABILITY,
+        ]);
+    }
+
+    public function test_service_availability_includes_destination_city_in_fedex_request_when_provided(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Service Availability City Store');
+        $capturedCity = null;
+
+        Http::fake(function ($request) use (&$capturedCity) {
+            if (str_contains($request->url(), '/oauth/token')) {
+                return Http::response([
+                    'access_token' => 'fedex-service-test-token',
+                    'token_type' => 'bearer',
+                    'expires_in' => 3600,
+                ], 200);
+            }
+
+            if (str_contains($request->url(), '/availability/v1/packageandserviceoptions')) {
+                $payload = $request->data();
+                $capturedCity = data_get($payload, 'requestedShipment.recipients.0.address.city');
+
+                return Http::response([
+                    'transactionId' => 'fedex-service-txn-city',
+                    'output' => [
+                        'packageOptions' => [[
+                            'packageType' => ['key' => 'YOUR_PACKAGING', 'displayText' => 'Your Packaging'],
+                            'serviceType' => ['key' => 'FEDEX_GROUND', 'displayText' => 'FedEx Ground'],
+                        ]],
+                    ],
+                ], 200);
+            }
+
+            return Http::response(['errors' => [['message' => 'Unexpected URL']]], 404);
+        });
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '75002',
+                'destination_state' => 'TX',
+                'destination_city' => 'Allen',
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHas('success');
+
+        $this->assertSame('Allen', $capturedCity);
+    }
+
+    public function test_service_availability_sends_authorization_bearer_header(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Service Availability Auth Header Store');
+        $authorizationHeader = null;
+
+        Http::fake(function ($request) use (&$authorizationHeader) {
+            if (str_contains($request->url(), '/oauth/token')) {
+                return Http::response([
+                    'access_token' => 'Bearer fedex-service-test-token',
+                    'token_type' => 'bearer',
+                    'expires_in' => 3600,
+                ], 200);
+            }
+
+            if (str_contains($request->url(), '/availability/v1/packageandserviceoptions')) {
+                $authorizationHeader = $request->header('Authorization')[0] ?? null;
+
+                return Http::response([
+                    'transactionId' => 'fedex-service-txn-auth',
+                    'output' => [
+                        'packageOptions' => [[
+                            'packageType' => ['key' => 'YOUR_PACKAGING', 'displayText' => 'Your Packaging'],
+                            'serviceType' => ['key' => 'FEDEX_GROUND', 'displayText' => 'FedEx Ground'],
+                        ]],
+                    ],
+                ], 200);
+            }
+
+            return Http::response(['errors' => [['message' => 'Unexpected URL']]], 404);
+        });
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '75002',
+                'destination_state' => 'TX',
+                'destination_city' => 'Allen',
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHas('success');
+
+        $this->assertSame('Bearer fedex-service-test-token', $authorizationHeader);
+        $this->assertStringNotContainsString('Bearer Bearer', (string) $authorizationHeader);
+    }
+
+    public function test_service_availability_refreshes_token_and_retries_once_on_401(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Service Availability 401 Retry Store');
+        $oauthAttempts = 0;
+        $availabilityAttempts = 0;
+        $authorizationHeaders = [];
+
+        Http::fake(function ($request) use (&$oauthAttempts, &$availabilityAttempts, &$authorizationHeaders) {
+            if (str_contains($request->url(), '/oauth/token')) {
+                $oauthAttempts++;
+
+                return Http::response([
+                    'access_token' => $oauthAttempts === 1 ? 'stale-fedex-token' : 'fresh-fedex-token',
+                    'token_type' => 'bearer',
+                    'expires_in' => 3600,
+                ], 200);
+            }
+
+            if (str_contains($request->url(), '/availability/v1/packageandserviceoptions')) {
+                $availabilityAttempts++;
+                $authorizationHeaders[] = $request->header('Authorization')[0] ?? null;
+
+                if ($availabilityAttempts === 1) {
+                    return Http::response([
+                        'errors' => [['code' => 'NOT.AUTHORIZED', 'message' => 'Invalid token.']],
+                    ], 401);
+                }
+
+                return Http::response([
+                    'transactionId' => 'fedex-service-txn-retry',
+                    'output' => [
+                        'packageOptions' => [[
+                            'packageType' => ['key' => 'YOUR_PACKAGING', 'displayText' => 'Your Packaging'],
+                            'serviceType' => ['key' => 'FEDEX_GROUND', 'displayText' => 'FedEx Ground'],
+                        ]],
+                    ],
+                ], 200);
+            }
+
+            return Http::response(['errors' => [['message' => 'Unexpected URL']]], 404);
+        });
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '75002',
+                'destination_state' => 'TX',
+                'destination_city' => 'Allen',
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHas('success');
+
+        $this->assertSame(2, $oauthAttempts);
+        $this->assertSame(2, $availabilityAttempts);
+        $this->assertSame(['Bearer stale-fedex-token', 'Bearer fresh-fedex-token'], $authorizationHeaders);
+
+        $event = CarrierApiEvent::query()
+            ->where('store_id', $store->id)
+            ->where('action', CarrierApiEvent::ACTION_FEDEX_SERVICE_AVAILABILITY)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame(CarrierApiEvent::STATUS_SUCCEEDED, $event->status);
+        $this->assertTrue((bool) data_get($event->request_summary, 'token_refreshed_after_401'));
+        $this->assertTrue((bool) data_get($event->request_summary, 'auth_header_present'));
+        $this->assertSame('Bearer', data_get($event->request_summary, 'auth_scheme'));
+    }
+
+    public function test_service_availability_second_401_returns_friendly_failure_without_disconnecting_account(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Service Availability 401 Final Store');
+
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/oauth/token')) {
+                return Http::response([
+                    'access_token' => 'fedex-rejected-token',
+                    'token_type' => 'bearer',
+                    'expires_in' => 3600,
+                ], 200);
+            }
+
+            if (str_contains($request->url(), '/availability/v1/packageandserviceoptions')) {
+                return Http::response([
+                    'errors' => [['code' => 'NOT.AUTHORIZED', 'message' => 'Invalid token.']],
+                ], 401);
+            }
+
+            return Http::response(['errors' => [['message' => 'Unexpected URL']]], 404);
+        });
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '75002',
+                'destination_state' => 'TX',
+                'destination_city' => 'Allen',
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHas('fedex_test_result')
+            ->assertSessionDoesntHaveErrors(['fedex']);
+
+        $result = session('fedex_test_result');
+        $this->assertFalse($result['success']);
+        $this->assertSame('fedex_api', $result['failure_kind']);
+        $this->assertStringContainsString('FedEx rejected the OAuth token for this request', $result['message']);
+        $this->assertTrue((bool) data_get($result, 'request_summary.token_refreshed_after_401'));
+        $this->assertTrue((bool) data_get($result, 'response_summary.token_refreshed_after_401'));
+        $this->assertSame(401, data_get($result, 'response_summary.http_status'));
+
+        $account->refresh();
+        $this->assertSame(CarrierAccount::CONNECTION_CONNECTED, $account->connection_status);
+        $this->assertSame(CarrierAccount::STATUS_ENABLED, $account->status);
+    }
+
+    public function test_merchant_token_cache_key_is_account_environment_and_client_specific(): void
+    {
+        Cache::flush();
+
+        [$owner, $store, $accountA, $location] = $this->merchantFedExFixture('FedEx Token Cache Store A');
+        $accountB = $this->secondMerchantFedExAccount($store, $location, 'fedex-token-cache-b');
+        $oauthService = app(FedExMerchantCredentialsOAuthService::class);
+
+        $this->assertNotSame(
+            $oauthService->tokenCacheKey($accountA),
+            $oauthService->tokenCacheKey($accountB),
+        );
+
+        $oauthAttempts = 0;
+
+        Http::fake(function () use (&$oauthAttempts) {
+            $oauthAttempts++;
+
+            return Http::response([
+                'access_token' => 'token-'.$oauthAttempts,
+                'token_type' => 'bearer',
+                'expires_in' => 3600,
+            ], 200);
+        });
+
+        $oauthService->fetchTokenResult($accountA);
+        $oauthService->fetchTokenResult($accountA);
+        $oauthService->fetchTokenResult($accountB);
+        $oauthService->fetchTokenResult($accountB);
+
+        $this->assertSame(2, $oauthAttempts);
+    }
+
+    public function test_merchant_api_event_summaries_do_not_contain_secret_or_access_token(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Redacted Auth Summary Store');
+
+        Http::fake([
+            'https://apis-sandbox.fedex.com/oauth/token' => Http::response([
+                'access_token' => self::TEST_CLIENT_SECRET.'-access-token-value',
+                'token_type' => 'bearer',
+                'expires_in' => 3600,
+            ], 200),
+            'https://apis-sandbox.fedex.com/availability/v1/packageandserviceoptions' => Http::response([
+                'transactionId' => 'fedex-service-txn-redacted',
+                'output' => [
+                    'packageOptions' => [[
+                        'packageType' => ['key' => 'YOUR_PACKAGING', 'displayText' => 'Your Packaging'],
+                        'serviceType' => ['key' => 'FEDEX_GROUND', 'displayText' => 'FedEx Ground'],
+                    ]],
+                ],
+            ], 200),
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '75002',
+                'destination_state' => 'TX',
+                'destination_city' => 'Allen',
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHas('success');
+
+        $events = CarrierApiEvent::query()
+            ->where('store_id', $store->id)
+            ->whereIn('action', [
+                CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN,
+                CarrierApiEvent::ACTION_FEDEX_SERVICE_AVAILABILITY,
+            ])
+            ->get();
+
+        $encoded = json_encode($events->pluck('request_summary')->merge($events->pluck('response_summary')));
+
+        $this->assertStringNotContainsString(self::TEST_CLIENT_SECRET, $encoded);
+        $this->assertStringNotContainsString(self::TEST_CLIENT_ID, $encoded);
+        $this->assertStringNotContainsString(self::TEST_CLIENT_SECRET.'-access-token-value', $encoded);
+        $this->assertStringNotContainsString(self::TEST_ACCOUNT_NUMBER, $encoded);
     }
 
     public function test_rate_quote_http_403_shows_merchant_friendly_authorization_message(): void
@@ -340,6 +720,7 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
                 'destination_country' => 'US',
                 'destination_postal_code' => '75002',
                 'destination_state' => 'TX',
+                'destination_city' => 'Allen',
             ])
             ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
             ->assertSessionHas('success');
@@ -519,6 +900,42 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
         $account->save();
 
         return [$owner, $store, $account, $location];
+    }
+
+    private function secondMerchantFedExAccount(Store $store, Location $location, string $emailLocalPart): CarrierAccount
+    {
+        $fedEx = Carrier::query()->where('code', 'fedex')->firstOrFail();
+
+        $account = CarrierAccount::query()->create([
+            'store_id' => $store->id,
+            'carrier_id' => $fedEx->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'display_name' => 'Secondary FedEx account',
+            'provider_account_number' => '740561073',
+            'ownership_mode' => CarrierAccount::OWNERSHIP_MERCHANT_OWNED,
+            'credentials_source' => CarrierAccount::CREDENTIALS_MERCHANT_ENCRYPTED,
+            'connection_mode' => CarrierAccount::CONNECTION_MODE_FEDEX_MERCHANT_CREDENTIALS,
+            'billing_owner' => CarrierAccount::BILLING_OWNER_MERCHANT,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'connection_status' => CarrierAccount::CONNECTION_CONNECTED,
+            'status' => CarrierAccount::STATUS_ENABLED,
+            'settings' => ['default_origin_location_id' => $location->id],
+            'capabilities' => [
+                'rates' => false,
+                'labels' => false,
+                'tracking' => false,
+                'pickup' => false,
+                'checkout_rates' => false,
+            ],
+        ]);
+
+        $account->setCredentials([
+            'client_id' => 'm9z8y7x6w5v4u3t2s1r0q9p8o7n6m5l4',
+            'client_secret' => 'secondary-merchant-fedex-secret-key-value',
+        ]);
+        $account->save();
+
+        return $account;
     }
 
     private function readyLocation(Store $store): Location

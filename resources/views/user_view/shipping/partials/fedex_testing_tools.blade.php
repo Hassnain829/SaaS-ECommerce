@@ -9,9 +9,19 @@
         <p class="mt-2 text-xs text-[#64748B]">Sandbox checks using your merchant FedEx credentials. These tools do not buy labels, create shipments, charge postage, or change checkout totals.</p>
 
         @if ($showFedExTestResult)
-            <div class="mt-4 rounded-xl border {{ ($fedExTestResult['success'] ?? false) ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50' }} px-4 py-3">
+            @php
+                $fedExTestSuccess = (bool) ($fedExTestResult['success'] ?? false);
+                $fedExTestFailureKind = $fedExTestResult['failure_kind'] ?? null;
+                $fedExTestBoxClass = $fedExTestSuccess
+                    ? 'border-emerald-200 bg-emerald-50'
+                    : ($fedExTestFailureKind === 'fedex_api' ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50');
+                $fedExTestTextClass = $fedExTestSuccess
+                    ? 'text-emerald-900'
+                    : ($fedExTestFailureKind === 'fedex_api' ? 'text-amber-900' : 'text-red-900');
+            @endphp
+            <div class="mt-4 rounded-xl border {{ $fedExTestBoxClass }} px-4 py-3">
                 <p class="font-semibold text-[#0F172A]">{{ $fedExTestResult['label'] ?? 'FedEx test result' }}</p>
-                <p class="mt-1 text-sm {{ ($fedExTestResult['success'] ?? false) ? 'text-emerald-900' : 'text-red-900' }}">{{ $fedExTestResult['message'] ?? '' }}</p>
+                <p class="mt-1 text-sm {{ $fedExTestTextClass }}">{{ $fedExTestResult['message'] ?? '' }}</p>
                 @if (! empty($fedExTestResult['input_summary']))
                     <dl class="mt-3 space-y-1 text-xs text-[#475569]">
                         @foreach ($fedExTestResult['input_summary'] as $key => $value)
@@ -68,6 +78,26 @@
                             @foreach ($fedExTestResult['response_summary'] as $key => $value)
                                 @if (! is_array($value))
                                     <li>{{ str($key)->replace('_', ' ')->title() }}: {{ is_bool($value) ? ($value ? 'true' : 'false') : $value }}</li>
+                                @elseif ($key === 'output_summary')
+                                    <li>{{ str($key)->replace('_', ' ')->title() }}:
+                                        <ul class="ml-4 mt-1 space-y-0.5">
+                                            @foreach ($value as $nestedKey => $nestedValue)
+                                                @if (! is_array($nestedValue))
+                                                    <li>{{ str($nestedKey)->replace('_', ' ')->title() }}: {{ $nestedValue }}</li>
+                                                @endif
+                                            @endforeach
+                                        </ul>
+                                    </li>
+                                @elseif ($key === 'errors')
+                                    <li>{{ str($key)->replace('_', ' ')->title() }}:
+                                        <ul class="ml-4 mt-1 space-y-0.5">
+                                            @foreach ($value as $error)
+                                                @if (is_array($error))
+                                                    <li>{{ $error['code'] ?? 'Error' }}: {{ $error['message'] ?? '' }}</li>
+                                                @endif
+                                            @endforeach
+                                        </ul>
+                                    </li>
                                 @endif
                             @endforeach
                         </ul>
@@ -110,11 +140,15 @@
                                 @endforeach
                             </select>
                         </label>
-                        <div class="grid gap-3 sm:grid-cols-3">
+                        <div class="grid gap-3 sm:grid-cols-2">
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination country</span><input name="destination_country" required value="US" maxlength="2" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm uppercase"></label>
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination ZIP</span><input name="destination_postal_code" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination state</span><input name="destination_state" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
                         </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination state</span><input name="destination_state" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="TX"></label>
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination city</span><input name="destination_city" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Dallas"></label>
+                        </div>
+                        <p class="text-xs text-[#64748B]">US and Canada destinations require country, postal code, state/province, and city.</p>
                         <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Check service availability</button>
                     </form>
                 </details>

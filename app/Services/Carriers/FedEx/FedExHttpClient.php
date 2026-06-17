@@ -43,7 +43,36 @@ class FedExHttpClient
         ?string $bearerToken = null,
         ?array $requestSummary = null,
     ): CarrierApiResult {
-        return $this->request('post', $environment, $path, $payload, $headers, false, false, $bearerToken, $requestSummary);
+        return $this->request(
+            'post',
+            $environment,
+            $path,
+            $payload,
+            $headers,
+            false,
+            false,
+            self::normalizeBearerToken($bearerToken),
+            $requestSummary,
+        );
+    }
+
+    public static function normalizeBearerToken(?string $token): ?string
+    {
+        if ($token === null) {
+            return null;
+        }
+
+        $trimmed = trim($token);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (str_starts_with(strtolower($trimmed), 'bearer ')) {
+            $trimmed = trim(substr($trimmed, 7));
+        }
+
+        return $trimmed !== '' ? $trimmed : null;
     }
 
     /**
@@ -68,10 +97,11 @@ class FedExHttpClient
         $url = $this->config->baseUrl($environment).$normalizedPath;
         $summary = array_merge($requestSummary ?? [], [
             'endpoint' => $normalizedPath,
+            'environment' => $environment,
         ]);
 
         try {
-            $request = $this->baseRequest($headers, $bearerToken, $retry);
+            $request = $this->baseRequest($headers, $bearerToken, $retry, $asForm);
 
             /** @var Response $response */
             $response = $asForm
@@ -95,10 +125,13 @@ class FedExHttpClient
 
             $message = $this->extractErrorMessage($json) ?? 'FedEx request failed.';
             $message = $this->merchantFriendlyFailureMessage($response->status(), $normalizedPath, $message);
+            $errorCode = is_array($json)
+                ? (string) (data_get($json, 'errors.0.code') ?? $response->status())
+                : (string) $response->status();
 
             return CarrierApiResult::failure(
                 message: $message,
-                code: (string) ($json['errors'][0]['code'] ?? $response->status()),
+                code: $errorCode,
                 requestId: $fedexTransactionId ?: $requestId,
                 durationMs: $durationMs,
                 requestSummary: $summary,
@@ -122,14 +155,20 @@ class FedExHttpClient
     /**
      * @param  array<string, string>  $headers
      */
-    private function baseRequest(array $headers, ?string $bearerToken, bool $retry): PendingRequest
+    private function baseRequest(array $headers, ?string $bearerToken, bool $retry, bool $asForm = false): PendingRequest
     {
+        $defaultHeaders = [
+            'x-customer-transaction-id' => (string) Str::uuid(),
+            'X-locale' => 'en_US',
+        ];
+
+        if (! $asForm) {
+            $defaultHeaders['Content-Type'] = 'application/json';
+        }
+
         $request = Http::timeout(20)
             ->acceptJson()
-            ->withHeaders(array_merge([
-                'x-customer-transaction-id' => (string) Str::uuid(),
-                'X-locale' => 'en_US',
-            ], $headers));
+            ->withHeaders(array_merge($defaultHeaders, $headers));
 
         if ($bearerToken) {
             $request = $request->withToken($bearerToken);
@@ -168,7 +207,7 @@ class FedExHttpClient
         ];
 
         if (is_array($json)) {
-            $summary = array_merge($summary, $this->sanitizeResponse($json));
+            $summary = array_merge($summary, $this->sanitizeResponse($json, $httpStatus));
         }
 
         return $summary;
@@ -196,7 +235,7 @@ class FedExHttpClient
      * @param  array<string, mixed>  $json
      * @return array<string, mixed>
      */
-    private function sanitizeResponse(array $json): array
+    private function sanitizeResponse(array $json, int $httpStatus): array
     {
         $summary = [];
 
@@ -204,7 +243,7 @@ class FedExHttpClient
             $summary['errors'] = $this->sanitizeFedExErrors($json['errors']);
         }
 
-        if (isset($json['output']) && is_array($json['output'])) {
+        if (isset($json['output']) && is_array($json['output']) && $httpStatus >= 200 && $httpStatus < 300) {
             $output = $json['output'];
             unset(
                 $output['child_Key'],
@@ -226,8 +265,16 @@ class FedExHttpClient
 
     private function merchantFriendlyFailureMessage(int $httpStatus, string $path, string $defaultMessage): string
     {
+        if ($httpStatus === 401) {
+            return 'FedEx rejected the OAuth token for this request. Reconnect the FedEx credentials or verify the API key, secret, environment, and project permissions.';
+        }
+
         if ($httpStatus === 403 && str_contains($path, '/rate/v1/rates/quotes')) {
             return 'FedEx rejected this rate quote because the current FedEx project/account is not authorized for Rates API in this environment. Verify the Rates and Transit Times API product is added to the FedEx project, the account number is linked/allowed for this project, or use FedEx-provided sandbox test account details.';
+        }
+
+        if ($httpStatus >= 500 && str_contains($path, '/availability/v1/packageandserviceoptions')) {
+            return 'FedEx returned a temporary service-availability error for this route. Your FedEx credentials are connected, but FedEx could not return service options for this origin/destination right now. Try another valid ZIP/state/city combination or retry later.';
         }
 
         return $defaultMessage;

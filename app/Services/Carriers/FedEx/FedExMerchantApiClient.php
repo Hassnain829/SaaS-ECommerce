@@ -10,6 +10,8 @@ use App\Services\Carriers\DTO\CarrierApiResult;
 
 class FedExMerchantApiClient
 {
+    private const OAUTH_REJECTION_MESSAGE = 'FedEx rejected the OAuth token for this request. Reconnect the FedEx credentials or verify the API key, secret, environment, and project permissions.';
+
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExHttpClient $httpClient,
@@ -52,7 +54,7 @@ class FedExMerchantApiClient
             environment: $account->environment,
         );
 
-        $oauthResult = $this->oauthService->fetchTokenResult($account, fresh: true);
+        $oauthResult = $this->oauthService->fetchTokenResult($account, fresh: false);
         $this->eventLogger->complete($oauthEvent, $oauthResult);
 
         if (! $oauthResult->success) {
@@ -64,9 +66,9 @@ class FedExMerchantApiClient
             );
         }
 
-        $accessToken = (string) ($oauthResult->data['access_token'] ?? '');
+        $accessToken = FedExHttpClient::normalizeBearerToken((string) ($oauthResult->data['access_token'] ?? ''));
 
-        if ($accessToken === '') {
+        if ($accessToken === null || $accessToken === '') {
             return CarrierApiResult::failure(
                 message: 'FedEx authentication did not return an access token.',
                 code: 'missing_access_token',
@@ -79,7 +81,7 @@ class FedExMerchantApiClient
             provider: CarrierAccount::PROVIDER_FEDEX,
             action: $action,
             account: $account,
-            requestSummary: $requestSummary,
+            requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken),
             environment: $account->environment,
         );
 
@@ -88,8 +90,86 @@ class FedExMerchantApiClient
             path: $path,
             payload: $payload,
             bearerToken: $accessToken,
-            requestSummary: $requestSummary,
+            requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken),
         );
+
+        if ($this->isUnauthorized($apiResult)) {
+            $this->oauthService->clearTokenCache($account);
+
+            $refreshResult = $this->oauthService->fetchTokenResult($account, fresh: true);
+
+            if (! $refreshResult->success) {
+                $failedResult = CarrierApiResult::failure(
+                    message: $refreshResult->errorMessage ?? self::OAUTH_REJECTION_MESSAGE,
+                    code: $refreshResult->errorCode ?? 'oauth_failed',
+                    requestId: $apiResult->requestId,
+                    durationMs: $apiResult->durationMs,
+                    requestSummary: $this->authenticatedRequestSummary(
+                        $account,
+                        $environment,
+                        array_merge($requestSummary, ['token_refreshed_after_401' => true]),
+                        null,
+                    ),
+                    responseSummary: array_merge($apiResult->responseSummary ?? [], [
+                        'token_refreshed_after_401' => true,
+                    ]),
+                );
+                $this->eventLogger->complete($apiEvent, $failedResult);
+
+                return $failedResult;
+            }
+
+            $refreshedToken = FedExHttpClient::normalizeBearerToken((string) ($refreshResult->data['access_token'] ?? ''));
+
+            if ($refreshedToken === null || $refreshedToken === '') {
+                $failedResult = CarrierApiResult::failure(
+                    message: self::OAUTH_REJECTION_MESSAGE,
+                    code: 'missing_access_token',
+                    requestId: $apiResult->requestId,
+                    durationMs: $apiResult->durationMs,
+                    requestSummary: $this->authenticatedRequestSummary(
+                        $account,
+                        $environment,
+                        array_merge($requestSummary, ['token_refreshed_after_401' => true]),
+                        null,
+                    ),
+                    responseSummary: array_merge($apiResult->responseSummary ?? [], [
+                        'token_refreshed_after_401' => true,
+                    ]),
+                );
+                $this->eventLogger->complete($apiEvent, $failedResult);
+
+                return $failedResult;
+            }
+
+            $retrySummary = $this->authenticatedRequestSummary(
+                $account,
+                $environment,
+                array_merge($requestSummary, ['token_refreshed_after_401' => true]),
+                $refreshedToken,
+            );
+
+            $apiResult = $this->httpClient->postJson(
+                environment: $environment,
+                path: $path,
+                payload: $payload,
+                bearerToken: $refreshedToken,
+                requestSummary: $retrySummary,
+            );
+
+            if ($this->isUnauthorized($apiResult)) {
+                $apiResult = CarrierApiResult::failure(
+                    message: self::OAUTH_REJECTION_MESSAGE,
+                    code: (string) ($apiResult->errorCode ?? '401'),
+                    requestId: $apiResult->requestId,
+                    durationMs: $apiResult->durationMs,
+                    requestSummary: $retrySummary,
+                    responseSummary: array_merge($apiResult->responseSummary ?? [], [
+                        'token_refreshed_after_401' => true,
+                    ]),
+                );
+            }
+        }
 
         $this->eventLogger->complete($apiEvent, $apiResult);
 
@@ -129,6 +209,38 @@ class FedExMerchantApiClient
             'client_id_last4' => $this->clientIdLast4($account),
             'credentials_mode' => 'merchant_developer',
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $requestSummary
+     * @return array<string, mixed>
+     */
+    private function authenticatedRequestSummary(
+        CarrierAccount $account,
+        string $environment,
+        array $requestSummary,
+        ?string $accessToken,
+    ): array {
+        return array_merge($requestSummary, [
+            'environment' => $environment,
+            'account_last4' => $this->accountLast4($account),
+            'client_id_last4' => $this->clientIdLast4($account),
+            'auth_header_present' => filled($accessToken),
+            'auth_scheme' => filled($accessToken) ? 'Bearer' : null,
+        ]);
+    }
+
+    private function isUnauthorized(CarrierApiResult $result): bool
+    {
+        return ! $result->success
+            && (int) data_get($result->responseSummary, 'http_status') === 401;
+    }
+
+    private function accountLast4(CarrierAccount $account): ?string
+    {
+        $accountNumber = (string) ($account->provider_account_number ?? '');
+
+        return strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null;
     }
 
     private function clientIdLast4(CarrierAccount $account): ?string

@@ -55,6 +55,7 @@ class FedExServiceAvailabilityService
         $destinationCountry = strtoupper(trim((string) ($destinationInput['country_code'] ?? 'US')));
         $destinationPostal = trim((string) ($destinationInput['postal_code'] ?? ''));
         $destinationState = strtoupper(trim((string) ($destinationInput['state'] ?? ''))) ?: null;
+        $destinationCity = trim((string) ($destinationInput['city'] ?? '')) ?: null;
         $endpoint = $this->config->serviceAvailabilityPath();
         $shipDatestamp = $shipDate ?: now()->toDateString();
         $packagingType = $packagingType ?: 'YOUR_PACKAGING';
@@ -67,6 +68,7 @@ class FedExServiceAvailabilityService
                 'origin_postal_code' => $origin['postal_code'] ?? null,
                 'destination_country' => $destinationCountry,
                 'destination_state' => $destinationState,
+                'destination_city' => $destinationCity,
                 'destination_postal_code' => $destinationPostal ?: null,
                 'ship_date' => $shipDatestamp,
                 'packaging_type' => $packagingType,
@@ -90,6 +92,7 @@ class FedExServiceAvailabilityService
                             'postalCode' => $destinationPostal ?: null,
                             'countryCode' => $destinationCountry,
                             'stateOrProvinceCode' => $destinationState,
+                            'city' => $destinationCity,
                         ]),
                     ],
                 ],
