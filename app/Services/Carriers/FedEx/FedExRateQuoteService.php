@@ -1,0 +1,181 @@
+<?php
+
+namespace App\Services\Carriers\FedEx;
+
+use App\Models\CarrierAccount;
+use App\Models\CarrierApiEvent;
+use App\Models\Location;
+use App\Models\Store;
+use App\Services\Carriers\CarrierOriginReadinessService;
+use App\Services\Carriers\DTO\CarrierApiResult;
+
+class FedExRateQuoteService
+{
+    public function __construct(
+        private readonly FedExConfig $config,
+        private readonly FedExMerchantApiClient $apiClient,
+        private readonly CarrierOriginReadinessService $originReadiness,
+    ) {
+    }
+
+    /**
+     * @param  array<string, mixed>  $destinationInput
+     * @param  array<string, mixed>  $packageInput
+     * @return array{result: CarrierApiResult, presentation: array<string, mixed>}
+     */
+    public function quoteRate(
+        Store $store,
+        CarrierAccount $account,
+        Location $originLocation,
+        array $destinationInput,
+        array $packageInput,
+        ?string $shipDate = null,
+        ?string $serviceType = null,
+        ?bool $residential = null,
+    ): array {
+        $this->apiClient->assertMerchantCredentialsAccount($account);
+
+        if (! filled($account->provider_account_number)) {
+            $result = CarrierApiResult::failure(
+                message: 'FedEx account number is required before requesting a test quote.',
+                code: 'missing_account_number',
+                requestSummary: ['local_validation' => true],
+            );
+
+            return ['result' => $result, 'presentation' => FedExMerchantCheckPresenter::rateQuote(null)];
+        }
+
+        $readiness = $this->originReadiness->assessForFulfillmentOrigin(
+            $originLocation,
+            CarrierOriginReadinessService::CARRIER_GENERIC,
+        );
+
+        if (! $readiness->ready) {
+            $result = CarrierApiResult::failure(
+                message: $readiness->merchantMessage,
+                code: 'origin_not_ready',
+                requestSummary: [
+                    'endpoint' => $this->config->rateQuotePath(),
+                    'local_validation' => true,
+                    'origin_status' => $readiness->status,
+                ],
+            );
+
+            return ['result' => $result, 'presentation' => FedExMerchantCheckPresenter::rateQuote(null)];
+        }
+
+        $origin = $readiness->normalizedAddress;
+        $destinationCountry = strtoupper(trim((string) ($destinationInput['country_code'] ?? 'US')));
+        $destinationPostal = trim((string) ($destinationInput['postal_code'] ?? ''));
+        $destinationState = strtoupper(trim((string) ($destinationInput['state'] ?? ''))) ?: null;
+        $destinationCity = trim((string) ($destinationInput['city'] ?? '')) ?: null;
+        $weight = max(0.01, (float) ($packageInput['weight'] ?? 1));
+        $length = max(0.01, (float) ($packageInput['length'] ?? 9));
+        $width = max(0.01, (float) ($packageInput['width'] ?? 6));
+        $height = max(0.01, (float) ($packageInput['height'] ?? 2));
+        $weightUnit = strtoupper((string) ($packageInput['weight_unit'] ?? 'LB'));
+        $dimensionUnit = strtoupper((string) ($packageInput['dimension_unit'] ?? 'IN'));
+        $endpoint = $this->config->rateQuotePath();
+        $shipDatestamp = $shipDate ?: now()->toDateString();
+
+        $requestSummary = array_merge(
+            $this->apiClient->baseRequestSummary($account, $endpoint),
+            [
+                'origin_country' => $origin['country_code'] ?? null,
+                'origin_state' => $origin['state'] ?? null,
+                'origin_postal_code' => $origin['postal_code'] ?? null,
+                'destination_country' => $destinationCountry,
+                'destination_state' => $destinationState,
+                'destination_postal_code' => $destinationPostal ?: null,
+                'destination_city' => $destinationCity,
+                'weight' => $weight,
+                'weight_unit' => $weightUnit,
+                'length' => $length,
+                'width' => $width,
+                'height' => $height,
+                'dimension_unit' => $dimensionUnit,
+                'ship_date' => $shipDatestamp,
+                'service_type' => $serviceType,
+                'origin_location_id' => $originLocation->id,
+                'test_quote_only' => true,
+            ],
+        );
+
+        $requestedShipment = [
+            'shipper' => [
+                'address' => array_filter([
+                    'postalCode' => $origin['postal_code'] ?? null,
+                    'countryCode' => $origin['country_code'] ?? null,
+                    'city' => $origin['city'] ?? null,
+                    'stateOrProvinceCode' => $origin['state'] ?? null,
+                ]),
+            ],
+            'recipient' => [
+                'address' => array_filter([
+                    'postalCode' => $destinationPostal ?: null,
+                    'countryCode' => $destinationCountry,
+                    'stateOrProvinceCode' => $destinationState,
+                    'city' => $destinationCity,
+                    'residential' => $residential,
+                ]),
+            ],
+            'pickupType' => 'DROPOFF_AT_FEDEX_LOCATION',
+            'packagingType' => 'YOUR_PACKAGING',
+            'rateRequestType' => ['ACCOUNT', 'LIST'],
+            'shipDateStamp' => $shipDatestamp,
+            'requestedPackageLineItems' => [
+                [
+                    'weight' => [
+                        'units' => $weightUnit,
+                        'value' => $weight,
+                    ],
+                    'dimensions' => [
+                        'length' => $length,
+                        'width' => $width,
+                        'height' => $height,
+                        'units' => $dimensionUnit,
+                    ],
+                ],
+            ],
+        ];
+
+        if (filled($serviceType)) {
+            $requestedShipment['serviceType'] = $serviceType;
+        }
+
+        $payload = [
+            'accountNumber' => [
+                'value' => (string) $account->provider_account_number,
+            ],
+            'requestedShipment' => $requestedShipment,
+        ];
+
+        $result = $this->apiClient->postJson(
+            store: $store,
+            account: $account,
+            action: CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
+            path: $endpoint,
+            payload: $payload,
+            requestSummary: $requestSummary,
+        );
+
+        $presentation = FedExMerchantCheckPresenter::rateQuote($result->data);
+
+        if ($result->success) {
+            $responseSummary = array_merge($result->responseSummary ?? [], [
+                'rate_count' => $presentation['rate_count'],
+            ]);
+
+            $result = new CarrierApiResult(
+                success: true,
+                data: $result->data,
+                requestId: $result->requestId,
+                durationMs: $result->durationMs,
+                requestSummary: $result->requestSummary,
+                responseSummary: $responseSummary,
+            );
+        }
+
+        return ['result' => $result, 'presentation' => $presentation];
+    }
+}

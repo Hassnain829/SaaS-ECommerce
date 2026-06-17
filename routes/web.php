@@ -19,6 +19,7 @@ use App\Http\Controllers\ProductWorkspaceController;
 use App\Http\Controllers\ProductWorkspaceDataController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\CarrierConnectionWizardController;
+use App\Http\Controllers\FedExCarrierTestController;
 use App\Http\Controllers\ShippingSettingsController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TeamMemberController;
@@ -302,6 +303,15 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test', [ShippingSettingsController::class, 'testFedExCarrierAccount'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.test');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-address', [FedExCarrierTestController::class, 'testAddressValidation'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.test-address');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-service-availability', [FedExCarrierTestController::class, 'testServiceAvailability'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.test-service-availability');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-rate-quote', [FedExCarrierTestController::class, 'testRateQuote'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.test-rate-quote');
     Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/sandbox-platform-fallback', [ShippingSettingsController::class, 'enableFedExSandboxPlatformFallback'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback');

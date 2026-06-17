@@ -65,6 +65,8 @@
             </div>
         @endif
 
+        @include('user_view.shipping.partials.fedex_testing_tools', compact('account'))
+
         <details class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
             <summary class="cursor-pointer font-semibold text-[#0F172A]">View technical details</summary>
             <div class="mt-3 space-y-3 text-xs text-[#475569]">

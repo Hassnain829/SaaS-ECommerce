@@ -48,6 +48,21 @@ final class FedExConfig
         return (string) config('carriers.fedex.oauth_path', '/oauth/token');
     }
 
+    public function addressValidationPath(): string
+    {
+        return (string) config('carriers.fedex.address_validation_path', '/address/v1/addresses/resolve');
+    }
+
+    public function serviceAvailabilityPath(): string
+    {
+        return (string) config('carriers.fedex.service_availability_path', '/availability/v1/packageandserviceoptions');
+    }
+
+    public function rateQuotePath(): string
+    {
+        return (string) config('carriers.fedex.rate_quote_path', '/rate/v1/rates/quotes');
+    }
+
     public function accountRegistrationPath(?string $environment = null): string
     {
         $environment = $this->environment($environment);

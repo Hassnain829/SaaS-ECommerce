@@ -94,6 +94,7 @@ class FedExHttpClient
             }
 
             $message = $this->extractErrorMessage($json) ?? 'FedEx request failed.';
+            $message = $this->merchantFriendlyFailureMessage($response->status(), $normalizedPath, $message);
 
             return CarrierApiResult::failure(
                 message: $message,
@@ -216,11 +217,20 @@ class FedExHttpClient
             );
 
             if ($output !== []) {
-                $summary['output'] = $output;
+                $summary['output_summary'] = FedExMerchantCheckPresenter::compactOutputSummary($output);
             }
         }
 
         return $summary;
+    }
+
+    private function merchantFriendlyFailureMessage(int $httpStatus, string $path, string $defaultMessage): string
+    {
+        if ($httpStatus === 403 && str_contains($path, '/rate/v1/rates/quotes')) {
+            return 'FedEx rejected this rate quote because the current FedEx project/account is not authorized for Rates API in this environment. Verify the Rates and Transit Times API product is added to the FedEx project, the account number is linked/allowed for this project, or use FedEx-provided sandbox test account details.';
+        }
+
+        return $defaultMessage;
     }
 
     /**

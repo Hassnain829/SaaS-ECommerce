@@ -27,6 +27,12 @@ class CarrierApiEvent extends Model
 
     public const ACTION_DOMESTIC_RATE_QUOTE = 'domestic_rate_quote';
 
+    public const ACTION_FEDEX_ADDRESS_VALIDATION = 'fedex_address_validation';
+
+    public const ACTION_FEDEX_SERVICE_AVAILABILITY = 'fedex_service_availability';
+
+    public const ACTION_FEDEX_RATE_QUOTE = 'fedex_rate_quote';
+
     protected $fillable = [
         'store_id',
         'carrier_account_id',
