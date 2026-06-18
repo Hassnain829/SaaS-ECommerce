@@ -25,6 +25,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             'carriers.fedex.enabled' => true,
             'carriers.fedex.environment' => 'sandbox',
             'carriers.fedex.sandbox.base_url' => 'https://apis-sandbox.fedex.com',
+            'carriers.fedex.integrator_model_a_enabled' => true,
             'carriers.usps.enabled' => true,
             'carriers.usps.sandbox.base_url' => 'https://apis-tem.usps.com',
             'carriers.usps.sandbox.client_id' => 'test-usps-client',
@@ -63,7 +64,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             ->assertSeeText('USPS Sandbox Tools')
             ->assertSeeText('Manual / Local Delivery')
             ->assertSeeText('Platform testing only')
-            ->assertSeeText('Connect FedEx credentials');
+            ->assertSeeText('Connect FedEx account');
     }
 
     public function test_fedex_merchant_card_masks_secrets_and_collapses_diagnostics(): void
@@ -143,7 +144,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             ->get(route('shipping.carriers.connect.index'))
             ->assertOk()
             ->assertSeeText('Connect carrier account')
-            ->assertSeeText('Connect FedEx credentials');
+            ->assertSeeText('Connect FedEx account');
     }
 
     /**

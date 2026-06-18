@@ -11,9 +11,15 @@
     <div class="border-b border-[#F1F5F9] px-5 py-4">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0">
-                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">FedEx Merchant Account</p>
+                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">FedEx {{ $account->usesFedExIntegratorProvider() ? 'Integrator Provider' : 'Merchant Account' }}</p>
                 <h3 class="mt-1 text-lg font-semibold text-[#0F172A]">{{ $account->display_name }}</h3>
-                <p class="mt-1 text-sm text-[#64748B]">Your own FedEx Developer credentials. FedEx billing stays between you and FedEx.</p>
+                <p class="mt-1 text-sm text-[#64748B]">
+                    @if ($account->usesFedExIntegratorProvider())
+                        Merchant-owned account connected through platform FedEx registration. FedEx billing stays between you and FedEx.
+                    @else
+                        Your own FedEx Developer credentials. FedEx billing stays between you and FedEx.
+                    @endif
+                </p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">{{ $envLabel }}</span>
@@ -55,7 +61,10 @@
                     @csrf
                     <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn">Run connection check</button>
                 </form>
-                <a href="{{ route('shipping.carriers.connect.show', 'fedex') }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Edit credentials</a>
+                <a href="{{ $account->usesFedExIntegratorProvider() ? route('settings.shipping.fedex-integrator.start') : route('shipping.carriers.connect.show', 'fedex') }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">{{ $account->usesFedExIntegratorProvider() ? 'Reconnect FedEx' : 'Edit credentials' }}</a>
+                @if (($fedExConfig->validationModeEnabled() ?? false) && $account->usesFedExIntegratorProvider())
+                    <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation-export', $account) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Export FedEx validation evidence</a>
+                @endif
                 @if ($account->connection_status !== 'disabled')
                     <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}" onsubmit="return confirm('Disable this FedEx account?')">
                         @csrf

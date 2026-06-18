@@ -20,6 +20,7 @@ use App\Http\Controllers\ProductWorkspaceDataController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\CarrierConnectionWizardController;
 use App\Http\Controllers\FedExCarrierTestController;
+use App\Http\Controllers\FedExIntegratorConnectionController;
 use App\Http\Controllers\ShippingSettingsController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TeamMemberController;
@@ -276,6 +277,45 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/settings/shipping/carriers/connect', [CarrierConnectionWizardController::class, 'index'])
         ->middleware('store.permission:settings.manage')
         ->name('shipping.carriers.connect.index');
+    Route::post('/settings/shipping/carriers/connect/fedex/details', [CarrierConnectionWizardController::class, 'storeFedExDetails'])
+        ->middleware('store.permission:settings.manage')
+        ->name('shipping.carriers.connect.fedex.details');
+    Route::get('/settings/shipping/carriers/connect/fedex-integrator', [FedExIntegratorConnectionController::class, 'start'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.start');
+    Route::post('/settings/shipping/carriers/connect/fedex-integrator/origin', [FedExIntegratorConnectionController::class, 'storeOrigin'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.origin');
+    Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/eula', [FedExIntegratorConnectionController::class, 'showEula'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.eula');
+    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/eula', [FedExIntegratorConnectionController::class, 'acceptEula'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.eula.accept');
+    Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/account', [FedExIntegratorConnectionController::class, 'showAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.account');
+    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/account', [FedExIntegratorConnectionController::class, 'submitAccount'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.account.submit');
+    Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/mfa', [FedExIntegratorConnectionController::class, 'showMfa'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.mfa');
+    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/mfa-method', [FedExIntegratorConnectionController::class, 'selectMfaMethod'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.mfa-method');
+    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/verify-pin', [FedExIntegratorConnectionController::class, 'verifyPin'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.verify-pin');
+    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/verify-invoice', [FedExIntegratorConnectionController::class, 'verifyInvoice'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.verify-invoice');
+    Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/success', [FedExIntegratorConnectionController::class, 'success'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.success');
+    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/cancel', [FedExIntegratorConnectionController::class, 'cancel'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.fedex-integrator.cancel');
     Route::get('/settings/shipping/carriers/connect/{carrier}', [CarrierConnectionWizardController::class, 'show'])
         ->middleware('store.permission:settings.manage')
         ->name('shipping.carriers.connect.show');
@@ -285,9 +325,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/settings/shipping/carriers/connect/{carrier}/ownership', [CarrierConnectionWizardController::class, 'storeOwnership'])
         ->middleware('store.permission:settings.manage')
         ->name('shipping.carriers.connect.ownership');
-    Route::post('/settings/shipping/carriers/connect/fedex/details', [CarrierConnectionWizardController::class, 'storeFedExDetails'])
+    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation-export', [FedExIntegratorConnectionController::class, 'exportValidation'])
         ->middleware('store.permission:settings.manage')
-        ->name('shipping.carriers.connect.fedex.details');
+        ->name('settings.shipping.carrier-accounts.fedex.validation-export');
     Route::post('/settings/shipping/carriers/connect/{carrier}/test', [CarrierConnectionWizardController::class, 'test'])
         ->middleware('store.permission:settings.manage')
         ->name('shipping.carriers.connect.test');

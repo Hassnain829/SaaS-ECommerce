@@ -32,6 +32,7 @@ class FedExRateQuoteService
         ?string $shipDate = null,
         ?string $serviceType = null,
         ?bool $residential = null,
+        ?string $packagingType = null,
     ): array {
         $this->apiClient->assertMerchantCredentialsAccount($account);
 
@@ -75,19 +76,25 @@ class FedExRateQuoteService
         $height = max(0.01, (float) ($packageInput['height'] ?? 2));
         $weightUnit = strtoupper((string) ($packageInput['weight_unit'] ?? 'LB'));
         $dimensionUnit = strtoupper((string) ($packageInput['dimension_unit'] ?? 'IN'));
+        $packagingType = strtoupper(trim((string) ($packagingType ?? $packageInput['packaging_type'] ?? 'YOUR_PACKAGING')));
+        $serviceType = filled($serviceType) ? strtoupper(trim($serviceType)) : 'FEDEX_GROUND';
         $endpoint = $this->config->rateQuotePath();
         $shipDatestamp = $shipDate ?: now()->toDateString();
 
         $requestSummary = array_merge(
             $this->apiClient->baseRequestSummary($account, $endpoint),
             [
+                'action' => CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
                 'origin_country' => $origin['country_code'] ?? null,
                 'origin_state' => $origin['state'] ?? null,
                 'origin_postal_code' => $origin['postal_code'] ?? null,
+                'origin_city' => $origin['city'] ?? null,
                 'destination_country' => $destinationCountry,
                 'destination_state' => $destinationState,
                 'destination_postal_code' => $destinationPostal ?: null,
                 'destination_city' => $destinationCity,
+                'service_type' => $serviceType,
+                'packaging_type' => $packagingType,
                 'weight' => $weight,
                 'weight_unit' => $weightUnit,
                 'length' => $length,
@@ -95,8 +102,8 @@ class FedExRateQuoteService
                 'height' => $height,
                 'dimension_unit' => $dimensionUnit,
                 'ship_date' => $shipDatestamp,
-                'service_type' => $serviceType,
                 'origin_location_id' => $originLocation->id,
+                'residential_destination' => $residential,
                 'test_quote_only' => true,
             ],
         );
@@ -120,9 +127,10 @@ class FedExRateQuoteService
                 ]),
             ],
             'pickupType' => 'DROPOFF_AT_FEDEX_LOCATION',
-            'packagingType' => 'YOUR_PACKAGING',
+            'packagingType' => $packagingType,
             'rateRequestType' => ['ACCOUNT', 'LIST'],
             'shipDateStamp' => $shipDatestamp,
+            'serviceType' => $serviceType,
             'requestedPackageLineItems' => [
                 [
                     'weight' => [
@@ -138,10 +146,6 @@ class FedExRateQuoteService
                 ],
             ],
         ];
-
-        if (filled($serviceType)) {
-            $requestedShipment['serviceType'] = $serviceType;
-        }
 
         $payload = [
             'accountNumber' => [

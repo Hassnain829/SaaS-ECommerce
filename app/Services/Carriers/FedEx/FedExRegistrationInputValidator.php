@@ -53,11 +53,16 @@ class FedExRegistrationInputValidator
             $normalized['state'] = $state;
         }
 
+        $postalRaw = preg_replace('/\D+/', '', (string) ($input['postal_code'] ?? '')) ?? '';
         $postalCode = $this->normalizeUsPostalCode((string) ($input['postal_code'] ?? ''));
         if ($country === 'US' && $postalCode === null) {
             $errors['postal_code'] = 'Enter a valid US ZIP code.';
         } elseif ($postalCode !== null) {
             $normalized['postal_code'] = $postalCode;
+        }
+
+        if ($postalRaw !== '') {
+            $normalized['registration_postal_code_raw'] = $this->registrationPostalCodeRaw($postalRaw, $country);
         }
 
         $normalized['city'] = trim((string) ($input['city'] ?? ''));
@@ -162,6 +167,15 @@ class FedExRegistrationInputValidator
         }
 
         return null;
+    }
+
+    private function registrationPostalCodeRaw(string $digits, ?string $country): string
+    {
+        if ($country === 'US' && in_array(strlen($digits), [5, 9], true)) {
+            return $digits;
+        }
+
+        return $digits;
     }
 
     private function normalizePhone(string $value): string

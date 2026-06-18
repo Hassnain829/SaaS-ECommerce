@@ -349,6 +349,8 @@ class Phase6FedExMerchantCredentialsModeTest extends TestCase
             'carriers.fedex.sandbox.client_secret' => $platformConfigured ? 'test-platform-client-secret' : '',
             'carriers.fedex.live.base_url' => 'https://apis.fedex.com',
             'carriers.fedex.sandbox_allow_platform_fallback' => false,
+            'carriers.fedex.model_b_developer_fallback_enabled' => true,
+            'carriers.fedex.default_connection_model' => 'merchant_developer',
         ]);
     }
 

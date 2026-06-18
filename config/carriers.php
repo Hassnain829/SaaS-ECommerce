@@ -6,6 +6,14 @@ return [
     'fedex' => [
         'enabled' => env('FEDEX_ENABLED', false),
         'environment' => env('FEDEX_ENVIRONMENT', 'sandbox'),
+        'default_connection_model' => env('FEDEX_DEFAULT_CONNECTION_MODEL', 'integrator_provider'),
+        'developer_mode_enabled' => filter_var(env('FEDEX_DEVELOPER_MODE_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'integrator_model_a_enabled' => filter_var(env('FEDEX_INTEGRATOR_MODEL_A_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'integrator_production_enabled' => filter_var(env('FEDEX_INTEGRATOR_PRODUCTION_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'model_b_developer_fallback_enabled' => filter_var(env('FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'validation_mode_enabled' => filter_var(env('FEDEX_VALIDATION_MODE_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'integrator_eula_version' => env('FEDEX_INTEGRATOR_EULA_VERSION', '1.0'),
+        'integrator_eula_path' => env('FEDEX_INTEGRATOR_EULA_PATH', 'resources/legal/fedex/end_user_license_agreement.html'),
 
         'oauth_path' => env('FEDEX_OAUTH_PATH', '/oauth/token'),
 
@@ -22,6 +30,18 @@ return [
 
         // Local/testing only: allow sandbox platform OAuth fallback when Credential Registration is blocked
         'sandbox_allow_platform_fallback' => env('FEDEX_SANDBOX_ALLOW_PLATFORM_FALLBACK', false),
+
+        // MFA endpoints — configure from FedEx Developer Portal when available.
+        // Leave null until official paths are confirmed for your integrator project.
+        'mfa_pin_generation_path' => env('FEDEX_MFA_PIN_GENERATION_PATH'),
+        'mfa_pin_validation_path' => env('FEDEX_MFA_PIN_VALIDATION_PATH'),
+        'mfa_invoice_validation_path' => env('FEDEX_MFA_INVOICE_VALIDATION_PATH'),
+
+        'test_case_baseline_paths' => [
+            base_path('docs/fedex/FedEx_Integrator_Test_Case_Baseline.xlsx'),
+            storage_path('app/fedex/FedEx_Integrator_Test_Case_Baseline.xlsx'),
+            base_path('FedEx_Integrator_Test_Case_Baseline.xlsx'),
+        ],
 
         'sandbox' => [
             'base_url' => env('FEDEX_SANDBOX_BASE_URL', 'https://apis-sandbox.fedex.com'),

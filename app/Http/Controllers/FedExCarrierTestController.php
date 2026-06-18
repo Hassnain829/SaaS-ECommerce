@@ -47,6 +47,7 @@ class FedExCarrierTestController extends Controller
             metadata: [
                 'carrier_account_id' => $account->id,
                 'success' => $result->success,
+                'matching_suggestions' => $presentation['matching_count'] ?? 0,
             ],
         );
 
@@ -57,6 +58,10 @@ class FedExCarrierTestController extends Controller
             result: $result,
             presentation: $presentation,
             inputSummary: [
+                'requested_country' => strtoupper($validated['country_code']),
+                'requested_state' => strtoupper($validated['state']),
+                'requested_city' => $validated['city'],
+                'requested_postal' => $validated['postal_code'],
                 'address' => collect([
                     $validated['address_line1'],
                     $validated['address_line2'] ?? null,
@@ -66,6 +71,7 @@ class FedExCarrierTestController extends Controller
                     strtoupper($validated['country_code']),
                 ])->filter()->implode(', '),
             ],
+            resultKind: $this->addressValidationResultKind($result, $presentation),
         );
     }
 
@@ -154,6 +160,7 @@ class FedExCarrierTestController extends Controller
         Request $request,
         CarrierAccount $carrierAccount,
         FedExRateQuoteService $rateQuoteService,
+        FedExDestinationInputValidator $destinationValidator,
         SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
         $store = $this->resolveStore($request);
@@ -175,8 +182,25 @@ class FedExCarrierTestController extends Controller
             'height' => ['required', 'numeric', 'gt:0'],
             'ship_date' => ['nullable', 'date'],
             'service_type' => ['nullable', 'string', 'max:64'],
+            'packaging_type' => ['nullable', 'string', 'max:64'],
             'residential' => ['nullable', 'boolean'],
         ]);
+
+        $destinationCheck = $destinationValidator->validate([
+            'country_code' => $validated['destination_country'],
+            'postal_code' => $validated['destination_postal_code'],
+            'state' => $validated['destination_state'] ?? null,
+            'city' => $validated['destination_city'] ?? null,
+        ]);
+
+        if ($destinationCheck['errors'] !== []) {
+            return redirect()
+                ->route('shippingAutomation', ['tab' => 'carriers'])
+                ->withErrors($destinationCheck['errors'])
+                ->with('error_title', 'FedEx testing tools');
+        }
+
+        $destination = $destinationCheck['normalized'];
 
         $originLocation = Location::query()
             ->where('store_id', $store->id)
@@ -188,10 +212,10 @@ class FedExCarrierTestController extends Controller
             account: $account,
             originLocation: $originLocation,
             destinationInput: [
-                'country_code' => $validated['destination_country'],
-                'postal_code' => $validated['destination_postal_code'],
-                'state' => $validated['destination_state'] ?? null,
-                'city' => $validated['destination_city'] ?? null,
+                'country_code' => $destination['country_code'],
+                'postal_code' => $destination['postal_code'],
+                'state' => $destination['state'] ?? null,
+                'city' => $destination['city'] ?? null,
             ],
             packageInput: [
                 'weight' => $validated['weight_value'],
@@ -200,10 +224,12 @@ class FedExCarrierTestController extends Controller
                 'width' => $validated['width'],
                 'height' => $validated['height'],
                 'dimension_unit' => 'IN',
+                'packaging_type' => $validated['packaging_type'] ?? 'YOUR_PACKAGING',
             ],
             shipDate: $validated['ship_date'] ?? null,
             serviceType: $validated['service_type'] ?? null,
             residential: array_key_exists('residential', $validated) ? (bool) $validated['residential'] : null,
+            packagingType: $validated['packaging_type'] ?? null,
         );
 
         $securityLogRecorder->record(
@@ -214,6 +240,7 @@ class FedExCarrierTestController extends Controller
                 'carrier_account_id' => $account->id,
                 'origin_location_id' => $originLocation->id,
                 'success' => $result->success,
+                'http_status' => data_get($result->responseSummary, 'http_status'),
             ],
         );
 
@@ -223,11 +250,17 @@ class FedExCarrierTestController extends Controller
             label: 'Rate quote test',
             result: $result,
             presentation: $presentation,
-            inputSummary: [
+            inputSummary: array_filter([
                 'origin' => $originLocation->name,
-                'destination' => strtoupper($validated['destination_country']).' '.$validated['destination_postal_code'],
+                'destination_country' => $destination['country_code'] ?? null,
+                'destination_state' => $destination['state'] ?? null,
+                'destination_city' => $destination['city'] ?? null,
+                'destination_postal' => $destination['postal_code'] ?? null,
+                'service_type' => $validated['service_type'] ?? 'FEDEX_GROUND',
+                'packaging_type' => strtoupper($validated['packaging_type'] ?? 'YOUR_PACKAGING'),
                 'package' => $validated['weight_value'].' lb · '.$validated['length'].'×'.$validated['width'].'×'.$validated['height'].' in',
-            ],
+            ]),
+            resultKind: $result->success ? 'success' : 'failure',
         );
     }
 
@@ -242,11 +275,9 @@ class FedExCarrierTestController extends Controller
         \App\Services\Carriers\DTO\CarrierApiResult $result,
         array $presentation,
         array $inputSummary,
+        ?string $resultKind = null,
     ): RedirectResponse {
-        $failureKind = null;
-        if (! $result->success && $tool === 'service_availability') {
-            $failureKind = 'fedex_api';
-        }
+        $resultKind ??= $result->success ? 'success' : ($tool === 'service_availability' ? 'fedex_api' : 'failure');
 
         $redirect = redirect()
             ->route('shippingAutomation', ['tab' => 'carriers'])
@@ -254,11 +285,14 @@ class FedExCarrierTestController extends Controller
                 'account_id' => $account->id,
                 'tool' => $tool,
                 'label' => $label,
-                'success' => $result->success,
-                'failure_kind' => $failureKind,
-                'message' => $result->success
+                'success' => $resultKind === 'success',
+                'result_kind' => $resultKind,
+                'failure_kind' => $resultKind === 'fedex_api' ? 'fedex_api' : null,
+                'message' => $resultKind === 'success'
                     ? $this->successMessage($tool, $presentation)
-                    : ($result->errorMessage ?? 'FedEx request failed.'),
+                    : ($resultKind === 'warning'
+                        ? $this->warningMessage($tool, $presentation)
+                        : ($result->errorMessage ?? 'FedEx request failed.')),
                 'input_summary' => $inputSummary,
                 'presentation' => $presentation,
                 'request_summary' => $result->requestSummary,
@@ -267,19 +301,63 @@ class FedExCarrierTestController extends Controller
                 'fedex_transaction_id' => data_get($result->responseSummary, 'fedex_transaction_id'),
             ]);
 
-        if ($result->success) {
+        if ($resultKind === 'success') {
             return $redirect
                 ->with('success', $this->successFlashMessage($tool))
                 ->with('success_title', 'FedEx testing tools');
         }
 
-        if ($tool !== 'service_availability') {
+        if ($resultKind === 'warning') {
             return $redirect
-                ->withErrors(['fedex' => $result->errorMessage ?? 'FedEx request failed.'])
-                ->with('error_title', 'FedEx testing tools');
+                ->with('success', $this->warningFlashMessage($tool))
+                ->with('success_title', 'FedEx testing tools');
         }
 
-        return $redirect;
+        if ($tool === 'service_availability') {
+            return $redirect;
+        }
+
+        return $redirect
+            ->withErrors(['fedex' => $result->errorMessage ?? 'FedEx request failed.'])
+            ->with('error_title', 'FedEx testing tools');
+    }
+
+    /**
+     * @param  array<string, mixed>  $presentation
+     */
+    private function addressValidationResultKind(
+        \App\Services\Carriers\DTO\CarrierApiResult $result,
+        array $presentation,
+    ): string {
+        if (! $result->success) {
+            return 'failure';
+        }
+
+        if (count($presentation['resolved_addresses'] ?? []) > 0) {
+            return 'success';
+        }
+
+        return 'warning';
+    }
+
+    /**
+     * @param  array<string, mixed>  $presentation
+     */
+    private function warningMessage(string $tool, array $presentation): string
+    {
+        return match ($tool) {
+            'address_validation' => collect($presentation['warnings'] ?? [])->first()
+                ?? 'FedEx address check connected successfully, but no country-matching resolved address was returned.',
+            default => 'FedEx test completed with warnings. Review the response details below.',
+        };
+    }
+
+    private function warningFlashMessage(string $tool): string
+    {
+        return match ($tool) {
+            'address_validation' => 'FedEx address check connected, but no country-matching suggestion was returned.',
+            default => 'FedEx test completed with warnings.',
+        };
     }
 
     /**
@@ -304,7 +382,7 @@ class FedExCarrierTestController extends Controller
     {
         return match ($tool) {
             'address_validation' => count($presentation['resolved_addresses'] ?? []) > 0
-                ? 'FedEx returned '.count($presentation['resolved_addresses']).' resolved address suggestion(s). Review before using in production.'
+                ? 'FedEx returned '.count($presentation['resolved_addresses']).' country-matching resolved address suggestion(s). Review before using in production.'
                 : 'FedEx address check completed. Review the response details below.',
             'service_availability' => ($presentation['service_count'] ?? 0) > 0
                 ? 'FedEx returned '.($presentation['service_count']).' available service option(s) for this route.'
@@ -338,8 +416,7 @@ class FedExCarrierTestController extends Controller
     {
         abort_unless((int) $carrierAccount->store_id === (int) $store->id, 404);
         abort_unless($carrierAccount->isFedEx(), 404);
-        abort_unless($carrierAccount->usesMerchantFedExDeveloperCredentials(), 404);
-        abort_unless($carrierAccount->hasMerchantFedExDeveloperCredentials(), 422);
+        abort_unless($carrierAccount->canUseFedExApiChecks(), 404);
 
         return $carrierAccount->load('store');
     }

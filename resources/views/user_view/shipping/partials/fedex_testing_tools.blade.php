@@ -1,23 +1,26 @@
-@if ($account->usesMerchantFedExDeveloperCredentials() && $account->hasMerchantFedExDeveloperCredentials())
+@if ($account->canUseFedExApiChecks())
     @php
         $fedExTestResult = session('fedex_test_result');
         $showFedExTestResult = is_array($fedExTestResult) && (int) ($fedExTestResult['account_id'] ?? 0) === (int) $account->id;
     @endphp
 
     <details class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
-        <summary class="cursor-pointer font-semibold text-[#0F172A]">FedEx testing tools</summary>
+        <summary class="cursor-pointer font-semibold text-[#0F172A]">{{ $account->usesFedExIntegratorProvider() ? 'FedEx validation tools' : 'FedEx testing tools' }}</summary>
         <p class="mt-2 text-xs text-[#64748B]">Sandbox checks using your merchant FedEx credentials. These tools do not buy labels, create shipments, charge postage, or change checkout totals.</p>
 
         @if ($showFedExTestResult)
             @php
-                $fedExTestSuccess = (bool) ($fedExTestResult['success'] ?? false);
-                $fedExTestFailureKind = $fedExTestResult['failure_kind'] ?? null;
-                $fedExTestBoxClass = $fedExTestSuccess
-                    ? 'border-emerald-200 bg-emerald-50'
-                    : ($fedExTestFailureKind === 'fedex_api' ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50');
-                $fedExTestTextClass = $fedExTestSuccess
-                    ? 'text-emerald-900'
-                    : ($fedExTestFailureKind === 'fedex_api' ? 'text-amber-900' : 'text-red-900');
+                $fedExResultKind = $fedExTestResult['result_kind'] ?? (($fedExTestResult['success'] ?? false) ? 'success' : 'failure');
+                $fedExTestBoxClass = match ($fedExResultKind) {
+                    'success' => 'border-emerald-200 bg-emerald-50',
+                    'warning', 'fedex_api' => 'border-amber-200 bg-amber-50',
+                    default => 'border-red-200 bg-red-50',
+                };
+                $fedExTestTextClass = match ($fedExResultKind) {
+                    'success' => 'text-emerald-900',
+                    'warning', 'fedex_api' => 'text-amber-900',
+                    default => 'text-red-900',
+                };
             @endphp
             <div class="mt-4 rounded-xl border {{ $fedExTestBoxClass }} px-4 py-3">
                 <p class="font-semibold text-[#0F172A]">{{ $fedExTestResult['label'] ?? 'FedEx test result' }}</p>
@@ -30,15 +33,32 @@
                     </dl>
                 @endif
 
-                @if (($fedExTestResult['tool'] ?? '') === 'address_validation' && ! empty($fedExTestResult['presentation']['resolved_addresses']))
-                    <ul class="mt-3 space-y-2 text-xs text-[#475569]">
-                        @foreach ($fedExTestResult['presentation']['resolved_addresses'] as $resolved)
-                            <li class="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
-                                {{ collect([$resolved['street'] ?? null, $resolved['city'] ?? null, $resolved['state'] ?? null, $resolved['postal_code'] ?? null, $resolved['country_code'] ?? null])->filter()->implode(', ') }}
-                                @if (! empty($resolved['classification'])) · {{ $resolved['classification'] }} @endif
-                            </li>
-                        @endforeach
-                    </ul>
+                @if (($fedExTestResult['tool'] ?? '') === 'address_validation')
+                    @if (! empty($fedExTestResult['presentation']['resolved_addresses']))
+                        <ul class="mt-3 space-y-2 text-xs text-[#475569]">
+                            @foreach ($fedExTestResult['presentation']['resolved_addresses'] as $resolved)
+                                <li class="rounded-lg border border-emerald-200 bg-white px-3 py-2">
+                                    {{ collect([$resolved['street'] ?? null, $resolved['city'] ?? null, $resolved['state'] ?? null, $resolved['postal_code'] ?? null, $resolved['country_code'] ?? null])->filter()->implode(', ') }}
+                                    @if (! empty($resolved['classification'])) · {{ $resolved['classification'] }} @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                    @if (! empty($fedExTestResult['presentation']['warnings']))
+                        <ul class="mt-3 space-y-1 text-xs text-amber-900">
+                            @foreach ($fedExTestResult['presentation']['warnings'] as $warning)
+                                <li>{{ $warning }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                    @if (! empty($fedExTestResult['presentation']['ignored_suggestions']))
+                        <p class="mt-3 text-xs font-semibold text-amber-900">Ignored suggestions outside requested country</p>
+                        <ul class="mt-1 space-y-1 text-xs text-amber-800">
+                            @foreach ($fedExTestResult['presentation']['ignored_suggestions'] as $ignored)
+                                <li>{{ collect([$ignored['street'] ?? null, $ignored['city'] ?? null, $ignored['state'] ?? null, $ignored['postal_code'] ?? null, $ignored['country_code'] ?? null])->filter()->implode(', ') }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
                 @endif
 
                 @if (($fedExTestResult['tool'] ?? '') === 'service_availability' && ! empty($fedExTestResult['presentation']['services']))
@@ -155,7 +175,7 @@
 
                 <details class="rounded-lg border border-[#E2E8F0] bg-white px-3 py-3">
                     <summary class="cursor-pointer text-sm font-semibold text-[#0F172A]">Rate quote test</summary>
-                    <p class="mt-2 text-xs text-[#64748B]">FedEx test quote only — no shipment, label, postage charge, or checkout total change.</p>
+                    <p class="mt-2 text-xs text-[#64748B]">Sandbox quote only — no shipment, label, postage charge, or checkout total change.</p>
                     <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-rate-quote', $account) }}" class="shipping-submit-form mt-3 space-y-3">
                         @csrf
                         <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Origin location</span>
@@ -169,7 +189,27 @@
                         </label>
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination country</span><input name="destination_country" required value="US" maxlength="2" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm uppercase"></label>
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination ZIP</span><input name="destination_postal_code" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination ZIP</span><input name="destination_postal_code" required value="60601" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination state</span><input name="destination_state" required value="IL" maxlength="2" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm uppercase" placeholder="IL"></label>
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination city</span><input name="destination_city" required value="CHICAGO" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm uppercase" placeholder="CHICAGO"></label>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Service type</span>
+                                <select name="service_type" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                    <option value="FEDEX_GROUND" selected>FEDEX_GROUND</option>
+                                    <option value="FEDEX_2_DAY">FEDEX_2_DAY</option>
+                                    <option value="STANDARD_OVERNIGHT">STANDARD_OVERNIGHT</option>
+                                </select>
+                            </label>
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Packaging type</span>
+                                <select name="packaging_type" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                    <option value="YOUR_PACKAGING" selected>YOUR_PACKAGING</option>
+                                    <option value="FEDEX_BOX">FEDEX_BOX</option>
+                                    <option value="FEDEX_ENVELOPE">FEDEX_ENVELOPE</option>
+                                </select>
+                            </label>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-4">
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Weight (lb)</span><input name="weight_value" type="number" step="0.01" min="0.01" value="1" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
@@ -177,6 +217,7 @@
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">W (in)</span><input name="width" type="number" step="0.01" min="0.01" value="6" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">H (in)</span><input name="height" type="number" step="0.01" min="0.01" value="2" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
                         </div>
+                        <p class="text-xs text-[#64748B]">US and Canada destinations require country, postal code, state/province, and city.</p>
                         <label class="inline-flex items-center gap-2 text-xs text-[#475569]"><input type="checkbox" name="residential" value="1" class="rounded border-[#CBD5E1]"> Residential destination</label>
                         <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Get FedEx test quote</button>
                     </form>

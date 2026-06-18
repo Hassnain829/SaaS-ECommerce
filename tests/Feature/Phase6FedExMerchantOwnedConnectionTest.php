@@ -172,6 +172,8 @@ class Phase6FedExMerchantOwnedConnectionTest extends TestCase
             'carriers.fedex.sandbox.client_id' => 'test-platform-client-id',
             'carriers.fedex.sandbox.client_secret' => 'test-platform-client-secret',
             'carriers.fedex.sandbox_allow_platform_fallback' => false,
+            'carriers.fedex.model_b_developer_fallback_enabled' => true,
+            'carriers.fedex.default_connection_model' => 'merchant_developer',
         ]);
     }
 

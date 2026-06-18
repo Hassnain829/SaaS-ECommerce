@@ -44,6 +44,11 @@ class FedExAddressValidationService
         $requestSummary = array_merge(
             $this->apiClient->baseRequestSummary($account, $endpoint),
             [
+                'action' => CarrierApiEvent::ACTION_FEDEX_ADDRESS_VALIDATION,
+                'requested_country' => $countryCode,
+                'requested_state' => strtoupper(trim((string) ($addressInput['state'] ?? ''))) ?: null,
+                'requested_postal_code' => trim((string) ($addressInput['postal_code'] ?? '')) ?: null,
+                'requested_city' => trim((string) ($addressInput['city'] ?? '')) ?: null,
                 'destination_country' => $countryCode,
                 'destination_state' => strtoupper(trim((string) ($addressInput['state'] ?? ''))) ?: null,
                 'destination_postal_code' => trim((string) ($addressInput['postal_code'] ?? '')) ?: null,
@@ -77,11 +82,14 @@ class FedExAddressValidationService
             requestSummary: $requestSummary,
         );
 
-        $presentation = FedExMerchantCheckPresenter::addressValidation($result->data);
+        $presentation = FedExMerchantCheckPresenter::addressValidation($result->data, $countryCode);
 
         if ($result->success) {
             $responseSummary = array_merge($result->responseSummary ?? [], [
-                'resolved_address_count' => count($presentation['resolved_addresses']),
+                'resolved_address_count' => $presentation['resolved_count'],
+                'matching_suggestion_count' => $presentation['matching_count'],
+                'ignored_suggestion_count' => $presentation['ignored_suggestion_count'],
+                'ignored_country_codes' => $presentation['ignored_country_codes'],
             ]);
 
             $result = new CarrierApiResult(

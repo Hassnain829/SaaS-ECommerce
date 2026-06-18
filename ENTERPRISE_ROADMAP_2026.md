@@ -1989,17 +1989,15 @@ Customer/store-owner wording must say "nearest eligible fulfillment location", "
 
 **FedEx Credential Registration decision:** FedEx Credential Registration (`/registration/v2/address/keysgeneration`) was tested and hardened, but FedEx continued returning HTTP 422 `INVALID.INPUT.EXCEPTION`. FedEx email confirmed production keys require the Integrator Validation process. Therefore Credential Registration is not the normal merchant setup path right now.
 
-**FedEx Model A — Official Integrator Provider model (deferred):** The long-term official SaaS provider model is paused. It requires FedEx Integrator Validation, PIW, Validation Cover Sheet, EULA screens, Account Registration API, MFA/invoice validation, child credential storage, screenshots, sandbox transaction JSON, and FedEx approval. This should be implemented later only when the platform is ready for the full FedEx certification workflow.
+**Phase 6C-4 — FedEx Model A Integrator Provider (implemented):** FedEx Model A is now the primary merchant-facing connection path. Platform parent credentials live in `.env`. Merchants complete origin selection, EULA acceptance, account registration (`/registration/v2/address/keysgeneration`), optional MFA (endpoint-configurable), and child credential storage (`csp_credentials` OAuth). Capabilities (rates, labels, tracking, pickup, checkout) remain disabled until proven. Model B merchant developer credentials remain behind `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED`. See `docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md`.
 
-**FedEx Model B — Merchant Credentials Mode (current):** Continue with Model B for MVP. Each merchant brings their own FedEx Developer credentials and FedEx account number. The platform stores credentials encrypted, verifies OAuth, and keeps billing/labels/postage responsibility with the merchant.
+**FedEx Model B — Merchant Credentials Mode (developer fallback):** Available when `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=true`. Each merchant brings their own FedEx Developer credentials. Used for admin/developer testing, not normal SaaS onboarding.
 
 **Next FedEx roadmap direction:**
 
-1. Phase 6C-2C — Shipping & Delivery UX Simplification.
-2. Phase 6C-3 — FedEx Sandbox Address/Service/Rate Checks Using Merchant Credentials.
-3. Phase 6C-4 — FedEx Rate Quote UX + Redacted Request/Response Logs.
-4. Phase 6C-5 — FedEx Production Credential Verification when merchant production keys are available.
-5. Later only: FedEx labels, tracking sync, pickup, and Model A Integrator Provider validation.
+1. Phase 6C-4B — FedEx MFA endpoint configuration once FedEx portal paths are confirmed.
+2. Phase 6C-5 — FedEx integrator validation package submission + production credential verification.
+3. Later: FedEx labels, tracking sync, pickup, checkout live rates.
 
 **Do not start yet:**
 
@@ -2008,11 +2006,9 @@ Customer/store-owner wording must say "nearest eligible fulfillment location", "
 * FedEx tracking sync;
 * checkout live FedEx rates;
 * UPS;
-* DHL;
-* Model A Account Registration/MFA;
-* FedEx validation package submission.
+* DHL.
 
-Reason: shipping UX and Model B FedEx merchant credentials must be polished first. Labels and live rates without clean merchant-owned billing, account state, and carrier UX will create confusion.
+Reason: Model A registration and child-credential API checks must be validated with FedEx before enabling production shipping capabilities.
 
 
 ### Future features

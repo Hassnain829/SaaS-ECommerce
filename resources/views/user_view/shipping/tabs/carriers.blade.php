@@ -7,10 +7,10 @@
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
                 <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">FedEx Merchant Account</h2>
-                <p class="mt-1 text-sm text-[#64748B]">Connect your own FedEx Developer credentials and account number. Labels and checkout live rates are not enabled in this phase.</p>
+                <p class="mt-1 text-sm text-[#64748B]">Connect your merchant-owned FedEx account through the platform integrator registration flow.</p>
             </div>
             @if (($fedExEnabled ?? false) && ($canManageShipping ?? false) && ($fedExAccounts ?? collect())->isEmpty())
-                <a href="{{ route('shipping.carriers.connect.show', 'fedex') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect FedEx credentials</a>
+                <a href="{{ route(($fedExConfig->modelAEnabled() ?? false) ? 'settings.shipping.fedex-integrator.start' : 'shipping.carriers.connect.show', ($fedExConfig->modelAEnabled() ?? false) ? [] : 'fedex') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect FedEx account</a>
             @endif
         </div>
 
@@ -19,15 +19,15 @@
         @elseif (($fedExAccounts ?? collect())->isEmpty())
             <div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-6 py-10 text-center">
                 <p class="font-semibold text-[#0F172A]">Connect your FedEx merchant account</p>
-                <p class="mx-auto mt-2 max-w-lg text-sm text-[#64748B]">Use your own FedEx Developer credentials and FedEx account number. FedEx billing stays between you and FedEx.</p>
+                <p class="mx-auto mt-2 max-w-lg text-sm text-[#64748B]">Use your FedEx account number and billing address on file with FedEx. FedEx billing stays between you and FedEx.</p>
                 @if (($fedExEnabled ?? false) && ($canManageShipping ?? false))
-                    <a href="{{ route('shipping.carriers.connect.show', 'fedex') }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect FedEx credentials</a>
+                    <a href="{{ route(($fedExConfig->modelAEnabled() ?? false) ? 'settings.shipping.fedex-integrator.start' : 'shipping.carriers.connect.show', ($fedExConfig->modelAEnabled() ?? false) ? [] : 'fedex') }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect FedEx account</a>
                 @endif
             </div>
         @else
             <div class="space-y-4">
                 @foreach ($fedExAccounts as $account)
-                    @include('user_view.shipping.partials.fedex_merchant_card', compact('account'))
+                    @include('user_view.shipping.partials.fedex_merchant_card', ['account' => $account, 'fedExConfig' => $fedExConfig])
                 @endforeach
             </div>
         @endif

@@ -44,6 +44,13 @@ class CarrierConnectionWizardController extends Controller
         $carrier = $wizard->normalizeCarrierCode($carrier);
         $card = $wizard->carrierCard($carrier, $store, $uspsConfig, $fedExConfig);
 
+        if ($carrier === CarrierConnectionWizardService::CARRIER_FEDEX
+            && $fedExConfig->modelAEnabled()
+            && $fedExConfig->defaultConnectionModel() === 'integrator_provider'
+            && ! $fedExConfig->modelBDeveloperFallbackEnabled()) {
+            return redirect()->route('settings.shipping.fedex-integrator.start');
+        }
+
         if ($card['deferred'] ?? false) {
             return redirect()
                 ->route('shipping.carriers.connect.index')
@@ -79,7 +86,7 @@ class CarrierConnectionWizardController extends Controller
             'account' => $account,
             'presenter' => $account ? CarrierAccountStatusPresenter::for($account) : null,
             'originOptions' => $wizard->originOptions($store, $carrierContext),
-            'ownershipOptions' => $wizard->ownershipOptions($carrier, $uspsConfig),
+            'ownershipOptions' => $wizard->ownershipOptions($carrier, $uspsConfig, $fedExConfig),
             'carriers' => Carrier::query()->where('is_active', true)->orderBy('name')->get(),
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
             'fedExOriginLocation' => $fedExOriginLocation,

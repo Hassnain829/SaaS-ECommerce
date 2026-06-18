@@ -8,13 +8,15 @@ final class FedExMerchantCheckPresenter
      * @param  array<string, mixed>|null  $data
      * @return array<string, mixed>
      */
-    public static function addressValidation(?array $data): array
+    public static function addressValidation(?array $data, ?string $requestedCountryCode = null): array
     {
         if (! is_array($data)) {
-            return ['resolved_addresses' => [], 'messages' => []];
+            return self::emptyAddressPresentation();
         }
 
+        $requestedCountry = self::normalizeCountryCode($requestedCountryCode);
         $resolved = [];
+        $ignored = [];
         $messages = [];
 
         foreach (data_get($data, 'output.resolvedAddresses', []) as $entry) {
@@ -22,19 +24,18 @@ final class FedExMerchantCheckPresenter
                 continue;
             }
 
-            $address = is_array($entry['streetLinesToken'] ?? null)
-                ? implode(' ', $entry['streetLinesToken'])
-                : null;
+            $row = self::normalizeResolvedAddressRow($entry);
+            $resolvedCountry = self::normalizeCountryCode($row['country_code'] ?? null);
 
-            $resolved[] = array_filter([
-                'street' => $address ?: implode(', ', array_filter((array) ($entry['streetLines'] ?? []))),
-                'city' => self::displayValue($entry['city'] ?? data_get($entry, 'cityToken.0')),
-                'state' => self::displayValue($entry['stateOrProvinceCode'] ?? null),
-                'postal_code' => self::displayValue($entry['postalCode'] ?? null),
-                'country_code' => self::displayValue($entry['countryCode'] ?? null),
-                'classification' => self::displayValue(data_get($entry, 'classification')),
-                'residential' => data_get($entry, 'attributes.residential'),
-            ]);
+            if ($requestedCountry !== null && $resolvedCountry !== null && $resolvedCountry !== $requestedCountry) {
+                $ignored[] = array_merge($row, [
+                    'ignored_reason' => 'country_mismatch',
+                ]);
+
+                continue;
+            }
+
+            $resolved[] = $row;
 
             foreach ((array) ($entry['customerMessages'] ?? []) as $message) {
                 if (is_array($message) && filled($message['code'] ?? null)) {
@@ -49,10 +50,96 @@ final class FedExMerchantCheckPresenter
             }
         }
 
+        $warnings = [];
+        $ignoredCountryCodes = self::collectIgnoredCountryCodes($ignored);
+
+        if ($ignored !== []) {
+            $warnings[] = 'FedEx returned a suggestion outside the requested country; ignored for validation evidence.';
+        }
+
+        if ($resolved === [] && $ignored !== []) {
+            $warnings[] = 'FedEx connected successfully but did not return a country-matching resolved address.';
+        }
+
         return [
             'resolved_addresses' => $resolved,
+            'ignored_suggestions' => $ignored,
+            'warnings' => self::dedupeStrings($warnings),
             'messages' => self::dedupeStrings($messages),
+            'resolved_count' => count($resolved) + count($ignored),
+            'matching_count' => count($resolved),
+            'ignored_suggestion_count' => count($ignored),
+            'ignored_country_codes' => $ignoredCountryCodes,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyAddressPresentation(): array
+    {
+        return [
+            'resolved_addresses' => [],
+            'ignored_suggestions' => [],
+            'warnings' => [],
+            'messages' => [],
+            'resolved_count' => 0,
+            'matching_count' => 0,
+            'ignored_suggestion_count' => 0,
+            'ignored_country_codes' => [],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $entry
+     * @return array<string, mixed>
+     */
+    private static function normalizeResolvedAddressRow(array $entry): array
+    {
+        $address = is_array($entry['streetLinesToken'] ?? null)
+            ? implode(' ', $entry['streetLinesToken'])
+            : null;
+
+        return array_filter([
+            'street' => $address ?: implode(', ', array_filter((array) ($entry['streetLines'] ?? []))),
+            'city' => self::displayValue($entry['city'] ?? data_get($entry, 'cityToken.0')),
+            'state' => self::displayValue($entry['stateOrProvinceCode'] ?? null),
+            'postal_code' => self::displayValue($entry['postalCode'] ?? null),
+            'country_code' => self::displayValue($entry['countryCode'] ?? null),
+            'classification' => self::displayValue(data_get($entry, 'classification')),
+            'residential' => data_get($entry, 'attributes.residential'),
+        ]);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $ignored
+     * @return array<int, string>
+     */
+    private static function collectIgnoredCountryCodes(array $ignored): array
+    {
+        $codes = [];
+
+        foreach ($ignored as $row) {
+            $code = self::normalizeCountryCode($row['country_code'] ?? null);
+            if ($code !== null) {
+                $codes[] = $code;
+            }
+        }
+
+        return array_values(array_unique($codes));
+    }
+
+    private static function normalizeCountryCode(mixed $value): ?string
+    {
+        $code = self::displayValue($value);
+
+        if ($code === null) {
+            return null;
+        }
+
+        $code = strtoupper(trim($code));
+
+        return strlen($code) === 2 ? $code : null;
     }
 
     /**
@@ -213,12 +300,15 @@ final class FedExMerchantCheckPresenter
      * @param  array<string, mixed>  $output
      * @return array<string, mixed>
      */
-    public static function compactAddressValidationSummary(array $output): array
+    public static function compactAddressValidationSummary(array $output, ?string $requestedCountryCode = null): array
     {
-        $presentation = self::addressValidation(['output' => $output]);
+        $presentation = self::addressValidation(['output' => $output], $requestedCountryCode);
 
         return [
-            'resolved_address_count' => count($presentation['resolved_addresses']),
+            'resolved_address_count' => $presentation['resolved_count'],
+            'matching_suggestion_count' => $presentation['matching_count'],
+            'ignored_suggestion_count' => $presentation['ignored_suggestion_count'],
+            'ignored_country_codes' => $presentation['ignored_country_codes'],
             'message_samples' => array_slice($presentation['messages'], 0, 10),
         ];
     }
@@ -463,6 +553,18 @@ final class FedExMerchantCheckPresenter
 
     private static function displayValue(mixed $value): ?string
     {
-        return self::textValue($value, 'displayText');
+        $text = self::textValue($value, 'displayText');
+
+        if ($text === null) {
+            return null;
+        }
+
+        if (! mb_check_encoding($text, 'UTF-8')) {
+            $converted = @mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+
+            return is_string($converted) && $converted !== '' ? $converted : $text;
+        }
+
+        return $text;
     }
 }

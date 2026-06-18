@@ -15,16 +15,35 @@ class FedExMerchantApiClient
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExHttpClient $httpClient,
-        private readonly FedExMerchantCredentialsOAuthService $oauthService,
+        private readonly FedExMerchantCredentialsOAuthService $merchantOAuthService,
+        private readonly FedExIntegratorChildOAuthService $integratorChildOAuthService,
         private readonly CarrierApiEventLogger $eventLogger,
     ) {
     }
 
-    public function assertMerchantCredentialsAccount(CarrierAccount $account): void
+    public function assertFedExApiAccount(CarrierAccount $account): void
     {
         abort_unless($account->isFedEx(), 404);
-        abort_unless($account->usesMerchantFedExDeveloperCredentials(), 404);
-        abort_unless($account->hasMerchantFedExDeveloperCredentials(), 422);
+
+        if ($account->usesFedExIntegratorProvider()) {
+            abort_unless($account->hasLegacyFedExChildCredentials(), 422);
+
+            return;
+        }
+
+        if ($account->usesMerchantFedExDeveloperCredentials() && $this->config->modelBDeveloperFallbackEnabled()) {
+            abort_unless($account->hasMerchantFedExDeveloperCredentials(), 422);
+
+            return;
+        }
+
+        abort(422, 'This FedEx account is not configured for API checks. Connect through FedEx Integrator Provider or enable developer fallback.');
+    }
+
+    /** @deprecated Use assertFedExApiAccount() */
+    public function assertMerchantCredentialsAccount(CarrierAccount $account): void
+    {
+        $this->assertFedExApiAccount($account);
     }
 
     /**
@@ -39,11 +58,12 @@ class FedExMerchantApiClient
         array $payload,
         array $requestSummary,
     ): CarrierApiResult {
-        $this->assertMerchantCredentialsAccount($account);
+        $this->assertFedExApiAccount($account);
         $account->loadMissing('store');
 
         $environment = $this->config->environment($account->environment);
-        $oauthSummary = $this->oauthRequestSummary($account, $environment);
+        $credentialsMode = $account->usesFedExIntegratorProvider() ? 'integrator_child' : 'merchant_developer';
+        $oauthSummary = $this->oauthRequestSummary($account, $environment, $credentialsMode);
 
         $oauthEvent = $this->eventLogger->start(
             store: $store,
@@ -54,7 +74,10 @@ class FedExMerchantApiClient
             environment: $account->environment,
         );
 
-        $oauthResult = $this->oauthService->fetchTokenResult($account, fresh: false);
+        $oauthResult = $account->usesFedExIntegratorProvider()
+            ? $this->integratorChildOAuthService->fetchTokenResult($account, fresh: false)
+            : $this->merchantOAuthService->fetchTokenResult($account, fresh: false);
+
         $this->eventLogger->complete($oauthEvent, $oauthResult);
 
         if (! $oauthResult->success) {
@@ -81,7 +104,7 @@ class FedExMerchantApiClient
             provider: CarrierAccount::PROVIDER_FEDEX,
             action: $action,
             account: $account,
-            requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken),
+            requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken, $credentialsMode),
             environment: $account->environment,
         );
 
@@ -90,13 +113,17 @@ class FedExMerchantApiClient
             path: $path,
             payload: $payload,
             bearerToken: $accessToken,
-            requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken),
+            requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken, $credentialsMode),
         );
 
         if ($this->isUnauthorized($apiResult)) {
-            $this->oauthService->clearTokenCache($account);
-
-            $refreshResult = $this->oauthService->fetchTokenResult($account, fresh: true);
+            if ($account->usesFedExIntegratorProvider()) {
+                $this->integratorChildOAuthService->clearTokenCache($account);
+                $refreshResult = $this->integratorChildOAuthService->fetchTokenResult($account, fresh: true);
+            } else {
+                $this->merchantOAuthService->clearTokenCache($account);
+                $refreshResult = $this->merchantOAuthService->fetchTokenResult($account, fresh: true);
+            }
 
             if (! $refreshResult->success) {
                 $failedResult = CarrierApiResult::failure(
@@ -109,6 +136,7 @@ class FedExMerchantApiClient
                         $environment,
                         array_merge($requestSummary, ['token_refreshed_after_401' => true]),
                         null,
+                        $credentialsMode,
                     ),
                     responseSummary: array_merge($apiResult->responseSummary ?? [], [
                         'token_refreshed_after_401' => true,
@@ -132,6 +160,7 @@ class FedExMerchantApiClient
                         $environment,
                         array_merge($requestSummary, ['token_refreshed_after_401' => true]),
                         null,
+                        $credentialsMode,
                     ),
                     responseSummary: array_merge($apiResult->responseSummary ?? [], [
                         'token_refreshed_after_401' => true,
@@ -147,6 +176,7 @@ class FedExMerchantApiClient
                 $environment,
                 array_merge($requestSummary, ['token_refreshed_after_401' => true]),
                 $refreshedToken,
+                $credentialsMode,
             );
 
             $apiResult = $this->httpClient->postJson(
@@ -179,18 +209,21 @@ class FedExMerchantApiClient
     /**
      * @return array<string, mixed>
      */
-    public function oauthRequestSummary(CarrierAccount $account, string $environment): array
+    public function oauthRequestSummary(CarrierAccount $account, string $environment, ?string $credentialsMode = null): array
     {
-        $clientId = (string) ($account->merchantFedExClientId() ?? '');
-        $accountNumber = (string) ($account->provider_account_number ?? '');
+        $credentialsMode ??= $account->usesFedExIntegratorProvider() ? 'integrator_child' : 'merchant_developer';
 
         return [
             'endpoint' => $this->config->oauthPath(),
             'environment' => $environment,
-            'client_id_present' => $clientId !== '',
-            'client_id_last4' => strlen($clientId) >= 4 ? substr($clientId, -4) : null,
-            'account_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
-            'credentials_mode' => 'merchant_developer',
+            'client_id_present' => $credentialsMode === 'merchant_developer'
+                ? filled($account->merchantFedExClientId())
+                : filled($this->config->parentClientId($environment)),
+            'client_id_last4' => $credentialsMode === 'merchant_developer'
+                ? $this->clientIdLast4($account)
+                : $this->parentClientIdLast4($environment),
+            'account_last4' => $this->accountLast4($account),
+            'credentials_mode' => $credentialsMode,
         ];
     }
 
@@ -199,15 +232,17 @@ class FedExMerchantApiClient
      */
     public function baseRequestSummary(CarrierAccount $account, string $endpoint): array
     {
-        $accountNumber = (string) ($account->provider_account_number ?? '');
+        $credentialsMode = $account->usesFedExIntegratorProvider() ? 'integrator_child' : 'merchant_developer';
 
         return [
             'endpoint' => $endpoint,
             'environment' => $this->config->environment($account->environment),
             'action' => 'merchant_api_check',
-            'account_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
-            'client_id_last4' => $this->clientIdLast4($account),
-            'credentials_mode' => 'merchant_developer',
+            'account_last4' => $this->accountLast4($account),
+            'client_id_last4' => $credentialsMode === 'integrator_child'
+                ? $this->parentClientIdLast4($account->environment)
+                : $this->clientIdLast4($account),
+            'credentials_mode' => $credentialsMode,
         ];
     }
 
@@ -220,13 +255,17 @@ class FedExMerchantApiClient
         string $environment,
         array $requestSummary,
         ?string $accessToken,
+        string $credentialsMode,
     ): array {
         return array_merge($requestSummary, [
             'environment' => $environment,
             'account_last4' => $this->accountLast4($account),
-            'client_id_last4' => $this->clientIdLast4($account),
+            'client_id_last4' => $credentialsMode === 'integrator_child'
+                ? $this->parentClientIdLast4($environment)
+                : $this->clientIdLast4($account),
             'auth_header_present' => filled($accessToken),
             'auth_scheme' => filled($accessToken) ? 'Bearer' : null,
+            'credentials_mode' => $credentialsMode,
         ]);
     }
 
@@ -246,6 +285,13 @@ class FedExMerchantApiClient
     private function clientIdLast4(CarrierAccount $account): ?string
     {
         $clientId = (string) ($account->merchantFedExClientId() ?? '');
+
+        return strlen($clientId) >= 4 ? substr($clientId, -4) : null;
+    }
+
+    private function parentClientIdLast4(?string $environment = null): ?string
+    {
+        $clientId = (string) ($this->config->parentClientId($environment) ?? '');
 
         return strlen($clientId) >= 4 ? substr($clientId, -4) : null;
     }

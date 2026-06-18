@@ -39,6 +39,10 @@ class CarrierAccount extends Model
 
     public const CONNECTION_MODE_FEDEX_MERCHANT_CREDENTIALS = 'fedex_merchant_credentials';
 
+    public const CONNECTION_MODEL_INTEGRATOR_PROVIDER = 'integrator_provider';
+
+    public const CONNECTION_MODEL_MERCHANT_DEVELOPER = 'merchant_developer';
+
     public const CONNECTION_MODE_USPS_PLATFORM = 'usps_platform_api';
 
     public const ENVIRONMENT_SANDBOX = 'sandbox';
@@ -141,6 +145,12 @@ class CarrierAccount extends Model
         'display_name',
         'connection_type',
         'connection_mode',
+        'connection_model',
+        'fedex_integrator_account',
+        'registration_session_id',
+        'eula_accepted_at',
+        'eula_version',
+        'connection_context_json',
         'billing_owner',
         'ownership_mode',
         'connection_owner',
@@ -166,9 +176,12 @@ class CarrierAccount extends Model
         'credentials_encrypted' => 'encrypted:array',
         'settings' => 'array',
         'capabilities' => 'array',
+        'connection_context_json' => 'array',
+        'fedex_integrator_account' => 'boolean',
         'supported_countries' => 'array',
         'enabled_for_checkout' => 'boolean',
         'last_verified_at' => 'datetime',
+        'eula_accepted_at' => 'datetime',
     ];
 
     protected $hidden = [
@@ -208,6 +221,16 @@ class CarrierAccount extends Model
     public function apiEvents(): HasMany
     {
         return $this->hasMany(CarrierApiEvent::class);
+    }
+
+    public function registrationSessions(): HasMany
+    {
+        return $this->hasMany(CarrierAccountRegistrationSession::class);
+    }
+
+    public function latestRegistrationSession(): BelongsTo
+    {
+        return $this->belongsTo(CarrierAccountRegistrationSession::class, 'registration_session_id');
     }
 
     public function isFedEx(): bool
@@ -460,6 +483,28 @@ class CarrierAccount extends Model
         ];
     }
 
+    public static function ownershipAttributesForFedExIntegratorProvider(): array
+    {
+        return [
+            'ownership_mode' => self::OWNERSHIP_MERCHANT_OWNED,
+            'connection_owner' => self::CONNECTION_OWNER_MERCHANT,
+            'credentials_source' => self::CREDENTIALS_MERCHANT_ACCOUNT,
+            'billing_owner' => self::BILLING_OWNER_MERCHANT,
+            'connection_mode' => self::CONNECTION_MODE_FEDEX_INTEGRATOR,
+            'connection_model' => self::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
+            'fedex_integrator_account' => true,
+            'capabilities' => [
+                'rates' => false,
+                'labels' => false,
+                'tracking' => false,
+                'pickup' => false,
+                'checkout_rates' => false,
+                'merchant_owned_connection' => true,
+                'integrator_provider' => true,
+            ],
+        ];
+    }
+
     /**
      * Legacy integrator registration attributes (local/testing diagnostics only).
      *
@@ -473,6 +518,7 @@ class CarrierAccount extends Model
             'credentials_source' => self::CREDENTIALS_MERCHANT_ACCOUNT,
             'billing_owner' => self::BILLING_OWNER_MERCHANT,
             'connection_mode' => self::CONNECTION_MODE_FEDEX_INTEGRATOR,
+            'fedex_integrator_account' => false,
             'capabilities' => [
                 'rates' => false,
                 'labels' => false,
@@ -572,6 +618,27 @@ class CarrierAccount extends Model
         return $this->isFedEx()
             && $this->connection_mode === self::CONNECTION_MODE_FEDEX_INTEGRATOR
             && ! $this->usesMerchantFedExDeveloperCredentials();
+    }
+
+    public function usesFedExIntegratorProvider(): bool
+    {
+        return $this->isFedEx()
+            && (
+                $this->connection_model === self::CONNECTION_MODEL_INTEGRATOR_PROVIDER
+                || (bool) $this->fedex_integrator_account
+            )
+            && ! $this->usesMerchantFedExDeveloperCredentials();
+    }
+
+    public function usesIntegratorChildCredentials(): bool
+    {
+        return $this->usesFedExIntegratorProvider() && $this->hasLegacyFedExChildCredentials();
+    }
+
+    public function canUseFedExApiChecks(): bool
+    {
+        return $this->usesIntegratorChildCredentials()
+            || ($this->usesMerchantFedExDeveloperCredentials() && $this->hasMerchantFedExDeveloperCredentials());
     }
 
     public function merchantFedExClientId(): ?string

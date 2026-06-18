@@ -67,11 +67,18 @@ class CarrierConnectionWizardService
             self::CARRIER_FEDEX => [
                 'code' => self::CARRIER_FEDEX,
                 'name' => 'FedEx',
-                'summary' => 'Connect your own FedEx Developer credentials and FedEx account number. FedEx billing stays between you and FedEx. Labels and checkout live rates are not enabled in this phase.',
-                'available' => $fedExConfig->isEnabled(),
+                'summary' => $fedExConfig->modelAEnabled() && $fedExConfig->defaultConnectionModel() === 'integrator_provider'
+                    ? 'Connect your merchant-owned FedEx account through the platform integrator registration flow. FedEx billing stays between you and FedEx.'
+                    : 'Connect your own FedEx Developer credentials and FedEx account number. FedEx billing stays between you and FedEx. Labels and checkout live rates are not enabled in this phase.',
+                'available' => $fedExConfig->isEnabled() && ($fedExConfig->modelAEnabled() || $fedExConfig->modelBDeveloperFallbackEnabled()),
                 'deferred' => false,
                 'blocked' => false,
-                'action' => $fedExConfig->isEnabled() ? 'Connect FedEx credentials' : 'Setup unavailable',
+                'action' => $fedExConfig->modelAEnabled() && $fedExConfig->defaultConnectionModel() === 'integrator_provider'
+                    ? 'Connect FedEx account'
+                    : 'Connect FedEx credentials',
+                'connect_route' => $fedExConfig->modelAEnabled() && $fedExConfig->defaultConnectionModel() === 'integrator_provider'
+                    ? 'settings.shipping.fedex-integrator.start'
+                    : 'shipping.carriers.connect.show',
             ],
             self::CARRIER_UPS => [
                 'code' => self::CARRIER_UPS,
@@ -125,7 +132,7 @@ class CarrierConnectionWizardService
     /**
      * @return list<array<string, mixed>>
      */
-    public function ownershipOptions(string $carrier, USPSConfig $uspsConfig): array
+    public function ownershipOptions(string $carrier, USPSConfig $uspsConfig, FedExConfig $fedExConfig): array
     {
         return match ($carrier) {
             self::CARRIER_USPS => array_values(array_filter([
@@ -141,11 +148,18 @@ class CarrierConnectionWizardService
                     'disabled' => true,
                 ],
             ])),
-            self::CARRIER_FEDEX => [[
-                'value' => CarrierAccount::OWNERSHIP_MERCHANT_OWNED,
-                'label' => 'Merchant FedEx credentials',
-                'description' => 'Connect your FedEx Developer API key, secret, and account number. FedEx billing stays between you and FedEx.',
-            ]],
+            self::CARRIER_FEDEX => array_values(array_filter([
+                $fedExConfig->modelAEnabled() ? [
+                    'value' => CarrierAccount::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
+                    'label' => 'FedEx Integrator Provider',
+                    'description' => 'Recommended. Connect your FedEx account through platform registration. No FedEx Developer project required.',
+                ] : null,
+                $fedExConfig->modelBDeveloperFallbackEnabled() ? [
+                    'value' => CarrierAccount::OWNERSHIP_MERCHANT_OWNED,
+                    'label' => 'Merchant FedEx Developer credentials',
+                    'description' => 'Developer fallback. Connect your FedEx Developer API key, secret, and account number.',
+                ] : null,
+            ])),
             self::CARRIER_MANUAL => [[
                 'value' => CarrierAccount::OWNERSHIP_MANUAL,
                 'label' => 'Manual/local delivery',

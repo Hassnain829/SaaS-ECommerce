@@ -29,18 +29,125 @@ final class FedExConfig
 
     public function clientId(?string $environment = null): ?string
     {
+        return $this->parentClientId($environment);
+    }
+
+    public function clientSecret(?string $environment = null): ?string
+    {
+        return $this->parentClientSecret($environment);
+    }
+
+    public function parentClientId(?string $environment = null): ?string
+    {
         $environment = $this->environment($environment);
         $clientId = (string) config("carriers.fedex.{$environment}.client_id", '');
 
         return $clientId !== '' ? $clientId : null;
     }
 
-    public function clientSecret(?string $environment = null): ?string
+    public function parentClientSecret(?string $environment = null): ?string
     {
         $environment = $this->environment($environment);
         $secret = (string) config("carriers.fedex.{$environment}.client_secret", '');
 
         return $secret !== '' ? $secret : null;
+    }
+
+    public function registrationPath(?string $environment = null): string
+    {
+        return $this->accountRegistrationPath($environment);
+    }
+
+    public function defaultConnectionModel(): string
+    {
+        $model = strtolower((string) config('carriers.fedex.default_connection_model', 'integrator_provider'));
+
+        return in_array($model, ['integrator_provider', 'merchant_developer'], true)
+            ? $model
+            : 'integrator_provider';
+    }
+
+    public function modelAEnabled(): bool
+    {
+        return $this->isEnabled()
+            && filter_var(config('carriers.fedex.integrator_model_a_enabled', true), FILTER_VALIDATE_BOOL);
+    }
+
+    public function modelBDeveloperFallbackEnabled(): bool
+    {
+        return filter_var(config('carriers.fedex.model_b_developer_fallback_enabled', false), FILTER_VALIDATE_BOOL)
+            || filter_var(config('carriers.fedex.developer_mode_enabled', false), FILTER_VALIDATE_BOOL);
+    }
+
+    public function validationModeEnabled(): bool
+    {
+        return filter_var(config('carriers.fedex.validation_mode_enabled', false), FILTER_VALIDATE_BOOL)
+            && app()->environment(['local', 'testing']);
+    }
+
+    public function productionEnabled(): bool
+    {
+        if (! filter_var(config('carriers.fedex.integrator_production_enabled', false), FILTER_VALIDATE_BOOL)) {
+            return false;
+        }
+
+        return $this->isConfigured(CarrierAccount::ENVIRONMENT_LIVE);
+    }
+
+    public function allowsIntegratorEnvironment(string $environment): bool
+    {
+        $environment = strtolower($environment);
+
+        if ($environment === CarrierAccount::ENVIRONMENT_LIVE) {
+            return $this->productionEnabled();
+        }
+
+        return $environment === CarrierAccount::ENVIRONMENT_SANDBOX && $this->modelAEnabled();
+    }
+
+    public function eulaVersion(): string
+    {
+        return (string) config('carriers.fedex.integrator_eula_version', '1.0');
+    }
+
+    public function eulaPath(): string
+    {
+        $path = (string) config('carriers.fedex.integrator_eula_path', 'resources/legal/fedex/end_user_license_agreement.html');
+
+        return str_starts_with($path, DIRECTORY_SEPARATOR) || preg_match('/^[A-Za-z]:\\\\/', $path)
+            ? $path
+            : base_path($path);
+    }
+
+    public function mfaPinGenerationPath(): ?string
+    {
+        $path = (string) config('carriers.fedex.mfa_pin_generation_path', '');
+
+        return $path !== '' ? $path : null;
+    }
+
+    public function mfaPinValidationPath(): ?string
+    {
+        $path = (string) config('carriers.fedex.mfa_pin_validation_path', '');
+
+        return $path !== '' ? $path : null;
+    }
+
+    public function mfaInvoiceValidationPath(): ?string
+    {
+        $path = (string) config('carriers.fedex.mfa_invoice_validation_path', '');
+
+        return $path !== '' ? $path : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function testCaseBaselinePaths(): array
+    {
+        $paths = config('carriers.fedex.test_case_baseline_paths', []);
+
+        return is_array($paths) ? array_values(array_filter($paths, 'is_string')) : [];
     }
 
     public function oauthPath(): string
@@ -111,7 +218,7 @@ final class FedExConfig
         $environment = strtolower($environment);
 
         if ($environment === CarrierAccount::ENVIRONMENT_LIVE) {
-            return false;
+            return $this->productionEnabled();
         }
 
         return $environment === CarrierAccount::ENVIRONMENT_SANDBOX;

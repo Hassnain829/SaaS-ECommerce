@@ -255,6 +255,18 @@ class FedExHttpClient
                 $output['customerPassword'],
             );
 
+            if (isset($output['mfaOptions']) && is_array($output['mfaOptions'])) {
+                $output['mfaOptions'] = array_map(static function (mixed $item): mixed {
+                    if (! is_array($item)) {
+                        return $item;
+                    }
+
+                    unset($item['accountAuthToken']);
+
+                    return $item;
+                }, $output['mfaOptions']);
+            }
+
             if ($output !== []) {
                 $summary['output_summary'] = FedExMerchantCheckPresenter::compactOutputSummary($output);
             }
@@ -270,7 +282,7 @@ class FedExHttpClient
         }
 
         if ($httpStatus === 403 && str_contains($path, '/rate/v1/rates/quotes')) {
-            return 'FedEx rejected this rate quote because the current FedEx project/account is not authorized for Rates API in this environment. Verify the Rates and Transit Times API product is added to the FedEx project, the account number is linked/allowed for this project, or use FedEx-provided sandbox test account details.';
+            return 'FedEx rejected this rate quote because the registered sandbox account/child credentials are not authorized for Comprehensive Rates and Transit Times API in this environment. Confirm the Rates and Transit Times API is enabled on the FedEx project, the sandbox validation account is allowed for rating, and the selected test case/account supports rating.';
         }
 
         if ($httpStatus >= 500 && str_contains($path, '/availability/v1/packageandserviceoptions')) {

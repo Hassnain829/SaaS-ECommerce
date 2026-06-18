@@ -401,12 +401,12 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertIsArray($capturedPayload);
-        $this->assertSame('208851499', $capturedPayload['accountNumber'] ?? null);
+        $this->assertSame('208851499', data_get($capturedPayload, 'accountNumber.value'));
         $this->assertArrayHasKey('customerName', $capturedPayload);
         $this->assertArrayHasKey('address', $capturedPayload);
         $this->assertArrayNotHasKey('account_number', $capturedPayload);
         $this->assertArrayNotHasKey('provider_account_number', $capturedPayload);
-        $this->assertStringNotContainsString('*', (string) ($capturedPayload['accountNumber'] ?? ''));
+        $this->assertStringNotContainsString('*', (string) data_get($capturedPayload, 'accountNumber.value'));
     }
 
     public function test_registration_falls_back_to_settings_registration_provider_account_number(): void
@@ -454,7 +454,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        $this->assertSame('208851499', $capturedPayload['accountNumber'] ?? null);
+        $this->assertSame('208851499', data_get($capturedPayload, 'accountNumber.value'));
     }
 
     public function test_fedex_http_400_with_valid_nine_digit_account_marks_failed_not_connected(): void
@@ -616,7 +616,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertOk()
             ->assertSeeText('FedEx Merchant Account')
             ->assertSeeText('Sandbox')
-            ->assertSeeText('Connect FedEx credentials')
+            ->assertSeeText('Connect FedEx account')
             ->assertDontSeeText('Buy label')
             ->assertDontSeeText('Generate label')
             ->assertDontSeeText('Live rates')
@@ -954,11 +954,11 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
 
         $payload = $service->debugRegistrationPayload($account);
 
-        $this->assertSame('510087240', $payload['accountNumber']);
+        $this->assertSame('510087240', data_get($payload, 'accountNumber.value'));
         $this->assertArrayNotHasKey('residential', $payload['address'] ?? []);
 
         $redacted = $service->redactedRegistrationPayload($account);
-        $this->assertSame('*****7240', $redacted['accountNumber']);
+        $this->assertSame('*****7240', data_get($redacted, 'accountNumber.value'));
 
         $this->app['env'] = 'production';
 

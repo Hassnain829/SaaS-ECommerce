@@ -3,6 +3,7 @@
 namespace App\Services\Carriers\FedEx;
 
 use App\Models\CarrierAccount;
+use App\Models\CarrierAccountRegistrationSession;
 use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\CarrierApiEventLogger;
@@ -16,6 +17,7 @@ class FedExAccountRegistrationService
         private readonly FedExConfig $config,
         private readonly FedExHttpClient $httpClient,
         private readonly CarrierApiEventLogger $eventLogger,
+        private readonly FedExRegistrationResponseAnalyzer $responseAnalyzer,
     ) {
     }
 
@@ -94,60 +96,388 @@ class FedExAccountRegistrationService
             requestSummary: $requestSummary,
         );
 
-        if ($result->success) {
-            $output = Arr::get($result->data, 'output', $result->data ?? []);
-            $customerKey = (string) (Arr::get($output, 'child_Key') ?? Arr::get($output, 'child_key') ?? Arr::get($output, 'customerKey') ?? '');
-            $customerPassword = (string) (Arr::get($output, 'childSecret') ?? Arr::get($output, 'child_secret') ?? Arr::get($output, 'customerPassword') ?? '');
-
-            if ($customerKey === '' || $customerPassword === '') {
-                if (Arr::get($output, 'mfaOptions.mfaRequired') === true) {
-                    $result = CarrierApiResult::failure(
-                        message: 'FedEx account registration requires additional merchant verification (MFA). Complete MFA in FedEx, then retry the connection test.',
-                        code: 'registration_mfa_required',
-                        requestId: $result->requestId,
-                        durationMs: $result->durationMs,
-                        requestSummary: $result->requestSummary,
-                        responseSummary: $result->responseSummary,
-                    );
-                } else {
-                    $result = CarrierApiResult::failure(
-                        message: 'FedEx account registration did not return merchant credentials.',
-                        code: 'registration_incomplete',
-                        requestId: $result->requestId,
-                        durationMs: $result->durationMs,
-                        requestSummary: $result->requestSummary,
-                        responseSummary: $result->responseSummary,
-                    );
-                }
-            } else {
-                $account->setCredentials([
-                    'customer_key' => $customerKey,
-                    'customer_password' => $customerPassword,
-                ]);
-                $account->save();
-
-                $result = CarrierApiResult::success(
-                    data: ['registered' => true],
-                    requestId: $result->requestId,
-                    durationMs: $result->durationMs,
-                    requestSummary: $result->requestSummary,
-                    responseSummary: array_merge($result->responseSummary ?? [], ['registered' => true]),
-                );
-            }
-        } else {
-            $result = CarrierApiResult::failure(
-                message: $this->registrationFailureMessage($result, $accountNumber),
-                code: $result->errorCode,
-                requestId: $result->requestId,
-                durationMs: $result->durationMs,
-                requestSummary: $result->requestSummary,
-                responseSummary: $result->responseSummary,
-            );
-        }
+        $result = $this->normalizeRegistrationResult($result, $account, $accountNumber);
 
         $this->eventLogger->complete($event, $result);
 
         return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $accountDetails
+     * @param  array{access_token: string, token_type?: string, expires_in?: int}|null  $platformToken
+     */
+    public function registerSession(
+        Store $store,
+        CarrierAccountRegistrationSession $session,
+        array $accountDetails,
+        ?array $platformToken = null,
+    ): CarrierApiResult {
+        return $this->performRegistration(
+            store: $store,
+            environment: $session->environment,
+            accountDetails: $accountDetails,
+            platformToken: $platformToken,
+            account: null,
+            session: $session,
+        );
+    }
+
+    /**
+     * @param  array{access_token: string, token_type?: string, expires_in?: int}  $platformToken
+     */
+    public function validateMfaPin(
+        CarrierAccountRegistrationSession $session,
+        string $pin,
+        array $platformToken,
+    ): CarrierApiResult {
+        $path = $this->config->mfaPinValidationPath();
+        if ($path === null) {
+            return CarrierApiResult::failure(
+                message: 'FedEx PIN validation endpoint is not configured.',
+                code: 'mfa_endpoint_missing',
+            );
+        }
+
+        $address = $session->registrationAddress();
+        $payload = [
+            'secureCodePin' => trim($pin),
+            'customerName' => $session->account_name ?: ($address['company_name'] ?? $address['contact_name'] ?? ''),
+        ];
+
+        return $this->performConfiguredJsonCall(
+            store: $session->store,
+            environment: $session->environment,
+            path: $path,
+            payload: $payload,
+            platformToken: $platformToken,
+            session: $session,
+            action: CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
+            requestSummary: [
+                'endpoint' => $path,
+                'mfa_step' => 'pin_validation',
+                'registration_session_id' => $session->id,
+                'account_last4' => $session->account_last4,
+            ],
+        );
+    }
+
+    /**
+     * @param  array{access_token: string, token_type?: string, expires_in?: int}  $platformToken
+     */
+    public function initiateMfaPinGeneration(
+        CarrierAccountRegistrationSession $session,
+        string $method,
+        array $platformToken,
+    ): CarrierApiResult {
+        $path = $this->config->mfaPinGenerationPath();
+        if ($path === null) {
+            return CarrierApiResult::success(data: ['skipped' => true]);
+        }
+
+        $address = $session->registrationAddress();
+        $payload = array_filter([
+            'transactionId' => $session->fedex_transaction_id,
+            'customerName' => $session->account_name ?: ($address['company_name'] ?? $address['contact_name'] ?? ''),
+            'option' => strtoupper($method),
+            'locale' => 'en_US',
+        ]);
+
+        return $this->performConfiguredJsonCall(
+            store: $session->store,
+            environment: $session->environment,
+            path: $path,
+            payload: $payload,
+            platformToken: $platformToken,
+            session: $session,
+            action: CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
+            requestSummary: [
+                'endpoint' => $path,
+                'mfa_step' => 'pin_generation',
+                'registration_session_id' => $session->id,
+                'mfa_method' => strtolower($method),
+                'account_last4' => $session->account_last4,
+            ],
+            finalizeRegistration: false,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $invoiceInput
+     * @param  array{access_token: string, token_type?: string, expires_in?: int}  $platformToken
+     */
+    public function validateMfaInvoice(
+        CarrierAccountRegistrationSession $session,
+        array $invoiceInput,
+        array $platformToken,
+    ): CarrierApiResult {
+        $path = $this->config->mfaInvoiceValidationPath();
+        if ($path === null) {
+            return CarrierApiResult::failure(
+                message: 'FedEx invoice validation endpoint is not configured.',
+                code: 'mfa_endpoint_missing',
+            );
+        }
+
+        $address = $session->registrationAddress();
+        $payload = [
+            'invoiceDetail' => array_filter([
+                'number' => trim((string) ($invoiceInput['invoice_number'] ?? '')),
+                'date' => trim((string) ($invoiceInput['invoice_date'] ?? '')),
+                'currency' => strtoupper(trim((string) ($invoiceInput['invoice_currency'] ?? 'USD'))),
+                'amount' => trim((string) ($invoiceInput['invoice_amount'] ?? '')),
+            ]),
+            'customerName' => $session->account_name ?: ($address['company_name'] ?? $address['contact_name'] ?? ''),
+            'locale' => 'en_US',
+        ];
+
+        return $this->performConfiguredJsonCall(
+            store: $session->store,
+            environment: $session->environment,
+            path: $path,
+            payload: $payload,
+            platformToken: $platformToken,
+            session: $session,
+            action: CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
+            requestSummary: [
+                'endpoint' => $path,
+                'mfa_step' => 'invoice_validation',
+                'registration_session_id' => $session->id,
+                'account_last4' => $session->account_last4,
+            ],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $accountDetails
+     * @param  array{access_token: string, token_type?: string, expires_in?: int}|null  $platformToken
+     */
+    private function performRegistration(
+        Store $store,
+        string $environment,
+        array $accountDetails,
+        ?array $platformToken,
+        ?CarrierAccount $account,
+        ?CarrierAccountRegistrationSession $session = null,
+    ): CarrierApiResult {
+        $environment = $this->config->environment($environment);
+        $registrationPath = $this->config->accountRegistrationPath($environment);
+
+        if ($this->config->isDeprecatedRegistrationPath($registrationPath)) {
+            return CarrierApiResult::failure(
+                message: 'FedEx account registration endpoint is deprecated. Update FEDEX_SANDBOX_ACCOUNT_REGISTRATION_PATH to the current Credential Registration API path from the FedEx Developer Portal.',
+                code: 'deprecated_registration_endpoint',
+                requestSummary: ['endpoint' => $registrationPath],
+            );
+        }
+
+        if ($platformToken === null || ! filled($platformToken['access_token'] ?? null)) {
+            return CarrierApiResult::failure(
+                message: 'FedEx platform authentication failed. Contact the platform admin.',
+                code: 'platform_oauth_failed',
+                requestSummary: ['endpoint' => $registrationPath],
+            );
+        }
+
+        $accountNumber = $session?->accountNumber()
+            ?? $this->resolveAccountNumber($account ?? new CarrierAccount, $accountDetails);
+        $validation = app(FedExRegistrationInputValidator::class)->validate($accountDetails);
+
+        if ($validation['errors'] !== []) {
+            return CarrierApiResult::failure(
+                message: (string) reset($validation['errors']),
+                code: 'invalid_registration_input',
+                requestSummary: [
+                    'endpoint' => $registrationPath,
+                    'validation_errors' => array_keys($validation['errors']),
+                ],
+            );
+        }
+
+        $accountDetails = $validation['normalized'];
+        $payload = $this->buildV2Payload($accountNumber, $accountDetails);
+        $requestSummary = $this->buildRequestSummary($registrationPath, $accountNumber, $payload, $accountDetails);
+        if ($session !== null) {
+            $requestSummary['registration_session_id'] = $session->id;
+        }
+
+        $event = $this->eventLogger->start(
+            store: $store,
+            provider: CarrierAccount::PROVIDER_FEDEX,
+            action: CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
+            account: $account,
+            requestSummary: $requestSummary,
+            environment: $environment,
+        );
+
+        if ($accountNumber === '' || strlen($accountNumber) !== 9) {
+            $result = CarrierApiResult::failure(
+                message: 'FedEx account number must be 9 digits.',
+                code: 'invalid_account_number',
+                requestSummary: $requestSummary,
+            );
+            $this->eventLogger->complete($event, $result);
+
+            return $result;
+        }
+
+        $result = $this->httpClient->postJson(
+            environment: $environment,
+            path: $registrationPath,
+            payload: $payload,
+            bearerToken: $platformToken['access_token'],
+            requestSummary: $requestSummary,
+        );
+
+        $result = $this->normalizeRegistrationResult($result, $account, $accountNumber);
+
+        $this->eventLogger->complete($event, $result);
+
+        return $result;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array{access_token: string, token_type?: string, expires_in?: int}  $platformToken
+     */
+    private function performConfiguredJsonCall(
+        Store $store,
+        string $environment,
+        string $path,
+        array $payload,
+        array $platformToken,
+        CarrierAccountRegistrationSession $session,
+        string $action,
+        array $requestSummary,
+        bool $finalizeRegistration = true,
+    ): CarrierApiResult {
+        $accountAuthToken = $session->accountAuthToken();
+
+        if (! filled($accountAuthToken)) {
+            return CarrierApiResult::failure(
+                message: 'FedEx verification could not continue because account authorization is missing. Start a new FedEx connection.',
+                code: 'account_auth_token_missing',
+                requestSummary: $requestSummary,
+            );
+        }
+
+        if ($session->isAccountAuthTokenExpired()) {
+            return CarrierApiResult::failure(
+                message: 'FedEx verification authorization has expired. Start a new FedEx connection.',
+                code: 'account_auth_token_expired',
+                requestSummary: $requestSummary,
+            );
+        }
+
+        $requestSummary = array_merge($requestSummary, [
+            'account_auth_token_sent' => true,
+        ]);
+
+        $event = $this->eventLogger->start(
+            store: $store,
+            provider: CarrierAccount::PROVIDER_FEDEX,
+            action: $action,
+            account: null,
+            requestSummary: $requestSummary,
+            environment: $environment,
+        );
+
+        $result = $this->httpClient->postJson(
+            environment: $this->config->environment($environment),
+            path: $path,
+            payload: $payload,
+            headers: [
+                'accountAuthToken' => $accountAuthToken,
+            ],
+            bearerToken: $platformToken['access_token'],
+            requestSummary: $requestSummary,
+        );
+
+        $result = $this->normalizeRegistrationResult(
+            $result,
+            null,
+            (string) $session->accountNumber(),
+            $finalizeRegistration,
+        );
+
+        $this->eventLogger->complete($event, $result);
+
+        return $result;
+    }
+
+    private function normalizeRegistrationResult(
+        CarrierApiResult $result,
+        ?CarrierAccount $account,
+        string $accountNumber,
+        bool $finalizeRegistration = true,
+    ): CarrierApiResult {
+        $responseSummary = array_merge(
+            $result->responseSummary ?? [],
+            $this->responseAnalyzer->buildDiagnostics($result->data, $result->responseSummary),
+        );
+
+        if ($result->success) {
+            if (! $finalizeRegistration) {
+                return CarrierApiResult::success(
+                    data: is_array($result->data) ? $result->data : null,
+                    requestId: $result->requestId,
+                    durationMs: $result->durationMs,
+                    requestSummary: $result->requestSummary,
+                    responseSummary: $responseSummary,
+                );
+            }
+
+            $credentials = $this->responseAnalyzer->extractChildCredentials($result->data);
+
+            if ($credentials !== null) {
+                if ($account !== null) {
+                    $account->setCredentials([
+                        'customer_key' => $credentials['customer_key'],
+                        'customer_password' => $credentials['customer_password'],
+                    ]);
+                    $account->save();
+                }
+
+                return CarrierApiResult::success(
+                    data: is_array($result->data) ? $result->data : ['output' => $this->responseAnalyzer->output($result->data)],
+                    requestId: $result->requestId,
+                    durationMs: $result->durationMs,
+                    requestSummary: $result->requestSummary,
+                    responseSummary: array_merge($responseSummary, ['registered' => true]),
+                );
+            }
+
+            if ($this->responseAnalyzer->mfaDetected($this->responseAnalyzer->output($result->data))) {
+                return new CarrierApiResult(
+                    success: false,
+                    data: is_array($result->data) ? $result->data : null,
+                    errorCode: 'registration_mfa_required',
+                    errorMessage: 'FedEx requires additional merchant verification before registration can finish. Choose a verification method to continue.',
+                    requestId: $result->requestId,
+                    durationMs: $result->durationMs,
+                    requestSummary: $result->requestSummary,
+                    responseSummary: $responseSummary,
+                );
+            }
+
+            return CarrierApiResult::failure(
+                message: $this->responseAnalyzer->incompleteRegistrationMessage(),
+                code: 'registration_incomplete',
+                requestId: $result->requestId,
+                durationMs: $result->durationMs,
+                requestSummary: $result->requestSummary,
+                responseSummary: $responseSummary,
+            );
+        }
+
+        return CarrierApiResult::failure(
+            message: $this->registrationFailureMessage($result, $accountNumber),
+            code: $result->errorCode,
+            requestId: $result->requestId,
+            durationMs: $result->durationMs,
+            requestSummary: $result->requestSummary,
+            responseSummary: $responseSummary,
+        );
     }
 
     /**
@@ -224,12 +554,18 @@ class FedExAccountRegistrationService
         $this->assertDebugEnvironment();
 
         $payload = $this->debugRegistrationPayload($account);
-        $accountNumber = (string) ($payload['accountNumber'] ?? '');
+        $accountNumber = (string) ($payload['accountNumber']['value'] ?? $payload['accountNumber'] ?? '');
 
         if ($accountNumber !== '') {
-            $payload['accountNumber'] = strlen($accountNumber) >= 4
+            $masked = strlen($accountNumber) >= 4
                 ? str_repeat('*', max(0, strlen($accountNumber) - 4)).substr($accountNumber, -4)
                 : str_repeat('*', strlen($accountNumber));
+
+            if (is_array($payload['accountNumber'] ?? null)) {
+                $payload['accountNumber']['value'] = $masked;
+            } else {
+                $payload['accountNumber'] = $masked;
+            }
         }
 
         return $payload;
@@ -288,13 +624,15 @@ class FedExAccountRegistrationService
             'streetLines' => $streetLines,
             'city' => strtoupper(trim((string) ($accountDetails['city'] ?? ''))),
             'stateOrProvinceCode' => strtoupper(trim((string) ($accountDetails['state'] ?? ''))),
-            'postalCode' => trim((string) ($accountDetails['postal_code'] ?? '')),
+            'postalCode' => $this->resolveRegistrationPostalCode($accountDetails),
             'countryCode' => strtoupper(trim((string) ($accountDetails['country_code'] ?? 'US'))),
         ];
 
         return [
             'customerName' => $customerName,
-            'accountNumber' => $accountNumber,
+            'accountNumber' => [
+                'value' => $accountNumber,
+            ],
             'address' => $this->applyRegistrationResidential($address, $residentialSetting),
         ];
     }
@@ -317,6 +655,25 @@ class FedExAccountRegistrationService
     }
 
     /**
+     * @param  array<string, mixed>  $accountDetails
+     */
+    private function resolveRegistrationPostalCode(array $accountDetails): string
+    {
+        if (filled($accountDetails['registration_postal_code_raw'] ?? null)) {
+            return (string) $accountDetails['registration_postal_code_raw'];
+        }
+
+        $postal = trim((string) ($accountDetails['postal_code'] ?? ''));
+        $digits = preg_replace('/\D+/', '', $postal) ?? '';
+
+        if (strlen($digits) === 9 || strlen($digits) === 5) {
+            return $digits;
+        }
+
+        return $postal;
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $accountDetails
      * @return array<string, mixed>
@@ -330,12 +687,15 @@ class FedExAccountRegistrationService
         $residentialSetting = (bool) data_get($accountDetails, 'residential', false);
         $residentialMode = $this->config->accountRegistrationResidentialMode();
         $residentialSent = array_key_exists('residential', $payload['address'] ?? []);
+        $postalSent = (string) ($payload['address']['postalCode'] ?? '');
+        $postalDigits = preg_replace('/\D+/', '', $postalSent) ?? '';
 
         return [
             'endpoint' => $registrationPath,
             'account_number_present' => $accountNumber !== '',
             'account_number_digits_len' => strlen($accountNumber),
             'account_number_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
+            'account_number_shape' => 'object_value',
             'customer_name_present' => filled($payload['customerName'] ?? null),
             'customer_name_length' => strlen((string) ($payload['customerName'] ?? '')),
             'street_lines_count' => count($payload['address']['streetLines'] ?? []),
@@ -343,8 +703,11 @@ class FedExAccountRegistrationService
             'city_present' => filled($payload['address']['city'] ?? null),
             'state_or_province_code' => $payload['address']['stateOrProvinceCode'] ?? null,
             'state_present' => filled($payload['address']['stateOrProvinceCode'] ?? null),
-            'postal_code' => $payload['address']['postalCode'] ?? null,
-            'postal_code_present' => filled($payload['address']['postalCode'] ?? null),
+            'postal_code_input' => $accountDetails['postal_code'] ?? null,
+            'postal_code_sent' => $postalSent !== '' ? $postalSent : null,
+            'postal_code_digits_len' => strlen($postalDigits),
+            'postal_code' => $postalSent !== '' ? $postalSent : null,
+            'postal_code_present' => filled($postalSent),
             'country_code' => $payload['address']['countryCode'] ?? null,
             'residential_setting' => $residentialSetting,
             'residential_sent' => $residentialSent,

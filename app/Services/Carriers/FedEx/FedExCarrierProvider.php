@@ -23,6 +23,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
         private readonly FedExAccountRegistrationService $registrationService,
         private readonly FedExOAuthTokenService $oauthTokenService,
         private readonly FedExMerchantCredentialsOAuthService $merchantCredentialsOAuth,
+        private readonly FedExIntegratorChildOAuthService $integratorChildOAuth,
         private readonly CarrierApiEventLogger $eventLogger,
     ) {
     }
@@ -34,11 +35,70 @@ class FedExCarrierProvider implements CarrierProviderInterface
 
     public function testConnection(CarrierAccount $account): CarrierConnectionTestResult
     {
+        if ($account->usesFedExIntegratorProvider()) {
+            return $this->testIntegratorProviderConnection($account);
+        }
+
         if ($account->usesMerchantFedExDeveloperCredentials()) {
             return $this->testMerchantCredentialsConnection($account);
         }
 
         return $this->testLegacyIntegratorConnection($account);
+    }
+
+    private const INTEGRATOR_CONNECTED_MESSAGE = 'FedEx integrator child credentials verified. Connected through platform registration. FedEx billing stays between you and FedEx.';
+
+    private function testIntegratorProviderConnection(CarrierAccount $account): CarrierConnectionTestResult
+    {
+        if (! $account->hasLegacyFedExChildCredentials()) {
+            return CarrierConnectionTestResult::failed(
+                'FedEx child credentials are missing. Complete FedEx integrator registration first.',
+                'missing_child_credentials',
+            );
+        }
+
+        $account->loadMissing('store');
+        $accountNumber = (string) ($account->provider_account_number ?? '');
+
+        $merchantEvent = $this->eventLogger->start(
+            store: $account->store,
+            provider: $this->providerCode(),
+            action: CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN,
+            account: $account,
+            requestSummary: [
+                'endpoint' => $this->config->oauthPath(),
+                'environment' => $account->environment,
+                'account_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
+                'credentials_mode' => 'integrator_child',
+            ],
+            environment: $account->environment,
+        );
+
+        $childResult = $this->integratorChildOAuth->fetchTokenResult($account, fresh: true);
+        $this->eventLogger->complete($merchantEvent, $childResult);
+
+        if (! $childResult->success) {
+            $account->markFailed(
+                $childResult->errorMessage ?? self::MERCHANT_CREDENTIALS_FAILED_MESSAGE,
+                $childResult->errorCode,
+            );
+
+            return CarrierConnectionTestResult::failed(
+                $childResult->errorMessage ?? self::MERCHANT_CREDENTIALS_FAILED_MESSAGE,
+                $childResult->errorCode,
+            );
+        }
+
+        $account->markConnected($account->capabilities ?? CarrierAccount::ownershipAttributesForFedExIntegratorProvider()['capabilities']);
+
+        return CarrierConnectionTestResult::connected(
+            self::INTEGRATOR_CONNECTED_MESSAGE,
+            [],
+            false,
+            [
+                CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN => CarrierApiEvent::STATUS_SUCCEEDED,
+            ],
+        );
     }
 
     public function supportsRates(?CarrierAccount $account = null): bool

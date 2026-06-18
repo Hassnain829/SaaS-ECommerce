@@ -79,6 +79,7 @@ class ShippingSettingsController extends Controller
                 ->get(),
             'fedExPlatformConfigured' => $fedExConfig->isConfigured(),
             'fedExEnabled' => $fedExConfig->isEnabled(),
+            'fedExConfig' => $fedExConfig,
             'fedExRegistrationPath' => $fedExConfig->accountRegistrationPath(CarrierAccount::ENVIRONMENT_SANDBOX),
             'fedExRegistrationResidentialMode' => $fedExConfig->accountRegistrationResidentialMode(),
             'fedExStepDiagnostics' => $this->fedExLatestStepDiagnostics($store),

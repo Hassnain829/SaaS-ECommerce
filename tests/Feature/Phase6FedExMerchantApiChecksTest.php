@@ -190,6 +190,135 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
         $this->assertSame(1, $presentation['package_type_count']);
     }
 
+    public function test_address_presenter_filters_mismatched_country_suggestions(): void
+    {
+        $presentation = FedExMerchantCheckPresenter::addressValidation([
+            'output' => [
+                'resolvedAddresses' => [[
+                    'streetLines' => ['AV PROVIDENCIA 123'],
+                    'city' => 'Región Metropolitana de Santia',
+                    'stateOrProvinceCode' => 'RM',
+                    'postalCode' => '7500000',
+                    'countryCode' => 'CL',
+                ]],
+            ],
+        ], 'US');
+
+        $this->assertSame([], $presentation['resolved_addresses']);
+        $this->assertCount(1, $presentation['ignored_suggestions']);
+        $this->assertSame('CL', $presentation['ignored_country_codes'][0] ?? null);
+        $this->assertNotEmpty($presentation['warnings']);
+    }
+
+    public function test_address_presenter_keeps_matching_country_suggestions(): void
+    {
+        $presentation = FedExMerchantCheckPresenter::addressValidation([
+            'output' => [
+                'resolvedAddresses' => [[
+                    'streetLines' => ['100 MAIN ST'],
+                    'city' => 'MEMPHIS',
+                    'stateOrProvinceCode' => 'TN',
+                    'postalCode' => '38118',
+                    'countryCode' => 'US',
+                ]],
+            ],
+        ], 'US');
+
+        $this->assertCount(1, $presentation['resolved_addresses']);
+        $this->assertSame([], $presentation['ignored_suggestions']);
+        $this->assertSame('US', $presentation['resolved_addresses'][0]['country_code']);
+    }
+
+    public function test_rate_quote_requires_destination_city_for_us(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Rate Quote Validation Store');
+
+        Http::fake();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-rate-quote', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '60601',
+                'destination_state' => 'IL',
+                'weight_value' => 1,
+                'length' => 9,
+                'width' => 6,
+                'height' => 2,
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHasErrors(['destination_city']);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_rate_quote_payload_includes_destination_city_state_service_and_packaging(): void
+    {
+        [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Rate Quote Payload Store');
+        $capturedPayload = null;
+
+        Http::fake(function ($request) use (&$capturedPayload) {
+            if (str_contains($request->url(), '/oauth/token')) {
+                return Http::response([
+                    'access_token' => 'fedex-rate-test-token',
+                    'token_type' => 'bearer',
+                    'expires_in' => 3600,
+                ], 200);
+            }
+
+            if (str_contains($request->url(), '/rate/v1/rates/quotes')) {
+                $capturedPayload = $request->data();
+
+                return Http::response([
+                    'transactionId' => 'fedex-rate-txn-payload',
+                    'output' => ['rateReplyDetails' => []],
+                ], 200);
+            }
+
+            return Http::response(['errors' => [['message' => 'Unexpected URL']]], 404);
+        });
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.shipping.carrier-accounts.fedex.test-rate-quote', $account), [
+                'origin_location_id' => $location->id,
+                'destination_country' => 'US',
+                'destination_postal_code' => '60601',
+                'destination_state' => 'IL',
+                'destination_city' => 'CHICAGO',
+                'service_type' => 'FEDEX_2_DAY',
+                'packaging_type' => 'YOUR_PACKAGING',
+                'weight_value' => 1,
+                'length' => 9,
+                'width' => 6,
+                'height' => 2,
+            ])
+            ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
+            ->assertSessionHas('success');
+
+        $recipient = $capturedPayload['requestedShipment']['recipient']['address'] ?? [];
+        $this->assertSame('IL', $recipient['stateOrProvinceCode'] ?? null);
+        $this->assertSame('CHICAGO', $recipient['city'] ?? null);
+        $this->assertSame('FEDEX_2_DAY', $capturedPayload['requestedShipment']['serviceType'] ?? null);
+        $this->assertSame('YOUR_PACKAGING', $capturedPayload['requestedShipment']['packagingType'] ?? null);
+
+        $event = CarrierApiEvent::query()
+            ->where('store_id', $store->id)
+            ->where('action', CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame('IL', data_get($event->request_summary, 'destination_state'));
+        $this->assertSame('CHICAGO', data_get($event->request_summary, 'destination_city'));
+        $this->assertSame('FEDEX_2_DAY', data_get($event->request_summary, 'service_type'));
+        $this->assertSame('YOUR_PACKAGING', data_get($event->request_summary, 'packaging_type'));
+        $this->assertTrue(data_get($event->request_summary, 'test_quote_only'));
+        $this->assertTrue(data_get($event->request_summary, 'auth_header_present'));
+        $this->assertSame('Bearer', data_get($event->request_summary, 'auth_scheme'));
+    }
+
     public function test_service_availability_check_uses_merchant_oauth(): void
     {
         [$owner, $store, $account, $location] = $this->merchantFedExFixture('FedEx Service Availability Store');
@@ -674,6 +803,7 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
                 'destination_country' => 'US',
                 'destination_postal_code' => '75002',
                 'destination_state' => 'TX',
+                'destination_city' => 'Allen',
                 'weight_value' => 1,
                 'length' => 9,
                 'width' => 6,
@@ -685,8 +815,11 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
             ->assertSessionHas('fedex_test_result');
 
         $message = session('errors')->first('fedex');
-        $this->assertStringContainsString('Rates and Transit Times API product', $message);
+        $this->assertStringContainsString('Comprehensive Rates and Transit Times API', $message);
         $this->assertStringNotContainsString('Array to string conversion', $message);
+
+        $account->refresh();
+        $this->assertSame(CarrierAccount::CONNECTION_CONNECTED, $account->connection_status);
     }
 
     public function test_service_availability_check_uses_merchant_oauth_legacy_shape(): void
@@ -757,6 +890,9 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
                 'destination_country' => 'US',
                 'destination_postal_code' => '75002',
                 'destination_state' => 'TX',
+                'destination_city' => 'Allen',
+                'service_type' => 'FEDEX_GROUND',
+                'packaging_type' => 'YOUR_PACKAGING',
                 'weight_value' => 1,
                 'length' => 9,
                 'width' => 6,
@@ -962,6 +1098,8 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
             'carriers.fedex.environment' => 'sandbox',
             'carriers.fedex.sandbox.base_url' => 'https://apis-sandbox.fedex.com',
             'carriers.fedex.live.base_url' => 'https://apis.fedex.com',
+            'carriers.fedex.model_b_developer_fallback_enabled' => true,
+            'carriers.fedex.default_connection_model' => 'merchant_developer',
         ]);
     }
 
