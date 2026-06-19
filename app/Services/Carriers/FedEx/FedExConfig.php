@@ -140,6 +140,42 @@ final class FedExConfig
         return $path !== '' ? $path : null;
     }
 
+    public function shipCreatePath(?string $environment = null): string
+    {
+        return (string) config('carriers.fedex.ship_create_path', '/ship/v1/shipments');
+    }
+
+    public function shipValidatePath(?string $environment = null): string
+    {
+        return (string) config('carriers.fedex.ship_validate_path', '/ship/v1/shipments/packages/validate');
+    }
+
+    public function shipCancelPath(?string $environment = null): string
+    {
+        return (string) config('carriers.fedex.ship_cancel_path', '/ship/v1/shipments/cancel');
+    }
+
+    public function shipEvidenceEnabled(): bool
+    {
+        return filter_var(config('carriers.fedex.ship_evidence_enabled', false), FILTER_VALIDATE_BOOL);
+    }
+
+    public function shipSandboxLabelGenerationEnabled(): bool
+    {
+        return filter_var(config('carriers.fedex.ship_sandbox_label_generation_enabled', false), FILTER_VALIDATE_BOOL);
+    }
+
+    public function allowsShipLabelGeneration(?string $environment = null): bool
+    {
+        $environment = $this->environment($environment);
+
+        if ($environment === CarrierAccount::ENVIRONMENT_LIVE) {
+            return $this->productionEnabled() && $this->shipEvidenceEnabled();
+        }
+
+        return $this->shipSandboxLabelGenerationEnabled() || $this->shipEvidenceEnabled();
+    }
+
     /**
      * @return list<string>
      */

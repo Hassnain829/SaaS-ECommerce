@@ -154,13 +154,16 @@ class FedExRateQuoteService
             'requestedShipment' => $requestedShipment,
         ];
 
-        $result = $this->apiClient->postJson(
-            store: $store,
-            account: $account,
-            action: CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
-            path: $endpoint,
-            payload: $payload,
-            requestSummary: $requestSummary,
+        $result = FedExAuthorizationClassifier::applyBlockedClassification(
+            $this->apiClient->postJson(
+                store: $store,
+                account: $account,
+                action: CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
+                path: $endpoint,
+                payload: $payload,
+                requestSummary: $requestSummary,
+            ),
+            $endpoint,
         );
 
         $presentation = FedExMerchantCheckPresenter::rateQuote($result->data);

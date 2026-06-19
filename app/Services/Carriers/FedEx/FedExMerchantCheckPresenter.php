@@ -2,6 +2,8 @@
 
 namespace App\Services\Carriers\FedEx;
 
+use App\Services\Carriers\DTO\CarrierApiResult;
+
 final class FedExMerchantCheckPresenter
 {
     /**
@@ -238,6 +240,10 @@ final class FedExMerchantCheckPresenter
 
         if (array_key_exists('resolvedAddresses', $output)) {
             return self::compactAddressValidationSummary($output);
+        }
+
+        if (array_key_exists('transactionShipments', $output)) {
+            return self::compactShipSummary($output);
         }
 
         return ['output_keys' => array_values(array_keys($output))];
@@ -566,5 +572,96 @@ final class FedExMerchantCheckPresenter
         }
 
         return $text;
+    }
+
+    /**
+     * @param  array<string, mixed>  $output
+     * @return array<string, mixed>
+     */
+    public static function compactShipSummary(array $output): array
+    {
+        $shipments = (array) ($output['transactionShipments'] ?? []);
+        $trackingSamples = [];
+        $labelFormats = [];
+
+        foreach ($shipments as $shipment) {
+            if (! is_array($shipment)) {
+                continue;
+            }
+
+            $master = $shipment['masterTrackingNumber'] ?? null;
+            if (is_string($master) && $master !== '') {
+                $trackingSamples[] = strlen($master) >= 4 ? '****'.substr($master, -4) : '****';
+            }
+
+            foreach ((array) ($shipment['pieceResponses'] ?? []) as $piece) {
+                if (! is_array($piece)) {
+                    continue;
+                }
+
+                foreach ((array) ($piece['packageDocuments'] ?? []) as $document) {
+                    if (! is_array($document)) {
+                        continue;
+                    }
+
+                    if (filled($document['docType'] ?? null)) {
+                        $labelFormats[] = (string) $document['docType'];
+                    }
+                }
+            }
+        }
+
+        return [
+            'shipment_count' => count($shipments),
+            'tracking_samples' => self::dedupeStrings($trackingSamples),
+            'label_document_types' => self::dedupeStrings($labelFormats),
+            'label_payload_redacted' => true,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $fixture
+     * @return array<string, mixed>
+     */
+    public static function shipValidation(CarrierApiResult $result, array $fixture, string $testCaseKey): array
+    {
+        return [
+            'test_case' => $testCaseKey,
+            'test_case_label' => $fixture['label'] ?? $testCaseKey,
+            'service_type' => $fixture['service_type'] ?? null,
+            'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            'validated' => $result->success,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function shipLabel(
+        CarrierApiResult $result,
+        ?\App\Models\FedExValidationArtifact $artifact,
+        string $testCaseKey,
+        string $labelFormat,
+    ): array {
+        return [
+            'test_case' => $testCaseKey,
+            'label_format' => strtoupper($labelFormat),
+            'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            'label_saved' => $artifact !== null,
+            'artifact_label' => $artifact?->label,
+            'artifact_type' => $artifact?->artifact_type,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function shipCancel(CarrierApiResult $result, string $trackingNumber): array
+    {
+        return [
+            'tracking_number_last4' => strlen($trackingNumber) >= 4 ? substr($trackingNumber, -4) : null,
+            'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            'cancelled' => $result->success,
+        ];
     }
 }

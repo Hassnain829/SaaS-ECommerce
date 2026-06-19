@@ -352,6 +352,15 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-rate-quote', [FedExCarrierTestController::class, 'testRateQuote'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.test-rate-quote');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-ship-validate', [FedExCarrierTestController::class, 'testShipValidate'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.test-ship-validate');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-ship-label', [FedExCarrierTestController::class, 'testShipLabel'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.test-ship-label');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/cancel-test-shipment', [FedExCarrierTestController::class, 'cancelTestShipment'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.cancel-test-shipment');
     Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/sandbox-platform-fallback', [ShippingSettingsController::class, 'enableFedExSandboxPlatformFallback'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback');

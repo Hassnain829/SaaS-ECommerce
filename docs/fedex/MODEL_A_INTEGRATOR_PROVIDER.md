@@ -48,7 +48,25 @@ If FedEx MFA endpoint paths or payloads are not yet confirmed in the integrator 
 php artisan fedex:validation-export --store=ID --carrier-account=ID --region=US --environment=sandbox
 ```
 
-Produces a redacted zip under `storage/app/fedex-validation/`. No secrets, full account numbers, tokens, or raw labels are included.
+Produces a redacted zip under `storage/app/fedex-validation/` named `fedex-validation-bundle-{store_id}-{timestamp}.zip`.
+
+Bundle contents (no placeholder JSON):
+
+- `README.md`, `environment-summary.json`
+- `registration/redacted-registration-session.json`
+- `api-events/{action}.json` — latest redacted `CarrierApiEvent` per validation action
+- `labels/` or `labels-not-generated.md`
+- `notes/rate-quote-blocker.md`, `screenshots-required-checklist.md`, `test-case-summary.json`
+
+Ship API sandbox tools (validate, label PDF/PNG/ZPL, cancel) use integrator child OAuth and are gated by:
+
+- `FEDEX_SHIP_SANDBOX_LABEL_GENERATION_ENABLED`
+- `FEDEX_SHIP_EVIDENCE_ENABLED`
+- `FEDEX_INTEGRATOR_PRODUCTION_ENABLED` (live only)
+
+HTTP 403 on rate quote or ship endpoints is recorded as **FedEx authorization blocked** (`fedex_authorization_blocked`) — an entitlement blocker for FedEx support, not a local payload defect.
+
+No secrets, full account numbers, tokens, or raw label base64 are included in exports.
 
 ## Test baseline
 

@@ -811,12 +811,15 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
             ]);
 
         $response->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
-            ->assertSessionHasErrors(['fedex'])
+            ->assertSessionHas('success')
             ->assertSessionHas('fedex_test_result');
 
-        $message = session('errors')->first('fedex');
-        $this->assertStringContainsString('Comprehensive Rates and Transit Times API', $message);
-        $this->assertStringNotContainsString('Array to string conversion', $message);
+        $result = $response->getSession()->get('fedex_test_result');
+        $this->assertSame('fedex_authorization_blocked', $result['result_kind'] ?? null);
+        $this->assertStringContainsString('FedEx authorization blocked', (string) ($result['message'] ?? ''));
+        $this->assertStringContainsString('Comprehensive Rates', (string) ($result['message'] ?? ''));
+        $this->assertNotEmpty($result['support_summary'] ?? null);
+        $this->assertStringNotContainsString('Array to string conversion', (string) ($result['message'] ?? ''));
 
         $account->refresh();
         $this->assertSame(CarrierAccount::CONNECTION_CONNECTED, $account->connection_status);

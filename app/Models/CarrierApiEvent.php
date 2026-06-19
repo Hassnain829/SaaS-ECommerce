@@ -33,6 +33,14 @@ class CarrierApiEvent extends Model
 
     public const ACTION_FEDEX_RATE_QUOTE = 'fedex_rate_quote';
 
+    public const ACTION_FEDEX_SHIP_VALIDATE = 'fedex_ship_validate';
+
+    public const ACTION_FEDEX_SHIP_CREATE_LABEL = 'fedex_ship_create_label';
+
+    public const ACTION_FEDEX_SHIP_CANCEL = 'fedex_ship_cancel';
+
+    public const ACTION_FEDEX_SHIP_EVIDENCE_EXPORT = 'fedex_ship_evidence_export';
+
     protected $fillable = [
         'store_id',
         'carrier_account_id',

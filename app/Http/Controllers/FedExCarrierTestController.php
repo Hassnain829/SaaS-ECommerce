@@ -8,6 +8,9 @@ use App\Services\Carriers\FedEx\FedExAddressValidationService;
 use App\Services\Carriers\FedEx\FedExDestinationInputValidator;
 use App\Services\Carriers\FedEx\FedExRateQuoteService;
 use App\Services\Carriers\FedEx\FedExServiceAvailabilityService;
+use App\Services\Carriers\FedEx\FedExShipTestCaseFixtureService;
+use App\Services\Carriers\FedEx\FedExShipValidationService;
+use App\Services\Carriers\DTO\CarrierApiResult;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -110,7 +113,7 @@ class FedExCarrierTestController extends Controller
             return redirect()
                 ->route('shippingAutomation', ['tab' => 'carriers'])
                 ->withErrors($destinationCheck['errors'])
-                ->with('error_title', 'FedEx testing tools');
+                ->with('error_title', 'FedEx validation tools');
         }
 
         $destination = $destinationCheck['normalized'];
@@ -197,7 +200,7 @@ class FedExCarrierTestController extends Controller
             return redirect()
                 ->route('shippingAutomation', ['tab' => 'carriers'])
                 ->withErrors($destinationCheck['errors'])
-                ->with('error_title', 'FedEx testing tools');
+                ->with('error_title', 'FedEx validation tools');
         }
 
         $destination = $destinationCheck['normalized'];
@@ -241,6 +244,7 @@ class FedExCarrierTestController extends Controller
                 'origin_location_id' => $originLocation->id,
                 'success' => $result->success,
                 'http_status' => data_get($result->responseSummary, 'http_status'),
+                'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
             ],
         );
 
@@ -260,7 +264,155 @@ class FedExCarrierTestController extends Controller
                 'packaging_type' => strtoupper($validated['packaging_type'] ?? 'YOUR_PACKAGING'),
                 'package' => $validated['weight_value'].' lb · '.$validated['length'].'×'.$validated['width'].'×'.$validated['height'].' in',
             ]),
-            resultKind: $result->success ? 'success' : 'failure',
+        );
+    }
+
+    public function testShipValidate(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExShipValidationService $shipValidationService,
+        FedExShipTestCaseFixtureService $fixtureService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
+
+        $validated = $request->validate([
+            'test_case' => ['required', 'string', Rule::in($fixtureService->testCaseKeys())],
+            'ship_date' => ['nullable', 'date'],
+        ]);
+
+        $overrides = array_filter([
+            'ship_date' => $validated['ship_date'] ?? null,
+        ]);
+
+        ['result' => $result, 'presentation' => $presentation] = $shipValidationService->validateShipment(
+            store: $store,
+            account: $account,
+            testCaseKey: $validated['test_case'],
+            overrides: $overrides,
+        );
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_ship_validate_test',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $account->id,
+                'test_case' => $validated['test_case'],
+                'success' => $result->success,
+                'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            ],
+        );
+
+        return $this->redirectWithFedExTestResult(
+            account: $account,
+            tool: 'ship_validate',
+            label: 'Ship validate test',
+            result: $result,
+            presentation: $presentation,
+            inputSummary: [
+                'test_case' => $validated['test_case'],
+                'service_type' => $presentation['service_type'] ?? null,
+            ],
+        );
+    }
+
+    public function testShipLabel(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExShipValidationService $shipValidationService,
+        FedExShipTestCaseFixtureService $fixtureService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
+
+        $validated = $request->validate([
+            'test_case' => ['required', 'string', Rule::in($fixtureService->testCaseKeys())],
+            'label_format' => ['required', 'string', Rule::in(['PDF', 'PNG', 'ZPL'])],
+            'ship_date' => ['nullable', 'date'],
+        ]);
+
+        $overrides = array_filter([
+            'ship_date' => $validated['ship_date'] ?? null,
+        ]);
+
+        ['result' => $result, 'presentation' => $presentation] = $shipValidationService->createSandboxLabel(
+            store: $store,
+            account: $account,
+            testCaseKey: $validated['test_case'],
+            labelFormat: $validated['label_format'],
+            overrides: $overrides,
+            actor: $request->user(),
+        );
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_ship_label_test',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $account->id,
+                'test_case' => $validated['test_case'],
+                'label_format' => $validated['label_format'],
+                'success' => $result->success,
+                'label_saved' => $presentation['label_saved'] ?? false,
+                'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            ],
+        );
+
+        return $this->redirectWithFedExTestResult(
+            account: $account,
+            tool: 'ship_label',
+            label: 'Sandbox label test ('.$validated['label_format'].')',
+            result: $result,
+            presentation: $presentation,
+            inputSummary: [
+                'test_case' => $validated['test_case'],
+                'label_format' => $validated['label_format'],
+            ],
+        );
+    }
+
+    public function cancelTestShipment(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExShipValidationService $shipValidationService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
+
+        $validated = $request->validate([
+            'tracking_number' => ['required', 'string', 'max:64'],
+        ]);
+
+        ['result' => $result, 'presentation' => $presentation] = $shipValidationService->cancelShipment(
+            store: $store,
+            account: $account,
+            trackingNumber: $validated['tracking_number'],
+        );
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_ship_cancel_test',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $account->id,
+                'success' => $result->success,
+                'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            ],
+        );
+
+        return $this->redirectWithFedExTestResult(
+            account: $account,
+            tool: 'ship_cancel',
+            label: 'Cancel test shipment',
+            result: $result,
+            presentation: $presentation,
+            inputSummary: [
+                'tracking_number_last4' => $presentation['tracking_number_last4'] ?? null,
+            ],
         );
     }
 
@@ -272,12 +424,12 @@ class FedExCarrierTestController extends Controller
         CarrierAccount $account,
         string $tool,
         string $label,
-        \App\Services\Carriers\DTO\CarrierApiResult $result,
+        CarrierApiResult $result,
         array $presentation,
         array $inputSummary,
         ?string $resultKind = null,
     ): RedirectResponse {
-        $resultKind ??= $result->success ? 'success' : ($tool === 'service_availability' ? 'fedex_api' : 'failure');
+        $resultKind ??= $this->resolveResultKind($result, $tool);
 
         $redirect = redirect()
             ->route('shippingAutomation', ['tab' => 'carriers'])
@@ -287,12 +439,15 @@ class FedExCarrierTestController extends Controller
                 'label' => $label,
                 'success' => $resultKind === 'success',
                 'result_kind' => $resultKind,
-                'failure_kind' => $resultKind === 'fedex_api' ? 'fedex_api' : null,
+                'failure_kind' => in_array($resultKind, ['fedex_api', 'fedex_authorization_blocked'], true) ? $resultKind : null,
                 'message' => $resultKind === 'success'
                     ? $this->successMessage($tool, $presentation)
                     : ($resultKind === 'warning'
                         ? $this->warningMessage($tool, $presentation)
                         : ($result->errorMessage ?? 'FedEx request failed.')),
+                'support_summary' => $resultKind === 'fedex_authorization_blocked'
+                    ? $this->authorizationBlockedSupportSummary($tool, $result)
+                    : null,
                 'input_summary' => $inputSummary,
                 'presentation' => $presentation,
                 'request_summary' => $result->requestSummary,
@@ -304,13 +459,15 @@ class FedExCarrierTestController extends Controller
         if ($resultKind === 'success') {
             return $redirect
                 ->with('success', $this->successFlashMessage($tool))
-                ->with('success_title', 'FedEx testing tools');
+                ->with('success_title', 'FedEx validation tools');
         }
 
-        if ($resultKind === 'warning') {
+        if (in_array($resultKind, ['warning', 'fedex_authorization_blocked'], true)) {
             return $redirect
-                ->with('success', $this->warningFlashMessage($tool))
-                ->with('success_title', 'FedEx testing tools');
+                ->with('success', $resultKind === 'fedex_authorization_blocked'
+                    ? 'FedEx authorization blocked — evidence captured for FedEx support.'
+                    : $this->warningFlashMessage($tool))
+                ->with('success_title', 'FedEx validation tools');
         }
 
         if ($tool === 'service_availability') {
@@ -319,14 +476,43 @@ class FedExCarrierTestController extends Controller
 
         return $redirect
             ->withErrors(['fedex' => $result->errorMessage ?? 'FedEx request failed.'])
-            ->with('error_title', 'FedEx testing tools');
+            ->with('error_title', 'FedEx validation tools');
+    }
+
+    private function resolveResultKind(CarrierApiResult $result, string $tool): string
+    {
+        if ($result->success) {
+            return 'success';
+        }
+
+        if ($result->errorCode === 'fedex_authorization_blocked') {
+            return 'fedex_authorization_blocked';
+        }
+
+        return $tool === 'service_availability' ? 'fedex_api' : 'failure';
+    }
+
+    private function authorizationBlockedSupportSummary(string $tool, CarrierApiResult $result): string
+    {
+        $httpStatus = (int) data_get($result->responseSummary, 'http_status');
+        $fedexCode = data_get($result->responseSummary, 'errors.0.code');
+        $endpoint = data_get($result->requestSummary, 'endpoint');
+
+        return collect([
+            'FedEx authorization blocked (HTTP '.$httpStatus.')',
+            'Tool: '.str($tool)->replace('_', ' ')->title(),
+            'Endpoint: '.$endpoint,
+            filled($fedexCode) ? 'FedEx error code: '.$fedexCode : null,
+            'This is a FedEx entitlement/validation blocker — not a local payload defect.',
+            'Next step: confirm API entitlement with FedEx integrator support before resubmitting validation evidence.',
+        ])->filter()->implode("\n");
     }
 
     /**
      * @param  array<string, mixed>  $presentation
      */
     private function addressValidationResultKind(
-        \App\Services\Carriers\DTO\CarrierApiResult $result,
+        CarrierApiResult $result,
         array $presentation,
     ): string {
         if (! $result->success) {
@@ -390,6 +576,11 @@ class FedExCarrierTestController extends Controller
             'rate_quote' => ($presentation['rate_count'] ?? 0) > 0
                 ? 'FedEx returned '.($presentation['rate_count']).' test rate option(s). This does not create a shipment or change checkout totals.'
                 : 'FedEx rate quote check completed. Review the response details below.',
+            'ship_validate' => 'FedEx ship validation passed for '.$presentation['test_case'].'. No label was created.',
+            'ship_label' => ($presentation['label_saved'] ?? false)
+                ? 'Sandbox label saved for evidence. Tracking and label binary are redacted in exports.'
+                : 'FedEx label request completed. Review the response details below.',
+            'ship_cancel' => 'FedEx cancel request completed.',
             default => 'FedEx test completed.',
         };
     }
@@ -400,6 +591,9 @@ class FedExCarrierTestController extends Controller
             'address_validation' => 'FedEx address check completed. This is a validation suggestion only.',
             'service_availability' => 'FedEx service availability check completed.',
             'rate_quote' => 'FedEx test rate quote completed. No shipment was created and checkout totals were not changed.',
+            'ship_validate' => 'FedEx ship validation completed.',
+            'ship_label' => 'FedEx sandbox label test completed.',
+            'ship_cancel' => 'FedEx cancel test completed.',
             default => 'FedEx test completed.',
         };
     }

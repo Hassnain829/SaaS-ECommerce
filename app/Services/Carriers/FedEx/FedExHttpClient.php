@@ -282,7 +282,11 @@ class FedExHttpClient
         }
 
         if ($httpStatus === 403 && str_contains($path, '/rate/v1/rates/quotes')) {
-            return 'FedEx rejected this rate quote because the registered sandbox account/child credentials are not authorized for Comprehensive Rates and Transit Times API in this environment. Confirm the Rates and Transit Times API is enabled on the FedEx project, the sandbox validation account is allowed for rating, and the selected test case/account supports rating.';
+            return 'FedEx authorization blocked: the connected sandbox account/child credentials are not entitled for Comprehensive Rates and Transit Times in this environment. This is a FedEx entitlement blocker — confirm Rates API access with FedEx support before resubmitting validation evidence.';
+        }
+
+        if ($httpStatus === 403 && str_contains($path, '/ship/v1/')) {
+            return 'FedEx authorization blocked: the connected sandbox account/child credentials are not entitled for Ship API in this environment. This is a FedEx entitlement blocker — confirm Ship API access with FedEx support before resubmitting validation evidence.';
         }
 
         if ($httpStatus >= 500 && str_contains($path, '/availability/v1/packageandserviceoptions')) {

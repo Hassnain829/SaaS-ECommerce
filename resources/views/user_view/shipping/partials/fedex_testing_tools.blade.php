@@ -6,25 +6,32 @@
 
     <details class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
         <summary class="cursor-pointer font-semibold text-[#0F172A]">{{ $account->usesFedExIntegratorProvider() ? 'FedEx validation tools' : 'FedEx testing tools' }}</summary>
-        <p class="mt-2 text-xs text-[#64748B]">Sandbox checks using your merchant FedEx credentials. These tools do not buy labels, create shipments, charge postage, or change checkout totals.</p>
+        <p class="mt-2 text-xs text-[#64748B]">Sandbox checks using your integrator child credentials. These tools validate FedEx API access for submission evidence. They do not buy labels for checkout, charge postage, or change checkout totals unless label generation is explicitly enabled.</p>
 
         @if ($showFedExTestResult)
             @php
                 $fedExResultKind = $fedExTestResult['result_kind'] ?? (($fedExTestResult['success'] ?? false) ? 'success' : 'failure');
                 $fedExTestBoxClass = match ($fedExResultKind) {
                     'success' => 'border-emerald-200 bg-emerald-50',
-                    'warning', 'fedex_api' => 'border-amber-200 bg-amber-50',
+                    'warning', 'fedex_api', 'fedex_authorization_blocked' => 'border-amber-200 bg-amber-50',
                     default => 'border-red-200 bg-red-50',
                 };
                 $fedExTestTextClass = match ($fedExResultKind) {
                     'success' => 'text-emerald-900',
-                    'warning', 'fedex_api' => 'text-amber-900',
+                    'warning', 'fedex_api', 'fedex_authorization_blocked' => 'text-amber-900',
                     default => 'text-red-900',
                 };
             @endphp
             <div class="mt-4 rounded-xl border {{ $fedExTestBoxClass }} px-4 py-3">
                 <p class="font-semibold text-[#0F172A]">{{ $fedExTestResult['label'] ?? 'FedEx test result' }}</p>
                 <p class="mt-1 text-sm {{ $fedExTestTextClass }}">{{ $fedExTestResult['message'] ?? '' }}</p>
+                @if (! empty($fedExTestResult['support_summary']))
+                    <div class="mt-3 rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs text-amber-950">
+                        <p class="font-semibold text-[#0F172A]">FedEx support summary</p>
+                        <pre id="fedex-support-summary-{{ $account->id }}" class="mt-2 whitespace-pre-wrap font-sans">{{ $fedExTestResult['support_summary'] }}</pre>
+                        <button type="button" class="mt-2 rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-3 py-1.5 text-xs font-semibold text-[#475569]" onclick="navigator.clipboard.writeText(document.getElementById('fedex-support-summary-{{ $account->id }}').innerText)">Copy support summary</button>
+                    </div>
+                @endif
                 @if (! empty($fedExTestResult['input_summary']))
                     <dl class="mt-3 space-y-1 text-xs text-[#475569]">
                         @foreach ($fedExTestResult['input_summary'] as $key => $value)
@@ -71,6 +78,9 @@
 
                 @if (($fedExTestResult['tool'] ?? '') === 'rate_quote')
                     <p class="mt-2 text-xs text-[#64748B]">This is a FedEx test quote only. It does not create a shipment, buy a label, charge FedEx postage, or change checkout totals.</p>
+                    @if (($fedExTestResult['result_kind'] ?? '') === 'fedex_authorization_blocked')
+                        <p class="mt-2 text-xs font-semibold text-amber-900">FedEx authorization blocked — treat as an entitlement blocker for validation submission, not a local payload bug.</p>
+                    @endif
                     @if (! empty($fedExTestResult['presentation']['rates']))
                         <ul class="mt-3 space-y-1 text-xs text-[#475569]">
                             @foreach ($fedExTestResult['presentation']['rates'] as $rate)
@@ -78,6 +88,19 @@
                             @endforeach
                         </ul>
                     @endif
+                @endif
+
+                @if (in_array(($fedExTestResult['tool'] ?? ''), ['ship_validate', 'ship_label', 'ship_cancel'], true))
+                    <dl class="mt-3 space-y-1 text-xs text-[#475569]">
+                        @foreach (['test_case', 'label_format', 'tracking_number_last4'] as $field)
+                            @if (! empty($fedExTestResult['presentation'][$field] ?? $fedExTestResult['input_summary'][$field] ?? null))
+                                <div><span class="font-semibold capitalize text-[#0F172A]">{{ str_replace('_', ' ', $field) }}:</span> {{ $fedExTestResult['presentation'][$field] ?? $fedExTestResult['input_summary'][$field] }}</div>
+                            @endif
+                        @endforeach
+                        @if (! empty($fedExTestResult['presentation']['label_saved']))
+                            <div><span class="font-semibold text-[#0F172A]">Label saved:</span> yes (redacted in exports except file artifact)</div>
+                        @endif
+                    </dl>
                 @endif
 
                 <details class="mt-3 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-xs">
@@ -132,14 +155,14 @@
                     <summary class="cursor-pointer text-sm font-semibold text-[#0F172A]">Address check</summary>
                     <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-address', $account) }}" class="shipping-submit-form mt-3 space-y-3">
                         @csrf
-                        <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Address line 1</span><input name="address_line1" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="100 Main St"></label>
+                        <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Address line 1</span><input name="address_line1" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" value="15 W 18TH ST FL 7"></label>
                         <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Address line 2</span><input name="address_line2" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">City</span><input name="city" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">State</span><input name="state" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="TX"></label>
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">City</span><input name="city" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" value="NEW YORK"></label>
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">State</span><input name="state" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" value="NY"></label>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Postal code</span><input name="postal_code" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Postal code</span><input name="postal_code" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" value="100114624"></label>
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Country</span><input name="country_code" required value="US" maxlength="2" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm uppercase"></label>
                         </div>
                         <label class="inline-flex items-center gap-2 text-xs text-[#475569]"><input type="checkbox" name="residential" value="1" class="rounded border-[#CBD5E1]"> Residential address</label>
@@ -222,6 +245,49 @@
                         <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Get FedEx test quote</button>
                     </form>
                 </details>
+
+                @if ($account->usesFedExIntegratorProvider())
+                    <details class="rounded-lg border border-[#E2E8F0] bg-white px-3 py-3">
+                        <summary class="cursor-pointer text-sm font-semibold text-[#0F172A]">Ship API validation</summary>
+                        <p class="mt-2 text-xs text-[#64748B]">Sandbox Ship API tools for FedEx integrator validation evidence. Label generation requires FEDEX_SHIP_SANDBOX_LABEL_GENERATION_ENABLED or FEDEX_SHIP_EVIDENCE_ENABLED.</p>
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-ship-validate', $account) }}" class="shipping-submit-form mt-3 space-y-3">
+                            @csrf
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Test case</span>
+                                <select name="test_case" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                    @foreach (($fedExShipTestCases ?? []) as $key => $fixture)
+                                        <option value="{{ $key }}">{{ $fixture['label'] ?? $key }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn">Run ship validate</button>
+                        </form>
+
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-ship-label', $account) }}" class="shipping-submit-form mt-4 space-y-3 border-t border-[#F1F5F9] pt-4">
+                            @csrf
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Test case</span>
+                                <select name="test_case" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                    @foreach (($fedExShipTestCases ?? []) as $key => $fixture)
+                                        <option value="{{ $key }}">{{ $fixture['label'] ?? $key }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Label format</span>
+                                <select name="label_format" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                    <option value="PDF">PDF</option>
+                                    <option value="PNG">PNG</option>
+                                    <option value="ZPL">ZPL</option>
+                                </select>
+                            </label>
+                            <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn">Create sandbox label</button>
+                        </form>
+
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.cancel-test-shipment', $account) }}" class="shipping-submit-form mt-4 space-y-3 border-t border-[#F1F5F9] pt-4">
+                            @csrf
+                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Tracking number</span><input name="tracking_number" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="From prior label test"></label>
+                            <button type="submit" class="rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569] shipping-submit-btn">Cancel test shipment</button>
+                        </form>
+                    </details>
+                @endif
             </div>
         @endif
     </details>

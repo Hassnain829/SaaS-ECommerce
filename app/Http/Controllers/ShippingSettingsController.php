@@ -13,6 +13,7 @@ use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Carriers\CarrierProviderManager;
 use App\Services\Carriers\FedEx\FedExAccountRegistrationService;
 use App\Services\Carriers\FedEx\FedExConfig;
+use App\Services\Carriers\FedEx\FedExValidationStatusPresenter;
 use App\Services\Carriers\USPS\USPSConfig;
 use App\Services\Carriers\USPS\USPSDomesticRateQuoteService;
 use App\Services\Carriers\USPS\USPSOAuthTokenService;
@@ -27,7 +28,7 @@ use Illuminate\View\View;
 
 class ShippingSettingsController extends Controller
 {
-    public function index(Request $request, ChannelOwnershipService $channelOwnership, FedExConfig $fedExConfig, USPSConfig $uspsConfig, CarrierOriginReadinessService $originReadiness): View|RedirectResponse
+    public function index(Request $request, ChannelOwnershipService $channelOwnership, FedExConfig $fedExConfig, FedExValidationStatusPresenter $fedExValidationStatus, USPSConfig $uspsConfig, CarrierOriginReadinessService $originReadiness): View|RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         if (! $store) {
@@ -53,6 +54,16 @@ class ShippingSettingsController extends Controller
         $hasCarrierReadyOrigin = collect($originReadinessByLocationId)
             ->contains(fn ($readiness): bool => $readiness->ready);
 
+        $fedExValidationStatusByAccountId = ($fedExAccounts = $store->carrierAccounts()
+            ->where('provider', CarrierAccount::PROVIDER_FEDEX)
+            ->with('carrier')
+            ->orderByDesc('updated_at')
+            ->get())
+            ->mapWithKeys(fn (CarrierAccount $account): array => [
+                $account->id => $fedExValidationStatus->capabilityMatrix($store, $account),
+            ])
+            ->all();
+
         return view('user_view.shippingAutomation', [
             'selectedStore' => $store,
             'isExternalManaged' => $channelOwnership->isExternalManaged($store),
@@ -67,11 +78,7 @@ class ShippingSettingsController extends Controller
                 ->orderBy('display_name')
                 ->get(),
             'fedExCarrier' => Carrier::query()->where('code', 'fedex')->first(),
-            'fedExAccounts' => $store->carrierAccounts()
-                ->where('provider', CarrierAccount::PROVIDER_FEDEX)
-                ->with('carrier')
-                ->orderByDesc('updated_at')
-                ->get(),
+            'fedExAccounts' => $fedExAccounts,
             'fedExApiEvents' => $store->carrierApiEvents()
                 ->where('provider', CarrierAccount::PROVIDER_FEDEX)
                 ->latest('id')
@@ -84,6 +91,8 @@ class ShippingSettingsController extends Controller
             'fedExRegistrationResidentialMode' => $fedExConfig->accountRegistrationResidentialMode(),
             'fedExStepDiagnostics' => $this->fedExLatestStepDiagnostics($store),
             'fedExRegistrationRequestDiagnostics' => $this->fedExRegistrationRequestDiagnostics($store),
+            'fedExValidationStatusByAccountId' => $fedExValidationStatusByAccountId,
+            'fedExShipTestCases' => app(\App\Services\Carriers\FedEx\FedExShipTestCaseFixtureService::class)->fixtures(),
             'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
             'uspsCarrier' => Carrier::query()->where('code', 'usps')->first(),
             'uspsAccounts' => $store->carrierAccounts()

@@ -738,10 +738,13 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $zip = new ZipArchive;
         $zip->open($zipPath);
         $readme = $zip->getFromName('fedex-validation/README.md');
+        $rateQuoteEvent = $zip->getFromName('fedex-validation/api-events/'.CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE.'.json');
         $zip->close();
 
         $this->assertStringContainsString('FedEx Integrator Validation Evidence Bundle', (string) $readme);
         $this->assertStringNotContainsString('child-secret', (string) $readme);
+        $this->assertStringNotContainsString('placeholder', (string) $rateQuoteEvent);
+        $this->assertStringContainsString(CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE, (string) $rateQuoteEvent);
     }
 
     public function test_live_mode_disabled_unless_production_flag_and_credentials_exist(): void

@@ -6,6 +6,16 @@
     $stepDiagnostics = ($fedExStepDiagnostics[$account->id] ?? []);
     $registrationDiagnostics = ($fedExRegistrationRequestDiagnostics[$account->id] ?? null);
     $accountEvents = ($fedExApiEvents ?? collect())->where('carrier_account_id', $account->id);
+    $capabilityMatrix = ($fedExValidationStatusByAccountId[$account->id] ?? []);
+    $capabilityBadge = static function (array $cap): string {
+        return match ($cap['status'] ?? 'not_run') {
+            'passed' => 'bg-emerald-50 text-emerald-800',
+            'blocked' => 'bg-amber-50 text-amber-900',
+            'failed' => 'bg-red-50 text-red-800',
+            'in_progress', 'not_started' => 'bg-slate-100 text-slate-700',
+            default => 'bg-slate-100 text-slate-600',
+        };
+    };
 @endphp
 <article class="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
     <div class="border-b border-[#F1F5F9] px-5 py-4">
@@ -23,6 +33,10 @@
             </div>
             <div class="flex flex-wrap gap-2">
                 <span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">{{ $envLabel }}</span>
+                @if ($account->usesFedExIntegratorProvider())
+                    <span class="rounded-full bg-[#EEF2FF] px-2.5 py-1 text-xs font-bold text-[#4338CA]">Integrator Provider</span>
+                    <span class="rounded-full bg-[#F5F3FF] px-2.5 py-1 text-xs font-bold text-[#6D28D9]">integrator_child credentials</span>
+                @endif
                 <span class="rounded-full {{ $connectionStatusBadge($account->connection_status) }} px-2.5 py-1 text-xs font-bold">{{ $connectionStatusLabels[$account->connection_status] ?? str($account->connection_status)->replace('_', ' ')->title() }}</span>
                 <span class="rounded-full bg-[#F0FDF4] px-2.5 py-1 text-xs font-bold text-[#047857]">Merchant-owned</span>
             </div>
@@ -32,7 +46,7 @@
     <div class="space-y-4 px-5 py-4">
         <dl class="grid gap-3 text-sm sm:grid-cols-2">
             <div><dt class="text-xs font-semibold text-[#64748B]">Account</dt><dd class="mt-0.5 font-medium text-[#0F172A]">{{ $account->maskedAccountNumber() }}</dd></div>
-            @if ($account->usesMerchantFedExDeveloperCredentials() && $account->hasMerchantFedExDeveloperCredentials())
+            @if ($account->usesMerchantFedExDeveloperCredentials() && $account->hasMerchantFedExDeveloperCredentials() && ($fedExConfig->modelBDeveloperFallbackEnabled() ?? false))
                 <div><dt class="text-xs font-semibold text-[#64748B]">API key</dt><dd class="mt-0.5 font-medium text-[#0F172A]">{{ $account->maskedMerchantClientId() }}</dd></div>
             @endif
             <div><dt class="text-xs font-semibold text-[#64748B]">Billing</dt><dd class="mt-0.5 text-[#0F172A]">{{ $presenter->billingLabel() }}</dd></div>
@@ -48,12 +62,38 @@
             <p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{{ $account->last_error_message }}</p>
         @endif
 
-        <div class="flex flex-wrap gap-2">
-            @foreach (['Rates not enabled', 'Labels not enabled', 'Tracking not enabled', 'Pickup not enabled'] as $chip)
-                <span class="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-xs font-semibold text-[#64748B]">{{ $chip }}</span>
-            @endforeach
-            <span class="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-xs font-semibold text-[#64748B]">Checkout live rates not enabled</span>
-        </div>
+        @if ($account->usesFedExIntegratorProvider() && $capabilityMatrix !== [])
+            <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Validation capability status</p>
+                <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                    @foreach ([
+                        'registration' => 'Registration',
+                        'address_validation' => 'Address validation',
+                        'service_availability' => 'Service availability',
+                        'rate_quote' => 'Rate quote',
+                        'ship_validate' => 'Ship validate',
+                        'ship_label_pdf' => 'Label PDF',
+                        'ship_label_png' => 'Label PNG',
+                        'ship_label_zpl' => 'Label ZPL',
+                    ] as $key => $label)
+                        @php($cap = $capabilityMatrix[$key] ?? [])
+                        <div class="flex items-start justify-between gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
+                            <dt class="text-xs font-semibold text-[#475569]">{{ $label }}</dt>
+                            <dd class="text-right">
+                                <span class="rounded-full px-2 py-0.5 text-[11px] font-bold {{ $capabilityBadge($cap) }}">{{ $cap['label'] ?? 'Not run' }}</span>
+                            </dd>
+                        </div>
+                    @endforeach
+                </dl>
+            </div>
+        @else
+            <div class="flex flex-wrap gap-2">
+                @foreach (['Rates not enabled', 'Labels not enabled', 'Tracking not enabled', 'Pickup not enabled'] as $chip)
+                    <span class="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-xs font-semibold text-[#64748B]">{{ $chip }}</span>
+                @endforeach
+                <span class="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-xs font-semibold text-[#64748B]">Checkout live rates not enabled</span>
+            </div>
+        @endif
 
         @if ($canManageShipping ?? false)
             <div class="flex flex-wrap gap-2 border-t border-[#F1F5F9] pt-4">

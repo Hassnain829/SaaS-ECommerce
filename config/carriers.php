@@ -37,6 +37,12 @@ return [
         'mfa_pin_validation_path' => env('FEDEX_MFA_PIN_VALIDATION_PATH'),
         'mfa_invoice_validation_path' => env('FEDEX_MFA_INVOICE_VALIDATION_PATH'),
 
+        'ship_create_path' => env('FEDEX_SHIP_CREATE_PATH', '/ship/v1/shipments'),
+        'ship_validate_path' => env('FEDEX_SHIP_VALIDATE_PATH', '/ship/v1/shipments/packages/validate'),
+        'ship_cancel_path' => env('FEDEX_SHIP_CANCEL_PATH', '/ship/v1/shipments/cancel'),
+        'ship_evidence_enabled' => filter_var(env('FEDEX_SHIP_EVIDENCE_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'ship_sandbox_label_generation_enabled' => filter_var(env('FEDEX_SHIP_SANDBOX_LABEL_GENERATION_ENABLED', false), FILTER_VALIDATE_BOOL),
+
         'test_case_baseline_paths' => [
             base_path('docs/fedex/FedEx_Integrator_Test_Case_Baseline.xlsx'),
             storage_path('app/fedex/FedEx_Integrator_Test_Case_Baseline.xlsx'),
