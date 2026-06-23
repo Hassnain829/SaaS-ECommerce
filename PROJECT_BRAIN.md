@@ -147,116 +147,39 @@ ALWAYS:
 
 ---
 
-## ⚠️ CURRENT PHASE (CRITICAL)
+## ✅ CURRENT STATE (2026-06-24)
 
----
+Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integrator connectivity and validation tooling are implemented; **production carrier approvals and live carrier operation remain pending.**
 
-### 🔥 Day 14 — Product Workspace
+**Next focus:** carrier-neutral platform roadmap work while courier approvals are pending — not another cleanup phase.
 
-Goal:
-- full product detail page
-- all data visible
-- imported data visible
+### Implemented foundations
 
-Status:
-- implemented
-- UX still needs improvement
+- Sprint 1–2 catalog and store SaaS foundation
+- Day 12–18 catalog import, product workspace, variants, variant import, custom fields, product UX polish
+- Commerce core: customers, orders, order items, addresses
+- Multi-location inventory and inventory reservations
+- Manual fulfillment and shipments
+- Checkout delivery methods
+- Stripe platform checkout and Stripe Connect foundation
+- External checkout synchronization (developer storefront prototype)
+- Security logs and user sessions
+- FedEx Model A connectivity and validation workspace
+- USPS public API foundation
+- CLEAN-1 through CLEAN-4 repository hygiene and controlled refactoring
 
----
+### Partial or pending
 
-### 🔥 Day 15 — Variant System
-
-Goal:
-- option groups (size, color)
-- combinations
-- variant-level stock/price
-- variant images
-- easy merchant UX
-
-Status:
-- partially complete
-- needs usability improvement
-
----
-
-### 🔥 Day 16 — Variant Import
-
-Goal:
-- import multi-variant products
-- map option groups
-- create combinations automatically
-
----
-
-### 🔥 Day 17 — Custom Fields
-
-Goal:
-- make custom_fields usable
-- readable labels
-- better grouping
-
----
-
-### 🔥 Day 18 — Product UX Completion
-
-Goal:
-- clean product list
-- filters
-- better navigation
-- bulk actions UX
-
----
-
-# 🛒 NEXT PHASE — COMMERCE
-
----
-
-## Day 19–24
-
-- customers
-- addresses
-- orders
-- order items
-- order detail
-- inventory deduction
-
----
-
-# 🚚 FULFILLMENT
-
----
-
-## Day 25–29
-
-- shipping carriers (DHL, UPS)
-- shipment system
-- async shipping jobs
-
----
-
-# 💳 BILLING
-
----
-
-## Day 30–34
-
-- subscription plans
-- invoices
-- payment handling
-
----
-
-# 🔗 INTEGRATIONS & SECURITY
-
----
-
-## Day 35–40
-
-- API keys
-- webhooks
-- notifications
-- logs
-- security
+- Tax and coupons
+- Refunds, returns, and exchanges
+- Shipping rules and async carrier production jobs
+- Production carrier approvals and live carrier rates/labels/tracking
+- API keys/scopes, webhooks, event outbox
+- Notifications
+- SaaS billing and subscriptions
+- Markets and B2B
+- Observability
+- Platform admin operations
 
 ---
 
@@ -353,19 +276,24 @@ If NO → rethink
 
 ---
 
-# 🧹 Repository hygiene (CLEAN-1 / CLEAN-1A)
+# 🧹 Repository hygiene (CLEAN-1 through CLEAN-4)
 
-CLEAN-1 adds safe source/archive/cleanup tooling only. **CLEAN-1A** fixes archive template export, Laravel placeholder preservation, tracked-file deletion protection, and path traversal safety. It does **not** change admin panel, merchant UI, or carrier business logic.
+CLEAN-1/1A add safe archive/cleanup tooling. **CLEAN-2** reorganizes carrier code. **CLEAN-3** adds age-based runtime retention. **CLEAN-3A** enforces marked sandboxes for destructive tests and blocks `--force` against the real worktree in testing. **CLEAN-4** extracts four internal boundaries (FedEx test presenter, registration payload builder, import row mapper, onboarding routes) with characterization tests and no behavior change.
+
+Carrier layout reference: `docs/architecture/CARRIER_CODE_STRUCTURE.md`
+Refactoring boundaries: `docs/architecture/REFACTORING_BOUNDARIES.md`
+Retention reference: `docs/operations/RUNTIME_STORAGE_RETENTION.md`
 
 Commands:
 
-- `php artisan project:hygiene-report` — read-only size/leak report
-- `php artisan project:cleanup` — dry-run runtime cleanup (use `--force` to delete; never deletes Git-tracked files)
-- `php artisan project:source-archive` — export-safe source ZIP (**Git required**)
+- `php artisan project:hygiene-report`
+- `php artisan project:cleanup` — dry-run runtime cleanup (never deletes Git-tracked files)
+- `php artisan project:source-archive` — export-safe source ZIP (**Git required**, uses worktree `.gitattributes`)
+- `php artisan project:retention` — conservative age-based retention (dry-run default; `--force` requires `PROJECT_RETENTION_ENABLED=true`)
 
-Docs: `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`
+Docs: `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`, `docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md`
 
-CLEAN-1 is accepted only after CLEAN-1A passes. Future phases: CLEAN-2 (file organization), CLEAN-3 (scheduled pruning), CLEAN-4 (refactoring).
+Further large-file decomposition: `docs/REFACTORING_ROADMAP.md` (remaining deferred targets).
 
 ---
 

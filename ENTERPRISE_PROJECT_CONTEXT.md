@@ -132,53 +132,41 @@ Important existing models:
 
 ### Strong areas
 
-- Store onboarding
-- Current store middleware
-- Store-user pivot
-- Basic store roles
-- Product catalog foundation
-- Product workspace
-- Product edit workspace
-- Normalized product images
-- Variants and options
-- Variant images
-- Stock movements
-- Product import system
-- Variant import
-- Custom fields / additional details
-- `import_extra` preservation
-- Product list UX polish
-- Basic developer storefront API
-- Basic dynamic customers/orders
+- Store onboarding and current store middleware
+- Store-user pivot and store member roles (owner, manager, staff)
+- Product catalog foundation, workspace, variants, variant import, custom fields, `import_extra`
+- Product import pipeline with progress, retry, and row-level debugging
+- Multi-location inventory and inventory reservations
+- Order and customer commerce core (orders, items, addresses, customers)
+- Manual fulfillment and shipments
+- Checkout delivery methods
+- Stripe platform checkout and Stripe Connect foundation
+- External checkout synchronization (developer storefront prototype)
+- Security logs and user sessions
+- FedEx Model A connectivity, registration, MFA evidence, and validation workspace
+- USPS public API foundation
+- CLEAN-1 through CLEAN-4 repository hygiene, carrier organization, retention, and controlled refactoring
 
 ### Partial areas
 
-- RBAC/permissions
-- Commerce Core
-- Customers CRM
-- Orders detail/timeline
-- Inventory accuracy beyond one stock value
-- Dev storefront checkout
-- Storefront API security
-- Dashboard analytics
-- Admin platform
-
-### Missing areas
-
-- Multi-location inventory
-- Inventory reservations
-- Fulfillment/shipping
-- Payments/refunds
-- Tax/coupons
-- Returns/exchanges
-- B2B/markets/catalogs/price lists
-- API keys/scopes
-- Webhooks/outbox/idempotency
+- RBAC/permissions granularity beyond store roles
+- Tax and coupons
+- Refunds, returns, and exchanges
+- Shipping rules and async carrier production jobs
+- Production carrier approvals and live carrier operation (rates, labels, tracking in production)
+- API keys/scopes, webhooks, and event outbox
 - Notifications
-- Security logs/sessions
-- SaaS billing
+- SaaS billing and subscriptions
+- Markets and B2B
 - Observability
 - Platform admin operations
+- Product and dashboard UX polish (ongoing)
+
+### Missing or not yet production-ready
+
+- Full enterprise integrations surface (scoped API keys, webhook delivery, idempotency outbox)
+- SaaS monetization (plans, invoices, payment methods for the platform itself)
+- Production-grade observability and platform admin tooling
 
 ---
 
@@ -420,17 +408,7 @@ It must support:
 
 ### Current state
 
-Stock currently lives on `product_variants.stock`, with stock movements.
-
-### Enterprise target
-
-Move to:
-
-- locations;
-- inventory items;
-- inventory levels;
-- reservations;
-- stock movements by location.
+Multi-location inventory, inventory reservations, stock movements, and checkout reservation flows are implemented. Variant stock remains the primary catalog stock field; location-level levels and reservations support operational fulfillment.
 
 ### Rules
 
@@ -1099,9 +1077,9 @@ Current next practical direction:
 3. Keep Model B fallback disabled in normal merchant onboarding.
 4. Continue carrier-neutral platform work while courier approvals are pending.
 
-### Repository hygiene (CLEAN-1 / CLEAN-1A)
+### Repository hygiene (CLEAN-1 through CLEAN-4)
 
-CLEAN-1 and CLEAN-1A add export-safe archives and non-destructive cleanup commands only. CLEAN-1A ensures `.env.example` templates and Laravel writable-directory placeholders survive `git archive`, and that cleanup cannot delete Git-tracked files. See `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`.
+CLEAN-1 through CLEAN-3 add export-safe archives, cleanup, carrier code organization, and runtime retention. **CLEAN-3A** adds testing-only destructive root guards and marked sandboxes so automated tests cannot delete real worktree storage. **CLEAN-4** performs controlled internal extractions (FedEx test presenter, registration payload builder, import row mapper, onboarding routes) with characterization tests and no merchant or carrier behavior changes. See `docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md` and `docs/architecture/REFACTORING_BOUNDARIES.md`.
 
 
 ### Scenario 3 — Multiple separate stores

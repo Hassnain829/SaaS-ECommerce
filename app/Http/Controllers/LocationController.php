@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Location;
-use App\Services\Carriers\CarrierOriginReadinessService;
+use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
 use App\Support\StorePermission;

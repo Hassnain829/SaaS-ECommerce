@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Support\ProjectHygiene\ProjectHygieneReporter;
 use App\Support\ProjectHygiene\ProjectPathGuard;
+use App\Support\ProjectHygiene\ProjectRetentionReporter;
 use Illuminate\Console\Command;
 
 class ProjectHygieneReportCommand extends Command
@@ -62,6 +63,23 @@ class ProjectHygieneReportCommand extends Command
             foreach ($trackedRisks as $path) {
                 $this->warn('- '.$path);
             }
+        }
+
+        $retention = $report['retention_preview'] ?? [];
+        $this->newLine();
+        $this->info('Retention preview (dry-run eligible totals)');
+        if ($retention === []) {
+            $this->line('- unavailable');
+        } else {
+            $summary = $retention['summary'] ?? [];
+            $this->line(sprintf(
+                '- eligible: %d items (%s); protected: %d; skipped: %d',
+                $summary['eligible_count'] ?? 0,
+                ProjectRetentionReporter::humanSize((int) ($summary['eligible_bytes'] ?? 0)),
+                $summary['protected_count'] ?? 0,
+                $summary['skipped_count'] ?? 0,
+            ));
+            $this->comment('Run php artisan project:retention --dry-run for full category detail.');
         }
 
         return self::SUCCESS;

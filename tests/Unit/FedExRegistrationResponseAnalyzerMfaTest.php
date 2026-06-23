@@ -2,7 +2,7 @@
 
 namespace Tests\Unit;
 
-use App\Services\Carriers\FedEx\FedExRegistrationResponseAnalyzer;
+use App\Services\Carriers\FedEx\Connection\FedExRegistrationResponseAnalyzer;
 use Tests\TestCase;
 
 class FedExRegistrationResponseAnalyzerMfaTest extends TestCase

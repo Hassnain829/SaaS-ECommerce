@@ -12,7 +12,7 @@ use App\Models\Role;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\User;
-use App\Services\Carriers\USPS\USPSConfig;
+use App\Services\Carriers\USPS\Support\USPSConfig;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;

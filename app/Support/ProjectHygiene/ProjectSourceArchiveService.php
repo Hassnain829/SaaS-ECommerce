@@ -290,7 +290,7 @@ final class ProjectSourceArchiveService
     private function createViaGitArchive(string $archivePath): void
     {
         $command = sprintf(
-            'git archive --format=zip --output=%s HEAD',
+            'git archive --worktree-attributes --format=zip --output=%s HEAD',
             escapeshellarg($archivePath),
         );
 

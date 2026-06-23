@@ -77,9 +77,11 @@ php artisan project:cleanup --force          # delete approved runtime targets o
 php artisan project:cleanup --category=cache
 php artisan project:source-archive --dry-run # Git required
 php artisan project:source-archive           # creates real ZIP via git archive
+php artisan project:retention --dry-run      # age-based retention preview (default)
+php artisan project:retention --force          # requires PROJECT_RETENTION_ENABLED=true; blocked against real worktree in tests
 ```
 
-See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md` and `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`.
+See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md`, `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`, `docs/operations/RUNTIME_STORAGE_RETENTION.md`, and `docs/cleanup/CLEAN_3A_RETENTION_TEST_ISOLATION_REPORT.md`.
 
 ## Troubleshooting
 
@@ -92,6 +94,8 @@ See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md` and `docs/cleanup/PROJECT_CLEANUP_MAS
 
 ## Further reading
 
-- **[docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md](docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md)** — CLEAN-1 hygiene and future cleanup phases.
-- **[docs/REFACTORING_ROADMAP.md](docs/REFACTORING_ROADMAP.md)** — large-file refactors deferred intentionally.  
+- **[docs/architecture/CARRIER_CODE_STRUCTURE.md](docs/architecture/CARRIER_CODE_STRUCTURE.md)** — carrier folder layout after CLEAN-2.
+- **[docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md](docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md)** — CLEAN-1 through CLEAN-4 hygiene (see [CLEAN-4 report](docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md)).
+- **[docs/architecture/REFACTORING_BOUNDARIES.md](docs/architecture/REFACTORING_BOUNDARIES.md)** — internal extraction boundaries from CLEAN-4.
+- **[docs/REFACTORING_ROADMAP.md](docs/REFACTORING_ROADMAP.md)** — remaining large-file refactor candidates.
 - **`ENTERPRISE_PROJECT_CONTEXT.md`** / **`ENTERPRISE_ROADMAP_2026.md`** — product scope and build order.

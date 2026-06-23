@@ -56,6 +56,26 @@ final class ProjectHygieneReporter
             'largest_directories' => $this->largestTopLevelDirectories($root, 10),
             'potential_archive_leaks' => $this->detectPotentialLeaks($root),
             'git_tracked_secret_risk_files' => $this->trackedSecretRiskFiles(),
+            'retention_preview' => $this->retentionPreview(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function retentionPreview(): array
+    {
+        $retention = new ProjectRetentionService(
+            $this->paths,
+            new ProjectStorageProtection($this->paths),
+        );
+
+        $scan = $retention->scan();
+
+        return [
+            'summary' => $scan['summary'],
+            'configured_retention' => $scan['configured_retention'],
+            'categories' => $scan['categories'],
         ];
     }
 

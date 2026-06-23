@@ -64,55 +64,46 @@ The project already has a strong base in these areas:
 - Custom fields and `import_extra`
 - Additional details editing
 - Stock movement audit foundation
+- Multi-location inventory and inventory reservations
+- Order and customer commerce core
+- Manual fulfillment and shipments
+- Checkout delivery methods
+- Stripe platform checkout and Stripe Connect foundation
+- External checkout synchronization (developer storefront prototype)
+- Security logs and user sessions
+- FedEx Model A connectivity and validation workspace
+- USPS public API foundation
 - Developer storefront API prototype
-- Dynamic-ish orders/customers foundation
-- Customer/order/address migrations and models
-- Basic dev storefront React app
-- **CLEAN-1 / CLEAN-1A repository hygiene** — `.gitignore`/`.gitattributes`, tracked-file-safe `project:cleanup`, Git-required `project:source-archive`, real ZIP verification tests, docs under `docs/cleanup/`
+- **CLEAN-1 through CLEAN-4** — repository hygiene, carrier organization, runtime retention, test isolation, and controlled refactoring (see `docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md`)
 
 ### 1.2 Partially implemented
 
-These exist but require hardening:
+These exist but require hardening or production rollout:
 
-- RBAC / permissions
-- Product edit UX
-- Order management
-- Customer CRM
-- Storefront checkout
-- Inventory logic
-- Product API
-- Bulk actions
-- Dashboard metrics
-- Admin/platform UI
-- Tests and seeders
-
-### 1.3 Mostly missing
-
-These are required for the final enterprise target:
-
-- Multi-location inventory
-- Inventory reservations
-- Fulfillment/shipping system
-- Carrier accounts
-- Shipping rules
-- Async carrier jobs
-- Payments / payment attempts / refunds
-- Tax settings
-- Coupons/discount rules
-- Returns/exchanges
-- B2B companies/company locations
-- Markets
-- Catalogs/price lists
-- API keys with scopes
-- Webhooks
-- Event outbox
-- Idempotency keys
+- RBAC / permissions beyond store roles
+- Product edit and dashboard UX polish
+- Tax and coupons
+- Refunds, returns, and exchanges
+- Shipping rules and async carrier production jobs
+- Production carrier approvals and live carrier operation
+- Storefront API security (scoped keys, webhooks, outbox)
+- Bulk actions and dashboard metrics
 - Notifications
-- Security logs
-- User sessions
-- SaaS billing plans/subscriptions/invoices/payment methods
-- Observability/correlation IDs
-- Platform admin operations
+- SaaS billing and subscriptions
+- Markets and B2B
+- Observability
+- Platform admin UI
+- Tests and seeders for later-phase surfaces
+
+### 1.3 Mostly missing or not production-ready
+
+These remain required for the final enterprise target:
+
+- Scoped API keys and permission scopes
+- Webhooks, event outbox, and idempotency for external integrations
+- SaaS monetization (plans, subscriptions, invoices for the platform)
+- Production observability and enterprise platform admin operations
+- Live production carrier rates, labels, and tracking (pending carrier approvals)
 
 ---
 

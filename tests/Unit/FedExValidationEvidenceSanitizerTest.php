@@ -2,7 +2,7 @@
 
 namespace Tests\Unit;
 
-use App\Services\Carriers\FedEx\FedExValidationEvidenceSanitizer;
+use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceSanitizer;
 use Illuminate\Support\Facades\File;
 use Tests\TestCase;
 

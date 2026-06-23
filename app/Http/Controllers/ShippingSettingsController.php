@@ -8,14 +8,14 @@ use App\Models\CarrierApiEvent;
 use App\Models\Location;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
-use App\Services\Carriers\CarrierOriginReadinessService;
-use App\Services\Carriers\CarrierProviderManager;
-use App\Services\Carriers\FedEx\FedExAccountRegistrationService;
-use App\Services\Carriers\FedEx\FedExConfig;
-use App\Services\Carriers\FedEx\FedExValidationStatusPresenter;
-use App\Services\Carriers\USPS\USPSConfig;
-use App\Services\Carriers\USPS\USPSDomesticRateQuoteService;
-use App\Services\Carriers\USPS\USPSOAuthTokenService;
+use App\Services\Carriers\Core\CarrierOriginReadinessService;
+use App\Services\Carriers\Core\CarrierProviderManager;
+use App\Services\Carriers\FedEx\Connection\FedExAccountRegistrationService;
+use App\Services\Carriers\FedEx\Presenters\FedExValidationStatusPresenter;
+use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\USPS\Auth\USPSOAuthTokenService;
+use App\Services\Carriers\USPS\Operations\USPSDomesticRateQuoteService;
+use App\Services\Carriers\USPS\Support\USPSConfig;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\JsonResponse;
@@ -91,7 +91,7 @@ class ShippingSettingsController extends Controller
             'fedExStepDiagnostics' => $this->fedExLatestStepDiagnostics($store),
             'fedExRegistrationRequestDiagnostics' => $this->fedExRegistrationRequestDiagnostics($store),
             'fedExValidationStatusByAccountId' => $fedExValidationStatusByAccountId,
-            'fedExShipTestCases' => app(\App\Services\Carriers\FedEx\FedExShipTestCaseFixtureService::class)->fixtures(),
+            'fedExShipTestCases' => app(\App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService::class)->fixtures(),
             'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
             'uspsCarrier' => Carrier::query()->where('code', 'usps')->first(),
             'uspsAccounts' => $store->carrierAccounts()
@@ -234,7 +234,7 @@ class ShippingSettingsController extends Controller
             ],
         ]);
 
-        $validated = app(\App\Services\Carriers\FedEx\FedExRegistrationInputValidator::class)->validateOrFail($validated);
+        $validated = app(\App\Services\Carriers\FedEx\Connection\FedExRegistrationInputValidator::class)->validateOrFail($validated);
         $accountNumber = (string) $validated['provider_account_number'];
 
         $fedExCarrier = Carrier::query()->where('code', 'fedex')->where('is_active', true)->firstOrFail();

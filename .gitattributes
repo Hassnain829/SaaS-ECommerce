@@ -38,7 +38,7 @@ bootstrap/cache/.gitignore -export-ignore
 storage/logs/* export-ignore
 storage/logs/.gitignore -export-ignore
 
-storage/framework/cache/** export-ignore
+storage/framework/cache/data/* export-ignore
 storage/framework/cache/.gitignore -export-ignore
 storage/framework/cache/data/.gitignore -export-ignore
 

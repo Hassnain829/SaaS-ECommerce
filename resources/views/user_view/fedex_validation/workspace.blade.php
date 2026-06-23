@@ -213,7 +213,7 @@
             </div>
         </section>
 
-        @if (in_array(\App\Services\Carriers\FedEx\FedExValidationScopeService::SCOPE_TRACKING, $requiredScopes, true))
+        @if (in_array(\App\Services\Carriers\FedEx\Validation\FedExValidationScopeService::SCOPE_TRACKING, $requiredScopes, true))
             <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
                 <h3 class="text-lg font-semibold text-[#0F172A]">Tracking / Basic Integrated Visibility</h3>
                 @if (! $trackingConfigured)

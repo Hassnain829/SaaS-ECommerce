@@ -25,6 +25,7 @@ final class ProductImportProcessor
         private readonly ProductImportSpreadsheetReader $reader,
         private readonly ProductCatalogImageDownloader $imageDownloader,
         private readonly ProductImportVariantFinalizer $variantFinalizer,
+        private readonly ProductImportRowMapper $rowMapper,
     ) {}
 
     private function maxRows(): int
@@ -589,7 +590,7 @@ final class ProductImportProcessor
         int &$warningsCount,
     ): void {
         $excelRow = $dataRowNumber + 1;
-        $row = $this->cellsToKeyedRow($headers, $cells);
+        $row = $this->rowMapper->cellsToKeyedRow($headers, $cells);
         $previewErrors = ProductImportRowValidator::validateMappedRow($row, $mapping, $customMappings);
         if ($previewErrors !== []) {
             $failed++;
@@ -602,7 +603,7 @@ final class ProductImportProcessor
             return;
         }
 
-        $fields = $this->extractMappedFields($row, $mapping);
+        $fields = $this->rowMapper->extractMappedFields($row, $mapping);
 
         if ($variantMode) {
             $vSku = trim((string) ($fields[ProductImportField::VARIANT_SKU] ?? ''));
@@ -640,7 +641,7 @@ final class ProductImportProcessor
         }
         $seenSkuInFile[$skuKey] = true;
 
-        $extras = $this->collectUnmappedExtras($row, $headers, $mapping, $customMappings);
+        $extras = $this->rowMapper->collectUnmappedExtras($row, $headers, $mapping, $customMappings);
 
         $pendingImages = null;
         try {
@@ -694,7 +695,7 @@ final class ProductImportProcessor
 
         $urlsRaw = trim((string) ($pendingImages['urls'] ?? ''));
         if ($urlsRaw !== '') {
-            $urls = $this->splitDelimited($urlsRaw);
+            $urls = $this->rowMapper->splitDelimited($urlsRaw);
             if ($urls === []) {
                 $warningsCount++;
             } else {
@@ -926,8 +927,8 @@ final class ProductImportProcessor
         $productSku = trim((string) ($fields[ProductImportField::SKU] ?? ''));
         $variantSkuDesired = trim((string) ($fields[ProductImportField::VARIANT_SKU] ?? ''));
 
-        [$productCustom, $variantCustom] = $this->extractCustomFieldValues($row, $customMappings);
-        $attributeValues = $this->extractAttributeValues($row, $customMappings);
+        [$productCustom, $variantCustom] = $this->rowMapper->extractCustomFieldValues($row, $customMappings);
+        $attributeValues = $this->rowMapper->extractAttributeValues($row, $customMappings);
 
         $basePrice = SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::BASE_PRICE] ?? '') ?? 0.0;
         $stock = SpreadsheetValueNormalizer::normalizeInteger($fields[ProductImportField::STOCK] ?? '') ?? 0;
@@ -1078,63 +1079,6 @@ final class ProductImportProcessor
     }
 
     /**
-     * @param  list<array{source: string, key: string, scope: string}>  $customMappings
-     * @return array{0: array<string, string>, 1: array<string, string>}
-     */
-    private function extractCustomFieldValues(array $row, array $customMappings): array
-    {
-        $product = [];
-        $variant = [];
-        foreach ($customMappings as $map) {
-            $src = $map['source'];
-            $key = $map['key'];
-            $scope = $map['scope'];
-            $val = trim((string) ($row[$src] ?? ''));
-            if ($val === '') {
-                continue;
-            }
-            if ($scope === 'attribute') {
-                continue;
-            }
-            if ($scope === 'variant') {
-                $variant[$key] = $val;
-            } else {
-                $product[$key] = $val;
-            }
-        }
-
-        return [$product, $variant];
-    }
-
-    /**
-     * @param  list<array{source: string, key: string, scope: string}>  $customMappings
-     * @return array<string, list<string>>
-     */
-    private function extractAttributeValues(array $row, array $customMappings): array
-    {
-        $attributes = [];
-        foreach ($customMappings as $map) {
-            if (($map['scope'] ?? '') !== 'attribute') {
-                continue;
-            }
-
-            $key = trim((string) ($map['key'] ?? ''));
-            $source = (string) ($map['source'] ?? '');
-            if ($key === '' || $source === '') {
-                continue;
-            }
-
-            foreach ($this->splitDelimited((string) ($row[$source] ?? '')) as $value) {
-                if ($value !== '') {
-                    $attributes[$key][] = $value;
-                }
-            }
-        }
-
-        return $attributes;
-    }
-
-    /**
      * @param  array<string, list<string>>  $attributeValues
      */
     private function syncAttributeValues(Store $store, Product $product, array $attributeValues, ?int $userId): void
@@ -1241,7 +1185,7 @@ final class ProductImportProcessor
     private function syncTaxonomy(Product $product, array $fields, ProductImportTaxonomyCache $taxonomyCache): void
     {
         $categoryIds = [];
-        foreach ($this->splitDelimited($fields[ProductImportField::CATEGORY] ?? '') as $catName) {
+        foreach ($this->rowMapper->splitDelimited($fields[ProductImportField::CATEGORY] ?? '') as $catName) {
             if ($catName === '') {
                 continue;
             }
@@ -1253,7 +1197,7 @@ final class ProductImportProcessor
         $product->categories()->sync(array_values(array_unique($categoryIds)));
 
         $tagIds = [];
-        foreach ($this->splitDelimited($fields[ProductImportField::TAGS] ?? '') as $tagName) {
+        foreach ($this->rowMapper->splitDelimited($fields[ProductImportField::TAGS] ?? '') as $tagName) {
             if ($tagName === '') {
                 continue;
             }
@@ -1331,94 +1275,5 @@ final class ProductImportProcessor
         }
 
         return true;
-    }
-
-    /**
-     * @param  list<string>  $headers
-     * @param  list<string>  $cells
-     * @return array<string, string>
-     */
-    private function cellsToKeyedRow(array $headers, array $cells): array
-    {
-        $row = [];
-        foreach ($headers as $i => $key) {
-            if ($key === '') {
-                continue;
-            }
-            $row[$key] = $cells[$i] ?? '';
-        }
-
-        return $row;
-    }
-
-    /**
-     * @param  array<string, string>  $row
-     * @param  array<string, string>  $mapping
-     * @return array<string, string>
-     */
-    private function extractMappedFields(array $row, array $mapping): array
-    {
-        $allowed = array_flip(array_keys(ProductImportField::labels()));
-        $out = [];
-        foreach ($mapping as $field => $sourceHeader) {
-            if (! isset($allowed[$field])) {
-                continue;
-            }
-            if (! is_string($sourceHeader) || $sourceHeader === '') {
-                continue;
-            }
-            $out[$field] = $row[$sourceHeader] ?? '';
-        }
-
-        return $out;
-    }
-
-    /**
-     * @param  array<string, string>  $row
-     * @param  list<string>  $headers
-     * @param  array<string, string>  $mapping
-     * @param  list<array{source: string, key: string, scope: string}>  $customMappings
-     * @return array<string, string>
-     */
-    private function collectUnmappedExtras(array $row, array $headers, array $mapping, array $customMappings): array
-    {
-        $used = array_filter(array_values($mapping), static fn ($h) => is_string($h) && $h !== '');
-        foreach ($customMappings as $cm) {
-            $used[] = $cm['source'];
-        }
-        $used = array_values(array_unique($used));
-        $extras = [];
-        foreach ($headers as $h) {
-            if ($h === '' || in_array($h, $used, true)) {
-                continue;
-            }
-            $val = trim((string) ($row[$h] ?? ''));
-            if ($val !== '') {
-                $extras[$h] = $val;
-            }
-        }
-
-        return $extras;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function splitDelimited(string $value): array
-    {
-        $value = trim($value);
-        if ($value === '') {
-            return [];
-        }
-        foreach (['|', ';', "\n"] as $delim) {
-            if (str_contains($value, $delim)) {
-                return array_values(array_filter(array_map('trim', explode($delim, $value))));
-            }
-        }
-        if (str_contains($value, ',')) {
-            return array_values(array_filter(array_map('trim', explode(',', $value))));
-        }
-
-        return [$value];
     }
 }

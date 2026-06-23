@@ -3,21 +3,13 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\BrandController;
-use App\Http\Controllers\CarrierConnectionWizardController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeveloperStorefrontSettingsController;
 use App\Http\Controllers\DraftOrderController;
-use App\Http\Controllers\FedExCarrierTestController;
-use App\Http\Controllers\FedExIntegratorConnectionController;
-use App\Http\Controllers\FedExValidationArtifactController;
-use App\Http\Controllers\FedExValidationExportController;
-use App\Http\Controllers\FedExValidationRunController;
-use App\Http\Controllers\FedExValidationWorkspaceController;
 use App\Http\Controllers\LocationController;
-use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentSettingsController;
 use App\Http\Controllers\ProductBulkController;
@@ -278,165 +270,7 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/shippingAutomation', [ShippingSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('shippingAutomation');
-    Route::get('/settings/shipping/carriers/connect', [CarrierConnectionWizardController::class, 'index'])
-        ->middleware('store.permission:settings.manage')
-        ->name('shipping.carriers.connect.index');
-    Route::post('/settings/shipping/carriers/connect/fedex/details', [CarrierConnectionWizardController::class, 'storeFedExDetails'])
-        ->middleware('store.permission:settings.manage')
-        ->name('shipping.carriers.connect.fedex.details');
-    Route::get('/settings/shipping/carriers/connect/fedex-integrator', [FedExIntegratorConnectionController::class, 'start'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.start');
-    Route::post('/settings/shipping/carriers/connect/fedex-integrator/origin', [FedExIntegratorConnectionController::class, 'storeOrigin'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.origin');
-    Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/eula', [FedExIntegratorConnectionController::class, 'showEula'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.eula');
-    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/eula', [FedExIntegratorConnectionController::class, 'acceptEula'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.eula.accept');
-    Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/account', [FedExIntegratorConnectionController::class, 'showAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.account');
-    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/account', [FedExIntegratorConnectionController::class, 'submitAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.account.submit');
-    Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/mfa', [FedExIntegratorConnectionController::class, 'showMfa'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.mfa');
-    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/mfa-method', [FedExIntegratorConnectionController::class, 'selectMfaMethod'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.mfa-method');
-    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/verify-pin', [FedExIntegratorConnectionController::class, 'verifyPin'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.verify-pin');
-    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/verify-invoice', [FedExIntegratorConnectionController::class, 'verifyInvoice'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.verify-invoice');
-    Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/success', [FedExIntegratorConnectionController::class, 'success'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.success');
-    Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/cancel', [FedExIntegratorConnectionController::class, 'cancel'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.fedex-integrator.cancel');
-    Route::get('/settings/shipping/carriers/connect/{carrier}', [CarrierConnectionWizardController::class, 'show'])
-        ->middleware('store.permission:settings.manage')
-        ->name('shipping.carriers.connect.show');
-    Route::post('/settings/shipping/carriers/connect/{carrier}/origin', [CarrierConnectionWizardController::class, 'storeOrigin'])
-        ->middleware('store.permission:settings.manage')
-        ->name('shipping.carriers.connect.origin');
-    Route::post('/settings/shipping/carriers/connect/{carrier}/ownership', [CarrierConnectionWizardController::class, 'storeOwnership'])
-        ->middleware('store.permission:settings.manage')
-        ->name('shipping.carriers.connect.ownership');
-    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation-export', [FedExIntegratorConnectionController::class, 'exportValidation'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation-export');
-    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation', [FedExValidationWorkspaceController::class, 'show'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation');
-    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/export/diagnostic', [FedExValidationExportController::class, 'diagnostic'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.export.diagnostic');
-    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/export/final', [FedExValidationExportController::class, 'final'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.export.final');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/documents', [FedExValidationArtifactController::class, 'uploadDocument'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.documents.upload');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/printed-scans', [FedExValidationArtifactController::class, 'uploadPrintedScan'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.scans.upload');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/tracking-screenshot', [FedExValidationArtifactController::class, 'uploadTrackingScreenshot'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.tracking-screenshot.upload');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/address', [FedExValidationRunController::class, 'runAddressValidation'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.run.address');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/service-availability', [FedExValidationRunController::class, 'runServiceAvailability'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.run.service-availability');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/rate', [FedExValidationRunController::class, 'runRateQuote'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.run.rate');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/mfa/invoice', [FedExValidationRunController::class, 'runInvoiceValidation'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.run.mfa.invoice');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/ship/{testCaseKey}', [FedExValidationRunController::class, 'runLockedShipLabel'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.run.ship');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/tracking', [FedExValidationRunController::class, 'runTracking'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.run.tracking');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/cancel', [FedExValidationRunController::class, 'runShipCancel'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.run.cancel');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/trade-documents', [FedExValidationRunController::class, 'runTradeDocuments'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.run.trade-documents');
-    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/artifacts/{artifact}/download', [FedExValidationArtifactController::class, 'download'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.validation.artifacts.download');
-    Route::post('/settings/shipping/carriers/connect/{carrier}/test', [CarrierConnectionWizardController::class, 'test'])
-        ->middleware('store.permission:settings.manage')
-        ->name('shipping.carriers.connect.test');
-    Route::post('/settings/shipping/carrier-accounts/fedex', [ShippingSettingsController::class, 'storeFedExCarrierAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.store');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/registration', [ShippingSettingsController::class, 'updateFedExRegistrationSettings'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.registration.update');
-    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/debug-payload', [ShippingSettingsController::class, 'exportFedExDebugPayload'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.debug-payload');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test', [ShippingSettingsController::class, 'testFedExCarrierAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.test');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-address', [FedExCarrierTestController::class, 'testAddressValidation'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.test-address');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-service-availability', [FedExCarrierTestController::class, 'testServiceAvailability'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.test-service-availability');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-rate-quote', [FedExCarrierTestController::class, 'testRateQuote'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.test-rate-quote');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-ship-validate', [FedExCarrierTestController::class, 'testShipValidate'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.test-ship-validate');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-ship-label', [FedExCarrierTestController::class, 'testShipLabel'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.test-ship-label');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-tracking', [FedExCarrierTestController::class, 'testTracking'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.test-tracking');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/cancel-test-shipment', [FedExCarrierTestController::class, 'cancelTestShipment'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.cancel-test-shipment');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/sandbox-platform-fallback', [ShippingSettingsController::class, 'enableFedExSandboxPlatformFallback'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback');
-    Route::post('/settings/shipping/carrier-accounts/usps', [ShippingSettingsController::class, 'storeUspsCarrierAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.usps.store');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/test', [ShippingSettingsController::class, 'testUspsCarrierAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.usps.test');
-    Route::post('/settings/shipping/usps/test-package-quote', [ShippingSettingsController::class, 'storeUspsTestPackage'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.usps.test-package-quote');
-    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/disable', [ShippingSettingsController::class, 'disableCarrierAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.disable');
-    Route::post('/settings/shipping/carrier-accounts', [ShippingSettingsController::class, 'storeCarrierAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.store');
-    Route::patch('/settings/shipping/carrier-accounts/{carrierAccount}', [ShippingSettingsController::class, 'updateCarrierAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.update');
-    Route::delete('/settings/shipping/carrier-accounts/{carrierAccount}', [ShippingSettingsController::class, 'destroyCarrierAccount'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.shipping.carrier-accounts.destroy');
+    require __DIR__.'/carriers.php';
     Route::post('/settings/shipping/zones', [ShippingSettingsController::class, 'storeZone'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.zones.store');
@@ -475,29 +309,10 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         ->middleware('store.permission:developer_api.manage')
         ->name('developer-storefront.token.revoke');
 
-    Route::get('/onboarding-StoreDetails-1', [OnboardingController::class, 'step1'])->name('onboarding-StoreDetails-1');
-    Route::post('/onboarding-StoreDetails-1', [OnboardingController::class, 'storeStep1'])->name('onboarding-StoreDetails-1.store');
-    Route::get('/AddCustomCategoryOverlay', [OnboardingController::class, 'customCategoryOverlay'])->name('AddCustomCategoryOverlay');
-    Route::post('/AddCustomCategoryOverlay', [OnboardingController::class, 'storeCustomCategoryOverlay'])->name('AddCustomCategoryOverlay.store');
-    Route::get('/onboarding-Step2-AddProductVariations', [OnboardingController::class, 'step2'])->name('onboarding-Step2-AddProductVariations');
-    Route::post('/onboarding-Step2-AddProductVariations', [OnboardingController::class, 'storeStep2'])->name('onboarding-Step2-AddProductVariations.store');
-    Route::get('/onboarding-Step2-VariationsPopup', [OnboardingController::class, 'variationPopup'])->name('onboarding_AddProduct_VariationsPopup');
-    Route::post('/onboarding-Step2-VariationsPopup', [OnboardingController::class, 'storeVariationPopup'])->name('onboarding_AddProduct_VariationsPopup.store');
-    Route::get('/onboarding-Step3-StoreReady', [OnboardingController::class, 'step3'])->name('onboarding_StoreReady');
-    Route::post('/onboarding-Step3-StoreReady', [OnboardingController::class, 'completeStep3'])->name('onboarding_StoreReady.complete');
+    require __DIR__.'/onboarding.php';
+
     Route::get('/store-management', [DashboardController::class, 'store_management'])->name('store-management');
     Route::post('/current-store', [CurrentStoreController::class, 'update'])->name('current-store.update');
-    Route::put('/store/{storeId}', [OnboardingController::class, 'updateStoreFromManagement'])->name('store.update');
-    Route::delete('/store/{storeId}', [OnboardingController::class, 'destroyStoreFromManagement'])->name('store.destroy');
-    Route::post('/products', [OnboardingController::class, 'storeProductFromCurrentStore'])
-        ->middleware('store.permission:catalog.manage')
-        ->name('product.store');
-    Route::put('/product/{productId}', [OnboardingController::class, 'updateProductFromManagement'])
-        ->middleware('store.permission:catalog.manage')
-        ->name('product.update');
-    Route::delete('/product/{productId}', [OnboardingController::class, 'destroyProductFromManagement'])
-        ->middleware('store.permission:catalog.manage')
-        ->name('product.destroy');
 
     Route::get('/products/import/template', [ProductImportController::class, 'template'])
         ->middleware('store.permission:imports.manage')
@@ -543,8 +358,6 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         ->name('products.import.retry-failed');
 
     Route::get('/store/{storeId}/products', [DashboardController::class, 'store_products'])->name('store.products');
-    Route::get('/store/{storeId}/add-product', [OnboardingController::class, 'addProductFromStore'])->name('store.add-product');
-    Route::post('/store/{storeId}/add-product', [OnboardingController::class, 'storeProductFromStore'])->name('store.add-product.store');
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {

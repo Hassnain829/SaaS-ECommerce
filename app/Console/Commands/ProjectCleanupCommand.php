@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Support\ProjectHygiene\ProjectCleanupService;
 use App\Support\ProjectHygiene\ProjectPathGuard;
+use App\Support\ProjectHygiene\UnsafeRetentionTestRootException;
 use Illuminate\Console\Command;
 
 class ProjectCleanupCommand extends Command
@@ -40,7 +41,13 @@ class ProjectCleanupCommand extends Command
             $this->line(sprintf('[%s] %s — %s', $target['category'], $target['path'], $target['reason']));
         }
 
-        $result = $service->cleanup($force, $category, $dryRun);
+        try {
+            $result = $service->cleanup($force, $category, $dryRun);
+        } catch (UnsafeRetentionTestRootException $exception) {
+            $this->error($exception->getMessage());
+
+            return self::FAILURE;
+        }
 
         if ($dryRun) {
             $this->newLine();

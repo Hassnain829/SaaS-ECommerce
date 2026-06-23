@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\CarrierAccount;
 use App\Models\Store;
-use App\Services\Carriers\FedEx\FedExValidationEvidenceExporter;
-use App\Services\Carriers\FedEx\FedExValidationPreflightService;
+use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceExporter;
+use App\Services\Carriers\FedEx\Validation\FedExValidationPreflightService;
 use Illuminate\Console\Command;
 
 class FedExValidationExportCommand extends Command

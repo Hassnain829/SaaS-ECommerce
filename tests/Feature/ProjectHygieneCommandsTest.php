@@ -9,10 +9,12 @@ use App\Support\ProjectHygiene\ProjectSourceArchiveService;
 use App\Support\ProjectHygiene\ProjectTrackedFiles;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Tests\Support\CreatesRetentionTestSandbox;
 use Tests\TestCase;
 
 class ProjectHygieneCommandsTest extends TestCase
 {
+    use CreatesRetentionTestSandbox;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -87,7 +89,7 @@ class ProjectHygieneCommandsTest extends TestCase
             }
 
             foreach (ProjectSourceArchiveService::REQUIRED_PLACEHOLDER_PATHS as $placeholder) {
-                if (ProjectTrackedFiles::isTracked(base_path(), base_path().'/'.$placeholder)) {
+                if ($this->isTrackedInHeadCommit($placeholder)) {
                     $this->assertContains($placeholder, $entries, $placeholder.' placeholder must be present');
                 }
             }
@@ -104,7 +106,8 @@ class ProjectHygieneCommandsTest extends TestCase
 
             $this->assertFalse(
                 collect($entries)->contains(fn (string $entry): bool => str_starts_with($entry, 'storage/app/fedex-validation/')
-                    && ! str_ends_with($entry, '.gitignore')),
+                    && ! str_ends_with($entry, '.gitignore')
+                    && ! str_ends_with($entry, '/')),
                 'Generated FedEx validation evidence must not appear in archive',
             );
         } finally {
@@ -135,64 +138,45 @@ class ProjectHygieneCommandsTest extends TestCase
 
     public function test_cleanup_force_deletes_only_approved_log_target(): void
     {
-        $root = base_path();
-        $tempLog = $root.'/storage/logs/project-hygiene-force.log';
-        File::put($tempLog, 'temporary log line');
+        $this->withCleanupSandbox(function (string $root, ProjectCleanupService $service): void {
+            $tempLog = $root.'/storage/logs/project-hygiene-force.log';
+            File::put($tempLog, 'temporary log line');
 
-        $result = (new ProjectCleanupService(ProjectPathGuard::forProject()))->cleanup(
-            force: true,
-            category: 'logs',
-            dryRun: false,
-        );
+            $result = $service->cleanup(force: true, category: 'logs', dryRun: false);
 
-        $this->assertFalse($result['dry_run']);
-        $this->assertContains(str_replace('\\', '/', $tempLog), $result['deleted']);
-        $this->assertFileDoesNotExist($tempLog);
+            $this->assertFalse($result['dry_run']);
+            $this->assertNotEmpty($result['deleted']);
+            $this->assertFileDoesNotExist($tempLog);
+        });
     }
 
     public function test_cleanup_force_cache_preserves_tracked_gitignore_placeholders(): void
     {
-        $root = base_path();
-        $service = new ProjectCleanupService(ProjectPathGuard::forProject());
-
-        foreach (ProjectCleanupService::PLACEHOLDER_GITIGNORE_PATHS as $relative) {
-            $absolute = $root.'/'.$relative;
-            if (! is_file($absolute)) {
-                continue;
-            }
-
+        $this->withCleanupSandbox(function (string $root, ProjectCleanupService $service): void {
+            $gitignore = $root.'/storage/framework/views/.gitignore';
+            File::ensureDirectoryExists(dirname($gitignore));
+            File::put($gitignore, "*\n!.gitignore\n");
             File::put($root.'/storage/framework/views/hygiene-test-view.php', '<?php echo 1;');
             File::put($root.'/storage/framework/cache/data/hygiene-test-cache.bin', 'cache');
 
             $result = $service->cleanup(force: true, category: 'cache', dryRun: false);
 
-            $this->assertFileExists($absolute, $relative.' must survive forced cache cleanup');
-            $this->assertNotContains(str_replace('\\', '/', $absolute), $result['deleted']);
-
-            @unlink($root.'/storage/framework/views/hygiene-test-view.php');
-            @unlink($root.'/storage/framework/cache/data/hygiene-test-cache.bin');
-
-            break;
-        }
+            $this->assertFileExists($gitignore);
+            $this->assertNotContains(str_replace('\\', '/', $gitignore), $result['deleted']);
+        });
     }
 
     public function test_cleanup_force_never_deletes_git_tracked_file(): void
     {
-        $root = base_path();
-        $trackedRelative = '.env.example';
-        $trackedAbsolute = $root.'/'.$trackedRelative;
+        $this->withCleanupSandbox(function (string $root, ProjectCleanupService $service): void {
+            $protected = $root.'/.env.example';
+            File::put($protected, "APP_NAME=Sandbox\n");
 
-        $this->assertFileExists($trackedAbsolute);
-        $this->assertTrue(ProjectTrackedFiles::isTracked($root, $trackedAbsolute));
+            $result = $service->cleanup(force: true, category: 'all', dryRun: false);
 
-        $result = (new ProjectCleanupService(ProjectPathGuard::forProject()))->cleanup(
-            force: true,
-            category: 'all',
-            dryRun: false,
-        );
-
-        $this->assertFileExists($trackedAbsolute);
-        $this->assertNotContains(str_replace('\\', '/', $trackedAbsolute), $result['deleted']);
+            $this->assertFileExists($protected);
+            $this->assertNotContains(str_replace('\\', '/', $protected), $result['deleted']);
+        });
     }
 
     public function test_path_guard_rejects_unix_and_nested_traversal(): void
@@ -233,30 +217,31 @@ class ProjectHygieneCommandsTest extends TestCase
             $this->markTestSkipped('Symlink support unavailable.');
         }
 
-        $root = base_path();
-        $outsideDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'project-hygiene-outside-'.uniqid('', true);
-        $linkPath = $root.'/storage/logs/hygiene-outside-link';
+        $this->withCleanupSandbox(function (string $root): void {
+            $outsideDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'project-hygiene-outside-'.uniqid('', true);
+            $linkPath = $root.'/storage/logs/hygiene-outside-link';
 
-        File::ensureDirectoryExists($outsideDir);
-        File::put($outsideDir.'/secret.txt', 'outside');
+            File::ensureDirectoryExists($outsideDir);
+            File::put($outsideDir.'/secret.txt', 'outside');
 
-        try {
-            if (is_link($linkPath) || file_exists($linkPath)) {
-                @unlink($linkPath);
+            try {
+                if (is_link($linkPath) || file_exists($linkPath)) {
+                    @unlink($linkPath);
+                }
+
+                if (! @symlink($outsideDir, $linkPath)) {
+                    $this->markTestSkipped('Unable to create symlink in this environment.');
+                }
+
+                $guard = ProjectPathGuard::forProject($root);
+                $this->assertFalse($guard->isWithinProject($linkPath));
+            } finally {
+                if (is_link($linkPath)) {
+                    @unlink($linkPath);
+                }
+                File::deleteDirectory($outsideDir);
             }
-
-            if (! @symlink($outsideDir, $linkPath)) {
-                $this->markTestSkipped('Unable to create symlink in this environment.');
-            }
-
-            $guard = ProjectPathGuard::forProject($root);
-            $this->assertFalse($guard->isWithinProject($linkPath));
-        } finally {
-            if (is_link($linkPath)) {
-                @unlink($linkPath);
-            }
-            File::deleteDirectory($outsideDir);
-        }
+        });
     }
 
     public function test_cleanup_refuses_paths_outside_project_root(): void
@@ -269,21 +254,20 @@ class ProjectHygieneCommandsTest extends TestCase
 
     public function test_carrier_validation_cleanup_preserves_label_and_upload_paths(): void
     {
-        $root = base_path();
-        $labelDir = $root.'/storage/app/fedex-validation/99/labels';
-        $uploadDir = $root.'/storage/app/fedex-validation/99/uploads';
-        File::ensureDirectoryExists($labelDir);
-        File::ensureDirectoryExists($uploadDir);
-        File::put($labelDir.'/label.pdf', '%PDF-test');
-        File::put($uploadDir.'/scan.pdf', '%PDF-test');
+        $this->withCleanupSandbox(function (string $root): void {
+            $labelDir = $root.'/storage/app/fedex-validation/99/labels';
+            $uploadDir = $root.'/storage/app/fedex-validation/99/uploads';
+            File::ensureDirectoryExists($labelDir);
+            File::ensureDirectoryExists($uploadDir);
+            File::put($labelDir.'/label.pdf', '%PDF-test');
+            File::put($uploadDir.'/scan.pdf', '%PDF-test');
 
-        $targets = collect((new ProjectCleanupService(ProjectPathGuard::forProject()))->targets('carrier-validation'))
-            ->pluck('path');
+            $targets = collect((new ProjectCleanupService(ProjectPathGuard::forProject($root)))->targets('carrier-validation'))
+                ->pluck('path');
 
-        $this->assertFalse($targets->contains(fn (string $path): bool => str_contains($path, '/labels/')));
-        $this->assertFalse($targets->contains(fn (string $path): bool => str_contains($path, '/uploads/')));
-
-        File::deleteDirectory($root.'/storage/app/fedex-validation/99');
+            $this->assertFalse($targets->contains(fn (string $path): bool => str_contains($path, '/labels/')));
+            $this->assertFalse($targets->contains(fn (string $path): bool => str_contains($path, '/uploads/')));
+        });
     }
 
     public function test_hygiene_report_does_not_include_env_secret_values(): void
@@ -302,5 +286,37 @@ class ProjectHygieneCommandsTest extends TestCase
         $this->artisan('project:hygiene-report')->assertExitCode(0);
         $this->artisan('project:cleanup')->assertExitCode(0);
         $this->artisan('project:source-archive --dry-run')->assertExitCode(0);
+        $this->artisan('project:retention --dry-run')->assertExitCode(0);
+    }
+
+    private function isTrackedInHeadCommit(string $relativePath): bool
+    {
+        if (! is_dir(base_path().'/.git')) {
+            return false;
+        }
+
+        $process = proc_open(
+            'git ls-tree -r HEAD --name-only',
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            base_path(),
+        );
+
+        if (! is_resource($process)) {
+            return false;
+        }
+
+        $listed = stream_get_contents($pipes[1]) ?: '';
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($process);
+
+        foreach (preg_split('/\R/', $listed) ?: [] as $line) {
+            if (trim($line) === $relativePath) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

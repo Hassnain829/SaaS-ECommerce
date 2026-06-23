@@ -66,6 +66,8 @@ final class ProjectCleanupService
      */
     public function cleanup(bool $force, ?string $category = null, bool $dryRun = true): array
     {
+        DestructiveHygieneRootGuard::assertAllowed($this->paths, $force, $dryRun);
+
         $targets = $this->targets($category);
         $deleted = [];
         $skipped = [];

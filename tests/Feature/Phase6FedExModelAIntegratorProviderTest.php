@@ -9,7 +9,7 @@ use App\Models\Location;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
-use App\Services\Carriers\FedEx\FedExIntegratorChildOAuthService;
+use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -274,7 +274,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
     public function test_registration_validator_preserves_raw_nine_digit_postal_for_registration(): void
     {
-        $validator = app(\App\Services\Carriers\FedEx\FedExRegistrationInputValidator::class);
+        $validator = app(\App\Services\Carriers\FedEx\Connection\FedExRegistrationInputValidator::class);
         $result = $validator->validate([
             'provider_account_number' => '700257037',
             'company_name' => 'Unique Customer Name',
@@ -747,7 +747,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
     public function test_live_mode_disabled_unless_production_flag_and_credentials_exist(): void
     {
-        $config = app(\App\Services\Carriers\FedEx\FedExConfig::class);
+        $config = app(\App\Services\Carriers\FedEx\Support\FedExConfig::class);
         config([
             'carriers.fedex.integrator_production_enabled' => false,
             'carriers.fedex.live.client_id' => '',

@@ -2,7 +2,7 @@
 
 namespace App\Support;
 
-use App\Services\Carriers\CarrierOriginReadinessService;
+use App\Services\Carriers\Core\CarrierOriginReadinessService;
 
 final class CarrierCountryOptions
 {
