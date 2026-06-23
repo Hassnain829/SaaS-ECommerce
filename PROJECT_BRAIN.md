@@ -353,6 +353,32 @@ If NO → rethink
 
 ---
 
+# 🧹 Repository hygiene (CLEAN-1 / CLEAN-1A)
+
+CLEAN-1 adds safe source/archive/cleanup tooling only. **CLEAN-1A** fixes archive template export, Laravel placeholder preservation, tracked-file deletion protection, and path traversal safety. It does **not** change admin panel, merchant UI, or carrier business logic.
+
+Commands:
+
+- `php artisan project:hygiene-report` — read-only size/leak report
+- `php artisan project:cleanup` — dry-run runtime cleanup (use `--force` to delete; never deletes Git-tracked files)
+- `php artisan project:source-archive` — export-safe source ZIP (**Git required**)
+
+Docs: `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`
+
+CLEAN-1 is accepted only after CLEAN-1A passes. Future phases: CLEAN-2 (file organization), CLEAN-3 (scheduled pruning), CLEAN-4 (refactoring).
+
+---
+
+# 🚚 Carrier connectivity architecture (locked)
+
+**Model A / Official Integrator Provider** is primary for FedEx and future couriers where supported. Platform owns integrator credentials; merchants connect merchant-owned courier accounts through onboarding.
+
+**Model B / merchant developer credentials** is temporary developer fallback only (`FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED`). Do not treat Model B as the launch architecture.
+
+FedEx Model A is implemented (Phase 6C-4); validation submission and production enablement remain in progress.
+
+---
+
 # 🔥 FINAL GOAL
 
 ---

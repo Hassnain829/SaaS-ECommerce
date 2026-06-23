@@ -64,7 +64,22 @@ php artisan test
 - **`docs/SECURITY_HARDENING.md`** — image download SSRF controls and API throttle / webhook notes.  
 - **`docs/RELEASE_CHECKLIST.md`** — pre-release checks (no `vendor/`, no `.env`, CI green).
 
-Do not commit: `.env`, `vendor/`, `node_modules/`, `database/*.sqlite`, `storage/logs/*.log`, `bootstrap/cache/*.php`, `.phpunit.cache/`.
+Do not commit: `.env`, `vendor/`, `node_modules/`, `database/*.sqlite`, `storage/logs/*.log`, `bootstrap/cache/*.php`, `.phpunit.cache/`, or generated carrier validation trees under `storage/app/fedex-validation/` and `storage/app/usps-validation/`.
+
+## Project hygiene commands (CLEAN-1 / CLEAN-1A)
+
+Non-destructive repository maintenance — does not change merchant or carrier business logic:
+
+```bash
+php artisan project:hygiene-report
+php artisan project:cleanup                  # dry-run (default); never deletes Git-tracked files
+php artisan project:cleanup --force          # delete approved runtime targets only
+php artisan project:cleanup --category=cache
+php artisan project:source-archive --dry-run # Git required
+php artisan project:source-archive           # creates real ZIP via git archive
+```
+
+See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md` and `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`.
 
 ## Troubleshooting
 
@@ -77,5 +92,6 @@ Do not commit: `.env`, `vendor/`, `node_modules/`, `database/*.sqlite`, `storage
 
 ## Further reading
 
+- **[docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md](docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md)** — CLEAN-1 hygiene and future cleanup phases.
 - **[docs/REFACTORING_ROADMAP.md](docs/REFACTORING_ROADMAP.md)** — large-file refactors deferred intentionally.  
 - **`ENTERPRISE_PROJECT_CONTEXT.md`** / **`ENTERPRISE_ROADMAP_2026.md`** — product scope and build order.

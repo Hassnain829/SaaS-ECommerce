@@ -1,4 +1,10 @@
 *
 !private/
 !public/
+!fedex-validation/
+!fedex-validation/.gitignore
+!usps-validation/
+!usps-validation/.gitignore
+!source-archives/
+!source-archives/.gitignore
 !.gitignore

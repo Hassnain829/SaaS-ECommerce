@@ -68,6 +68,7 @@ The project already has a strong base in these areas:
 - Dynamic-ish orders/customers foundation
 - Customer/order/address migrations and models
 - Basic dev storefront React app
+- **CLEAN-1 / CLEAN-1A repository hygiene** — `.gitignore`/`.gitattributes`, tracked-file-safe `project:cleanup`, Git-required `project:source-archive`, real ZIP verification tests, docs under `docs/cleanup/`
 
 ### 1.2 Partially implemented
 
@@ -1985,7 +1986,7 @@ Customer/store-owner wording must say "nearest eligible fulfillment location", "
 **Phase 6C-1B-USPS (2026-06-02):** USPS public API foundation — platform OAuth, address validation, domestic test rate quotes, package builder, safe API event logs. Uses platform USPS credentials from `.env`. **Not implemented:** labels, EPS/payment authorization, pickup, production live mode, checkout live rates. See `docs/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`.
 
 
-**Phase 6C-2B — FedEx Merchant Credentials Mode (active path):** FedEx normal merchant setup now uses merchant-owned FedEx Developer credentials instead of Credential Registration. Merchants enter their own FedEx API key/client ID, secret/client secret, FedEx account number, environment, and ship-from origin. Credentials are stored encrypted. OAuth uses merchant credentials only. FedEx billing remains merchant-owned. Labels, pickup, tracking sync, and checkout live rates remain disabled. This path is the active MVP FedEx model.
+**Phase 6C-2B — FedEx Merchant Credentials Mode (historical / developer fallback):** Implemented earlier as a merchant-owned Developer API credential path. **Not the primary architecture.** Normal merchant onboarding uses Model A (Phase 6C-4). Model B remains behind `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED` for developer testing only. See `docs/PHASE_6C_2B_FEDEX_MERCHANT_CREDENTIALS_MODE_REPORT.md`.
 
 **FedEx Credential Registration decision:** FedEx Credential Registration (`/registration/v2/address/keysgeneration`) was tested and hardened, but FedEx continued returning HTTP 422 `INVALID.INPUT.EXCEPTION`. FedEx email confirmed production keys require the Integrator Validation process. Therefore Credential Registration is not the normal merchant setup path right now.
 

@@ -7,5 +7,56 @@
 *.php diff=php
 
 /.github export-ignore
+/.git export-ignore
+/.cursor export-ignore
+/.agents export-ignore
+/.phpunit.cache export-ignore
+/.phpunit.result.cache export-ignore
+/.vscode export-ignore
+/.idea export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
+
+# Real environment files (templates such as .env.example remain included)
+.env export-ignore
+.env.local export-ignore
+.env.production export-ignore
+.env.staging export-ignore
+.env.backup export-ignore
+.env.testing export-ignore
+.env.*.local export-ignore
+dev-test-storefront/.env export-ignore
+
+vendor export-ignore
+node_modules export-ignore
+dev-test-storefront/node_modules export-ignore
+
+# Runtime contents — exclude generated files but preserve tracked .gitignore placeholders
+bootstrap/cache/* export-ignore
+bootstrap/cache/.gitignore -export-ignore
+
+storage/logs/* export-ignore
+storage/logs/.gitignore -export-ignore
+
+storage/framework/cache/** export-ignore
+storage/framework/cache/.gitignore -export-ignore
+storage/framework/cache/data/.gitignore -export-ignore
+
+storage/framework/sessions/* export-ignore
+storage/framework/sessions/.gitignore -export-ignore
+
+storage/framework/views/* export-ignore
+storage/framework/views/.gitignore -export-ignore
+
+storage/app/fedex-validation/** export-ignore
+storage/app/fedex-validation/.gitignore -export-ignore
+
+storage/app/usps-validation/** export-ignore
+storage/app/usps-validation/.gitignore -export-ignore
+
+storage/app/source-archives/** export-ignore
+storage/app/source-archives/.gitignore -export-ignore
+
+database/*.sqlite export-ignore
+public/build export-ignore
+public/hot export-ignore

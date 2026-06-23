@@ -2,13 +2,13 @@
 
 ## Status
 
-Deferred.
+**Primary architecture (Phase 6C-4 implemented).** FedEx Model A is the merchant-facing default connection path. Integrator validation submission and production enablement remain in progress (Phase 6C-5 direction).
 
-The platform is currently using **Model B — Merchant Credentials Mode** for the MVP.
+Model B (merchant FedEx Developer credentials) is **not** primary — it is a documented developer fallback only when `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=true`.
 
-Model A is the future official FedEx SaaS provider path where merchants connect FedEx directly through this platform without creating their own FedEx Developer Portal projects.
+Canonical implementation doc: `docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md`.
 
-## Why Model A is deferred
+## Why validation/production is still pending
 
 FedEx confirmed by email that production keys require the Integrator Validation process.
 
@@ -26,11 +26,11 @@ Model A requires:
 * FedEx review and approval;
 * production keys issued only after validation approval.
 
-The current platform is not ready to submit a complete FedEx validation package.
+The platform implements registration, MFA evidence, and validation export tooling; FedEx approval and production credential verification are the remaining gates.
 
 ## Model A target architecture
 
-The platform becomes an official FedEx Integrator Provider.
+The platform is the official FedEx Integrator Provider.
 
 Flow:
 
@@ -42,7 +42,7 @@ Flow:
 6. Merchant completes MFA or invoice validation.
 7. FedEx returns child credentials.
 8. Platform stores child credentials encrypted per merchant/store.
-9. Platform uses merchant child credentials for rates, labels, tracking, and pickup.
+9. Platform uses merchant child credentials for rates, labels, tracking, and pickup (when enabled).
 10. FedEx billing stays with the merchant FedEx account.
 
 ## Required platform modules for Model A
@@ -117,6 +117,8 @@ Admin/dev-only tool to export:
 
 ## Suggested future phases
 
+Many items below are implemented in Phase 6C-4+; remaining work is validation submission and production enablement.
+
 ### Future Phase A1 — FedEx Integrator Parent Credentials Foundation
 
 Build parent credential storage, environment config, OAuth service, and admin-only validation status.
@@ -155,8 +157,4 @@ Complete PIW, Validation Cover Sheet, screenshots, JSON transactions, label arti
 
 ## Current rule
 
-Do not start Model A until Model B is polished and the Shipping & Delivery page is clean.
-
-Current active FedEx path remains:
-
-Model B — Merchant Credentials Mode.
+Model A is the primary merchant FedEx path. Model B is developer fallback only. Do not reintroduce Model B as the default onboarding flow. Complete FedEx integrator validation (Phase 6C-5) before enabling production shipping capabilities.
