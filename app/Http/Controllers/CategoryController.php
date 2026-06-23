@@ -31,7 +31,7 @@ class CategoryController extends Controller
 
         return redirect()
             ->route('products')
-            ->with('success', 'Category “' . $validated['name'] . '” was saved.')
+            ->with('success', 'Category “'.$validated['name'].'” was saved.')
             ->with('success_title', 'Category saved')
             ->with('success_meta', $validated['name']);
     }
@@ -52,7 +52,7 @@ class CategoryController extends Controller
 
         return redirect()
             ->route('products')
-            ->with('success', 'Category “' . $validated['name'] . '” was updated.')
+            ->with('success', 'Category “'.$validated['name'].'” was updated.')
             ->with('success_title', 'Category updated')
             ->with('success_meta', $validated['name']);
     }

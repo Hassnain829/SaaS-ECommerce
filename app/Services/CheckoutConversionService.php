@@ -9,8 +9,8 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Models\PaymentCapture;
 use App\Models\PaymentIntent as LocalPaymentIntent;
-use App\Services\Inventory\InventorySyncService;
 use App\Services\Inventory\InventoryReservationService;
+use App\Services\Inventory\InventorySyncService;
 use App\Support\OrderLifecycle;
 use Illuminate\Support\Facades\DB;
 
@@ -25,8 +25,7 @@ class CheckoutConversionService
         private readonly CheckoutEventRecorder $checkoutEventRecorder,
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
-    ) {
-    }
+    ) {}
 
     public function handleSucceededPayment(PaymentWebhookResult $result): ?Order
     {

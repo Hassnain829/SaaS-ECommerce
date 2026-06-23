@@ -8,9 +8,7 @@ use Illuminate\Support\Collection;
 
 class InventoryAvailabilityService
 {
-    public function __construct(private readonly InventorySyncService $syncService)
-    {
-    }
+    public function __construct(private readonly InventorySyncService $syncService) {}
 
     public function availableForVariant(ProductVariant $variant): int
     {

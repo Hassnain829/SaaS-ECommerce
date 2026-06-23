@@ -3,10 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Customer;
-use App\Models\CustomerAddress;
 use App\Models\Order;
-use App\Models\OrderAddress;
-use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\OrderEventRecorder;
@@ -20,7 +17,7 @@ class CustomerAndOrderSeeder extends Seeder
     {
         $store = Store::query()->where('slug', 'demo-fashion')->first();
 
-        if (!$store) {
+        if (! $store) {
             return;
         }
 
@@ -36,7 +33,7 @@ class CustomerAndOrderSeeder extends Seeder
             $product = Product::query()->firstOrCreate(
                 [
                     'store_id' => $store->id,
-                    'slug' => 'sample-product-for-orders'
+                    'slug' => 'sample-product-for-orders',
                 ],
                 [
                     'name' => 'Sample Product for Orders',
@@ -81,7 +78,7 @@ class CustomerAndOrderSeeder extends Seeder
                     'postal_code' => '10001',
                     'country' => 'United States',
                     'phone' => '+1234567890',
-                ]
+                ],
             ],
             [
                 'email' => 'jane.smith@example.com',
@@ -98,7 +95,7 @@ class CustomerAndOrderSeeder extends Seeder
                     'postal_code' => '90001',
                     'country' => 'United States',
                     'phone' => '+0987654321',
-                ]
+                ],
             ],
             [
                 'email' => 'alice.wonder@example.com',
@@ -115,8 +112,8 @@ class CustomerAndOrderSeeder extends Seeder
                     'postal_code' => '98101',
                     'country' => 'United States',
                     'phone' => '+1122334455',
-                ]
-            ]
+                ],
+            ],
         ];
 
         foreach ($customersData as $cData) {
@@ -155,7 +152,7 @@ class CustomerAndOrderSeeder extends Seeder
                 foreach ($orderProducts as $product) {
                     $variant = $product->variants->first();
                     $qty = rand(1, 2);
-                    $subtotal = bcmul((string)$variant->price, (string)$qty, 2);
+                    $subtotal = bcmul((string) $variant->price, (string) $qty, 2);
 
                     $orderItems[] = [
                         'product' => $product,
@@ -166,7 +163,7 @@ class CustomerAndOrderSeeder extends Seeder
                         'total' => $subtotal,
                     ];
 
-                    $orderTotal = bcadd((string)$orderTotal, $subtotal, 2);
+                    $orderTotal = bcadd((string) $orderTotal, $subtotal, 2);
                 }
 
                 $placedAt = now()->subDays(rand(1, 30));
@@ -272,13 +269,13 @@ class CustomerAndOrderSeeder extends Seeder
                     );
                 }
 
-                $totalSpent = bcadd((string)$totalSpent, (string)$orderTotal, 2);
+                $totalSpent = bcadd((string) $totalSpent, (string) $orderTotal, 2);
             }
 
             $customer->update([
                 'total_orders' => $numOrders,
                 'total_spent' => $totalSpent,
-                'average_order_value' => bcdiv((string)$totalSpent, (string)$numOrders, 2),
+                'average_order_value' => bcdiv((string) $totalSpent, (string) $numOrders, 2),
                 'last_order_at' => now(),
             ]);
         }

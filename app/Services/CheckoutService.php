@@ -31,8 +31,7 @@ class CheckoutService
         private readonly CheckoutEventRecorder $eventRecorder,
         private readonly DeliveryOptionService $deliveryOptionService,
         private readonly FulfillmentOriginRouter $originRouter,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload
@@ -385,6 +384,7 @@ class CheckoutService
             if (isset($items[$variant->id])) {
                 $items[$variant->id]['quantity'] += $quantity;
                 $items[$variant->id]['subtotal'] = $this->money($items[$variant->id]['unit_price'] * $items[$variant->id]['quantity']);
+
                 continue;
             }
 

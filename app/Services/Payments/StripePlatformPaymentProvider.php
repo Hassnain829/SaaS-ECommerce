@@ -15,8 +15,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
 {
     public function __construct(
         private readonly StripeConfig $stripeConfig,
-    ) {
-    }
+    ) {}
 
     public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
     {

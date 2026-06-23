@@ -4,13 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\CarrierAccount;
 use App\Models\Location;
+use App\Services\Carriers\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\FedExAddressValidationService;
+use App\Services\Carriers\FedEx\FedExBasicIntegratedVisibilityService;
+use App\Services\Carriers\FedEx\FedExConfig;
 use App\Services\Carriers\FedEx\FedExDestinationInputValidator;
 use App\Services\Carriers\FedEx\FedExRateQuoteService;
 use App\Services\Carriers\FedEx\FedExServiceAvailabilityService;
 use App\Services\Carriers\FedEx\FedExShipTestCaseFixtureService;
 use App\Services\Carriers\FedEx\FedExShipValidationService;
-use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\FedExValidationScenarioCatalog;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -330,9 +333,15 @@ class FedExCarrierTestController extends Controller
 
         $validated = $request->validate([
             'test_case' => ['required', 'string', Rule::in($fixtureService->testCaseKeys())],
-            'label_format' => ['required', 'string', Rule::in(['PDF', 'PNG', 'ZPL'])],
+            'label_format' => ['nullable', 'string', Rule::in(['PDF', 'PNG', 'ZPL', 'ZPLII'])],
             'ship_date' => ['nullable', 'date'],
         ]);
+
+        $lockedFormat = FedExValidationScenarioCatalog::lockedLabelFormat($validated['test_case']);
+        $labelFormat = strtoupper(trim((string) ($validated['label_format'] ?? $lockedFormat ?? 'PDF')));
+        if (app(FedExConfig::class)->validationModeEnabled() && $lockedFormat !== null) {
+            $labelFormat = strtoupper($lockedFormat);
+        }
 
         $overrides = array_filter([
             'ship_date' => $validated['ship_date'] ?? null,
@@ -342,7 +351,7 @@ class FedExCarrierTestController extends Controller
             store: $store,
             account: $account,
             testCaseKey: $validated['test_case'],
-            labelFormat: $validated['label_format'],
+            labelFormat: $labelFormat,
             overrides: $overrides,
             actor: $request->user(),
         );
@@ -354,7 +363,7 @@ class FedExCarrierTestController extends Controller
             metadata: [
                 'carrier_account_id' => $account->id,
                 'test_case' => $validated['test_case'],
-                'label_format' => $validated['label_format'],
+                'label_format' => $labelFormat,
                 'success' => $result->success,
                 'label_saved' => $presentation['label_saved'] ?? false,
                 'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
@@ -364,12 +373,55 @@ class FedExCarrierTestController extends Controller
         return $this->redirectWithFedExTestResult(
             account: $account,
             tool: 'ship_label',
-            label: 'Sandbox label test ('.$validated['label_format'].')',
+            label: 'Sandbox label test ('.$labelFormat.')',
             result: $result,
             presentation: $presentation,
             inputSummary: [
                 'test_case' => $validated['test_case'],
-                'label_format' => $validated['label_format'],
+                'label_format' => $labelFormat,
+            ],
+        );
+    }
+
+    public function testTracking(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExBasicIntegratedVisibilityService $trackingService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
+
+        $validated = $request->validate([
+            'tracking_number' => ['required', 'string', 'max:32'],
+        ]);
+
+        ['result' => $result, 'presentation' => $presentation] = $trackingService->trackShipment(
+            $store,
+            $account,
+            $validated['tracking_number'],
+        );
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_tracking_test',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $account->id,
+                'success' => $result->success,
+            ],
+        );
+
+        return $this->redirectWithFedExTestResult(
+            account: $account,
+            tool: 'tracking',
+            label: 'Tracking / BIV',
+            result: $result,
+            presentation: $presentation,
+            inputSummary: [
+                'tracking_number_last4' => strlen($validated['tracking_number']) >= 4
+                    ? substr($validated['tracking_number'], -4)
+                    : null,
             ],
         );
     }

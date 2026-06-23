@@ -8,8 +8,7 @@ final class CarrierAccountStatusPresenter
 {
     public function __construct(
         private readonly CarrierAccount $account,
-    ) {
-    }
+    ) {}
 
     public static function for(CarrierAccount $account): self
     {

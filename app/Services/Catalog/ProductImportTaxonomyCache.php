@@ -4,8 +4,8 @@ namespace App\Services\Catalog;
 
 use App\Models\Brand;
 use App\Models\Category;
-use App\Models\Tag;
 use App\Models\Store;
+use App\Models\Tag;
 use Illuminate\Support\Str;
 
 /**

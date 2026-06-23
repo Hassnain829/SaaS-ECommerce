@@ -10,9 +10,7 @@ use App\Models\ProductVariant;
 
 class InventorySyncService
 {
-    public function __construct(private readonly DefaultLocationService $defaultLocationService)
-    {
-    }
+    public function __construct(private readonly DefaultLocationService $defaultLocationService) {}
 
     public function ensureInventoryItemForVariant(ProductVariant $variant): InventoryItem
     {

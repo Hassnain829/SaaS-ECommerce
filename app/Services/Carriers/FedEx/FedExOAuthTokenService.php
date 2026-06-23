@@ -15,8 +15,7 @@ class FedExOAuthTokenService
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExHttpClient $httpClient,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{access_token: string, token_type: string, expires_in: int}|null

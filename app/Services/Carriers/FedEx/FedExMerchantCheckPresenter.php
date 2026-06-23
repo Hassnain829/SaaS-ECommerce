@@ -664,4 +664,30 @@ final class FedExMerchantCheckPresenter
             'cancelled' => $result->success,
         ];
     }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function tracking(CarrierApiResult $result, string $trackingNumber): array
+    {
+        return [
+            'tracking_number_last4' => strlen($trackingNumber) >= 4 ? substr($trackingNumber, -4) : null,
+            'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            'tracked' => $result->success,
+            'path_configured' => $result->errorCode !== 'tracking_path_not_configured',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function tradeDocuments(CarrierApiResult $result, string $trackingNumber): array
+    {
+        return [
+            'tracking_number_last4' => strlen($trackingNumber) >= 4 ? substr($trackingNumber, -4) : null,
+            'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            'uploaded' => $result->success,
+            'path_configured' => $result->errorCode !== 'trade_documents_path_not_configured',
+        ];
+    }
 }

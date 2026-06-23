@@ -8,7 +8,7 @@ use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\CarrierApiEventLogger;
 use App\Services\Carriers\DTO\CarrierApiResult;
-use Illuminate\Support\Arr;
+use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 use RuntimeException;
 
 class FedExAccountRegistrationService
@@ -18,8 +18,7 @@ class FedExAccountRegistrationService
         private readonly FedExHttpClient $httpClient,
         private readonly CarrierApiEventLogger $eventLogger,
         private readonly FedExRegistrationResponseAnalyzer $responseAnalyzer,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $accountDetails
@@ -75,6 +74,10 @@ class FedExAccountRegistrationService
             account: $account,
             requestSummary: $requestSummary,
             environment: $environment,
+            context: new FedExValidationEventContext(
+                registrationSessionId: $account->registration_session_id,
+                scenarioKey: CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS,
+            ),
         );
 
         if ($accountNumber === '' || strlen($accountNumber) !== 9) {
@@ -159,6 +162,8 @@ class FedExAccountRegistrationService
                 'registration_session_id' => $session->id,
                 'account_last4' => $session->account_last4,
             ],
+            scenarioKey: $this->pinScenarioKey('validation', $session->mfa_method),
+            mfaMethod: $session->mfa_method,
         );
     }
 
@@ -199,6 +204,8 @@ class FedExAccountRegistrationService
                 'account_last4' => $session->account_last4,
             ],
             finalizeRegistration: false,
+            scenarioKey: $this->pinScenarioKey('generation', $method),
+            mfaMethod: $method,
         );
     }
 
@@ -210,6 +217,8 @@ class FedExAccountRegistrationService
         CarrierAccountRegistrationSession $session,
         array $invoiceInput,
         array $platformToken,
+        bool $finalizeRegistration = true,
+        ?CarrierAccount $carrierAccount = null,
     ): CarrierApiResult {
         $path = $this->config->mfaInvoiceValidationPath();
         if ($path === null) {
@@ -245,6 +254,10 @@ class FedExAccountRegistrationService
                 'registration_session_id' => $session->id,
                 'account_last4' => $session->account_last4,
             ],
+            finalizeRegistration: $finalizeRegistration,
+            scenarioKey: CarrierApiEvent::SCENARIO_REGISTRATION_INVOICE,
+            mfaMethod: 'invoice',
+            carrierAccount: $carrierAccount,
         );
     }
 
@@ -308,6 +321,10 @@ class FedExAccountRegistrationService
             account: $account,
             requestSummary: $requestSummary,
             environment: $environment,
+            context: new FedExValidationEventContext(
+                registrationSessionId: $session?->id,
+                scenarioKey: CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS,
+            ),
         );
 
         if ($accountNumber === '' || strlen($accountNumber) !== 9) {
@@ -350,6 +367,9 @@ class FedExAccountRegistrationService
         string $action,
         array $requestSummary,
         bool $finalizeRegistration = true,
+        ?string $scenarioKey = null,
+        ?string $mfaMethod = null,
+        ?CarrierAccount $carrierAccount = null,
     ): CarrierApiResult {
         $accountAuthToken = $session->accountAuthToken();
 
@@ -377,9 +397,14 @@ class FedExAccountRegistrationService
             store: $store,
             provider: CarrierAccount::PROVIDER_FEDEX,
             action: $action,
-            account: null,
+            account: $carrierAccount,
             requestSummary: $requestSummary,
             environment: $environment,
+            context: new FedExValidationEventContext(
+                registrationSessionId: $session->id,
+                scenarioKey: $scenarioKey,
+                mfaMethod: $mfaMethod,
+            ),
         );
 
         $result = $this->httpClient->postJson(
@@ -402,7 +427,12 @@ class FedExAccountRegistrationService
 
         $this->eventLogger->complete($event, $result);
 
-        return $result;
+        return $result->copyWith(
+            responseSummary: array_merge(
+                is_array($result->responseSummary) ? $result->responseSummary : [],
+                ['carrier_api_event_id' => $event->id],
+            ),
+        );
     }
 
     private function normalizeRegistrationResult(
@@ -418,11 +448,8 @@ class FedExAccountRegistrationService
 
         if ($result->success) {
             if (! $finalizeRegistration) {
-                return CarrierApiResult::success(
+                return $result->copyWith(
                     data: is_array($result->data) ? $result->data : null,
-                    requestId: $result->requestId,
-                    durationMs: $result->durationMs,
-                    requestSummary: $result->requestSummary,
                     responseSummary: $responseSummary,
                 );
             }
@@ -438,44 +465,33 @@ class FedExAccountRegistrationService
                     $account->save();
                 }
 
-                return CarrierApiResult::success(
+                return $result->copyWith(
                     data: is_array($result->data) ? $result->data : ['output' => $this->responseAnalyzer->output($result->data)],
-                    requestId: $result->requestId,
-                    durationMs: $result->durationMs,
-                    requestSummary: $result->requestSummary,
                     responseSummary: array_merge($responseSummary, ['registered' => true]),
                 );
             }
 
             if ($this->responseAnalyzer->mfaDetected($this->responseAnalyzer->output($result->data))) {
-                return new CarrierApiResult(
+                return $result->copyWith(
                     success: false,
                     data: is_array($result->data) ? $result->data : null,
                     errorCode: 'registration_mfa_required',
                     errorMessage: 'FedEx requires additional merchant verification before registration can finish. Choose a verification method to continue.',
-                    requestId: $result->requestId,
-                    durationMs: $result->durationMs,
-                    requestSummary: $result->requestSummary,
                     responseSummary: $responseSummary,
                 );
             }
 
-            return CarrierApiResult::failure(
-                message: $this->responseAnalyzer->incompleteRegistrationMessage(),
-                code: 'registration_incomplete',
-                requestId: $result->requestId,
-                durationMs: $result->durationMs,
-                requestSummary: $result->requestSummary,
+            return $result->copyWith(
+                success: false,
+                errorCode: 'registration_incomplete',
+                errorMessage: $this->responseAnalyzer->incompleteRegistrationMessage(),
                 responseSummary: $responseSummary,
             );
         }
 
-        return CarrierApiResult::failure(
-            message: $this->registrationFailureMessage($result, $accountNumber),
-            code: $result->errorCode,
-            requestId: $result->requestId,
-            durationMs: $result->durationMs,
-            requestSummary: $result->requestSummary,
+        return $result->copyWith(
+            errorMessage: $this->registrationFailureMessage($result, $accountNumber),
+            errorCode: $result->errorCode,
             responseSummary: $responseSummary,
         );
     }
@@ -719,6 +735,16 @@ class FedExAccountRegistrationService
 
     private function registrationFailureMessage(CarrierApiResult $result, string $accountNumber): string
     {
+        foreach ((array) data_get($result->data, 'errors', []) as $error) {
+            if (! is_array($error)) {
+                continue;
+            }
+
+            if (($error['code'] ?? null) === 'SESSION.EXPIRED.ERROR') {
+                return 'FedEx account authorization expired. The validation workspace refreshed authorization automatically — run invoice validation again if this persists.';
+            }
+        }
+
         $httpStatus = (int) ($result->responseSummary['http_status'] ?? 0);
 
         if ($httpStatus === 422) {
@@ -730,5 +756,25 @@ class FedExAccountRegistrationService
         }
 
         return $result->errorMessage ?? 'FedEx account registration failed.';
+    }
+
+    private function pinScenarioKey(string $phase, ?string $method): string
+    {
+        $method = strtolower(trim((string) $method));
+
+        return match ($method) {
+            'sms' => $phase === 'generation'
+                ? CarrierApiEvent::SCENARIO_REGISTRATION_PIN_GENERATION_SMS
+                : CarrierApiEvent::SCENARIO_REGISTRATION_PIN_VALIDATION_SMS,
+            'email' => $phase === 'generation'
+                ? CarrierApiEvent::SCENARIO_REGISTRATION_PIN_GENERATION_EMAIL
+                : CarrierApiEvent::SCENARIO_REGISTRATION_PIN_VALIDATION_EMAIL,
+            'call', 'phone', 'phone_call' => $phase === 'generation'
+                ? CarrierApiEvent::SCENARIO_REGISTRATION_PIN_GENERATION_CALL
+                : CarrierApiEvent::SCENARIO_REGISTRATION_PIN_VALIDATION_CALL,
+            default => $phase === 'generation'
+                ? CarrierApiEvent::SCENARIO_REGISTRATION_PIN_GENERATION_SMS
+                : CarrierApiEvent::SCENARIO_REGISTRATION_PIN_VALIDATION_SMS,
+        };
     }
 }

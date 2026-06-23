@@ -102,7 +102,6 @@ class LocationServiceAreaMatcher
     }
 
     /**
-     * @param  mixed  $value
      * @return list<string>
      */
     private function normalizedList(mixed $value, bool $preserveWildcard = false): array

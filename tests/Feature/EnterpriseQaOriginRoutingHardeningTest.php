@@ -7,7 +7,6 @@ use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Checkout;
-use App\Models\CheckoutEvent;
 use App\Models\InventoryLevel;
 use App\Models\InventoryReservation;
 use App\Models\Location;
@@ -42,7 +41,8 @@ class EnterpriseQaOriginRoutingHardeningTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_qa_routing',
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider {
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
                 return new PaymentIntentResult(

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\CustomerAddress;
 use App\Models\DraftOrder;
-use App\Models\InventoryReservation;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
@@ -22,8 +21,7 @@ class ManualOrderConversionService
         private readonly OrderEventRecorder $eventRecorder,
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
-    ) {
-    }
+    ) {}
 
     public function convert(DraftOrder $draft, Store $store, User $actor): Order
     {

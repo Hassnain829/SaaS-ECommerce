@@ -13,12 +13,19 @@ class Shipment extends Model
     use SoftDeletes;
 
     public const STATUS_PENDING = OrderLifecycle::SHIPMENT_PENDING;
+
     public const STATUS_LABEL_CREATED = OrderLifecycle::SHIPMENT_LABEL_CREATED;
+
     public const STATUS_SHIPPED = OrderLifecycle::SHIPMENT_SHIPPED;
+
     public const STATUS_IN_TRANSIT = OrderLifecycle::SHIPMENT_IN_TRANSIT;
+
     public const STATUS_DELIVERED = OrderLifecycle::SHIPMENT_DELIVERED;
+
     public const STATUS_FAILED = OrderLifecycle::SHIPMENT_FAILED;
+
     public const STATUS_RETURNED = OrderLifecycle::SHIPMENT_RETURNED;
+
     public const STATUS_CANCELLED = OrderLifecycle::SHIPMENT_CANCELLED;
 
     public const STATUSES_COUNTED_FOR_FULFILLMENT = [

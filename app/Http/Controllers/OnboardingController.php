@@ -8,15 +8,15 @@ use App\Models\ProductVariant;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
-use App\Services\SecurityLogRecorder;
 use App\Services\Catalog\ProductAttributeAssigner;
 use App\Services\Inventory\DefaultLocationService;
+use App\Services\SecurityLogRecorder;
 use App\Support\CatalogRules;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
 use App\Support\ProductTypeBehavior;
-use App\Support\StorePermission;
 use App\Support\StockMovementRecorder;
+use App\Support\StorePermission;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -1509,140 +1509,107 @@ class OnboardingController extends Controller
                     $skuPlanSkus
                 );
             } else {
-            $product->variationTypes()->delete();
-            $product->variants()->delete();
+                $product->variationTypes()->delete();
+                $product->variants()->delete();
 
-            $variationOptionSets = [];
-            $variationOptionMap = [];
+                $variationOptionSets = [];
+                $variationOptionMap = [];
 
-            foreach (($validated['variation_types'] ?? []) as $variationIndex => $variationData) {
-                $variationType = ProductVariationType::create([
-                    'product_id' => $product->id,
-                    'name' => $variationData['name'],
-                    'type' => $variationData['type'],
-                ]);
-
-                $options = [];
-
-                foreach ($variationData['options'] as $optionIndex => $optionValue) {
-                    $option = ProductVariationOption::create([
-                        'variation_type_id' => $variationType->id,
-                        'value' => $optionValue,
-                        'sort_order' => $optionIndex,
-                    ]);
-
-                    $options[] = $option;
-                    $variationOptionMap[$variationIndex][$optionIndex] = $option;
-                }
-
-                if (! empty($options)) {
-                    $variationOptionSets[] = [
-                        'index' => $variationIndex,
-                        'variation_name' => $variationType->name,
-                        'options' => $options,
-                    ];
-                }
-            }
-
-            $combinations = $this->generateCombinations($variationOptionSets);
-            $customVariants = $validated['variants'] ?? [];
-            $variantImageAssignmentsUpdate = [];
-            $txnClaimedAuto = [];
-            $txnSkuLowerBatch = [];
-
-            if (! empty($customVariants)) {
-                foreach ($customVariants as $rowIndex => $variantData) {
-                    $selectedOptions = [];
-
-                    foreach (($variantData['option_map'] ?? []) as $variationIndex => $optionIndex) {
-                        if (isset($variationOptionMap[$variationIndex][$optionIndex])) {
-                            $selectedOptions[] = $variationOptionMap[$variationIndex][$optionIndex];
-                        }
-                    }
-
-                    $suffix = implode('-', array_map(
-                        static fn (ProductVariationOption $option): string => $option->value,
-                        $selectedOptions
-                    ));
-
-                    $resolvedSku = $skuPlanSkus[$rowIndex] ?? $this->allocateUniqueAutoVariantSku(
-                        $this->buildSku($currentStore->name, $product->name, $suffix !== '' ? $suffix : null),
-                        $product->id,
-                        $txnClaimedAuto,
-                        $txnSkuLowerBatch
-                    );
-
-                    try {
-                        $variant = ProductVariant::create([
-                            'product_id' => $product->id,
-                            'sku' => $resolvedSku,
-                            'price' => $variantData['price'],
-                            'compare_at_price' => $variantData['compare_at_price'] ?? null,
-                            'stock' => $variantData['stock'],
-                            'stock_alert' => $variantData['stock_alert'],
-                        ]);
-                    } catch (UniqueConstraintViolationException) {
-                        throw ValidationException::withMessages([
-                            'variants.'.$rowIndex.'.sku' => 'That SKU is already used. Choose a unique SKU for each variant.',
-                        ]);
-                    }
-
-                    $variant->options()->sync(array_map(
-                        static fn (ProductVariationOption $option): int => $option->id,
-                        $selectedOptions
-                    ));
-
-                    $this->carryVariantCustomFieldsOntoNewRow($variant, $oldFingerprintVariantCustomFields);
-
-                    $variantImageAssignmentsUpdate[] = [
-                        'variant' => $variant,
-                        'image_id' => $variantData['product_image_id'] ?? null,
-                    ];
-                }
-            } elseif (empty($combinations)) {
-                $defaultSku = $this->allocateUniqueAutoVariantSku(
-                    $this->buildSku($currentStore->name, $product->name),
-                    $product->id,
-                    $txnClaimedAuto,
-                    $txnSkuLowerBatch
-                );
-                try {
-                    $defaultVariant = ProductVariant::create([
+                foreach (($validated['variation_types'] ?? []) as $variationIndex => $variationData) {
+                    $variationType = ProductVariationType::create([
                         'product_id' => $product->id,
-                        'sku' => $defaultSku,
-                        'price' => $validated['base_price'],
-                        'compare_at_price' => null,
-                        'stock' => 0,
-                        'stock_alert' => $validated['stock_alert'],
+                        'name' => $variationData['name'],
+                        'type' => $variationData['type'],
                     ]);
-                } catch (UniqueConstraintViolationException) {
-                    throw ValidationException::withMessages([
-                        'sku' => 'We could not assign a unique inventory SKU automatically. Set an explicit product or variant SKU and try again.',
-                    ]);
+
+                    $options = [];
+
+                    foreach ($variationData['options'] as $optionIndex => $optionValue) {
+                        $option = ProductVariationOption::create([
+                            'variation_type_id' => $variationType->id,
+                            'value' => $optionValue,
+                            'sort_order' => $optionIndex,
+                        ]);
+
+                        $options[] = $option;
+                        $variationOptionMap[$variationIndex][$optionIndex] = $option;
+                    }
+
+                    if (! empty($options)) {
+                        $variationOptionSets[] = [
+                            'index' => $variationIndex,
+                            'variation_name' => $variationType->name,
+                            'options' => $options,
+                        ];
+                    }
                 }
 
-                $defaultVariant->options()->sync([]);
-                $this->carryVariantCustomFieldsOntoNewRow($defaultVariant, $oldFingerprintVariantCustomFields);
-                $variantImageAssignmentsUpdate[] = [
-                    'variant' => $defaultVariant,
-                    'image_id' => null,
-                ];
-            } else {
-                foreach ($combinations as $combination) {
-                    $comboSku = $this->allocateUniqueAutoVariantSku(
-                        $this->buildSku(
-                            $currentStore->name,
-                            $product->name,
-                            implode('-', array_map(static fn ($entry) => $entry['option']->value, $combination))
-                        ),
+                $combinations = $this->generateCombinations($variationOptionSets);
+                $customVariants = $validated['variants'] ?? [];
+                $variantImageAssignmentsUpdate = [];
+                $txnClaimedAuto = [];
+                $txnSkuLowerBatch = [];
+
+                if (! empty($customVariants)) {
+                    foreach ($customVariants as $rowIndex => $variantData) {
+                        $selectedOptions = [];
+
+                        foreach (($variantData['option_map'] ?? []) as $variationIndex => $optionIndex) {
+                            if (isset($variationOptionMap[$variationIndex][$optionIndex])) {
+                                $selectedOptions[] = $variationOptionMap[$variationIndex][$optionIndex];
+                            }
+                        }
+
+                        $suffix = implode('-', array_map(
+                            static fn (ProductVariationOption $option): string => $option->value,
+                            $selectedOptions
+                        ));
+
+                        $resolvedSku = $skuPlanSkus[$rowIndex] ?? $this->allocateUniqueAutoVariantSku(
+                            $this->buildSku($currentStore->name, $product->name, $suffix !== '' ? $suffix : null),
+                            $product->id,
+                            $txnClaimedAuto,
+                            $txnSkuLowerBatch
+                        );
+
+                        try {
+                            $variant = ProductVariant::create([
+                                'product_id' => $product->id,
+                                'sku' => $resolvedSku,
+                                'price' => $variantData['price'],
+                                'compare_at_price' => $variantData['compare_at_price'] ?? null,
+                                'stock' => $variantData['stock'],
+                                'stock_alert' => $variantData['stock_alert'],
+                            ]);
+                        } catch (UniqueConstraintViolationException) {
+                            throw ValidationException::withMessages([
+                                'variants.'.$rowIndex.'.sku' => 'That SKU is already used. Choose a unique SKU for each variant.',
+                            ]);
+                        }
+
+                        $variant->options()->sync(array_map(
+                            static fn (ProductVariationOption $option): int => $option->id,
+                            $selectedOptions
+                        ));
+
+                        $this->carryVariantCustomFieldsOntoNewRow($variant, $oldFingerprintVariantCustomFields);
+
+                        $variantImageAssignmentsUpdate[] = [
+                            'variant' => $variant,
+                            'image_id' => $variantData['product_image_id'] ?? null,
+                        ];
+                    }
+                } elseif (empty($combinations)) {
+                    $defaultSku = $this->allocateUniqueAutoVariantSku(
+                        $this->buildSku($currentStore->name, $product->name),
                         $product->id,
                         $txnClaimedAuto,
                         $txnSkuLowerBatch
                     );
                     try {
-                        $variant = ProductVariant::create([
+                        $defaultVariant = ProductVariant::create([
                             'product_id' => $product->id,
-                            'sku' => $comboSku,
+                            'sku' => $defaultSku,
                             'price' => $validated['base_price'],
                             'compare_at_price' => null,
                             'stock' => 0,
@@ -1650,20 +1617,53 @@ class OnboardingController extends Controller
                         ]);
                     } catch (UniqueConstraintViolationException) {
                         throw ValidationException::withMessages([
-                            'sku' => 'A generated variant SKU conflicted with another product. Add explicit SKUs for each combination or rename the product slightly and try again.',
+                            'sku' => 'We could not assign a unique inventory SKU automatically. Set an explicit product or variant SKU and try again.',
                         ]);
                     }
 
-                    $variant->options()->sync(array_map(static fn ($entry) => $entry['option']->id, $combination));
-                    $this->carryVariantCustomFieldsOntoNewRow($variant, $oldFingerprintVariantCustomFields);
+                    $defaultVariant->options()->sync([]);
+                    $this->carryVariantCustomFieldsOntoNewRow($defaultVariant, $oldFingerprintVariantCustomFields);
                     $variantImageAssignmentsUpdate[] = [
-                        'variant' => $variant,
+                        'variant' => $defaultVariant,
                         'image_id' => null,
                     ];
-                }
-            }
+                } else {
+                    foreach ($combinations as $combination) {
+                        $comboSku = $this->allocateUniqueAutoVariantSku(
+                            $this->buildSku(
+                                $currentStore->name,
+                                $product->name,
+                                implode('-', array_map(static fn ($entry) => $entry['option']->value, $combination))
+                            ),
+                            $product->id,
+                            $txnClaimedAuto,
+                            $txnSkuLowerBatch
+                        );
+                        try {
+                            $variant = ProductVariant::create([
+                                'product_id' => $product->id,
+                                'sku' => $comboSku,
+                                'price' => $validated['base_price'],
+                                'compare_at_price' => null,
+                                'stock' => 0,
+                                'stock_alert' => $validated['stock_alert'],
+                            ]);
+                        } catch (UniqueConstraintViolationException) {
+                            throw ValidationException::withMessages([
+                                'sku' => 'A generated variant SKU conflicted with another product. Add explicit SKUs for each combination or rename the product slightly and try again.',
+                            ]);
+                        }
 
-            $this->syncVariantCatalogImages($product, $variantImageAssignmentsUpdate);
+                        $variant->options()->sync(array_map(static fn ($entry) => $entry['option']->id, $combination));
+                        $this->carryVariantCustomFieldsOntoNewRow($variant, $oldFingerprintVariantCustomFields);
+                        $variantImageAssignmentsUpdate[] = [
+                            'variant' => $variant,
+                            'image_id' => null,
+                        ];
+                    }
+                }
+
+                $this->syncVariantCatalogImages($product, $variantImageAssignmentsUpdate);
             }
 
             $product->tags()->sync($tagIds);
@@ -1995,7 +1995,7 @@ class OnboardingController extends Controller
 
                     try {
                         $variantMeta = [];
-                        if (!empty($variantData['custom_fields'])) {
+                        if (! empty($variantData['custom_fields'])) {
                             $variantMeta['custom_fields'] = $variantData['custom_fields'];
                         }
 

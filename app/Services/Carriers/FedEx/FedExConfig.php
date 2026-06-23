@@ -155,6 +155,20 @@ final class FedExConfig
         return (string) config('carriers.fedex.ship_cancel_path', '/ship/v1/shipments/cancel');
     }
 
+    public function basicIntegratedVisibilityPath(): ?string
+    {
+        $path = (string) config('carriers.fedex.basic_integrated_visibility_path', '');
+
+        return $path !== '' ? $path : null;
+    }
+
+    public function tradeDocumentsUploadPath(): ?string
+    {
+        $path = (string) config('carriers.fedex.trade_documents_upload_path', '');
+
+        return $path !== '' ? $path : null;
+    }
+
     public function shipEvidenceEnabled(): bool
     {
         return filter_var(config('carriers.fedex.ship_evidence_enabled', false), FILTER_VALIDATE_BOOL);

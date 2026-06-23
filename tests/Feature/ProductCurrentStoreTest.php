@@ -409,7 +409,7 @@ class ProductCurrentStoreTest extends TestCase
         $store = Store::create([
             'user_id' => $user->id,
             'name' => $name,
-            'slug' => str($name)->slug() . '-' . fake()->unique()->numberBetween(1000, 9999),
+            'slug' => str($name)->slug().'-'.fake()->unique()->numberBetween(1000, 9999),
             'logo' => null,
             'address' => 'Test Address',
             'currency' => 'USD',
@@ -429,8 +429,8 @@ class ProductCurrentStoreTest extends TestCase
         return Product::create([
             'store_id' => $store->id,
             'name' => $name,
-            'slug' => str($name)->slug() . '-' . fake()->unique()->numberBetween(1000, 9999),
-            'description' => $name . ' description',
+            'slug' => str($name)->slug().'-'.fake()->unique()->numberBetween(1000, 9999),
+            'description' => $name.' description',
             'base_price' => 99.99,
             'sku' => str($name)->upper()->slug('-'),
             'product_type' => 'physical',

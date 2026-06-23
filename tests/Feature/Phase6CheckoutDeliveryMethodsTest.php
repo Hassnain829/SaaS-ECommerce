@@ -37,7 +37,8 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_phase6b',
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider {
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        {
             private int $counter = 0;
 
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult

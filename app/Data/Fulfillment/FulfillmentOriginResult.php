@@ -16,8 +16,7 @@ final class FulfillmentOriginResult
         public readonly bool $stockChecked = true,
         public readonly string $routingStrategy = 'nearest_eligible_0a',
         public readonly string $routingBasis = 'service_area_stock_priority',
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>

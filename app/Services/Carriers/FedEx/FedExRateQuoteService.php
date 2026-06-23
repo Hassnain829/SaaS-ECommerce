@@ -8,6 +8,7 @@ use App\Models\Location;
 use App\Models\Store;
 use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 
 class FedExRateQuoteService
 {
@@ -15,8 +16,7 @@ class FedExRateQuoteService
         private readonly FedExConfig $config,
         private readonly FedExMerchantApiClient $apiClient,
         private readonly CarrierOriginReadinessService $originReadiness,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $destinationInput
@@ -162,6 +162,7 @@ class FedExRateQuoteService
                 path: $endpoint,
                 payload: $payload,
                 requestSummary: $requestSummary,
+                context: new FedExValidationEventContext(scenarioKey: 'rate_quote'),
             ),
             $endpoint,
         );
@@ -173,14 +174,7 @@ class FedExRateQuoteService
                 'rate_count' => $presentation['rate_count'],
             ]);
 
-            $result = new CarrierApiResult(
-                success: true,
-                data: $result->data,
-                requestId: $result->requestId,
-                durationMs: $result->durationMs,
-                requestSummary: $result->requestSummary,
-                responseSummary: $responseSummary,
-            );
+            $result = $result->copyWith(responseSummary: $responseSummary);
         }
 
         return ['result' => $result, 'presentation' => $presentation];

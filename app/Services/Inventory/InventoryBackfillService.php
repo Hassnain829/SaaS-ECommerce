@@ -11,8 +11,7 @@ class InventoryBackfillService
         private readonly DefaultLocationService $defaultLocationService,
         private readonly InventorySyncService $syncService,
         private readonly InventoryAdjustmentService $adjustmentService,
-    ) {
-    }
+    ) {}
 
     public function backfill(?int $storeId = null): array
     {

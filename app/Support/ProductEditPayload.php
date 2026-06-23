@@ -323,7 +323,7 @@ final class ProductEditPayload
                     'product_image_id' => isset($variantRow['product_image_id']) && $variantRow['product_image_id'] !== '' && $variantRow['product_image_id'] !== null
                         ? (int) $variantRow['product_image_id'] : null,
                 ];
-                
+
                 if (isset($variantRow['custom_fields']) && is_array($variantRow['custom_fields'])) {
                     $cfRows = [];
                     foreach (array_values($variantRow['custom_fields']) as $cfRow) {

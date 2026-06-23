@@ -10,8 +10,7 @@ class USPSOAuthTokenService
     public function __construct(
         private readonly USPSConfig $config,
         private readonly USPSHttpClient $httpClient,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{access_token: string, token_type: string, expires_in: int}|null

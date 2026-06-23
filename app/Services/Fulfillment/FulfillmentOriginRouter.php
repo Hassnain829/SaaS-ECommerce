@@ -21,8 +21,7 @@ class FulfillmentOriginRouter
     public function __construct(
         private readonly LocationServiceAreaMatcher $serviceAreaMatcher,
         private readonly InventorySyncService $inventorySyncService,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  iterable<int, mixed>  $items
@@ -71,8 +70,7 @@ class FulfillmentOriginRouter
         iterable $items,
         ?string $reservationReferenceType = null,
         int|string|null $reservationReferenceId = null,
-    ): array
-    {
+    ): array {
         $aggregatedItems = $this->aggregatedInventoryItems($store, $items);
 
         return $this->activeLocations($store)
@@ -98,8 +96,7 @@ class FulfillmentOriginRouter
         array $destinationAddress,
         ?string $reservationReferenceType,
         int|string|null $reservationReferenceId,
-    ): FulfillmentOriginResult
-    {
+    ): FulfillmentOriginResult {
         $candidates = [];
 
         foreach ($this->activeLocations($store)->where('fulfills_online_orders', true) as $location) {
@@ -166,8 +163,7 @@ class FulfillmentOriginRouter
         ?int $pickupLocationId,
         ?string $reservationReferenceType,
         int|string|null $reservationReferenceId,
-    ): FulfillmentOriginResult
-    {
+    ): FulfillmentOriginResult {
         if ($pickupLocationId) {
             $location = $this->activeLocations($store)
                 ->where('pickup_enabled', true)
@@ -329,8 +325,7 @@ class FulfillmentOriginRouter
         array $items,
         ?string $reservationReferenceType = null,
         int|string|null $reservationReferenceId = null,
-    ): bool
-    {
+    ): bool {
         foreach ($items as $row) {
             $item = $row['item'];
             if (! $item->tracked) {

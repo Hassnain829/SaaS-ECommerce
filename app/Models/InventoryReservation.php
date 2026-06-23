@@ -8,10 +8,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class InventoryReservation extends Model
 {
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_COMMITTED = 'committed';
+
     public const STATUS_RELEASED = 'released';
+
     public const STATUS_DEDUCTED = 'deducted';
+
     public const STATUS_EXPIRED = 'expired';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [

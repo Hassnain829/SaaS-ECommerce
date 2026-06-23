@@ -25,8 +25,7 @@ class ShipmentService
         private readonly FulfillmentStatusService $fulfillmentStatusService,
         private readonly OrderEventRecorder $orderEventRecorder,
         private readonly SecurityLogRecorder $securityLogRecorder,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload
@@ -301,7 +300,6 @@ class ShipmentService
     }
 
     /**
-     * @param  mixed  $items
      * @return array<int, int>
      */
     private function shipmentLines(Order $order, mixed $items): array
@@ -381,6 +379,7 @@ class ShipmentService
 
     /**
      * @template T of \Illuminate\Database\Eloquent\Model
+     *
      * @param  class-string<T>  $model
      * @return T|null
      */

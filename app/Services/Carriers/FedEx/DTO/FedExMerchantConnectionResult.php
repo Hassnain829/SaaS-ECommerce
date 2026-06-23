@@ -25,8 +25,7 @@ final class FedExMerchantConnectionResult
         public readonly ?CarrierAccount $account = null,
         public readonly ?string $detailMessage = null,
         public readonly ?string $errorCode = null,
-    ) {
-    }
+    ) {}
 
     public function isVerificationSuccess(): bool
     {

@@ -7,6 +7,7 @@ use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\CarrierApiEventLogger;
 use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 
 class FedExMerchantApiClient
 {
@@ -18,8 +19,7 @@ class FedExMerchantApiClient
         private readonly FedExMerchantCredentialsOAuthService $merchantOAuthService,
         private readonly FedExIntegratorChildOAuthService $integratorChildOAuthService,
         private readonly CarrierApiEventLogger $eventLogger,
-    ) {
-    }
+    ) {}
 
     public function assertFedExApiAccount(CarrierAccount $account): void
     {
@@ -57,6 +57,7 @@ class FedExMerchantApiClient
         string $path,
         array $payload,
         array $requestSummary,
+        ?FedExValidationEventContext $context = null,
     ): CarrierApiResult {
         $this->assertFedExApiAccount($account);
         $account->loadMissing('store');
@@ -106,6 +107,7 @@ class FedExMerchantApiClient
             account: $account,
             requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken, $credentialsMode),
             environment: $account->environment,
+            context: $context,
         );
 
         $apiResult = $this->httpClient->postJson(
@@ -201,9 +203,13 @@ class FedExMerchantApiClient
             }
         }
 
-        $this->eventLogger->complete($apiEvent, $apiResult);
+        $completedEvent = $this->eventLogger->complete($apiEvent, $apiResult);
 
-        return $apiResult;
+        return $apiResult->copyWith(
+            responseSummary: array_merge($apiResult->responseSummary ?? [], [
+                'carrier_api_event_id' => $completedEvent->id,
+            ]),
+        );
     }
 
     /**

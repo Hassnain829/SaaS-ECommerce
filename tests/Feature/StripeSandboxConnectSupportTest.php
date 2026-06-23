@@ -375,7 +375,8 @@ class StripeSandboxConnectSupportTest extends TestCase
 
     private function mockStripeServices(): void
     {
-        $this->app->instance(StripeConnectService::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripeConnectService {
+        $this->app->instance(StripeConnectService::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripeConnectService
+        {
             public function createOrRetrieveConnectedAccount(Store $store, User $user, string $mode = 'test'): PaymentProviderAccount
             {
                 return PaymentProviderAccount::query()->firstOrCreate(
@@ -405,7 +406,8 @@ class StripeSandboxConnectSupportTest extends TestCase
             }
         });
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider {
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
                 $account = $options['provider_account'] ?? null;

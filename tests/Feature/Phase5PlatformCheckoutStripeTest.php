@@ -46,7 +46,8 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             ],
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider {
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
                 return new PaymentIntentResult(

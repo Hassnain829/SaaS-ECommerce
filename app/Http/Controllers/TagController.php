@@ -35,7 +35,7 @@ class TagController extends Controller
 
         return redirect()
             ->route('products')
-            ->with('success', 'Tag “' . $validated['name'] . '” was saved.')
+            ->with('success', 'Tag “'.$validated['name'].'” was saved.')
             ->with('success_title', 'Tag saved')
             ->with('success_meta', $validated['name']);
     }
@@ -59,7 +59,7 @@ class TagController extends Controller
 
         return redirect()
             ->route('products')
-            ->with('success', 'Tag “' . $validated['name'] . '” was updated.')
+            ->with('success', 'Tag “'.$validated['name'].'” was updated.')
             ->with('success_title', 'Tag updated')
             ->with('success_meta', $validated['name']);
     }

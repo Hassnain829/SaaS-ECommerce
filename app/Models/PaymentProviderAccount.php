@@ -98,7 +98,7 @@ class PaymentProviderAccount extends Model
         return $this->status === 'active';
     }
 
-  /**
+    /**
      * @param  Builder<PaymentProviderAccount>  $query
      * @return Builder<PaymentProviderAccount>
      */

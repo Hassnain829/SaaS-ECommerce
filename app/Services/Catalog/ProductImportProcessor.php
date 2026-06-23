@@ -7,11 +7,11 @@ use App\Models\Product;
 use App\Models\ProductImport;
 use App\Models\ProductImportRow;
 use App\Models\ProductVariant;
+use App\Models\Store;
 use App\Support\Catalog\ProductImportMerchantMessages;
+use App\Support\Catalog\ProductImportQueue;
 use App\Support\Catalog\ProductImportRowPayloadSanitizer;
 use App\Support\Catalog\SpreadsheetValueNormalizer;
-use App\Models\Store;
-use App\Support\Catalog\ProductImportQueue;
 use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
 use Illuminate\Support\Facades\DB;
@@ -1165,7 +1165,6 @@ final class ProductImportProcessor
     }
 
     /**
-     * @param  mixed  $raw
      * @return list<array{source: string, key: string, scope: string}>
      */
     public static function normalizeCustomMappings(mixed $raw): array

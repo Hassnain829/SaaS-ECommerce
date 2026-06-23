@@ -15,8 +15,7 @@ class USPSAddressValidationService
         private readonly USPSConfig $config,
         private readonly USPSHttpClient $httpClient,
         private readonly CarrierApiEventLogger $eventLogger,
-    ) {
-    }
+    ) {}
 
     public function validateOriginLocation(
         Store $store,

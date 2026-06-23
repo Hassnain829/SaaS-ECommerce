@@ -34,8 +34,7 @@ class ExternalShipmentSyncService
         private readonly OrderEventRecorder $eventRecorder,
         private readonly ShipmentNumberGenerator $shipmentNumberGenerator,
         private readonly FulfillmentStatusService $fulfillmentStatusService,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload

@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\PaymentProviderAccount;
 use App\Models\SecurityLog;
+use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
 use App\Services\SecurityLogRecorder;
-use App\Services\Channels\ChannelOwnershipService;
 use App\Support\CheckoutMode;
 use App\Support\PlatformPaymentMode;
 use Illuminate\Http\RedirectResponse;

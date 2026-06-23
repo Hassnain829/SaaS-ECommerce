@@ -17,8 +17,7 @@ class InventoryReservationService
         private readonly DefaultLocationService $defaultLocationService,
         private readonly InventorySyncService $syncService,
         private readonly InventoryAdjustmentService $adjustmentService,
-    ) {
-    }
+    ) {}
 
     public function reserve(
         InventoryItem $item,

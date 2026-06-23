@@ -9,10 +9,11 @@ use App\Models\CustomerTag;
 use App\Models\DraftOrder;
 use App\Models\Order;
 use App\Models\Product;
-use App\Models\Tag;
 use App\Models\Role;
 use App\Models\SecurityLog;
 use App\Models\Store;
+use App\Models\Tag;
+use App\Models\User;
 use App\Models\UserSession;
 use App\Services\CustomerMetricsService;
 use App\Services\Fulfillment\FulfillmentStatusService;
@@ -33,7 +34,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use App\Models\User;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -400,11 +400,11 @@ class DashboardController extends Controller
 
         if ($search !== '') {
             $baseQuery->where(function ($query) use ($search) {
-                $query->where('name', 'like', '%' . $search . '%')
-                    ->orWhere('sku', 'like', '%' . $search . '%')
-                    ->orWhere('products.meta', 'like', '%' . $search . '%')
+                $query->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('sku', 'like', '%'.$search.'%')
+                    ->orWhere('products.meta', 'like', '%'.$search.'%')
                     ->orWhereHas('categories', static function ($q) use ($search): void {
-                        $q->where('categories.name', 'like', '%' . $search . '%');
+                        $q->where('categories.name', 'like', '%'.$search.'%');
                     });
             });
         }
@@ -447,7 +447,7 @@ class DashboardController extends Controller
         } elseif ($stockFilter === 'out') {
             $baseQuery->where(function ($query) {
                 $query->whereDoesntHave('variants')
-                    ->orWhereHas('variants', fn($variantQuery) => $variantQuery->selectRaw('product_id')->groupBy('product_id')->havingRaw('SUM(stock) = 0'));
+                    ->orWhereHas('variants', fn ($variantQuery) => $variantQuery->selectRaw('product_id')->groupBy('product_id')->havingRaw('SUM(stock) = 0'));
             });
         }
 
@@ -537,7 +537,7 @@ class DashboardController extends Controller
             ->all();
 
         $totalProducts = $statsProducts->count();
-        $outOfStockCount = $statsProducts->filter(fn(Product $product) => (int) ($product->variants_sum_stock ?? 0) === 0)->count();
+        $outOfStockCount = $statsProducts->filter(fn (Product $product) => (int) ($product->variants_sum_stock ?? 0) === 0)->count();
         $lowStockCount = $statsProducts->filter(function (Product $product): bool {
             $inventory = (int) ($product->variants_sum_stock ?? 0);
             $alertLevel = (int) ($product->variants_max_stock_alert ?? ($product->meta['stock_alert'] ?? 0));
@@ -1059,7 +1059,7 @@ class DashboardController extends Controller
     public function customersProfile(Request $request, Customer $customer, CustomerMetricsService $metrics)
     {
         $selectedStore = $request->attributes->get('currentStore');
-        
+
         if ($customer->store_id !== $selectedStore->id) {
             abort(404);
         }
@@ -1070,7 +1070,7 @@ class DashboardController extends Controller
             'addresses' => fn ($query) => $query->orderByDesc('is_default')->orderBy('type')->orderBy('id'),
             'profileNotes.user',
             'tags',
-            'orders' => function($q) {
+            'orders' => function ($q) {
                 $q->with('items')
                     ->orderByDesc('placed_at')
                     ->orderByDesc('created_at')
@@ -1340,6 +1340,7 @@ class DashboardController extends Controller
     {
         return view('user_view.onboarding-Step3-StoreReady');
     }
+
     public function store_management()
     {
         $stores = request()->user()->memberStores()

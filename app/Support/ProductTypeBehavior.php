@@ -5,9 +5,13 @@ namespace App\Support;
 final class ProductTypeBehavior
 {
     public const PHYSICAL = 'physical';
+
     public const DIGITAL = 'digital';
+
     public const SERVICE = 'service';
+
     public const SUBSCRIPTION = 'subscription';
+
     public const VIRTUAL = 'virtual';
 
     public const TYPES = [

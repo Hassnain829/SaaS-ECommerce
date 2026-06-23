@@ -52,8 +52,7 @@ class ExternalOrderSyncService
         private readonly CustomerMetricsService $customerMetricsService,
         private readonly ChannelOwnershipService $channelOwnership,
         private readonly FulfillmentOriginRouter $originRouter,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload

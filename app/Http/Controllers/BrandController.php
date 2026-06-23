@@ -36,7 +36,7 @@ class BrandController extends Controller
 
         return redirect()
             ->route('products')
-            ->with('success', 'Brand “' . $validated['name'] . '” was saved for ' . $currentStore->name . '.')
+            ->with('success', 'Brand “'.$validated['name'].'” was saved for '.$currentStore->name.'.')
             ->with('success_title', 'Brand saved')
             ->with('success_meta', $validated['name']);
     }
@@ -65,7 +65,7 @@ class BrandController extends Controller
 
         return redirect()
             ->route('products')
-            ->with('success', 'Brand “' . $validated['name'] . '” was updated.')
+            ->with('success', 'Brand “'.$validated['name'].'” was updated.')
             ->with('success_title', 'Brand updated')
             ->with('success_meta', $validated['name']);
     }

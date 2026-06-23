@@ -9,8 +9,7 @@ class FedExEulaService
 {
     public function __construct(
         private readonly FedExConfig $config,
-    ) {
-    }
+    ) {}
 
     public function isAvailable(): bool
     {

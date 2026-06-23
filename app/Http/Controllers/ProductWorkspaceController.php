@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\StockMovement;
-use App\Services\Inventory\InventorySyncService;
 use App\Models\Store;
+use App\Services\Inventory\InventorySyncService;
 use App\Support\ProductDetailPresenter;
 use App\Support\ProductEditPayload;
 use App\Support\ProductTypeBehavior;

@@ -20,31 +20,77 @@ class FedExShipPayloadFactory
         $fixture = array_replace_recursive($fixture, $overrides);
         $accountNumber = (string) ($account->provider_account_number ?: ($fixture['account_number'] ?? ''));
         $shipDate = (string) ($overrides['ship_date'] ?? now()->toDateString());
+        $labelFormat = strtoupper(trim((string) ($labelFormat ?? $fixture['label_format'] ?? 'PDF')));
+        $labelStockType = (string) ($fixture['label_stock_type'] ?? 'PAPER_4X6');
 
-        $payload = [
-            'labelResponseOptions' => filled($labelFormat) ? 'LABEL' : 'URL_ONLY',
-            'requestedShipment' => [
-                'shipDatestamp' => $shipDate,
-                'pickupType' => (string) ($fixture['pickup_type'] ?? 'USE_SCHEDULED_PICKUP'),
-                'serviceType' => (string) ($fixture['service_type'] ?? 'FEDEX_GROUND'),
-                'packagingType' => (string) ($fixture['packaging_type'] ?? 'YOUR_PACKAGING'),
-                'shipper' => $this->party($fixture['shipper'] ?? []),
-                'recipients' => [$this->party($fixture['recipient'] ?? [], true)],
-                'shippingChargesPayment' => [
-                    'paymentType' => 'SENDER',
-                ],
-                'requestedPackageLineItems' => $this->packageLineItems($fixture['packages'] ?? []),
-            ],
-            'accountNumber' => [
-                'value' => $accountNumber,
-            ],
+        $requestedShipment = [
+            'shipDatestamp' => $shipDate,
+            'pickupType' => (string) ($fixture['pickup_type'] ?? 'USE_SCHEDULED_PICKUP'),
+            'serviceType' => (string) ($fixture['service_type'] ?? 'FEDEX_GROUND'),
+            'packagingType' => (string) ($fixture['packaging_type'] ?? 'YOUR_PACKAGING'),
+            'shipper' => $this->party($fixture['shipper'] ?? []),
+            'recipients' => [$this->party($fixture['recipient'] ?? [], true)],
+            'shippingChargesPayment' => $this->shippingChargesPayment($fixture, $accountNumber),
+            'requestedPackageLineItems' => $this->packageLineItems($fixture['packages'] ?? []),
         ];
 
-        if (filled($labelFormat)) {
-            $payload['requestedShipment']['labelSpecification'] = $this->labelSpecification($labelFormat);
+        if (isset($fixture['total_package_count'])) {
+            $requestedShipment['totalPackageCount'] = (int) $fixture['total_package_count'];
         }
 
-        return $payload;
+        if (! empty($fixture['special_services'])) {
+            $servicePayload = [];
+            $serviceTypes = [];
+
+            foreach ($fixture['special_services'] as $service) {
+                if (! is_array($service)) {
+                    continue;
+                }
+
+                foreach ((array) ($service['specialServiceTypes'] ?? []) as $type) {
+                    $serviceTypes[] = $type;
+                }
+
+                $detail = $service;
+                unset($detail['specialServiceTypes']);
+                $servicePayload = array_replace_recursive($servicePayload, $detail);
+            }
+
+            if ($serviceTypes !== []) {
+                $servicePayload['specialServiceTypes'] = array_values(array_unique($serviceTypes));
+            }
+
+            if ($servicePayload !== []) {
+                $requestedShipment['shipmentSpecialServices'] = $servicePayload;
+            }
+        }
+
+        if (filled($fixture['email_notification'] ?? null)) {
+            $requestedShipment['emailNotificationDetail'] = [
+                'recipients' => [[
+                    'emailAddress' => (string) $fixture['email_notification'],
+                    'notificationEventType' => ['ON_SHIPMENT'],
+                    'notificationFormatType' => 'HTML',
+                ]],
+            ];
+        }
+
+        if (isset($fixture['declared_value']) && is_array($fixture['declared_value'])) {
+            $requestedShipment['totalDeclaredValue'] = [
+                'amount' => (float) ($fixture['declared_value']['amount'] ?? 0),
+                'currency' => (string) ($fixture['declared_value']['currency'] ?? 'USD'),
+            ];
+        }
+
+        if (filled($labelFormat)) {
+            $requestedShipment['labelSpecification'] = $this->labelSpecification($labelFormat, $labelStockType);
+        }
+
+        return [
+            'labelResponseOptions' => filled($labelFormat) ? 'LABEL' : 'URL_ONLY',
+            'requestedShipment' => $requestedShipment,
+            'accountNumber' => ['value' => $accountNumber],
+        ];
     }
 
     /**
@@ -106,9 +152,28 @@ class FedExShipPayloadFactory
     }
 
     /**
+     * @param  array<string, mixed>  $fixture
      * @return array<string, mixed>
      */
-    private function labelSpecification(string $format): array
+    private function shippingChargesPayment(array $fixture, string $accountNumber): array
+    {
+        $paymentType = strtoupper((string) ($fixture['transportation_payment_type'] ?? 'SENDER'));
+        $payment = ['paymentType' => $paymentType];
+
+        if ($paymentType === 'RECIPIENT') {
+            $payment['payor'] = [
+                'responsibleParty' => [
+                    'accountNumber' => [
+                        'value' => (string) ($fixture['transportation_payment_account'] ?? $accountNumber),
+                    ],
+                ],
+            ];
+        }
+
+        return $payment;
+    }
+
+    private function labelSpecification(string $format, string $stockType): array
     {
         $format = strtoupper(trim($format));
 
@@ -116,17 +181,17 @@ class FedExShipPayloadFactory
             'PNG' => [
                 'labelFormatType' => 'COMMON2D',
                 'imageType' => 'PNG',
-                'labelStockType' => 'PAPER_4X6',
+                'labelStockType' => $stockType,
             ],
             'ZPL', 'ZPLII' => [
                 'labelFormatType' => 'COMMON2D',
                 'imageType' => 'ZPLII',
-                'labelStockType' => 'STOCK_4X6',
+                'labelStockType' => $stockType,
             ],
             default => [
                 'labelFormatType' => 'COMMON2D',
                 'imageType' => 'PDF',
-                'labelStockType' => 'PAPER_4X6',
+                'labelStockType' => $stockType,
             ],
         };
     }

@@ -8,31 +8,67 @@ use App\Models\CarrierApiEvent;
 use App\Models\FedExValidationArtifact;
 use App\Models\Store;
 use Illuminate\Support\Facades\File;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use ZipArchive;
 
 class FedExValidationEvidenceExporter
 {
-    /**
-     * @var list<string>
-     */
-    private const EXPORT_ACTIONS = [
-        CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
-        CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN,
-        CarrierApiEvent::ACTION_FEDEX_ADDRESS_VALIDATION,
-        CarrierApiEvent::ACTION_FEDEX_SERVICE_AVAILABILITY,
-        CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
-        CarrierApiEvent::ACTION_FEDEX_SHIP_VALIDATE,
-        CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL,
-        CarrierApiEvent::ACTION_FEDEX_SHIP_CANCEL,
-    ];
+    public const SCHEMA_VERSION = '1.0';
 
     public function __construct(
         private readonly FedExConfig $config,
-        private readonly FedExValidationStatusPresenter $statusPresenter,
-        private readonly FedExShipTestCaseFixtureService $shipFixtures,
-    ) {
+        private readonly FedExValidationPreflightService $preflight,
+        private readonly FedExValidationEvidenceQueryService $evidenceQuery,
+        private readonly FedExValidationEvidenceSanitizer $sanitizer,
+        private readonly FedExValidationScopeService $scopeService,
+    ) {}
+
+    public function exportDiagnostic(
+        Store $store,
+        ?CarrierAccount $account = null,
+        ?CarrierAccountRegistrationSession $session = null,
+        string $region = 'US',
+        ?string $environment = null,
+    ): string {
+        $assessment = $account ? $this->preflight->assess($store, $account) : ['ready' => false, 'blockers' => []];
+
+        return $this->buildZip(
+            store: $store,
+            account: $account,
+            session: $session,
+            region: $region,
+            environment: $environment,
+            mode: 'diagnostic',
+            preflight: $assessment,
+            includeFailedAttempts: true,
+        );
     }
 
+    public function exportFinal(
+        Store $store,
+        CarrierAccount $account,
+        string $region = 'US',
+        ?string $environment = null,
+    ): string {
+        $assessment = $this->preflight->assess($store, $account);
+
+        if (! ($assessment['ready'] ?? false)) {
+            throw new HttpException(422, 'Final FedEx validation export is blocked until preflight passes.');
+        }
+
+        return $this->buildZip(
+            store: $store,
+            account: $account,
+            session: $account->latestRegistrationSession,
+            region: $region,
+            environment: $environment,
+            mode: 'final',
+            preflight: $assessment,
+            includeFailedAttempts: false,
+        );
+    }
+
+    /** @deprecated use exportDiagnostic() */
     public function export(
         Store $store,
         ?CarrierAccount $account = null,
@@ -40,39 +76,96 @@ class FedExValidationEvidenceExporter
         string $region = 'US',
         ?string $environment = null,
     ): string {
-        $environment = $this->config->environment($environment ?? $account?->environment ?? CarrierAccount::ENVIRONMENT_SANDBOX);
+        return $this->exportDiagnostic($store, $account, $session, $region, $environment);
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function buildZip(
+        Store $store,
+        ?CarrierAccount $account,
+        ?CarrierAccountRegistrationSession $session,
+        string $region,
+        ?string $environment,
+        string $mode,
+        array $preflight,
+        bool $includeFailedAttempts,
+    ): string {
+        abort_unless($account !== null, 422, 'A FedEx carrier account is required for validation export.');
+
+        $environment = $this->config->environment($environment ?? $account->environment ?? CarrierAccount::ENVIRONMENT_SANDBOX);
+        $scopes = $preflight['selected_scopes'] ?? $this->scopeService->resolveRequiredScopes();
         $timestamp = now()->format('Ymd_His');
-        $bundleDir = storage_path("app/fedex-validation/{$store->id}/{$timestamp}/fedex-validation");
+        $root = 'FedEx_Integrator_Validation_BaasPlatformFedExSandbox';
+        $bundleDir = storage_path("app/fedex-validation/{$store->id}/{$timestamp}/{$root}");
 
-        File::ensureDirectoryExists($bundleDir.'/registration');
-        File::ensureDirectoryExists($bundleDir.'/api-events');
-        File::ensureDirectoryExists($bundleDir.'/labels');
-        File::ensureDirectoryExists($bundleDir.'/notes');
+        File::ensureDirectoryExists($bundleDir.'/00_documents');
+        File::ensureDirectoryExists($bundleDir.'/01_registration_mfa');
+        File::ensureDirectoryExists($bundleDir.'/02_address_validation');
+        File::ensureDirectoryExists($bundleDir.'/03_service_availability');
+        File::ensureDirectoryExists($bundleDir.'/04_rates');
+        File::ensureDirectoryExists($bundleDir.'/05_ship_us02_zplii/generated');
+        File::ensureDirectoryExists($bundleDir.'/05_ship_us02_zplii/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/06_ship_us04_png/generated');
+        File::ensureDirectoryExists($bundleDir.'/06_ship_us04_png/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/07_ship_us05_pdf_mps/generated');
+        File::ensureDirectoryExists($bundleDir.'/07_ship_us05_pdf_mps/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/08_tracking');
+        if ($this->scopeService->shipCancelRequired($scopes)) {
+            File::ensureDirectoryExists($bundleDir.'/10_cancel_shipment');
+        }
+        if ($this->scopeService->tradeDocumentsRequired($scopes)) {
+            File::ensureDirectoryExists($bundleDir.'/09_trade_documents');
+        }
 
-        $session ??= $account?->latestRegistrationSession;
+        $this->exportRequiredDocuments($bundleDir.'/00_documents', $store, $account);
+        $this->exportRegistrationScenarios($bundleDir.'/01_registration_mfa', $store, $account, $preflight, $includeFailedAttempts);
+        $this->exportScenarioEvent($bundleDir.'/02_address_validation', $this->resolveCheckEvent($store, $account, $preflight, 'address_validation', $includeFailedAttempts), $includeFailedAttempts, $mode);
+        $this->exportScenarioEvent($bundleDir.'/03_service_availability', $this->resolveCheckEvent($store, $account, $preflight, 'service_availability', $includeFailedAttempts), $includeFailedAttempts, $mode);
+        $this->exportScenarioEvent($bundleDir.'/04_rates', $this->resolveCheckEvent($store, $account, $preflight, 'rate_quote', true), true, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/05_ship_us02_zplii', $store, $account, 'IntegratorUS02', $preflight, $includeFailedAttempts, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/06_ship_us04_png', $store, $account, 'IntegratorUS04', $preflight, $includeFailedAttempts, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/07_ship_us05_pdf_mps', $store, $account, 'IntegratorUS05', $preflight, $includeFailedAttempts, $mode);
 
-        $this->writeFile($bundleDir.'/README.md', $this->readme($store, $account, $environment, $region));
-        $this->writeFile($bundleDir.'/environment-summary.json', json_encode($this->environmentSummary($account, $environment), JSON_PRETTY_PRINT));
-        $this->writeFile(
-            $bundleDir.'/registration/redacted-registration-session.json',
-            json_encode($this->redactedSession($session), JSON_PRETTY_PRINT),
-        );
-        $this->writeFile(
-            $bundleDir.'/test-case-summary.json',
-            json_encode($this->testCaseSummary($region, $account, $store), JSON_PRETTY_PRINT),
-        );
-        $this->writeFile($bundleDir.'/screenshots-required-checklist.md', $this->screenshotsChecklist());
-        $this->writeFile($bundleDir.'/notes/rate-quote-blocker.md', $this->rateQuoteBlockerNote($store, $account));
-        $this->exportApiEvents($bundleDir.'/api-events', $store, $account);
-        $this->exportLabels($bundleDir.'/labels', $store, $account);
+        if ($this->scopeService->trackingRequired($scopes)) {
+            $this->exportScenarioEvent($bundleDir.'/08_tracking', $this->resolveCheckEvent($store, $account, $preflight, 'tracking', $includeFailedAttempts), $includeFailedAttempts, $mode);
+            $this->copyTrackingScreenshot($bundleDir.'/08_tracking', $store, $account, $preflight);
+        }
 
-        $zipFilename = "fedex-validation-bundle-{$store->id}-{$timestamp}.zip";
+        if ($this->scopeService->shipCancelRequired($scopes)) {
+            $this->exportScenarioEvent($bundleDir.'/10_cancel_shipment', $this->resolveCheckEvent($store, $account, $preflight, 'ship_cancel', $includeFailedAttempts), $includeFailedAttempts, $mode);
+        }
+
+        if ($this->scopeService->tradeDocumentsRequired($scopes)) {
+            $this->exportScenarioEvent($bundleDir.'/09_trade_documents', $this->resolveCheckEvent($store, $account, $preflight, 'trade_documents', $includeFailedAttempts), $includeFailedAttempts, $mode);
+        }
+
+        $evidenceIndex = $this->buildEvidenceIndex($store, $account, $region, $environment, $preflight);
+        $this->writeJson($bundleDir.'/evidence-index.json', $evidenceIndex);
+        $this->writeJson($bundleDir.'/preflight-report.json', $preflight);
+        $this->writeFile($bundleDir.'/README.md', $this->readme($store, $account, $environment, $region, $mode, $preflight));
+
+        $knownSecrets = $this->knownSecretsForScan($account, $environment);
+        $secretScan = $this->sanitizer->scanStagingDirectory($bundleDir, $knownSecrets);
+        if ($secretScan !== []) {
+            $details = collect($secretScan)
+                ->map(fn (array $blocker): string => ($blocker['path'] ?? 'unknown').' ('.($blocker['reason'] ?? 'unknown').')')
+                ->take(5)
+                ->implode('; ');
+
+            throw new HttpException(422, 'Export blocked: secret scan failed for staged validation bundle. '.$details);
+        }
+
+        $zipFilename = $mode === 'final'
+            ? "fedex-validation-final-{$store->id}-{$timestamp}.zip"
+            : "fedex-validation-diagnostic-{$store->id}-{$timestamp}.zip";
         $zipPath = storage_path("app/fedex-validation/{$store->id}/{$timestamp}/{$zipFilename}");
         $zip = new ZipArchive;
         $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
         foreach (File::allFiles($bundleDir) as $file) {
-            $zip->addFile($file->getPathname(), 'fedex-validation/'.str_replace('\\', '/', $file->getRelativePathname()));
+            $zip->addFile($file->getPathname(), $root.'/'.str_replace('\\', '/', $file->getRelativePathname()));
         }
 
         $zip->close();
@@ -80,237 +173,291 @@ class FedExValidationEvidenceExporter
         return $zipPath;
     }
 
-    private function writeFile(string $path, string $contents): void
-    {
-        File::ensureDirectoryExists(dirname($path));
-        File::put($path, $contents);
-    }
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function resolveCheckEvent(
+        Store $store,
+        CarrierAccount $account,
+        array $preflight,
+        string $checkKey,
+        bool $allowFallback,
+    ): ?CarrierApiEvent {
+        $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $checkKey)['event_id'] ?? null;
+        if ($eventId) {
+            return $this->evidenceQuery->eventById($store, $account, (int) $eventId);
+        }
 
-    private function readme(Store $store, ?CarrierAccount $account, string $environment, string $region): string
-    {
-        return implode("\n", [
-            '# FedEx Integrator Validation Evidence Bundle',
-            '',
-            'Store: '.$store->name.' (#'.$store->id.')',
-            'Environment: '.$environment,
-            'Region: '.$region,
-            'Carrier account: '.($account ? $account->maskedAccountNumber() : 'n/a'),
-            'Connection model: '.($account?->connection_model ?? 'n/a'),
-            'Credentials mode: '.($account?->usesFedExIntegratorProvider() ? 'integrator_child' : 'merchant_developer'),
-            '',
-            'This bundle contains redacted JSON and optional label files only.',
-            'Excluded by design: secrets, OAuth tokens, child keys/passwords, PINs, full account numbers, raw label base64, source code, .env, vendor, node_modules.',
-            '',
-            'Generated at: '.now()->toIso8601String(),
-        ]);
+        if (! $allowFallback) {
+            return null;
+        }
+
+        return match ($checkKey) {
+            'address_validation' => $this->evidenceQuery->canonicalEvent($store, $account, 'address_validation'),
+            'service_availability' => $this->evidenceQuery->canonicalEvent($store, $account, 'service_availability'),
+            'rate_quote' => $this->evidenceQuery->canonicalEvent($store, $account, 'rate_quote'),
+            'tracking' => $this->evidenceQuery->canonicalEvent($store, $account, 'basic_integrated_visibility'),
+            'ship_cancel' => $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'ship_cancel'),
+            'trade_documents' => $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'trade_documents_upload'),
+            default => null,
+        };
     }
 
     /**
-     * @return array<string, mixed>
+     * @param  array<string, mixed>  $preflight
      */
-    private function environmentSummary(?CarrierAccount $account, string $environment): array
+    private function exportRegistrationScenarios(string $directory, Store $store, CarrierAccount $account, array $preflight, bool $includeFailed): void
     {
-        return [
-            'environment' => $environment,
-            'base_url' => $this->config->baseUrl($environment),
-            'registration_path' => $this->config->registrationPath($environment),
-            'address_validation_path' => $this->config->addressValidationPath(),
-            'service_availability_path' => $this->config->serviceAvailabilityPath(),
-            'rate_quote_path' => $this->config->rateQuotePath(),
-            'ship_validate_path' => $this->config->shipValidatePath($environment),
-            'ship_create_path' => $this->config->shipCreatePath($environment),
-            'ship_cancel_path' => $this->config->shipCancelPath($environment),
-            'model_a_enabled' => $this->config->modelAEnabled(),
-            'production_enabled' => $this->config->productionEnabled(),
-            'ship_sandbox_label_generation_enabled' => $this->config->shipSandboxLabelGenerationEnabled(),
-            'ship_evidence_enabled' => $this->config->shipEvidenceEnabled(),
-            'parent_client_configured' => $this->config->isConfigured($environment),
-            'parent_client_id_last4' => $this->last4($this->config->parentClientId($environment) ?? ''),
-            'account_last4' => $account ? $this->last4((string) $account->provider_account_number) : null,
-            'credentials_mode' => $account?->usesFedExIntegratorProvider() ? 'integrator_child' : null,
-        ];
+        $order = 1;
+        foreach (FedExValidationScenarioCatalog::registrationScenarios() as $scenarioKey => $meta) {
+            $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $scenarioKey)['event_id'] ?? null;
+            $event = $eventId
+                ? $this->evidenceQuery->eventById($store, $account, (int) $eventId)
+                : $this->evidenceQuery->canonicalEvent($store, $account, $scenarioKey, mfaMethod: $meta['mfa_method']);
+
+            $folder = $directory.'/'.str_pad((string) $order, 2, '0', STR_PAD_LEFT).'_'.$scenarioKey;
+            File::ensureDirectoryExists($folder);
+            $this->exportScenarioEvent($folder, $event, $includeFailed, $includeFailed ? 'diagnostic' : 'final');
+            $order++;
+        }
     }
 
     /**
-     * @return array<string, mixed>
+     * @param  array<string, mixed>  $preflight
      */
-    private function redactedSession(?CarrierAccountRegistrationSession $session): array
-    {
-        if ($session === null) {
-            return ['session' => null];
-        }
+    private function exportLockedShipScenario(
+        string $directory,
+        Store $store,
+        CarrierAccount $account,
+        string $testCaseKey,
+        array $preflight,
+        bool $includeFailed,
+        string $mode,
+    ): void {
+        $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$testCaseKey];
+        $eventCheckKey = $meta['scenario_key'].'_event';
+        $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $eventCheckKey)['event_id'] ?? null;
+        $event = $eventId
+            ? $this->evidenceQuery->eventById($store, $account, (int) $eventId)
+            : $this->evidenceQuery->canonicalShipLabelEvent(
+                $store,
+                $account,
+                (string) $meta['scenario_key'],
+                testCaseKey: $testCaseKey,
+                labelFormat: (string) $meta['label_format'],
+            );
 
-        return [
-            'id' => $session->id,
-            'status' => $session->status,
-            'environment' => $session->environment,
-            'account_last4' => $session->account_last4,
-            'account_name_length' => strlen((string) $session->account_name),
-            'eula_version' => $session->eula_version,
-            'eula_accepted_at' => $session->eula_accepted_at?->toIso8601String(),
-            'fedex_transaction_id' => $session->fedex_transaction_id,
-            'mfa_method' => $session->mfa_method,
-            'request_summary' => $session->request_summary_json,
-            'response_summary' => $session->response_summary_json,
-            'last_error_code' => $session->last_error_code,
-            'last_error_message' => $session->last_error_message,
-        ];
-    }
-
-    private function exportApiEvents(string $directory, Store $store, ?CarrierAccount $account): void
-    {
-        foreach (self::EXPORT_ACTIONS as $action) {
-            $event = $this->latestEvent($store, $account, $action);
-
-            $payload = [
-                'action' => $action,
-                'event' => $event === null ? null : $this->redactedEvent($event),
-                'note' => $event === null
-                    ? 'No recorded event for this action yet. Run the corresponding validation tool before submission.'
-                    : null,
-            ];
-
-            $this->writeFile($directory.'/'.$action.'.json', json_encode($payload, JSON_PRETTY_PRINT));
+        $this->exportScenarioEvent($directory, $event, $includeFailed, $mode);
+        if ($event !== null) {
+            $this->copyArtifacts($directory.'/generated', $event, FedExValidationArtifact::ROLE_GENERATED_LABEL);
+            $this->copyArtifacts($directory.'/printed_scans', $event, FedExValidationArtifact::ROLE_PRINTED_SCAN);
         }
     }
 
-    private function exportLabels(string $directory, Store $store, ?CarrierAccount $account): void
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function copyTrackingScreenshot(string $directory, Store $store, CarrierAccount $account, array $preflight): void
     {
-        $query = FedExValidationArtifact::query()
+        $artifactId = collect($preflight['checks'] ?? [])->firstWhere('key', 'tracking_screenshot')['artifact_id'] ?? null;
+        if (! $artifactId) {
+            return;
+        }
+
+        $artifact = FedExValidationArtifact::query()
             ->where('store_id', $store->id)
-            ->where('artifact_type', 'like', 'ship_label_%');
+            ->where('carrier_account_id', $account->id)
+            ->whereKey($artifactId)
+            ->first();
 
-        if ($account !== null) {
-            $query->where('carrier_account_id', $account->id);
+        $path = $artifact?->absolutePath();
+        if ($path !== null && is_file($path)) {
+            File::copy($path, $directory.'/tracking-screenshot.'.pathinfo($path, PATHINFO_EXTENSION));
         }
+    }
 
-        $artifacts = $query->orderBy('id')->get();
+    private function exportScenarioEvent(string $directory, ?CarrierApiEvent $event, bool $allowIncomplete, string $mode): void
+    {
+        File::ensureDirectoryExists($directory);
 
-        if ($artifacts->isEmpty()) {
-            $this->writeFile($directory.'/../labels-not-generated.md', implode("\n", [
-                '# Labels not generated',
-                '',
-                'No sandbox label artifacts were saved yet.',
-                '',
-                'If Ship API is blocked with HTTP 403, include the api-events/fedex_ship_create_label.json file and rate-quote-blocker.md in your FedEx support request.',
-            ]));
+        if ($event === null) {
+            if ($mode === 'final') {
+                throw new HttpException(422, 'Missing required evidence for '.$directory);
+            }
+
+            if (! $allowIncomplete) {
+                throw new HttpException(422, 'Missing required evidence for '.$directory);
+            }
+
+            $this->writeJson($directory.'/request.json', ['status' => 'missing', 'note' => 'No recorded event for this scenario yet.']);
+            $this->writeJson($directory.'/response.json', ['status' => 'missing', 'note' => 'No recorded event for this scenario yet.']);
 
             return;
         }
 
-        $manifest = [];
+        if ($mode === 'final' && (! $event->hasCompleteEvidence() || ! $event->isSuccessfulHttp())) {
+            throw new HttpException(422, 'Final export blocked: incomplete or unsuccessful evidence for '.$event->scenario_key);
+        }
+
+        $requestBody = $this->sanitizer->sanitize($event->request_body_encrypted ?? []);
+        $responseBody = $this->sanitizer->sanitize($event->response_body_encrypted ?? []);
+
+        if ($mode === 'final' && ($requestBody === [] || $requestBody === null || $responseBody === [] || $responseBody === null)) {
+            throw new HttpException(422, 'Final export blocked: empty required JSON for '.$event->scenario_key);
+        }
+
+        $wrapper = [
+            'schema_version' => self::SCHEMA_VERSION,
+            'event_id' => $event->id,
+            'scenario_key' => $event->scenario_key,
+            'test_case' => $event->test_case_key,
+            'environment' => $event->environment,
+            'endpoint' => $event->endpoint,
+            'method' => $event->http_method,
+            'executed_at' => $event->evidence_recorded_at?->toIso8601String() ?? $event->created_at?->toIso8601String(),
+            'http_status' => $event->http_status,
+            'fedex_transaction_id' => $event->fedex_transaction_id,
+            'request' => [
+                'headers' => $this->sanitizer->sanitize($event->request_headers_encrypted ?? []),
+                'body' => $requestBody,
+            ],
+            'response' => [
+                'headers' => $this->sanitizer->sanitize($event->response_headers_encrypted ?? []),
+                'body' => $responseBody,
+            ],
+        ];
+
+        $this->writeJson($directory.'/request.json', ['request' => $wrapper['request'], 'meta' => array_diff_key($wrapper, ['request' => true, 'response' => true])]);
+        $this->writeJson($directory.'/response.json', ['response' => $wrapper['response'], 'meta' => array_diff_key($wrapper, ['request' => true, 'response' => true])]);
+    }
+
+    private function copyArtifacts(string $directory, CarrierApiEvent $event, string $role): void
+    {
+        File::ensureDirectoryExists($directory);
+
+        $artifacts = FedExValidationArtifact::query()
+            ->where('store_id', $event->store_id)
+            ->where('carrier_account_id', $event->carrier_account_id)
+            ->where('carrier_api_event_id', $event->id)
+            ->where('artifact_role', $role)
+            ->orderBy('package_sequence')
+            ->get();
 
         foreach ($artifacts as $artifact) {
-            $sourcePath = $artifact->file_path ? storage_path('app/'.$artifact->file_path) : null;
-            $targetName = basename((string) $artifact->file_path);
-
-            if ($sourcePath && File::exists($sourcePath)) {
-                File::copy($sourcePath, $directory.'/'.$targetName);
+            $path = $artifact->absolutePath();
+            if ($path === null || ! is_file($path)) {
+                continue;
             }
 
-            $manifest[] = [
-                'artifact_type' => $artifact->artifact_type,
-                'label' => $artifact->label,
-                'file' => $targetName,
-                'fedex_transaction_id' => $artifact->fedex_transaction_id,
-                'request_summary' => $artifact->request_summary_json,
-                'response_summary' => $artifact->response_summary_json,
-                'created_at' => $artifact->created_at?->toIso8601String(),
-            ];
-        }
+            if (! filled($artifact->sha256) || hash_file('sha256', $path) !== (string) $artifact->sha256) {
+                continue;
+            }
 
-        $this->writeFile($directory.'/manifest.json', json_encode($manifest, JSON_PRETTY_PRINT));
+            $target = $directory.'/package-'.($artifact->package_sequence ?? 1).'.'.pathinfo($path, PATHINFO_EXTENSION);
+            File::copy($path, $target);
+        }
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function redactedEvent(CarrierApiEvent $event): array
+    private function exportRequiredDocuments(string $directory, Store $store, CarrierAccount $account): void
     {
-        return [
-            'action' => $event->action,
-            'status' => $event->status,
-            'environment' => $event->environment,
-            'request_id' => $event->request_id,
-            'error_message' => $event->error_message,
-            'request_summary' => $event->request_summary,
-            'response_summary' => $event->response_summary,
-            'created_at' => $event->created_at?->toIso8601String(),
+        $map = [
+            FedExValidationArtifact::DOC_COVER_SHEET => 'Integrator_Validation_Cover_Sheet.pdf',
+            FedExValidationArtifact::DOC_PIW => 'Product_Information_Worksheet.pdf',
+            FedExValidationArtifact::DOC_CUSTOMER_SCREENSHOTS => 'Customer_Facing_Screenshots.pdf',
         ];
-    }
 
-    private function latestEvent(Store $store, ?CarrierAccount $account, string $action): ?CarrierApiEvent
-    {
-        $query = CarrierApiEvent::query()
-            ->where('store_id', $store->id)
-            ->where('action', $action)
-            ->latest('id');
+        foreach ($map as $type => $filename) {
+            $artifact = FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('artifact_type', $type)
+                ->latest('id')
+                ->first();
 
-        if ($account !== null) {
-            $query->where('carrier_account_id', $account->id);
+            if ($artifact?->absolutePath() && is_file($artifact->absolutePath())) {
+                File::copy($artifact->absolutePath(), $directory.'/'.$filename);
+            }
         }
-
-        return $query->first();
-    }
-
-    private function rateQuoteBlockerNote(Store $store, ?CarrierAccount $account): string
-    {
-        if ($account === null) {
-            return '# Rate quote blocker\n\nNo carrier account selected.';
-        }
-
-        $status = $this->statusPresenter->capabilityMatrix($store, $account)['rate_quote'];
-
-        return implode("\n", [
-            '# FedEx rate quote authorization blocker',
-            '',
-            'Status: '.($status['label'] ?? 'unknown'),
-            'HTTP status: '.($status['http_status'] ?? 'n/a'),
-            '',
-            ($status['detail'] ?? 'FedEx sandbox child credentials returned HTTP 403 FORBIDDEN for Comprehensive Rates.'),
-            '',
-            'This is treated as a FedEx entitlement/validation blocker — not a local payload defect.',
-            'Include api-events/fedex_rate_quote.json and this note when contacting FedEx integrator support.',
-        ]);
-    }
-
-    private function screenshotsChecklist(): string
-    {
-        return implode("\n", [
-            '# Screenshots required for FedEx integrator validation',
-            '',
-            '- [ ] FedEx EULA acceptance screen',
-            '- [ ] Account registration form',
-            '- [ ] MFA method selection (if applicable)',
-            '- [ ] Successful connection summary with Integrator Provider badge',
-            '- [ ] Address validation result (US-only suggestions visible)',
-            '- [ ] Service availability result',
-            '- [ ] Rate quote result showing FedEx authorization blocked (HTTP 403) OR successful quote',
-            '- [ ] Ship validate result',
-            '- [ ] Sandbox label PDF/PNG/ZPL result or authorization blocked message',
-        ]);
     }
 
     /**
+     * @param  array<string, mixed>  $preflight
      * @return array<string, mixed>
      */
-    private function testCaseSummary(string $region, ?CarrierAccount $account, Store $store): array
+    private function buildEvidenceIndex(Store $store, CarrierAccount $account, string $region, string $environment, array $preflight): array
     {
-        $capabilities = $account
-            ? $this->statusPresenter->capabilityMatrix($store, $account)
-            : [];
-
         return [
+            'schema_version' => self::SCHEMA_VERSION,
+            'project' => config('app.name'),
+            'store_id' => $store->id,
+            'account_last4' => $account->maskedAccountNumber(),
             'region' => strtoupper($region),
-            'registration_baseline' => app(FedExTestCaseFixtureService::class)->fixtures(),
-            'ship_test_cases' => $this->shipFixtures->fixtures(),
-            'capability_matrix' => $capabilities,
-            'note' => 'Derived from recorded CarrierApiEvent rows and saved label artifacts — no placeholder JSON.',
+            'environment' => $environment,
+            'generated_at' => now()->toIso8601String(),
+            'selected_scopes' => $preflight['selected_scopes'] ?? $this->scopeService->resolveRequiredScopes(),
+            'requirements' => $preflight['checks'] ?? [],
+            'canonical_event_ids' => $preflight['canonical_event_ids'] ?? [],
+            'ready' => $preflight['ready'] ?? false,
         ];
     }
 
-    private function last4(string $value): ?string
+    /**
+     * @return list<string>
+     */
+    private function knownSecretsForScan(CarrierAccount $account, string $environment): array
     {
-        return strlen($value) >= 4 ? substr($value, -4) : null;
+        $credentials = $account->credentials();
+        $secrets = array_filter([
+            $credentials['customer_password'] ?? null,
+            $credentials['customer_key'] ?? null,
+            $this->config->parentClientSecret($environment),
+        ]);
+
+        return array_values(array_unique(array_filter(
+            $secrets,
+            fn (?string $secret): bool => is_string($secret) && strlen($secret) >= 12,
+        )));
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function readme(Store $store, CarrierAccount $account, string $environment, string $region, string $mode, array $preflight): string
+    {
+        $lines = [
+            '# FedEx Integrator Validation Evidence Bundle',
+            '',
+        ];
+
+        if ($mode === 'diagnostic' || ! ($preflight['ready'] ?? false)) {
+            $lines[] = 'INCOMPLETE — NOT READY FOR FEDEX SUBMISSION';
+            $lines[] = '';
+        }
+
+        $lines = array_merge($lines, [
+            'Mode: '.$mode,
+            'Store: '.$store->name.' (#'.$store->id.')',
+            'Environment: '.$environment,
+            'Region: '.$region,
+            'Carrier account: '.$account->maskedAccountNumber(),
+            '',
+            'This bundle contains sanitized complete request/response JSON where recorded, plus private artifact copies.',
+            'Secrets, tokens, child keys, PINs, and raw label Base64 are excluded from JSON files.',
+            '',
+            'Generated at: '.now()->toIso8601String(),
+        ]);
+
+        return implode("\n", $lines);
+    }
+
+    private function writeJson(string $path, mixed $payload): void
+    {
+        $this->writeFile($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function writeFile(string $path, string $contents): void
+    {
+        File::ensureDirectoryExists(dirname($path));
+        File::put($path, $contents);
     }
 }

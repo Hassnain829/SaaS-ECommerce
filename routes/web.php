@@ -3,12 +3,19 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\CarrierConnectionWizardController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeveloperStorefrontSettingsController;
 use App\Http\Controllers\DraftOrderController;
+use App\Http\Controllers\FedExCarrierTestController;
+use App\Http\Controllers\FedExIntegratorConnectionController;
+use App\Http\Controllers\FedExValidationArtifactController;
+use App\Http\Controllers\FedExValidationExportController;
+use App\Http\Controllers\FedExValidationRunController;
+use App\Http\Controllers\FedExValidationWorkspaceController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OrderController;
@@ -18,9 +25,6 @@ use App\Http\Controllers\ProductImportController;
 use App\Http\Controllers\ProductWorkspaceController;
 use App\Http\Controllers\ProductWorkspaceDataController;
 use App\Http\Controllers\ShipmentController;
-use App\Http\Controllers\CarrierConnectionWizardController;
-use App\Http\Controllers\FedExCarrierTestController;
-use App\Http\Controllers\FedExIntegratorConnectionController;
 use App\Http\Controllers\ShippingSettingsController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TeamMemberController;
@@ -328,6 +332,51 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation-export', [FedExIntegratorConnectionController::class, 'exportValidation'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.validation-export');
+    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation', [FedExValidationWorkspaceController::class, 'show'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation');
+    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/export/diagnostic', [FedExValidationExportController::class, 'diagnostic'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.export.diagnostic');
+    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/export/final', [FedExValidationExportController::class, 'final'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.export.final');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/documents', [FedExValidationArtifactController::class, 'uploadDocument'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.documents.upload');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/printed-scans', [FedExValidationArtifactController::class, 'uploadPrintedScan'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.scans.upload');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/tracking-screenshot', [FedExValidationArtifactController::class, 'uploadTrackingScreenshot'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.tracking-screenshot.upload');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/address', [FedExValidationRunController::class, 'runAddressValidation'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.run.address');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/service-availability', [FedExValidationRunController::class, 'runServiceAvailability'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.run.service-availability');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/rate', [FedExValidationRunController::class, 'runRateQuote'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.run.rate');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/mfa/invoice', [FedExValidationRunController::class, 'runInvoiceValidation'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.run.mfa.invoice');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/ship/{testCaseKey}', [FedExValidationRunController::class, 'runLockedShipLabel'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.run.ship');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/tracking', [FedExValidationRunController::class, 'runTracking'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.run.tracking');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/cancel', [FedExValidationRunController::class, 'runShipCancel'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.run.cancel');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/trade-documents', [FedExValidationRunController::class, 'runTradeDocuments'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.run.trade-documents');
+    Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/artifacts/{artifact}/download', [FedExValidationArtifactController::class, 'download'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.validation.artifacts.download');
     Route::post('/settings/shipping/carriers/connect/{carrier}/test', [CarrierConnectionWizardController::class, 'test'])
         ->middleware('store.permission:settings.manage')
         ->name('shipping.carriers.connect.test');
@@ -358,6 +407,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-ship-label', [FedExCarrierTestController::class, 'testShipLabel'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.test-ship-label');
+    Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/test-tracking', [FedExCarrierTestController::class, 'testTracking'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.carrier-accounts.fedex.test-tracking');
     Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/cancel-test-shipment', [FedExCarrierTestController::class, 'cancelTestShipment'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.carrier-accounts.fedex.cancel-test-shipment');

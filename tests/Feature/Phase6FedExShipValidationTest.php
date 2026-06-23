@@ -9,11 +9,11 @@ use App\Models\Location;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Carriers\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\FedExAuthorizationClassifier;
 use App\Services\Carriers\FedEx\FedExShipPayloadFactory;
 use App\Services\Carriers\FedEx\FedExShipTestCaseFixtureService;
 use App\Services\Carriers\FedEx\FedExValidationEvidenceExporter;
-use App\Services\Carriers\DTO\CarrierApiResult;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
@@ -86,12 +86,12 @@ class Phase6FedExShipValidationTest extends TestCase
         $this->assertNotNull($event);
         $this->assertSame(CarrierApiEvent::STATUS_SUCCEEDED, $event->status);
         $this->assertSame('IntegratorUS02', data_get($event->request_summary, 'test_case'));
-        $this->assertSame('PDF', data_get($event->request_summary, 'label_format'));
+        $this->assertSame('ZPLII', data_get($event->request_summary, 'label_format'));
         $this->assertTrue((bool) data_get($event->request_summary, 'ship_validation_only'));
         $this->assertDatabaseCount('fedex_validation_artifacts', 0);
     }
 
-    public function test_ship_validate_payload_includes_pdf_label_specification(): void
+    public function test_ship_validate_payload_includes_locked_zplii_label_specification(): void
     {
         [$owner, $store, $account] = $this->integratorAccountFixture('FedEx Ship Validate Payload Store');
         $capturedPayload = null;
@@ -123,7 +123,7 @@ class Phase6FedExShipValidationTest extends TestCase
             ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']));
 
         $this->assertIsArray($capturedPayload);
-        $this->assertSame('PDF', data_get($capturedPayload, 'requestedShipment.labelSpecification.imageType'));
+        $this->assertSame('ZPLII', data_get($capturedPayload, 'requestedShipment.labelSpecification.imageType'));
         $this->assertStringNotContainsString('child-secret', json_encode($capturedPayload));
     }
 
@@ -167,7 +167,7 @@ class Phase6FedExShipValidationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.shipping.carrier-accounts.fedex.test-ship-label', $account), [
                 'test_case' => 'IntegratorUS02',
-                'label_format' => 'PDF',
+                'label_format' => 'ZPLII',
             ])
             ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']))
             ->assertSessionHas('success');
@@ -175,7 +175,7 @@ class Phase6FedExShipValidationTest extends TestCase
         $artifact = \App\Models\FedExValidationArtifact::query()
             ->where('store_id', $store->id)
             ->where('carrier_account_id', $account->id)
-            ->where('artifact_type', 'ship_label_pdf')
+            ->where('artifact_type', 'ship_label_zplii')
             ->first();
 
         $this->assertNotNull($artifact);
@@ -242,7 +242,7 @@ class Phase6FedExShipValidationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.shipping.carrier-accounts.fedex.test-ship-label', $account), [
                 'test_case' => 'IntegratorUS02',
-                'label_format' => 'PDF',
+                'label_format' => 'ZPLII',
             ])
             ->assertRedirect(route('shippingAutomation', ['tab' => 'carriers']));
 
@@ -261,8 +261,15 @@ class Phase6FedExShipValidationTest extends TestCase
             'carrier_account_id' => $account->id,
             'provider' => CarrierAccount::PROVIDER_FEDEX,
             'action' => CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
+            'scenario_key' => 'rate_quote',
             'status' => CarrierApiEvent::STATUS_FAILED,
             'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'http_status' => 403,
+            'error_code' => 'fedex_authorization_blocked',
+            'endpoint' => '/rate/v1/rates/quotes',
+            'http_method' => 'POST',
+            'request_body_encrypted' => ['rateRequestControlParameters' => ['returnTransitTimes' => true]],
+            'response_body_encrypted' => ['errors' => [['code' => 'FORBIDDEN.ERROR', 'message' => 'Not authorized']]],
             'request_summary' => ['endpoint' => '/rate/v1/rates/quotes', 'test_quote_only' => true],
             'response_summary' => ['http_status' => 403, 'authorization_blocked' => true],
             'error_message' => 'FedEx authorization blocked',
@@ -277,11 +284,10 @@ class Phase6FedExShipValidationTest extends TestCase
 
         $zip = new ZipArchive;
         $zip->open($zipPath);
-        $rateQuoteJson = (string) $zip->getFromName('fedex-validation/api-events/'.CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE.'.json');
+        $rateQuoteJson = (string) $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/04_rates/response.json');
         $zip->close();
 
         $this->assertStringNotContainsString('placeholder', $rateQuoteJson);
-        $this->assertStringContainsString('fedex_rate_quote', $rateQuoteJson);
         $this->assertStringContainsString('403', $rateQuoteJson);
         $this->assertStringNotContainsString('child-secret', $rateQuoteJson);
         $this->assertStringNotContainsString('child-key', $rateQuoteJson);
@@ -291,11 +297,11 @@ class Phase6FedExShipValidationTest extends TestCase
     {
         [$owner, $store, $account] = $this->integratorAccountFixture('FedEx Payload Factory Store');
         $fixture = app(FedExShipTestCaseFixtureService::class)->fixture('IntegratorUS02');
-        $payload = app(FedExShipPayloadFactory::class)->buildShipmentPayload($account, $fixture, 'PDF');
+        $payload = app(FedExShipPayloadFactory::class)->buildShipmentPayload($account, $fixture, 'ZPLII');
 
         $this->assertSame('PRIORITY_OVERNIGHT', data_get($payload, 'requestedShipment.serviceType'));
         $this->assertSame('700257037', data_get($payload, 'accountNumber.value'));
-        $this->assertSame('PDF', data_get($payload, 'requestedShipment.labelSpecification.imageType'));
+        $this->assertSame('ZPLII', data_get($payload, 'requestedShipment.labelSpecification.imageType'));
         $this->assertStringNotContainsString('child-secret', json_encode($payload));
     }
 

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Location;

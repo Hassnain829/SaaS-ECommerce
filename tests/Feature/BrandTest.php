@@ -337,7 +337,7 @@ class BrandTest extends TestCase
             'store_id' => $store->id,
             'brand_id' => $brand->id,
             'name' => 'Linked Product',
-            'slug' => 'linked-product-' . uniqid(),
+            'slug' => 'linked-product-'.uniqid(),
             'description' => null,
             'base_price' => 10,
             'sku' => null,
@@ -437,7 +437,7 @@ class BrandTest extends TestCase
         $store = Store::create([
             'user_id' => $user->id,
             'name' => $name,
-            'slug' => str($name)->slug() . '-' . fake()->unique()->numberBetween(1000, 9999),
+            'slug' => str($name)->slug().'-'.fake()->unique()->numberBetween(1000, 9999),
             'logo' => null,
             'address' => 'Test Address',
             'currency' => 'USD',

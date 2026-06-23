@@ -103,7 +103,7 @@
                 </form>
                 <a href="{{ $account->usesFedExIntegratorProvider() ? route('settings.shipping.fedex-integrator.start') : route('shipping.carriers.connect.show', 'fedex') }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">{{ $account->usesFedExIntegratorProvider() ? 'Reconnect FedEx' : 'Edit credentials' }}</a>
                 @if (($fedExConfig->validationModeEnabled() ?? false) && $account->usesFedExIntegratorProvider())
-                    <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation-export', $account) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Export FedEx validation evidence</a>
+                    <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation', $account) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Open FedEx validation workspace</a>
                 @endif
                 @if ($account->connection_status !== 'disabled')
                     <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}" onsubmit="return confirm('Disable this FedEx account?')">

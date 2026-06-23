@@ -2,13 +2,19 @@
 
 namespace App\Services\Carriers;
 
-use App\Models\CarrierApiEvent;
 use App\Models\CarrierAccount;
+use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\FedExValidationEvidenceSanitizer;
 
 class CarrierApiEventLogger
 {
+    public function __construct(
+        private readonly FedExValidationEvidenceSanitizer $sanitizer,
+    ) {}
+
     /**
      * @param  array<string, mixed>|null  $requestSummary
      */
@@ -19,8 +25,9 @@ class CarrierApiEventLogger
         ?CarrierAccount $account = null,
         ?array $requestSummary = null,
         string $environment = 'sandbox',
+        ?FedExValidationEventContext $context = null,
     ): CarrierApiEvent {
-        return CarrierApiEvent::query()->create([
+        return CarrierApiEvent::query()->create(array_merge([
             'store_id' => $store->id,
             'carrier_account_id' => $account?->id,
             'provider' => $provider,
@@ -28,12 +35,16 @@ class CarrierApiEventLogger
             'action' => $action,
             'status' => CarrierApiEvent::STATUS_STARTED,
             'request_summary' => $this->maskSummary($requestSummary),
-        ]);
+        ], $context?->toEventAttributes() ?? []));
     }
 
     public function complete(CarrierApiEvent $event, CarrierApiResult $result): CarrierApiEvent
     {
-        $event->update([
+        $evidence = $result->evidence;
+        $httpStatus = $evidence?->httpStatus ?? data_get($result->responseSummary, 'http_status');
+        $transactionId = $evidence?->fedexTransactionId ?? data_get($result->responseSummary, 'fedex_transaction_id');
+
+        $payload = [
             'status' => $result->success ? CarrierApiEvent::STATUS_SUCCEEDED : CarrierApiEvent::STATUS_FAILED,
             'request_id' => $result->requestId,
             'duration_ms' => $result->durationMs,
@@ -41,7 +52,23 @@ class CarrierApiEventLogger
             'response_summary' => $this->maskSummary($result->responseSummary),
             'error_code' => $result->errorCode,
             'error_message' => $result->errorMessage,
-        ]);
+            'http_status' => is_numeric($httpStatus) ? (int) $httpStatus : null,
+            'fedex_transaction_id' => is_string($transactionId) ? $transactionId : null,
+        ];
+
+        if ($evidence !== null) {
+            $payload = array_merge($payload, [
+                'endpoint' => $evidence->endpoint,
+                'http_method' => $evidence->httpMethod,
+                'request_headers_encrypted' => $this->sanitizer->sanitizeHeaders($evidence->requestHeaders),
+                'request_body_encrypted' => $this->sanitizer->sanitize($evidence->requestBody),
+                'response_headers_encrypted' => $this->sanitizer->sanitizeHeaders($evidence->responseHeaders),
+                'response_body_encrypted' => $this->sanitizer->sanitize($evidence->responseBody),
+                'evidence_recorded_at' => now(),
+            ]);
+        }
+
+        $event->update($payload);
 
         return $event->fresh();
     }
@@ -107,7 +134,9 @@ class CarrierApiEventLogger
             || str_contains($key, 'master_mid')
             || str_contains($key, 'labeler_mid')
             || str_contains($key, 'access_token')
-            || str_contains($key, 'refresh_token');
+            || str_contains($key, 'refresh_token')
+            || str_contains($key, 'pin')
+            || str_contains($key, 'accountauthtoken');
     }
 
     private function maskAccountNumber(string $number): string

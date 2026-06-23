@@ -12,8 +12,11 @@ class ShippingMethod extends Model
     use SoftDeletes;
 
     public const RATE_FLAT = 'flat';
+
     public const RATE_FREE = 'free';
+
     public const RATE_MANUAL = 'manual';
+
     public const RATE_CARRIER_CALCULATED_LATER = 'carrier_calculated_later';
 
     public const RATE_TYPES = [

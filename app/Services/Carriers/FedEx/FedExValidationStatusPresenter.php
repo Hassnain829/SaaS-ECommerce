@@ -3,118 +3,154 @@
 namespace App\Services\Carriers\FedEx;
 
 use App\Models\CarrierAccount;
-use App\Models\CarrierAccountRegistrationSession;
 use App\Models\CarrierApiEvent;
 use App\Models\Store;
 
 class FedExValidationStatusPresenter
 {
+    public function __construct(
+        private readonly FedExValidationPreflightService $preflight,
+        private readonly FedExValidationEvidenceQueryService $evidenceQuery,
+    ) {}
+
     /**
      * @return array<string, mixed>
      */
     public function capabilityMatrix(Store $store, CarrierAccount $account): array
     {
-        $registrationSession = $account->registration_session_id
-            ? CarrierAccountRegistrationSession::query()
-                ->where('store_id', $store->id)
-                ->whereKey($account->registration_session_id)
-                ->first()
-            : null;
+        $assessment = $this->preflight->assess($store, $account);
+        $checksByKey = collect($assessment['checks'] ?? [])->keyBy('key');
 
         return [
             'connection_model' => $account->connection_model,
             'credentials_mode' => $account->usesFedExIntegratorProvider() ? 'integrator_child' : 'merchant_developer',
-            'registration' => $this->registrationStatus($registrationSession, $account),
-            'address_validation' => $this->eventStatus($store, $account, CarrierApiEvent::ACTION_FEDEX_ADDRESS_VALIDATION),
-            'service_availability' => $this->eventStatus($store, $account, CarrierApiEvent::ACTION_FEDEX_SERVICE_AVAILABILITY),
-            'rate_quote' => $this->rateQuoteStatus($store, $account),
-            'ship_validate' => $this->eventStatus($store, $account, CarrierApiEvent::ACTION_FEDEX_SHIP_VALIDATE),
-            'ship_label_pdf' => $this->labelStatus($store, $account, 'ship_label_pdf'),
-            'ship_label_png' => $this->labelStatus($store, $account, 'ship_label_png'),
-            'ship_label_zpl' => $this->labelStatus($store, $account, 'ship_label_zpl'),
+            'readiness' => [
+                'ready' => (bool) ($assessment['ready'] ?? false),
+                'completed_count' => (int) ($assessment['completed_count'] ?? 0),
+                'total_count' => (int) ($assessment['total_count'] ?? 0),
+                'percentage' => (int) ($assessment['percentage'] ?? 0),
+            ],
+            'registration' => $this->aggregateRegistrationStatus($checksByKey),
+            'address_validation' => $this->checkStatus($checksByKey->get('address_validation'), 'address_validation', $store, $account, CarrierApiEvent::ACTION_FEDEX_ADDRESS_VALIDATION),
+            'service_availability' => $this->checkStatus($checksByKey->get('service_availability'), 'service_availability', $store, $account, CarrierApiEvent::ACTION_FEDEX_SERVICE_AVAILABILITY),
+            'rate_quote' => $this->rateQuoteStatus($checksByKey->get('rate_quote'), $store, $account),
+            'ship_validate' => $this->shipValidateStatus($store, $account),
+            'ship_label_zpl' => $this->lockedShipLabelStatus($checksByKey, 'IntegratorUS02', 'ship_us02_zplii', $store, $account),
+            'ship_label_png' => $this->lockedShipLabelStatus($checksByKey, 'IntegratorUS04', 'ship_us04_png', $store, $account),
+            'ship_label_pdf' => $this->lockedShipLabelStatus($checksByKey, 'IntegratorUS05', 'ship_us05_pdf_mps', $store, $account),
+            'tracking' => $this->checkStatus($checksByKey->get('tracking'), 'tracking', $store, $account, CarrierApiEvent::ACTION_FEDEX_BASIC_INTEGRATED_VISIBILITY),
+            'blockers' => $assessment['blockers'] ?? [],
         ];
     }
 
     /**
+     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $checksByKey
      * @return array<string, mixed>
      */
-    private function registrationStatus(?CarrierAccountRegistrationSession $session, CarrierAccount $account): array
+    private function aggregateRegistrationStatus(\Illuminate\Support\Collection $checksByKey): array
     {
-        if ($account->connection_status === CarrierAccount::CONNECTION_CONNECTED) {
-            return [
-                'status' => 'passed',
-                'label' => 'Registration complete',
-                'detail' => 'Integrator child credentials stored.',
-            ];
+        $registrationChecks = $checksByKey->filter(fn (array $check): bool => ($check['category'] ?? '') === 'registration_mfa');
+
+        if ($registrationChecks->isEmpty()) {
+            return ['status' => 'not_started', 'label' => 'Not started', 'detail' => null];
         }
 
-        if ($session === null) {
-            return [
-                'status' => 'not_started',
-                'label' => 'Not started',
-                'detail' => null,
-            ];
+        if ($registrationChecks->every(fn (array $check): bool => ($check['status'] ?? '') === 'passed')) {
+            return ['status' => 'passed', 'label' => 'Registration evidence complete', 'detail' => null];
         }
+
+        $missing = $registrationChecks->where('status', '!=', 'passed')->count();
 
         return [
-            'status' => in_array($session->status, ['completed', 'connected'], true) ? 'passed' : 'in_progress',
-            'label' => str($session->status)->replace('_', ' ')->title(),
-            'detail' => $session->last_error_message,
+            'status' => 'in_progress',
+            'label' => 'Registration evidence incomplete',
+            'detail' => $missing.' required registration/MFA scenario(s) still need successful evidence.',
         ];
     }
 
     /**
+     * @param  array<string, mixed>|null  $check
      * @return array<string, mixed>
      */
-    private function eventStatus(Store $store, CarrierAccount $account, string $action): array
+    private function checkStatus(?array $check, string $scenarioKey, Store $store, CarrierAccount $account, string $action): array
     {
-        $event = $this->latestEvent($store, $account, $action);
+        $event = $this->evidenceQuery->canonicalEvent($store, $account, $scenarioKey)
+            ?? $this->evidenceQuery->latestByAction($store, $account, $action);
 
-        if ($event === null) {
-            return [
-                'status' => 'not_run',
-                'label' => 'Not run',
-                'http_status' => null,
-                'detail' => null,
-            ];
+        return $this->mapCheckAndEvent($check, $event);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $checksByKey
+     * @return array<string, mixed>
+     */
+    private function lockedShipLabelStatus(\Illuminate\Support\Collection $checksByKey, string $testCaseKey, string $scenarioKey, Store $store, CarrierAccount $account): array
+    {
+        $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$testCaseKey] ?? [];
+        $labelFormat = (string) ($meta['label_format'] ?? '');
+        $expectedPackages = (int) ($meta['expected_packages'] ?? 1);
+        $eventCheck = $checksByKey->get($scenarioKey.'_event');
+
+        $event = $this->evidenceQuery->canonicalShipLabelEvent(
+            $store,
+            $account,
+            $scenarioKey,
+            testCaseKey: $testCaseKey,
+            labelFormat: $labelFormat,
+        );
+
+        $allPassed = ($eventCheck['status'] ?? '') === 'passed';
+
+        for ($sequence = 1; $sequence <= $expectedPackages; $sequence++) {
+            $labelCheck = $checksByKey->get($scenarioKey.'_label_'.$sequence);
+            $scanCheck = $checksByKey->get($scenarioKey.'_scan_'.$sequence);
+
+            if (($labelCheck['status'] ?? '') !== 'passed' || ($scanCheck['status'] ?? '') !== 'passed') {
+                $allPassed = false;
+            }
         }
 
-        $httpStatus = (int) data_get($event->response_summary, 'http_status');
-        $blocked = (bool) data_get($event->response_summary, 'authorization_blocked')
-            || $event->error_message !== null && str_contains(strtolower((string) $event->error_message), 'not authorized');
-
-        if ($event->status === CarrierApiEvent::STATUS_SUCCEEDED) {
+        if ($allPassed) {
             return [
                 'status' => 'passed',
-                'label' => 'Passed',
-                'http_status' => $httpStatus ?: 200,
+                'label' => $testCaseKey.' complete',
+                'http_status' => $event?->http_status ?? data_get($event?->response_summary, 'http_status'),
                 'detail' => null,
             ];
         }
 
-        if ($httpStatus === 403 || $blocked) {
-            return [
-                'status' => 'blocked',
-                'label' => 'FedEx authorization blocked',
-                'http_status' => 403,
-                'detail' => $event->error_message,
-            ];
+        if ($event !== null && ! $event->isSuccessfulHttp()) {
+            return $this->mapCheckAndEvent($eventCheck, $event);
         }
 
+        $labelCheck = $checksByKey->get($scenarioKey.'_label_1');
+        $scanCheck = $checksByKey->get($scenarioKey.'_scan_1');
+
         return [
-            'status' => 'failed',
-            'label' => 'Failed',
-            'http_status' => $httpStatus ?: null,
-            'detail' => $event->error_message,
+            'status' => match ($eventCheck['status'] ?? 'missing') {
+                'passed' => 'in_progress',
+                default => 'not_run',
+            },
+            'label' => $testCaseKey.' ('.$labelFormat.')',
+            'http_status' => $event?->http_status,
+            'detail' => collect([$eventCheck])
+                ->merge(collect(range(1, $expectedPackages))->flatMap(fn (int $sequence): array => [
+                    $checksByKey->get($scenarioKey.'_label_'.$sequence),
+                    $checksByKey->get($scenarioKey.'_scan_'.$sequence),
+                ]))
+                ->filter(fn (?array $item): bool => is_array($item) && ($item['status'] ?? '') !== 'passed')
+                ->pluck('explanation')
+                ->filter()
+                ->first(),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function rateQuoteStatus(Store $store, CarrierAccount $account): array
+    private function rateQuoteStatus(?array $check, Store $store, CarrierAccount $account): array
     {
-        $status = $this->eventStatus($store, $account, CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE);
+        $status = $this->checkStatus($check, 'rate_quote', $store, $account, CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE);
 
         if ($status['status'] === 'blocked') {
             $status['label'] = 'Blocked — entitlement pending';
@@ -127,45 +163,56 @@ class FedExValidationStatusPresenter
     /**
      * @return array<string, mixed>
      */
-    private function labelStatus(Store $store, CarrierAccount $account, string $artifactType): array
+    private function shipValidateStatus(Store $store, CarrierAccount $account): array
     {
-        $action = CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL;
-        $event = $this->latestEvent($store, $account, $action);
+        $event = $this->evidenceQuery->latestByAction($store, $account, CarrierApiEvent::ACTION_FEDEX_SHIP_VALIDATE);
 
-        $artifactExists = \App\Models\FedExValidationArtifact::query()
-            ->where('store_id', $store->id)
-            ->where('carrier_account_id', $account->id)
-            ->where('artifact_type', $artifactType)
-            ->exists();
+        return $this->mapCheckAndEvent(null, $event);
+    }
 
-        if ($artifactExists) {
-            return [
-                'status' => 'passed',
-                'label' => 'Label saved',
-                'http_status' => data_get($event?->response_summary, 'http_status'),
-                'detail' => null,
-            ];
-        }
-
+    /**
+     * @param  array<string, mixed>|null  $check
+     * @return array<string, mixed>
+     */
+    private function mapCheckAndEvent(?array $check, ?CarrierApiEvent $event): array
+    {
         if ($event === null) {
             return [
                 'status' => 'not_run',
                 'label' => 'Not run',
                 'http_status' => null,
+                'detail' => $check['explanation'] ?? null,
+            ];
+        }
+
+        $httpStatus = (int) ($event->http_status ?? data_get($event->response_summary, 'http_status'));
+        $blocked = (bool) data_get($event->response_summary, 'authorization_blocked')
+            || $event->error_code === 'fedex_authorization_blocked'
+            || $httpStatus === 403;
+
+        if ($event->status === CarrierApiEvent::STATUS_SUCCEEDED && $event->isSuccessfulHttp()) {
+            return [
+                'status' => 'passed',
+                'label' => 'Passed',
+                'http_status' => $httpStatus ?: 200,
                 'detail' => null,
             ];
         }
 
-        return $this->eventStatus($store, $account, $action);
-    }
+        if ($blocked) {
+            return [
+                'status' => 'blocked',
+                'label' => 'FedEx authorization blocked',
+                'http_status' => $httpStatus ?: 403,
+                'detail' => $event->error_message,
+            ];
+        }
 
-    private function latestEvent(Store $store, CarrierAccount $account, string $action): ?CarrierApiEvent
-    {
-        return CarrierApiEvent::query()
-            ->where('store_id', $store->id)
-            ->where('carrier_account_id', $account->id)
-            ->where('action', $action)
-            ->latest('id')
-            ->first();
+        return [
+            'status' => ($check['status'] ?? '') === 'passed' ? 'passed' : 'failed',
+            'label' => ($check['status'] ?? '') === 'passed' ? 'Passed' : 'Failed',
+            'http_status' => $httpStatus ?: null,
+            'detail' => $event->error_message ?? ($check['explanation'] ?? null),
+        ];
     }
 }

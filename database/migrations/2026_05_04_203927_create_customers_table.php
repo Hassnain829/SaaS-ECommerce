@@ -36,7 +36,7 @@ return new class extends Migration
             $table->json('meta')->nullable();
             $table->timestamps();
             $table->softDeletes();
-            
+
             $table->unique(['store_id', 'email']);
         });
     }

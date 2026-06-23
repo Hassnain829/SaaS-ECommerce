@@ -8,6 +8,7 @@ use App\Models\Location;
 use App\Models\Store;
 use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 
 class FedExServiceAvailabilityService
 {
@@ -15,8 +16,7 @@ class FedExServiceAvailabilityService
         private readonly FedExConfig $config,
         private readonly FedExMerchantApiClient $apiClient,
         private readonly CarrierOriginReadinessService $originReadiness,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $destinationInput
@@ -109,6 +109,7 @@ class FedExServiceAvailabilityService
             path: $endpoint,
             payload: $payload,
             requestSummary: $requestSummary,
+            context: new FedExValidationEventContext(scenarioKey: 'service_availability'),
         );
 
         $presentation = FedExMerchantCheckPresenter::serviceAvailability($result->data);
@@ -119,14 +120,7 @@ class FedExServiceAvailabilityService
                 'package_type_count' => $presentation['package_type_count'],
             ]);
 
-            $result = new CarrierApiResult(
-                success: true,
-                data: $result->data,
-                requestId: $result->requestId,
-                durationMs: $result->durationMs,
-                requestSummary: $result->requestSummary,
-                responseSummary: $responseSummary,
-            );
+            $result = $result->copyWith(responseSummary: $responseSummary);
         }
 
         return ['result' => $result, 'presentation' => $presentation];

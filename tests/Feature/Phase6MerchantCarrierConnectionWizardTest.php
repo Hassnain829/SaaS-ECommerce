@@ -9,7 +9,6 @@ use App\Models\Location;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
-use App\Services\Carriers\USPS\USPSConfig;
 use App\Support\CarrierAccountStatusPresenter;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;

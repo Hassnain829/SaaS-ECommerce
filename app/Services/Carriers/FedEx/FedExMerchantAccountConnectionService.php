@@ -17,8 +17,7 @@ class FedExMerchantAccountConnectionService
     public function __construct(
         private readonly CarrierConnectionWizardService $wizard,
         private readonly CarrierProviderManager $providerManager,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $input

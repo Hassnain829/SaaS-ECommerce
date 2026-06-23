@@ -25,8 +25,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
         private readonly FedExMerchantCredentialsOAuthService $merchantCredentialsOAuth,
         private readonly FedExIntegratorChildOAuthService $integratorChildOAuth,
         private readonly CarrierApiEventLogger $eventLogger,
-    ) {
-    }
+    ) {}
 
     public function providerCode(): string
     {

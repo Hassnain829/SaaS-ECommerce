@@ -8,6 +8,7 @@ use App\Models\FedExValidationArtifact;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -18,8 +19,7 @@ class FedExShipValidationService
         private readonly FedExMerchantApiClient $apiClient,
         private readonly FedExShipTestCaseFixtureService $fixtureService,
         private readonly FedExShipPayloadFactory $payloadFactory,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $overrides
@@ -35,8 +35,9 @@ class FedExShipValidationService
 
         $fixture = $this->fixtureService->fixture($testCaseKey);
         $endpoint = $this->config->shipValidatePath($account->environment);
-        $labelFormat = strtoupper((string) ($overrides['label_format'] ?? 'PDF'));
+        $labelFormat = strtoupper((string) ($overrides['label_format'] ?? $fixture['label_format'] ?? 'PDF'));
         $payload = $this->payloadFactory->buildShipmentPayload($account, $fixture, $labelFormat, $overrides);
+        $context = $this->eventContext($fixture, $testCaseKey, $labelFormat);
         $requestSummary = array_merge(
             $this->buildRequestSummary(
                 $account,
@@ -48,6 +49,7 @@ class FedExShipValidationService
             [
                 'label_format' => $labelFormat,
                 'ship_validation_only' => true,
+                'scenario_key' => $fixture['scenario_key'] ?? null,
             ],
         );
 
@@ -59,6 +61,7 @@ class FedExShipValidationService
                 path: $endpoint,
                 payload: $payload,
                 requestSummary: $requestSummary,
+                context: $context,
             ),
             $endpoint,
         );
@@ -71,13 +74,13 @@ class FedExShipValidationService
 
     /**
      * @param  array<string, mixed>  $overrides
-     * @return array{result: CarrierApiResult, presentation: array<string, mixed>, artifact: ?FedExValidationArtifact}
+     * @return array{result: CarrierApiResult, presentation: array<string, mixed>, artifacts: list<FedExValidationArtifact>}
      */
     public function createSandboxLabel(
         Store $store,
         CarrierAccount $account,
         string $testCaseKey,
-        string $labelFormat = 'PDF',
+        ?string $labelFormat = null,
         array $overrides = [],
         ?User $actor = null,
     ): array {
@@ -90,23 +93,31 @@ class FedExShipValidationService
                 requestSummary: [
                     'local_validation' => true,
                     'test_case' => $testCaseKey,
-                    'label_format' => strtoupper($labelFormat),
+                    'label_format' => strtoupper((string) $labelFormat),
                 ],
             );
 
             return [
                 'result' => $result,
-                'presentation' => FedExMerchantCheckPresenter::shipLabel($result, null, $testCaseKey, $labelFormat),
-                'artifact' => null,
+                'presentation' => FedExMerchantCheckPresenter::shipLabel($result, null, $testCaseKey, (string) $labelFormat),
+                'artifacts' => [],
             ];
         }
 
         $fixture = $this->fixtureService->fixture($testCaseKey);
+        $labelFormat = strtoupper(trim($labelFormat ?? $this->fixtureService->lockedLabelFormat($testCaseKey)));
+        abort_unless(
+            strtoupper((string) ($fixture['label_format'] ?? '')) === $labelFormat,
+            422,
+            'This validation scenario requires '.$fixture['label_format'].' labels. Arbitrary format pairing is not allowed.',
+        );
+
         $endpoint = $this->config->shipCreatePath($account->environment);
-        $labelFormat = strtoupper(trim($labelFormat));
         $payload = $this->payloadFactory->buildShipmentPayload($account, $fixture, $labelFormat, $overrides);
+        $context = $this->eventContext($fixture, $testCaseKey, $labelFormat);
         $requestSummary = $this->buildRequestSummary($account, $endpoint, $testCaseKey, $fixture, array_merge($overrides, [
             'label_format' => $labelFormat,
+            'scenario_key' => $fixture['scenario_key'] ?? null,
         ]));
 
         $result = FedExAuthorizationClassifier::applyBlockedClassification(
@@ -117,20 +128,48 @@ class FedExShipValidationService
                 path: $endpoint,
                 payload: $payload,
                 requestSummary: $requestSummary,
+                context: $context,
             ),
             $endpoint,
         );
 
-        $artifact = null;
+        $artifacts = [];
 
         if ($result->success) {
-            $artifact = $this->persistLabelArtifact($store, $account, $testCaseKey, $labelFormat, $result, $requestSummary, $actor);
+            $eventId = data_get($result->responseSummary, 'carrier_api_event_id');
+            $event = is_numeric($eventId)
+                ? CarrierApiEvent::query()
+                    ->where('store_id', $store->id)
+                    ->where('carrier_account_id', $account->id)
+                    ->whereKey((int) $eventId)
+                    ->first()
+                : CarrierApiEvent::query()
+                    ->where('store_id', $store->id)
+                    ->where('carrier_account_id', $account->id)
+                    ->where('action', CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL)
+                    ->where('test_case_key', $testCaseKey)
+                    ->where('scenario_key', (string) ($fixture['scenario_key'] ?? ''))
+                    ->where('label_format', strtoupper($labelFormat))
+                    ->latest('id')
+                    ->first();
+
+            $artifacts = $this->persistLabelArtifacts(
+                store: $store,
+                account: $account,
+                testCaseKey: $testCaseKey,
+                labelFormat: $labelFormat,
+                fixture: $fixture,
+                result: $result,
+                requestSummary: $requestSummary,
+                actor: $actor,
+                event: $event,
+            );
         }
 
         return [
             'result' => $result,
-            'presentation' => FedExMerchantCheckPresenter::shipLabel($result, $artifact, $testCaseKey, $labelFormat),
-            'artifact' => $artifact,
+            'presentation' => FedExMerchantCheckPresenter::shipLabel($result, $artifacts[0] ?? null, $testCaseKey, $labelFormat),
+            'artifacts' => $artifacts,
         ];
     }
 
@@ -169,6 +208,7 @@ class FedExShipValidationService
                 path: $endpoint,
                 payload: $payload,
                 requestSummary: $requestSummary,
+                context: new FedExValidationEventContext(scenarioKey: 'ship_cancel'),
             ),
             $endpoint,
         );
@@ -229,79 +269,152 @@ class FedExShipValidationService
     }
 
     /**
-     * @param  array<string, mixed>  $requestSummary
+     * @param  array<string, mixed>  $fixture
      */
-    private function persistLabelArtifact(
+    private function eventContext(array $fixture, string $testCaseKey, string $labelFormat): FedExValidationEventContext
+    {
+        return new FedExValidationEventContext(
+            registrationSessionId: null,
+            scenarioKey: (string) ($fixture['scenario_key'] ?? FedExValidationScenarioCatalog::scenarioKeyForTestCase($testCaseKey)),
+            testCaseKey: $testCaseKey,
+            labelFormat: strtoupper($labelFormat),
+            packageCount: count($fixture['packages'] ?? []),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $fixture
+     * @param  array<string, mixed>  $requestSummary
+     * @return list<FedExValidationArtifact>
+     */
+    private function persistLabelArtifacts(
         Store $store,
         CarrierAccount $account,
         string $testCaseKey,
         string $labelFormat,
+        array $fixture,
         CarrierApiResult $result,
         array $requestSummary,
         ?User $actor,
-    ): ?FedExValidationArtifact {
-        $encodedLabel = $this->extractEncodedLabel($result->data ?? []);
-        $trackingNumber = $this->extractTrackingNumber($result->data ?? []);
+        ?CarrierApiEvent $event,
+    ): array {
+        $artifacts = [];
         $transactionId = data_get($result->responseSummary, 'fedex_transaction_id');
-
-        if ($encodedLabel === null) {
-            return null;
-        }
-
         $extension = match (strtoupper($labelFormat)) {
             'PNG' => 'png',
             'ZPL', 'ZPLII' => 'zpl',
             default => 'pdf',
         };
 
-        $relativeDir = "fedex-validation/{$store->id}/labels";
-        $filename = Str::slug($testCaseKey).'-'.strtolower($labelFormat).'-'.now()->format('YmdHis').'.'.$extension;
-        $relativePath = $relativeDir.'/'.$filename;
-        $absolutePath = storage_path('app/'.$relativePath);
+        foreach ($this->extractPackageDocuments($result->data ?? []) as $packageSequence => $document) {
+            $encoded = $document['encodedLabel'] ?? null;
+            if (! is_string($encoded) || $encoded === '') {
+                continue;
+            }
 
-        File::ensureDirectoryExists(dirname($absolutePath));
-        File::put($absolutePath, base64_decode($encodedLabel, true) ?: '');
+            $binary = base64_decode($encoded, true);
+            if ($binary === false || $binary === '') {
+                continue;
+            }
 
-        return FedExValidationArtifact::query()->create([
-            'store_id' => $store->id,
-            'carrier_account_id' => $account->id,
-            'environment' => $account->environment,
-            'artifact_type' => 'ship_label_'.strtolower($labelFormat),
-            'label' => $testCaseKey.' · '.strtoupper($labelFormat),
-            'file_path' => $relativePath,
-            'request_summary_json' => $requestSummary,
-            'response_summary_json' => array_filter([
-                'http_status' => data_get($result->responseSummary, 'http_status'),
-                'fedex_transaction_id' => $transactionId,
-                'tracking_number_last4' => $trackingNumber !== null && strlen($trackingNumber) >= 4
-                    ? substr($trackingNumber, -4)
-                    : null,
-                'label_saved' => true,
+            $relativeDir = "fedex-validation/{$store->id}/labels";
+            $filename = Str::slug($testCaseKey).'-pkg'.$packageSequence.'-'.strtolower($labelFormat).'-'.now()->format('YmdHis').'.'.$extension;
+            $relativePath = $relativeDir.'/'.$filename;
+            $absolutePath = storage_path('app/'.$relativePath);
+            File::ensureDirectoryExists(dirname($absolutePath));
+            File::put($absolutePath, $binary);
+
+            $trackingNumber = $document['trackingNumber'] ?? null;
+
+            $artifacts[] = FedExValidationArtifact::query()->create([
+                'store_id' => $store->id,
+                'carrier_account_id' => $account->id,
+                'registration_session_id' => $account->registration_session_id,
+                'carrier_api_event_id' => $event?->id,
+                'environment' => $account->environment,
+                'artifact_type' => 'ship_label_'.strtolower($labelFormat),
+                'scenario_key' => (string) ($fixture['scenario_key'] ?? null),
+                'test_case_key' => $testCaseKey,
                 'label_format' => strtoupper($labelFormat),
-            ]),
-            'fedex_transaction_id' => is_string($transactionId) ? $transactionId : null,
-            'created_by' => $actor?->id,
-        ]);
+                'package_sequence' => $packageSequence,
+                'artifact_role' => FedExValidationArtifact::ROLE_GENERATED_LABEL,
+                'label' => $testCaseKey.' · package '.$packageSequence.' · '.strtoupper($labelFormat),
+                'original_filename' => $filename,
+                'mime_type' => match ($extension) {
+                    'png' => 'image/png',
+                    'zpl' => 'application/zpl',
+                    default => 'application/pdf',
+                },
+                'file_size' => strlen($binary),
+                'sha256' => hash('sha256', $binary),
+                'file_path' => $relativePath,
+                'request_summary_json' => $requestSummary,
+                'response_summary_json' => array_filter([
+                    'http_status' => data_get($result->responseSummary, 'http_status'),
+                    'fedex_transaction_id' => $transactionId,
+                    'tracking_number_last4' => is_string($trackingNumber) && strlen($trackingNumber) >= 4
+                        ? substr($trackingNumber, -4)
+                        : null,
+                    'label_saved' => true,
+                    'label_format' => strtoupper($labelFormat),
+                    'package_sequence' => $packageSequence,
+                ]),
+                'fedex_transaction_id' => is_string($transactionId) ? $transactionId : null,
+                'created_by' => $actor?->id,
+            ]);
+        }
+
+        return $artifacts;
     }
 
     /**
      * @param  array<string, mixed>  $data
+     * @return array<int, array<string, mixed>>
      */
-    private function extractEncodedLabel(array $data): ?string
+    private function extractPackageDocuments(array $data): array
     {
-        $documents = data_get($data, 'output.transactionShipments.0.pieceResponses.0.packageDocuments', []);
+        $documents = [];
 
-        if (! is_array($documents)) {
-            return null;
-        }
-
-        foreach ($documents as $document) {
-            if (! is_array($document)) {
+        foreach ((array) data_get($data, 'output.transactionShipments', []) as $shipment) {
+            if (! is_array($shipment)) {
                 continue;
             }
 
-            $encoded = $document['encodedLabel'] ?? null;
+            foreach ((array) ($shipment['pieceResponses'] ?? []) as $index => $piece) {
+                if (! is_array($piece)) {
+                    continue;
+                }
 
+                $sequence = (int) ($piece['packageSequenceNumber'] ?? ($index + 1));
+
+                foreach ((array) ($piece['packageDocuments'] ?? []) as $document) {
+                    if (! is_array($document)) {
+                        continue;
+                    }
+
+                    $documents[$sequence] = array_merge($document, [
+                        'trackingNumber' => $piece['trackingNumber'] ?? ($shipment['masterTrackingNumber'] ?? null),
+                    ]);
+                }
+            }
+        }
+
+        ksort($documents);
+
+        return $documents;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     *
+     * @deprecated retained for backward compatibility in tests
+     */
+    private function extractEncodedLabel(array $data): ?string
+    {
+        $documents = $this->extractPackageDocuments($data);
+
+        foreach ($documents as $document) {
+            $encoded = $document['encodedLabel'] ?? null;
             if (is_string($encoded) && $encoded !== '') {
                 return $encoded;
             }

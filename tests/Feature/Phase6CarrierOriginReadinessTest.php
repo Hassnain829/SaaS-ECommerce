@@ -11,7 +11,6 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\CarrierOriginReadinessService;
-use App\Services\Carriers\USPS\USPSConfig;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;

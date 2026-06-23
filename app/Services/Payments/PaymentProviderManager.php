@@ -12,8 +12,7 @@ class PaymentProviderManager
 {
     public function __construct(
         private readonly StripeConfig $stripeConfig,
-    ) {
-    }
+    ) {}
 
     public function driver(?string $provider = null): PaymentProviderInterface
     {

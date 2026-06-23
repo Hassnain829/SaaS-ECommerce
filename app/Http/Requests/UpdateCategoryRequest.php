@@ -63,7 +63,7 @@ class UpdateCategoryRequest extends FormRequest
             'parent_id' => [
                 'nullable',
                 'integer',
-                'not_in:' . ($category?->id ?? 0),
+                'not_in:'.($category?->id ?? 0),
                 Rule::exists('categories', 'id')->where(fn ($query) => $query->where('store_id', $storeId)),
             ],
             'sort_order' => ['nullable', 'integer', 'min:0'],

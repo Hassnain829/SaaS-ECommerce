@@ -11,8 +11,7 @@ class FedExMerchantCredentialsOAuthService
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExHttpClient $httpClient,
-    ) {
-    }
+    ) {}
 
     public function fetchTokenResult(CarrierAccount $account, bool $fresh = false): CarrierApiResult
     {

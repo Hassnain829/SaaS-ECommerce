@@ -96,7 +96,7 @@ class TeamMemberController extends Controller
             ->route('team-members.index')
             ->with('success', "{$member->name} was added to {$currentStore->name}.")
             ->with('success_title', 'Team member added')
-            ->with('success_meta', ucfirst($validated['role']) . ' access granted');
+            ->with('success_meta', ucfirst($validated['role']).' access granted');
     }
 
     public function updateRole(Request $request, int $userId): RedirectResponse
@@ -146,7 +146,7 @@ class TeamMemberController extends Controller
             ->route('team-members.index')
             ->with('success', "{$member->name}'s store role was updated.")
             ->with('success_title', 'Role updated')
-            ->with('success_meta', 'Now assigned as ' . ucfirst($newRole));
+            ->with('success_meta', 'Now assigned as '.ucfirst($newRole));
     }
 
     public function update(Request $request, int $userId): RedirectResponse

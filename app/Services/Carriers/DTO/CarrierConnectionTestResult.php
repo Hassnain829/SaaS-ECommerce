@@ -17,8 +17,7 @@ final class CarrierConnectionTestResult
         public readonly array $steps = [],
         public readonly ?string $detailMessage = null,
         public readonly ?string $connectionStatus = null,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $capabilities

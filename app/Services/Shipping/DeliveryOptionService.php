@@ -10,8 +10,7 @@ class DeliveryOptionService
 {
     public function __construct(
         private readonly ShippingZoneMatcher $zoneMatcher,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $destination

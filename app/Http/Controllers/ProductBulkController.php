@@ -133,7 +133,7 @@ final class ProductBulkController extends Controller
 
         $skippedMulti = 0;
 
-        DB::transaction(function () use ($store, $products, $mode, $value, $actor, $userId, $scope, &$skippedMulti): void {
+        DB::transaction(function () use ($products, $mode, $value, $actor, $userId, $scope, &$skippedMulti): void {
             foreach ($products as $product) {
                 $product->loadCount('variants');
                 $variantCount = (int) $product->variants_count;

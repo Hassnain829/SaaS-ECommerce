@@ -12,8 +12,7 @@ class StripeConnectService
 {
     public function __construct(
         private readonly StripeConfig $stripeConfig,
-    ) {
-    }
+    ) {}
 
     public function startOnboarding(Store $store, User $user, string $mode): string
     {

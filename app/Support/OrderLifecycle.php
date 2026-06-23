@@ -5,55 +5,97 @@ namespace App\Support;
 final class OrderLifecycle
 {
     public const ORDER_PENDING = 'pending';
+
     public const ORDER_CONFIRMED = 'confirmed';
+
     public const ORDER_PROCESSING = 'processing';
+
     public const ORDER_COMPLETED = 'completed';
+
     public const ORDER_CANCELLED = 'cancelled';
+
     public const ORDER_REFUNDED = 'refunded';
 
     public const PAYMENT_PENDING = 'pending';
+
     public const PAYMENT_AUTHORIZED = 'authorized';
+
     public const PAYMENT_PAID = 'paid';
+
     public const PAYMENT_FAILED = 'failed';
+
     public const PAYMENT_REFUNDED = 'refunded';
+
     public const PAYMENT_PARTIALLY_REFUNDED = 'partially_refunded';
 
     public const FULFILLMENT_UNFULFILLED = 'unfulfilled';
+
     public const FULFILLMENT_PARTIAL = 'partial';
+
     public const FULFILLMENT_FULFILLED = 'fulfilled';
+
     public const FULFILLMENT_RETURNED = 'returned';
 
     public const SHIPMENT_PENDING = 'pending';
+
     public const SHIPMENT_LABEL_CREATED = 'label_created';
+
     public const SHIPMENT_SHIPPED = 'shipped';
+
     public const SHIPMENT_IN_TRANSIT = 'in_transit';
+
     public const SHIPMENT_DELIVERED = 'delivered';
+
     public const SHIPMENT_FAILED = 'failed';
+
     public const SHIPMENT_RETURNED = 'returned';
+
     public const SHIPMENT_CANCELLED = 'cancelled';
 
     public const EVENT_ORDER_CREATED = 'order.created';
+
     public const EVENT_EXTERNAL_ORDER_RECEIVED = 'external_order.received';
+
     public const EVENT_ORDER_STATUS_CHANGED = 'order.status_changed';
+
     public const EVENT_PAYMENT_STATUS_CHANGED = 'payment.status_changed';
+
     public const EVENT_PAYMENT_STATUS_RECORDED = 'payment.status_recorded';
+
     public const EVENT_PAYMENT_SUCCEEDED = 'payment.succeeded';
+
     public const EVENT_PAYMENT_FAILED = 'payment.failed';
+
     public const EVENT_CHECKOUT_COMPLETED = 'checkout.completed';
+
     public const EVENT_FULFILLMENT_STATUS_CHANGED = 'fulfillment.status_changed';
+
     public const EVENT_FULFILLMENT_ORIGIN_SELECTED = 'fulfillment.origin_selected';
+
     public const EVENT_INVENTORY_RESERVED = 'inventory.reserved';
+
     public const EVENT_INVENTORY_DEDUCTED = 'inventory.deducted';
+
     public const EVENT_INVENTORY_EXTERNAL_MANAGED = 'inventory.external_managed';
+
     public const EVENT_ORDER_NOTE_ADDED = 'order.note_added';
+
     public const EVENT_ORDER_CANCELLED = 'order.cancelled';
+
     public const EVENT_ORDER_COMPLETED = 'order.completed';
+
     public const EVENT_ORDER_REFUNDED = 'order.refunded';
+
     public const EVENT_SHIPMENT_CREATED = 'shipment.created';
+
     public const EVENT_SHIPMENT_TRACKING_ADDED = 'shipment.tracking_added';
+
     public const EVENT_SHIPMENT_STATUS_CHANGED = 'shipment.status_changed';
+
     public const EVENT_EXTERNAL_SHIPPING_RECORDED = 'external_shipping.recorded';
+
     public const EVENT_EXTERNAL_FULFILLMENT_RECORDED = 'external_fulfillment.recorded';
+
     public const EVENT_EXTERNAL_SHIPMENT_UPDATED = 'external_shipment.updated';
 
     private const ORDER_STATUS_LABELS = [

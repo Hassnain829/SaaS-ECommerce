@@ -17,8 +17,7 @@ class LocationController extends Controller
 {
     public function __construct(
         private readonly CarrierOriginReadinessService $originReadiness,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {

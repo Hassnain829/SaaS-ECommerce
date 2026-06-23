@@ -7,7 +7,6 @@ use App\Jobs\ProcessProductImportJob;
 use App\Jobs\RetryFailedProductImportRowsJob;
 use App\Models\ProductImport;
 use App\Models\ProductImportRow;
-use App\Models\Store;
 use App\Services\Catalog\ProductImportAutoColumnMapper;
 use App\Services\Catalog\ProductImportMappingValidator;
 use App\Services\Catalog\ProductImportMediaProgress;

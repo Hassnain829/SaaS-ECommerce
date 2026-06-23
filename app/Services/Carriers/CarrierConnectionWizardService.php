@@ -2,11 +2,9 @@
 
 namespace App\Services\Carriers;
 
-use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Store;
-use App\Models\User;
 use App\Services\Carriers\DTO\CarrierConnectionTestResult;
 use App\Services\Carriers\DTO\CarrierOriginReadinessResult;
 use App\Services\Carriers\FedEx\FedExConfig;

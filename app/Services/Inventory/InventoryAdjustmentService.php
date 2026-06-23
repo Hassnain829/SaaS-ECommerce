@@ -4,7 +4,6 @@ namespace App\Services\Inventory;
 
 use App\Models\InventoryItem;
 use App\Models\InventoryLevel;
-use App\Models\InventoryReservation;
 use App\Models\Location;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
@@ -14,9 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryAdjustmentService
 {
-    public function __construct(private readonly InventorySyncService $syncService)
-    {
-    }
+    public function __construct(private readonly InventorySyncService $syncService) {}
 
     public function setVariantAvailable(
         ProductVariant $variant,

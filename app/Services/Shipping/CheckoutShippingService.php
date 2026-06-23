@@ -4,9 +4,9 @@ namespace App\Services\Shipping;
 
 use App\Models\Checkout;
 use App\Models\InventoryReservation;
+use App\Models\PaymentIntent;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
-use App\Models\PaymentIntent;
 use App\Services\CheckoutEventRecorder;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
@@ -24,8 +24,7 @@ class CheckoutShippingService
         private readonly FulfillmentOriginRouter $originRouter,
         private readonly InventorySyncService $syncService,
         private readonly InventoryReservationService $reservationService,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>|null  $address

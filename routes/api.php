@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\DeveloperStorefrontCatalogController;
 use App\Http\Controllers\Api\CatalogApiV1Controller;
+use App\Http\Controllers\Api\DeveloperStorefrontCatalogController;
 use App\Http\Controllers\Api\ExternalOrderSyncController;
 use App\Http\Controllers\Api\ExternalShipmentSyncController;
 use App\Http\Controllers\Api\PlatformCheckoutController;

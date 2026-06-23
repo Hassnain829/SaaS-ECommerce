@@ -12,7 +12,9 @@ class DraftOrder extends Model
     use SoftDeletes;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_CONVERTED = 'converted';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [

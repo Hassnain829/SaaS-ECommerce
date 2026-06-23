@@ -11,8 +11,7 @@ class FedExIntegratorChildOAuthService
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExOAuthTokenService $oauthTokenService,
-    ) {
-    }
+    ) {}
 
     public function fetchTokenResult(CarrierAccount $account, bool $fresh = false): CarrierApiResult
     {

@@ -5,13 +5,11 @@ namespace Tests\Feature;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierAccountRegistrationSession;
-use App\Models\CarrierApiEvent;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\FedExIntegratorChildOAuthService;
-use App\Services\Carriers\FedEx\FedExValidationEvidenceExporter;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -737,14 +735,14 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
         $zip = new ZipArchive;
         $zip->open($zipPath);
-        $readme = $zip->getFromName('fedex-validation/README.md');
-        $rateQuoteEvent = $zip->getFromName('fedex-validation/api-events/'.CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE.'.json');
+        $readme = $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/README.md');
+        $preflight = $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/preflight-report.json');
         $zip->close();
 
         $this->assertStringContainsString('FedEx Integrator Validation Evidence Bundle', (string) $readme);
+        $this->assertStringContainsString('INCOMPLETE', (string) $readme);
         $this->assertStringNotContainsString('child-secret', (string) $readme);
-        $this->assertStringNotContainsString('placeholder', (string) $rateQuoteEvent);
-        $this->assertStringContainsString(CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE, (string) $rateQuoteEvent);
+        $this->assertSame('1.0', json_decode((string) $preflight, true)['schema_version'] ?? null);
     }
 
     public function test_live_mode_disabled_unless_production_flag_and_credentials_exist(): void

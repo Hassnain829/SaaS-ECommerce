@@ -8,9 +8,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Carrier extends Model
 {
     public const TYPE_MANUAL = 'manual';
+
     public const TYPE_COURIER = 'courier';
+
     public const TYPE_PICKUP = 'pickup';
+
     public const TYPE_LOCAL_DELIVERY = 'local_delivery';
+
     public const TYPE_THIRD_PARTY = 'third_party';
 
     public const TYPES = [

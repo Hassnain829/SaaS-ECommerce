@@ -12,8 +12,7 @@ class FedExTestCaseFixtureService
 
     public function __construct(
         private readonly FedExConfig $config,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -49,6 +48,18 @@ class FedExTestCaseFixtureService
         return is_array($fixtures['us_validation_account'] ?? null)
             ? $fixtures['us_validation_account']
             : $this->fallbackFixtures()['us_validation_account'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function mfaInvoice(): array
+    {
+        $fixtures = $this->fixtures();
+
+        return is_array($fixtures['mfa_invoice'] ?? null)
+            ? $fixtures['mfa_invoice']
+            : $this->fallbackFixtures()['mfa_invoice'];
     }
 
     public function baselineAvailable(): bool
@@ -132,7 +143,9 @@ class FedExTestCaseFixtureService
             'mfa_default_pins' => ['234560', '234561', '234562', '234563', '234564'],
             'mfa_invoice' => [
                 'number' => '234562278',
+                'date' => '2020-09-14',
                 'currency' => 'USD',
+                'amount' => '125.50',
             ],
             'us_test_accounts' => ['700257037', '740561073'],
         ];

@@ -5,11 +5,14 @@ namespace App\Services\Carriers\FedEx;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierAccountRegistrationSession;
+use App\Models\CarrierApiEvent;
 use App\Models\Location;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Carriers\CarrierApiEventLogger;
 use App\Services\Carriers\CarrierOriginReadinessService;
 use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -26,8 +29,9 @@ class FedExIntegratorRegistrationOrchestrator
         private readonly CarrierOriginReadinessService $originReadiness,
         private readonly FedExRegistrationInputValidator $inputValidator,
         private readonly FedExRegistrationResponseAnalyzer $responseAnalyzer,
-    ) {
-    }
+        private readonly CarrierApiEventLogger $eventLogger,
+        private readonly FedExRegistrationEventLinker $registrationEventLinker,
+    ) {}
 
     public function start(
         Store $store,
@@ -357,6 +361,25 @@ class FedExIntegratorRegistrationOrchestrator
                 'last_error_code' => null,
                 'last_error_message' => null,
             ])->save();
+
+            $childEvent = $this->eventLogger->start(
+                store: $store,
+                provider: CarrierAccount::PROVIDER_FEDEX,
+                action: CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
+                account: $account,
+                requestSummary: array_merge($result->requestSummary ?? [], [
+                    'mfa_step' => 'child_credentials_generated',
+                    'registration_session_id' => $session->id,
+                ]),
+                environment: $session->environment,
+                context: new FedExValidationEventContext(
+                    registrationSessionId: $session->id,
+                    scenarioKey: CarrierApiEvent::SCENARIO_REGISTRATION_CHILD_CREDENTIALS,
+                ),
+            );
+            $this->eventLogger->complete($childEvent, $result);
+
+            $this->registrationEventLinker->linkSessionEventsToAccount($account, $session);
 
             return $account->refresh();
         });

@@ -7,22 +7,39 @@ use App\Models\Store;
 final class StorePermission
 {
     public const CATALOG_VIEW = 'catalog.view';
+
     public const CATALOG_MANAGE = 'catalog.manage';
+
     public const IMPORTS_VIEW = 'imports.view';
+
     public const IMPORTS_MANAGE = 'imports.manage';
+
     public const ORDERS_VIEW = 'orders.view';
+
     public const ORDERS_MANAGE = 'orders.manage';
+
     public const CUSTOMERS_VIEW = 'customers.view';
+
     public const CUSTOMERS_MANAGE = 'customers.manage';
+
     public const SETTINGS_VIEW = 'settings.view';
+
     public const SETTINGS_MANAGE = 'settings.manage';
+
     public const TEAM_VIEW = 'team.view';
+
     public const TEAM_MANAGE = 'team.manage';
+
     public const DEVELOPER_API_VIEW = 'developer_api.view';
+
     public const DEVELOPER_API_MANAGE = 'developer_api.manage';
+
     public const SECURITY_VIEW = 'security.view';
+
     public const SECURITY_MANAGE = 'security.manage';
+
     public const BILLING_VIEW = 'billing.view';
+
     public const BILLING_MANAGE = 'billing.manage';
 
     public const ALL = [

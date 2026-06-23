@@ -72,6 +72,7 @@ final class ProductImportVariantFinalizer
             $cells = $importRow->payload['cells'] ?? null;
             if (! is_array($cells)) {
                 $this->failPreparedRow($import, $importRow, $failures, $failed, 'Saved row data was incomplete.');
+
                 continue;
             }
             $keyed = $this->cellsToKeyedRow($headers, $cells);
@@ -79,6 +80,7 @@ final class ProductImportVariantFinalizer
             $gk = $this->groupKeyForFields($fields, $mapping);
             if ($gk === '') {
                 $this->failPreparedRow($import, $importRow, $failures, $failed, 'This row does not have a stable product identifier (map Parent product SKU, or use Brand when several rows share the same product name).');
+
                 continue;
             }
             $prepared[] = [
@@ -125,10 +127,12 @@ final class ProductImportVariantFinalizer
                 $ck = $this->combinationKey($m['fields'], $mapping, $slots);
                 if ($ck === '') {
                     $this->failPreparedRow($import, $m['import_row'], $failures, $failed, 'Each variant row needs a value for every option group you mapped.');
+
                     continue;
                 }
                 if (isset($comboKeys[$ck])) {
                     $this->failPreparedRow($import, $m['import_row'], $failures, $failed, 'Duplicate variant combination in this file for the same product.');
+
                     continue;
                 }
                 $comboKeys[$ck] = true;

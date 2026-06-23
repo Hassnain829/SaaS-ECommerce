@@ -12,8 +12,7 @@ class CarrierProviderManager
     public function __construct(
         private readonly FedExCarrierProvider $fedExCarrierProvider,
         private readonly USPSCarrierProvider $uspsCarrierProvider,
-    ) {
-    }
+    ) {}
 
     public function provider(string $code): CarrierProviderInterface
     {

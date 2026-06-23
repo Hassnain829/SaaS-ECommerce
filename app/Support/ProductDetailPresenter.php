@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 final class ProductDetailPresenter
 {
     /**
-     * @param array<string, mixed>|null $associative
+     * @param  array<string, mixed>|null  $associative
      * @return list<array{label: string, value_display: string}>
      */
     public static function associativeRows(?array $associative): array

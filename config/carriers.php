@@ -40,8 +40,14 @@ return [
         'ship_create_path' => env('FEDEX_SHIP_CREATE_PATH', '/ship/v1/shipments'),
         'ship_validate_path' => env('FEDEX_SHIP_VALIDATE_PATH', '/ship/v1/shipments/packages/validate'),
         'ship_cancel_path' => env('FEDEX_SHIP_CANCEL_PATH', '/ship/v1/shipments/cancel'),
+        'basic_integrated_visibility_path' => env('FEDEX_BASIC_INTEGRATED_VISIBILITY_PATH'),
+        'trade_documents_upload_path' => env('FEDEX_TRADE_DOCUMENTS_UPLOAD_PATH'),
         'ship_evidence_enabled' => filter_var(env('FEDEX_SHIP_EVIDENCE_ENABLED', false), FILTER_VALIDATE_BOOL),
         'ship_sandbox_label_generation_enabled' => filter_var(env('FEDEX_SHIP_SANDBOX_LABEL_GENERATION_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'validation_required_scopes' => array_values(array_filter(array_map(
+            static fn (string $scope): string => trim($scope),
+            explode(',', (string) env('FEDEX_VALIDATION_REQUIRED_SCOPES', 'account_registration,address_validation,service_availability,comprehensive_rates,ship,tracking'))
+        ))),
 
         'test_case_baseline_paths' => [
             base_path('docs/fedex/FedEx_Integrator_Test_Case_Baseline.xlsx'),

@@ -27,8 +27,7 @@ final class CarrierOriginReadinessResult
         public readonly ?string $originZip5,
         public readonly string $merchantMessage,
         public readonly string $badgeLabel,
-    ) {
-    }
+    ) {}
 
     public function isUspsReady(): bool
     {

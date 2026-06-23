@@ -6,7 +6,6 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Location;
-use App\Models\ShipmentPackage;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Services\Carriers\CarrierOriginReadinessService;

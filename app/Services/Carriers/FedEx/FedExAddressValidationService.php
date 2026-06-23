@@ -6,14 +6,14 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 
 class FedExAddressValidationService
 {
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExMerchantApiClient $apiClient,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $addressInput
@@ -80,6 +80,7 @@ class FedExAddressValidationService
             path: $endpoint,
             payload: $payload,
             requestSummary: $requestSummary,
+            context: new FedExValidationEventContext(scenarioKey: 'address_validation'),
         );
 
         $presentation = FedExMerchantCheckPresenter::addressValidation($result->data, $countryCode);
@@ -92,14 +93,7 @@ class FedExAddressValidationService
                 'ignored_country_codes' => $presentation['ignored_country_codes'],
             ]);
 
-            $result = new CarrierApiResult(
-                success: true,
-                data: $result->data,
-                requestId: $result->requestId,
-                durationMs: $result->durationMs,
-                requestSummary: $result->requestSummary,
-                responseSummary: $responseSummary,
-            );
+            $result = $result->copyWith(responseSummary: $responseSummary);
         }
 
         return ['result' => $result, 'presentation' => $presentation];

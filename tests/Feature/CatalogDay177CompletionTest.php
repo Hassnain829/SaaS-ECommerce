@@ -4,18 +4,17 @@ namespace Tests\Feature;
 
 use App\Models\Product;
 use App\Models\ProductImage;
-use App\Models\ProductVariant;
-use App\Support\ProductEditPayload;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\ProductEditPayload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Str;
 use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CarrierApiEvent extends Model
 {
@@ -41,13 +42,45 @@ class CarrierApiEvent extends Model
 
     public const ACTION_FEDEX_SHIP_EVIDENCE_EXPORT = 'fedex_ship_evidence_export';
 
+    public const ACTION_FEDEX_BASIC_INTEGRATED_VISIBILITY = 'fedex_basic_integrated_visibility';
+
+    public const ACTION_FEDEX_TRADE_DOCUMENTS_UPLOAD = 'fedex_trade_documents_upload';
+
+    public const SCENARIO_REGISTRATION_ADDRESS = 'registration_address_validation';
+
+    public const SCENARIO_REGISTRATION_INVOICE = 'registration_invoice_validation';
+
+    public const SCENARIO_REGISTRATION_PIN_GENERATION_SMS = 'registration_pin_generation_sms';
+
+    public const SCENARIO_REGISTRATION_PIN_VALIDATION_SMS = 'registration_pin_validation_sms';
+
+    public const SCENARIO_REGISTRATION_PIN_GENERATION_EMAIL = 'registration_pin_generation_email';
+
+    public const SCENARIO_REGISTRATION_PIN_VALIDATION_EMAIL = 'registration_pin_validation_email';
+
+    public const SCENARIO_REGISTRATION_PIN_GENERATION_CALL = 'registration_pin_generation_call';
+
+    public const SCENARIO_REGISTRATION_PIN_VALIDATION_CALL = 'registration_pin_validation_call';
+
+    public const SCENARIO_REGISTRATION_CHILD_CREDENTIALS = 'registration_child_credentials_generated';
+
     protected $fillable = [
         'store_id',
         'carrier_account_id',
+        'registration_session_id',
         'shipment_id',
         'provider',
         'environment',
         'action',
+        'scenario_key',
+        'test_case_key',
+        'mfa_method',
+        'label_format',
+        'package_count',
+        'endpoint',
+        'http_method',
+        'http_status',
+        'fedex_transaction_id',
         'status',
         'request_id',
         'duration_ms',
@@ -55,12 +88,24 @@ class CarrierApiEvent extends Model
         'response_summary',
         'error_code',
         'error_message',
+        'request_headers_encrypted',
+        'request_body_encrypted',
+        'response_headers_encrypted',
+        'response_body_encrypted',
+        'evidence_recorded_at',
     ];
 
     protected $casts = [
         'request_summary' => 'array',
         'response_summary' => 'array',
         'duration_ms' => 'integer',
+        'package_count' => 'integer',
+        'http_status' => 'integer',
+        'request_headers_encrypted' => 'encrypted:array',
+        'request_body_encrypted' => 'encrypted:array',
+        'response_headers_encrypted' => 'encrypted:array',
+        'response_body_encrypted' => 'encrypted:array',
+        'evidence_recorded_at' => 'datetime',
     ];
 
     public function store(): BelongsTo
@@ -73,8 +118,33 @@ class CarrierApiEvent extends Model
         return $this->belongsTo(CarrierAccount::class);
     }
 
+    public function registrationSession(): BelongsTo
+    {
+        return $this->belongsTo(CarrierAccountRegistrationSession::class, 'registration_session_id');
+    }
+
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);
+    }
+
+    public function validationArtifacts(): HasMany
+    {
+        return $this->hasMany(FedExValidationArtifact::class, 'carrier_api_event_id');
+    }
+
+    public function hasCompleteEvidence(): bool
+    {
+        return filled($this->request_body_encrypted)
+            && filled($this->response_body_encrypted)
+            && filled($this->http_status);
+    }
+
+    public function isSuccessfulHttp(): bool
+    {
+        return $this->http_status !== null
+            && $this->http_status >= 200
+            && $this->http_status < 300
+            && $this->status === self::STATUS_SUCCEEDED;
     }
 }

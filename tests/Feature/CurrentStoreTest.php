@@ -122,7 +122,7 @@ class CurrentStoreTest extends TestCase
         $store = Store::create([
             'user_id' => $user->id,
             'name' => $name,
-            'slug' => str($name)->slug() . '-' . fake()->unique()->numberBetween(1000, 9999),
+            'slug' => str($name)->slug().'-'.fake()->unique()->numberBetween(1000, 9999),
             'logo' => null,
             'address' => 'Test Address',
             'currency' => 'USD',

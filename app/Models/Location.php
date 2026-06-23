@@ -12,8 +12,11 @@ class Location extends Model
     use SoftDeletes;
 
     public const TYPE_WAREHOUSE = 'warehouse';
+
     public const TYPE_STORE = 'store';
+
     public const TYPE_THIRD_PARTY = 'third_party';
+
     public const TYPE_OTHER = 'other';
 
     public const TYPES = [

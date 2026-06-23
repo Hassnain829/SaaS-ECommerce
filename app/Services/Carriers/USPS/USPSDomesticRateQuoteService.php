@@ -21,8 +21,7 @@ class USPSDomesticRateQuoteService
         private readonly USPSHttpClient $httpClient,
         private readonly CarrierApiEventLogger $eventLogger,
         private readonly CarrierOriginReadinessService $originReadiness,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{result: CarrierApiResult, quote: CarrierRateQuote}

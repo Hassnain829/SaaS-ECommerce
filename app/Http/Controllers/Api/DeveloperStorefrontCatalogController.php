@@ -151,9 +151,9 @@ class DeveloperStorefrontCatalogController extends Controller
 
             // update stats
             $customer->increment('total_orders');
-            $customer->total_spent = bcadd((string)$customer->total_spent, $total, 2);
+            $customer->total_spent = bcadd((string) $customer->total_spent, $total, 2);
             if ($customer->total_orders > 0) {
-                $customer->average_order_value = bcdiv((string)$customer->total_spent, (string)$customer->total_orders, 2);
+                $customer->average_order_value = bcdiv((string) $customer->total_spent, (string) $customer->total_orders, 2);
             }
             $customer->last_order_at = now();
             $customer->save();
@@ -193,7 +193,7 @@ class DeveloperStorefrontCatalogController extends Controller
                 'phone' => $shipping['phone'] ?? null,
             ]);
 
-            if (!($validated['billing_same_as_shipping'] ?? true) && !empty($validated['billing_address'])) {
+            if (! ($validated['billing_same_as_shipping'] ?? true) && ! empty($validated['billing_address'])) {
                 $billing = $validated['billing_address'];
                 $order->addresses()->create([
                     'type' => 'billing',

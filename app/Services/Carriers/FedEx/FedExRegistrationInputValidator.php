@@ -2,8 +2,8 @@
 
 namespace App\Services\Carriers\FedEx;
 
-use App\Support\CarrierCountryOptions;
 use App\Services\Carriers\CarrierOriginReadinessService;
+use App\Support\CarrierCountryOptions;
 use Illuminate\Validation\ValidationException;
 
 class FedExRegistrationInputValidator
@@ -19,8 +19,7 @@ class FedExRegistrationInputValidator
 
     public function __construct(
         private readonly CarrierOriginReadinessService $originReadiness,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $input

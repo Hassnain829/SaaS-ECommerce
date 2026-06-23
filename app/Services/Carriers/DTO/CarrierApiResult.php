@@ -2,6 +2,8 @@
 
 namespace App\Services\Carriers\DTO;
 
+use App\Services\Carriers\FedEx\DTO\FedExApiEvidenceData;
+
 final class CarrierApiResult
 {
     /**
@@ -18,8 +20,8 @@ final class CarrierApiResult
         public readonly ?int $durationMs = null,
         public readonly ?array $requestSummary = null,
         public readonly ?array $responseSummary = null,
-    ) {
-    }
+        public readonly ?FedExApiEvidenceData $evidence = null,
+    ) {}
 
     public static function success(
         ?array $data = null,
@@ -27,6 +29,7 @@ final class CarrierApiResult
         ?int $durationMs = null,
         ?array $requestSummary = null,
         ?array $responseSummary = null,
+        ?FedExApiEvidenceData $evidence = null,
     ): self {
         return new self(
             success: true,
@@ -35,6 +38,7 @@ final class CarrierApiResult
             durationMs: $durationMs,
             requestSummary: $requestSummary,
             responseSummary: $responseSummary,
+            evidence: $evidence,
         );
     }
 
@@ -45,6 +49,7 @@ final class CarrierApiResult
         ?int $durationMs = null,
         ?array $requestSummary = null,
         ?array $responseSummary = null,
+        ?FedExApiEvidenceData $evidence = null,
     ): self {
         return new self(
             success: false,
@@ -54,6 +59,40 @@ final class CarrierApiResult
             durationMs: $durationMs,
             requestSummary: $requestSummary,
             responseSummary: $responseSummary,
+            evidence: $evidence,
+        );
+    }
+
+    public function withEvidence(?FedExApiEvidenceData $evidence): self
+    {
+        return $this->copyWith(evidence: $evidence);
+    }
+
+    /**
+     * Preserve complete evidence and transport metadata when normalizing API results.
+     */
+    public function copyWith(
+        ?bool $success = null,
+        ?array $data = null,
+        ?string $errorCode = null,
+        ?string $errorMessage = null,
+        ?string $requestId = null,
+        ?int $durationMs = null,
+        ?array $requestSummary = null,
+        ?array $responseSummary = null,
+        ?FedExApiEvidenceData $evidence = null,
+        bool $preserveEvidence = true,
+    ): self {
+        return new self(
+            success: $success ?? $this->success,
+            data: $data ?? $this->data,
+            errorCode: $errorCode ?? $this->errorCode,
+            errorMessage: $errorMessage ?? $this->errorMessage,
+            requestId: $requestId ?? $this->requestId,
+            durationMs: $durationMs ?? $this->durationMs,
+            requestSummary: $requestSummary ?? $this->requestSummary,
+            responseSummary: $responseSummary ?? $this->responseSummary,
+            evidence: $evidence ?? ($preserveEvidence ? $this->evidence : null),
         );
     }
 }

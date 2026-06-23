@@ -13,8 +13,7 @@ class USPSHttpClient
 {
     public function __construct(
         private readonly USPSConfig $config,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $payload

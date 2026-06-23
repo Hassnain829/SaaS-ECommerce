@@ -18,8 +18,7 @@ class USPSCarrierProvider implements CarrierProviderInterface
         private readonly USPSAddressValidationService $addressValidationService,
         private readonly CarrierApiEventLogger $eventLogger,
         private readonly CarrierOriginReadinessService $originReadiness,
-    ) {
-    }
+    ) {}
 
     public function providerCode(): string
     {
