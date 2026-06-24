@@ -150,7 +150,7 @@ Important existing models:
 ### Partial areas
 
 - RBAC/permissions granularity beyond store roles
-- Tax and coupons
+- Tax and coupons (**Phase 5R-0 calculation audit complete; Phase 5R-1 tax foundation planned**)
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier operation (rates, labels, tracking in production)
@@ -1080,6 +1080,13 @@ Current next practical direction:
 ### Repository hygiene (CLEAN-1 through CLEAN-4)
 
 CLEAN-1 through CLEAN-3 add export-safe archives, cleanup, carrier code organization, and runtime retention. **CLEAN-3A** adds testing-only destructive root guards and marked sandboxes so automated tests cannot delete real worktree storage. **CLEAN-4** performs controlled internal extractions (FedEx test presenter, registration payload builder, import row mapper, onboarding routes) with characterization tests and no merchant or carrier behavior changes. See `docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md` and `docs/architecture/REFACTORING_BOUNDARIES.md`.
+
+### Phase 5R — Calculation audit and tax foundation (2026-06-24)
+
+- **5R-0 (completed):** Current calculation audit — platform, external, and draft/manual totals paths documented; duplicate grand-total and `amountMinor()` implementations identified. Report: `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
+- **5R-1 (in progress — Slice 1A complete):** Tax schema and models implemented (`docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`). Tax calculation, UI, and checkout application **not implemented**. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`.
+- **5R-2 / 5R-3 (pending):** Coupons; checkout/order totals hardening.
+- **Carrier production work remains frozen** pending approvals. **Model A** remains primary courier architecture.
 
 
 ### Scenario 3 — Multiple separate stores

@@ -118,6 +118,11 @@ class Order extends Model
         return $this->hasMany(PaymentIntent::class);
     }
 
+    public function taxLines(): HasMany
+    {
+        return $this->hasMany(OrderTaxLine::class);
+    }
+
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class)->orderBy('created_at')->orderBy('id');

@@ -31,6 +31,7 @@ class Product extends Model
         'requires_shipping',
         'track_inventory',
         'status',
+        'is_taxable',
         'meta',
     ];
 
@@ -38,6 +39,7 @@ class Product extends Model
         'base_price' => 'decimal:2',
         'requires_shipping' => 'boolean',
         'track_inventory' => 'boolean',
+        'is_taxable' => 'boolean',
         'status' => 'boolean',
         'meta' => 'array',
     ];

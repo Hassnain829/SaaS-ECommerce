@@ -2139,6 +2139,875 @@ Implement roadmap Sprint 4: carriers, carrier accounts, shipping rules, shipment
 - Carrier API failures are visible and retryable.
 
 ---
+# CURRENT EXECUTION ROADMAP — CARRIER-INDEPENDENT PORTAL COMPLETION
+
+**Effective date:** 2026-06-24
+**Status:** Active after CLEAN-1 through CLEAN-4
+**Primary objective:** Continue completing the merchant portal while FedEx, USPS, UPS, DHL, and other production carrier approvals or entitlements remain pending.
+
+---
+
+## Why this execution roadmap exists
+
+The platform already has:
+
+* store onboarding and current-store scoping;
+* catalog, products, variants, images, categories, brands, and tags;
+* product import, retry, custom fields, and unmapped-data preservation;
+* multi-location inventory and inventory reservations;
+* customers, orders, addresses, and order events;
+* manual fulfillment and shipments;
+* shipping zones and checkout delivery methods;
+* Stripe platform checkout and Stripe Connect foundation;
+* external checkout synchronization;
+* security logs and user sessions;
+* FedEx Model A connectivity and validation tooling;
+* USPS public API foundation;
+* repository cleanup CLEAN-1 through CLEAN-4.
+
+Production carrier capabilities remain dependent on external approvals and entitlements.
+
+Carrier delays must not block the remaining merchant-platform work.
+
+---
+
+## Carrier work temporarily frozen
+
+Do not start or expand these capabilities until the relevant carrier approval, entitlement, credentials, and capability proof are available:
+
+* production carrier rate quotes;
+* production label purchase;
+* label void/refund APIs;
+* pickup scheduling;
+* live tracking synchronization;
+* carrier-specific shipment background jobs;
+* FedEx production activation;
+* UPS integration;
+* DHL integration;
+* USPS merchant-owned production labels or EPS payment flows;
+* carrier-specific return labels;
+* checkout live carrier-calculated rates.
+
+Existing manual fulfillment, shipping zones, delivery methods, shipment records, manual tracking, and carrier-neutral order flows must remain operational.
+
+Model A / Official Integrator Provider remains the primary courier architecture where supported.
+
+---
+
+# EXECUTION ORDER
+
+The numbered domain phases in this roadmap remain canonical, but implementation will follow the priority order below.
+
+| Priority | Workstream                                                | Dependency on carrier approval                        |
+| -------- | --------------------------------------------------------- | ----------------------------------------------------- |
+| 1        | Foundation Gate — authorization and baseline verification | None                                                  |
+| 2        | Phase 5R — tax, coupons, and checkout totals              | None                                                  |
+| 3        | Phase 7 — returns, refunds, and exchanges                 | None                                                  |
+| 4        | Phase 9 — API keys, idempotency, outbox, and webhooks     | None                                                  |
+| 5        | Phase 11 — notifications and communication                | None                                                  |
+| 6        | Phase 10 — SaaS plans, subscriptions, and billing         | None                                                  |
+| 7        | Phase 14 — observability and reliability                  | None                                                  |
+| 8        | Phase 13 — performance and scale                          | None                                                  |
+| 9        | Phase 8 — Markets, B2B, catalogs, and price lists         | None                                                  |
+| 10       | Phase 12 — platform admin operations                      | Deferred until merchant portal foundations are stable |
+
+Do not skip a phase acceptance gate merely because the next UI appears easier to build.
+
+---
+
+# FOUNDATION GATE — AUTHORIZATION AND BASELINE VERIFICATION
+
+## Goal
+
+Create a safe baseline before adding new financial, returns, integration, and billing modules.
+
+This is a bounded foundation gate, not another cleanup phase.
+
+## Tasks
+
+1. Record the full test-suite baseline.
+2. Run `migrate:fresh --seed`.
+3. Confirm current store isolation in:
+
+   * orders;
+   * customers;
+   * inventory;
+   * checkouts;
+   * shipments;
+   * payment provider accounts.
+4. Define or verify a permission matrix for:
+
+   * `catalog.view`
+   * `catalog.manage`
+   * `orders.view`
+   * `orders.manage`
+   * `customers.view`
+   * `customers.manage`
+   * `inventory.view`
+   * `inventory.manage`
+   * `returns.view`
+   * `returns.manage`
+   * `refunds.manage`
+   * `integrations.view`
+   * `integrations.manage`
+   * `billing.view`
+   * `billing.manage`
+   * `settings.manage`
+5. Preserve existing owner, manager, and staff behavior unless a documented permission correction is required.
+6. Add permission and cross-store tests for every new module as that module is implemented.
+
+## Acceptance gate
+
+* Full suite passes.
+* Fresh migration and seed pass.
+* No cross-store access is introduced.
+* New modules have explicit authorization rules.
+* No carrier code or carrier API behavior changes.
+
+---
+
+# PHASE 5R — TAX, COUPONS, AND CHECKOUT TOTALS COMPLETION
+
+## Goal
+
+Complete the financial calculation layer required before returns, refunds, invoices, and production checkout can be trusted.
+
+This is the immediate next implementation phase.
+
+---
+
+## Phase 5R-0 — Current calculation audit
+
+**Status: Completed (2026-06-24).** Audit report: `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
+
+Findings summary:
+
+* Platform checkout uses `CheckoutService::totals()` with **tax and discount hardcoded to zero**; float `round(..., 2)`.
+* **Duplicate grand-total formula** in `CheckoutShippingService::selectShippingMethod()`.
+* **Four duplicate `amountMinor()` implementations** for Stripe.
+* External checkout preserves supplied tax/discount/totals (`ExternalOrderSyncService::totals()`).
+* Draft orders use **manual** tax/discount/shipping with BCMath for draft total only.
+* Schema has tax columns but **no tax engine, settings, or product taxable flag**.
+* Recommended platform authority: future **`CheckoutTotalsService`** (Phase 5R-1).
+
+### Acceptance gate
+
+* [x] One authoritative totals calculation path is identified for platform checkout.
+* [x] Existing external and platform checkout behavior is documented.
+* [x] Duplicate sources of truth are identified.
+
+---
+
+## Phase 5R-1 — Tax settings and tax calculation foundation
+
+**Status: In progress — Slice 1A (schema/models) implemented; tax calculation and UI not implemented.** Implementation plan corrected 2026-05-24: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`. Slice 1A report: `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`.
+
+### Build
+
+Implement store-scoped tax configuration supporting:
+
+* tax enabled/disabled;
+* prices entered inclusive or exclusive of tax;
+* default taxable behavior;
+* basic country and region/state tax rates;
+* product taxable/non-taxable status;
+* shipping taxable/non-taxable behavior;
+* tax calculation based on the appropriate checkout address;
+* deterministic decimal and rounding rules;
+* checkout tax snapshots;
+* order tax snapshots;
+* order-item tax snapshots.
+
+Use a provider-neutral tax service boundary so an external tax provider can be added later without replacing checkout logic.
+
+### Rules
+
+* Store A cannot use Store B tax settings or tax rates.
+* Historical order tax values must not change when tax settings change later.
+* External checkout tax values supplied by an authenticated external source must be preserved according to the external-order contract.
+* Do not silently recalculate historical orders.
+* Do not use floating-point arithmetic for money.
+* Tax errors must not create partially confirmed orders.
+
+### Tests
+
+Cover:
+
+* inclusive tax;
+* exclusive tax;
+* non-taxable product;
+* taxable shipping;
+* non-taxable shipping;
+* different country/region;
+* missing tax rule;
+* rounding;
+* cross-store isolation;
+* checkout-to-order snapshot;
+* external checkout preservation.
+
+### Acceptance gate
+
+* Platform checkout calculates and snapshots tax consistently.
+* External checkout remains provider-owned for supplied tax snapshots.
+* Historical orders remain immutable.
+* Full suite passes.
+
+---
+
+## Phase 5R-2 — Coupons and discount rules
+
+### Build
+
+Implement store-scoped coupons supporting:
+
+* fixed-amount discounts;
+* percentage discounts;
+* minimum order amount;
+* maximum discount amount;
+* active/inactive state;
+* start and expiry dates;
+* total usage limit;
+* per-customer usage limit where customer identity exists;
+* product eligibility;
+* category eligibility;
+* customer eligibility later without blocking the foundation;
+* coupon usage snapshots on checkout and order.
+
+Recommended data boundaries:
+
+* coupons;
+* coupon eligibility relationships or rules;
+* checkout coupon application;
+* order coupon snapshot;
+* redemption/usage record.
+
+### Rules
+
+* Coupon codes are unique within a store, not necessarily globally.
+* Store A coupons cannot be applied to Store B checkout.
+* Expired, inactive, exhausted, or ineligible coupons return merchant/customer-friendly errors.
+* Discount must never reduce payable totals below zero.
+* Coupon changes must not alter completed historical orders.
+* External checkout discounts must not be replaced by platform coupons unless the external contract explicitly requests platform calculation.
+
+### Tests
+
+Cover:
+
+* fixed coupon;
+* percentage coupon;
+* minimum order;
+* maximum discount;
+* expired coupon;
+* future coupon;
+* usage limit;
+* product/category eligibility;
+* duplicate code within store;
+* same code across stores;
+* cross-store rejection;
+* idempotent checkout retry;
+* order snapshot.
+
+### Acceptance gate
+
+* Coupon validation is deterministic.
+* Discount snapshots survive checkout-to-order conversion.
+* Completed orders remain immutable.
+* Full suite passes.
+
+---
+
+## Phase 5R-3 — Checkout and order totals hardening
+
+### Goal
+
+Create one deterministic financial order:
+
+1. line subtotal;
+2. line-level discounts where supported;
+3. order-level discount;
+4. shipping;
+5. tax;
+6. grand total.
+
+### Build
+
+* central totals calculation service;
+* normalized money values;
+* explicit rounding strategy;
+* checkout recalculation after:
+
+  * quantity change;
+  * address change;
+  * shipping method change;
+  * coupon apply/remove;
+* PaymentIntent amount synchronization;
+* checkout-to-order snapshot verification;
+* manual/draft order compatibility;
+* external checkout total-preservation rules;
+* audit events for important calculation changes where appropriate.
+
+### Critical rules
+
+* Client-submitted totals are never trusted for platform checkout.
+* PaymentIntent amount must match authoritative server totals.
+* A paid checkout cannot convert into an order with a different grand total.
+* Retry must not duplicate discounts, tax, payment attempts, or order records.
+* Currency must remain consistent throughout checkout and order conversion.
+
+### Acceptance gate
+
+* Platform checkout totals are server-authoritative.
+* Stripe amount and checkout amount match.
+* Order snapshots match the final checkout.
+* External checkout contracts remain unchanged.
+* Full suite passes.
+* Phase 5R is marked complete before Phase 7 begins.
+
+---
+
+# PHASE 7 EXECUTION — RETURNS, REFUNDS, AND EXCHANGES
+
+Use the detailed canonical Phase 7 section below this execution roadmap.
+
+Implement it in this order.
+
+---
+
+## Phase 7A — Return requests and return lifecycle
+
+Build:
+
+* return records;
+* return items;
+* return reasons;
+* requested, approved, rejected, received, completed, and cancelled states;
+* merchant notes;
+* customer notes where appropriate;
+* order-detail return workspace;
+* remaining returnable quantity calculation;
+* store scoping and permissions;
+* order events.
+
+Do not require a carrier-generated return label.
+
+Allow manual return instructions or manual tracking reference where useful.
+
+### Acceptance gate
+
+* Cannot return more than purchased quantity.
+* Already-returned quantity is accounted for.
+* Store isolation and permissions pass.
+* Historical order snapshots remain unchanged.
+
+---
+
+## Phase 7B — Refund foundation
+
+Build:
+
+* full refund;
+* partial refund;
+* item refund;
+* shipping refund;
+* tax refund;
+* refund adjustments;
+* provider-neutral refund service;
+* manual refund recording;
+* Stripe refund integration only through the existing payment provider boundary;
+* payment status recalculation;
+* order events;
+* idempotency.
+
+### Rules
+
+* Refund cannot exceed captured/paid amount.
+* Repeated request cannot duplicate a refund.
+* Failed provider refund cannot mark an order as refunded.
+* External checkout refunds may be recorded as externally processed without calling Stripe.
+* Courier postage refund is separate from customer payment refund.
+
+### Acceptance gate
+
+* Payment, refund, and order states remain consistent.
+* Partial and full refunds are auditable.
+* Full suite passes.
+
+---
+
+## Phase 7C — Restock decisions and inventory effects
+
+Build:
+
+* restock yes/no decision;
+* restock location selection;
+* return-received stock movement;
+* damaged/non-sellable disposition;
+* inventory audit records;
+* reservation and available-stock consistency.
+
+### Acceptance gate
+
+* Every stock increase creates a stock movement.
+* Returned quantity cannot be restocked twice.
+* Location and store isolation pass.
+
+---
+
+## Phase 7D — Exchanges
+
+Build:
+
+* exchange one variant for another;
+* validate replacement availability;
+* reserve replacement stock;
+* calculate price difference;
+* collect or refund difference through provider-neutral payment boundaries;
+* exchange events and audit history.
+
+Do not add automated carrier exchange labels in this phase.
+
+### Acceptance gate
+
+* Original and replacement inventory remain correct.
+* Payment difference is auditable.
+* Exchange retry is idempotent.
+* Phase 7 is complete.
+
+---
+
+# PHASE 9 EXECUTION — INTEGRATION FOUNDATION
+
+Execute Phase 9 before Phase 8 Markets/B2B because external integration reliability is more important to the current portal.
+
+---
+
+## Phase 9A — API keys and scopes
+
+Build:
+
+* store-scoped API keys;
+* development and production modes;
+* secure random secret shown only once;
+* hashed secret storage;
+* key name;
+* scopes;
+* expiry;
+* revoke;
+* last-used timestamp;
+* rate limits;
+* security log events.
+
+Initial scopes should include:
+
+* `catalog.read`
+* `catalog.write`
+* `inventory.read`
+* `inventory.write`
+* `orders.read`
+* `orders.write`
+* `customers.read`
+* `customers.write`
+* `returns.read`
+* `returns.write`
+* `webhooks.manage`
+
+### Acceptance gate
+
+* Raw API secrets are not stored.
+* Store A key cannot access Store B.
+* Revoked/expired key fails safely.
+* Scope enforcement is tested.
+
+---
+
+## Phase 9B — Idempotency hardening
+
+Apply idempotency to:
+
+* external order creation;
+* platform checkout creation;
+* payment confirmation;
+* checkout-to-order conversion;
+* refund creation;
+* webhook processing;
+* future public write APIs.
+
+### Acceptance gate
+
+* Retried requests return the original result or a safe conflict.
+* Same key with different payload is rejected.
+* Store scoping is enforced.
+
+---
+
+## Phase 9C — Transactional event outbox
+
+Build:
+
+* event outbox table;
+* event type;
+* aggregate type and ID;
+* store ID;
+* safe payload;
+* status;
+* attempt count;
+* available time;
+* processed time;
+* failure reason;
+* worker/command for delivery.
+
+Initial events:
+
+* product.created;
+* product.updated;
+* inventory.low;
+* order.created;
+* order.paid;
+* return.requested;
+* refund.created;
+* customer.created;
+* import.completed.
+
+Carrier-specific events may be added later without blocking this phase.
+
+### Acceptance gate
+
+* Business transaction and event persistence are reliable.
+* Failed processing is retryable.
+* Sensitive values are excluded.
+
+---
+
+## Phase 9D — Webhooks
+
+Build:
+
+* webhook subscriptions;
+* selected events;
+* signing secret;
+* HMAC signature;
+* delivery attempts;
+* response status;
+* retry policy;
+* disable/pause after repeated failure;
+* delivery history;
+* test webhook action;
+* safe payload versioning.
+
+### Acceptance gate
+
+* Signed delivery is verified.
+* Retry does not duplicate business events.
+* Merchant can inspect failures.
+* Store isolation passes.
+
+---
+
+## Phase 9E — Automation builder
+
+Do not start the automation builder until API keys, idempotency, outbox, and webhooks are stable.
+
+Initial automation scope should remain small:
+
+* trigger;
+* optional conditions;
+* action;
+* enable/disable;
+* execution history.
+
+Possible first automations:
+
+* order paid → notify team;
+* inventory low → notify manager;
+* import completed → notify owner;
+* customer spend threshold → tag customer;
+* webhook repeatedly failed → notify owner.
+
+Do not build carrier label, pickup, or tracking automations while carrier capabilities are frozen.
+
+---
+
+# PHASE 11 EXECUTION — NOTIFICATIONS
+
+## Goal
+
+Create event-driven merchant and customer communication.
+
+## Build order
+
+### 11A — Notification foundation
+
+* database notifications;
+* notification preferences;
+* read/unread;
+* store scoping;
+* recipient scoping;
+* notification center;
+* pagination and filtering.
+
+### 11B — Email notifications
+
+Initial events:
+
+* new order;
+* payment failed;
+* low stock;
+* import completed;
+* return requested;
+* return approved/rejected;
+* refund completed;
+* webhook failed;
+* subscription/billing issue.
+
+### 11C — Customer communication
+
+* order confirmation;
+* refund confirmation;
+* return status;
+* manual shipment/tracking update using existing shipment data.
+
+Do not depend on live carrier tracking.
+
+### Acceptance gate
+
+* Preferences are respected.
+* Duplicate events do not send duplicate messages.
+* Failed email delivery is visible and retryable.
+* Full suite passes.
+
+---
+
+# PHASE 10 EXECUTION — SAAS BILLING
+
+## Goal
+
+Charge merchants for using the SaaS platform.
+
+SaaS billing must remain separate from:
+
+* shopper checkout payments;
+* merchant Stripe-connected payments;
+* FedEx/USPS/UPS/DHL carrier billing.
+
+## Build order
+
+### 10A — Plans and entitlements
+
+* plans;
+* monthly/yearly pricing;
+* trial days;
+* product limits;
+* staff limits;
+* API limits;
+* feature flags;
+* active/public state.
+
+Until the platform admin phase is implemented, plans may be safely managed through configuration or seeders rather than a fake admin interface.
+
+### 10B — Merchant subscriptions
+
+* trial;
+* active;
+* past due;
+* cancelled;
+* cancel at period end;
+* upgrade;
+* downgrade;
+* renewal;
+* subscription events.
+
+### 10C — Invoices and payment methods
+
+* invoice history;
+* billing payment method;
+* invoice download/reference;
+* payment failure;
+* retry;
+* billing notifications.
+
+### 10D — Entitlement enforcement
+
+Enforce limits safely in:
+
+* products;
+* staff members;
+* API usage;
+* feature availability;
+* storage or import limits only if measured accurately.
+
+### Acceptance gate
+
+* Billing failure does not corrupt merchant commerce data.
+* Shopper/customer payments are not mixed with SaaS billing.
+* Carrier charges are not mixed with SaaS billing.
+* Grace period and past-due behavior are explicit.
+* Full suite passes.
+
+---
+
+# PHASE 14 EXECUTION — OBSERVABILITY AND RELIABILITY
+
+## Build
+
+* correlation IDs for HTTP, jobs, webhooks, payments, imports, returns, and refunds;
+* structured logs;
+* failed-job visibility;
+* webhook delivery tracing;
+* API request tracing;
+* payment/refund tracing;
+* queue and scheduler health checks;
+* exception reporting;
+* backup and restore documentation;
+* operational runbooks;
+* data-retention rules aligned with CLEAN-3.
+
+Do not expose secrets, tokens, credentials, card data, or carrier child credentials in logs.
+
+### Acceptance gate
+
+* One failed order/refund/webhook can be traced end-to-end.
+* Failed jobs can be retried safely.
+* Production errors are actionable.
+* Sensitive-data scanning passes.
+
+---
+
+# PHASE 13 EXECUTION — PERFORMANCE AND SCALE
+
+Implement after the new commerce and integration queries exist.
+
+## Build
+
+* database index audit;
+* N+1 query audit;
+* pagination verification;
+* dashboard-query optimization;
+* order/customer search optimization;
+* API rate-limit testing;
+* webhook throughput testing;
+* 10k and 50k import benchmarks;
+* queue memory and retry testing;
+* cache strategy where measured and justified.
+
+Do not introduce search infrastructure such as Meilisearch or Algolia until database search limitations are measured.
+
+### Acceptance gate
+
+* Performance baselines are recorded.
+* Optimizations are supported by measurements.
+* No store-scoping index is missing from high-traffic tenant tables.
+* Full suite passes.
+
+---
+
+# PHASE 8 EXECUTION — MARKETS AND B2B
+
+Start only after:
+
+* tax and totals are stable;
+* returns/refunds are stable;
+* APIs/webhooks are stable;
+* SaaS billing foundation is stable.
+
+Implement in this order:
+
+1. Markets and market countries.
+2. Market currencies and locale behavior.
+3. Catalogs.
+4. Price lists.
+5. B2B companies.
+6. Company buyers and permissions.
+7. Payment terms.
+8. Approval workflows.
+
+Do not overload inventory locations with market, currency, language, or price-list responsibilities.
+
+---
+
+# PHASE 12 EXECUTION — PLATFORM ADMIN
+
+Platform admin remains deferred until the merchant portal, integrations, SaaS billing, and observability are stable.
+
+When started, implement:
+
+* tenant/store management;
+* plan and subscription operations;
+* failed jobs;
+* webhook delivery operations;
+* API usage;
+* security review;
+* support impersonation with audit logs;
+* system health.
+
+Do not move merchant carrier validation tools into admin until that migration is explicitly planned and tested.
+
+---
+
+# CARRIER WORK UNFREEZE GATE
+
+Carrier-specific production work may resume only when all applicable conditions are met:
+
+1. Written carrier approval or production enablement is received.
+2. Required production credentials or entitlements are available.
+3. Sandbox capability is already proven with sanitized evidence.
+4. Merchant billing ownership is confirmed.
+5. Model A / platform-provider onboarding remains available where required.
+6. Capability-specific tests exist.
+7. No secret or token is exposed.
+8. Failure and retry behavior is defined.
+9. The capability can be enabled independently through feature flags.
+10. Existing manual fulfillment remains available as fallback.
+
+Approval for one capability does not automatically approve all capabilities.
+
+Examples:
+
+* rate entitlement does not automatically approve labels;
+* label approval does not automatically approve pickup;
+* tracking approval does not automatically approve refunds;
+* FedEx approval does not approve UPS, DHL, or USPS.
+
+---
+
+# IMPLEMENTATION DISCIPLINE
+
+For every phase:
+
+1. Audit existing implementation before creating new code.
+2. Do not duplicate tables, services, or calculations.
+3. Write characterization tests before changing risky existing behavior.
+4. Keep every tenant-owned record store-scoped.
+5. Add owner/manager/staff and cross-store tests.
+6. Use provider-neutral boundaries for payments, tax, notifications, and integrations.
+7. Use transactions for financial and inventory changes.
+8. Use idempotency for externally retried operations.
+9. Preserve historical snapshots.
+10. Do not show fake UI controls.
+11. Update:
+
+    * `ENTERPRISE_PROJECT_CONTEXT.md`
+    * `ENTERPRISE_ROADMAP_2026.md`
+    * `PROJECT_BRAIN.md`
+    * relevant implementation report
+    * release checklist
+12. Run targeted tests and the full suite before marking a phase complete.
+13. Complete one bounded phase or subphase before starting the next.
+
+---
+
+# IMMEDIATE NEXT IMPLEMENTATION
+
+Start with:
+
+**Phase 5R-0 — Current Calculation Audit**
+
+Then implement:
+
+**Phase 5R-1 — Tax Settings and Tax Calculation Foundation**
+
+Do not start coupons until the tax foundation and authoritative totals path are verified.
+
 
 # PHASE 7 — Returns, Refunds, Exchanges
 
@@ -2719,22 +3588,27 @@ Before public beta:
 
 # Recommended Immediate Next Sprint
 
-Do **not** jump directly to carriers/shipping yet.
+The previous stabilization, commerce-core, multi-location inventory, manual fulfillment, checkout, carrier foundation, and CLEAN-1 through CLEAN-4 work is already implemented.
 
-Do this first:
+The active implementation sequence is now defined in:
 
-1. Fix test environment.
-2. Fix stale storefront/order tests.
-3. Clean migrations and seeders.
-4. Implement deterministic order numbers.
-5. Clean order/payment/fulfillment status separation.
-6. Add `order_events`.
-7. Make order detail/customer profile fully dynamic and event-backed.
-8. Add idempotency to storefront order creation.
-9. Add basic API key scopes/rate limiting.
-10. Then start multi-location inventory.
+`# CURRENT EXECUTION ROADMAP — CARRIER-INDEPENDENT PORTAL COMPLETION`
 
-Only after inventory locations/reservations exist should you build fulfillment/shipping.
+Immediate work:
+
+1. ~~Phase 5R-0 — Current Calculation Audit.~~ **Completed 2026-06-24** (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`).
+2. Phase 5R-1 — Tax Settings and Tax Calculation Foundation (**in progress — Slice 1A schema/models complete**; calculation/UI pending — `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`, `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`).
+3. Phase 5R-2 — Coupons and Discount Rules.
+4. Phase 5R-3 — Checkout and Order Totals Hardening.
+5. Phase 7 — Returns, Refunds, and Exchanges.
+6. Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks.
+7. Phase 11 — Notifications.
+8. Phase 10 — SaaS Billing.
+9. Phase 14 and Phase 13 — Observability, Reliability, Performance, and Scale.
+10. Phase 8 — Markets and B2B.
+11. Phase 12 — Platform Admin.
+
+Carrier-specific production rates, labels, pickup, tracking synchronization, and new courier integrations remain frozen until their capability-specific approval and entitlement gates pass.
 
 ---
 

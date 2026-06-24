@@ -111,6 +111,11 @@ class Checkout extends Model
         return $this->hasMany(PaymentIntent::class);
     }
 
+    public function taxLines(): HasMany
+    {
+        return $this->hasMany(CheckoutTaxLine::class);
+    }
+
     public function convertedOrder(): BelongsTo
     {
         return $this->belongsTo(Order::class, 'converted_order_id');

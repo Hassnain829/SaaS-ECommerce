@@ -246,6 +246,26 @@ class Store extends Model
         return $this->hasMany(PaymentIntent::class);
     }
 
+    public function taxSetting(): HasOne
+    {
+        return $this->hasOne(TaxSetting::class);
+    }
+
+    public function taxRates(): HasMany
+    {
+        return $this->hasMany(TaxRate::class);
+    }
+
+    public function checkoutTaxLines(): HasMany
+    {
+        return $this->hasMany(CheckoutTaxLine::class);
+    }
+
+    public function orderTaxLines(): HasMany
+    {
+        return $this->hasMany(OrderTaxLine::class);
+    }
+
     public function customerTags(): HasMany
     {
         return $this->hasMany(CustomerTag::class);

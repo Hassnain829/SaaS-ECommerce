@@ -151,7 +151,14 @@ ALWAYS:
 
 Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integrator connectivity and validation tooling are implemented; **production carrier approvals and live carrier operation remain pending.**
 
-**Next focus:** carrier-neutral platform roadmap work while courier approvals are pending — not another cleanup phase.
+**Next focus:** Phase **5R-1** tax foundation (planned) — carrier-neutral portal completion while courier production approvals remain pending.
+
+### Phase 5R (calculation and tax)
+
+- **5R-0 (completed 2026-06-24):** Current calculation audit — `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`
+- **5R-1 (in progress — Slice 1A complete):** Tax schema/models — `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`; calculation/UI pending — `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`
+- **5R-2 (pending):** Coupons
+- **5R-3 (pending):** Checkout/order totals hardening
 
 ### Implemented foundations
 
@@ -170,7 +177,7 @@ Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integr
 
 ### Partial or pending
 
-- Tax and coupons
+- Tax and coupons (**5R-0 audit complete; 5R-1 tax foundation planned, not implemented**)
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier rates/labels/tracking
