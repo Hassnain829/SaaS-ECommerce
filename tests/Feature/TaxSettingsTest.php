@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\TaxSettingsController;
-use App\Http\Requests\UpdateTaxSettingsRequest;
 use App\Models\Role;
 use App\Models\SecurityLog;
 use App\Models\Store;
@@ -13,7 +12,6 @@ use App\Models\User;
 use App\Services\Tax\TaxConfigurationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Validator;
 use Tests\TestCase;
 
 class TaxSettingsTest extends TestCase
@@ -261,22 +259,27 @@ class TaxSettingsTest extends TestCase
         $this->assertSame(TaxSetting::CALCULATION_ADDRESS_SHIPPING, $settings->calculation_address);
     }
 
-    public function test_invalid_calculation_address_fails_validation(): void
+    public function test_unsupported_calculation_address_rejected_via_http_without_side_effects(): void
     {
-        $validator = Validator::make(
-            [
-                'enabled' => true,
-                'prices_include_tax' => false,
-                'default_product_taxable' => true,
-                'shipping_taxable' => false,
-                'calculation_address' => 'billing',
-            ],
-            (new UpdateTaxSettingsRequest)->rules(),
-            (new UpdateTaxSettingsRequest)->messages(),
-        );
+        [$owner, $store] = $this->ownerStoreFixture();
+        $settings = $store->taxSetting;
 
-        $this->assertTrue($validator->fails());
-        $this->assertArrayHasKey('calculation_address', $validator->errors()->toArray());
+        $this->actingAsStore($owner, $store)
+            ->put(route('settings.taxes.update'), $this->settingsPayload(['calculation_address' => 'billing']))
+            ->assertSessionHasErrors('calculation_address');
+
+        $settings->refresh();
+        $this->assertFalse($settings->enabled);
+        $this->assertFalse($settings->prices_include_tax);
+        $this->assertTrue($settings->default_product_taxable);
+        $this->assertFalse($settings->shipping_taxable);
+        $this->assertSame(TaxSetting::CALCULATION_ADDRESS_SHIPPING, $settings->calculation_address);
+        $this->assertSame(1, $settings->settings_version);
+
+        $this->assertDatabaseMissing('security_logs', [
+            'store_id' => $store->id,
+            'event_type' => 'tax.settings.updated',
+        ]);
     }
 
     public function test_tax_settings_update_increments_settings_version(): void
@@ -466,6 +469,93 @@ class TaxSettingsTest extends TestCase
 
         $this->assertSame(2, $store->fresh()->taxSetting->settings_version);
         $this->assertDatabaseMissing('tax_rates', ['id' => $rate->id]);
+    }
+
+    public function test_owner_can_create_active_tax_rate_when_checkbox_checked(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+
+        $this->actingAsStore($owner, $store)
+            ->post(route('settings.taxes.rates.store'), $this->storeRatePayload([
+                'name' => 'Active GB Sales',
+                'country_code' => 'GB',
+                'region_code' => '',
+                'is_active' => 1,
+            ]))
+            ->assertRedirect();
+
+        $rate = TaxRate::query()->forStore($store->id)->where('name', 'Active GB Sales')->firstOrFail();
+        $this->assertTrue($rate->is_active);
+        $this->assertSame(2, $store->fresh()->taxSetting->settings_version);
+    }
+
+    public function test_owner_can_create_inactive_tax_rate_when_checkbox_unchecked(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+
+        $this->actingAsStore($owner, $store)
+            ->post(route('settings.taxes.rates.store'), $this->storeRatePayload([
+                'name' => 'Inactive DE Sales',
+                'country_code' => 'DE',
+                'region_code' => '',
+                'is_active' => 0,
+            ]))
+            ->assertRedirect();
+
+        $rate = TaxRate::query()->forStore($store->id)->where('name', 'Inactive DE Sales')->firstOrFail();
+        $this->assertFalse($rate->is_active);
+        $this->assertSame(2, $store->fresh()->taxSetting->settings_version);
+    }
+
+    public function test_tax_settings_index_performs_no_writes(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $settingsCountBefore = TaxSetting::query()->count();
+        $ratesCountBefore = TaxRate::query()->count();
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk();
+
+        $this->assertSame($settingsCountBefore, TaxSetting::query()->count());
+        $this->assertSame($ratesCountBefore, TaxRate::query()->count());
+    }
+
+    public function test_tax_settings_index_does_not_recreate_missing_tax_setting(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $store->taxSetting()->delete();
+
+        $response = $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'));
+
+        $response->assertStatus(503);
+        $this->assertDatabaseCount('tax_settings', 0);
+        $this->assertStringNotContainsString('SQLSTATE', $response->getContent());
+        $this->assertStringNotContainsString('tax_settings', $response->getContent());
+    }
+
+    public function test_tax_rate_decimal_equivalent_update_is_no_op_without_security_log(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Decimal No-Op CA',
+            'rate_percent' => '8.2500',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Decimal No-Op CA',
+                'rate_percent' => '8.25',
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame(1, $store->fresh()->taxSetting->settings_version);
+
+        $this->assertDatabaseMissing('security_logs', [
+            'store_id' => $store->id,
+            'event_type' => 'tax.rate.updated',
+        ]);
     }
 
     public function test_tax_rate_no_op_update_does_not_increment_settings_version(): void

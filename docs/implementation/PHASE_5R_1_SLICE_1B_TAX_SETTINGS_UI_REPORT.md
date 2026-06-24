@@ -1,7 +1,7 @@
 # Phase 5R-1 Slice 1B — Tax Settings UI and Configuration Report
 
 **Date:** 2026-06-24  
-**Status:** Implemented (settings UI, permissions, bootstrap, versioning)  
+**Status:** Implemented (settings UI, permissions, bootstrap, versioning) — closeout corrections applied 2026-06-24
 **Phase 5R-1 overall:** In progress — tax calculation and checkout application **not implemented**
 
 ---
@@ -16,7 +16,7 @@
 - New-store `TaxSetting` bootstrap via `Store::created` observer
 - Security log events for settings and rate mutations
 - Settings sidebar navigation link
-- `tests/Feature/TaxSettingsTest.php` (44 tests)
+- `tests/Feature/TaxSettingsTest.php` (49 tests)
 - `tests/Feature/Phase5RTaxMigrationRoundTripTest.php` (Slice 1A migration proof)
 - Slice 1A date/plan documentation corrections
 
@@ -65,7 +65,17 @@ Defaults: tax disabled, exclusive prices, default product taxable, shipping not 
 
 Idempotent via `firstOrCreate`. Does not create tax rates.
 
-Legacy stores without a row: index repairs via `ensureSettingsForStore()` only when missing (aligned with location repair pattern).
+`GET /settings/taxes` is read-only: loads existing `TaxSetting` or returns **503** with a merchant-safe message when missing. No `ensureSettingsForStore()` on index.
+
+---
+
+## Closeout corrections (2026-06-24)
+
+1. **calculation_address** — defaults to `shipping` only when absent; submitted values such as `billing` fail HTTP validation without mutating settings or incrementing version.
+2. **Inactive rate creation** — create form uses hidden `is_active=0` plus checkbox `is_active=1`; `StoreTaxRateRequest` no longer defaults omitted checkbox to active.
+3. **Decimal no-op detection** — `rate_percent` compared with `bccomp` at scale 4 (`8.25` ≡ `8.2500`).
+4. **GET read-only** — index never provisions or repairs tax settings.
+5. **SQLite round-trip test** — temp file under `sys_get_temp_dir()`, explicit `DB::purge`/`reconnect` on switch and restore.
 
 ---
 
@@ -98,7 +108,7 @@ Metadata: `store_id`, actor, `settings_version`, jurisdiction, `tax_rate_id` —
 
 ## UI behavior
 
-- Owner: full settings form + add/edit/delete rate controls
+- Owner: full settings form + add/edit/delete rate controls (create/edit rate forms include hidden `is_active=0`)
 - Manager/staff: read-only values, no mutation forms; message “Only the store owner can change tax settings.”
 - Disclaimer: basic tax rates, not legal advice
 - Notice: checkout calculation not live yet
@@ -108,14 +118,15 @@ Metadata: `store_id`, actor, `settings_version`, jurisdiction, `tax_rate_id` —
 
 ## Slice 1A migration round-trip
 
-`Phase5RTaxMigrationRoundTripTest` on isolated file SQLite:
+`Phase5RTaxMigrationRoundTripTest` on isolated file SQLite in `sys_get_temp_dir()`:
 
-1. `migrate:fresh`
-2. Assert Slice 1A tables/column exist
-3. `migrate:rollback --step=5`
-4. Assert tax tables/column removed
-5. `migrate` forward again
-6. Reset config to `:memory:` and delete temp file
+1. `DB::purge` / `DB::reconnect` after pointing sqlite at temp file
+2. `migrate:fresh`
+3. Assert Slice 1A tables/column exist
+4. `migrate:rollback --step=5`
+5. Assert tax tables/column removed
+6. `migrate` forward again
+7. In `finally`: restore `:memory:`, purge/reconnect, delete temp file
 
 ---
 
@@ -123,10 +134,10 @@ Metadata: `store_id`, actor, `settings_version`, jurisdiction, `tax_rate_id` —
 
 | Command | Result |
 |---------|--------|
-| `php artisan test --filter=TaxSettingsTest` | 44 passed |
+| `php artisan test --filter=TaxSettingsTest` | 49 passed |
 | `php artisan test --filter=Phase5RTaxMigrationRoundTripTest` | 1 passed |
-| `php artisan test --filter=Phase5RTaxSchemaTest` | 21 passed |
-| `php artisan test` | **788 passed**, 2 skipped (3851 assertions) |
+| `php artisan test --filter=Phase5RTaxSchemaTest` | 20 passed |
+| `php artisan test` | **793 passed**, 2 skipped (3874 assertions) |
 | Pint (Slice 1B PHP files) | Pass |
 
 Baseline before Slice 1B: 743 passed.

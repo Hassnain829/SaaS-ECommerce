@@ -104,6 +104,7 @@
             @if ($canManageTax)
                 <form method="POST" action="{{ route('settings.taxes.rates.store') }}" class="mt-6 grid gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 md:grid-cols-2 lg:grid-cols-3">
                     @csrf
+                    <input type="hidden" name="is_active" value="0">
                     <label class="space-y-1">
                         <span class="text-xs font-semibold text-[#64748B]">Rate name</span>
                         <input type="text" name="name" value="{{ old('name') }}" required maxlength="120" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm">
@@ -169,6 +170,7 @@
                                                 <form method="POST" action="{{ route('settings.taxes.rates.update', $rate) }}" class="mt-3 grid gap-2">
                                                     @csrf
                                                     @method('PATCH')
+                                                    <input type="hidden" name="is_active" value="0">
                                                     <input type="text" name="name" value="{{ old('name', $rate->name) }}" required maxlength="120" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm">
                                                     <div class="grid gap-2 sm:grid-cols-2">
                                                         <input type="text" name="country_code" value="{{ old('country_code', $rate->country_code) }}" required maxlength="2" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm uppercase">

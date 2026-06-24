@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -11,12 +12,14 @@ class Phase5RTaxMigrationRoundTripTest extends TestCase
 {
     public function test_slice_1a_migrations_round_trip_on_isolated_file_sqlite(): void
     {
-        $path = database_path('testing_slice1a_roundtrip_'.uniqid('', true).'.sqlite');
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'ecommerce-office-slice1a-roundtrip-'.uniqid('', true).'.sqlite';
         touch($path);
 
         try {
             Config::set('database.default', 'sqlite');
             Config::set('database.connections.sqlite.database', $path);
+            DB::purge('sqlite');
+            DB::reconnect('sqlite');
 
             Artisan::call('migrate:fresh', ['--force' => true]);
 
@@ -42,6 +45,8 @@ class Phase5RTaxMigrationRoundTripTest extends TestCase
         } finally {
             Config::set('database.default', 'sqlite');
             Config::set('database.connections.sqlite.database', ':memory:');
+            DB::purge('sqlite');
+            DB::reconnect('sqlite');
             @unlink($path);
         }
     }

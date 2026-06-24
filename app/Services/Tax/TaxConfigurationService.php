@@ -44,7 +44,7 @@ class TaxConfigurationService
                 'prices_include_tax' => (bool) ($validated['prices_include_tax'] ?? false),
                 'default_product_taxable' => (bool) ($validated['default_product_taxable'] ?? false),
                 'shipping_taxable' => (bool) ($validated['shipping_taxable'] ?? false),
-                'calculation_address' => TaxSetting::CALCULATION_ADDRESS_SHIPPING,
+                'calculation_address' => $validated['calculation_address'],
             ];
 
             if (! $this->settingsPayloadChanged($settings, $payload)) {
@@ -91,7 +91,7 @@ class TaxConfigurationService
                 'name' => $validated['name'],
                 'rate_percent' => $validated['rate_percent'],
                 'priority' => (int) ($validated['priority'] ?? 100),
-                'is_active' => (bool) ($validated['is_active'] ?? true),
+                'is_active' => (bool) ($validated['is_active'] ?? false),
             ]);
 
             $settings = $this->bumpSettingsVersion($settings);
@@ -129,7 +129,7 @@ class TaxConfigurationService
                 'name' => $validated['name'],
                 'rate_percent' => $validated['rate_percent'],
                 'priority' => (int) ($validated['priority'] ?? 100),
-                'is_active' => (bool) ($validated['is_active'] ?? true),
+                'is_active' => (bool) ($validated['is_active'] ?? false),
             ];
 
             if (! $this->ratePayloadChanged($rate, $payload)) {
@@ -219,8 +219,8 @@ class TaxConfigurationService
         foreach ($payload as $key => $value) {
             $current = $rate->getAttribute($key);
 
-            if (in_array($key, ['rate_percent'], true)) {
-                if ((string) $current !== (string) $value) {
+            if ($key === 'rate_percent') {
+                if (! $this->ratePercentEquals($current, $value)) {
                     return true;
                 }
 
@@ -233,6 +233,26 @@ class TaxConfigurationService
         }
 
         return false;
+    }
+
+    private function ratePercentEquals(mixed $left, mixed $right): bool
+    {
+        return bccomp(
+            $this->normalizeRatePercent($left),
+            $this->normalizeRatePercent($right),
+            4
+        ) === 0;
+    }
+
+    private function normalizeRatePercent(mixed $value): string
+    {
+        $normalized = trim((string) $value);
+
+        if ($normalized === '') {
+            return '0.0000';
+        }
+
+        return bcadd($normalized, '0', 4);
     }
 
     /**

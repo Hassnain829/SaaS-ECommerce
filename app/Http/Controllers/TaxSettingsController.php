@@ -24,9 +24,11 @@ class TaxSettingsController extends Controller
 
         $taxSetting = $store->taxSetting;
 
-        if (! $taxSetting) {
-            $taxSetting = $this->taxConfiguration->ensureSettingsForStore($store);
-        }
+        abort_if(
+            ! $taxSetting,
+            503,
+            'Tax settings are not available for this store right now. Please try again later or contact support.'
+        );
 
         $taxRates = $store->taxRates()
             ->orderBy('priority')

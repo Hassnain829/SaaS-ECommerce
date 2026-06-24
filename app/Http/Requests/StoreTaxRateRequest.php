@@ -22,7 +22,7 @@ class StoreTaxRateRequest extends FormRequest
         $this->merge([
             'country_code' => $country,
             'region_code' => $region,
-            'is_active' => $this->boolean('is_active', true),
+            'is_active' => $this->boolean('is_active'),
             'priority' => $this->input('priority', 100),
         ]);
     }

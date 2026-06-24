@@ -16,13 +16,18 @@ class UpdateTaxSettingsRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $this->merge([
+        $merge = [
             'enabled' => $this->boolean('enabled'),
             'prices_include_tax' => $this->boolean('prices_include_tax'),
             'default_product_taxable' => $this->boolean('default_product_taxable'),
             'shipping_taxable' => $this->boolean('shipping_taxable'),
-            'calculation_address' => TaxSetting::CALCULATION_ADDRESS_SHIPPING,
-        ]);
+        ];
+
+        if (! $this->has('calculation_address')) {
+            $merge['calculation_address'] = TaxSetting::CALCULATION_ADDRESS_SHIPPING;
+        }
+
+        $this->merge($merge);
     }
 
     /**
