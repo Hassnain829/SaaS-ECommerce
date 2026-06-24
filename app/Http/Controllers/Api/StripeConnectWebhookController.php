@@ -10,6 +10,7 @@ use App\Services\CheckoutConversionService;
 use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
 use App\Services\SecurityLogRecorder;
+use App\Support\Money\CurrencyPrecision;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -117,7 +118,7 @@ class StripeConnectWebhookController extends Controller
             providerIntentId: (string) ($rawObject['id'] ?? ''),
             status: (string) ($rawObject['status'] ?? ''),
             amount: isset($rawObject['amount'])
-                ? $this->fromMinor((int) $rawObject['amount'], (string) ($rawObject['currency'] ?? 'usd'))
+                ? (float) CurrencyPrecision::fromMinorUnits((int) $rawObject['amount'], (string) ($rawObject['currency'] ?? 'usd'))
                 : null,
             currencyCode: isset($rawObject['currency']) ? strtoupper((string) $rawObject['currency']) : null,
             failureCode: is_array($failure) ? ($failure['code'] ?? null) : null,
@@ -147,12 +148,5 @@ class StripeConnectWebhookController extends Controller
         }
 
         return null;
-    }
-
-    private function fromMinor(int $amount, string $currency): float
-    {
-        $zeroDecimal = in_array(strtolower($currency), ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'], true);
-
-        return round($amount / ($zeroDecimal ? 1 : 100), 2);
     }
 }

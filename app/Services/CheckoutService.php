@@ -16,6 +16,7 @@ use App\Services\Inventory\InventorySyncService;
 use App\Services\Payments\PaymentProviderManager;
 use App\Services\Shipping\DeliveryOptionService;
 use App\Support\CheckoutMode;
+use App\Support\Money\CurrencyPrecision;
 use App\Support\ProductVariantLabel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -288,7 +289,7 @@ class CheckoutService
                 'status' => $result->status,
                 'currency_code' => $result->currencyCode,
                 'amount' => $result->amount,
-                'amount_minor' => $this->amountMinor($result->amount, $result->currencyCode),
+                'amount_minor' => CurrencyPrecision::toMinorUnits((string) $result->amount, $result->currencyCode),
                 'request_payload' => [
                     'checkout_id' => $checkout->id,
                     'checkout_number' => $checkout->checkout_number,
@@ -523,12 +524,5 @@ class CheckoutService
         }
 
         return round(max(0, (float) $value), 2);
-    }
-
-    private function amountMinor(float $amount, string $currency): int
-    {
-        $zeroDecimal = in_array(strtolower($currency), ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'], true);
-
-        return (int) round($amount * ($zeroDecimal ? 1 : 100));
     }
 }

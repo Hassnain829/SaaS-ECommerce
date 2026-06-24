@@ -3,12 +3,12 @@
 **Project:** E_COMMERCE_OFFICE (SaaS-Static-Blade)  
 **Date:** 2026-06-24 (original plan)  
 **Plan lock corrections:** 2026-06-24
-**Status:** **In progress — Slices 1A, 1B, 2, and 3 implemented**; slices 4–8 **not implemented**
+**Status:** **In progress — Slices 1A, 1B, 2, 3, 4, and 5 implemented**; slices 6–8 **not implemented**
 **Prerequisite:** `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md` (completed 2026-06-24)
 
 This document is the **corrected and locked** implementation plan for Phase 5R-1. All architectural choices below are final for implementation prompts. Deferrals are explicitly assigned to later phases.
 
-**Planning-only constraint:** Slices 1A–3 are implemented (create-path checkout tax only). Slices 4–8 remain pending.
+**Planning-only constraint:** Slices 1A–5 are implemented. Batch A completed shipping recalculation, PaymentIntent synchronization, conversion amount invariants, and order tax snapshots. Slices 6–8 remain pending.
 
 ---
 
@@ -294,10 +294,10 @@ final class CurrencyPrecision
 |------|--------|
 | `App\Services\Tax\TaxCalculator` | Round persisted amounts via `CurrencyPrecision::roundMajor()` |
 | `App\Services\Checkout\CheckoutTotalsService` | All totals rounding |
-| `App\Services\CheckoutService` | PI `amount_minor` persistence |
-| `App\Services\Shipping\CheckoutShippingService` | PI refresh `amount_minor` |
-| `App\Services\CheckoutConversionService` | Amount comparison + capture `amount_minor` |
-| `App\Services\Payments\StripePlatformPaymentProvider` | PI create/update amounts |
+| `App\Services\CheckoutService` | PI `amount_minor` persistence — implemented |
+| `App\Services\Shipping\CheckoutShippingService` | PI refresh `amount_minor` — implemented |
+| `App\Services\CheckoutConversionService` | Amount comparison + capture `amount_minor` — implemented |
+| `App\Services\Payments\StripePlatformPaymentProvider` | PI create/update amounts — implemented |
 
 **Comparison rule for payment invariant:**
 
@@ -861,7 +861,7 @@ DB::transaction(function () {
 
 **Characterization tests first:** inclusive gross subtotal example; exclusive example; show does not mutate.
 
-**Deferred:** Shipping method recalc (Slice 4), conversion invariant (Slice 5).
+**Deferred at original Slice 3 close:** Shipping method recalc (Slice 4), conversion invariant (Slice 5). Both were completed later in Batch A.
 
 **Targeted command:** `php artisan test --filter=PlatformCheckoutTaxTest`
 
@@ -869,7 +869,9 @@ DB::transaction(function () {
 
 ---
 
-### Slice 4 — Shipping recalculation + PaymentIntent synchronization
+### Slice 4 — Shipping recalculation + PaymentIntent synchronization ✅ Implemented 2026-06-25
+
+**Report:** `docs/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md`
 
 **Goal:** Shipping select recalculates tax; PI amount refreshed via CurrencyPrecision.
 
@@ -886,9 +888,13 @@ DB::transaction(function () {
 
 **Acceptance gate:** selectShippingMethod updates tax + PI; no duplicate grand_total formula remains.
 
+**Batch A result:** shipping/address mutation recalculates persisted checkout item totals, tax lines, checkout header totals, tax snapshot, and active PaymentIntent amount through `CheckoutTotalsService` and `CurrencyPrecision`.
+
 ---
 
-### Slice 5 — Conversion invariant + order tax snapshots
+### Slice 5 — Conversion invariant + order tax snapshots ✅ Implemented 2026-06-25
+
+**Report:** `docs/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md`
 
 **Goal:** Hard-fail amount mismatch; copy tax lines to order; never recalc order tax.
 
@@ -904,6 +910,8 @@ DB::transaction(function () {
 **Targeted command:** `php artisan test --filter='PlatformCheckout|CheckoutConversion|CheckoutPayment'`
 
 **Acceptance gate:** Matching amounts convert with order_tax_lines; mismatch never creates order.
+
+**Batch A result:** checkout conversion hard-fails on local/provider/checkout amount or currency mismatch before order, payment capture, or inventory mutation. Matching conversions copy checkout tax lines and tax snapshots to orders.
 
 ---
 

@@ -4,14 +4,18 @@ namespace App\Services\Shipping;
 
 use App\Models\Checkout;
 use App\Models\InventoryReservation;
+use App\Models\Location;
 use App\Models\PaymentIntent;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
+use App\Models\TaxSetting;
+use App\Services\Checkout\CheckoutTotalsService;
 use App\Services\CheckoutEventRecorder;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Payments\PaymentProviderManager;
+use App\Support\Money\CurrencyPrecision;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -24,6 +28,7 @@ class CheckoutShippingService
         private readonly FulfillmentOriginRouter $originRouter,
         private readonly InventorySyncService $syncService,
         private readonly InventoryReservationService $reservationService,
+        private readonly CheckoutTotalsService $checkoutTotalsService,
     ) {}
 
     /**
@@ -65,7 +70,7 @@ class CheckoutShippingService
                 ]);
             }
 
-            $destination = $address ?: $this->shippingAddress($checkout);
+            $destination = $this->effectiveShippingAddress($checkout, $address);
             $option = $this->deliveryOptionService->optionForMethodId(
                 $checkout->store,
                 $shippingMethodId,
@@ -99,25 +104,47 @@ class CheckoutShippingService
             $pickupChanged = (int) ($checkout->pickup_location_id ?? 0) !== (int) ($routingResult->pickupLocation?->id ?? 0);
 
             $this->retargetReservations($checkout, $routingResult->originLocation);
+            $this->persistShippingAddress($checkout, $destination, $address !== null);
+
+            $taxSetting = TaxSetting::query()
+                ->where('store_id', $checkout->store_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $taxSetting) {
+                throw ValidationException::withMessages([
+                    'checkout' => 'Tax settings are not available for this store right now. Please try again later or contact support.',
+                ]);
+            }
 
             $snapshot = $option['snapshot'];
             $snapshot['selected_at'] = now()->toISOString();
 
+            $totalsResult = $this->checkoutTotalsService->calculateForCheckout(
+                $checkout,
+                $taxSetting,
+                (string) $option['amount'],
+                $destination,
+            );
+            $this->applyItemTotals($checkout, $totalsResult, $taxSetting);
+            $this->checkoutTotalsService->replaceTaxLines($checkout, $totalsResult);
+
             $metadata = $checkout->metadata ?? [];
             $metadata['shipping'] = $snapshot;
             $metadata['fulfillment_routing'] = $routingSnapshot;
-
-            $shippingTotal = $this->money($option['amount']);
-            $grandTotal = $this->money((float) $checkout->subtotal + $shippingTotal + (float) $checkout->tax_total - (float) $checkout->discount_total);
+            $metadata['tax_snapshot'] = $totalsResult->taxSnapshot;
 
             $checkout->forceFill([
                 'shipping_method_id' => $option['shipping_method_id'],
-                'shipping_total' => $shippingTotal,
+                'subtotal' => $this->money($totalsResult->subtotal),
+                'discount_total' => $this->money($totalsResult->discountTotal),
+                'shipping_total' => $this->money($totalsResult->shippingTotal),
                 'shipping_snapshot' => $snapshot,
                 'fulfillment_origin_location_id' => $routingResult->originLocation->id,
                 'pickup_location_id' => $routingResult->pickupLocation?->id,
                 'fulfillment_routing_snapshot' => $routingSnapshot,
-                'grand_total' => $grandTotal,
+                'tax_total' => $this->money($totalsResult->taxTotal),
+                'grand_total' => $this->money($totalsResult->grandTotal),
                 'metadata' => $metadata,
             ])->save();
 
@@ -128,8 +155,22 @@ class CheckoutShippingService
                 'Customer selected '.$option['name'].' for this checkout.',
                 [
                     'shipping_method_id' => $option['shipping_method_id'],
-                    'shipping_total' => $shippingTotal,
+                    'shipping_total' => $this->money($totalsResult->shippingTotal),
                     'currency_code' => $checkout->currency_code,
+                ]
+            );
+
+            $this->eventRecorder->record(
+                $checkout,
+                'checkout.totals_recalculated',
+                'Checkout total updated',
+                'Taxes and totals were recalculated after the delivery details changed.',
+                [
+                    'subtotal' => $this->money($totalsResult->subtotal),
+                    'shipping_total' => $this->money($totalsResult->shippingTotal),
+                    'tax_total' => $this->money($totalsResult->taxTotal),
+                    'grand_total' => $this->money($totalsResult->grandTotal),
+                    'settings_version' => $taxSetting->settings_version,
                 ]
             );
 
@@ -145,7 +186,7 @@ class CheckoutShippingService
 
             $this->refreshPaymentIntent($checkout);
 
-            return $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount', 'fulfillmentOriginLocation', 'pickupLocation']);
+            return $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount', 'fulfillmentOriginLocation', 'pickupLocation', 'taxLines']);
         });
     }
 
@@ -197,7 +238,7 @@ class CheckoutShippingService
         return $option;
     }
 
-    private function retargetReservations(Checkout $checkout, \App\Models\Location $origin): void
+    private function retargetReservations(Checkout $checkout, Location $origin): void
     {
         $reservations = InventoryReservation::query()
             ->where('store_id', $checkout->store_id)
@@ -270,13 +311,19 @@ class CheckoutShippingService
         }
 
         return [
+            'name' => $address->name,
+            'email' => $address->email,
+            'company' => $address->company,
             'address_line1' => $address->address_line1,
+            'address_line2' => $address->address_line2,
             'city' => $address->city,
             'state' => $address->state,
             'province_code' => $address->province_code,
             'postal_code' => $address->postal_code,
             'country' => $address->country,
             'country_code' => $address->country_code,
+            'phone' => $address->phone,
+            'delivery_notes' => $address->delivery_notes,
         ];
     }
 
@@ -293,10 +340,21 @@ class CheckoutShippingService
             return;
         }
 
-        $checkout->paymentIntents()
+        $expectedMinor = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, (string) $checkout->currency_code);
+        $expectedCurrency = strtoupper((string) $checkout->currency_code);
+        $activeIntent = $checkout->paymentIntents()
             ->whereNull('order_id')
             ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'superseded'])
-            ->update(['status' => 'superseded']);
+            ->latest('id')
+            ->first();
+
+        if (
+            $activeIntent
+            && (int) $activeIntent->amount_minor === $expectedMinor
+            && strtoupper((string) $activeIntent->currency_code) === $expectedCurrency
+        ) {
+            return;
+        }
 
         $paymentMode = $this->paymentProviderManager->platformPaymentModeForStore($checkout->store);
 
@@ -322,7 +380,7 @@ class CheckoutShippingService
                 'status' => $result->status,
                 'currency_code' => $result->currencyCode,
                 'amount' => $result->amount,
-                'amount_minor' => $this->amountMinor($result->amount, $result->currencyCode),
+                'amount_minor' => CurrencyPrecision::toMinorUnits((string) $result->amount, $result->currencyCode),
                 'request_payload' => [
                     'checkout_id' => $checkout->id,
                     'checkout_number' => $checkout->checkout_number,
@@ -338,6 +396,12 @@ class CheckoutShippingService
                 'failed_at' => null,
             ]
         );
+
+        $checkout->paymentIntents()
+            ->whereNull('order_id')
+            ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'superseded'])
+            ->whereKeyNot($paymentIntent->id)
+            ->update(['status' => 'superseded']);
 
         $paymentIntent->attempts()->create([
             'store_id' => $checkout->store_id,
@@ -368,10 +432,85 @@ class CheckoutShippingService
         return round(max(0, (float) $value), 2);
     }
 
-    private function amountMinor(float $amount, string $currency): int
+    /**
+     * @param  array<string, mixed>|null  $address
+     * @return array<string, mixed>
+     */
+    private function effectiveShippingAddress(Checkout $checkout, ?array $address): array
     {
-        $zeroDecimal = in_array(strtolower($currency), ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'], true);
+        $current = $this->shippingAddress($checkout);
 
-        return (int) round($amount * ($zeroDecimal ? 1 : 100));
+        if ($address === null) {
+            return $current;
+        }
+
+        foreach ($address as $key => $value) {
+            $current[$key] = $value;
+        }
+
+        return $current;
+    }
+
+    /**
+     * @param  array<string, mixed>  $address
+     */
+    private function persistShippingAddress(Checkout $checkout, array $address, bool $wasSubmitted): void
+    {
+        if (! $wasSubmitted) {
+            return;
+        }
+
+        $payload = [
+            'name' => $address['name'] ?? null,
+            'email' => $address['email'] ?? null,
+            'company' => $address['company'] ?? null,
+            'address_line1' => $address['address_line1'] ?? null,
+            'address_line2' => $address['address_line2'] ?? null,
+            'city' => $address['city'] ?? null,
+            'state' => $address['state'] ?? null,
+            'province_code' => $address['province_code'] ?? null,
+            'postal_code' => $address['postal_code'] ?? null,
+            'country' => $address['country'] ?? null,
+            'country_code' => $address['country_code'] ?? null,
+            'phone' => $address['phone'] ?? null,
+            'delivery_notes' => $address['delivery_notes'] ?? null,
+        ];
+
+        $checkout->addresses()->updateOrCreate(['type' => 'shipping'], $payload);
+
+        if ((bool) data_get($checkout->metadata, 'billing_same_as_shipping', true)) {
+            $checkout->addresses()->updateOrCreate(['type' => 'billing'], $payload);
+        }
+
+        $checkout->load('addresses');
+    }
+
+    private function applyItemTotals(Checkout $checkout, \App\Data\Checkout\CheckoutTotalsResult $totalsResult, TaxSetting $taxSetting): void
+    {
+        foreach ($checkout->items as $item) {
+            $lineKey = CheckoutTotalsService::lineKeyForVariant((int) $item->product_variant_id);
+            $itemTotals = $totalsResult->itemTotalsFor($lineKey);
+
+            if (! $itemTotals) {
+                throw ValidationException::withMessages([
+                    'items' => 'Checkout totals could not be mapped to a catalog line.',
+                ]);
+            }
+
+            $metadata = $item->metadata ?? [];
+            $metadata['tax'] = [
+                'is_taxable' => $itemTotals->isTaxable,
+                'prices_include_tax' => $totalsResult->pricesIncludeTax,
+                'settings_version' => $taxSetting->settings_version,
+            ];
+
+            $item->forceFill([
+                'subtotal' => $this->money($itemTotals->subtotal),
+                'discount_amount' => $this->money($itemTotals->discountAmount),
+                'tax_amount' => $this->money($itemTotals->taxAmount),
+                'total' => $this->money($itemTotals->total),
+                'metadata' => $metadata,
+            ])->save();
+        }
     }
 }

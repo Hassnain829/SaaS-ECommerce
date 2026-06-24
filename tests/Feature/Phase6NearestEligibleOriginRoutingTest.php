@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
+use App\Support\Money\CurrencyPrecision;
 use App\Support\OrderLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -45,35 +46,51 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
 
         $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
         {
+            private array $intents = [];
+
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
+                $providerIntentId = 'pi_phase6c0a_'.$checkout->id.'_'.Str::random(6);
+                $currency = strtoupper((string) $checkout->currency_code);
+                $this->intents[$providerIntentId] = [
+                    'amount' => (float) $checkout->grand_total,
+                    'amount_minor' => CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, $currency),
+                    'currency' => $currency,
+                ];
+
                 return new PaymentIntentResult(
                     provider: 'stripe',
-                    providerIntentId: 'pi_phase6c0a_'.$checkout->id.'_'.Str::random(6),
-                    clientSecret: 'pi_phase6c0a_'.$checkout->id.'_secret_test',
+                    providerIntentId: $providerIntentId,
+                    clientSecret: $providerIntentId.'_secret_test',
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
-                    currencyCode: $checkout->currency_code,
-                    raw: ['id' => 'pi_phase6c0a_'.$checkout->id, 'status' => 'requires_payment_method'],
+                    amount: $this->intents[$providerIntentId]['amount'],
+                    currencyCode: $currency,
+                    raw: ['id' => $providerIntentId, 'status' => 'requires_payment_method'],
                 );
             }
 
             public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult
             {
+                $intent = $this->intents[$providerIntentId] ?? [
+                    'amount' => 24.00,
+                    'amount_minor' => 2400,
+                    'currency' => 'USD',
+                ];
+
                 return new PaymentWebhookResult(
                     eventType: 'payment_intent.succeeded',
                     providerIntentId: $providerIntentId,
                     status: 'succeeded',
-                    amount: 24.00,
-                    currencyCode: 'USD',
+                    amount: (float) $intent['amount'],
+                    currencyCode: (string) $intent['currency'],
                     raw: [
                         'id' => 'client_confirm_'.$providerIntentId,
                         'type' => 'payment_intent.succeeded',
                         'object' => [
                             'id' => $providerIntentId,
                             'status' => 'succeeded',
-                            'amount' => 2400,
-                            'currency' => 'usd',
+                            'amount' => (int) $intent['amount_minor'],
+                            'currency' => strtolower((string) $intent['currency']),
                         ],
                     ],
                 );

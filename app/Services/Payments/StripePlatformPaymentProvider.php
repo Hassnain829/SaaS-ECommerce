@@ -8,6 +8,7 @@ use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Checkout;
 use App\Models\PaymentIntent as LocalPaymentIntent;
 use App\Models\PaymentProviderAccount;
+use App\Support\Money\CurrencyPrecision;
 use Stripe\StripeClient;
 use Stripe\Webhook;
 
@@ -32,7 +33,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
             throw new \RuntimeException('The selected Stripe account does not match the checkout payment mode.');
         }
 
-        $amountMinor = $this->amountMinor((float) $checkout->grand_total, (string) $checkout->currency_code);
+        $amountMinor = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, (string) $checkout->currency_code);
         $client = new StripeClient($secret);
         $requestOptions = $providerAccount ? $this->requestOptionsForAccount($providerAccount) : [];
         $intent = $client->paymentIntents->create([
@@ -82,7 +83,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
             eventType: (string) $event->type,
             providerIntentId: (string) ($rawObject['id'] ?? ''),
             status: (string) ($rawObject['status'] ?? ''),
-            amount: isset($rawObject['amount']) ? $this->fromMinor((int) $rawObject['amount'], (string) ($rawObject['currency'] ?? 'usd')) : null,
+            amount: isset($rawObject['amount']) ? (float) CurrencyPrecision::fromMinorUnits((int) $rawObject['amount'], (string) ($rawObject['currency'] ?? 'usd')) : null,
             currencyCode: isset($rawObject['currency']) ? strtoupper((string) $rawObject['currency']) : null,
             failureCode: is_array($failure) ? ($failure['code'] ?? null) : null,
             failureMessage: is_array($failure) ? ($failure['message'] ?? null) : null,
@@ -126,7 +127,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
             eventType: $this->eventTypeForStatus((string) ($raw['status'] ?? '')),
             providerIntentId: (string) ($raw['id'] ?? $providerIntentId),
             status: (string) ($raw['status'] ?? ''),
-            amount: isset($raw['amount']) ? $this->fromMinor((int) $raw['amount'], (string) ($raw['currency'] ?? 'usd')) : null,
+            amount: isset($raw['amount']) ? (float) CurrencyPrecision::fromMinorUnits((int) $raw['amount'], (string) ($raw['currency'] ?? 'usd')) : null,
             currencyCode: isset($raw['currency']) ? strtoupper((string) $raw['currency']) : null,
             failureCode: is_array($failure) ? ($failure['code'] ?? null) : null,
             failureMessage: is_array($failure) ? ($failure['message'] ?? null) : null,
@@ -150,20 +151,6 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
         }
 
         return ['stripe_account' => (string) $account->provider_account_id];
-    }
-
-    private function amountMinor(float $amount, string $currency): int
-    {
-        $zeroDecimal = in_array(strtolower($currency), ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'], true);
-
-        return (int) round($amount * ($zeroDecimal ? 1 : 100));
-    }
-
-    private function fromMinor(int $amount, string $currency): float
-    {
-        $zeroDecimal = in_array(strtolower($currency), ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'], true);
-
-        return round($amount / ($zeroDecimal ? 1 : 100), 2);
     }
 
     private function eventTypeForStatus(string $status): string

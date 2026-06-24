@@ -113,6 +113,116 @@ class CheckoutTotalsService
             $taxableByLineKey[$lineKey] = (bool) $product->is_taxable;
         }
 
+        return $this->calculateFromLineInputs(
+            store: $store,
+            settings: $settings,
+            currencyCode: $currencyCode,
+            taxLineItems: $taxLineItems,
+            taxableByLineKey: $taxableByLineKey,
+            shippingTotal: $shippingTotal,
+            shippingAddress: $shippingAddress,
+            calculatedAt: $calculatedAt,
+        );
+    }
+
+    /**
+     * Recalculate an existing checkout from persisted financial snapshots only.
+     *
+     * @param  array<string, mixed>  $shippingAddress
+     */
+    public function calculateForCheckout(
+        Checkout $checkout,
+        TaxSetting $settings,
+        string|int|float $shippingTotal,
+        array $shippingAddress,
+        ?CarbonInterface $calculatedAt = null,
+    ): CheckoutTotalsResult {
+        $checkout->loadMissing('items');
+
+        if ((int) $settings->store_id !== (int) $checkout->store_id) {
+            throw new InvalidArgumentException('Tax settings do not belong to the checkout store.');
+        }
+
+        $store = $checkout->store ?: Store::query()->findOrFail($checkout->store_id);
+        $currencyCode = (string) $checkout->currency_code;
+        $shippingTotal = DecimalString::normalizeNonNegative(
+            $shippingTotal,
+            'Shipping amount must be a non-negative decimal amount.',
+        );
+        $shippingTotal = CurrencyPrecision::roundMajor($shippingTotal, $currencyCode);
+        $calculatedAt ??= Carbon::now('UTC');
+
+        $taxLineItems = [];
+        $taxableByLineKey = [];
+
+        foreach ($checkout->items as $item) {
+            $variantId = (int) ($item->product_variant_id ?? 0);
+            if ($variantId <= 0) {
+                throw ValidationException::withMessages([
+                    'items' => 'A checkout item is missing the catalog variant needed for tax calculation.',
+                ]);
+            }
+
+            $quantity = (int) $item->quantity;
+            if ($quantity <= 0) {
+                throw ValidationException::withMessages([
+                    'items' => 'A checkout item has an invalid quantity.',
+                ]);
+            }
+
+            if (! is_array($item->metadata) || ! array_key_exists('tax', $item->metadata)) {
+                throw ValidationException::withMessages([
+                    'items' => 'A checkout item is missing its taxability snapshot.',
+                ]);
+            }
+
+            $taxability = data_get($item->metadata, 'tax.is_taxable');
+            if (! is_bool($taxability)) {
+                throw ValidationException::withMessages([
+                    'items' => 'A checkout item has an invalid taxability snapshot.',
+                ]);
+            }
+
+            $lineKey = self::lineKeyForVariant($variantId);
+            $taxLineItems[] = new TaxLineItemInput(
+                lineKey: $lineKey,
+                quantity: $quantity,
+                unitPrice: DecimalString::normalizeNonNegative(
+                    (string) $item->unit_price,
+                    'Unit price must be a non-negative decimal amount.',
+                ),
+                isTaxable: $taxability,
+            );
+            $taxableByLineKey[$lineKey] = $taxability;
+        }
+
+        return $this->calculateFromLineInputs(
+            store: $store,
+            settings: $settings,
+            currencyCode: $currencyCode,
+            taxLineItems: $taxLineItems,
+            taxableByLineKey: $taxableByLineKey,
+            shippingTotal: $shippingTotal,
+            shippingAddress: $shippingAddress,
+            calculatedAt: $calculatedAt,
+        );
+    }
+
+    /**
+     * @param  list<TaxLineItemInput>  $taxLineItems
+     * @param  array<string, bool>  $taxableByLineKey
+     * @param  array<string, mixed>  $shippingAddress
+     */
+    private function calculateFromLineInputs(
+        Store $store,
+        TaxSetting $settings,
+        string $currencyCode,
+        array $taxLineItems,
+        array $taxableByLineKey,
+        string $shippingTotal,
+        array $shippingAddress,
+        CarbonInterface $calculatedAt,
+    ): CheckoutTotalsResult {
         $destination = $this->normalizeDestinationFromAddress($shippingAddress);
 
         $taxResult = $this->taxCalculator->calculate(new TaxCalculationRequest(

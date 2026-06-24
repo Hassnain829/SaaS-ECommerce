@@ -2288,7 +2288,7 @@ Findings summary:
 * External checkout preserves supplied tax/discount/totals (`ExternalOrderSyncService::totals()`).
 * Draft orders use **manual** tax/discount/shipping with BCMath for draft total only.
 * Schema has tax columns but **no tax engine, settings, or product taxable flag**.
-* Platform authority: **`CheckoutTotalsService`** (Phase 5R-1 Slice 3 — create path implemented).
+* Platform authority: **`CheckoutTotalsService`** (Phase 5R-1 Slices 3–5 — create path, shipping recalculation, and conversion snapshots implemented).
 
 ### Acceptance gate
 
@@ -2300,7 +2300,7 @@ Findings summary:
 
 ## Phase 5R-1 — Tax settings and tax calculation foundation
 
-**Status: In progress — Slices 1A–3 implemented (schema, settings UI, CurrencyPrecision, TaxCalculator, CheckoutTotalsService on platform checkout create); shipping recalc and conversion invariant not implemented.** Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`. Reports: `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_1B_TAX_SETTINGS_UI_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_2_TAX_CALCULATOR_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_3_CHECKOUT_TOTALS_REPORT.md`.
+**Status: In progress — Slices 1A–5 implemented (schema, settings UI, CurrencyPrecision, TaxCalculator, CheckoutTotalsService on platform checkout create, shipping recalculation, PaymentIntent synchronization, conversion invariant, and order tax snapshots). Product taxable defaults, draft/manual calculated tax, and external preservation sign-off remain pending.** Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`. Reports: `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_1B_TAX_SETTINGS_UI_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_2_TAX_CALCULATOR_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_3_CHECKOUT_TOTALS_REPORT.md`, `docs/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md`.
 
 ### Build
 
@@ -3597,7 +3597,7 @@ The active implementation sequence is now defined in:
 Immediate work:
 
 1. ~~Phase 5R-0 — Current Calculation Audit.~~ **Completed 2026-06-24** (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`).
-2. Phase 5R-1 — Tax Settings and Tax Calculation Foundation (**in progress — Slices 1A–3 complete**; Slice 4 next — plan and reports under `docs/plans/` and `docs/implementation/`).
+2. Phase 5R-1 — Tax Settings and Tax Calculation Foundation (**in progress — Slices 1A–5 complete**; Slice 6 product taxable defaults next — plan and reports under `docs/plans/` and `docs/implementation/`).
 3. Phase 5R-2 — Coupons and Discount Rules.
 4. Phase 5R-3 — Checkout and Order Totals Hardening.
 5. Phase 7 — Returns, Refunds, and Exchanges.

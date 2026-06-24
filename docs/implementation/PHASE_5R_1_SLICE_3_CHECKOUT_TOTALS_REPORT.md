@@ -1,8 +1,8 @@
 # Phase 5R-1 Slice 3 — CheckoutTotalsService and Platform Checkout Creation Report
 
 **Date:** 2026-06-24  
-**Status:** Implemented — platform checkout **create** path only  
-**Phase 5R-1 overall:** In progress — Slices 1A, 1B, 2, and **3** complete; Slices 4–8 pending
+**Status:** Implemented — platform checkout **create** path. Batch A later completed shipping recalculation and conversion snapshots.
+**Phase 5R-1 overall:** In progress — Slices 1A, 1B, 2, 3, 4, and 5 complete; Slices 6–8 pending
 
 ---
 
@@ -15,18 +15,15 @@
 - Initial `PaymentIntent` receives taxed `checkout.grand_total` (provider code unchanged)
 - GET/show remains read-only (no recalculation)
 - Initial shipping method on create includes shipping tax when configured
-- `tests/Feature/PlatformCheckoutTaxTest.php` (21 tests)
-- `tests/Unit/CheckoutTotalsServiceTest.php` (2 tests)
+- `tests/Feature/PlatformCheckoutTaxTest.php` (24 tests)
+- `tests/Unit/CheckoutTotalsServiceTest.php` (3 tests)
 
 ## Not implemented (deferred)
 
-- Shipping method **change** recalculation (Slice 4)
-- PaymentIntent refresh after address/shipping mutation (Slice 4)
-- `CurrencyPrecision` in `StripePlatformPaymentProvider` / `CheckoutShippingService` (Slice 4/5)
-- Conversion amount invariant + order tax snapshots (Slice 5)
 - Product taxable default resolver / UI (Slice 6)
 - Draft calculated tax (Slice 7)
 - External preservation sign-off (Slice 8)
+- Repository-wide float boundary cleanup (Phase 5R-3)
 
 ---
 
@@ -193,11 +190,9 @@ Shipping **selection change** after create remains Slice 4 (`CheckoutShippingSer
 | Location | Temporary float use |
 |----------|---------------------|
 | `CheckoutService::money()` | Cast to float for Eloquent decimal columns |
-| `CheckoutService::amountMinor()` | PI persistence helper |
 | `DeliveryOptionService` boundary | `itemsSubtotal()` cast to float for shipping eligibility lookup |
-| `CheckoutShippingService` | Unchanged — still uses inline grand_total on select (Slice 4) |
 
-Legacy `CheckoutService::totals()` and `subtotal()` removed; create path uses `CheckoutTotalsService` only.
+Legacy `CheckoutService::totals()`, `subtotal()`, and local `amountMinor()` helpers were removed; create and shipping mutation paths use `CheckoutTotalsService` / `CurrencyPrecision`.
 
 ---
 
@@ -209,18 +204,20 @@ Legacy `CheckoutService::totals()` and `subtotal()` removed; create path uses `C
 
 | Command | Result |
 |---------|--------|
-| `php artisan test --filter=PlatformCheckoutTaxTest` | 21 passed (152 assertions) |
-| `php artisan test --filter=CheckoutTotalsServiceTest` | 2 passed (9 assertions) |
+| `php artisan test --filter=PlatformCheckoutTaxTest` | 24 passed (169 assertions) |
+| `php artisan test --filter=CheckoutTotalsServiceTest` | 3 passed (11 assertions) |
 | `php artisan test --filter=Phase5PlatformCheckoutStripeTest` | 9 passed |
 | `php artisan test --filter=Phase6CheckoutDeliveryMethodsTest` | 6 passed |
 | `php artisan test --filter=TaxCalculatorTest` | (included in full suite) |
 | `php artisan test --filter=CurrencyPrecisionTest` | (included in full suite) |
-| `php artisan test` | **883 passed**, 2 skipped, **4223 assertions** |
+| `php artisan test` | **887 passed**, 2 skipped, **4242 assertions** |
 | `composer validate --strict --no-check-publish` | Pass |
 | `vendor/bin/pint --test` (Slice 3 PHP files) | Pass |
 | `php -l` (all Slice 3 PHP files) | Pass |
 
-**Net change:** +23 tests, +161 assertions vs pre-Slice 3 baseline.
+**Net change after Slice 3 closeout:** +27 tests, +180 assertions vs pre-Slice 3 baseline.
+
+**Closeout net correction:** +4 tests, +19 assertions after the original Slice 3 report counts.
 
 ---
 
@@ -233,13 +230,22 @@ Legacy `CheckoutService::totals()` and `subtotal()` removed; create path uses `C
 
 ---
 
+## Batch A follow-up (2026-06-25)
+
+`docs/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md` completed the former Slice 4 and Slice 5 gaps:
+
+- shipping selection/address mutation recalculates item tax, checkout tax lines, checkout totals, and tax snapshots atomically;
+- active platform PaymentIntents are synchronized to the recalculated grand total and superseded only when needed;
+- all local platform checkout minor-unit helpers now delegate to `CurrencyPrecision`;
+- checkout conversion hard-fails on provider/local/checkout amount or currency mismatch before creating an order;
+- checkout tax snapshots are copied to order header, order items, and `order_tax_lines`.
+
 ## Known limitations
 
-- Tax applies only during **new** platform checkout creation
-- Later shipping/address changes do not recalculate tax yet
-- Conversion amount invariant not implemented
-- Order tax snapshots not implemented
 - External checkout and draft/manual orders unchanged
+- Product taxable defaults for all product creation paths remain pending
+- Draft/manual calculated tax remains pending
+- External checkout tax preservation sign-off remains pending
 - Coupons/discounts remain zero
 - No carrier or admin changes
 
@@ -247,6 +253,6 @@ Legacy `CheckoutService::totals()` and `subtotal()` removed; create path uses `C
 
 ## Next
 
-**Slice 4** — Shipping selection recalculation + PaymentIntent refresh via `CheckoutTotalsService` and `CurrencyPrecision` in payment consumers.
+**Slice 6** — Product taxable defaults across product creation paths.
 
 **Model A** remains the primary carrier architecture; carrier production work frozen.

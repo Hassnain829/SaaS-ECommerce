@@ -18,7 +18,7 @@ Use this before tagging a release or merging to production branches.
 - [ ] `composer validate --strict` passes.
 - [ ] `php artisan test` passes locally (same PHP extensions as CI: `dom`, `mbstring`, `xml`, `xmlwriter`, plus `pdo_sqlite` for the default test suite).
 - [ ] Phase 5R checkout/tax regression filters pass when tax is implemented (`Phase5PlatformCheckoutStripeTest`, `Phase5ExternalCheckoutSyncTest`, `Phase4DraftOrderTest`, `Phase6CheckoutDeliveryMethodsTest`).
-- [ ] After Phase 5R-0: calculation audit current (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`). Slices 1A–3 complete (schema, settings UI, calculator, create-path checkout tax); shipping recalc and conversion invariant must not ship until Slices 4–5 pass (`docs/implementation/PHASE_5R_1_SLICE_3_CHECKOUT_TOTALS_REPORT.md`).
+- [ ] After Phase 5R-0: calculation audit current (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`). Slices 1A–5 complete (schema, settings UI, calculator, create-path checkout tax, shipping recalculation, PaymentIntent sync, conversion invariant, and order tax snapshots). Product taxable defaults, draft calculated tax, and external preservation sign-off remain pending before final Phase 5R-1 completion (`docs/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md`).
 
 ## Builds
 

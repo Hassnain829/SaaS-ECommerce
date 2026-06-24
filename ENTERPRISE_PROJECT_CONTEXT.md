@@ -150,7 +150,7 @@ Important existing models:
 ### Partial areas
 
 - RBAC/permissions granularity beyond store roles
-- Tax and coupons (**Phase 5R-0 calculation audit complete; Phase 5R-1 Slices 1A–3 implemented — tax on platform checkout create only; shipping recalc/conversion pending**)
+- Tax and coupons (**Phase 5R-0 calculation audit complete; Phase 5R-1 Slices 1A–5 implemented — platform checkout create, shipping recalculation, PaymentIntent synchronization, conversion invariant, and order tax snapshots complete; product defaults/draft tax/external preservation sign-off pending**)
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier operation (rates, labels, tracking in production)
@@ -1084,7 +1084,7 @@ CLEAN-1 through CLEAN-3 add export-safe archives, cleanup, carrier code organiza
 ### Phase 5R — Calculation audit and tax foundation (2026-06-24)
 
 - **5R-0 (completed):** Current calculation audit — platform, external, and draft/manual totals paths documented; duplicate grand-total and `amountMinor()` implementations identified. Report: `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
-- **5R-1 (in progress — Slices 1A–3 complete):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator`, `CheckoutTotalsService` on platform checkout **create**. Shipping recalc, conversion invariant, and order snapshots **not implemented**. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`; reports: `docs/implementation/PHASE_5R_1_SLICE_*_*.md`.
+- **5R-1 (in progress — Slices 1A–5 complete):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator`, `CheckoutTotalsService` on platform checkout create, shipping recalculation, PaymentIntent synchronization, conversion amount invariant, and order tax snapshots are implemented. Product taxable defaults, draft/manual calculated tax, and external preservation sign-off remain pending. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`; reports: `docs/implementation/PHASE_5R_1_SLICE_*_*.md` and `docs/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md`.
 - **5R-2 / 5R-3 (pending):** Coupons; checkout/order totals hardening.
 - **Carrier production work remains frozen** pending approvals. **Model A** remains primary courier architecture.
 
