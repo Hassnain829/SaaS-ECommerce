@@ -156,7 +156,7 @@ Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integr
 ### Phase 5R (calculation and tax)
 
 - **5R-0 (completed 2026-06-24):** Current calculation audit — `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`
-- **5R-1 (in progress — Slices 1A–1B complete):** Tax schema, settings UI, bootstrap, versioning — `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_1B_TAX_SETTINGS_UI_REPORT.md`; tax calculation pending (Slice 2+)
+- **5R-1 (in progress — Slices 1A–2 complete):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator` — reports under `docs/implementation/`; checkout wiring pending (Slice 3+)
 - **5R-2 (pending):** Coupons
 - **5R-3 (pending):** Checkout/order totals hardening
 
@@ -177,7 +177,7 @@ Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integr
 
 ### Partial or pending
 
-- Tax and coupons (**5R-0 audit complete; 5R-1 tax foundation planned, not implemented**)
+- Tax and coupons (**5R-0 audit complete; 5R-1 Slices 1A–2 implemented — calculator not wired to checkout**)
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier rates/labels/tracking

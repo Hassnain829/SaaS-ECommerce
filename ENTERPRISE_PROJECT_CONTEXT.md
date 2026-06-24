@@ -150,7 +150,7 @@ Important existing models:
 ### Partial areas
 
 - RBAC/permissions granularity beyond store roles
-- Tax and coupons (**Phase 5R-0 calculation audit complete; Phase 5R-1 tax foundation planned**)
+- Tax and coupons (**Phase 5R-0 calculation audit complete; Phase 5R-1 Slices 1A–2 implemented — calculator not wired to checkout**)
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier operation (rates, labels, tracking in production)
@@ -1084,7 +1084,7 @@ CLEAN-1 through CLEAN-3 add export-safe archives, cleanup, carrier code organiza
 ### Phase 5R — Calculation audit and tax foundation (2026-06-24)
 
 - **5R-0 (completed):** Current calculation audit — platform, external, and draft/manual totals paths documented; duplicate grand-total and `amountMinor()` implementations identified. Report: `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
-- **5R-1 (in progress — Slices 1A–1B complete):** Tax schema, merchant settings UI, store bootstrap, atomic `settings_version`. Tax calculation and checkout application **not implemented**. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`.
+- **5R-1 (in progress — Slices 1A–2 complete):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator`. Checkout application **not implemented**. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`; reports: `docs/implementation/PHASE_5R_1_SLICE_*_*.md`.
 - **5R-2 / 5R-3 (pending):** Coupons; checkout/order totals hardening.
 - **Carrier production work remains frozen** pending approvals. **Model A** remains primary courier architecture.
 
