@@ -19,6 +19,7 @@ use App\Http\Controllers\ProductWorkspaceDataController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\ShippingSettingsController;
 use App\Http\Controllers\TagController;
+use App\Http\Controllers\TaxSettingsController;
 use App\Http\Controllers\TeamMemberController;
 use Illuminate\Support\Facades\Route;
 
@@ -221,6 +222,21 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::patch('/settings/locations/{location}/deactivate', [LocationController::class, 'deactivate'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.locations.deactivate');
+    Route::get('/settings/taxes', [TaxSettingsController::class, 'index'])
+        ->middleware('store.permission:settings.view')
+        ->name('settings.taxes.index');
+    Route::put('/settings/taxes', [TaxSettingsController::class, 'update'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.taxes.update');
+    Route::post('/settings/taxes/rates', [TaxSettingsController::class, 'storeRate'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.taxes.rates.store');
+    Route::patch('/settings/taxes/rates/{taxRate}', [TaxSettingsController::class, 'updateRate'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.taxes.rates.update');
+    Route::delete('/settings/taxes/rates/{taxRate}', [TaxSettingsController::class, 'destroyRate'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.taxes.rates.destroy');
     Route::get('/settings/payments', [PaymentSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('settings.payments.index');

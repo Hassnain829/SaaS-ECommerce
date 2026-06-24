@@ -1,8 +1,8 @@
 # Phase 5R-1 Slice 1A — Tax Schema and Models Report
 
-**Date:** 2026-05-24  
+**Date:** 2026-06-24
 **Status:** Implemented (schema/models only)  
-**Phase 5R-1 overall:** In progress — tax calculation, UI, and checkout application **not implemented**
+**Phase 5R-1 overall:** In progress — Slices 1A–1B complete; tax calculation and checkout application **not implemented**
 
 ---
 

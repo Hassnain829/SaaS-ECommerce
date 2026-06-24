@@ -1,0 +1,120 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\StoreTaxRateRequest;
+use App\Http\Requests\UpdateTaxRateRequest;
+use App\Http\Requests\UpdateTaxSettingsRequest;
+use App\Services\Tax\TaxConfigurationService;
+use App\Support\StorePermission;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+class TaxSettingsController extends Controller
+{
+    public function __construct(
+        private readonly TaxConfigurationService $taxConfiguration,
+    ) {}
+
+    public function index(Request $request): View
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $taxSetting = $store->taxSetting;
+
+        if (! $taxSetting) {
+            $taxSetting = $this->taxConfiguration->ensureSettingsForStore($store);
+        }
+
+        $taxRates = $store->taxRates()
+            ->orderBy('priority')
+            ->orderBy('country_code')
+            ->orderBy('region_code')
+            ->orderBy('name')
+            ->get();
+
+        $canManageTax = $request->user()?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE) ?? false;
+
+        return view('user_view.settings.taxes', [
+            'selectedStore' => $store,
+            'taxSetting' => $taxSetting,
+            'taxRates' => $taxRates,
+            'canManageTax' => $canManageTax,
+        ]);
+    }
+
+    public function update(UpdateTaxSettingsRequest $request): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $this->taxConfiguration->updateSettings(
+            $store,
+            $request->validated(),
+            $request->user(),
+            $request
+        );
+
+        return back()
+            ->with('success', 'Tax settings updated.')
+            ->with('success_title', 'Taxes');
+    }
+
+    public function storeRate(StoreTaxRateRequest $request): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $this->taxConfiguration->createRate(
+            $store,
+            $request->validated(),
+            $request->user(),
+            $request
+        );
+
+        return back()
+            ->with('success', 'Tax rate added.')
+            ->with('success_title', 'Taxes');
+    }
+
+    public function updateRate(UpdateTaxRateRequest $request, int|string $taxRate): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $rate = $store->taxRates()->whereKey($taxRate)->firstOrFail();
+
+        $this->taxConfiguration->updateRate(
+            $store,
+            $rate,
+            $request->validated(),
+            $request->user(),
+            $request
+        );
+
+        return back()
+            ->with('success', 'Tax rate updated.')
+            ->with('success_title', 'Taxes');
+    }
+
+    public function destroyRate(Request $request, int|string $taxRate): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $rate = $store->taxRates()->whereKey($taxRate)->firstOrFail();
+
+        $this->taxConfiguration->deleteRate(
+            $store,
+            $rate,
+            $request->user(),
+            $request
+        );
+
+        return back()
+            ->with('success', 'Tax rate removed.')
+            ->with('success_title', 'Taxes');
+    }
+}

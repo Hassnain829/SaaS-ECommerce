@@ -107,15 +107,7 @@ class Phase5RTaxSchemaTest extends TestCase
     {
         $store = $this->store();
 
-        TaxSetting::query()->create([
-            'store_id' => $store->id,
-            'enabled' => false,
-            'prices_include_tax' => false,
-            'default_product_taxable' => true,
-            'shipping_taxable' => false,
-            'calculation_address' => TaxSetting::CALCULATION_ADDRESS_SHIPPING,
-            'settings_version' => 1,
-        ]);
+        $this->assertSame(1, TaxSetting::query()->where('store_id', $store->id)->count());
 
         $this->expectException(QueryException::class);
 
@@ -358,15 +350,8 @@ class Phase5RTaxSchemaTest extends TestCase
         [, $checkout] = $this->checkoutFixtureForStore($store);
         [, $order] = $this->orderFixtureForStore($store);
 
-        $settings = TaxSetting::query()->create([
-            'store_id' => $store->id,
-            'enabled' => false,
-            'prices_include_tax' => false,
-            'default_product_taxable' => true,
-            'shipping_taxable' => false,
-            'calculation_address' => TaxSetting::CALCULATION_ADDRESS_SHIPPING,
-            'settings_version' => 1,
-        ]);
+        $settings = TaxSetting::query()->where('store_id', $store->id)->firstOrFail();
+        $settingsId = $settings->id;
 
         $rate = $this->createTaxRate($store);
 
@@ -400,7 +385,7 @@ class Phase5RTaxSchemaTest extends TestCase
 
         $store->delete();
 
-        $this->assertDatabaseMissing('tax_settings', ['id' => $settings->id]);
+        $this->assertDatabaseMissing('tax_settings', ['id' => $settingsId]);
         $this->assertDatabaseMissing('tax_rates', ['id' => $rate->id]);
         $this->assertDatabaseMissing('checkout_tax_lines', ['id' => $checkoutLineId]);
         $this->assertDatabaseMissing('order_tax_lines', ['id' => $orderLineId]);
@@ -410,15 +395,15 @@ class Phase5RTaxSchemaTest extends TestCase
     {
         $store = $this->store();
 
-        $settings = TaxSetting::query()->create([
-            'store_id' => $store->id,
-            'enabled' => 1,
-            'prices_include_tax' => 0,
-            'default_product_taxable' => 1,
-            'shipping_taxable' => 0,
-            'calculation_address' => TaxSetting::CALCULATION_ADDRESS_SHIPPING,
+        $settings = TaxSetting::query()->where('store_id', $store->id)->firstOrFail();
+        $settings->update([
+            'enabled' => true,
+            'prices_include_tax' => false,
+            'default_product_taxable' => true,
+            'shipping_taxable' => false,
             'settings_version' => 3,
         ]);
+        $settings->refresh();
 
         $this->assertIsBool($settings->enabled);
         $this->assertTrue($settings->enabled);

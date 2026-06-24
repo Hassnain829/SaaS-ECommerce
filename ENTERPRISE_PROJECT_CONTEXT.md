@@ -1084,7 +1084,7 @@ CLEAN-1 through CLEAN-3 add export-safe archives, cleanup, carrier code organiza
 ### Phase 5R — Calculation audit and tax foundation (2026-06-24)
 
 - **5R-0 (completed):** Current calculation audit — platform, external, and draft/manual totals paths documented; duplicate grand-total and `amountMinor()` implementations identified. Report: `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
-- **5R-1 (in progress — Slice 1A complete):** Tax schema and models implemented (`docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`). Tax calculation, UI, and checkout application **not implemented**. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`.
+- **5R-1 (in progress — Slices 1A–1B complete):** Tax schema, merchant settings UI, store bootstrap, atomic `settings_version`. Tax calculation and checkout application **not implemented**. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`.
 - **5R-2 / 5R-3 (pending):** Coupons; checkout/order totals hardening.
 - **Carrier production work remains frozen** pending approvals. **Model A** remains primary courier architecture.
 

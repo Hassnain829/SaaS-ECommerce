@@ -156,7 +156,7 @@ Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integr
 ### Phase 5R (calculation and tax)
 
 - **5R-0 (completed 2026-06-24):** Current calculation audit — `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`
-- **5R-1 (in progress — Slice 1A complete):** Tax schema/models — `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`; calculation/UI pending — `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`
+- **5R-1 (in progress — Slices 1A–1B complete):** Tax schema, settings UI, bootstrap, versioning — `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_1B_TAX_SETTINGS_UI_REPORT.md`; tax calculation pending (Slice 2+)
 - **5R-2 (pending):** Coupons
 - **5R-3 (pending):** Checkout/order totals hardening
 

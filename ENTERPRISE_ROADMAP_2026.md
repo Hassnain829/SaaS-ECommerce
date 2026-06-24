@@ -2300,7 +2300,7 @@ Findings summary:
 
 ## Phase 5R-1 — Tax settings and tax calculation foundation
 
-**Status: In progress — Slice 1A (schema/models) implemented; tax calculation and UI not implemented.** Implementation plan corrected 2026-05-24: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`. Slice 1A report: `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`.
+**Status: In progress — Slices 1A (schema/models) and 1B (settings UI) implemented; tax calculation not implemented.** Plan corrected 2026-06-24: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`. Reports: `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_1B_TAX_SETTINGS_UI_REPORT.md`.
 
 ### Build
 
@@ -3597,7 +3597,7 @@ The active implementation sequence is now defined in:
 Immediate work:
 
 1. ~~Phase 5R-0 — Current Calculation Audit.~~ **Completed 2026-06-24** (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`).
-2. Phase 5R-1 — Tax Settings and Tax Calculation Foundation (**in progress — Slice 1A schema/models complete**; calculation/UI pending — `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`, `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`).
+2. Phase 5R-1 — Tax Settings and Tax Calculation Foundation (**in progress — Slices 1A–1B complete**; Slice 2+ pending — plan and reports under `docs/plans/` and `docs/implementation/`).
 3. Phase 5R-2 — Coupons and Discount Rules.
 4. Phase 5R-3 — Checkout and Order Totals Hardening.
 5. Phase 7 — Returns, Refunds, and Exchanges.

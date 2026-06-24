@@ -2,13 +2,13 @@
 
 **Project:** E_COMMERCE_OFFICE (SaaS-Static-Blade)  
 **Date:** 2026-06-24 (original plan)  
-**Plan lock corrections:** 2026-05-24  
-**Status:** **In progress — Slice 1A implemented** (schema/models); tax calculation, UI, and checkout application **not implemented**  
+**Plan lock corrections:** 2026-06-24
+**Status:** **In progress — Slices 1A and 1B implemented**; tax calculation, checkout application, and slices 2–8 **not implemented**
 **Prerequisite:** `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md` (completed 2026-06-24)
 
 This document is the **corrected and locked** implementation plan for Phase 5R-1. All architectural choices below are final for implementation prompts. Deferrals are explicitly assigned to later phases.
 
-**Planning-only constraint:** This task does not add migrations, models, services, routes, Blade, or production PHP. Implementation follows the slices in §9.15.
+**Planning-only constraint:** Slice 1A (schema/models) and Slice 1B (settings UI) are implemented. Tax calculation, checkout application, and remaining slices 2–8 remain pending.
 
 ---
 
@@ -770,7 +770,7 @@ DB::transaction(function () {
 
 ## 9.18 Implementation slices (locked sequence)
 
-### Slice 1A — Tax schema and models only ✅ Implemented 2026-05-24
+### Slice 1A — Tax schema and models only ✅ Implemented 2026-06-24
 
 **Report:** `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`
 
@@ -796,7 +796,9 @@ DB::transaction(function () {
 
 ---
 
-### Slice 1B — Tax settings routes, UI, permissions
+### Slice 1B — Tax settings routes, UI, permissions ✅ Implemented 2026-06-24
+
+**Report:** `docs/implementation/PHASE_5R_1_SLICE_1B_TAX_SETTINGS_UI_REPORT.md`
 
 **Goal:** Merchant can manage tax settings and rates; `settings_version` increments on every mutation.
 

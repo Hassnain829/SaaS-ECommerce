@@ -97,7 +97,7 @@ See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md`, `docs/cleanup/PROJECT_CLEANUP_MASTER
 - **[docs/architecture/CARRIER_CODE_STRUCTURE.md](docs/architecture/CARRIER_CODE_STRUCTURE.md)** — carrier folder layout after CLEAN-2.
 - **[docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md](docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md)** — CLEAN-1 through CLEAN-4 hygiene (see [CLEAN-4 report](docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md)).
 - **[docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md](docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md)** — platform/external/draft calculation audit (5R-0).
-- **[docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md](docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md)** — tax foundation implementation plan (5R-1, not yet coded).
+- **[docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md](docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md)** — tax foundation plan (5R-1; Slices 1A–1B implemented; calculation pending).
 - **[docs/architecture/REFACTORING_BOUNDARIES.md](docs/architecture/REFACTORING_BOUNDARIES.md)** — internal extraction boundaries from CLEAN-4.
 - **[docs/REFACTORING_ROADMAP.md](docs/REFACTORING_ROADMAP.md)** — remaining large-file refactor candidates.
 - **`ENTERPRISE_PROJECT_CONTEXT.md`** / **`ENTERPRISE_ROADMAP_2026.md`** — product scope and build order.

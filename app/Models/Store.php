@@ -55,6 +55,10 @@ class Store extends Model
             if (Schema::hasTable('locations')) {
                 app(\App\Services\Inventory\DefaultLocationService::class)->ensureFromStoreDefaults($store);
             }
+
+            if (Schema::hasTable('tax_settings')) {
+                app(\App\Services\Tax\TaxConfigurationService::class)->ensureSettingsForStore($store);
+            }
         });
     }
 
