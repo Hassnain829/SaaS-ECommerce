@@ -3,12 +3,12 @@
 **Project:** E_COMMERCE_OFFICE (SaaS-Static-Blade)  
 **Date:** 2026-06-24 (original plan)  
 **Plan lock corrections:** 2026-06-24
-**Status:** **In progress — Slices 1A, 1B, and 2 implemented**; checkout application and slices 3–8 **not implemented**
+**Status:** **In progress — Slices 1A, 1B, 2, and 3 implemented**; slices 4–8 **not implemented**
 **Prerequisite:** `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md` (completed 2026-06-24)
 
 This document is the **corrected and locked** implementation plan for Phase 5R-1. All architectural choices below are final for implementation prompts. Deferrals are explicitly assigned to later phases.
 
-**Planning-only constraint:** Slices 1A–2 are implemented. Checkout application and slices 3–8 remain pending.
+**Planning-only constraint:** Slices 1A–3 are implemented (create-path checkout tax only). Slices 4–8 remain pending.
 
 ---
 
@@ -846,7 +846,9 @@ DB::transaction(function () {
 
 ---
 
-### Slice 3 — CheckoutTotalsService + checkout creation
+### Slice 3 — CheckoutTotalsService + checkout creation ✅ Implemented 2026-06-24
+
+**Report:** `docs/implementation/PHASE_5R_1_SLICE_3_CHECKOUT_TOTALS_REPORT.md`
 
 **Goal:** Platform checkout create computes tax; persists item tax + header totals + tax lines; show remains read-only.
 

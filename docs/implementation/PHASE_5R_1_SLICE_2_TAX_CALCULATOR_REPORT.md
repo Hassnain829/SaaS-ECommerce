@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-24  
 **Status:** Implemented (calculation engine only — not wired to checkout) — closeout corrections applied 2026-06-24  
-**Phase 5R-1 overall:** In progress — checkout tax application **not implemented**
+**Phase 5R-1 overall:** In progress — checkout tax on **create** implemented in Slice 3; shipping recalc and conversion pending
 
 ---
 
@@ -18,9 +18,9 @@
 
 ## Not implemented (deferred)
 
-- CheckoutTotalsService and checkout wiring (Slice 3)
-- Checkout tax-line persistence (Slice 4)
-- Stripe/PaymentIntent refresh (Slice 5)
+- CheckoutTotalsService and checkout create wiring (**Slice 3 — implemented**)
+- Shipping method recalculation + PI refresh (**Slice 4**)
+- Checkout tax-line replacement on shipping change (**Slice 4**)
 - Product taxable UI/resolver (Slice 6)
 - Draft tax (Slice 7)
 - External preservation sign-off (Slice 8)
@@ -109,4 +109,4 @@ Baseline before Slice 2: **793 passed**, 2 skipped (3874 assertions).
 - Model A unchanged
 - No commit made
 
-**Next:** Slice 3 — CheckoutTotalsService integration
+**Next:** Slice 4 — shipping selection recalculation + PaymentIntent refresh

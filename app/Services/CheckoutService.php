@@ -8,6 +8,8 @@ use App\Models\PaymentIntent;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
 use App\Models\Store;
+use App\Models\TaxSetting;
+use App\Services\Checkout\CheckoutTotalsService;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
@@ -31,6 +33,7 @@ class CheckoutService
         private readonly CheckoutEventRecorder $eventRecorder,
         private readonly DeliveryOptionService $deliveryOptionService,
         private readonly FulfillmentOriginRouter $originRouter,
+        private readonly CheckoutTotalsService $checkoutTotalsService,
     ) {}
 
     /**
@@ -41,6 +44,14 @@ class CheckoutService
         return DB::transaction(function () use ($store, $payload): Checkout {
             $customer = $this->upsertCustomer($store, $payload['customer']);
             $items = $this->prepareItems($store, $payload['items']);
+            $taxSetting = TaxSetting::query()->where('store_id', $store->id)->first();
+
+            if (! $taxSetting) {
+                throw ValidationException::withMessages([
+                    'checkout' => 'Tax settings are not available for this store right now. Please try again later or contact support.',
+                ]);
+            }
+
             $provider = (string) config('payments.default_provider', 'stripe');
 
             if (CheckoutMode::forStore($store) !== CheckoutMode::PLATFORM) {
@@ -61,16 +72,16 @@ class CheckoutService
             $shippingMethodId = filled($payload['shipping_method_id'] ?? null) ? (int) $payload['shipping_method_id'] : null;
             $pickupLocationId = filled($payload['pickup_location_id'] ?? null) ? (int) $payload['pickup_location_id'] : null;
             $shippingSnapshot = null;
-            $shippingTotal = 0.0;
-            $subtotal = $this->subtotal($items);
+            $shippingTotal = '0';
             $shippingMethod = null;
+            $preliminarySubtotal = $this->checkoutTotalsService->itemsSubtotal($currencyCode, $items);
 
             if ($shippingMethodId) {
                 $option = $this->deliveryOptionService->optionForMethodId(
                     $store,
                     $shippingMethodId,
                     $shippingAddress,
-                    $subtotal,
+                    (float) $preliminarySubtotal,
                     $currencyCode,
                 );
 
@@ -80,7 +91,7 @@ class CheckoutService
                     ]);
                 }
 
-                $shippingTotal = $this->money($option['amount']);
+                $shippingTotal = (string) $this->money($option['amount']);
                 $shippingSnapshot = $option['snapshot'];
                 $shippingSnapshot['selected_at'] = now()->toISOString();
                 $shippingMethod = ShippingMethod::query()
@@ -99,7 +110,14 @@ class CheckoutService
             );
             $routingSnapshot = $routingResult->toSnapshot();
 
-            $totals = $this->totals($items, $shippingTotal);
+            $totalsResult = $this->checkoutTotalsService->calculate(
+                $store,
+                $taxSetting,
+                $currencyCode,
+                $items,
+                $shippingTotal,
+                $shippingAddress,
+            );
             $billingSameAsShipping = $this->billingSameAsShipping($payload);
 
             $checkout = Checkout::query()->create([
@@ -110,16 +128,16 @@ class CheckoutService
                 'mode' => self::SOURCE,
                 'status' => Checkout::STATUS_PAYMENT_PENDING,
                 'currency_code' => $currencyCode,
-                'subtotal' => $totals['subtotal'],
-                'discount_total' => $totals['discount'],
-                'shipping_total' => $totals['shipping'],
+                'subtotal' => $this->money($totalsResult->subtotal),
+                'discount_total' => $this->money($totalsResult->discountTotal),
+                'shipping_total' => $this->money($totalsResult->shippingTotal),
                 'shipping_method_id' => $shippingMethodId,
                 'shipping_snapshot' => $shippingSnapshot,
                 'fulfillment_origin_location_id' => $routingResult->originLocation->id,
                 'pickup_location_id' => $routingResult->pickupLocation?->id,
                 'fulfillment_routing_snapshot' => $routingSnapshot,
-                'tax_total' => $totals['tax'],
-                'grand_total' => $totals['grand_total'],
+                'tax_total' => $this->money($totalsResult->taxTotal),
+                'grand_total' => $this->money($totalsResult->grandTotal),
                 'payment_provider' => $provider,
                 'payment_provider_account_id' => $providerAccount->id,
                 'metadata' => [
@@ -132,6 +150,7 @@ class CheckoutService
                     'payment_provider_account_id' => $providerAccount->id,
                     'connected_account_id' => $providerAccount->provider_account_id,
                     'platform_payment_mode' => $paymentMode,
+                    'tax_snapshot' => $totalsResult->taxSnapshot,
                 ],
                 'expires_at' => now()->addHours(2),
             ]);
@@ -175,6 +194,15 @@ class CheckoutService
                 $product = $variant->product;
                 $primaryImage = $product?->primaryImage();
 
+                $lineKey = CheckoutTotalsService::lineKeyForVariant((int) $variant->id);
+                $itemTotals = $totalsResult->itemTotalsFor($lineKey);
+
+                if (! $itemTotals) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Checkout totals could not be mapped to a catalog line.',
+                    ]);
+                }
+
                 $checkout->items()->create([
                     'product_id' => $product?->id,
                     'product_variant_id' => $variant->id,
@@ -187,16 +215,23 @@ class CheckoutService
                     'product_type_snapshot' => $product?->product_type,
                     'variant_details' => $item['variant_details'],
                     'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'subtotal' => $item['subtotal'],
-                    'discount_amount' => 0,
-                    'tax_amount' => 0,
-                    'total' => $item['subtotal'],
+                    'unit_price' => $this->money($variant->price),
+                    'subtotal' => $this->money($itemTotals->subtotal),
+                    'discount_amount' => $this->money($itemTotals->discountAmount),
+                    'tax_amount' => $this->money($itemTotals->taxAmount),
+                    'total' => $this->money($itemTotals->total),
                     'metadata' => [
                         'reservation_id' => $reservation->id,
+                        'tax' => [
+                            'is_taxable' => $itemTotals->isTaxable,
+                            'prices_include_tax' => $totalsResult->pricesIncludeTax,
+                            'settings_version' => $taxSetting->settings_version,
+                        ],
                     ],
                 ]);
             }
+
+            $this->checkoutTotalsService->replaceTaxLines($checkout, $totalsResult);
 
             $this->eventRecorder->record(
                 $checkout,
@@ -228,7 +263,7 @@ class CheckoutService
                     'Customer selected '.$shippingSnapshot['method_name'].' for this checkout.',
                     [
                         'shipping_method_id' => $shippingMethodId,
-                        'shipping_total' => $shippingTotal,
+                        'shipping_total' => $this->money($totalsResult->shippingTotal),
                         'currency_code' => $checkout->currency_code,
                     ]
                 );
@@ -290,7 +325,7 @@ class CheckoutService
                 ]
             );
 
-            return $checkout->load(['items', 'addresses', 'events', 'paymentIntents', 'fulfillmentOriginLocation', 'pickupLocation']);
+            return $checkout->load(['items', 'addresses', 'events', 'paymentIntents', 'fulfillmentOriginLocation', 'pickupLocation', 'taxLines']);
         });
     }
 
@@ -377,13 +412,11 @@ class CheckoutService
             }
 
             $quantity = max(1, (int) ($row['quantity'] ?? 1));
-            $unitPrice = $this->money($variant->price);
             $variantCount = $variant->product?->variants()->count() ?? 1;
             $variantLabel = ProductVariantLabel::forVariant($variant, 0, $variantCount);
 
             if (isset($items[$variant->id])) {
                 $items[$variant->id]['quantity'] += $quantity;
-                $items[$variant->id]['subtotal'] = $this->money($items[$variant->id]['unit_price'] * $items[$variant->id]['quantity']);
 
                 continue;
             }
@@ -391,8 +424,6 @@ class CheckoutService
             $items[$variant->id] = [
                 'variant' => $variant,
                 'quantity' => $quantity,
-                'unit_price' => $unitPrice,
-                'subtotal' => $this->money($unitPrice * $quantity),
                 'variant_label' => $variantLabel,
                 'variant_details' => [
                     'options' => $variant->options
@@ -407,34 +438,6 @@ class CheckoutService
         }
 
         return array_values($items);
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $items
-     * @return array{subtotal: float, shipping: float, tax: float, discount: float, grand_total: float}
-     */
-    private function totals(array $items, float $shippingTotal): array
-    {
-        $subtotal = $this->subtotal($items);
-        $shipping = $this->money($shippingTotal);
-        $tax = 0.0;
-        $discount = 0.0;
-
-        return [
-            'subtotal' => $subtotal,
-            'shipping' => $shipping,
-            'tax' => $tax,
-            'discount' => $discount,
-            'grand_total' => $this->money(max(0, $subtotal + $shipping + $tax - $discount)),
-        ];
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $items
-     */
-    private function subtotal(array $items): float
-    {
-        return $this->money(array_sum(array_map(fn (array $item): float => (float) $item['subtotal'], $items)));
     }
 
     /**

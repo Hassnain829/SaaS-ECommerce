@@ -175,7 +175,7 @@ class PlatformCheckoutController extends Controller
             'shipping_address.province_code' => ['nullable', 'string', 'max:32'],
             'shipping_address.postal_code' => ['nullable', 'string', 'max:32'],
             'shipping_address.country' => ['required', 'string', 'max:100'],
-            'shipping_address.country_code' => ['nullable', 'string', 'max:8'],
+            'shipping_address.country_code' => $this->shippingAddressCountryCodeRules(),
             'shipping_address.phone' => ['nullable', 'string', 'max:50'],
             'shipping_address.delivery_notes' => ['nullable', 'string', 'max:1000'],
             'billing_address' => ['nullable', 'array'],
@@ -194,7 +194,7 @@ class PlatformCheckoutController extends Controller
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.variant_id' => ['required', 'integer'],
             'items.*.quantity' => ['nullable', 'integer', 'min:1'],
-        ]);
+        ], $this->shippingAddressCountryCodeMessages());
 
         $validator->after(function ($validator): void {
             $billing = $validator->getData()['billing_address'] ?? null;
@@ -228,8 +228,8 @@ class PlatformCheckoutController extends Controller
             'shipping_address.province_code' => ['nullable', 'string', 'max:32'],
             'shipping_address.postal_code' => ['nullable', 'string', 'max:32'],
             'shipping_address.country' => ['nullable', 'string', 'max:100'],
-            'shipping_address.country_code' => ['nullable', 'string', 'max:8'],
-        ])->validate();
+            'shipping_address.country_code' => $this->shippingAddressCountryCodeRules(),
+        ], $this->shippingAddressCountryCodeMessages())->validate();
     }
 
     /**
@@ -247,8 +247,27 @@ class PlatformCheckoutController extends Controller
             'shipping_address.province_code' => ['nullable', 'string', 'max:32'],
             'shipping_address.postal_code' => ['nullable', 'string', 'max:32'],
             'shipping_address.country' => ['nullable', 'string', 'max:100'],
-            'shipping_address.country_code' => ['nullable', 'string', 'max:8'],
-        ])->validate();
+            'shipping_address.country_code' => $this->shippingAddressCountryCodeRules(),
+        ], $this->shippingAddressCountryCodeMessages())->validate();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function shippingAddressCountryCodeRules(): array
+    {
+        return ['nullable', 'string', 'size:2', 'alpha'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function shippingAddressCountryCodeMessages(): array
+    {
+        return [
+            'shipping_address.country_code.size' => 'Enter a two-letter country code.',
+            'shipping_address.country_code.alpha' => 'Enter a two-letter country code.',
+        ];
     }
 
     /**
@@ -309,6 +328,9 @@ class PlatformCheckoutController extends Controller
                         'sku' => $item->sku_snapshot,
                         'quantity' => (int) $item->quantity,
                         'unit_price' => number_format((float) $item->unit_price, 2, '.', ''),
+                        'subtotal' => number_format((float) $item->subtotal, 2, '.', ''),
+                        'discount_amount' => number_format((float) $item->discount_amount, 2, '.', ''),
+                        'tax_amount' => number_format((float) $item->tax_amount, 2, '.', ''),
                         'total' => number_format((float) $item->total, 2, '.', ''),
                     ])
                     ->values()
