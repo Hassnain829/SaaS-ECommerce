@@ -16,7 +16,12 @@
 @endsection
 
 @section('content')
-@php($currency = $selectedStore->currency ?? 'USD')
+@php
+    $currency = $selectedStore->currency ?? 'USD';
+    $billingSameAsShipping = old('billing_same_as_shipping') !== null
+        ? filter_var(old('billing_same_as_shipping'), FILTER_VALIDATE_BOOLEAN)
+        : true;
+@endphp
 <div class="w-full py-2 md:py-4 space-y-4">
     @if ($errors->any())
         <div class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">{{ $errors->first() }}</div>
@@ -135,9 +140,15 @@
                     </label>
                 </div>
                 <label class="mt-4 flex items-center gap-2 text-sm text-[#475569]">
-                    <input type="checkbox" name="billing_same_as_shipping" value="1" checked class="rounded border-[#CBD5E1]">
+                    <input type="checkbox" name="billing_same_as_shipping" value="1" @checked($billingSameAsShipping) class="rounded border-[#CBD5E1]" data-billing-same-checkbox>
                     Billing address is the same as shipping
                 </label>
+                @include('user_view.partials.draft_billing_address_fields', [
+                    'billing' => [],
+                    'billingSameAsShipping' => $billingSameAsShipping,
+                    'isEditable' => true,
+                    'countryDatalistId' => 'draft-create-billing-country-codes',
+                ])
             </section>
         </div>
 
@@ -242,6 +253,13 @@
 
             form.querySelectorAll('[data-quantity-input], [data-unit-price-input], [data-discount-input], [data-tax-input], [data-shipping-input]').forEach((input) => {
                 input.addEventListener('input', updateTotals);
+            });
+
+            form.querySelector('[data-billing-same-checkbox]')?.addEventListener('change', (event) => {
+                const billingFields = form.querySelector('[data-draft-billing-fields]');
+                if (billingFields) {
+                    billingFields.classList.toggle('hidden', event.target.checked);
+                }
             });
 
             updateTotals();

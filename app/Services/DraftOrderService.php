@@ -302,20 +302,25 @@ class DraftOrderService
 
     private function addressMetadata(array $data): array
     {
-        return [
-            'shipping_address' => [
-                'name' => trim((string) ($data['shipping_name'] ?? '')),
-                'email' => trim((string) ($data['customer_email'] ?? '')),
-                'phone' => trim((string) ($data['shipping_phone'] ?? $data['customer_phone'] ?? '')),
-                'address_line1' => trim((string) ($data['shipping_address_line1'] ?? '')),
-                'address_line2' => trim((string) ($data['shipping_address_line2'] ?? '')),
-                'city' => trim((string) ($data['shipping_city'] ?? '')),
-                'state' => $this->normalizeRegionCode($data['shipping_state'] ?? ''),
-                'postal_code' => trim((string) ($data['shipping_postal_code'] ?? '')),
-                'country' => $this->normalizeCountryCode($data['shipping_country'] ?? ''),
-            ],
-            'billing_same_as_shipping' => (bool) ($data['billing_same_as_shipping'] ?? true),
-            'billing_address' => [
+        $billingSameAsShipping = array_key_exists('billing_same_as_shipping', $data)
+            ? (bool) $data['billing_same_as_shipping']
+            : true;
+
+        $shippingAddress = [
+            'name' => trim((string) ($data['shipping_name'] ?? '')),
+            'email' => trim((string) ($data['customer_email'] ?? '')),
+            'phone' => trim((string) ($data['shipping_phone'] ?? $data['customer_phone'] ?? '')),
+            'address_line1' => trim((string) ($data['shipping_address_line1'] ?? '')),
+            'address_line2' => trim((string) ($data['shipping_address_line2'] ?? '')),
+            'city' => trim((string) ($data['shipping_city'] ?? '')),
+            'state' => $this->normalizeRegionCode($data['shipping_state'] ?? ''),
+            'postal_code' => trim((string) ($data['shipping_postal_code'] ?? '')),
+            'country' => $this->normalizeCountryCode($data['shipping_country'] ?? ''),
+        ];
+
+        $billingAddress = $billingSameAsShipping
+            ? $shippingAddress
+            : [
                 'name' => trim((string) ($data['billing_name'] ?? '')),
                 'email' => trim((string) ($data['customer_email'] ?? '')),
                 'phone' => trim((string) ($data['billing_phone'] ?? '')),
@@ -325,7 +330,12 @@ class DraftOrderService
                 'state' => $this->normalizeRegionCode($data['billing_state'] ?? ''),
                 'postal_code' => trim((string) ($data['billing_postal_code'] ?? '')),
                 'country' => $this->normalizeCountryCode($data['billing_country'] ?? ''),
-            ],
+            ];
+
+        return [
+            'shipping_address' => $shippingAddress,
+            'billing_same_as_shipping' => $billingSameAsShipping,
+            'billing_address' => $billingAddress,
         ];
     }
 

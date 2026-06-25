@@ -25,6 +25,10 @@
     $selectedTaxMode = old('tax_mode', $isCalculatedTax ? \App\Models\DraftOrder::TAX_SOURCE_CALCULATED : \App\Models\DraftOrder::TAX_SOURCE_MANUAL);
     $storedShippingCountry = old('shipping_country', $shipping['country'] ?? '');
     $legacyShippingCountry = $storedShippingCountry !== '' && ! preg_match('/^[A-Za-z]{2}$/', $storedShippingCountry);
+    $billing = $draftOrder->billingAddress();
+    $billingSameAsShipping = old('billing_same_as_shipping') !== null
+        ? filter_var(old('billing_same_as_shipping'), FILTER_VALIDATE_BOOLEAN)
+        : $draftOrder->billingSameAsShipping();
     $taxDisplay = $taxDisplay ?? \App\Support\Tax\TaxDisplayPresenter::forDraft($draftOrder);
 @endphp
 
@@ -50,7 +54,6 @@
 
     <form id="draftOrderForm" action="{{ route('draft-orders.update', $draftOrder) }}" method="POST" class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start" data-draft-order-form data-currency="{{ $currency }}" data-calculated-tax="{{ $isCalculatedTax ? '1' : '0' }}">
         @csrf
-        @method('PATCH')
 
         <div class="space-y-4">
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
@@ -179,9 +182,15 @@
                     </label>
                 </div>
                 <label class="mt-4 flex items-center gap-2 text-sm text-[#475569]">
-                    <input type="checkbox" name="billing_same_as_shipping" value="1" @checked($draftOrder->billingSameAsShipping()) @disabled(! $isEditable) class="rounded border-[#CBD5E1]">
+                    <input type="checkbox" name="billing_same_as_shipping" value="1" @checked($billingSameAsShipping) @disabled(! $isEditable) class="rounded border-[#CBD5E1]" data-billing-same-checkbox>
                     Billing address is the same as shipping
                 </label>
+                @include('user_view.partials.draft_billing_address_fields', [
+                    'billing' => $billing,
+                    'billingSameAsShipping' => $billingSameAsShipping,
+                    'isEditable' => $isEditable,
+                    'countryDatalistId' => 'draft-billing-country-codes',
+                ])
             </section>
         </div>
 
@@ -250,11 +259,11 @@
 
             @if($isEditable)
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 space-y-3">
-                    <button type="submit" class="w-full h-11 rounded-lg bg-[#0052CC] text-white font-semibold text-sm" data-primary-save-button>{{ $selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED ? 'Save and recalculate tax' : 'Save draft' }}</button>
+                    <button type="submit" name="_method" value="PATCH" class="w-full h-11 rounded-lg bg-[#0052CC] text-white font-semibold text-sm" data-primary-save-button>{{ $selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED ? 'Save and recalculate tax' : 'Save draft' }}</button>
                     @if($isCalculatedTax)
                         <button type="submit" name="switch_to_manual" value="1" class="w-full h-11 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] text-sm font-semibold text-[#92400E]" onclick="return confirm('Switch to manual tax? Calculated tax lines will be cleared and you can enter a manual amount.');">Switch to manual tax</button>
                     @endif
-                    <button type="submit" formaction="{{ route('draft-orders.convert', $draftOrder) }}" formmethod="POST" class="w-full h-11 rounded-lg bg-[#059669] text-white font-semibold text-sm">Save and create order</button>
+                    <button type="submit" formaction="{{ route('draft-orders.convert', $draftOrder) }}" formmethod="POST" class="w-full h-11 rounded-lg bg-[#059669] text-white font-semibold text-sm" data-convert-draft-button>Save and create order</button>
                     <p class="text-xs text-[#64748B]">Creating the order saves the current draft fields first, checks stock, and deducts inventory. It does not charge a card.</p>
                 </section>
             @endif
@@ -304,6 +313,16 @@
             const primarySaveButton = form.querySelector('[data-primary-save-button]');
             const staleNotice = form.querySelector('[data-tax-stale-notice]');
             const modeRadios = form.querySelectorAll('[data-tax-mode-radio]');
+            const billingSameCheckbox = form.querySelector('[data-billing-same-checkbox]');
+            const billingFields = form.querySelector('[data-draft-billing-fields]');
+
+            const syncBillingFieldsVisibility = () => {
+                if (! billingSameCheckbox || ! billingFields) {
+                    return;
+                }
+
+                billingFields.classList.toggle('hidden', billingSameCheckbox.checked);
+            };
 
             const selectedTaxMode = () => {
                 const checked = form.querySelector('[data-tax-mode-radio]:checked');
@@ -429,7 +448,10 @@
                 });
             });
 
+            billingSameCheckbox?.addEventListener('change', syncBillingFieldsVisibility);
+
             syncTaxModeUi();
+            syncBillingFieldsVisibility();
             updateTotals();
         });
     })();

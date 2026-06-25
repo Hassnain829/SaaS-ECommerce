@@ -852,6 +852,44 @@ class TaxSettingsTest extends TestCase
             ->assertSee('United States', false);
     }
 
+    public function test_tax_rate_country_code_contract_rejects_non_ascii_and_numeric_values(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+
+        foreach (['U1', 'ÜS', 'United States'] as $invalidCountry) {
+            $this->actingAsStore($owner, $store)
+                ->post(route('settings.taxes.rates.store'), $this->storeRatePayload(['country_code' => $invalidCountry]))
+                ->assertSessionHasErrors('country_code');
+        }
+
+        $this->actingAsStore($owner, $store)
+            ->post(route('settings.taxes.rates.store'), $this->storeRatePayload(['country_code' => 'us']))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('tax_rates', [
+            'store_id' => $store->id,
+            'country_code' => 'US',
+            'region_code' => 'CA',
+        ]);
+    }
+
+    public function test_tax_rate_update_accepts_lowercase_ascii_country_code(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, ['country_code' => 'US', 'region_code' => 'NY']);
+
+        $this->actingAsStore($owner, $store)
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'country_code' => 'ca',
+                'region_code' => 'BC',
+                'name' => 'BC Tax',
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame('CA', $rate->fresh()->country_code);
+        $this->assertSame('BC', $rate->fresh()->region_code);
+    }
+
     public function test_tax_routes_match_contracts(): void
     {
         foreach (self::TAX_ROUTE_CONTRACTS as $contract) {

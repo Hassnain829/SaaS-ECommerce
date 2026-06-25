@@ -324,7 +324,9 @@ class DraftOrderController extends Controller
 
     private function validatedDraftPayload(Request $request, int $storeId, bool $requireCustomer = true): array
     {
-        return $request->validate([
+        $billingSameAsShipping = $request->boolean('billing_same_as_shipping');
+
+        $rules = [
             'customer_id' => [
                 'nullable',
                 'integer',
@@ -362,11 +364,28 @@ class DraftOrderController extends Controller
             ],
             'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
-        ], [
+        ];
+
+        if (! $billingSameAsShipping) {
+            $rules['billing_name'] = ['required', 'string', 'max:160'];
+            $rules['billing_address_line1'] = ['required', 'string', 'max:255'];
+            $rules['billing_city'] = ['required', 'string', 'max:120'];
+            $rules['billing_country'] = ['required', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'];
+        }
+
+        $payload = $request->validate($rules, [
             'shipping_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
             'shipping_country.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
             'billing_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
             'billing_country.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'billing_name.required' => 'Enter a billing recipient name when billing differs from shipping.',
+            'billing_address_line1.required' => 'Enter a billing address when billing differs from shipping.',
+            'billing_city.required' => 'Enter a billing city when billing differs from shipping.',
+            'billing_country.required' => 'Enter a billing country code when billing differs from shipping.',
         ]);
+
+        $payload['billing_same_as_shipping'] = $billingSameAsShipping;
+
+        return $payload;
     }
 }

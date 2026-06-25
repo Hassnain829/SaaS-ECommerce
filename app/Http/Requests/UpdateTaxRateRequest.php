@@ -39,7 +39,7 @@ class UpdateTaxRateRequest extends FormRequest
                 'required',
                 'string',
                 'size:2',
-                'alpha',
+                'regex:/\A[A-Za-z]{2}\z/',
                 Rule::unique('tax_rates')
                     ->where(fn ($query) => $query
                         ->where('store_id', $storeId)
@@ -61,8 +61,8 @@ class UpdateTaxRateRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'country_code.size' => 'Enter a two-letter country code.',
-            'country_code.alpha' => 'Enter a two-letter country code.',
+            'country_code.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'country_code.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
             'country_code.unique' => 'A tax rate already exists for this country and region.',
             'rate_percent.min' => 'Enter a rate between 0 and 100.',
             'rate_percent.max' => 'Enter a rate between 0 and 100.',

@@ -180,6 +180,116 @@ class OrderTaxDetailTest extends TestCase
             ->assertSeeText('3.50');
     }
 
+    public function test_manual_order_with_zero_tax_renders_entered_manually(): void
+    {
+        $owner = $this->merchant('order-zero-manual-tax@example.test');
+        $store = $this->store($owner, 'Order Zero Manual Tax Store');
+        $customer = $this->customer($store);
+
+        $order = Order::query()->create([
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'order_number' => '#MAN-0-1001',
+            'status' => OrderLifecycle::ORDER_CONFIRMED,
+            'payment_status' => OrderLifecycle::PAYMENT_PAID,
+            'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+            'customer_email' => $customer->email,
+            'subtotal' => 50,
+            'shipping' => 0,
+            'tax' => 0,
+            'discount' => 0,
+            'total' => 50,
+            'grand_total' => 50,
+            'currency_code' => 'USD',
+            'order_source' => 'manual',
+            'channel' => 'dashboard',
+            'item_count' => 1,
+            'total_quantity' => 1,
+            'placed_at' => now(),
+            'meta' => [],
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('Entered manually')
+            ->assertDontSeeText('No tax recorded');
+    }
+
+    public function test_external_order_with_zero_tax_renders_external_source(): void
+    {
+        $owner = $this->merchant('order-zero-external-tax@example.test');
+        $store = $this->store($owner, 'Order Zero External Tax Store');
+        $customer = $this->customer($store);
+
+        $order = Order::query()->create([
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'order_number' => '#EXT-0-1001',
+            'status' => OrderLifecycle::ORDER_CONFIRMED,
+            'payment_status' => OrderLifecycle::PAYMENT_PAID,
+            'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+            'customer_email' => $customer->email,
+            'subtotal' => 50,
+            'shipping' => 0,
+            'tax' => 0,
+            'discount' => 0,
+            'total' => 50,
+            'grand_total' => 50,
+            'currency_code' => 'USD',
+            'order_source' => 'external_checkout',
+            'channel' => 'external',
+            'item_count' => 1,
+            'total_quantity' => 1,
+            'placed_at' => now(),
+            'meta' => [],
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('Preserved from external checkout')
+            ->assertDontSeeText('No tax recorded');
+    }
+
+    public function test_true_no_tax_order_renders_no_tax_recorded(): void
+    {
+        $owner = $this->merchant('order-no-tax@example.test');
+        $store = $this->store($owner, 'Order No Tax Store');
+        $customer = $this->customer($store);
+
+        $order = Order::query()->create([
+            'store_id' => $store->id,
+            'customer_id' => $customer->id,
+            'order_number' => '#NONE-1001',
+            'status' => OrderLifecycle::ORDER_CONFIRMED,
+            'payment_status' => OrderLifecycle::PAYMENT_PAID,
+            'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+            'customer_email' => $customer->email,
+            'subtotal' => 50,
+            'shipping' => 0,
+            'tax' => 0,
+            'discount' => 0,
+            'total' => 50,
+            'grand_total' => 50,
+            'currency_code' => 'USD',
+            'order_source' => 'platform_checkout',
+            'channel' => 'platform',
+            'item_count' => 1,
+            'total_quantity' => 1,
+            'placed_at' => now(),
+            'meta' => [],
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('No tax recorded');
+    }
+
     public function test_another_store_cannot_view_order_tax_details(): void
     {
         [$owner, $store, $order] = $this->calculatedOrderFromDraft();

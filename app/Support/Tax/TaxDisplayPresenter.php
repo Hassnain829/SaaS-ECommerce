@@ -274,19 +274,15 @@ class TaxDisplayPresenter
      */
     private static function resolveOrderSource(Order $order, ?array $snapshot): string
     {
-        if ($order->order_source === 'external_checkout') {
-            return self::SOURCE_EXTERNAL_PRESERVED;
-        }
-
         if ($snapshot !== null || $order->taxLines->isNotEmpty()) {
             return self::SOURCE_PLATFORM_CALCULATED;
         }
 
-        if ($order->order_source === 'platform_checkout') {
-            return (float) $order->tax > 0 ? self::SOURCE_LEGACY : self::SOURCE_NONE;
+        if ($order->order_source === 'external_checkout') {
+            return self::SOURCE_EXTERNAL_PRESERVED;
         }
 
-        if ($order->order_source === 'manual' && (float) $order->tax > 0) {
+        if ($order->order_source === 'manual') {
             return self::SOURCE_MANUAL;
         }
 
