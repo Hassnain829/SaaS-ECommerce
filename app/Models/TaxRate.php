@@ -39,6 +39,11 @@ class TaxRate extends Model
         return $this->hasMany(OrderTaxLine::class);
     }
 
+    public function draftTaxLines(): HasMany
+    {
+        return $this->hasMany(DraftTaxLine::class);
+    }
+
     /**
      * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
      * @return \Illuminate\Database\Eloquent\Builder<self>

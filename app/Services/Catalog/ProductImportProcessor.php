@@ -979,6 +979,7 @@ final class ProductImportProcessor
                 'sku' => $productSku,
                 'product_type' => $productType,
                 ...ProductTypeBehavior::defaultColumnsFor($productType),
+                'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => $status,
                 'meta' => $meta,
             ]);

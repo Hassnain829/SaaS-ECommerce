@@ -17,6 +17,10 @@ class DraftOrder extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    public const TAX_SOURCE_MANUAL = 'manual';
+
+    public const TAX_SOURCE_CALCULATED = 'calculated';
+
     protected $fillable = [
         'store_id',
         'customer_id',
@@ -71,6 +75,21 @@ class DraftOrder extends Model
     public function items(): HasMany
     {
         return $this->hasMany(DraftOrderItem::class);
+    }
+
+    public function taxLines(): HasMany
+    {
+        return $this->hasMany(DraftTaxLine::class);
+    }
+
+    public function taxSource(): string
+    {
+        $metadata = is_array($this->metadata) ? $this->metadata : [];
+        $source = (string) ($metadata['tax_source'] ?? self::TAX_SOURCE_MANUAL);
+
+        return $source === self::TAX_SOURCE_CALCULATED
+            ? self::TAX_SOURCE_CALCULATED
+            : self::TAX_SOURCE_MANUAL;
     }
 
     /**

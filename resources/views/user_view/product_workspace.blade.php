@@ -90,7 +90,7 @@
                             <span class="text-[#94A3B8]">·</span>
                             <span class="text-[#64748B]">Visibility follows status when you sell on the storefront.</span>
                         </div>
-                        <dl class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <dl class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Store SKU</dt>
                                 <dd class="mt-1 font-mono text-sm font-semibold text-[#0F172A]">{{ $product->sku ?: '—' }}</dd>
@@ -98,6 +98,10 @@
                             <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Product behavior</dt>
                                 <dd class="mt-1 text-sm font-medium text-[#334155]">{{ $productBehavior['label'] ?? Str::title(str_replace(['-', '_'], ' ', $product->product_type)) }}</dd>
+                            </div>
+                            <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3">
+                                <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Platform tax</dt>
+                                <dd class="mt-1 text-sm font-medium text-[#334155]">{{ $product->is_taxable ? 'Tax applies' : 'Tax off' }}</dd>
                             </div>
                             <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3 sm:col-span-2 lg:col-span-1">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Timeline</dt>

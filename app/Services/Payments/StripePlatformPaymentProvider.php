@@ -4,6 +4,7 @@ namespace App\Services\Payments;
 
 use App\Contracts\Payments\PaymentProviderInterface;
 use App\Data\Payments\PaymentIntentResult;
+use App\Data\Payments\PaymentIntentUpdateResult;
 use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Checkout;
 use App\Models\PaymentIntent as LocalPaymentIntent;
@@ -93,6 +94,103 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
                 'object' => $rawObject,
             ],
             providerAccountId: isset($event->account) ? (string) $event->account : null,
+            mode: $mode,
+        );
+    }
+
+    public function cancelPaymentIntent(string $providerIntentId, array $options = []): PaymentWebhookResult
+    {
+        $localPaymentIntent = LocalPaymentIntent::query()
+            ->with('paymentProviderAccount')
+            ->where('provider', 'stripe')
+            ->where('provider_intent_id', $providerIntentId)
+            ->latest('id')
+            ->first();
+
+        $providerAccount = $options['provider_account'] ?? $localPaymentIntent?->paymentProviderAccount;
+        $providerAccount = $providerAccount instanceof PaymentProviderAccount ? $providerAccount : null;
+        $mode = (string) ($options['mode'] ?? $providerAccount?->mode ?? $localPaymentIntent?->mode ?? $this->stripeConfig->defaultMode());
+        $secret = $this->stripeConfig->stripeSecretKey($mode);
+
+        if ($secret === null || $secret === '') {
+            throw new \RuntimeException('Stripe is not configured for '.$mode.' mode.');
+        }
+
+        $client = new StripeClient($secret);
+        $intent = $client->paymentIntents->cancel(
+            $providerIntentId,
+            [],
+            $providerAccount ? $this->requestOptionsForAccount($providerAccount) : []
+        );
+        $raw = method_exists($intent, 'toArray') ? $intent->toArray() : (array) $intent;
+
+        return new PaymentWebhookResult(
+            eventType: 'payment_intent.canceled',
+            providerIntentId: (string) ($raw['id'] ?? $providerIntentId),
+            status: (string) ($raw['status'] ?? 'canceled'),
+            amount: isset($raw['amount']) ? (float) CurrencyPrecision::fromMinorUnits((int) $raw['amount'], (string) ($raw['currency'] ?? 'usd')) : null,
+            currencyCode: isset($raw['currency']) ? strtoupper((string) $raw['currency']) : null,
+            raw: [
+                'id' => 'cancel_'.$providerIntentId,
+                'type' => 'payment_intent.canceled',
+                'object' => $raw,
+            ],
+            providerAccountId: $providerAccount?->provider_account_id,
+            mode: $mode,
+        );
+    }
+
+    public function updatePaymentIntentAmount(
+        string $providerIntentId,
+        int $amountMinor,
+        string $currencyCode,
+        array $options = [],
+    ): PaymentIntentUpdateResult {
+        $localPaymentIntent = LocalPaymentIntent::query()
+            ->with('paymentProviderAccount')
+            ->where('provider', 'stripe')
+            ->where('provider_intent_id', $providerIntentId)
+            ->latest('id')
+            ->first();
+
+        $providerAccount = $options['provider_account'] ?? $localPaymentIntent?->paymentProviderAccount;
+        $providerAccount = $providerAccount instanceof PaymentProviderAccount ? $providerAccount : null;
+        $mode = (string) ($options['mode'] ?? $providerAccount?->mode ?? $localPaymentIntent?->mode ?? $this->stripeConfig->defaultMode());
+        $secret = $this->stripeConfig->stripeSecretKey($mode);
+
+        if ($secret === null || $secret === '') {
+            throw new \RuntimeException('Stripe is not configured for '.$mode.' mode.');
+        }
+
+        $client = new StripeClient($secret);
+        $intent = $client->paymentIntents->update(
+            $providerIntentId,
+            [
+                'amount' => $amountMinor,
+            ],
+            $providerAccount ? $this->requestOptionsForAccount($providerAccount) : []
+        );
+        $raw = method_exists($intent, 'toArray') ? $intent->toArray() : (array) $intent;
+
+        return $this->paymentIntentUpdateResultFromStripeObject($raw, $mode);
+    }
+
+    /**
+     * @param  array<string, mixed>  $raw
+     */
+    public function paymentIntentUpdateResultFromStripeObject(array $raw, ?string $mode = null): PaymentIntentUpdateResult
+    {
+        $providerIntentId = (string) ($raw['id'] ?? '');
+        $providerAmountMinor = (int) ($raw['amount'] ?? 0);
+        $providerCurrency = strtoupper((string) ($raw['currency'] ?? ''));
+
+        return new PaymentIntentUpdateResult(
+            providerIntentId: $providerIntentId,
+            amountMinor: $providerAmountMinor,
+            currencyCode: $providerCurrency,
+            status: (string) ($raw['status'] ?? ''),
+            clientSecret: isset($raw['client_secret']) ? (string) $raw['client_secret'] : null,
+            raw: $raw,
             mode: $mode,
         );
     }

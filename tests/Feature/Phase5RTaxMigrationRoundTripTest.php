@@ -28,12 +28,15 @@ class Phase5RTaxMigrationRoundTripTest extends TestCase
             $this->assertTrue(Schema::hasTable('checkout_tax_lines'));
             $this->assertTrue(Schema::hasTable('order_tax_lines'));
             $this->assertTrue(Schema::hasColumn('products', 'is_taxable'));
+            $this->assertTrue(Schema::hasColumn('draft_order_items', 'tax_amount'));
+            $this->assertTrue(Schema::hasTable('draft_tax_lines'));
 
-            Artisan::call('migrate:rollback', ['--step' => 5, '--force' => true]);
+            Artisan::call('migrate:rollback', ['--step' => 7, '--force' => true]);
 
             $this->assertFalse(Schema::hasTable('order_tax_lines'));
             $this->assertFalse(Schema::hasTable('checkout_tax_lines'));
             $this->assertFalse(Schema::hasColumn('products', 'is_taxable'));
+            $this->assertFalse(Schema::hasTable('draft_tax_lines'));
             $this->assertFalse(Schema::hasTable('tax_rates'));
             $this->assertFalse(Schema::hasTable('tax_settings'));
 
@@ -42,6 +45,8 @@ class Phase5RTaxMigrationRoundTripTest extends TestCase
             $this->assertTrue(Schema::hasTable('tax_settings'));
             $this->assertTrue(Schema::hasTable('tax_rates'));
             $this->assertTrue(Schema::hasColumn('products', 'is_taxable'));
+            $this->assertTrue(Schema::hasColumn('draft_order_items', 'tax_amount'));
+            $this->assertTrue(Schema::hasTable('draft_tax_lines'));
         } finally {
             Config::set('database.default', 'sqlite');
             Config::set('database.connections.sqlite.database', ':memory:');

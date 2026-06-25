@@ -165,7 +165,7 @@ class Phase4DraftOrderTest extends TestCase
         $currentFormPayload = $this->draftPayload($variant, 2);
         $currentFormPayload['shipping_address_line1'] = '99 Saved During Convert Road';
         $currentFormPayload['shipping_city'] = 'Lahore';
-        $currentFormPayload['shipping_country'] = 'Pakistan';
+        $currentFormPayload['shipping_country'] = 'PK';
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -183,7 +183,7 @@ class Phase4DraftOrderTest extends TestCase
             'type' => 'shipping',
             'address_line1' => '99 Saved During Convert Road',
             'city' => 'Lahore',
-            'country' => 'Pakistan',
+            'country' => 'PK',
         ]);
     }
 
@@ -514,7 +514,7 @@ class Phase4DraftOrderTest extends TestCase
             'shipping_city' => 'Karachi',
             'shipping_state' => 'Sindh',
             'shipping_postal_code' => '74000',
-            'shipping_country' => 'Pakistan',
+            'shipping_country' => 'PK',
             'billing_same_as_shipping' => '1',
             'shipping_total' => '5.00',
             'tax_total' => '2.00',

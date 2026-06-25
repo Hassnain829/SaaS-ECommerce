@@ -235,6 +235,11 @@ class Store extends Model
         return $this->hasMany(DraftOrder::class);
     }
 
+    public function draftTaxLines(): HasMany
+    {
+        return $this->hasMany(DraftTaxLine::class);
+    }
+
     public function checkouts(): HasMany
     {
         return $this->hasMany(Checkout::class);

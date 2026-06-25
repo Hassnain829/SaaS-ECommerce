@@ -29,7 +29,7 @@ class DraftOrderService
                 'shipping_total' => $this->money($data['shipping_total'] ?? 0),
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $actor->id,
-                'metadata' => $this->addressMetadata($data),
+                'metadata' => $this->manualTaxMetadata($this->addressMetadata($data)),
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
@@ -48,18 +48,38 @@ class DraftOrderService
         }
 
         return DB::transaction(function () use ($draft, $data): DraftOrder {
+            $draft->loadMissing(['items']);
+            $wasCalculated = $draft->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
+            $preserveCalculatedTax = $wasCalculated && ! $this->calculatedTaxInputsChanged($draft, $data);
+            $metadata = $this->addressMetadata($data);
+
+            if ($preserveCalculatedTax) {
+                $existingMetadata = is_array($draft->metadata) ? $draft->metadata : [];
+                $metadata['tax_source'] = DraftOrder::TAX_SOURCE_CALCULATED;
+                if (array_key_exists('tax_snapshot', $existingMetadata)) {
+                    $metadata['tax_snapshot'] = $existingMetadata['tax_snapshot'];
+                }
+            } else {
+                $metadata = $this->manualTaxMetadata($metadata);
+            }
+
             $draft->update([
                 'discount_total' => $this->money($data['discount_total'] ?? 0),
                 'tax_total' => $this->money($data['tax_total'] ?? 0),
                 'shipping_total' => $this->money($data['shipping_total'] ?? 0),
                 'notes' => $data['notes'] ?? null,
-                'metadata' => $this->addressMetadata($data),
+                'metadata' => $metadata,
             ]);
 
-            $this->replaceItems($draft, $data['items'] ?? []);
-            $this->recalculate($draft);
+            if (! $preserveCalculatedTax) {
+                $this->replaceItems($draft, $data['items'] ?? []);
+                if ($wasCalculated) {
+                    $this->clearCalculatedTax($draft);
+                }
+                $this->recalculate($draft);
+            }
 
-            return $draft->fresh(['customer', 'items.variant.product']);
+            return $draft->fresh(['customer', 'items.variant.product', 'taxLines']);
         });
     }
 
@@ -124,9 +144,13 @@ class DraftOrderService
                 'sku' => $variant->sku,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
+                'tax_amount' => '0.00',
                 'metadata' => [
                     'product_type' => $variant->product->product_type,
                     'product_image' => $variant->product->images->sortByDesc('is_primary')->first()?->image_path,
+                    'tax' => [
+                        'is_taxable' => (bool) $variant->product->is_taxable,
+                    ],
                 ],
             ];
         }
@@ -162,6 +186,108 @@ class DraftOrderService
             'subtotal' => $subtotal,
             'total' => $total,
         ])->save();
+    }
+
+    private function clearCalculatedTax(DraftOrder $draft): void
+    {
+        $draft->items()->update(['tax_amount' => 0]);
+        $draft->taxLines()->delete();
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private function manualTaxMetadata(array $metadata): array
+    {
+        $metadata['tax_source'] = DraftOrder::TAX_SOURCE_MANUAL;
+        unset($metadata['tax_snapshot']);
+
+        return $metadata;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function calculatedTaxInputsChanged(DraftOrder $draft, array $data): bool
+    {
+        foreach (['discount_total', 'tax_total', 'shipping_total'] as $field) {
+            if (bccomp($this->money($data[$field] ?? 0), (string) $draft->{$field}, 2) !== 0) {
+                return true;
+            }
+        }
+
+        $newMetadata = $this->addressMetadata($data);
+        $existingMetadata = is_array($draft->metadata) ? $draft->metadata : [];
+        foreach (['shipping_address', 'billing_address', 'billing_same_as_shipping'] as $key) {
+            if (($existingMetadata[$key] ?? null) != ($newMetadata[$key] ?? null)) {
+                return true;
+            }
+        }
+
+        return $this->comparableItemsFromDraft($draft) !== $this->comparableItemsFromPayload($draft, $data['items'] ?? []);
+    }
+
+    /**
+     * @return list<array{variant_id: int, quantity: int, unit_price: string}>
+     */
+    private function comparableItemsFromDraft(DraftOrder $draft): array
+    {
+        return $draft->items
+            ->map(fn ($item): array => [
+                'variant_id' => (int) $item->product_variant_id,
+                'quantity' => (int) $item->quantity,
+                'unit_price' => $this->money($item->unit_price),
+            ])
+            ->sortBy('variant_id')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array{variant_id: int, quantity: int, unit_price: string}>
+     */
+    private function comparableItemsFromPayload(DraftOrder $draft, array $items): array
+    {
+        $merged = [];
+
+        foreach ($items as $row) {
+            $variantId = (int) ($row['product_variant_id'] ?? 0);
+            if ($variantId <= 0) {
+                continue;
+            }
+
+            $variant = ProductVariant::query()
+                ->where('store_id', $draft->store_id)
+                ->whereKey($variantId)
+                ->first();
+
+            if (! $variant) {
+                continue;
+            }
+
+            $rawUnitPrice = $row['unit_price'] ?? null;
+            $unitPrice = $rawUnitPrice === null || trim((string) $rawUnitPrice) === ''
+                ? $this->money($variant->price)
+                : $this->money($rawUnitPrice);
+
+            if (isset($merged[$variantId])) {
+                $merged[$variantId]['quantity'] += max(1, (int) ($row['quantity'] ?? 1));
+
+                continue;
+            }
+
+            $merged[$variantId] = [
+                'variant_id' => $variantId,
+                'quantity' => max(1, (int) ($row['quantity'] ?? 1)),
+                'unit_price' => $unitPrice,
+            ];
+        }
+
+        ksort($merged);
+
+        return array_values($merged);
     }
 
     private function resolveCustomer(Store $store, array $data): ?Customer
@@ -203,9 +329,9 @@ class DraftOrderService
                 'address_line1' => trim((string) ($data['shipping_address_line1'] ?? '')),
                 'address_line2' => trim((string) ($data['shipping_address_line2'] ?? '')),
                 'city' => trim((string) ($data['shipping_city'] ?? '')),
-                'state' => trim((string) ($data['shipping_state'] ?? '')),
+                'state' => $this->normalizeRegionCode($data['shipping_state'] ?? ''),
                 'postal_code' => trim((string) ($data['shipping_postal_code'] ?? '')),
-                'country' => trim((string) ($data['shipping_country'] ?? '')),
+                'country' => $this->normalizeCountryCode($data['shipping_country'] ?? ''),
             ],
             'billing_same_as_shipping' => (bool) ($data['billing_same_as_shipping'] ?? true),
             'billing_address' => [
@@ -215,11 +341,21 @@ class DraftOrderService
                 'address_line1' => trim((string) ($data['billing_address_line1'] ?? '')),
                 'address_line2' => trim((string) ($data['billing_address_line2'] ?? '')),
                 'city' => trim((string) ($data['billing_city'] ?? '')),
-                'state' => trim((string) ($data['billing_state'] ?? '')),
+                'state' => $this->normalizeRegionCode($data['billing_state'] ?? ''),
                 'postal_code' => trim((string) ($data['billing_postal_code'] ?? '')),
-                'country' => trim((string) ($data['billing_country'] ?? '')),
+                'country' => $this->normalizeCountryCode($data['billing_country'] ?? ''),
             ],
         ];
+    }
+
+    private function normalizeCountryCode(mixed $value): string
+    {
+        return strtoupper(trim((string) $value));
+    }
+
+    private function normalizeRegionCode(mixed $value): string
+    {
+        return strtoupper(trim((string) $value));
     }
 
     private function money(mixed $value): string

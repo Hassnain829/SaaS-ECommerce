@@ -2,6 +2,8 @@
 
 namespace App\Services\Shipping;
 
+use App\Data\Payments\PaymentIntentUpdateResult;
+use App\Exceptions\CheckoutPaymentSynchronizationException;
 use App\Models\Checkout;
 use App\Models\InventoryReservation;
 use App\Models\Location;
@@ -21,6 +23,18 @@ use Illuminate\Validation\ValidationException;
 
 class CheckoutShippingService
 {
+    private const PI_POLICY_UPDATE = 'update';
+
+    private const PI_POLICY_BLOCK = 'block';
+
+    private const PI_POLICY_TERMINAL = 'terminal';
+
+    /** @var list<string> */
+    private const PI_MUTABLE_STATUSES = [
+        'requires_payment_method',
+        'requires_confirmation',
+    ];
+
     public function __construct(
         private readonly DeliveryOptionService $deliveryOptionService,
         private readonly PaymentProviderManager $paymentProviderManager,
@@ -342,28 +356,212 @@ class CheckoutShippingService
 
         $expectedMinor = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, (string) $checkout->currency_code);
         $expectedCurrency = strtoupper((string) $checkout->currency_code);
-        $activeIntent = $checkout->paymentIntents()
+        $expectedAmount = (float) CurrencyPrecision::fromMinorUnits($expectedMinor, $expectedCurrency);
+        $latestIntent = $checkout->paymentIntents()
             ->whereNull('order_id')
-            ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'superseded'])
             ->latest('id')
             ->first();
 
+        if ($latestIntent === null) {
+            $this->createPaymentIntentForCheckout($checkout, $providerAccount);
+
+            return;
+        }
+
+        $policy = $this->paymentIntentMutationPolicy((string) $latestIntent->status);
+
+        if ($policy === self::PI_POLICY_TERMINAL) {
+            throw ValidationException::withMessages([
+                'payment' => 'This checkout payment can no longer be updated. Start a new checkout to continue.',
+            ]);
+        }
+
+        if ($policy === self::PI_POLICY_BLOCK) {
+            throw ValidationException::withMessages([
+                'payment' => 'Payment is already processing, so delivery details can no longer be changed.',
+            ]);
+        }
+
         if (
-            $activeIntent
-            && (int) $activeIntent->amount_minor === $expectedMinor
-            && strtoupper((string) $activeIntent->currency_code) === $expectedCurrency
+            (int) $latestIntent->amount_minor === $expectedMinor
+            && strtoupper((string) $latestIntent->currency_code) === $expectedCurrency
         ) {
             return;
         }
 
-        $paymentMode = $this->paymentProviderManager->platformPaymentModeForStore($checkout->store);
-
-        $result = $this->paymentProviderManager
-            ->driver((string) $checkout->payment_provider)
-            ->createPaymentIntent($checkout, [
-                'provider_account' => $providerAccount,
-                'mode' => $paymentMode,
+        if (strtoupper((string) $latestIntent->currency_code) !== $expectedCurrency) {
+            throw ValidationException::withMessages([
+                'payment' => 'The checkout payment currency cannot be changed after checkout creation.',
             ]);
+        }
+
+        $paymentMode = $this->paymentProviderManager->platformPaymentModeForStore($checkout->store);
+        $driver = $this->paymentProviderManager->driver((string) $checkout->payment_provider);
+
+        try {
+            $updateResult = $driver->updatePaymentIntentAmount(
+                (string) $latestIntent->provider_intent_id,
+                $expectedMinor,
+                $expectedCurrency,
+                [
+                    'provider_account' => $providerAccount,
+                    'mode' => $paymentMode,
+                ],
+            );
+
+            $this->assertPaymentUpdateResponse(
+                $checkout,
+                $latestIntent,
+                $updateResult,
+                $expectedMinor,
+                $expectedCurrency,
+            );
+        } catch (CheckoutPaymentSynchronizationException $exception) {
+            $this->recordPaymentSyncFailure($checkout, $exception);
+
+            throw $exception;
+        }
+
+        $latestIntent->forceFill([
+            'amount' => $expectedAmount,
+            'amount_minor' => $expectedMinor,
+            'currency_code' => $expectedCurrency,
+            'status' => $updateResult->status,
+            'client_secret' => $updateResult->clientSecret ?? $latestIntent->client_secret,
+            'response_payload' => array_merge($latestIntent->response_payload ?? [], [
+                'updated_by_recalculation' => true,
+                'provider_update_result' => $updateResult->raw,
+            ]),
+        ])->save();
+
+        $latestIntent->attempts()->create([
+            'store_id' => $checkout->store_id,
+            'provider' => $latestIntent->provider,
+            'status' => $updateResult->status,
+            'response_payload' => $updateResult->raw,
+        ]);
+
+        $this->eventRecorder->record(
+            $checkout,
+            'payment.intent_refreshed',
+            'Payment total updated',
+            'Payment was refreshed after the delivery method was selected.',
+            [
+                'payment_intent_id' => $latestIntent->provider_intent_id,
+                'shipping_total' => $checkout->shipping_total,
+                'grand_total' => $checkout->grand_total,
+                'amount_minor' => $expectedMinor,
+            ]
+        );
+    }
+
+    private function paymentIntentMutationPolicy(string $status): string
+    {
+        return match ($status) {
+            'requires_payment_method', 'requires_confirmation' => self::PI_POLICY_UPDATE,
+            'canceled', 'failed', 'superseded' => self::PI_POLICY_TERMINAL,
+            'requires_action', 'processing', 'requires_capture', 'succeeded' => self::PI_POLICY_BLOCK,
+            default => self::PI_POLICY_BLOCK,
+        };
+    }
+
+    private function assertPaymentUpdateResponse(
+        Checkout $checkout,
+        PaymentIntent $localIntent,
+        PaymentIntentUpdateResult $updateResult,
+        int $expectedMinor,
+        string $expectedCurrency,
+    ): void {
+        if ($updateResult->providerIntentId !== (string) $localIntent->provider_intent_id) {
+            throw new CheckoutPaymentSynchronizationException(
+                checkoutId: (int) $checkout->id,
+                providerIntentId: (string) $localIntent->provider_intent_id,
+                reason: 'provider_intent_id_mismatch',
+                expectedAmountMinor: $expectedMinor,
+                providerAmountMinor: $updateResult->amountMinor,
+                expectedCurrency: $expectedCurrency,
+                providerCurrency: $updateResult->currencyCode,
+                providerStatus: $updateResult->status,
+            );
+        }
+
+        if ($updateResult->amountMinor !== $expectedMinor) {
+            throw new CheckoutPaymentSynchronizationException(
+                checkoutId: (int) $checkout->id,
+                providerIntentId: (string) $localIntent->provider_intent_id,
+                reason: 'provider_amount_minor_mismatch',
+                expectedAmountMinor: $expectedMinor,
+                providerAmountMinor: $updateResult->amountMinor,
+                expectedCurrency: $expectedCurrency,
+                providerCurrency: $updateResult->currencyCode,
+                providerStatus: $updateResult->status,
+            );
+        }
+
+        if (strtoupper($updateResult->currencyCode) !== $expectedCurrency) {
+            throw new CheckoutPaymentSynchronizationException(
+                checkoutId: (int) $checkout->id,
+                providerIntentId: (string) $localIntent->provider_intent_id,
+                reason: 'provider_currency_mismatch',
+                expectedAmountMinor: $expectedMinor,
+                providerAmountMinor: $updateResult->amountMinor,
+                expectedCurrency: $expectedCurrency,
+                providerCurrency: $updateResult->currencyCode,
+                providerStatus: $updateResult->status,
+            );
+        }
+
+        if (! in_array($updateResult->status, self::PI_MUTABLE_STATUSES, true)) {
+            throw new CheckoutPaymentSynchronizationException(
+                checkoutId: (int) $checkout->id,
+                providerIntentId: (string) $localIntent->provider_intent_id,
+                reason: 'provider_status_not_mutable',
+                expectedAmountMinor: $expectedMinor,
+                providerAmountMinor: $updateResult->amountMinor,
+                expectedCurrency: $expectedCurrency,
+                providerCurrency: $updateResult->currencyCode,
+                providerStatus: $updateResult->status,
+            );
+        }
+
+        if (
+            $updateResult->clientSecret !== null
+            && filled($localIntent->client_secret)
+            && $updateResult->clientSecret !== (string) $localIntent->client_secret
+        ) {
+            throw new CheckoutPaymentSynchronizationException(
+                checkoutId: (int) $checkout->id,
+                providerIntentId: (string) $localIntent->provider_intent_id,
+                reason: 'provider_client_secret_mismatch',
+                expectedAmountMinor: $expectedMinor,
+                providerAmountMinor: $updateResult->amountMinor,
+                expectedCurrency: $expectedCurrency,
+                providerCurrency: $updateResult->currencyCode,
+                providerStatus: $updateResult->status,
+            );
+        }
+    }
+
+    private function recordPaymentSyncFailure(Checkout $checkout, CheckoutPaymentSynchronizationException $exception): void
+    {
+        $this->eventRecorder->record(
+            $checkout,
+            'payment.sync_failed',
+            'Payment sync failed',
+            'Checkout payment could not be synchronized after delivery details changed.',
+            $exception->context(),
+        );
+    }
+
+    private function createPaymentIntentForCheckout(Checkout $checkout, \App\Models\PaymentProviderAccount $providerAccount): void
+    {
+        $paymentMode = $this->paymentProviderManager->platformPaymentModeForStore($checkout->store);
+        $driver = $this->paymentProviderManager->driver((string) $checkout->payment_provider);
+
+        $result = $driver->createPaymentIntent($checkout, [
+            'provider_account' => $providerAccount,
+            'mode' => $paymentMode,
+        ]);
 
         $paymentIntent = PaymentIntent::query()->updateOrCreate(
             [
@@ -396,12 +594,6 @@ class CheckoutShippingService
                 'failed_at' => null,
             ]
         );
-
-        $checkout->paymentIntents()
-            ->whereNull('order_id')
-            ->whereNotIn('status', ['succeeded', 'failed', 'canceled', 'superseded'])
-            ->whereKeyNot($paymentIntent->id)
-            ->update(['status' => 'superseded']);
 
         $paymentIntent->attempts()->create([
             'store_id' => $checkout->store_id,

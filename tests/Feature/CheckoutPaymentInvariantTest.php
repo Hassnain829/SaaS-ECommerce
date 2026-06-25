@@ -12,6 +12,7 @@ use App\Models\CheckoutEvent;
 use App\Models\InventoryReservation;
 use App\Models\Order;
 use App\Models\OrderTaxLine;
+use App\Models\PaymentCapture;
 use App\Models\PaymentIntent;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -96,6 +97,50 @@ class CheckoutPaymentInvariantTest extends TestCase
         $this->expectException(CheckoutPaymentAmountMismatchException::class);
 
         app(CheckoutConversionService::class)->handleSucceededPayment($this->paymentResult($checkout, amountMinor: 2750));
+    }
+
+    public function test_local_payment_intent_currency_mismatch_blocks_conversion_without_side_effects(): void
+    {
+        [$checkout, $variant] = $this->taxedCheckout();
+        PaymentIntent::query()->where('checkout_id', $checkout->id)->update(['currency_code' => 'EUR']);
+
+        try {
+            app(CheckoutConversionService::class)->handleSucceededPayment($this->paymentResult($checkout, amountMinor: 2750, currency: 'USD'));
+            $this->fail('Expected payment currency mismatch exception.');
+        } catch (CheckoutPaymentAmountMismatchException $exception) {
+            $this->assertSame($checkout->id, $exception->checkoutId);
+            $this->assertSame('USD', $exception->expectedCurrency);
+            $this->assertSame('USD', $exception->providerCurrency);
+            $this->assertSame(2750, $exception->localPaymentIntentMinor);
+        }
+
+        $this->assertSame(0, Order::query()->where('store_id', $checkout->store_id)->count());
+        $this->assertSame(0, PaymentCapture::query()->where('store_id', $checkout->store_id)->count());
+        $this->assertSame(Checkout::STATUS_PAYMENT_PENDING, $checkout->fresh()->status);
+        $this->assertSame(1, InventoryReservation::query()->where('reference_id', (string) $checkout->id)->where('status', InventoryReservation::STATUS_ACTIVE)->count());
+        $this->assertSame(4, (int) $variant->fresh()->stock);
+    }
+
+    public function test_checkout_grand_total_tampering_blocks_conversion_without_capture_or_inventory_deduction(): void
+    {
+        [$checkout, $variant] = $this->taxedCheckout();
+        $checkout->forceFill(['grand_total' => '30.00'])->save();
+
+        try {
+            app(CheckoutConversionService::class)->handleSucceededPayment($this->paymentResult($checkout->fresh(), amountMinor: 2750, currency: 'USD'));
+            $this->fail('Expected checkout total tampering mismatch exception.');
+        } catch (CheckoutPaymentAmountMismatchException $exception) {
+            $this->assertSame($checkout->id, $exception->checkoutId);
+            $this->assertSame(3000, $exception->expectedMinor);
+            $this->assertSame(2750, $exception->providerActualMinor);
+            $this->assertSame(2750, $exception->localPaymentIntentMinor);
+        }
+
+        $this->assertSame(0, Order::query()->where('store_id', $checkout->store_id)->count());
+        $this->assertSame(0, PaymentCapture::query()->where('store_id', $checkout->store_id)->count());
+        $this->assertSame(Checkout::STATUS_PAYMENT_PENDING, $checkout->fresh()->status);
+        $this->assertSame(1, InventoryReservation::query()->where('reference_id', (string) $checkout->id)->where('status', InventoryReservation::STATUS_ACTIVE)->count());
+        $this->assertSame(4, (int) $variant->fresh()->stock);
     }
 
     public function test_provider_currency_mismatch_throws_before_conversion(): void

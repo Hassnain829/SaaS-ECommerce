@@ -114,12 +114,21 @@
                     @error('shipping_city')
                         <p class="-mt-3 text-xs text-[#B91C1C]">{{ $message }}</p>
                     @enderror
-                    <input name="shipping_state" value="{{ old('shipping_state') }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="State">
-                    <input name="shipping_postal_code" value="{{ old('shipping_postal_code') }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Postal code">
-                    <input name="shipping_country" value="{{ old('shipping_country') }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Country">
-                    @error('shipping_country')
-                        <p class="-mt-3 text-xs text-[#B91C1C]">{{ $message }}</p>
-                    @enderror
+                    <label class="block">
+                        <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">State / region code</span>
+                        <input name="shipping_state" value="{{ old('shipping_state') }}" maxlength="32" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase" placeholder="CA, NY, ON">
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Postal code</span>
+                        <input name="shipping_postal_code" value="{{ old('shipping_postal_code') }}" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Postal code">
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Country code</span>
+                        <input name="shipping_country" value="{{ old('shipping_country') }}" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="country" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase" placeholder="US, CA, GB, AU">
+                        @error('shipping_country')
+                            <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
+                        @enderror
+                    </label>
                 </div>
                 <label class="mt-4 flex items-center gap-2 text-sm text-[#475569]">
                     <input type="checkbox" name="billing_same_as_shipping" value="1" checked class="rounded border-[#CBD5E1]">

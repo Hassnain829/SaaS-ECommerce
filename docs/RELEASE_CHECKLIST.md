@@ -17,8 +17,8 @@ Use this before tagging a release or merging to production branches.
 - [ ] Carrier routes remain registered after `routes/carriers.php` extraction (`tests/Feature/CarrierRouteRegressionTest.php`).
 - [ ] `composer validate --strict` passes.
 - [ ] `php artisan test` passes locally (same PHP extensions as CI: `dom`, `mbstring`, `xml`, `xmlwriter`, plus `pdo_sqlite` for the default test suite).
-- [ ] Phase 5R checkout/tax regression filters pass when tax is implemented (`Phase5PlatformCheckoutStripeTest`, `Phase5ExternalCheckoutSyncTest`, `Phase4DraftOrderTest`, `Phase6CheckoutDeliveryMethodsTest`).
-- [ ] After Phase 5R-0: calculation audit current (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`). Slices 1A–5 complete (schema, settings UI, calculator, create-path checkout tax, shipping recalculation, PaymentIntent sync, conversion invariant, and order tax snapshots). Product taxable defaults, draft calculated tax, and external preservation sign-off remain pending before final Phase 5R-1 completion (`docs/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md`).
+- [ ] Phase 5R checkout/tax regression filters pass (`ProductTaxableFlagTest`, `DraftTax`, `Phase5ExternalCheckoutSyncTest`, `PlatformCheckoutTaxTest`, `CheckoutPaymentInvariantTest`, `Phase4DraftOrderTest`, `Phase6CheckoutDeliveryMethodsTest`).
+- [ ] Phase 5R-1 tax foundation is complete and documented (`docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`); next tax/checkout phase is Phase 5R-2 coupons.
 
 ## Builds
 

@@ -915,7 +915,7 @@ DB::transaction(function () {
 
 ---
 
-### Slice 6 — Product taxable defaults (every creation path)
+### Slice 6 — Product taxable defaults (every creation path) - Implemented 2026-06-25
 
 **Goal:** Single resolver used by all product creation paths.
 
@@ -937,7 +937,11 @@ DB::transaction(function () {
 
 ---
 
-### Slice 7 — Draft/manual calculated tax compatibility
+**Batch B result:** `ProductTaxableDefaultResolver` is wired into onboarding, catalog creation, quick creation, imports, variant import product creation, and production-like seeder fallback products. Product edit UI exposes `Charge tax on this product`, and unrelated product updates preserve existing taxability.
+
+---
+
+### Slice 7 — Draft/manual calculated tax compatibility - Implemented 2026-06-25
 
 **Goal:** Calculate-tax action with item allocation; conversion copies to order.
 
@@ -959,7 +963,11 @@ DB::transaction(function () {
 
 ---
 
-### Slice 8 — External preservation, docs, full regression
+**Batch B result:** Draft orders support manual and calculated tax modes. Calculated draft tax persists item allocations and `draft_tax_lines`; conversion copies calculated draft tax snapshots into final orders without recalculating.
+
+---
+
+### Slice 8 — External preservation, docs, full regression - Implemented 2026-06-25
 
 **Goal:** Verify external unchanged; update enterprise docs; full suite green.
 
@@ -971,6 +979,8 @@ DB::transaction(function () {
 **Targeted command:** `php artisan test`
 
 **Acceptance gate:** Full suite baseline; external preservation test passes; no carrier/admin changes.
+
+**Batch B result:** External checkout supplied totals remain externally owned and are not recalculated by store tax settings, tax rates, or product `is_taxable`. Final report: `docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`.
 
 ---
 

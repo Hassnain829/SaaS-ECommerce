@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Data\Payments\PaymentIntentResult;
+use App\Data\Payments\PaymentIntentUpdateResult;
 use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
@@ -65,6 +66,40 @@ class EnterpriseQaOriginRoutingHardeningTest extends TestCase
                     amount: 24.00,
                     currencyCode: 'USD',
                     raw: ['id' => $providerIntentId, 'status' => 'succeeded'],
+                );
+            }
+
+            public function cancelPaymentIntent(string $providerIntentId, array $options = []): PaymentWebhookResult
+            {
+                return new PaymentWebhookResult(
+                    eventType: 'payment_intent.canceled',
+                    providerIntentId: $providerIntentId,
+                    status: 'canceled',
+                    amount: null,
+                    currencyCode: null,
+                    raw: ['id' => $providerIntentId, 'status' => 'canceled'],
+                );
+            }
+
+            public function updatePaymentIntentAmount(
+                string $providerIntentId,
+                int $amountMinor,
+                string $currencyCode,
+                array $options = [],
+            ): PaymentIntentUpdateResult {
+                return new PaymentIntentUpdateResult(
+                    providerIntentId: $providerIntentId,
+                    amountMinor: $amountMinor,
+                    currencyCode: strtoupper($currencyCode),
+                    status: 'requires_payment_method',
+                    clientSecret: $providerIntentId.'_secret',
+                    raw: [
+                        'id' => $providerIntentId,
+                        'status' => 'requires_payment_method',
+                        'amount' => $amountMinor,
+                        'currency' => strtolower($currencyCode),
+                        'client_secret' => $providerIntentId.'_secret',
+                    ],
                 );
             }
         });

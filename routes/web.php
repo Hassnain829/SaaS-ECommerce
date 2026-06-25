@@ -146,6 +146,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/draft-orders/{draftOrder}/convert', [DraftOrderController::class, 'convert'])
         ->middleware('store.permission:orders.manage')
         ->name('draft-orders.convert');
+    Route::post('/draft-orders/{draftOrder}/calculate-tax', [DraftOrderController::class, 'calculateTax'])
+        ->middleware('store.permission:orders.manage')
+        ->name('draft-orders.calculate-tax');
     Route::patch('/draft-orders/{draftOrder}/cancel', [DraftOrderController::class, 'cancel'])
         ->middleware('store.permission:orders.manage')
         ->name('draft-orders.cancel');

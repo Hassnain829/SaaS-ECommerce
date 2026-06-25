@@ -66,6 +66,8 @@ export default function App() {
   const [externalPaymentGateway, setExternalPaymentGateway] = useState('external_test');
   const [externalShippingMethod, setExternalShippingMethod] = useState('');
   const [externalShippingAmount, setExternalShippingAmount] = useState('0');
+  const [externalTaxAmount, setExternalTaxAmount] = useState('0');
+  const [externalDiscountAmount, setExternalDiscountAmount] = useState('0');
   const [externalCarrierName, setExternalCarrierName] = useState('');
   const [externalFulfillmentStatus, setExternalFulfillmentStatus] = useState('');
   const [externalTrackingNumber, setExternalTrackingNumber] = useState('');
@@ -93,7 +95,17 @@ export default function App() {
     () => deliveryOptions.find((option) => String(option.id) === String(selectedDeliveryOptionId)) || null,
     [deliveryOptions, selectedDeliveryOptionId]
   );
-  const displayedTotal = cartTotal + (selectedDeliveryOption ? Number(selectedDeliveryOption.amount || 0) : 0);
+  const authoritativeCheckout = platformPayment?.checkout ?? platformCheckoutDraft ?? null;
+  const checkoutCurrency = authoritativeCheckout?.currency_code || catalog?.store?.currency || 'USD';
+  const externalPreviewTotals = useMemo(() => {
+    const subtotal = money(cartTotal);
+    const shipping = money(externalShippingAmount);
+    const tax = money(externalTaxAmount);
+    const discount = money(externalDiscountAmount);
+    const grandTotal = Math.max(0, Number(cartTotal) + Number(shipping) + Number(tax) - Number(discount)).toFixed(2);
+
+    return { subtotal, shipping, tax, discount, grandTotal };
+  }, [cartTotal, externalShippingAmount, externalTaxAmount, externalDiscountAmount]);
 
   const resetPlatformCheckout = () => {
     setPlatformPayment(null);
@@ -261,6 +273,10 @@ export default function App() {
   const externalPayload = () => {
     const stamp = Date.now();
     const shippingAmount = money(externalShippingAmount);
+    const taxAmount = money(externalTaxAmount);
+    const discountAmount = money(externalDiscountAmount);
+    const subtotalAmount = money(cartTotal);
+    const grandTotal = Math.max(0, Number(cartTotal) + Number(shippingAmount) + Number(taxAmount) - Number(discountAmount)).toFixed(2);
 
     const payload = {
       external_order_number: `WEB-${stamp}`,
@@ -271,9 +287,16 @@ export default function App() {
       payment_reference: `pay-${stamp}`,
       placed_at: new Date().toISOString(),
       currency_code: catalog?.store?.currency || 'USD',
-      shipping_total: 0,
-      tax_total: 0,
-      discount_total: 0,
+      shipping_total: shippingAmount,
+      tax_total: taxAmount,
+      discount_total: discountAmount,
+      totals: {
+        subtotal: subtotalAmount,
+        shipping: shippingAmount,
+        tax: taxAmount,
+        discount: discountAmount,
+        grand_total: grandTotal,
+      },
       customer: {
         full_name: customerName.trim(),
         email: customerEmail.trim(),
@@ -300,7 +323,6 @@ export default function App() {
     };
 
     if (includeShippingSnapshot && (externalShippingMethod.trim() || externalCarrierName.trim() || Number(shippingAmount) > 0)) {
-      payload.shipping_total = shippingAmount;
       payload.shipping = {
         source: 'external',
         method_name: externalShippingMethod.trim() || null,
@@ -871,20 +893,72 @@ export default function App() {
           </ul>
 
           <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', color: '#475569' }}>
-              <span>Items</span>
-              <span>{money(cartTotal)} {catalog?.store?.currency || 'USD'}</span>
-            </div>
-            {selectedDeliveryOption && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#475569' }}>
-                <span>{selectedDeliveryOption.name}</span>
-                <span>{money(selectedDeliveryOption.amount)} {selectedDeliveryOption.currency_code || catalog?.store?.currency || 'USD'}</span>
-              </div>
+            {authoritativeCheckout ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', color: '#475569' }}>
+                  <span>Subtotal</span>
+                  <span>{money(authoritativeCheckout.subtotal)} {checkoutCurrency}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#475569' }}>
+                  <span>Shipping</span>
+                  <span>{money(authoritativeCheckout.shipping_total)} {checkoutCurrency}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#475569' }}>
+                  <span>Tax</span>
+                  <span>{money(authoritativeCheckout.tax_total)} {checkoutCurrency}</span>
+                </div>
+                {Number(authoritativeCheckout.discount_total || 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#475569' }}>
+                    <span>Discount</span>
+                    <span>-{money(authoritativeCheckout.discount_total)} {checkoutCurrency}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontWeight: 700 }}>
+                  <span>Total</span>
+                  <span>{money(authoritativeCheckout.grand_total)} {checkoutCurrency}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', color: '#475569' }}>
+                  <span>Estimated subtotal</span>
+                  <span>{money(cartTotal)} {catalog?.store?.currency || 'USD'}</span>
+                </div>
+                {checkoutMode === 'platform' && selectedDeliveryOption && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#64748b' }}>
+                    <span>{selectedDeliveryOption.name} (estimate)</span>
+                    <span>{money(selectedDeliveryOption.amount)} {selectedDeliveryOption.currency_code || catalog?.store?.currency || 'USD'}</span>
+                  </div>
+                )}
+                {checkoutMode === 'external' && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#64748b' }}>
+                      <span>External shipping (preview)</span>
+                      <span>{externalPreviewTotals.shipping} {catalog?.store?.currency || 'USD'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#64748b' }}>
+                      <span>External tax (preview)</span>
+                      <span>{externalPreviewTotals.tax} {catalog?.store?.currency || 'USD'}</span>
+                    </div>
+                    {Number(externalPreviewTotals.discount) > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '0.86rem', color: '#64748b' }}>
+                        <span>External discount (preview)</span>
+                        <span>-{externalPreviewTotals.discount} {catalog?.store?.currency || 'USD'}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontWeight: 600, color: '#334155' }}>
+                      <span>Simulator grand total</span>
+                      <span>{externalPreviewTotals.grandTotal} {catalog?.store?.currency || 'USD'}</span>
+                    </div>
+                  </>
+                )}
+                <p style={{ margin: '0.5rem 0 0', fontSize: '0.76rem', color: '#64748b', lineHeight: 1.45 }}>
+                  {checkoutMode === 'platform'
+                    ? 'Tax and final total are calculated by the platform checkout server after delivery options are confirmed.'
+                    : 'Tax and final total are sent from the external integration. This preview is for simulator testing only.'}
+                </p>
+              </>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontWeight: 700 }}>
-              <span>Total</span>
-              <span>{money(displayedTotal)} {catalog?.store?.currency || 'USD'}</span>
-            </div>
           </div>
 
           <div style={{ marginTop: '1rem', display: 'grid', gap: '0.5rem' }}>
@@ -1033,12 +1107,43 @@ export default function App() {
                 </div>
 
                 <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+                  <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.85rem', color: '#334155' }}>External checkout totals (simulator)</h4>
+                  <p style={{ margin: '0 0 0.65rem', color: '#64748b', fontSize: '0.76rem', lineHeight: 1.5 }}>
+                    Enter the shipping, tax, and discount amounts your external website would send. These values are preserved by the platform and are not recalculated locally.
+                  </p>
+                  <label style={{ fontSize: '0.8rem' }}>
+                    External shipping
+                    <input
+                      value={externalShippingAmount}
+                      onChange={(e) => setExternalShippingAmount(e.target.value)}
+                      style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    />
+                  </label>
+                  <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
+                    External tax
+                    <input
+                      value={externalTaxAmount}
+                      onChange={(e) => setExternalTaxAmount(e.target.value)}
+                      style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    />
+                  </label>
+                  <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
+                    External discount
+                    <input
+                      value={externalDiscountAmount}
+                      onChange={(e) => setExternalDiscountAmount(e.target.value)}
+                      style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                    />
+                  </label>
+                </div>
+
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
                   <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.82rem', fontWeight: 600, color: '#334155' }}>
                     <input type="checkbox" checked={includeShippingSnapshot} onChange={(e) => setIncludeShippingSnapshot(e.target.checked)} />
                     C. Include external shipping snapshot
                   </label>
                   <p style={{ margin: '0.35rem 0 0.65rem', color: '#64748b', fontSize: '0.76rem', lineHeight: 1.5 }}>
-                    These values usually come from the external storefront shipping rules or shipping plugin. Optional unless your test scenario needs shipping totals.
+                    These values usually come from the external storefront shipping rules or shipping plugin. Optional unless your test scenario needs a shipping object snapshot.
                   </p>
                   {includeShippingSnapshot && (
                     <>
@@ -1047,14 +1152,6 @@ export default function App() {
                         <input
                           value={externalShippingMethod}
                           onChange={(e) => setExternalShippingMethod(e.target.value)}
-                          style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
-                        />
-                      </label>
-                      <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
-                        Shipping amount
-                        <input
-                          value={externalShippingAmount}
-                          onChange={(e) => setExternalShippingAmount(e.target.value)}
                           style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                         />
                       </label>
@@ -1223,6 +1320,12 @@ export default function App() {
                   <strong>{platformPayment.payment?.payment_mode === 'live' ? 'Live' : 'Test'}</strong>
                   {platformPayment.payment?.payment_mode !== 'live' && ' — sandbox only, no real charges.'}
                 </p>
+                <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                  Amount due:{' '}
+                  <strong>
+                    {platformPayment.checkout?.currency_code || checkoutCurrency} {money(platformPayment.checkout?.grand_total)}
+                  </strong>
+                </p>
                 <p style={{ margin: '0.35rem 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }}>
                   Enter a Stripe test card. Try <code>4242 4242 4242 4242</code>, any future date, any CVC.
                   {platformPayment.payment?.connection_label ? ` ${platformPayment.payment.connection_label}.` : ''}
@@ -1258,7 +1361,7 @@ export default function App() {
                     fontWeight: 700,
                   }}
                 >
-                  {stripePaymentProcessing ? 'Confirming payment...' : 'Pay with Stripe'}
+                  {stripePaymentProcessing ? 'Confirming payment...' : `Pay ${platformPayment.checkout?.currency_code || checkoutCurrency} ${money(platformPayment.checkout?.grand_total)}`}
                 </button>
               </div>
             )}

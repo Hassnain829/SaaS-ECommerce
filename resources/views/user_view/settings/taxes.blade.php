@@ -26,15 +26,20 @@
         @endif
 
         <section class="rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] p-5 shadow-sm">
-            <p class="text-sm font-semibold text-[#0F172A]">Tax configuration is being prepared</p>
-            <p class="mt-2 text-sm leading-relaxed text-[#475569]">Checkout calculation will be enabled after the tax calculation phase is completed. Saving settings here stores your preferences for when platform checkout tax goes live.</p>
-            <p class="mt-3 text-sm leading-relaxed text-[#475569]">These are basic configurable tax rates and are not tax or legal advice. Confirm the correct rates and rules with your accountant or tax adviser.</p>
+            @if ($taxSetting->enabled)
+                <p class="text-sm font-semibold text-[#0F172A]">Platform checkout tax is active</p>
+                <p class="mt-2 text-sm leading-relaxed text-[#475569]">Eligible platform checkouts use the configured country and region rates. Changes here do not rewrite historical order snapshots.</p>
+            @else
+                <p class="text-sm font-semibold text-[#0F172A]">Platform checkout tax is currently disabled</p>
+                <p class="mt-2 text-sm leading-relaxed text-[#475569]">Platform checkouts will not add calculated tax until it is enabled. Changes here do not rewrite historical order snapshots.</p>
+            @endif
+            <p class="mt-3 text-sm leading-relaxed text-[#475569]">External checkout tax remains managed by the external website or integration. These are basic configurable tax rates and are not tax or legal advice. Confirm the correct rates and rules with your accountant or tax adviser.</p>
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Store tax settings</p>
             <h2 class="mt-1 font-[Poppins] text-xl font-semibold text-[#0F172A]">Platform checkout tax</h2>
-            <p class="mt-2 text-sm text-[#64748B]">Enabling tax does not change historical orders. Open checkouts will recalculate only when shipping or address details change after tax calculation is wired in a later release.</p>
+            <p class="mt-2 text-sm text-[#64748B]">Enabling tax does not change historical orders. Open platform checkouts recalculate when shipping or address details change.</p>
 
             @if ($canManageTax)
                 <form method="POST" action="{{ route('settings.taxes.update') }}" class="mt-6 space-y-4">
@@ -46,7 +51,7 @@
                         <input type="checkbox" name="enabled" value="1" class="mt-1" @checked(old('enabled', $taxSetting->enabled))>
                         <span>
                             <span class="block text-sm font-semibold text-[#0F172A]">Enable tax calculation for platform checkout</span>
-                            <span class="mt-1 block text-sm text-[#64748B]">Turns on tax when checkout calculation is released.</span>
+                            <span class="mt-1 block text-sm text-[#64748B]">Applies configured rates to eligible platform checkouts.</span>
                         </span>
                     </label>
 
@@ -97,7 +102,7 @@
                 <div>
                     <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Tax rates</p>
                     <h2 class="mt-1 font-[Poppins] text-xl font-semibold text-[#0F172A]">Country and region rates</h2>
-                    <p class="mt-2 text-sm text-[#64748B]">Leave region blank to apply the rate country-wide. A specific region rate will take priority over the country-wide rate when checkout tax calculation is live.</p>
+                    <p class="mt-2 text-sm text-[#64748B]">Leave region blank to apply the rate country-wide. A specific region rate takes priority over the country-wide rate on platform checkout.</p>
                 </div>
             </div>
 

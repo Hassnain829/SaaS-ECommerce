@@ -4,12 +4,15 @@ namespace Tests\Feature;
 
 use App\Models\IdempotencyKey;
 use App\Models\Order;
+use App\Models\OrderTaxLine;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\StockMovement;
 use App\Models\Store;
+use App\Models\TaxRate;
 use App\Models\User;
+use App\Services\Tax\TaxCalculator;
 use App\Support\OrderLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -265,6 +268,117 @@ class Phase5ExternalCheckoutSyncTest extends TestCase
             ]);
     }
 
+    public function test_external_checkout_tax_totals_are_preserved_and_never_recalculated_locally(): void
+    {
+        $this->mock(TaxCalculator::class, function ($mock): void {
+            $mock->shouldReceive('calculate')->never();
+        });
+
+        [$store, $token] = $this->tokenedStore('External Tax Preservation Store');
+        [$product, $variant] = $this->product($store, [
+            'price' => 10,
+            'stock' => 10,
+            'is_taxable' => false,
+        ]);
+
+        $store->taxSetting->update(['enabled' => false]);
+        $this->withToken($token)
+            ->postJson('/api/v1/external/orders', $this->payload($variant, [
+                'external_order_number' => 'WEB-TAX-DISABLED',
+                'external_checkout_reference' => 'checkout-tax-disabled',
+                'totals' => [
+                    'subtotal' => 20.00,
+                    'shipping' => 3.21,
+                    'tax' => 4.56,
+                    'discount' => 1.23,
+                    'grand_total' => 26.54,
+                ],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('order.total', '26.54');
+
+        $store->taxSetting->update([
+            'enabled' => true,
+            'prices_include_tax' => true,
+            'shipping_taxable' => true,
+            'default_product_taxable' => true,
+        ]);
+        TaxRate::query()->create([
+            'store_id' => $store->id,
+            'country_code' => 'US',
+            'region_code' => 'TX',
+            'name' => 'Ignored TX Rate',
+            'rate_percent' => '30.0000',
+            'priority' => 100,
+            'is_active' => true,
+        ]);
+        $product->update(['is_taxable' => false]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/external/orders', $this->payload($variant, [
+                'external_order_number' => 'WEB-TAX-ENABLED',
+                'external_checkout_reference' => 'checkout-tax-enabled',
+                'totals' => [
+                    'subtotal' => 20.00,
+                    'shipping' => 5.55,
+                    'tax' => 6.66,
+                    'discount' => 2.22,
+                    'grand_total' => 29.99,
+                ],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('order.total', '29.99');
+
+        TaxRate::query()->where('store_id', $store->id)->update(['rate_percent' => '45.0000']);
+        $store->taxSetting->update(['prices_include_tax' => false]);
+
+        $this->assertDatabaseHas('orders', [
+            'store_id' => $store->id,
+            'external_order_number' => 'WEB-TAX-DISABLED',
+            'subtotal' => 20.00,
+            'shipping' => 3.21,
+            'tax' => 4.56,
+            'discount' => 1.23,
+            'grand_total' => 26.54,
+        ]);
+        $this->assertDatabaseHas('orders', [
+            'store_id' => $store->id,
+            'external_order_number' => 'WEB-TAX-ENABLED',
+            'subtotal' => 20.00,
+            'shipping' => 5.55,
+            'tax' => 6.66,
+            'discount' => 2.22,
+            'grand_total' => 29.99,
+        ]);
+        $this->assertSame(0, OrderTaxLine::query()->where('store_id', $store->id)->count());
+
+        $payload = $this->payload($variant, [
+            'external_order_number' => 'WEB-TAX-IDEMPOTENT',
+            'external_checkout_reference' => 'checkout-tax-idempotent',
+            'totals' => [
+                'subtotal' => 20.00,
+                'shipping' => 4.50,
+                'tax' => 8.88,
+                'discount' => 2.00,
+                'grand_total' => 31.38,
+            ],
+        ]);
+
+        $this->withHeaders(['Idempotency-Key' => 'external-tax-key'])
+            ->withToken($token)
+            ->postJson('/api/v1/external/orders', $payload)
+            ->assertCreated()
+            ->assertJsonPath('order.total', '31.38');
+
+        $this->withHeaders(['Idempotency-Key' => 'external-tax-key'])
+            ->withToken($token)
+            ->postJson('/api/v1/external/orders', $payload)
+            ->assertCreated()
+            ->assertJsonPath('order.total', '31.38');
+
+        $this->assertSame(1, Order::query()->where('store_id', $store->id)->where('external_order_number', 'WEB-TAX-IDEMPOTENT')->count());
+    }
+
     private function tokenedStore(string $name): array
     {
         $role = Role::firstOrCreate(['name' => 'user']);
@@ -300,6 +414,7 @@ class Phase5ExternalCheckoutSyncTest extends TestCase
             'sku' => $overrides['sku'] ?? 'EXT-'.Str::random(4),
             'product_type' => 'physical',
             'status' => true,
+            'is_taxable' => $overrides['is_taxable'] ?? true,
             'meta' => [],
         ]);
 

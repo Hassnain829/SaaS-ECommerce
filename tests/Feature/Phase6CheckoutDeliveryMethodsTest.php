@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Data\Payments\PaymentIntentResult;
+use App\Data\Payments\PaymentIntentUpdateResult;
 use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
@@ -77,6 +78,40 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
                     ],
                 );
             }
+
+            public function cancelPaymentIntent(string $providerIntentId, array $options = []): PaymentWebhookResult
+            {
+                return new PaymentWebhookResult(
+                    eventType: 'payment_intent.canceled',
+                    providerIntentId: $providerIntentId,
+                    status: 'canceled',
+                    amount: null,
+                    currencyCode: null,
+                    raw: ['id' => $providerIntentId, 'status' => 'canceled'],
+                );
+            }
+
+            public function updatePaymentIntentAmount(
+                string $providerIntentId,
+                int $amountMinor,
+                string $currencyCode,
+                array $options = [],
+            ): PaymentIntentUpdateResult {
+                return new PaymentIntentUpdateResult(
+                    providerIntentId: $providerIntentId,
+                    amountMinor: $amountMinor,
+                    currencyCode: strtoupper($currencyCode),
+                    status: 'requires_payment_method',
+                    clientSecret: $providerIntentId.'_secret_test',
+                    raw: [
+                        'id' => $providerIntentId,
+                        'status' => 'requires_payment_method',
+                        'amount' => $amountMinor,
+                        'currency' => strtolower($currencyCode),
+                        'client_secret' => $providerIntentId.'_secret_test',
+                    ],
+                );
+            }
         });
     }
 
@@ -131,25 +166,23 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
             ->assertJsonPath('checkout.shipping_total', '6.50')
             ->assertJsonPath('checkout.grand_total', '30.50')
             ->assertJsonPath('checkout.shipping_snapshot.method_name', 'Standard delivery')
-            ->assertJsonPath('payment.provider_intent_id', 'pi_phase6b_1_2')
-            ->assertJsonPath('payment.client_secret', 'pi_phase6b_1_2_secret_test');
+            ->assertJsonPath('payment.provider_intent_id', 'pi_phase6b_1_1')
+            ->assertJsonPath('payment.client_secret', 'pi_phase6b_1_1_secret_test');
 
+        $paymentIntent = \App\Models\PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
         $this->assertDatabaseHas('checkouts', [
             'id' => $checkout->id,
             'shipping_method_id' => $methods['standard']->id,
             'shipping_total' => 6.50,
             'grand_total' => 30.50,
-            'stripe_payment_intent_id' => 'pi_phase6b_1_2',
+            'stripe_payment_intent_id' => 'pi_phase6b_1_1',
         ]);
         $this->assertDatabaseHas('payment_intents', [
+            'id' => $paymentIntent->id,
             'checkout_id' => $checkout->id,
             'provider_intent_id' => 'pi_phase6b_1_1',
-            'status' => 'superseded',
-        ]);
-        $this->assertDatabaseHas('payment_intents', [
-            'checkout_id' => $checkout->id,
-            'provider_intent_id' => 'pi_phase6b_1_2',
             'amount' => 30.50,
+            'amount_minor' => 3050,
         ]);
         $this->assertDatabaseHas('checkout_events', [
             'checkout_id' => $checkout->id,

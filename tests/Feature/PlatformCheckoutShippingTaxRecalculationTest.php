@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Data\Payments\PaymentIntentResult;
+use App\Data\Payments\PaymentIntentUpdateResult;
+use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Checkout;
@@ -27,7 +29,18 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public bool $failNextPaymentIntent = false;
+    public bool $failNextPaymentIntentUpdate = false;
+
+    public array $cancelledPaymentIntents = [];
+
+    public array $updatedPaymentIntents = [];
+
+    public int $createPaymentIntentCallCount = 0;
+
+    public int $updatePaymentIntentCallCount = 0;
+
+    /** @var array<string, mixed>|null */
+    public ?array $nextUpdateStripeResponse = null;
 
     protected function setUp(): void
     {
@@ -53,12 +66,7 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
 
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
-                if ($this->test->failNextPaymentIntent) {
-                    $this->test->failNextPaymentIntent = false;
-
-                    throw new \RuntimeException('Simulated provider sync failure');
-                }
-
+                $this->test->createPaymentIntentCallCount++;
                 $this->counter++;
                 $id = 'pi_ship_tax_'.$checkout->id.'_'.$this->counter;
 
@@ -70,6 +78,50 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
                     amount: (float) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: ['id' => $id, 'status' => 'requires_payment_method'],
+                );
+            }
+
+            public function updatePaymentIntentAmount(
+                string $providerIntentId,
+                int $amountMinor,
+                string $currencyCode,
+                array $options = [],
+            ): PaymentIntentUpdateResult {
+                if ($this->test->failNextPaymentIntentUpdate) {
+                    $this->test->failNextPaymentIntentUpdate = false;
+
+                    throw new \RuntimeException('Simulated provider amount update failure');
+                }
+
+                $this->test->updatePaymentIntentCallCount++;
+                $this->test->updatedPaymentIntents[] = [
+                    'provider_intent_id' => $providerIntentId,
+                    'amount_minor' => $amountMinor,
+                    'currency_code' => strtoupper($currencyCode),
+                ];
+
+                $raw = $this->test->nextUpdateStripeResponse ?? [
+                    'id' => $providerIntentId,
+                    'status' => 'requires_payment_method',
+                    'amount' => $amountMinor,
+                    'currency' => strtolower($currencyCode),
+                    'client_secret' => $providerIntentId.'_secret_test',
+                ];
+                $this->test->nextUpdateStripeResponse = null;
+
+                return $this->paymentIntentUpdateResultFromStripeObject($raw, 'test');
+            }
+
+            public function cancelPaymentIntent(string $providerIntentId, array $options = []): PaymentWebhookResult
+            {
+                $this->test->cancelledPaymentIntents[] = $providerIntentId;
+
+                return new PaymentWebhookResult(
+                    eventType: 'payment_intent.canceled',
+                    providerIntentId: $providerIntentId,
+                    status: 'canceled',
+                    raw: ['id' => $providerIntentId, 'status' => 'canceled'],
+                    mode: 'test',
                 );
             }
         });
@@ -100,9 +152,14 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
             ->assertJsonPath('checkout.tax_total', '2.50')
             ->assertJsonPath('checkout.grand_total', '27.50')
             ->assertJsonPath('checkout.items.0.tax_amount', '2.00')
-            ->assertJsonPath('payment.provider_intent_id', 'pi_ship_tax_1_2');
+            ->assertJsonPath('payment.provider_intent_id', 'pi_ship_tax_1_1')
+            ->assertJsonPath('payment.client_secret', 'pi_ship_tax_1_1_secret_test');
 
         $checkout = $checkout->fresh();
+        $paymentIntent = PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
+        $this->assertSame('pi_ship_tax_1_1', $paymentIntent->provider_intent_id);
+        $this->assertSame('pi_ship_tax_1_1_secret_test', $paymentIntent->client_secret);
+        $this->assertSame('requires_payment_method', $paymentIntent->status);
         $this->assertSame(2, CheckoutTaxLine::query()->where('checkout_id', $checkout->id)->count());
         $this->assertDatabaseHas('checkout_tax_lines', [
             'checkout_id' => $checkout->id,
@@ -111,15 +168,52 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
             'tax_amount' => 0.50,
         ]);
         $this->assertDatabaseHas('payment_intents', [
+            'id' => $paymentIntent->id,
             'checkout_id' => $checkout->id,
-            'provider_intent_id' => 'pi_ship_tax_1_2',
+            'provider_intent_id' => 'pi_ship_tax_1_1',
             'amount' => 27.50,
             'amount_minor' => 2750,
         ]);
+        $this->assertSame([], $this->cancelledPaymentIntents);
+        $this->assertCount(1, $this->updatedPaymentIntents);
+        $this->assertSame(2750, $this->updatedPaymentIntents[0]['amount_minor']);
+        $this->assertSame(1, $this->createPaymentIntentCallCount);
+        $this->assertSame(1, $this->updatePaymentIntentCallCount);
+    }
+
+    public function test_processing_payment_intent_blocks_shipping_mutation_instead_of_superseding(): void
+    {
+        [$store, $token] = $this->tokenedStore('Processing Intent Shipping Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+        $methods = $this->shippingSetup($store);
+        $this->enableTax($store, ['shipping_taxable' => true]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->payload($variant))
+            ->assertCreated()
+            ->assertJsonPath('checkout.grand_total', '22.00');
+
+        $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
+        PaymentIntent::query()
+            ->where('checkout_id', $checkout->id)
+            ->update(['status' => 'processing']);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
+                'shipping_method_id' => $methods['standard']->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payment']);
+
+        $checkout = $checkout->fresh();
+        $this->assertSame('0.00', (string) $checkout->shipping_total);
+        $this->assertSame('22.00', (string) $checkout->grand_total);
+        $this->assertSame([], $this->cancelledPaymentIntents);
+        $this->assertSame(1, PaymentIntent::query()->where('checkout_id', $checkout->id)->count());
         $this->assertDatabaseHas('payment_intents', [
             'checkout_id' => $checkout->id,
             'provider_intent_id' => 'pi_ship_tax_1_1',
-            'status' => 'superseded',
+            'status' => 'processing',
         ]);
     }
 
@@ -158,6 +252,7 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
         );
 
         $paymentIntentCount = PaymentIntent::query()->where('checkout_id', $checkout->id)->count();
+        $updateCallsBeforeRepeat = $this->updatePaymentIntentCallCount;
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
@@ -167,6 +262,7 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
             ->assertJsonPath('checkout.grand_total', '22.00');
 
         $this->assertSame($paymentIntentCount, PaymentIntent::query()->where('checkout_id', $checkout->id)->count());
+        $this->assertSame($updateCallsBeforeRepeat, $this->updatePaymentIntentCallCount);
     }
 
     public function test_shipping_mutation_uses_current_tax_rate_but_persisted_item_price_and_taxability(): void
@@ -270,7 +366,9 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
         $beforeUpdatedAt = (string) $checkout->updated_at;
-        $this->failNextPaymentIntent = true;
+        $paymentIntent = PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
+        $beforeAmountMinor = (int) $paymentIntent->amount_minor;
+        $this->failNextPaymentIntentUpdate = true;
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
@@ -285,6 +383,9 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
         $this->assertSame($beforeUpdatedAt, (string) $checkout->updated_at);
         $this->assertSame(1, PaymentIntent::query()->where('checkout_id', $checkout->id)->count());
         $this->assertSame(1, CheckoutTaxLine::query()->where('checkout_id', $checkout->id)->count());
+        $this->assertSame([], $this->cancelledPaymentIntents);
+        $paymentIntent->refresh();
+        $this->assertSame($beforeAmountMinor, (int) $paymentIntent->amount_minor);
     }
 
     public function test_jpy_shipping_recalculation_uses_zero_decimal_minor_units(): void
@@ -327,10 +428,213 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
 
         $this->assertDatabaseHas('payment_intents', [
             'checkout_id' => $checkout->id,
-            'provider_intent_id' => 'pi_ship_tax_1_2',
+            'provider_intent_id' => 'pi_ship_tax_1_1',
             'amount_minor' => 1430,
             'currency_code' => 'JPY',
         ]);
+        $this->assertSame([], $this->cancelledPaymentIntents);
+        $this->assertCount(1, $this->updatedPaymentIntents);
+        $this->assertSame(1430, $this->updatedPaymentIntents[0]['amount_minor']);
+    }
+
+    public function test_requires_action_intent_blocks_shipping_mutation(): void
+    {
+        $this->assertShippingMutationBlockedForIntentStatus('requires_action');
+    }
+
+    public function test_requires_capture_intent_blocks_shipping_mutation(): void
+    {
+        $this->assertShippingMutationBlockedForIntentStatus('requires_capture');
+    }
+
+    public function test_succeeded_intent_blocks_shipping_mutation(): void
+    {
+        $this->assertShippingMutationBlockedForIntentStatus('succeeded');
+    }
+
+    public function test_unknown_payment_intent_status_blocks_shipping_mutation(): void
+    {
+        $this->assertShippingMutationBlockedForIntentStatus('unexpected_provider_status');
+    }
+
+    public function test_canceled_intent_does_not_create_replacement_payment_intent(): void
+    {
+        $this->assertTerminalIntentBlocksReplacement('canceled');
+    }
+
+    public function test_failed_intent_does_not_create_replacement_payment_intent(): void
+    {
+        $this->assertTerminalIntentBlocksReplacement('failed');
+    }
+
+    public function test_superseded_intent_does_not_create_replacement_payment_intent(): void
+    {
+        $this->assertTerminalIntentBlocksReplacement('superseded');
+    }
+
+    public function test_provider_update_with_wrong_intent_id_rolls_back_mutation(): void
+    {
+        [$store, $token, $checkout, $methods] = $this->checkoutReadyForShippingMutation();
+        $paymentIntent = PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
+        $beforeAmountMinor = (int) $paymentIntent->amount_minor;
+
+        $this->nextUpdateStripeResponse = [
+            'id' => 'pi_wrong_provider_id',
+            'status' => 'requires_payment_method',
+            'amount' => 2750,
+            'currency' => 'usd',
+            'client_secret' => (string) $paymentIntent->client_secret,
+        ];
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
+                'shipping_method_id' => $methods['standard']->id,
+            ])
+            ->assertStatus(500);
+
+        $checkout->refresh();
+        $this->assertSame('0.00', (string) $checkout->shipping_total);
+        $this->assertSame('22.00', (string) $checkout->grand_total);
+        $this->assertSame(1, PaymentIntent::query()->where('checkout_id', $checkout->id)->count());
+        $this->assertSame($beforeAmountMinor, (int) PaymentIntent::query()->where('checkout_id', $checkout->id)->value('amount_minor'));
+        $this->assertSame(1, $this->createPaymentIntentCallCount);
+    }
+
+    public function test_provider_update_with_wrong_amount_minor_rolls_back_mutation(): void
+    {
+        [$store, $token, $checkout, $methods] = $this->checkoutReadyForShippingMutation();
+        $paymentIntent = PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
+        $beforeAmountMinor = (int) $paymentIntent->amount_minor;
+
+        $this->nextUpdateStripeResponse = [
+            'id' => (string) $paymentIntent->provider_intent_id,
+            'status' => 'requires_payment_method',
+            'amount' => 9999,
+            'currency' => 'usd',
+            'client_secret' => (string) $paymentIntent->client_secret,
+        ];
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
+                'shipping_method_id' => $methods['standard']->id,
+            ])
+            ->assertStatus(500);
+
+        $checkout->refresh();
+        $paymentIntent->refresh();
+        $this->assertSame('0.00', (string) $checkout->shipping_total);
+        $this->assertSame('22.00', (string) $checkout->grand_total);
+        $this->assertSame($beforeAmountMinor, (int) $paymentIntent->amount_minor);
+    }
+
+    public function test_provider_update_with_wrong_currency_rolls_back_mutation(): void
+    {
+        [$store, $token, $checkout, $methods] = $this->checkoutReadyForShippingMutation();
+        $paymentIntent = PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
+
+        $this->nextUpdateStripeResponse = [
+            'id' => (string) $paymentIntent->provider_intent_id,
+            'status' => 'requires_payment_method',
+            'amount' => 2750,
+            'currency' => 'eur',
+            'client_secret' => (string) $paymentIntent->client_secret,
+        ];
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
+                'shipping_method_id' => $methods['standard']->id,
+            ])
+            ->assertStatus(500);
+
+        $checkout->refresh();
+        $this->assertSame('0.00', (string) $checkout->shipping_total);
+        $this->assertSame('22.00', (string) $checkout->grand_total);
+        $this->assertSame('USD', strtoupper((string) $paymentIntent->fresh()->currency_code));
+    }
+
+    public function test_provider_update_with_valid_response_updates_same_payment_intent_row(): void
+    {
+        [$store, $token, $checkout, $methods] = $this->checkoutReadyForShippingMutation();
+        $paymentIntent = PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
+        $originalId = $paymentIntent->id;
+        $originalProviderIntentId = (string) $paymentIntent->provider_intent_id;
+        $originalClientSecret = (string) $paymentIntent->client_secret;
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
+                'shipping_method_id' => $methods['standard']->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('payment.provider_intent_id', $originalProviderIntentId)
+            ->assertJsonPath('payment.client_secret', $originalClientSecret);
+
+        $paymentIntent->refresh();
+        $this->assertSame($originalId, $paymentIntent->id);
+        $this->assertSame($originalProviderIntentId, $paymentIntent->provider_intent_id);
+        $this->assertSame($originalClientSecret, $paymentIntent->client_secret);
+        $this->assertSame(2750, (int) $paymentIntent->amount_minor);
+        $this->assertSame(27.50, (float) $paymentIntent->amount);
+    }
+
+    private function assertShippingMutationBlockedForIntentStatus(string $status): void
+    {
+        [$store, $token, $checkout, $methods] = $this->checkoutReadyForShippingMutation();
+        PaymentIntent::query()
+            ->where('checkout_id', $checkout->id)
+            ->update(['status' => $status]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
+                'shipping_method_id' => $methods['standard']->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payment']);
+
+        $checkout->refresh();
+        $this->assertSame('0.00', (string) $checkout->shipping_total);
+        $this->assertSame('22.00', (string) $checkout->grand_total);
+        $this->assertSame(1, PaymentIntent::query()->where('checkout_id', $checkout->id)->count());
+        $this->assertSame(1, $this->createPaymentIntentCallCount);
+        $this->assertSame(0, $this->updatePaymentIntentCallCount);
+    }
+
+    private function assertTerminalIntentBlocksReplacement(string $status): void
+    {
+        [$store, $token, $checkout, $methods] = $this->checkoutReadyForShippingMutation();
+        PaymentIntent::query()
+            ->where('checkout_id', $checkout->id)
+            ->update(['status' => $status]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/shipping-method', [
+                'shipping_method_id' => $methods['standard']->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payment']);
+
+        $this->assertSame(1, PaymentIntent::query()->where('checkout_id', $checkout->id)->count());
+        $this->assertSame(1, $this->createPaymentIntentCallCount);
+        $this->assertSame(0, $this->updatePaymentIntentCallCount);
+    }
+
+    /**
+     * @return array{0: Store, 1: string, 2: Checkout, 3: array{standard: ShippingMethod, free: ShippingMethod}}
+     */
+    private function checkoutReadyForShippingMutation(): array
+    {
+        [$store, $token] = $this->tokenedStore('Mutation Policy Store '.Str::random(4));
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+        $methods = $this->shippingSetup($store);
+        $this->enableTax($store, ['shipping_taxable' => true]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->payload($variant))
+            ->assertCreated()
+            ->assertJsonPath('checkout.grand_total', '22.00');
+
+        $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
+
+        return [$store, $token, $checkout, $methods];
     }
 
     private function tokenedStore(string $name, string $currency = 'USD'): array

@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Store;
+use App\Services\Catalog\ProductTaxableDefaultResolver;
 use App\Services\OrderEventRecorder;
 use App\Services\OrderNumberGenerator;
 use App\Support\OrderLifecycle;
@@ -13,8 +14,11 @@ use Illuminate\Database\Seeder;
 
 class CustomerAndOrderSeeder extends Seeder
 {
-    public function run(OrderNumberGenerator $orderNumberGenerator, OrderEventRecorder $orderEventRecorder): void
-    {
+    public function run(
+        OrderNumberGenerator $orderNumberGenerator,
+        OrderEventRecorder $orderEventRecorder,
+        ProductTaxableDefaultResolver $taxableDefaultResolver
+    ): void {
         $store = Store::query()->where('slug', 'demo-fashion')->first();
 
         if (! $store) {
@@ -42,6 +46,7 @@ class CustomerAndOrderSeeder extends Seeder
                     'product_type' => 'physical',
                     'sku' => 'DEMO-PROD-001',
                     'base_price' => 29.99,
+                    'is_taxable' => $taxableDefaultResolver->forStore($store),
                 ]
             );
 

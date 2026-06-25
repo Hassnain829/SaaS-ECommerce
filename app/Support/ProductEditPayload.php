@@ -79,6 +79,7 @@ final class ProductEditPayload
             'base_price' => (string) $product->base_price,
             'product_type' => $product->product_type,
             'custom_product_type' => trim((string) (($product->meta['custom_product_type_label'] ?? ''))),
+            'is_taxable' => (bool) $product->is_taxable,
             'brand_id' => $product->brand_id,
             'tag_ids' => $product->tags->pluck('id')->values()->all(),
             'category_ids' => $product->categories->pluck('id')->values()->all(),
@@ -218,6 +219,10 @@ final class ProductEditPayload
             if (array_key_exists($key, $old)) {
                 $base[$key] = $old[$key];
             }
+        }
+
+        if (array_key_exists('is_taxable', $old)) {
+            $base['is_taxable'] = (bool) $old['is_taxable'];
         }
 
         if (array_key_exists('brand_id', $old)) {

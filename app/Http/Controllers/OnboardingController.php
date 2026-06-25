@@ -9,6 +9,7 @@ use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
 use App\Services\Catalog\ProductAttributeAssigner;
+use App\Services\Catalog\ProductTaxableDefaultResolver;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
 use App\Support\CatalogRules;
@@ -293,6 +294,7 @@ class OnboardingController extends Controller
                 'product_type' => $validated['product_type'],
                 ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
+                'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => true,
                 'meta' => [
                     'default_stock' => $validated['default_stock'],
@@ -303,6 +305,7 @@ class OnboardingController extends Controller
             ];
 
             if ($product) {
+                unset($productPayload['is_taxable']);
                 $product->update($productPayload);
                 $product->variationTypes()->delete();
                 $product->variants()->delete();
@@ -1305,6 +1308,7 @@ class OnboardingController extends Controller
             'attribute_terms' => ['nullable', 'array'],
             'attribute_terms.*' => ['nullable', 'array'],
             'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
+            'is_taxable' => ['nullable', 'boolean'],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -1488,7 +1492,7 @@ class OnboardingController extends Controller
                 throw ValidationException::withMessages($imageErrorsUpdate);
             }
 
-            $product->update([
+            $productUpdatePayload = [
                 'name' => $validated['name'],
                 'slug' => $this->uniqueProductSlug($currentStore->id, $validated['name'], $product->id),
                 'description' => $validated['description'] ?? null,
@@ -1498,7 +1502,13 @@ class OnboardingController extends Controller
                 ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
                 'meta' => $meta,
-            ]);
+            ];
+
+            if ($request->has('is_taxable')) {
+                $productUpdatePayload['is_taxable'] = $request->boolean('is_taxable');
+            }
+
+            $product->update($productUpdatePayload);
 
             if ($useInPlaceVariantUpdate) {
                 $variationOptionMapInPlace = $this->buildVariationOptionMapFromProductId((int) $product->id);
@@ -1894,6 +1904,7 @@ class OnboardingController extends Controller
                 'product_type' => $validated['product_type'],
                 ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
+                'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => true,
                 'meta' => [
                     'default_stock' => $validated['default_stock'],

@@ -20,6 +20,7 @@
     $currency = $draftOrder->currency ?: ($selectedStore->currency ?? 'USD');
     $shipping = $draftOrder->shippingAddress();
     $isEditable = $draftOrder->status === \App\Models\DraftOrder::STATUS_DRAFT;
+    $taxSource = $draftOrder->taxSource();
 @endphp
 
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -42,7 +43,7 @@
         </div>
     </section>
 
-    <form action="{{ route('draft-orders.update', $draftOrder) }}" method="POST" class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start" data-draft-order-form data-currency="{{ $currency }}">
+    <form id="draftOrderForm" action="{{ route('draft-orders.update', $draftOrder) }}" method="POST" class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start" data-draft-order-form data-currency="{{ $currency }}">
         @csrf
 
         <div class="space-y-4">
@@ -122,9 +123,6 @@
                         'shipping_address_line1' => 'Address line 1',
                         'shipping_address_line2' => 'Address line 2',
                         'shipping_city' => 'City',
-                        'shipping_state' => 'State',
-                        'shipping_postal_code' => 'Postal code',
-                        'shipping_country' => 'Country',
                     ] as $name => $placeholder)
                         @php($key = str_replace('shipping_', '', $name))
                         <input name="{{ $name }}" value="{{ old($name, $shipping[$key] ?? '') }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm {{ str_contains($name, 'address_line') ? 'md:col-span-2' : '' }}" placeholder="{{ $placeholder }}" @readonly(! $isEditable)>
@@ -132,6 +130,27 @@
                             <p class="-mt-3 text-xs text-[#B91C1C] {{ str_contains($name, 'address_line') ? 'md:col-span-2' : '' }}">{{ $message }}</p>
                         @enderror
                     @endforeach
+                    <label class="block">
+                        <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">State / region code</span>
+                        <input name="shipping_state" value="{{ old('shipping_state', $shipping['state'] ?? '') }}" maxlength="32" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase" placeholder="CA, NY, ON" @readonly(! $isEditable)>
+                        @error('shipping_state')
+                            <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
+                        @enderror
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Postal code</span>
+                        <input name="shipping_postal_code" value="{{ old('shipping_postal_code', $shipping['postal_code'] ?? '') }}" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Postal code" @readonly(! $isEditable)>
+                        @error('shipping_postal_code')
+                            <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
+                        @enderror
+                    </label>
+                    <label class="block md:col-span-2">
+                        <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Country code</span>
+                        <input name="shipping_country" value="{{ old('shipping_country', $shipping['country'] ?? '') }}" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="country" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase" placeholder="US, CA, GB, AU" @readonly(! $isEditable)>
+                        @error('shipping_country')
+                            <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
+                        @enderror
+                    </label>
                 </div>
                 <label class="mt-4 flex items-center gap-2 text-sm text-[#475569]">
                     <input type="checkbox" name="billing_same_as_shipping" value="1" @checked($draftOrder->billingSameAsShipping()) @disabled(! $isEditable) class="rounded border-[#CBD5E1]">
@@ -147,6 +166,18 @@
                     <div class="flex justify-between gap-4"><span class="text-[#64748B]">Subtotal</span><span class="font-semibold" data-subtotal-display>{{ $currency }} {{ number_format((float) $draftOrder->subtotal, 2) }}</span></div>
                     <input name="discount_total" value="{{ old('discount_total', $draftOrder->discount_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Discount" data-discount-input @readonly(! $isEditable)>
                     <input name="tax_total" value="{{ old('tax_total', $draftOrder->tax_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Tax" data-tax-input @readonly(! $isEditable)>
+                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Tax source</p>
+                                <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $taxSource === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED ? 'Calculated from store settings' : 'Manual tax' }}</p>
+                            </div>
+                            @if($isEditable)
+                                <button type="submit" formaction="{{ route('draft-orders.calculate-tax', $draftOrder) }}" formmethod="POST" class="rounded-lg border border-[#BFDBFE] bg-white px-3 py-2 text-xs font-semibold text-[#1D4ED8] hover:bg-[#EFF6FF]">Save and calculate tax</button>
+                            @endif
+                        </div>
+                        <p class="mt-2 text-xs leading-relaxed text-[#64748B]">Calculated tax uses your configured basic rates and is not tax advice.</p>
+                    </div>
                     <input name="shipping_total" value="{{ old('shipping_total', $draftOrder->shipping_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Shipping" data-shipping-input @readonly(! $isEditable)>
                     <textarea name="notes" rows="4" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Internal order note" @readonly(! $isEditable)>{{ old('notes', $draftOrder->notes) }}</textarea>
                     <div class="border-t border-[#E2E8F0] pt-4 flex justify-between gap-4 text-lg font-bold"><span>Total</span><span class="text-[#0052CC]" data-total-display>{{ $currency }} {{ number_format((float) $draftOrder->total, 2) }}</span></div>

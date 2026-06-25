@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-25
 **Status:** Implemented
-**Phase 5R-1 overall:** In progress. Batch A completes the former Slice 4 and Slice 5 work. Product taxable defaults, draft/manual calculated tax, and external checkout preservation sign-off remain pending.
+**Phase 5R-1 overall:** Complete after Batch B. Batch A completed the former Slice 4 and Slice 5 work; Batch B completed product taxable defaults, draft/manual calculated tax, external checkout preservation, and final regression. Final report: `docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`.
 
 ---
 
@@ -83,14 +83,52 @@ Changing the destination from one jurisdiction to another recalculates tax using
 
 ## PaymentIntent Synchronization
 
-`CheckoutShippingService::refreshPaymentIntent()` now uses `CurrencyPrecision::toMinorUnits()` to compare and persist minor units.
+`CheckoutShippingService::refreshPaymentIntent()` loads the latest checkout PaymentIntent (any status), applies an explicit mutation policy, and uses `CurrencyPrecision::toMinorUnits()` for comparisons.
 
-Behavior:
+### Mutable statuses (amount update allowed)
 
-- if the active unpaid PaymentIntent already matches the checkout grand total and currency, no new provider call is made;
-- if the amount or currency changed, a new PaymentIntent is created through the existing provider boundary;
-- other active non-final local PaymentIntents are marked `superseded`;
-- final states such as `succeeded`, `failed`, and `canceled` are not overwritten.
+- `requires_payment_method`
+- `requires_confirmation`
+
+No-op when local amount and currency already match the checkout total.
+
+### Blocked statuses (shipping/address financial mutation rejected)
+
+- `requires_action`
+- `processing`
+- `requires_capture`
+- `succeeded`
+- any unknown/unrecognized provider status
+
+### Terminal statuses (no replacement intent created)
+
+- `canceled`
+- `failed`
+- `superseded`
+
+Terminal and blocked states return a deterministic validation error and require checkout/payment restart rather than creating ambiguous duplicate payment state.
+
+### Update-in-place behavior
+
+- if amount changed but currency matches, the existing remote Stripe PaymentIntent is updated through `PaymentProviderInterface::updatePaymentIntentAmount()`;
+- the same local `payment_intents` row, `provider_intent_id`, and `client_secret` are preserved;
+- `cancelPaymentIntent()` is not used for normal amount-only shipping recalculation;
+- if local PaymentIntent currency differs from checkout currency, the mutation is rejected;
+- if no PaymentIntent has ever been created, the initial create path is used.
+
+### Provider response validation
+
+`StripePlatformPaymentProvider::updatePaymentIntentAmount()` reads actual Stripe response fields (`id`, `amount`, `currency`, `status`, `client_secret`) into `PaymentIntentUpdateResult` — request arguments are not echoed back as proof.
+
+Before local persistence, `CheckoutShippingService` verifies:
+
+1. returned provider intent ID equals the existing local `provider_intent_id`;
+2. returned amount minor equals expected checkout amount minor;
+3. returned currency equals checkout/local currency;
+4. returned status remains mutable;
+5. returned client secret, when present, matches the existing local secret.
+
+Any mismatch throws `CheckoutPaymentSynchronizationException`, records `payment.sync_failed`, and rolls back the enclosing shipping/tax transaction.
 
 ---
 
@@ -176,35 +214,32 @@ Added `tests/Feature/CheckoutPaymentInvariantTest.php`:
 
 ## Verification Results
 
-Targeted verification run during implementation:
+Final verification after PaymentIntent status-policy and provider-response hardening (2026-06-25):
 
 | Command | Result |
 | --- | --- |
-| `php artisan test --filter=PlatformCheckoutShippingTaxRecalculationTest` | 6 passed, 60 assertions |
-| `php artisan test --filter=CheckoutPaymentInvariantTest` | 7 passed, 41 assertions |
-| `php artisan test --filter=PlatformCheckoutTaxTest` | 24 passed, 169 assertions |
-| `php artisan test --filter=CheckoutTotalsServiceTest` | 3 passed, 11 assertions |
-| `php artisan test --filter=Phase6CheckoutDeliveryMethodsTest` | 6 passed, 45 assertions |
+| `php artisan test --filter=PlatformCheckoutShippingTaxRecalculationTest` | 18 passed, 178 assertions |
+| `php artisan test --filter=StripePlatformPaymentProviderTest` | 2 passed, 9 assertions |
+| `php artisan test --filter=Phase6CheckoutDeliveryMethodsTest` | 6 passed, 44 assertions |
+| `php artisan test --filter=CheckoutPaymentInvariantTest` | 9 passed, 61 assertions |
 | `php artisan test --filter=Phase5PlatformCheckoutStripeTest` | 9 passed, 72 assertions |
-| `php artisan test --filter=Tax` | 154 passed, 697 assertions |
-| `php artisan test --filter=Phase5ExternalCheckoutSyncTest` | 8 passed, 59 assertions |
-| `php artisan test --filter=Phase4DraftOrderTest` | 13 passed, 102 assertions |
-| `php artisan test --filter=Phase6NearestEligibleOriginRoutingTest` | 5 passed, 41 assertions |
-| `php artisan test --filter=CheckoutConversion` | No tests found; dedicated conversion coverage is in `CheckoutPaymentInvariantTest` |
-| `php artisan test` | 900 passed, 2 skipped, 4343 assertions |
-| `vendor/bin/pint --test` for Batch A touched PHP files | Passed, 10 files |
+| `php artisan test --filter=Tax` | 182 passed, 944 assertions |
+| `php artisan test` | 932 passed, 2 skipped, 4618 assertions |
+| `vendor/bin/pint --test` on touched PaymentIntent hardening PHP files | Passed, 10 files |
 | `git diff --check` | Passed |
 | `composer validate --strict --no-check-publish` | Passed |
-| `composer dump-autoload` | Passed |
-| `php artisan optimize:clear` | Passed |
 
-Repository-wide `vendor/bin/pint --test` was also run. It failed on three pre-existing carrier-validation files outside Batch A scope:
+Historical Batch A implementation verification (superseded counts — retained for audit trail only):
+
+| Command | Result |
+| --- | --- |
+| `php artisan test` during initial Batch A delivery | 900 passed, 2 skipped, 4343 assertions |
+
+Repository-wide `vendor/bin/pint --test` may still fail on three pre-existing carrier-validation files outside Batch A scope:
 
 - `database/migrations/2026_06_05_010000_extend_carrier_api_events_for_fedex_validation_evidence.php`
 - `database/migrations/2026_06_05_010100_extend_fedex_validation_artifacts_for_evidence.php`
 - `tests/Feature/Phase6FedExValidationWorkspaceTest.php`
-
-Those carrier files were intentionally not changed in this batch.
 
 ---
 
@@ -216,6 +251,9 @@ Production:
 - `app/Services/Shipping/CheckoutShippingService.php`
 - `app/Services/CheckoutConversionService.php`
 - `app/Services/CheckoutService.php`
+- `app/Data/Payments/PaymentIntentUpdateResult.php`
+- `app/Exceptions/CheckoutPaymentSynchronizationException.php`
+- `app/Contracts/Payments/PaymentProviderInterface.php`
 - `app/Services/Payments/StripePlatformPaymentProvider.php`
 - `app/Http/Controllers/Api/StripeConnectWebhookController.php`
 - `app/Exceptions/CheckoutPaymentAmountMismatchException.php`
@@ -223,6 +261,7 @@ Production:
 Tests:
 
 - `tests/Feature/PlatformCheckoutShippingTaxRecalculationTest.php`
+- `tests/Unit/StripePlatformPaymentProviderTest.php`
 - `tests/Feature/CheckoutPaymentInvariantTest.php`
 
 Docs:
@@ -249,9 +288,6 @@ Docs:
 
 ## Remaining Deferrals
 
-- Slice 6: product taxable defaults across all product creation paths.
-- Slice 7: draft/manual calculated tax compatibility.
-- Slice 8: external checkout preservation sign-off and final Phase 5R-1 full regression.
 - Phase 5R-2: coupons and discount rules.
 - Phase 5R-3: broader checkout/order totals hardening and remaining float boundary cleanup.
 

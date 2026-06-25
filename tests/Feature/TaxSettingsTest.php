@@ -748,6 +748,40 @@ class TaxSettingsTest extends TestCase
             ->assertSee('Confirm the correct rates and rules with your accountant or tax adviser.', false);
     }
 
+    public function test_tax_settings_page_does_not_show_stale_future_tax_wording(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+
+        $response = $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk();
+
+        $html = $response->getContent();
+        $this->assertStringNotContainsString('Tax configuration is being prepared', $html);
+        $this->assertStringNotContainsString('later release', strtolower($html));
+        $this->assertStringNotContainsString('when checkout tax calculation is live', strtolower($html));
+        $this->assertStringNotContainsString('when platform checkout tax goes live', strtolower($html));
+        $this->assertStringNotContainsString('when checkout calculation is released', strtolower($html));
+    }
+
+    public function test_tax_settings_page_reflects_enabled_state(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $store->taxSetting->update(['enabled' => true]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSee('Platform checkout tax is active', false);
+
+        $store->taxSetting->update(['enabled' => false]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSee('Platform checkout tax is currently disabled', false);
+    }
+
     public function test_tax_routes_match_contracts(): void
     {
         foreach (self::TAX_ROUTE_CONTRACTS as $contract) {

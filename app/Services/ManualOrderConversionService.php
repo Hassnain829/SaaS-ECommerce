@@ -35,7 +35,7 @@ class ManualOrderConversionService
             ]);
         }
 
-        $draft->loadMissing(['customer.addresses', 'items.variant.product.images']);
+        $draft->loadMissing(['customer.addresses', 'items.variant.product.images', 'taxLines']);
 
         if (! $draft->customer) {
             throw ValidationException::withMessages([
@@ -86,8 +86,18 @@ class ManualOrderConversionService
                 ]);
             }
 
-            $draft->load(['customer', 'items.variant.product.images']);
+            $draft->load(['customer', 'items.variant.product.images', 'taxLines']);
             $billing = $draft->billingSameAsShipping() ? [] : $draft->billingAddress();
+            $isCalculatedTax = $draft->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
+            $draftMetadata = is_array($draft->metadata) ? $draft->metadata : [];
+            $orderMeta = [
+                'draft_order_id' => $draft->id,
+                'draft_number' => $draft->draft_number,
+            ];
+
+            if ($isCalculatedTax && isset($draftMetadata['tax_snapshot'])) {
+                $orderMeta['tax_snapshot'] = $draftMetadata['tax_snapshot'];
+            }
 
             $order = Order::query()->create([
                 'store_id' => $store->id,
@@ -104,6 +114,7 @@ class ManualOrderConversionService
                 'subtotal' => $draft->subtotal,
                 'discount' => $draft->discount_total,
                 'shipping' => $draft->shipping_total,
+                'shipping_tax' => $isCalculatedTax ? $this->shippingTaxTotal($draft) : 0,
                 'tax' => $draft->tax_total,
                 'total' => $draft->total,
                 'grand_total' => $draft->total,
@@ -116,10 +127,7 @@ class ManualOrderConversionService
                 'confirmed_at' => now(),
                 'created_by' => $actor->id,
                 'updated_by' => $actor->id,
-                'meta' => [
-                    'draft_order_id' => $draft->id,
-                    'draft_number' => $draft->draft_number,
-                ],
+                'meta' => $orderMeta,
             ]);
 
             $this->createOrderAddress($order, 'shipping', $shipping);
@@ -184,9 +192,27 @@ class ManualOrderConversionService
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
                     'subtotal' => $item->line_total,
-                    'total' => $item->line_total,
+                    'tax_amount' => $isCalculatedTax ? $item->tax_amount : 0,
+                    'total' => $this->orderItemTotal($item, $isCalculatedTax),
                     'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
                 ]);
+            }
+
+            if ($isCalculatedTax) {
+                foreach ($draft->taxLines as $taxLine) {
+                    $order->taxLines()->create([
+                        'store_id' => $taxLine->store_id,
+                        'tax_rate_id' => $taxLine->tax_rate_id,
+                        'jurisdiction_country_code' => $taxLine->jurisdiction_country_code,
+                        'jurisdiction_region_code' => $taxLine->jurisdiction_region_code,
+                        'rate_percent' => $taxLine->rate_percent,
+                        'taxable_amount' => $taxLine->taxable_amount,
+                        'tax_amount' => $taxLine->tax_amount,
+                        'applies_to' => $taxLine->applies_to,
+                        'settings_version' => $taxLine->settings_version,
+                        'calculated_at' => $taxLine->calculated_at,
+                    ]);
+                }
             }
 
             $draft->update([
@@ -288,5 +314,25 @@ class ManualOrderConversionService
             'country_code' => $address['country_code'] ?? null,
             'phone' => $address['phone'] ?? null,
         ]);
+    }
+
+    private function shippingTaxTotal(DraftOrder $draft): float
+    {
+        return round((float) $draft->taxLines
+            ->where('applies_to', \App\Models\DraftTaxLine::APPLIES_TO_SHIPPING)
+            ->sum(fn ($line): float => (float) $line->tax_amount), 2);
+    }
+
+    private function orderItemTotal($item, bool $isCalculatedTax): string
+    {
+        if (! $isCalculatedTax) {
+            return (string) $item->line_total;
+        }
+
+        if ((bool) data_get($item->metadata, 'tax.prices_include_tax', false)) {
+            return (string) $item->line_total;
+        }
+
+        return bcadd((string) $item->line_total, (string) $item->tax_amount, 2);
     }
 }

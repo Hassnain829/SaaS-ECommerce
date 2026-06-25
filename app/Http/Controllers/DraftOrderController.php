@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\DraftOrder;
 use App\Models\ProductVariant;
+use App\Services\Draft\DraftTaxService;
 use App\Services\DraftOrderService;
 use App\Services\ManualOrderConversionService;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -117,6 +119,37 @@ class DraftOrderController extends Controller
             ->with('success', 'Manual order created.');
     }
 
+    public function calculateTax(
+        Request $request,
+        DraftOrder $draftOrder,
+        DraftOrderService $draftOrderService,
+        DraftTaxService $draftTaxService
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        $this->assertDraftBelongsToStore($draftOrder, $store->id);
+
+        $payload = $this->validatedDraftPayload($request, $store->id, requireCustomer: false);
+
+        DB::transaction(function () use ($draftOrder, $draftOrderService, $draftTaxService, $store, $payload): void {
+            $draft = $draftOrderService->update($draftOrder, $payload);
+            $draftTaxService->calculate($draft, $store);
+        });
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'manual_draft_tax_calculated',
+            store: $store,
+            metadata: [
+                'draft_order_id' => $draftOrder->id,
+                'draft_number' => $draftOrder->draft_number,
+            ]
+        );
+
+        return redirect()
+            ->route('draft-orders.show', $draftOrder)
+            ->with('success', 'Draft saved and tax calculated from store settings.');
+    }
+
     public function cancel(Request $request, DraftOrder $draftOrder, DraftOrderService $draftOrderService): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
@@ -220,18 +253,18 @@ class DraftOrderController extends Controller
             'shipping_address_line1' => ['nullable', 'string', 'max:255'],
             'shipping_address_line2' => ['nullable', 'string', 'max:255'],
             'shipping_city' => ['nullable', 'string', 'max:120'],
-            'shipping_state' => ['nullable', 'string', 'max:120'],
+            'shipping_state' => ['nullable', 'string', 'max:32', 'alpha'],
             'shipping_postal_code' => ['nullable', 'string', 'max:40'],
-            'shipping_country' => ['nullable', 'string', 'max:120'],
+            'shipping_country' => ['nullable', 'string', 'size:2', 'alpha'],
             'billing_same_as_shipping' => ['nullable', 'boolean'],
             'billing_name' => ['nullable', 'string', 'max:160'],
             'billing_phone' => ['nullable', 'string', 'max:80'],
             'billing_address_line1' => ['nullable', 'string', 'max:255'],
             'billing_address_line2' => ['nullable', 'string', 'max:255'],
             'billing_city' => ['nullable', 'string', 'max:120'],
-            'billing_state' => ['nullable', 'string', 'max:120'],
+            'billing_state' => ['nullable', 'string', 'max:32', 'alpha'],
             'billing_postal_code' => ['nullable', 'string', 'max:40'],
-            'billing_country' => ['nullable', 'string', 'max:120'],
+            'billing_country' => ['nullable', 'string', 'size:2', 'alpha'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
             'tax_total' => ['nullable', 'numeric', 'min:0'],
             'shipping_total' => ['nullable', 'numeric', 'min:0'],
@@ -244,6 +277,11 @@ class DraftOrderController extends Controller
             ],
             'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'shipping_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'shipping_country.alpha' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'billing_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'billing_country.alpha' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
         ]);
     }
 }

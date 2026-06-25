@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Data\Payments\PaymentIntentResult;
+use App\Data\Payments\PaymentIntentUpdateResult;
 use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
@@ -92,6 +93,49 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
                             'amount' => (int) $intent['amount_minor'],
                             'currency' => strtolower((string) $intent['currency']),
                         ],
+                    ],
+                );
+            }
+
+            public function cancelPaymentIntent(string $providerIntentId, array $options = []): PaymentWebhookResult
+            {
+                unset($this->intents[$providerIntentId]);
+
+                return new PaymentWebhookResult(
+                    eventType: 'payment_intent.canceled',
+                    providerIntentId: $providerIntentId,
+                    status: 'canceled',
+                    amount: null,
+                    currencyCode: null,
+                    raw: ['id' => $providerIntentId, 'status' => 'canceled'],
+                );
+            }
+
+            public function updatePaymentIntentAmount(
+                string $providerIntentId,
+                int $amountMinor,
+                string $currencyCode,
+                array $options = [],
+            ): PaymentIntentUpdateResult {
+                $currency = strtoupper($currencyCode);
+                $this->intents[$providerIntentId] = [
+                    'amount' => (float) CurrencyPrecision::fromMinorUnits($amountMinor, $currency),
+                    'amount_minor' => $amountMinor,
+                    'currency' => $currency,
+                ];
+
+                return new PaymentIntentUpdateResult(
+                    providerIntentId: $providerIntentId,
+                    amountMinor: $amountMinor,
+                    currencyCode: $currency,
+                    status: 'requires_payment_method',
+                    clientSecret: $providerIntentId.'_secret_test',
+                    raw: [
+                        'id' => $providerIntentId,
+                        'status' => 'requires_payment_method',
+                        'amount' => $amountMinor,
+                        'currency' => strtolower($currency),
+                        'client_secret' => $providerIntentId.'_secret_test',
                     ],
                 );
             }

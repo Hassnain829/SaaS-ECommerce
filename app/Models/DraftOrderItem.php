@@ -18,6 +18,7 @@ class DraftOrderItem extends Model
         'quantity',
         'unit_price',
         'line_total',
+        'tax_amount',
         'metadata',
     ];
 
@@ -25,6 +26,7 @@ class DraftOrderItem extends Model
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
         'line_total' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
         'metadata' => 'array',
     ];
 
