@@ -439,6 +439,61 @@ class DraftTaxTest extends TestCase
             ->assertSessionHasErrors('shipping_country');
     }
 
+    public function test_draft_rejects_numeric_and_non_ascii_country_codes(): void
+    {
+        $owner = $this->merchant('draft-country-format@example.test');
+        $store = $this->store($owner, 'Draft Country Format Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+
+        foreach (['U1', 'ÜS'] as $invalidCountry) {
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $store->id])
+                ->from(route('orders.create'))
+                ->post(route('draft-orders.store'), $this->draftPayload($variant, [
+                    'shipping_country' => $invalidCountry,
+                ]))
+                ->assertRedirect(route('orders.create'))
+                ->assertSessionHasErrors('shipping_country');
+        }
+    }
+
+    public function test_draft_show_renders_legacy_country_value_with_guidance(): void
+    {
+        $owner = $this->merchant('draft-legacy-country@example.test');
+        $store = $this->store($owner, 'Draft Legacy Country Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+
+        $draft = $this->createDraft($owner, $store, $variant);
+        $metadata = is_array($draft->metadata) ? $draft->metadata : [];
+        $metadata['shipping_address']['country'] = 'United States';
+        $draft->update(['metadata' => $metadata]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('draft-orders.show', $draft))
+            ->assertOk()
+            ->assertSee('United States', false)
+            ->assertSee('This draft contains a legacy country value', false)
+            ->assertSee('Replace it with a two-letter code such as US', false);
+    }
+
+    public function test_ascii_two_letter_country_code_is_accepted(): void
+    {
+        $owner = $this->merchant('draft-country-ca@example.test');
+        $store = $this->store($owner, 'Draft Country CA Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('draft-orders.store'), $this->draftPayload($variant, [
+                'shipping_country' => 'CA',
+            ]))
+            ->assertRedirect();
+
+        $draft = DraftOrder::query()->where('store_id', $store->id)->firstOrFail();
+        $this->assertSame('CA', $draft->shippingAddress()['country']);
+    }
+
     public function test_calculated_draft_tax_matches_us_ca_configured_rate(): void
     {
         $owner = $this->merchant('draft-ca-rate@example.test');

@@ -21,6 +21,8 @@
     $shipping = $draftOrder->shippingAddress();
     $isEditable = $draftOrder->status === \App\Models\DraftOrder::STATUS_DRAFT;
     $taxSource = $draftOrder->taxSource();
+    $storedShippingCountry = old('shipping_country', $shipping['country'] ?? '');
+    $legacyShippingCountry = $storedShippingCountry !== '' && ! preg_match('/^[A-Za-z]{2}$/', $storedShippingCountry);
 @endphp
 
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -146,7 +148,22 @@
                     </label>
                     <label class="block md:col-span-2">
                         <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Country code</span>
-                        <input name="shipping_country" value="{{ old('shipping_country', $shipping['country'] ?? '') }}" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="country" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase" placeholder="US, CA, GB, AU" @readonly(! $isEditable)>
+                        @if($legacyShippingCountry)
+                            <p class="mt-1 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs leading-relaxed text-[#92400E]">
+                                This draft contains a legacy country value. Replace it with a two-letter code such as US before saving or calculating tax.
+                            </p>
+                        @endif
+                        <input
+                            name="shipping_country"
+                            value="{{ $storedShippingCountry }}"
+                            @unless($legacyShippingCountry) maxlength="2" pattern="[A-Za-z]{2}" @endunless
+                            autocomplete="country"
+                            title="Enter a two-letter country code such as US, CA, GB, or AU."
+                            class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase {{ $legacyShippingCountry ? 'border-[#F59E0B]' : '' }}"
+                            placeholder="US, CA, GB, AU"
+                            @readonly(! $isEditable)
+                        >
+                        <p class="mt-1 text-xs text-[#64748B]">Use a two-letter code such as US, CA, GB, or AU.</p>
                         @error('shipping_country')
                             <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
                         @enderror

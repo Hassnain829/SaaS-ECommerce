@@ -255,7 +255,7 @@ class DraftOrderController extends Controller
             'shipping_city' => ['nullable', 'string', 'max:120'],
             'shipping_state' => ['nullable', 'string', 'max:32', 'alpha'],
             'shipping_postal_code' => ['nullable', 'string', 'max:40'],
-            'shipping_country' => ['nullable', 'string', 'size:2', 'alpha'],
+            'shipping_country' => ['nullable', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'],
             'billing_same_as_shipping' => ['nullable', 'boolean'],
             'billing_name' => ['nullable', 'string', 'max:160'],
             'billing_phone' => ['nullable', 'string', 'max:80'],
@@ -264,7 +264,7 @@ class DraftOrderController extends Controller
             'billing_city' => ['nullable', 'string', 'max:120'],
             'billing_state' => ['nullable', 'string', 'max:32', 'alpha'],
             'billing_postal_code' => ['nullable', 'string', 'max:40'],
-            'billing_country' => ['nullable', 'string', 'size:2', 'alpha'],
+            'billing_country' => ['nullable', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
             'tax_total' => ['nullable', 'numeric', 'min:0'],
             'shipping_total' => ['nullable', 'numeric', 'min:0'],
@@ -279,9 +279,9 @@ class DraftOrderController extends Controller
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
         ], [
             'shipping_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
-            'shipping_country.alpha' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'shipping_country.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
             'billing_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
-            'billing_country.alpha' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'billing_country.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
         ]);
     }
 }

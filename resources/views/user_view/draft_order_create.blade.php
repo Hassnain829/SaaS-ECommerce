@@ -124,7 +124,8 @@
                     </label>
                     <label class="block md:col-span-2">
                         <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Country code</span>
-                        <input name="shipping_country" value="{{ old('shipping_country') }}" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="country" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase" placeholder="US, CA, GB, AU">
+                        <input name="shipping_country" value="{{ old('shipping_country') }}" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="country" title="Enter a two-letter country code such as US, CA, GB, or AU." class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase" placeholder="US, CA, GB, AU">
+                        <p class="mt-1 text-xs text-[#64748B]">Use a two-letter code such as US, CA, GB, or AU.</p>
                         @error('shipping_country')
                             <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
                         @enderror
