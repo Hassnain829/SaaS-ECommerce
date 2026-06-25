@@ -39,7 +39,83 @@ class DraftOrderService
         });
     }
 
-    public function update(DraftOrder $draft, array $data): DraftOrder
+    public function update(DraftOrder $draft, array $data, string $taxMode = 'manual'): DraftOrder
+    {
+        if ($taxMode === DraftOrder::TAX_SOURCE_CALCULATED) {
+            return $this->updateForRecalculation($draft, $data);
+        }
+
+        if ($taxMode === 'switch_manual') {
+            return $this->switchToManualTax($draft, $data);
+        }
+
+        return $this->updateManual($draft, $data);
+    }
+
+    public function updateForRecalculation(DraftOrder $draft, array $data): DraftOrder
+    {
+        if ($draft->status !== DraftOrder::STATUS_DRAFT) {
+            throw ValidationException::withMessages([
+                'draft_order' => 'Converted or cancelled draft orders cannot be changed.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($draft, $data): DraftOrder {
+            $draft->loadMissing(['items']);
+            $existingMetadata = is_array($draft->metadata) ? $draft->metadata : [];
+            $metadata = $this->addressMetadata($data);
+            $metadata['tax_source'] = DraftOrder::TAX_SOURCE_CALCULATED;
+            if (array_key_exists('tax_snapshot', $existingMetadata)) {
+                $metadata['tax_snapshot'] = $existingMetadata['tax_snapshot'];
+            }
+
+            $draft->update([
+                'discount_total' => $this->money($data['discount_total'] ?? 0),
+                'shipping_total' => $this->money($data['shipping_total'] ?? 0),
+                'notes' => $data['notes'] ?? null,
+                'metadata' => $metadata,
+            ]);
+
+            $this->replaceItems($draft, $data['items'] ?? []);
+
+            return $draft->fresh(['customer', 'items.variant.product', 'taxLines']);
+        });
+    }
+
+    public function switchToManualTax(DraftOrder $draft, array $data): DraftOrder
+    {
+        if ($draft->status !== DraftOrder::STATUS_DRAFT) {
+            throw ValidationException::withMessages([
+                'draft_order' => 'Converted or cancelled draft orders cannot be changed.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($draft, $data): DraftOrder {
+            $draft->loadMissing(['items', 'taxLines']);
+            $wasCalculated = $draft->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
+            $metadata = $this->manualTaxMetadata($this->addressMetadata($data));
+
+            $draft->update([
+                'discount_total' => $this->money($data['discount_total'] ?? 0),
+                'tax_total' => $this->money($data['tax_total'] ?? 0),
+                'shipping_total' => $this->money($data['shipping_total'] ?? 0),
+                'notes' => $data['notes'] ?? null,
+                'metadata' => $metadata,
+            ]);
+
+            $this->replaceItems($draft, $data['items'] ?? []);
+
+            if ($wasCalculated) {
+                $this->clearCalculatedTax($draft);
+            }
+
+            $this->recalculate($draft);
+
+            return $draft->fresh(['customer', 'items.variant.product', 'taxLines']);
+        });
+    }
+
+    public function updateManual(DraftOrder $draft, array $data): DraftOrder
     {
         if ($draft->status !== DraftOrder::STATUS_DRAFT) {
             throw ValidationException::withMessages([
@@ -50,18 +126,7 @@ class DraftOrderService
         return DB::transaction(function () use ($draft, $data): DraftOrder {
             $draft->loadMissing(['items']);
             $wasCalculated = $draft->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
-            $preserveCalculatedTax = $wasCalculated && ! $this->calculatedTaxInputsChanged($draft, $data);
-            $metadata = $this->addressMetadata($data);
-
-            if ($preserveCalculatedTax) {
-                $existingMetadata = is_array($draft->metadata) ? $draft->metadata : [];
-                $metadata['tax_source'] = DraftOrder::TAX_SOURCE_CALCULATED;
-                if (array_key_exists('tax_snapshot', $existingMetadata)) {
-                    $metadata['tax_snapshot'] = $existingMetadata['tax_snapshot'];
-                }
-            } else {
-                $metadata = $this->manualTaxMetadata($metadata);
-            }
+            $metadata = $this->manualTaxMetadata($this->addressMetadata($data));
 
             $draft->update([
                 'discount_total' => $this->money($data['discount_total'] ?? 0),
@@ -71,13 +136,13 @@ class DraftOrderService
                 'metadata' => $metadata,
             ]);
 
-            if (! $preserveCalculatedTax) {
-                $this->replaceItems($draft, $data['items'] ?? []);
-                if ($wasCalculated) {
-                    $this->clearCalculatedTax($draft);
-                }
-                $this->recalculate($draft);
+            $this->replaceItems($draft, $data['items'] ?? []);
+
+            if ($wasCalculated) {
+                $this->clearCalculatedTax($draft);
             }
+
+            $this->recalculate($draft);
 
             return $draft->fresh(['customer', 'items.variant.product', 'taxLines']);
         });
@@ -204,90 +269,6 @@ class DraftOrderService
         unset($metadata['tax_snapshot']);
 
         return $metadata;
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    private function calculatedTaxInputsChanged(DraftOrder $draft, array $data): bool
-    {
-        foreach (['discount_total', 'tax_total', 'shipping_total'] as $field) {
-            if (bccomp($this->money($data[$field] ?? 0), (string) $draft->{$field}, 2) !== 0) {
-                return true;
-            }
-        }
-
-        $newMetadata = $this->addressMetadata($data);
-        $existingMetadata = is_array($draft->metadata) ? $draft->metadata : [];
-        foreach (['shipping_address', 'billing_address', 'billing_same_as_shipping'] as $key) {
-            if (($existingMetadata[$key] ?? null) != ($newMetadata[$key] ?? null)) {
-                return true;
-            }
-        }
-
-        return $this->comparableItemsFromDraft($draft) !== $this->comparableItemsFromPayload($draft, $data['items'] ?? []);
-    }
-
-    /**
-     * @return list<array{variant_id: int, quantity: int, unit_price: string}>
-     */
-    private function comparableItemsFromDraft(DraftOrder $draft): array
-    {
-        return $draft->items
-            ->map(fn ($item): array => [
-                'variant_id' => (int) $item->product_variant_id,
-                'quantity' => (int) $item->quantity,
-                'unit_price' => $this->money($item->unit_price),
-            ])
-            ->sortBy('variant_id')
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $items
-     * @return list<array{variant_id: int, quantity: int, unit_price: string}>
-     */
-    private function comparableItemsFromPayload(DraftOrder $draft, array $items): array
-    {
-        $merged = [];
-
-        foreach ($items as $row) {
-            $variantId = (int) ($row['product_variant_id'] ?? 0);
-            if ($variantId <= 0) {
-                continue;
-            }
-
-            $variant = ProductVariant::query()
-                ->where('store_id', $draft->store_id)
-                ->whereKey($variantId)
-                ->first();
-
-            if (! $variant) {
-                continue;
-            }
-
-            $rawUnitPrice = $row['unit_price'] ?? null;
-            $unitPrice = $rawUnitPrice === null || trim((string) $rawUnitPrice) === ''
-                ? $this->money($variant->price)
-                : $this->money($rawUnitPrice);
-
-            if (isset($merged[$variantId])) {
-                $merged[$variantId]['quantity'] += max(1, (int) ($row['quantity'] ?? 1));
-
-                continue;
-            }
-
-            $merged[$variantId] = [
-                'variant_id' => $variantId,
-                'quantity' => max(1, (int) ($row['quantity'] ?? 1)),
-                'unit_price' => $unitPrice,
-            ];
-        }
-
-        ksort($merged);
-
-        return array_values($merged);
     }
 
     private function resolveCustomer(Store $store, array $data): ?Customer

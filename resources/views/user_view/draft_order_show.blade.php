@@ -21,8 +21,11 @@
     $shipping = $draftOrder->shippingAddress();
     $isEditable = $draftOrder->status === \App\Models\DraftOrder::STATUS_DRAFT;
     $taxSource = $draftOrder->taxSource();
+    $isCalculatedTax = $taxSource === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED;
+    $selectedTaxMode = old('tax_mode', $isCalculatedTax ? \App\Models\DraftOrder::TAX_SOURCE_CALCULATED : \App\Models\DraftOrder::TAX_SOURCE_MANUAL);
     $storedShippingCountry = old('shipping_country', $shipping['country'] ?? '');
     $legacyShippingCountry = $storedShippingCountry !== '' && ! preg_match('/^[A-Za-z]{2}$/', $storedShippingCountry);
+    $taxDisplay = $taxDisplay ?? \App\Support\Tax\TaxDisplayPresenter::forDraft($draftOrder);
 @endphp
 
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -45,8 +48,9 @@
         </div>
     </section>
 
-    <form id="draftOrderForm" action="{{ route('draft-orders.update', $draftOrder) }}" method="POST" class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start" data-draft-order-form data-currency="{{ $currency }}">
+    <form id="draftOrderForm" action="{{ route('draft-orders.update', $draftOrder) }}" method="POST" class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start" data-draft-order-form data-currency="{{ $currency }}" data-calculated-tax="{{ $isCalculatedTax ? '1' : '0' }}">
         @csrf
+        @method('PATCH')
 
         <div class="space-y-4">
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
@@ -156,13 +160,18 @@
                         <input
                             name="shipping_country"
                             value="{{ $storedShippingCountry }}"
+                            list="draft-shipping-country-codes"
                             @unless($legacyShippingCountry) maxlength="2" pattern="[A-Za-z]{2}" @endunless
-                            autocomplete="country"
+                            autocomplete="off"
                             title="Enter a two-letter country code such as US, CA, GB, or AU."
-                            class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase {{ $legacyShippingCountry ? 'border-[#F59E0B]' : '' }}"
+                            class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase {{ $legacyShippingCountry ? 'border-[#F59E0B]' : '' }} {{ $errors->has('shipping_country') ? 'border-[#F87171]' : '' }}"
                             placeholder="US, CA, GB, AU"
                             @readonly(! $isEditable)
+                            @error('shipping_country') aria-invalid="true" @enderror
                         >
+                        <datalist id="draft-shipping-country-codes">
+                            @include('user_view.partials.country_code_options')
+                        </datalist>
                         <p class="mt-1 text-xs text-[#64748B]">Use a two-letter code such as US, CA, GB, or AU.</p>
                         @error('shipping_country')
                             <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
@@ -181,29 +190,70 @@
                 <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Totals</h3>
                 <div class="mt-4 space-y-3 text-sm">
                     <div class="flex justify-between gap-4"><span class="text-[#64748B]">Subtotal</span><span class="font-semibold" data-subtotal-display>{{ $currency }} {{ number_format((float) $draftOrder->subtotal, 2) }}</span></div>
-                    <input name="discount_total" value="{{ old('discount_total', $draftOrder->discount_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Discount" data-discount-input @readonly(! $isEditable)>
-                    <input name="tax_total" value="{{ old('tax_total', $draftOrder->tax_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Tax" data-tax-input @readonly(! $isEditable)>
-                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Tax source</p>
-                                <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $taxSource === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED ? 'Calculated from store settings' : 'Manual tax' }}</p>
-                            </div>
-                            @if($isEditable)
-                                <button type="submit" formaction="{{ route('draft-orders.calculate-tax', $draftOrder) }}" formmethod="POST" class="rounded-lg border border-[#BFDBFE] bg-white px-3 py-2 text-xs font-semibold text-[#1D4ED8] hover:bg-[#EFF6FF]">Save and calculate tax</button>
-                            @endif
-                        </div>
-                        <p class="mt-2 text-xs leading-relaxed text-[#64748B]">Calculated tax uses your configured basic rates and is not tax advice.</p>
+                    <div>
+                        <input name="discount_total" value="{{ old('discount_total', $draftOrder->discount_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm {{ $errors->has('discount_total') ? 'border-[#F87171]' : '' }}" placeholder="Discount" data-discount-input data-tax-driving-input @readonly(! $isEditable) @error('discount_total') aria-invalid="true" @enderror>
+                        @error('discount_total')
+                            <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
+                        @enderror
                     </div>
-                    <input name="shipping_total" value="{{ old('shipping_total', $draftOrder->shipping_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Shipping" data-shipping-input @readonly(! $isEditable)>
+
+                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 space-y-3">
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Tax mode</p>
+                        @if($isEditable)
+                            <div class="space-y-2">
+                                <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                    <input type="radio" name="tax_mode" value="{{ \App\Models\DraftOrder::TAX_SOURCE_MANUAL }}" @checked($selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_MANUAL) data-tax-mode-radio>
+                                    <span><span class="font-semibold text-[#0F172A]">Manual tax</span><span class="mt-0.5 block text-xs text-[#64748B]">Enter the tax amount yourself.</span></span>
+                                </label>
+                                <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                    <input type="radio" name="tax_mode" value="{{ \App\Models\DraftOrder::TAX_SOURCE_CALCULATED }}" @checked($selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED) data-tax-mode-radio>
+                                    <span><span class="font-semibold text-[#0F172A]">Calculate from store settings</span><span class="mt-0.5 block text-xs text-[#64748B]">Uses your configured tax rates for this shipping address.</span></span>
+                                </label>
+                            </div>
+                        @else
+                            <p class="text-sm font-semibold text-[#0F172A]">{{ $isCalculatedTax ? 'Calculated from store settings' : 'Manual tax' }}</p>
+                        @endif
+
+                        <div data-manual-tax-fields class="{{ $selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED ? 'hidden' : '' }}">
+                            <input name="tax_total" value="{{ old('tax_total', $draftOrder->tax_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm {{ $errors->has('tax_total') ? 'border-[#F87171]' : '' }}" placeholder="Tax amount" data-tax-input data-manual-tax-input @disabled($selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED) @readonly(! $isEditable) @error('tax_total') aria-invalid="true" @enderror>
+                            @error('tax_total')
+                                <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div data-calculated-tax-fields class="{{ $selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_MANUAL ? 'hidden' : '' }}">
+                            <label class="block text-xs font-semibold text-[#64748B]">Calculated tax total</label>
+                            <input value="{{ number_format((float) $draftOrder->tax_total, 2, '.', '') }}" type="text" readonly class="mt-1 w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2.5 text-sm tabular-nums text-[#0F172A]" data-calculated-tax-display>
+                            <input type="hidden" name="tax_total" value="{{ old('tax_total', $draftOrder->tax_total) }}" data-calculated-tax-hidden @disabled($selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_MANUAL)>
+                            <p class="mt-2 text-xs leading-relaxed text-[#64748B]">Calculated tax uses your configured basic rates and is not tax advice.</p>
+                        </div>
+
+                        <p class="hidden rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs text-[#92400E]" data-tax-stale-notice>Tax inputs changed. Save and recalculate before creating the order.</p>
+                    </div>
+
+                    <div>
+                        <input name="shipping_total" value="{{ old('shipping_total', $draftOrder->shipping_total) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm {{ $errors->has('shipping_total') ? 'border-[#F87171]' : '' }}" placeholder="Shipping" data-shipping-input data-tax-driving-input @readonly(! $isEditable) @error('shipping_total') aria-invalid="true" @enderror>
+                        @error('shipping_total')
+                            <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
+                        @enderror
+                    </div>
                     <textarea name="notes" rows="4" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Internal order note" @readonly(! $isEditable)>{{ old('notes', $draftOrder->notes) }}</textarea>
                     <div class="border-t border-[#E2E8F0] pt-4 flex justify-between gap-4 text-lg font-bold"><span>Total</span><span class="text-[#0052CC]" data-total-display>{{ $currency }} {{ number_format((float) $draftOrder->total, 2) }}</span></div>
                 </div>
+
+                @include('user_view.partials.tax_detail_breakdown', [
+                    'taxDisplay' => $taxDisplay,
+                    'currency' => $currency,
+                    'title' => 'Tax calculation details',
+                ])
             </section>
 
             @if($isEditable)
                 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 space-y-3">
-                    <button type="submit" name="_method" value="PATCH" class="w-full h-11 rounded-lg bg-[#0052CC] text-white font-semibold text-sm">Save draft</button>
+                    <button type="submit" class="w-full h-11 rounded-lg bg-[#0052CC] text-white font-semibold text-sm" data-primary-save-button>{{ $selectedTaxMode === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED ? 'Save and recalculate tax' : 'Save draft' }}</button>
+                    @if($isCalculatedTax)
+                        <button type="submit" name="switch_to_manual" value="1" class="w-full h-11 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] text-sm font-semibold text-[#92400E]" onclick="return confirm('Switch to manual tax? Calculated tax lines will be cleared and you can enter a manual amount.');">Switch to manual tax</button>
+                    @endif
                     <button type="submit" formaction="{{ route('draft-orders.convert', $draftOrder) }}" formmethod="POST" class="w-full h-11 rounded-lg bg-[#059669] text-white font-semibold text-sm">Save and create order</button>
                     <p class="text-xs text-[#64748B]">Creating the order saves the current draft fields first, checks stock, and deducts inventory. It does not charge a card.</p>
                 </section>
@@ -238,12 +288,47 @@
     (() => {
         const parseMoney = (value) => {
             const parsed = Number.parseFloat(value);
-            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+            return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
         };
 
         document.querySelectorAll('[data-draft-order-form]').forEach((form) => {
             const currency = form.dataset.currency || 'USD';
             const format = (amount) => `${currency} ${amount.toFixed(2)}`;
+            const calculatedMode = '{{ \App\Models\DraftOrder::TAX_SOURCE_CALCULATED }}';
+            const manualMode = '{{ \App\Models\DraftOrder::TAX_SOURCE_MANUAL }}';
+            const manualTaxFields = form.querySelector('[data-manual-tax-fields]');
+            const calculatedTaxFields = form.querySelector('[data-calculated-tax-fields]');
+            const manualTaxInput = form.querySelector('[data-manual-tax-input]');
+            const calculatedTaxHidden = form.querySelector('[data-calculated-tax-hidden]');
+            const calculatedTaxDisplay = form.querySelector('[data-calculated-tax-display]');
+            const primarySaveButton = form.querySelector('[data-primary-save-button]');
+            const staleNotice = form.querySelector('[data-tax-stale-notice]');
+            const modeRadios = form.querySelectorAll('[data-tax-mode-radio]');
+
+            const selectedTaxMode = () => {
+                const checked = form.querySelector('[data-tax-mode-radio]:checked');
+                return checked ? checked.value : manualMode;
+            };
+
+            const syncTaxModeUi = () => {
+                const mode = selectedTaxMode();
+                const isCalculated = mode === calculatedMode;
+
+                manualTaxFields?.classList.toggle('hidden', isCalculated);
+                calculatedTaxFields?.classList.toggle('hidden', ! isCalculated);
+
+                if (manualTaxInput) {
+                    manualTaxInput.disabled = isCalculated;
+                }
+
+                if (calculatedTaxHidden) {
+                    calculatedTaxHidden.disabled = ! isCalculated;
+                }
+
+                if (primarySaveButton) {
+                    primarySaveButton.textContent = isCalculated ? 'Save and recalculate tax' : 'Save draft';
+                }
+            };
 
             const updateTotals = () => {
                 let subtotal = 0;
@@ -267,12 +352,23 @@
                 });
 
                 const discount = parseMoney(form.querySelector('[data-discount-input]')?.value || '0');
-                const tax = parseMoney(form.querySelector('[data-tax-input]')?.value || '0');
+                const isCalculated = selectedTaxMode() === calculatedMode;
+                const taxSource = isCalculated
+                    ? parseMoney(calculatedTaxHidden?.value || calculatedTaxDisplay?.value || '0')
+                    : parseMoney(manualTaxInput?.value || '0');
                 const shipping = parseMoney(form.querySelector('[data-shipping-input]')?.value || '0');
-                const total = Math.max(0, subtotal + tax + shipping - discount);
+                const total = Math.max(0, subtotal + taxSource + shipping - discount);
 
                 form.querySelectorAll('[data-subtotal-display]').forEach((node) => node.textContent = format(subtotal));
                 form.querySelectorAll('[data-total-display]').forEach((node) => node.textContent = format(total));
+            };
+
+            const markTaxStaleIfNeeded = () => {
+                if (form.dataset.calculatedTax !== '1' || selectedTaxMode() !== calculatedMode || ! staleNotice) {
+                    return;
+                }
+
+                staleNotice.classList.remove('hidden');
             };
 
             form.querySelectorAll('[data-draft-line]').forEach((row) => {
@@ -305,14 +401,35 @@
                         priceInput.value = selected.dataset.price;
                     }
 
+                    markTaxStaleIfNeeded();
                     updateTotals();
                 });
             });
 
-            form.querySelectorAll('[data-quantity-input], [data-unit-price-input], [data-discount-input], [data-tax-input], [data-shipping-input]').forEach((input) => {
+            form.querySelectorAll('[data-quantity-input], [data-unit-price-input]').forEach((input) => {
+                input.addEventListener('input', () => {
+                    markTaxStaleIfNeeded();
+                    updateTotals();
+                });
+            });
+
+            form.querySelectorAll('[data-discount-input], [data-tax-input], [data-shipping-input]').forEach((input) => {
                 input.addEventListener('input', updateTotals);
             });
 
+            form.querySelectorAll('[data-tax-driving-input], [name="shipping_state"], [name="shipping_country"]').forEach((input) => {
+                input.addEventListener('input', markTaxStaleIfNeeded);
+                input.addEventListener('change', markTaxStaleIfNeeded);
+            });
+
+            modeRadios.forEach((radio) => {
+                radio.addEventListener('change', () => {
+                    syncTaxModeUi();
+                    updateTotals();
+                });
+            });
+
+            syncTaxModeUi();
             updateTotals();
         });
     })();

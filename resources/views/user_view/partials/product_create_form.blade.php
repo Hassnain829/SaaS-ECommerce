@@ -9,6 +9,9 @@
     $catalogBrands = $catalogBrands ?? collect();
     $catalogTags = $catalogTags ?? collect();
     $catalogTaxonomyCategories = $catalogTaxonomyCategories ?? collect();
+    $taxSetting = $taxSetting ?? ($productModalSelectedStore?->taxSetting ?? null);
+    $defaultProductTaxable = (bool) ($taxSetting?->default_product_taxable ?? true);
+    $isTaxableChecked = old('is_taxable', $defaultProductTaxable ? '1' : '0') === '1' || old('is_taxable') === true;
     $defaultProductTypes = \App\Support\ProductTypeBehavior::types();
     $rawSelectedProductType = \App\Support\ProductTypeBehavior::normalize((string) ($productFormData['product_type'] ?? 'physical'));
     $selectedProductType = in_array($rawSelectedProductType, $defaultProductTypes, true) ? $rawSelectedProductType : 'physical';
@@ -128,6 +131,19 @@
                 <label for="bulk-stock" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Stock on hand</label>
                 <input id="bulk-stock" type="number" min="0" step="1" value="{{ $productFormData['bulk_stock'] ?? '' }}" class="w-full max-w-md rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                 <p class="mt-1.5 text-xs text-[#64748B]">Applies to your single default inventory row until you add option groups in the full editor.</p>
+            </div>
+            <div class="md:col-span-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                <input type="hidden" name="is_taxable" value="0">
+                <label class="flex items-start gap-3">
+                    <input id="product-is-taxable" name="is_taxable" type="checkbox" value="1" class="mt-0.5 rounded border-[#CBD5E1] text-[#0052CC] focus:ring-[#0052CC]" @checked($isTaxableChecked) @error('is_taxable') aria-invalid="true" @enderror>
+                    <span>
+                        <span class="block text-sm font-semibold text-[#0F172A]">Charge tax on this product</span>
+                        <span class="mt-1 block text-xs text-[#64748B]">Store default: New products are {{ $defaultProductTaxable ? 'taxable' : 'not taxable' }}.</span>
+                    </span>
+                </label>
+                @error('is_taxable')
+                    <p class="mt-2 text-xs text-[#B42318]">{{ $message }}</p>
+                @enderror
             </div>
         </div>
 

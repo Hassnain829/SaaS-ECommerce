@@ -38,7 +38,7 @@ class DraftTaxTest extends TestCase
             ->get(route('draft-orders.show', $draft))
             ->assertOk()
             ->assertSeeText('Manual tax')
-            ->assertSeeText('Save and calculate tax');
+            ->assertSeeText('Tax mode');
 
         $after = $draft->fresh()->getAttributes();
         $this->assertSame($before['tax_total'], $after['tax_total']);
@@ -95,7 +95,7 @@ class DraftTaxTest extends TestCase
                 'shipping_total' => '5.00',
             ]))
             ->assertRedirect(route('draft-orders.show', $draft))
-            ->assertSessionHas('success', 'Draft saved and tax calculated from store settings.');
+            ->assertSessionHas('success', 'Draft saved and tax recalculated from store settings.');
 
         $draft = $draft->fresh(['items', 'taxLines']);
         $this->assertSame(DraftOrder::TAX_SOURCE_CALCULATED, $draft->taxSource());
@@ -211,7 +211,7 @@ class DraftTaxTest extends TestCase
             ->assertSessionHasErrors('tax');
     }
 
-    public function test_manual_edit_after_calculation_returns_to_manual_and_clears_stale_tax_lines(): void
+    public function test_explicit_manual_switch_after_calculation_clears_stale_tax_lines(): void
     {
         $owner = $this->merchant('draft-tax-reset@example.test');
         $store = $this->store($owner, 'Draft Tax Reset Store');
@@ -227,6 +227,7 @@ class DraftTaxTest extends TestCase
         $this->assertSame(2, DraftTaxLine::query()->where('draft_order_id', $draft->id)->count());
 
         $payload = $this->draftPayload($variant, [
+            'tax_mode' => DraftOrder::TAX_SOURCE_MANUAL,
             'tax_total' => '9.99',
             'shipping_total' => '5.00',
             'notes' => 'Manual tax override.',
@@ -242,6 +243,64 @@ class DraftTaxTest extends TestCase
         $this->assertSame(0, DraftTaxLine::query()->where('draft_order_id', $draft->id)->count());
         $this->assertSame(0.0, (float) $draft->items->first()->tax_amount);
         $this->assertSame(34.99, (float) $draft->total);
+    }
+
+    public function test_calculated_draft_save_without_manual_mode_stays_calculated_and_recalculates(): void
+    {
+        $owner = $this->merchant('draft-stay-calculated@example.test');
+        $store = $this->store($owner, 'Draft Stay Calculated Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+        $this->enableTax($store, ['shipping_taxable' => true]);
+
+        $draft = $this->createDraft($owner, $store, $variant);
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('draft-orders.calculate-tax', $draft), $this->draftPayload($variant))
+            ->assertRedirect();
+
+        $payload = $this->draftPayload($variant, [
+            'tax_mode' => DraftOrder::TAX_SOURCE_CALCULATED,
+            'items' => [
+                [
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 2,
+                    'unit_price' => '20.00',
+                ],
+            ],
+            'shipping_total' => '10.00',
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patch(route('draft-orders.update', $draft), $payload)
+            ->assertRedirect(route('draft-orders.show', $draft));
+
+        $draft = $draft->fresh(['taxLines']);
+        $this->assertSame(DraftOrder::TAX_SOURCE_CALCULATED, $draft->taxSource());
+        $this->assertGreaterThan(0, $draft->taxLines->count());
+        $this->assertSame(5.00, (float) $draft->tax_total);
+    }
+
+    public function test_calculated_draft_show_renders_tax_breakdown(): void
+    {
+        $owner = $this->merchant('draft-breakdown@example.test');
+        $store = $this->store($owner, 'Draft Breakdown Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+        $this->enableTax($store, ['shipping_taxable' => true]);
+
+        $draft = $this->createDraft($owner, $store, $variant);
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('draft-orders.calculate-tax', $draft), $this->draftPayload($variant))
+            ->assertRedirect();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('draft-orders.show', $draft->fresh()))
+            ->assertOk()
+            ->assertSeeText('Tax calculation details')
+            ->assertSeeText('Calculated from store settings')
+            ->assertSeeText('Shipping');
     }
 
     public function test_zero_percent_calculated_draft_tax_lines_are_preserved(): void
@@ -312,7 +371,7 @@ class DraftTaxTest extends TestCase
             ->from(route('draft-orders.show', $draft))
             ->post(route('draft-orders.calculate-tax', $draft), $payload)
             ->assertRedirect(route('draft-orders.show', $draft))
-            ->assertSessionHas('success', 'Draft saved and tax calculated from store settings.');
+            ->assertSessionHas('success', 'Draft saved and tax recalculated from store settings.');
 
         $draft = $draft->fresh(['items', 'taxLines']);
         $this->assertSame(2, (int) $draft->items->first()->quantity);

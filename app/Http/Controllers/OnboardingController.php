@@ -294,7 +294,9 @@ class OnboardingController extends Controller
                 'product_type' => $validated['product_type'],
                 ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
-                'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
+                'is_taxable' => $request->has('is_taxable')
+                    ? $request->boolean('is_taxable')
+                    : app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => true,
                 'meta' => [
                     'default_stock' => $validated['default_stock'],
@@ -1830,6 +1832,7 @@ class OnboardingController extends Controller
             'brand_id' => CatalogRules::brandIdForStore($store),
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
+            'is_taxable' => ['nullable', 'boolean'],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -1904,7 +1907,9 @@ class OnboardingController extends Controller
                 'product_type' => $validated['product_type'],
                 ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
-                'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
+                'is_taxable' => $request->has('is_taxable')
+                    ? $request->boolean('is_taxable')
+                    : app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => true,
                 'meta' => [
                     'default_stock' => $validated['default_stock'],

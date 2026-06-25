@@ -138,6 +138,32 @@ CSV;
         $this->assertFalse((bool) Product::query()->where('store_id', $store->id)->where('sku', 'IMP-TAX-PARENT')->firstOrFail()->is_taxable);
     }
 
+    public function test_product_create_respects_explicit_taxable_override_against_store_default(): void
+    {
+        $owner = $this->merchant('override-tax@example.test');
+        $store = $this->store($owner, 'Override Tax Store');
+        $store->taxSetting->update(['default_product_taxable' => true]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('product.store'), $this->productCreatePayload('Explicit Exempt', 'EXPLICIT-OFF') + [
+                'is_taxable' => '0',
+            ])
+            ->assertRedirect(route('products'));
+
+        $store->taxSetting->update(['default_product_taxable' => false]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('product.store'), $this->productCreatePayload('Explicit Taxable', 'EXPLICIT-ON') + [
+                'is_taxable' => '1',
+            ])
+            ->assertRedirect(route('products'));
+
+        $this->assertFalse((bool) Product::query()->where('store_id', $store->id)->where('sku', 'EXPLICIT-OFF')->firstOrFail()->is_taxable);
+        $this->assertTrue((bool) Product::query()->where('store_id', $store->id)->where('sku', 'EXPLICIT-ON')->firstOrFail()->is_taxable);
+    }
+
     public function test_product_taxable_flag_can_be_edited_and_unrelated_updates_preserve_it(): void
     {
         $owner = $this->merchant('edit-tax@example.test');

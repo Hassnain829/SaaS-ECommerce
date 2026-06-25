@@ -189,6 +189,9 @@
                                 </div>
                                 <div class="shrink-0 border-t border-slate-100 pt-3 text-left sm:border-0 sm:pt-0 sm:text-right">
                                     <p class="text-sm text-slate-500">Qty {{ $item->quantity }} × {{ $currency }}{{ number_format((float) $item->unit_price, 2) }}</p>
+                                    @if ((float) $item->tax_amount > 0)
+                                        <p class="mt-1 text-xs text-slate-500">Subtotal {{ $currency }}{{ number_format((float) $item->subtotal, 2) }} · Tax {{ $currency }}{{ number_format((float) $item->tax_amount, 2) }}</p>
+                                    @endif
                                     <p class="mt-1 text-lg font-bold tabular-nums text-slate-900 md:text-xl">{{ $currency }}{{ number_format((float) $item->total, 2) }}</p>
                                 </div>
                             </div>
@@ -244,6 +247,16 @@
                         <span class="text-base font-semibold text-slate-900">Total</span>
                         <span class="text-2xl font-bold tabular-nums text-indigo-800 md:text-3xl">{{ $currency }}{{ number_format($displayTotal, 2) }}</span>
                     </div>
+
+                    @isset($taxDisplay)
+                        <div class="mt-6">
+                            @include('user_view.partials.tax_detail_breakdown', [
+                                'taxDisplay' => $taxDisplay,
+                                'currency' => $currency,
+                                'title' => 'Tax details',
+                            ])
+                        </div>
+                    @endisset
                 </article>
 
                 {{-- Payment & source --}}

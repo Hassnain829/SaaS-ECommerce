@@ -37,6 +37,7 @@
                                     'catalogBrands' => $catalogBrands ?? collect(),
                                     'catalogTags' => $catalogTags ?? collect(),
                                     'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
+                                    'taxSetting' => $taxSetting ?? null,
                                     'productCreateCancelUrl' => route('products'),
                                 ])
                             </div>

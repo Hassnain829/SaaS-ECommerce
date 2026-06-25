@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\DraftOrder;
 use App\Models\ProductVariant;
+use App\Support\Tax\TaxDisplayPresenter;
 use App\Services\Draft\DraftTaxService;
 use App\Services\DraftOrderService;
 use App\Services\ManualOrderConversionService;
@@ -25,6 +26,7 @@ class DraftOrderController extends Controller
             'selectedStore' => $store,
             'customers' => $this->customers($store),
             'variants' => $this->variants($store),
+            'taxSetting' => $store->taxSetting,
         ]);
     }
 
@@ -56,18 +58,63 @@ class DraftOrderController extends Controller
 
         return view('user_view.draft_order_show', [
             'selectedStore' => $store,
-            'draftOrder' => $draftOrder->load(['customer.addresses', 'items.variant.product', 'convertedOrder']),
+            'draftOrder' => $draftOrder->load(['customer.addresses', 'items.variant.product', 'convertedOrder', 'taxLines']),
             'customers' => $this->customers($store),
             'variants' => $this->variants($store),
+            'taxDisplay' => TaxDisplayPresenter::forDraft($draftOrder),
+            'taxSetting' => $store->taxSetting,
         ]);
     }
 
-    public function update(Request $request, DraftOrder $draftOrder, DraftOrderService $draftOrderService): RedirectResponse
+    public function update(Request $request, DraftOrder $draftOrder, DraftOrderService $draftOrderService, DraftTaxService $draftTaxService): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         $this->assertDraftBelongsToStore($draftOrder, $store->id);
 
-        $draftOrderService->update($draftOrder, $this->validatedDraftPayload($request, $store->id, requireCustomer: false));
+        $payload = $this->validatedDraftPayload($request, $store->id, requireCustomer: false);
+        $taxMode = $this->resolvedTaxMode($request, $draftOrder);
+
+        if ($request->boolean('switch_to_manual')) {
+            $draftOrderService->update($draftOrder, $payload, 'switch_manual');
+
+            app(SecurityLogRecorder::class)->record(
+                $request,
+                'manual_draft_updated',
+                store: $store,
+                metadata: [
+                    'draft_order_id' => $draftOrder->id,
+                    'draft_number' => $draftOrder->draft_number,
+                    'tax_mode' => 'manual',
+                ]
+            );
+
+            return redirect()
+                ->route('draft-orders.show', $draftOrder)
+                ->with('success', 'Draft switched to manual tax.');
+        }
+
+        if ($taxMode === DraftOrder::TAX_SOURCE_CALCULATED) {
+            DB::transaction(function () use ($draftOrder, $draftOrderService, $draftTaxService, $store, $payload): void {
+                $draft = $draftOrderService->updateForRecalculation($draftOrder, $payload);
+                $draftTaxService->calculate($draft, $store);
+            });
+
+            app(SecurityLogRecorder::class)->record(
+                $request,
+                'manual_draft_tax_calculated',
+                store: $store,
+                metadata: [
+                    'draft_order_id' => $draftOrder->id,
+                    'draft_number' => $draftOrder->draft_number,
+                ]
+            );
+
+            return redirect()
+                ->route('draft-orders.show', $draftOrder)
+                ->with('success', 'Draft saved and tax recalculated from store settings.');
+        }
+
+        $draftOrderService->updateManual($draftOrder, $payload);
 
         app(SecurityLogRecorder::class)->record(
             $request,
@@ -88,19 +135,40 @@ class DraftOrderController extends Controller
         Request $request,
         DraftOrder $draftOrder,
         DraftOrderService $draftOrderService,
+        DraftTaxService $draftTaxService,
         ManualOrderConversionService $conversionService
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         $this->assertDraftBelongsToStore($draftOrder, $store->id);
 
-        if ($request->has('items')) {
-            $draftOrder = $draftOrderService->update(
-                $draftOrder,
-                $this->validatedDraftPayload($request, $store->id, requireCustomer: false)
-            );
-        }
+        $payload = $request->has('items')
+            ? $this->validatedDraftPayload($request, $store->id, requireCustomer: false)
+            : null;
+        $taxMode = $payload !== null ? $this->resolvedTaxMode($request, $draftOrder) : $draftOrder->taxSource();
 
-        $order = $conversionService->convert($draftOrder, $store, $request->user());
+        $order = DB::transaction(function () use (
+            $request,
+            $draftOrder,
+            $draftOrderService,
+            $draftTaxService,
+            $conversionService,
+            $store,
+            $payload,
+            $taxMode
+        ) {
+            if ($payload !== null) {
+                if ($taxMode === DraftOrder::TAX_SOURCE_CALCULATED) {
+                    $draft = $draftOrderService->updateForRecalculation($draftOrder, $payload);
+                    $draftOrder = $draftTaxService->calculate($draft, $store);
+                } else {
+                    $draftOrder = $draftOrderService->updateManual($draftOrder, $payload);
+                }
+            } elseif ($draftOrder->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED) {
+                $draftOrder = $draftTaxService->calculate($draftOrder->fresh(['items', 'taxLines']), $store);
+            }
+
+            return $conversionService->convert($draftOrder, $store, $request->user());
+        });
 
         app(SecurityLogRecorder::class)->record(
             $request,
@@ -131,7 +199,7 @@ class DraftOrderController extends Controller
         $payload = $this->validatedDraftPayload($request, $store->id, requireCustomer: false);
 
         DB::transaction(function () use ($draftOrder, $draftOrderService, $draftTaxService, $store, $payload): void {
-            $draft = $draftOrderService->update($draftOrder, $payload);
+            $draft = $draftOrderService->updateForRecalculation($draftOrder, $payload);
             $draftTaxService->calculate($draft, $store);
         });
 
@@ -147,7 +215,24 @@ class DraftOrderController extends Controller
 
         return redirect()
             ->route('draft-orders.show', $draftOrder)
-            ->with('success', 'Draft saved and tax calculated from store settings.');
+            ->with('success', 'Draft saved and tax recalculated from store settings.');
+    }
+
+    private function resolvedTaxMode(Request $request, DraftOrder $draftOrder): string
+    {
+        $requested = (string) $request->input('tax_mode', '');
+
+        if ($requested === DraftOrder::TAX_SOURCE_CALCULATED) {
+            return DraftOrder::TAX_SOURCE_CALCULATED;
+        }
+
+        if ($requested === DraftOrder::TAX_SOURCE_MANUAL) {
+            return DraftOrder::TAX_SOURCE_MANUAL;
+        }
+
+        return $draftOrder->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED
+            ? DraftOrder::TAX_SOURCE_CALCULATED
+            : DraftOrder::TAX_SOURCE_MANUAL;
     }
 
     public function cancel(Request $request, DraftOrder $draftOrder, DraftOrderService $draftOrderService): RedirectResponse
@@ -253,7 +338,7 @@ class DraftOrderController extends Controller
             'shipping_address_line1' => ['nullable', 'string', 'max:255'],
             'shipping_address_line2' => ['nullable', 'string', 'max:255'],
             'shipping_city' => ['nullable', 'string', 'max:120'],
-            'shipping_state' => ['nullable', 'string', 'max:32', 'alpha'],
+            'shipping_state' => ['nullable', 'string', 'max:32'],
             'shipping_postal_code' => ['nullable', 'string', 'max:40'],
             'shipping_country' => ['nullable', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'],
             'billing_same_as_shipping' => ['nullable', 'boolean'],
@@ -262,7 +347,7 @@ class DraftOrderController extends Controller
             'billing_address_line1' => ['nullable', 'string', 'max:255'],
             'billing_address_line2' => ['nullable', 'string', 'max:255'],
             'billing_city' => ['nullable', 'string', 'max:120'],
-            'billing_state' => ['nullable', 'string', 'max:32', 'alpha'],
+            'billing_state' => ['nullable', 'string', 'max:32'],
             'billing_postal_code' => ['nullable', 'string', 'max:40'],
             'billing_country' => ['nullable', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],

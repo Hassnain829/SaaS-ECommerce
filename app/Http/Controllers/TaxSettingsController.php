@@ -43,6 +43,7 @@ class TaxSettingsController extends Controller
             'selectedStore' => $store,
             'taxSetting' => $taxSetting,
             'taxRates' => $taxRates,
+            'activeRatesCount' => $taxRates->where('is_active', true)->count(),
             'canManageTax' => $canManageTax,
         ]);
     }

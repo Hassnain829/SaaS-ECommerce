@@ -782,6 +782,76 @@ class TaxSettingsTest extends TestCase
             ->assertSee('Platform checkout tax is currently disabled', false);
     }
 
+    public function test_enabled_without_active_rates_renders_warning(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $store->taxSetting->update(['enabled' => true]);
+        TaxRate::query()->where('store_id', $store->id)->update(['is_active' => false]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSeeText('Tax calculation is enabled, but no active tax rates are configured');
+    }
+
+    public function test_disabled_with_active_rates_renders_informational_notice(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $store->taxSetting->update(['enabled' => false]);
+        $this->createRate($store, ['is_active' => true]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSeeText('Tax is disabled, so configured rates are saved but not applied');
+    }
+
+    public function test_tax_settings_summary_reflects_configuration(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $store->taxSetting->update([
+            'enabled' => true,
+            'prices_include_tax' => true,
+            'default_product_taxable' => false,
+            'shipping_taxable' => true,
+        ]);
+        $this->createRate($store, ['region_code' => '', 'is_active' => true]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSeeText('Configuration summary')
+            ->assertSeeText('Active')
+            ->assertSeeText('Tax included in prices')
+            ->assertSeeText('Not taxable')
+            ->assertSeeText('Country-wide');
+    }
+
+    public function test_rate_form_preserves_input_and_shows_field_errors_on_validation_failure(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+
+        $response = $this->actingAsStore($owner, $store)
+            ->from(route('settings.taxes.index'))
+            ->post(route('settings.taxes.rates.store'), [
+                'name' => 'Bad Country Rate',
+                'country_code' => 'United States',
+                'region_code' => 'CA',
+                'rate_percent' => '8.25',
+                'priority' => 100,
+                'is_active' => 1,
+            ]);
+
+        $response->assertRedirect(route('settings.taxes.index'))
+            ->assertSessionHasErrors('country_code');
+
+        $this->actingAsStore($owner, $store)
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->assertSee('Bad Country Rate', false)
+            ->assertSee('United States', false);
+    }
+
     public function test_tax_routes_match_contracts(): void
     {
         foreach (self::TAX_ROUTE_CONTRACTS as $contract) {

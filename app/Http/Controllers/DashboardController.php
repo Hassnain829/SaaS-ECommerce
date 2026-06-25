@@ -705,6 +705,7 @@ class DashboardController extends Controller
             'catalogBrands' => $catalogBrands,
             'catalogTags' => $catalogTags,
             'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
+            'taxSetting' => $selectedStore->taxSetting,
         ]);
     }
 
@@ -851,12 +852,14 @@ class DashboardController extends Controller
             'shipments.shippingMethod',
             'shipments.originLocation',
             'shipments.shippedBy',
+            'taxLines',
         ]);
 
         $channelOwnership = app(\App\Services\Channels\ChannelOwnershipService::class);
 
         return view('user_view.orderViewDetails', [
             'order' => $order,
+            'taxDisplay' => \App\Support\Tax\TaxDisplayPresenter::forOrder($order),
             'orderStatuses' => OrderLifecycle::orderStatuses(),
             'selectedStore' => $selectedStore,
             'isOrderExternallyManaged' => $channelOwnership->isOrderExternallyManaged($order),

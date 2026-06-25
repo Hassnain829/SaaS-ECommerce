@@ -124,7 +124,10 @@
                     </label>
                     <label class="block md:col-span-2">
                         <span class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Country code</span>
-                        <input name="shipping_country" value="{{ old('shipping_country') }}" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="country" title="Enter a two-letter country code such as US, CA, GB, or AU." class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase" placeholder="US, CA, GB, AU">
+                        <input name="shipping_country" value="{{ old('shipping_country') }}" list="draft-create-country-codes" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="off" title="Enter a two-letter country code such as US, CA, GB, or AU." class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase @error('shipping_country') border-[#F87171] @enderror" placeholder="US, CA, GB, AU" @error('shipping_country') aria-invalid="true" @enderror>
+                        <datalist id="draft-create-country-codes">
+                            @include('user_view.partials.country_code_options')
+                        </datalist>
                         <p class="mt-1 text-xs text-[#64748B]">Use a two-letter code such as US, CA, GB, or AU.</p>
                         @error('shipping_country')
                             <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
@@ -145,6 +148,7 @@
                     <div class="flex justify-between gap-4 text-sm"><span class="text-[#64748B]">Subtotal</span><span class="font-semibold text-[#0F172A]" data-subtotal-display>{{ $currency }} 0.00</span></div>
                     <input name="discount_total" value="{{ old('discount_total', '0.00') }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Discount" data-discount-input>
                     <input name="tax_total" value="{{ old('tax_total', '0.00') }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Tax" data-tax-input>
+                    <p class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs leading-relaxed text-[#64748B]">New drafts start in manual tax mode. Save the draft first, then open it to calculate tax from store settings.</p>
                     <input name="shipping_total" value="{{ old('shipping_total', '0.00') }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Shipping" data-shipping-input>
                     <textarea name="notes" rows="4" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Internal order note">{{ old('notes') }}</textarea>
                     <div class="border-t border-[#E2E8F0] pt-4 flex justify-between gap-4 text-lg font-bold"><span>Total</span><span class="text-[#0052CC]" data-total-display>{{ $currency }} 0.00</span></div>
