@@ -41,13 +41,17 @@ final class FedExRegistrationPayloadBuilder
             trim((string) ($accountDetails['address_line1'] ?? '')),
             filled($accountDetails['address_line2'] ?? null) ? trim((string) $accountDetails['address_line2']) : null,
         ]));
+        $state = strtoupper(trim((string) ($accountDetails['state'] ?? '')));
         $address = [
             'streetLines' => $streetLines,
             'city' => strtoupper(trim((string) ($accountDetails['city'] ?? ''))),
-            'stateOrProvinceCode' => strtoupper(trim((string) ($accountDetails['state'] ?? ''))),
             'postalCode' => $this->resolveRegistrationPostalCode($accountDetails),
             'countryCode' => strtoupper(trim((string) ($accountDetails['country_code'] ?? 'US'))),
         ];
+
+        if ($state !== '') {
+            $address['stateOrProvinceCode'] = $state;
+        }
 
         return [
             'customerName' => $customerName,

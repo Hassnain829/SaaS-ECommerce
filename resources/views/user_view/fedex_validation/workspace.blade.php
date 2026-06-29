@@ -96,6 +96,59 @@
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-[#0F172A]">Sweden MFA Passthrough</h3>
+            <p class="mt-1 text-sm text-[#64748B]">Uses the locked FedEx Sweden passthrough workbook fixture. PIN, SMS, email, call and invoice verification are not requested.</p>
+            <div class="mt-4 grid gap-2 text-sm">
+                <div class="flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                    <span class="font-semibold text-[#475569]">Workbook account</span>
+                    <span class="font-semibold text-[#0F172A]">****{{ $swedenAccountLast4 ?? '9268' }}</span>
+                </div>
+                <div class="flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                    <span class="font-semibold text-[#475569]">Country</span>
+                    <span class="font-semibold text-[#0F172A]">Sweden</span>
+                </div>
+                @foreach ([
+                    'address_validation' => 'Registration address validation',
+                    'child_credentials_returned' => 'Child credentials returned',
+                    'mfa_challenge' => 'MFA challenge',
+                    'direct_child_authorization' => 'Direct child authorization',
+                    'screenshots' => 'Screenshots',
+                ] as $statusKey => $statusLabel)
+                    <div class="flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                        <span class="font-semibold text-[#475569]">{{ $statusLabel }}</span>
+                        <span class="font-semibold text-[#0F172A]">{{ $swedenPassthroughStatus[$statusKey] ?? 'Not tested' }}</span>
+                    </div>
+                @endforeach
+            </div>
+            @unless ($swedenPassthroughAvailable ?? false)
+                <p class="mt-3 text-sm text-amber-800">Sweden passthrough fixture is not configured. Set the FedEx baseline workbook or Sweden validation environment values before running this check.</p>
+            @else
+                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.sweden-passthrough', $account) }}" class="mt-4" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                    @csrf
+                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Sweden MFA Passthrough</button>
+                </form>
+            @endunless
+            @if ($swedenScreenshotsUploadAllowed ?? false)
+                <div class="mt-6 border-t border-[#E2E8F0] pt-4">
+                    <p class="text-sm font-semibold text-[#0F172A]">Sweden passthrough screenshots</p>
+                    <p class="mt-1 text-xs text-[#64748B]">Upload screenshots from the sanitized validation workspace only. Do not upload pages containing credentials or access tokens.</p>
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.sweden-screenshots.upload', $account) }}" enctype="multipart/form-data" class="mt-4 grid gap-3 md:grid-cols-2">
+                        @csrf
+                        <label class="block space-y-1 text-sm">
+                            <span class="font-semibold text-[#475569]">Address/passthrough result screenshot</span>
+                            <input type="file" name="address_screenshot" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-sm">
+                        </label>
+                        <label class="block space-y-1 text-sm">
+                            <span class="font-semibold text-[#475569]">Direct child authorization screenshot</span>
+                            <input type="file" name="child_authorization_screenshot" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-sm">
+                        </label>
+                        <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white md:col-span-2 md:w-fit">Upload Sweden Screenshots</button>
+                    </form>
+                </div>
+            @endif
+        </section>
+
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <h3 class="text-lg font-semibold text-[#0F172A]">Required validation documents</h3>
             <p class="mt-1 text-sm text-[#64748B]">Upload the cover sheet, product worksheet, and customer-facing screenshots PDF.</p>
             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.documents.upload', $account) }}" enctype="multipart/form-data" class="mt-4 grid gap-3 md:grid-cols-3">

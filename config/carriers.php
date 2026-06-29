@@ -55,6 +55,19 @@ return [
             base_path('FedEx_Integrator_Test_Case_Baseline.xlsx'),
         ],
 
+        'validation' => [
+            'sweden' => [
+                'account_number' => env('FEDEX_VALIDATION_SWEDEN_ACCOUNT_NUMBER'),
+                'customer_name' => env('FEDEX_VALIDATION_SWEDEN_CUSTOMER_NAME'),
+                'address_line1' => env('FEDEX_VALIDATION_SWEDEN_ADDRESS_LINE1'),
+                'address_line2' => env('FEDEX_VALIDATION_SWEDEN_ADDRESS_LINE2'),
+                'state' => env('FEDEX_VALIDATION_SWEDEN_STATE'),
+                'city' => env('FEDEX_VALIDATION_SWEDEN_CITY'),
+                'postal_code' => env('FEDEX_VALIDATION_SWEDEN_POSTAL_CODE'),
+                'country_code' => env('FEDEX_VALIDATION_SWEDEN_COUNTRY_CODE', 'SE'),
+            ],
+        ],
+
         'sandbox' => [
             'base_url' => env('FEDEX_SANDBOX_BASE_URL', 'https://apis-sandbox.fedex.com'),
             'client_id' => env('FEDEX_SANDBOX_CLIENT_ID'),

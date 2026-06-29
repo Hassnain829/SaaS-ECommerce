@@ -18,6 +18,8 @@ use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationAuthorizationEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationMfaEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScopeService;
+use App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughService;
+use App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -70,6 +72,58 @@ class FedExValidationRunController extends Controller
         return redirect()
             ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
             ->with($success ? 'success' : 'error', $message);
+    }
+
+    public function runSwedenPassthrough(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExValidationSwedenPassthroughService $swedenPassthroughService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+
+        $outcome = $swedenPassthroughService->run($account->store, $account);
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_validation_run_sweden_passthrough',
+            store: $account->store,
+            metadata: [
+                'carrier_account_id' => $account->id,
+                'validation_run_id' => $outcome['validation_run_id'] ?? null,
+                'address_event_id' => $outcome['address_event']?->id,
+                'child_authorization_event_id' => $outcome['child_event']?->id,
+                'success' => $outcome['success'] ?? false,
+                'failure_code' => $outcome['failure_code'] ?? null,
+                'account_last4' => data_get($outcome['address_event']?->request_summary, 'account_last4'),
+                'country_code' => 'SE',
+            ],
+        );
+
+        if ($outcome['blocked'] ?? false) {
+            return redirect()
+                ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+                ->with('error', (string) ($outcome['public_message'] ?? FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE));
+        }
+
+        if ($outcome['success'] ?? false) {
+            $message = (string) ($outcome['public_message'] ?? 'Sweden MFA passthrough validation completed successfully.');
+            if ($outcome['address_event']?->id) {
+                $message .= ' Address evidence event #'.$outcome['address_event']->id.'.';
+            }
+            if ($outcome['child_event']?->id) {
+                $message .= ' Child authorization evidence event #'.$outcome['child_event']->id.'.';
+            }
+
+            return redirect()
+                ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+                ->with('success', $message);
+        }
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('error', FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE);
     }
 
     public function runAddressValidation(

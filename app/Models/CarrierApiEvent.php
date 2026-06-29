@@ -26,6 +26,10 @@ class CarrierApiEvent extends Model
 
     public const SCENARIO_AUTHORIZATION_CHILD = 'authorization_child';
 
+    public const SCENARIO_REGISTRATION_SWEDEN_PASSTHROUGH_ADDRESS = 'registration_sweden_passthrough_address';
+
+    public const SCENARIO_AUTHORIZATION_SWEDEN_PASSTHROUGH_CHILD = 'authorization_sweden_passthrough_child';
+
     public const ACTION_TEST_CONNECTION = 'test_connection';
 
     public const ACTION_ADDRESS_VALIDATION = 'address_validation';

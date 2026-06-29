@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Carrier\Validation;
 use App\Http\Controllers\Carrier\Validation\Concerns\ResolvesFedExValidationAccount;
 use App\Http\Controllers\Controller;
 use App\Models\CarrierAccount;
+use App\Models\CarrierApiEvent;
 use App\Models\FedExValidationArtifact;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceQueryService;
@@ -153,6 +154,77 @@ class FedExValidationArtifactController extends Controller
         return redirect()
             ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
             ->with('success', 'Tracking screenshot uploaded.');
+    }
+
+    public function uploadSwedenScreenshots(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExValidationEvidenceQueryService $evidenceQuery,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+        $store = $account->store;
+
+        $validated = $request->validate([
+            'address_screenshot' => ['required', 'file', 'mimes:pdf,png,jpg,jpeg', 'max:20480'],
+            'child_authorization_screenshot' => ['required', 'file', 'mimes:pdf,png,jpg,jpeg', 'max:20480'],
+        ]);
+
+        $pairedRun = $evidenceQuery->canonicalSwedenPassthroughRun($store, $account);
+
+        abort_unless(
+            $pairedRun !== null,
+            422,
+            'Upload Sweden passthrough screenshots only after a successful paired Sweden MFA passthrough run.',
+        );
+
+        $runId = $pairedRun['validation_run_id'];
+        $addressEvent = $pairedRun['address_event'];
+        $childEvent = $pairedRun['child_authorization_event'];
+
+        $addressMeta = [
+            'validation_run_id' => $runId,
+            'address_event_id' => $addressEvent->id,
+            'child_authorization_event_id' => $childEvent->id,
+        ];
+
+        $this->storeUploadedFile(
+            account: $account,
+            file: $request->file('address_screenshot'),
+            artifactType: FedExValidationArtifact::TYPE_SWEDEN_PASSTHROUGH_ADDRESS_SCREENSHOT,
+            role: FedExValidationArtifact::ROLE_SWEDEN_PASSTHROUGH_SCREENSHOT,
+            actorId: $request->user()?->id,
+            extra: [
+                'carrier_api_event_id' => $addressEvent->id,
+                'scenario_key' => CarrierApiEvent::SCENARIO_REGISTRATION_SWEDEN_PASSTHROUGH_ADDRESS,
+                'metadata_json' => $addressMeta,
+            ],
+        );
+
+        $this->storeUploadedFile(
+            account: $account,
+            file: $request->file('child_authorization_screenshot'),
+            artifactType: FedExValidationArtifact::TYPE_SWEDEN_PASSTHROUGH_CHILD_AUTH_SCREENSHOT,
+            role: FedExValidationArtifact::ROLE_SWEDEN_PASSTHROUGH_SCREENSHOT,
+            actorId: $request->user()?->id,
+            extra: [
+                'carrier_api_event_id' => $childEvent->id,
+                'scenario_key' => CarrierApiEvent::SCENARIO_AUTHORIZATION_SWEDEN_PASSTHROUGH_CHILD,
+                'metadata_json' => $addressMeta,
+            ],
+        );
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_sweden_screenshot_upload', store: $store, metadata: [
+            'carrier_account_id' => $account->id,
+            'validation_run_id' => $runId,
+            'address_event_id' => $addressEvent->id,
+            'child_authorization_event_id' => $childEvent->id,
+        ]);
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('success', 'Sweden passthrough screenshots uploaded.');
     }
 
     public function download(

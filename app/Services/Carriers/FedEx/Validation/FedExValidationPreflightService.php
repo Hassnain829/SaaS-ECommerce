@@ -15,6 +15,7 @@ class FedExValidationPreflightService
         private readonly FedExValidationScopeService $scopeService,
         private readonly FedExValidationEvidenceQueryService $evidenceQuery,
         private readonly FedExValidationEvidenceSanitizer $sanitizer,
+        private readonly FedExValidationAuthorizationEvidenceRules $authorizationEvidenceRules,
     ) {}
 
     /**
@@ -45,6 +46,13 @@ class FedExValidationPreflightService
         foreach ($this->registrationChecks($store, $account) as $check) {
             $checks[] = $check;
             if ($check['required'] && ! in_array($check['status'], ['passed', 'not_required'], true)) {
+                $blockers[] = $check;
+            }
+        }
+
+        foreach ($this->swedenPassthroughChecks($store, $account) as $check) {
+            $checks[] = $check;
+            if ($check['required'] && $check['status'] !== 'passed') {
                 $blockers[] = $check;
             }
         }
@@ -212,13 +220,12 @@ class FedExValidationPreflightService
                 $account,
                 $scenarioKey,
                 (string) $meta['action'],
+                (string) $meta['grant_type'],
             );
 
             if ($event === null) {
                 $latest = $this->evidenceQuery->latestCompleteEvent($store, $account, $scenarioKey);
-                if ($latest !== null
-                    && $latest->action === $meta['action']
-                    && $this->isCachedAuthorizationEvent($latest)) {
+                if ($latest !== null && $latest->action === $meta['action']) {
                     $event = $latest;
                 }
             }
@@ -436,6 +443,10 @@ class FedExValidationPreflightService
             return 'not_tested';
         }
 
+        if ($this->authorizationEvidenceRules->satisfiesRequirements($event, $expectedGrantType)) {
+            return 'passed';
+        }
+
         if ($this->isCachedAuthorizationEvent($event)) {
             return 'incomplete';
         }
@@ -444,25 +455,11 @@ class FedExValidationPreflightService
             return 'incomplete';
         }
 
-        if (strtoupper((string) $event->http_method) !== 'POST') {
-            return 'incomplete';
-        }
-
-        $endpoint = (string) ($event->endpoint ?? data_get($event->request_summary, 'endpoint', ''));
-        if (! str_contains($endpoint, '/oauth/token')) {
-            return 'incomplete';
-        }
-
-        $grantType = strtolower((string) data_get($event->request_body_encrypted, 'grant_type', ''));
-        if ($grantType !== strtolower($expectedGrantType)) {
-            return 'failed';
-        }
-
         if ($event->status !== CarrierApiEvent::STATUS_SUCCEEDED || ! $event->isSuccessfulHttp()) {
             return 'failed';
         }
 
-        return 'passed';
+        return 'incomplete';
     }
 
     private function isCachedAuthorizationEvent(CarrierApiEvent $event): bool
@@ -605,6 +602,97 @@ class FedExValidationPreflightService
         }
 
         return 'passed';
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function swedenPassthroughChecks(Store $store, CarrierAccount $account): array
+    {
+        $pairedRun = $this->evidenceQuery->canonicalSwedenPassthroughRun($store, $account);
+        $addressEvent = $pairedRun['address_event'] ?? null;
+        $childEvent = $pairedRun['child_authorization_event'] ?? null;
+
+        $checks = [
+            [
+                'key' => 'sweden_passthrough_address',
+                'category' => 'registration_mfa',
+                'label' => 'Sweden passthrough address validation',
+                'required' => true,
+                'status' => $addressEvent !== null ? 'passed' : 'not_tested',
+                'explanation' => $addressEvent
+                    ? 'Canonical Sweden passthrough address evidence recorded with child credentials and no MFA.'
+                    : 'Run Sweden MFA Passthrough in the validation workspace.',
+                'event_id' => $addressEvent?->id,
+            ],
+            [
+                'key' => 'sweden_passthrough_child_authorization',
+                'category' => 'registration_mfa',
+                'label' => 'Sweden passthrough child authorization',
+                'required' => true,
+                'status' => $childEvent !== null ? 'passed' : 'not_tested',
+                'explanation' => $childEvent
+                    ? 'Direct child authorization recorded for the same validation run.'
+                    : 'Complete Sweden MFA Passthrough to record direct child authorization evidence.',
+                'event_id' => $childEvent?->id,
+            ],
+        ];
+
+        foreach ([
+            'sweden_passthrough_address_screenshot' => [
+                'type' => FedExValidationArtifact::TYPE_SWEDEN_PASSTHROUGH_ADDRESS_SCREENSHOT,
+                'label' => 'Sweden passthrough address screenshot',
+                'event' => $addressEvent,
+            ],
+            'sweden_passthrough_child_authorization_screenshot' => [
+                'type' => FedExValidationArtifact::TYPE_SWEDEN_PASSTHROUGH_CHILD_AUTH_SCREENSHOT,
+                'label' => 'Sweden passthrough child authorization screenshot',
+                'event' => $childEvent,
+            ],
+        ] as $key => $meta) {
+            $artifact = $this->findSwedenScreenshotArtifact($store, $account, (string) $meta['type'], $pairedRun);
+            $checks[] = [
+                'key' => $key,
+                'category' => 'registration_mfa',
+                'label' => (string) $meta['label'],
+                'required' => true,
+                'status' => $this->artifactIntegrityValid($artifact) ? 'passed' : 'incomplete',
+                'explanation' => $this->artifactIntegrityValid($artifact)
+                    ? 'Screenshot uploaded and linked to the canonical Sweden passthrough run.'
+                    : 'Upload Sweden passthrough screenshots after a successful paired run.',
+                'artifact_id' => $artifact?->id,
+                'event_id' => $meta['event']?->id,
+            ];
+        }
+
+        return $checks;
+    }
+
+    /**
+     * @param  array{validation_run_id?: string, address_event?: CarrierApiEvent, child_authorization_event?: CarrierApiEvent}|null  $pairedRun
+     */
+    private function findSwedenScreenshotArtifact(
+        Store $store,
+        CarrierAccount $account,
+        string $artifactType,
+        ?array $pairedRun,
+    ): ?FedExValidationArtifact {
+        if ($pairedRun === null) {
+            return null;
+        }
+
+        $runId = (string) ($pairedRun['validation_run_id'] ?? '');
+
+        $artifact = FedExValidationArtifact::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('artifact_type', $artifactType)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_SWEDEN_PASSTHROUGH_SCREENSHOT)
+            ->when($runId !== '', fn ($query) => $query->where('metadata_json->validation_run_id', $runId))
+            ->latest('id')
+            ->first();
+
+        return $this->artifactIntegrityValid($artifact) ? $artifact : null;
     }
 
     private function trackingScreenshotCheck(Store $store, CarrierAccount $account, ?CarrierApiEvent $trackingEvent): array

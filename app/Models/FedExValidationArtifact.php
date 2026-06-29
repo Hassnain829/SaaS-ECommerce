@@ -17,6 +17,12 @@ class FedExValidationArtifact extends Model
 
     public const ROLE_TRACKING_SCREENSHOT = 'tracking_screenshot';
 
+    public const ROLE_SWEDEN_PASSTHROUGH_SCREENSHOT = 'sweden_passthrough_screenshot';
+
+    public const TYPE_SWEDEN_PASSTHROUGH_ADDRESS_SCREENSHOT = 'sweden_passthrough_address_result';
+
+    public const TYPE_SWEDEN_PASSTHROUGH_CHILD_AUTH_SCREENSHOT = 'sweden_passthrough_child_authorization_result';
+
     public const ROLE_TRADE_DOCUMENT = 'trade_document_sample';
 
     public const DOC_COVER_SHEET = 'integrator_validation_cover_sheet';

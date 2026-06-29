@@ -218,6 +218,7 @@ class FedExValidationEvidenceExporter
                     $account,
                     $scenarioKey,
                     (string) $meta['action'],
+                    (string) $meta['grant_type'],
                 );
 
             $folder = $directory.'/'.(string) $meta['export_folder'];
@@ -236,6 +237,91 @@ class FedExValidationEvidenceExporter
             File::ensureDirectoryExists($folder);
             $this->exportScenarioEvent($folder, $event, $includeFailed, $includeFailed ? 'diagnostic' : 'final');
             $order++;
+        }
+
+        $this->exportSwedenPassthroughScenario($directory, $store, $account, $preflight, $includeFailed);
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function exportSwedenPassthroughScenario(
+        string $registrationDirectory,
+        Store $store,
+        CarrierAccount $account,
+        array $preflight,
+        bool $includeFailed,
+    ): void {
+        $folder = $registrationDirectory.'/'.FedExValidationSwedenPassthroughSupport::EXPORT_FOLDER;
+        $pairedRun = $this->evidenceQuery->canonicalSwedenPassthroughRun($store, $account);
+        $mode = $includeFailed ? 'diagnostic' : 'final';
+
+        if ($pairedRun === null) {
+            if ($mode === 'final') {
+                throw new HttpException(422, 'Final export blocked: Sweden MFA passthrough evidence is incomplete.');
+            }
+
+            File::ensureDirectoryExists($folder.'/01_address_validation');
+            File::ensureDirectoryExists($folder.'/02_child_authorization');
+            File::ensureDirectoryExists($folder.'/screenshots');
+            $this->writeJson($folder.'/01_address_validation/request.json', ['status' => 'missing', 'note' => 'No canonical Sweden passthrough run recorded yet.']);
+            $this->writeJson($folder.'/01_address_validation/response.json', ['status' => 'missing', 'note' => 'No canonical Sweden passthrough run recorded yet.']);
+            $this->writeJson($folder.'/02_child_authorization/request.json', ['status' => 'missing', 'note' => 'No canonical Sweden passthrough run recorded yet.']);
+            $this->writeJson($folder.'/02_child_authorization/response.json', ['status' => 'missing', 'note' => 'No canonical Sweden passthrough run recorded yet.']);
+            $this->writeJson($folder.'/result_summary.json', ['status' => 'missing', 'note' => 'No canonical Sweden passthrough run recorded yet.']);
+
+            return;
+        }
+
+        $addressEvent = $pairedRun['address_event'];
+        $childEvent = $pairedRun['child_authorization_event'];
+
+        File::ensureDirectoryExists($folder.'/01_address_validation');
+        File::ensureDirectoryExists($folder.'/02_child_authorization');
+        File::ensureDirectoryExists($folder.'/screenshots');
+
+        $this->exportScenarioEvent($folder.'/01_address_validation', $addressEvent, false, $mode);
+        $this->exportScenarioEvent($folder.'/02_child_authorization', $childEvent, false, $mode);
+
+        $this->writeJson($folder.'/result_summary.json', [
+            'case' => 'Sweden MFA Passthrough',
+            'account_last4' => data_get($addressEvent->request_summary, 'account_last4', '9268'),
+            'country_code' => 'SE',
+            'child_credentials_detected' => true,
+            'mfa_detected' => false,
+            'pin_or_invoice_steps_executed' => false,
+            'direct_child_authorization' => 'passed',
+            'validation_run_id' => $pairedRun['validation_run_id'],
+        ]);
+
+        $this->copySwedenPassthroughScreenshots($folder.'/screenshots', $store, $account, $pairedRun);
+    }
+
+    /**
+     * @param  array{validation_run_id: string, address_event: CarrierApiEvent, child_authorization_event: CarrierApiEvent}  $pairedRun
+     */
+    private function copySwedenPassthroughScreenshots(string $directory, Store $store, CarrierAccount $account, array $pairedRun): void
+    {
+        File::ensureDirectoryExists($directory);
+        $runId = $pairedRun['validation_run_id'];
+
+        foreach ([
+            FedExValidationArtifact::TYPE_SWEDEN_PASSTHROUGH_ADDRESS_SCREENSHOT => '01_passthrough_address_result',
+            FedExValidationArtifact::TYPE_SWEDEN_PASSTHROUGH_CHILD_AUTH_SCREENSHOT => '02_direct_child_authorization_result',
+        ] as $type => $basename) {
+            $artifact = FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('artifact_type', $type)
+                ->where('artifact_role', FedExValidationArtifact::ROLE_SWEDEN_PASSTHROUGH_SCREENSHOT)
+                ->where('metadata_json->validation_run_id', $runId)
+                ->latest('id')
+                ->first();
+
+            $path = $artifact?->absolutePath();
+            if ($path !== null && is_file($path) && filled($artifact->sha256) && hash_file('sha256', $path) === (string) $artifact->sha256) {
+                File::copy($path, $directory.'/'.$basename.'.'.pathinfo($path, PATHINFO_EXTENSION));
+            }
         }
     }
 

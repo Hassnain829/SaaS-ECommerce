@@ -58,6 +58,8 @@ class FedExRegistrationInputValidator
             $errors['postal_code'] = 'Enter a valid US ZIP code.';
         } elseif ($postalCode !== null) {
             $normalized['postal_code'] = $postalCode;
+        } elseif ($country !== 'US' && trim((string) ($input['postal_code'] ?? '')) !== '') {
+            $normalized['postal_code'] = trim((string) $input['postal_code']);
         }
 
         if ($postalRaw !== '') {
@@ -134,8 +136,10 @@ class FedExRegistrationInputValidator
 
         $normalized = $this->originReadiness->normalizeCountryCode($raw);
 
-        if ($normalized === null || ! CarrierCountryOptions::isAllowedFedExCountry($normalized)) {
-            $errors['country_code'] = 'Choose United States as the FedEx account country.';
+        if ($normalized === null || ! CarrierCountryOptions::isAllowedFedExRegistrationCountry($normalized)) {
+            $errors['country_code'] = $normalized === 'SE'
+                ? 'Sweden is supported for FedEx validation registration only.'
+                : 'Choose United States as the FedEx account country.';
 
             return null;
         }

@@ -136,6 +136,7 @@ class Phase6FedExAuthorizationEvidenceTest extends TestCase
         $parentRequest = $sanitizer->sanitize($parent->request_body_encrypted);
         $childRequest = $sanitizer->sanitize($child->request_body_encrypted);
         $parentResponse = $sanitizer->sanitize($parent->response_body_encrypted);
+        $childResponse = $sanitizer->sanitize($child->response_body_encrypted);
 
         $this->assertSame('client_credentials', data_get($parentRequest, 'grant_type'));
         $this->assertSame('[REDACTED]', data_get($parentRequest, 'client_id'));
@@ -152,6 +153,87 @@ class Phase6FedExAuthorizationEvidenceTest extends TestCase
         $this->assertSame('[REDACTED]', data_get($parentResponse, 'access_token'));
         $this->assertSame('bearer', data_get($parentResponse, 'token_type'));
         $this->assertSame(3600, data_get($parentResponse, 'expires_in'));
+
+        $this->assertSame('[REDACTED]', data_get($childResponse, 'access_token'));
+        $this->assertSame('bearer', data_get($childResponse, 'token_type'));
+        $this->assertSame(3600, data_get($childResponse, 'expires_in'));
+        $this->assertSame('CXS-TP', data_get($childResponse, 'scope'));
+    }
+
+    public function test_incomplete_oauth_evidence_does_not_pass_preflight_authorization(): void
+    {
+        [, $store, $account] = $this->integratorAccountFixture('Auth Incomplete Preflight Store');
+
+        CarrierApiEvent::query()->create([
+            'store_id' => $store->id,
+            'carrier_account_id' => $account->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'action' => CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN,
+            'scenario_key' => CarrierApiEvent::SCENARIO_AUTHORIZATION_PARENT,
+            'status' => CarrierApiEvent::STATUS_SUCCEEDED,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'http_status' => 200,
+            'http_method' => 'POST',
+            'endpoint' => '/oauth/token',
+            'request_summary' => ['endpoint' => '/oauth/token'],
+            'request_body_encrypted' => ['grant_type' => 'client_credentials'],
+            'response_body_encrypted' => ['anything' => 'value'],
+        ]);
+
+        $assessment = app(FedExValidationPreflightService::class)->assess($store, $account);
+
+        $this->assertSame('incomplete', collect($assessment['checks'])->firstWhere('key', 'authorization_parent')['status']);
+    }
+
+    public function test_canonical_authorization_prefers_valid_older_event_over_invalid_newer_event(): void
+    {
+        [, $store, $account] = $this->integratorAccountFixture('Auth Canonical Selection Store');
+
+        CarrierApiEvent::query()->create([
+            'store_id' => $store->id,
+            'carrier_account_id' => $account->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'action' => CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN,
+            'scenario_key' => CarrierApiEvent::SCENARIO_AUTHORIZATION_PARENT,
+            'status' => CarrierApiEvent::STATUS_SUCCEEDED,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'http_status' => 200,
+            'http_method' => 'POST',
+            'endpoint' => '/oauth/token',
+            'request_summary' => ['endpoint' => '/oauth/token'],
+            'request_body_encrypted' => [
+                'grant_type' => 'client_credentials',
+                'client_id' => '[REDACTED]',
+                'client_secret' => '[REDACTED]',
+            ],
+            'response_body_encrypted' => [
+                'access_token' => '[REDACTED]',
+                'token_type' => 'bearer',
+                'expires_in' => 3600,
+            ],
+            'created_at' => now()->subMinute(),
+            'updated_at' => now()->subMinute(),
+        ]);
+
+        CarrierApiEvent::query()->create([
+            'store_id' => $store->id,
+            'carrier_account_id' => $account->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'action' => CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN,
+            'scenario_key' => CarrierApiEvent::SCENARIO_AUTHORIZATION_PARENT,
+            'status' => CarrierApiEvent::STATUS_SUCCEEDED,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'http_status' => 200,
+            'http_method' => 'POST',
+            'endpoint' => '/oauth/token',
+            'request_summary' => ['endpoint' => '/oauth/token'],
+            'request_body_encrypted' => ['grant_type' => 'csp_credentials'],
+            'response_body_encrypted' => ['access_token' => '[REDACTED]', 'token_type' => 'bearer', 'expires_in' => 3600],
+        ]);
+
+        $assessment = app(FedExValidationPreflightService::class)->assess($store, $account);
+
+        $this->assertSame('passed', collect($assessment['checks'])->firstWhere('key', 'authorization_parent')['status']);
     }
 
     public function test_preflight_requires_fresh_non_cached_authorization_evidence(): void
@@ -197,9 +279,9 @@ class Phase6FedExAuthorizationEvidenceTest extends TestCase
             ->assertDontSeeText('child_secret');
     }
 
-    public function test_final_export_includes_parent_and_child_authorization_folders(): void
+    public function test_diagnostic_export_includes_parent_and_child_authorization_folders(): void
     {
-        [, $store, $account] = $this->integratorAccountFixture('Auth Final Export Store');
+        [, $store, $account] = $this->integratorAccountFixture('Auth Diagnostic Export Store');
         $this->fakeOAuthResponses();
         app(FedExValidationAuthorizationEvidenceService::class)->runBoth($account);
         $this->seedMinimalValidationEvidence($store, $account);
@@ -212,6 +294,30 @@ class Phase6FedExAuthorizationEvidenceTest extends TestCase
         $this->assertNotFalse($zip->locateName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/01_registration_mfa/02_child_authorization/request.json'));
 
         $zip->close();
+    }
+
+    public function test_final_export_blocks_when_authorization_evidence_is_incomplete(): void
+    {
+        [, $store, $account] = $this->integratorAccountFixture('Auth Final Export Blocked Store');
+
+        CarrierApiEvent::query()->create([
+            'store_id' => $store->id,
+            'carrier_account_id' => $account->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'action' => CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN,
+            'scenario_key' => CarrierApiEvent::SCENARIO_AUTHORIZATION_PARENT,
+            'status' => CarrierApiEvent::STATUS_SUCCEEDED,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'http_status' => 200,
+            'http_method' => 'POST',
+            'endpoint' => '/oauth/token',
+            'request_body_encrypted' => ['grant_type' => 'client_credentials'],
+            'response_body_encrypted' => ['anything' => 'value'],
+        ]);
+
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+
+        app(FedExValidationEvidenceExporter::class)->exportFinal($store, $account);
     }
 
     private function fakeOAuthResponses(): void

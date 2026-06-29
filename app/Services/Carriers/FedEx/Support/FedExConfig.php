@@ -200,6 +200,16 @@ final class FedExConfig
         return is_array($paths) ? array_values(array_filter($paths, 'is_string')) : [];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function validationSwedenFixtureConfig(): array
+    {
+        $config = config('carriers.fedex.validation.sweden', []);
+
+        return is_array($config) ? $config : [];
+    }
+
     public function oauthPath(): string
     {
         return (string) config('carriers.fedex.oauth_path', '/oauth/token');

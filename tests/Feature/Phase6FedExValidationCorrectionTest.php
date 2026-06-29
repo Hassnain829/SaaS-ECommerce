@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
+use ZipArchive;
 
 class Phase6FedExValidationCorrectionTest extends TestCase
 {
@@ -382,6 +383,39 @@ class Phase6FedExValidationCorrectionTest extends TestCase
         $this->assertNotEmpty($blockers);
     }
 
+    public function test_diagnostic_export_preserves_shipping_charges_payment_object_in_ship_requests(): void
+    {
+        [, $store, $account] = $this->integratorAccountFixture('Ship Export Payment Store');
+
+        $this->seedShipExportEvent($store, $account, 'IntegratorUS02', 'ship_us02_zplii', 'ZPLII', 'SENDER');
+        $this->seedShipExportEvent($store, $account, 'IntegratorUS04', 'ship_us04_png', 'PNG', 'SENDER');
+        $this->seedShipExportEvent($store, $account, 'IntegratorUS05', 'ship_us05_pdf_mps', 'PDF', 'RECIPIENT');
+
+        $zipPath = app(FedExValidationEvidenceExporter::class)->exportDiagnostic($store, $account);
+        $zip = new ZipArchive;
+        $zip->open($zipPath);
+
+        $cases = [
+            '05_ship_us02_zplii' => 'SENDER',
+            '06_ship_us04_png' => 'SENDER',
+            '07_ship_us05_pdf_mps' => 'RECIPIENT',
+        ];
+
+        foreach ($cases as $folder => $paymentType) {
+            $requestJson = json_decode(
+                (string) $zip->getFromName("FedEx_Integrator_Validation_BaasPlatformFedExSandbox/{$folder}/request.json"),
+                true,
+            );
+            $payment = data_get($requestJson, 'request.body.requestedShipment.shippingChargesPayment');
+
+            $this->assertIsArray($payment, $folder);
+            $this->assertSame($paymentType, data_get($payment, 'paymentType'), $folder);
+            $this->assertNotSame('[REDACTED]', $payment);
+        }
+
+        $zip->close();
+    }
+
     public function test_redacted_placeholder_does_not_block_secret_scan(): void
     {
         $sanitizer = app(FedExValidationEvidenceSanitizer::class);
@@ -700,6 +734,43 @@ class Phase6FedExValidationCorrectionTest extends TestCase
             'response_body_encrypted' => ['output' => ['transactionShipments' => []]],
             'created_at' => $secondRun ? now()->addMinute() : now(),
             'updated_at' => $secondRun ? now()->addMinute() : now(),
+        ]);
+    }
+
+    private function seedShipExportEvent(
+        Store $store,
+        CarrierAccount $account,
+        string $testCaseKey,
+        string $scenarioKey,
+        string $labelFormat,
+        string $paymentType,
+    ): CarrierApiEvent {
+        return CarrierApiEvent::query()->create([
+            'store_id' => $store->id,
+            'carrier_account_id' => $account->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'action' => CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL,
+            'scenario_key' => $scenarioKey,
+            'test_case_key' => $testCaseKey,
+            'label_format' => $labelFormat,
+            'status' => CarrierApiEvent::STATUS_SUCCEEDED,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'http_status' => 200,
+            'http_method' => 'POST',
+            'endpoint' => '/ship/v1/shipments',
+            'request_body_encrypted' => [
+                'requestedShipment' => [
+                    'shippingChargesPayment' => [
+                        'paymentType' => $paymentType,
+                        'payor' => [
+                            'responsibleParty' => [
+                                'accountNumber' => ['value' => '700257037'],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            'response_body_encrypted' => ['output' => ['transactionShipments' => []]],
         ]);
     }
 

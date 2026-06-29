@@ -9,20 +9,27 @@ use Illuminate\Database\Eloquent\Builder;
 
 class FedExValidationEvidenceQueryService
 {
+    public function __construct(
+        private readonly FedExValidationAuthorizationEvidenceRules $authorizationEvidenceRules,
+    ) {}
+
     public function canonicalAuthorizationEvent(
         Store $store,
         CarrierAccount $account,
         string $scenarioKey,
         string $action,
+        string $expectedGrantType,
     ): ?CarrierApiEvent {
-        return $this->firstCanonicalCandidate(
-            $this->baseQuery($store, $account)
-                ->where('scenario_key', $scenarioKey)
-                ->where('action', $action)
-                ->orderByDesc('id')
-                ->get()
-                ->reject(fn (CarrierApiEvent $event): bool => (bool) data_get($event->request_summary, 'cached')
-                    || (bool) data_get($event->response_summary, 'cached')),
+        $candidates = $this->baseQuery($store, $account)
+            ->where('scenario_key', $scenarioKey)
+            ->where('action', $action)
+            ->orderByDesc('id')
+            ->get()
+            ->reject(fn (CarrierApiEvent $event): bool => (bool) data_get($event->request_summary, 'cached')
+                || (bool) data_get($event->response_summary, 'cached'));
+
+        return $candidates->first(
+            fn (CarrierApiEvent $event): bool => $this->authorizationEvidenceRules->satisfiesRequirements($event, $expectedGrantType),
         );
     }
 
@@ -105,6 +112,133 @@ class FedExValidationEvidenceQueryService
         return $this->firstCanonicalCandidate(
             $this->canonicalCandidates($store, $account, $scenarioKey, $testCaseKey, $labelFormat, $mfaMethod),
         );
+    }
+
+    /**
+     * @return array{
+     *     validation_run_id: string,
+     *     address_event: CarrierApiEvent,
+     *     child_authorization_event: CarrierApiEvent
+     * }|null
+     */
+    public function canonicalSwedenPassthroughRun(Store $store, CarrierAccount $account): ?array
+    {
+        $addressEvents = $this->baseQuery($store, $account)
+            ->where('scenario_key', CarrierApiEvent::SCENARIO_REGISTRATION_SWEDEN_PASSTHROUGH_ADDRESS)
+            ->where('action', CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION)
+            ->orderByDesc('id')
+            ->get()
+            ->filter(fn (CarrierApiEvent $event): bool => $this->isValidSwedenPassthroughAddressEvent($event));
+
+        foreach ($addressEvents as $addressEvent) {
+            $runId = (string) data_get($addressEvent->request_summary, 'validation_run_id', '');
+            if ($runId === '') {
+                continue;
+            }
+
+            $childEvent = $this->baseQuery($store, $account)
+                ->where('scenario_key', CarrierApiEvent::SCENARIO_AUTHORIZATION_SWEDEN_PASSTHROUGH_CHILD)
+                ->where('action', CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN)
+                ->where('request_summary->validation_run_id', $runId)
+                ->orderByDesc('id')
+                ->get()
+                ->first(fn (CarrierApiEvent $event): bool => $this->isValidSwedenPassthroughChildEvent($event));
+
+            if ($childEvent !== null) {
+                return [
+                    'validation_run_id' => $runId,
+                    'address_event' => $addressEvent,
+                    'child_authorization_event' => $childEvent,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    public function latestSwedenPassthroughAttempt(Store $store, CarrierAccount $account): ?array
+    {
+        $addressEvent = $this->baseQuery($store, $account)
+            ->where('scenario_key', CarrierApiEvent::SCENARIO_REGISTRATION_SWEDEN_PASSTHROUGH_ADDRESS)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($addressEvent === null) {
+            return null;
+        }
+
+        $runId = (string) data_get($addressEvent->request_summary, 'validation_run_id', '');
+
+        $childEvent = $runId === ''
+            ? null
+            : $this->baseQuery($store, $account)
+                ->where('scenario_key', CarrierApiEvent::SCENARIO_AUTHORIZATION_SWEDEN_PASSTHROUGH_CHILD)
+                ->where('request_summary->validation_run_id', $runId)
+                ->orderByDesc('id')
+                ->first();
+
+        return [
+            'validation_run_id' => $runId !== '' ? $runId : null,
+            'address_event' => $addressEvent,
+            'child_authorization_event' => $childEvent,
+        ];
+    }
+
+    private function isValidSwedenPassthroughAddressEvent(CarrierApiEvent $event): bool
+    {
+        if (! $event->hasCompleteEvidence() || ! $event->isSuccessfulHttp()) {
+            return false;
+        }
+
+        if ($event->status !== CarrierApiEvent::STATUS_SUCCEEDED) {
+            return false;
+        }
+
+        if ((string) data_get($event->request_summary, 'case_key') !== FedExValidationSwedenPassthroughSupport::CASE_KEY) {
+            return false;
+        }
+
+        if (strtoupper((string) data_get($event->request_summary, 'country_code', '')) !== 'SE') {
+            return false;
+        }
+
+        if (! data_get($event->response_summary, 'child_credentials_detected')) {
+            return false;
+        }
+
+        if (data_get($event->response_summary, 'mfa_detected')) {
+            return false;
+        }
+
+        return filled(data_get($event->request_summary, 'validation_run_id'));
+    }
+
+    private function isValidSwedenPassthroughChildEvent(CarrierApiEvent $event): bool
+    {
+        if (! $event->hasCompleteEvidence() || ! $event->isSuccessfulHttp()) {
+            return false;
+        }
+
+        if ($event->status !== CarrierApiEvent::STATUS_SUCCEEDED) {
+            return false;
+        }
+
+        if ((bool) data_get($event->request_summary, 'cached') || (bool) data_get($event->response_summary, 'cached')) {
+            return false;
+        }
+
+        $endpoint = (string) ($event->endpoint ?? data_get($event->request_summary, 'endpoint', ''));
+        if (! str_contains($endpoint, '/oauth/token')) {
+            return false;
+        }
+
+        if (strtoupper((string) $event->http_method) !== 'POST') {
+            return false;
+        }
+
+        $grantType = strtolower((string) data_get($event->request_body_encrypted, 'grant_type', ''));
+
+        return $grantType === 'csp_credentials';
     }
 
     public function canonicalShipLabelEvent(

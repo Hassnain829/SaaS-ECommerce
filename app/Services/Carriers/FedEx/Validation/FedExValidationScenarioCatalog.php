@@ -27,6 +27,28 @@ final class FedExValidationScenarioCatalog
     /**
      * @return array<string, array<string, mixed>>
      */
+    public static function swedenPassthroughScenarios(): array
+    {
+        return [
+            CarrierApiEvent::SCENARIO_REGISTRATION_SWEDEN_PASSTHROUGH_ADDRESS => [
+                'label' => 'Sweden passthrough address validation',
+                'action' => CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
+                'case_key' => FedExValidationSwedenPassthroughSupport::CASE_KEY,
+                'export_subfolder' => '01_address_validation',
+            ],
+            CarrierApiEvent::SCENARIO_AUTHORIZATION_SWEDEN_PASSTHROUGH_CHILD => [
+                'label' => 'Sweden passthrough child authorization',
+                'action' => CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN,
+                'grant_type' => 'csp_credentials',
+                'case_key' => FedExValidationSwedenPassthroughSupport::CASE_KEY,
+                'export_subfolder' => '02_child_authorization',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
     public static function registrationScenarios(): array
     {
         return [

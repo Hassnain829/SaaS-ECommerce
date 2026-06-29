@@ -71,12 +71,13 @@ final class FedExValidationEvidenceSanitizer
             $contents = (string) file_get_contents($file->getPathname());
 
             foreach ($knownSecrets as $secret) {
-                if (is_string($secret) && $secret !== '' && str_contains($contents, $secret) && ! str_contains($contents, '[REDACTED]')) {
+                if (is_string($secret) && $secret !== '' && str_contains($contents, $secret)) {
                     $blockers[] = ['path' => $relativePath, 'reason' => 'known_secret_detected'];
                 }
             }
 
-            if (preg_match('/Bearer\s+[A-Za-z0-9\-._~+\/]+=*/', $contents) && ! str_contains($contents, 'Bearer [REDACTED]')) {
+            $contentsForBearerScan = preg_replace('/Bearer\s+\[REDACTED\]/', '', $contents) ?? $contents;
+            if (preg_match('/Bearer\s+[A-Za-z0-9\-._~+\/]+=*/', $contentsForBearerScan)) {
                 $blockers[] = ['path' => $relativePath, 'reason' => 'bearer_token_in_string'];
             }
 

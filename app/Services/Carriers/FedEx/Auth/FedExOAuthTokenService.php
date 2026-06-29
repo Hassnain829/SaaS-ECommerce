@@ -97,19 +97,56 @@ class FedExOAuthTokenService
 
     public function fetchMerchantTokenResult(CarrierAccount $account): CarrierApiResult
     {
-        $environment = $this->config->environment($account->environment);
         $credentials = $account->credentials();
+
+        return $this->fetchChildTokenResultForCredentials(
+            environment: $account->environment,
+            childKey: (string) ($credentials['customer_key'] ?? ''),
+            childSecret: (string) ($credentials['customer_password'] ?? ''),
+            cache: true,
+            cacheAccountId: $account->id,
+        );
+    }
+
+    public function fetchChildTokenResultForCredentials(
+        string $environment,
+        string $childKey,
+        string $childSecret,
+        bool $cache = false,
+        ?int $cacheAccountId = null,
+    ): CarrierApiResult {
+        $environment = $this->config->environment($environment);
+        $cacheKey = $this->cacheKey($environment, self::TOKEN_TYPE_MERCHANT, $cacheAccountId);
+
+        if ($cache) {
+            /** @var array{access_token: string, token_type: string, expires_in: int}|null $cached */
+            $cached = Cache::get($cacheKey);
+
+            if (is_array($cached) && filled($cached['access_token'] ?? null)) {
+                return CarrierApiResult::success(
+                    data: $cached,
+                    requestSummary: [
+                        'endpoint' => $this->config->oauthPath(),
+                        'cached' => true,
+                    ],
+                    responseSummary: [
+                        'http_status' => 200,
+                        'fedex_transaction_id' => null,
+                        'cached' => true,
+                    ],
+                );
+            }
+        }
 
         $result = $this->requestToken($environment, [
             'grant_type' => 'csp_credentials',
             'client_id' => $this->config->clientId($environment),
             'client_secret' => $this->config->clientSecret($environment),
-            'child_key' => (string) ($credentials['customer_key'] ?? ''),
-            'child_secret' => (string) ($credentials['customer_password'] ?? ''),
+            'child_key' => $childKey,
+            'child_secret' => $childSecret,
         ]);
 
-        if ($result->success) {
-            $cacheKey = $this->cacheKey($environment, self::TOKEN_TYPE_MERCHANT, $account->id);
+        if ($result->success && $cache && $cacheAccountId !== null) {
             $this->rememberToken($cacheKey, $result);
         }
 

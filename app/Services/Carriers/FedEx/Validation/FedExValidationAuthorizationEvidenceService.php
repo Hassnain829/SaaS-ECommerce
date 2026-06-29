@@ -82,22 +82,30 @@ class FedExValidationAuthorizationEvidenceService
     /**
      * @return array{result: CarrierApiResult, event: CarrierApiEvent}
      */
-    public function runParentAuthorization(CarrierAccount $account): array
-    {
+    public function runParentAuthorization(
+        CarrierAccount $account,
+        ?string $validationRunId = null,
+        ?string $validationCase = null,
+    ): array {
         $account->loadMissing('store');
         $meta = FedExValidationScenarioCatalog::authorizationScenarios()[CarrierApiEvent::SCENARIO_AUTHORIZATION_PARENT];
+
+        $runMeta = array_filter([
+            'validation_run_id' => $validationRunId,
+            'validation_case' => $validationCase,
+        ]);
 
         $event = $this->eventLogger->start(
             store: $account->store,
             provider: CarrierAccount::PROVIDER_FEDEX,
             action: (string) $meta['action'],
             account: $account,
-            requestSummary: [
+            requestSummary: array_merge([
                 'endpoint' => $this->config->oauthPath(),
                 'http_method' => 'POST',
                 'grant_type' => $meta['grant_type'],
                 'credentials_mode' => 'integrator_parent',
-            ],
+            ], $runMeta),
             environment: $account->environment,
             context: new FedExValidationEventContext(
                 scenarioKey: CarrierApiEvent::SCENARIO_AUTHORIZATION_PARENT,
@@ -106,6 +114,14 @@ class FedExValidationAuthorizationEvidenceService
 
         $result = $this->parentOAuth->fetchTokenResult($account->environment, fresh: true);
         $completed = $this->eventLogger->complete($event, $result);
+
+        if ($runMeta !== []) {
+            $completed->update([
+                'request_summary' => array_merge($completed->request_summary ?? [], $runMeta),
+                'response_summary' => array_merge($completed->response_summary ?? [], $runMeta),
+            ]);
+            $completed = $completed->fresh();
+        }
 
         return ['result' => $result, 'event' => $completed];
     }

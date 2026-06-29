@@ -95,6 +95,12 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validati
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/authorization', [FedExValidationRunController::class, 'runAuthorizationEvidence'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.authorization');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/sweden-passthrough', [FedExValidationRunController::class, 'runSwedenPassthrough'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.sweden-passthrough');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/sweden-screenshots', [FedExValidationArtifactController::class, 'uploadSwedenScreenshots'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.sweden-screenshots.upload');
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/address', [FedExValidationRunController::class, 'runAddressValidation'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.address');

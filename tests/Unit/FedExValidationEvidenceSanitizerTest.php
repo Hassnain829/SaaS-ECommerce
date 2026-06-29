@@ -107,6 +107,38 @@ class FedExValidationEvidenceSanitizerTest extends TestCase
         $this->assertEmpty($blockers);
     }
 
+    public function test_staging_directory_scan_detects_secret_even_when_redacted_placeholder_present(): void
+    {
+        $staging = storage_path('app/fedex-validation/sanitizer-mixed-redaction-test');
+        File::ensureDirectoryExists($staging);
+        File::put($staging.'/request.json', json_encode([
+            'access_token' => '[REDACTED]',
+            'client_secret' => 'child-secret-a',
+        ]));
+
+        $blockers = $this->sanitizer->scanStagingDirectory($staging, ['child-secret-a']);
+        File::deleteDirectory($staging);
+
+        $this->assertNotEmpty($blockers);
+        $this->assertSame('known_secret_detected', $blockers[0]['reason']);
+    }
+
+    public function test_staging_directory_scan_detects_bearer_even_when_redacted_bearer_present(): void
+    {
+        $staging = storage_path('app/fedex-validation/sanitizer-mixed-bearer-test');
+        File::ensureDirectoryExists($staging);
+        File::put($staging.'/request.json', json_encode([
+            'Authorization' => 'Bearer [REDACTED]',
+            'note' => 'Bearer real-token-value',
+        ]));
+
+        $blockers = $this->sanitizer->scanStagingDirectory($staging, []);
+        File::deleteDirectory($staging);
+
+        $this->assertNotEmpty($blockers);
+        $this->assertSame('bearer_token_in_string', $blockers[0]['reason']);
+    }
+
     public function test_secret_scan_detects_known_secret_values(): void
     {
         $blockers = $this->sanitizer->scanForSecrets(

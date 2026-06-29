@@ -27,4 +27,9 @@ final class CarrierCountryOptions
     {
         return $countryCode === 'US';
     }
+
+    public static function isAllowedFedExRegistrationCountry(?string $countryCode): bool
+    {
+        return in_array($countryCode, ['US', 'SE'], true);
+    }
 }
