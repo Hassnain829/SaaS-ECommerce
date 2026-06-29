@@ -12,8 +12,11 @@ return [
         'integrator_production_enabled' => filter_var(env('FEDEX_INTEGRATOR_PRODUCTION_ENABLED', false), FILTER_VALIDATE_BOOL),
         'model_b_developer_fallback_enabled' => filter_var(env('FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED', false), FILTER_VALIDATE_BOOL),
         'validation_mode_enabled' => filter_var(env('FEDEX_VALIDATION_MODE_ENABLED', false), FILTER_VALIDATE_BOOL),
-        'integrator_eula_version' => env('FEDEX_INTEGRATOR_EULA_VERSION', '1.0'),
-        'integrator_eula_path' => env('FEDEX_INTEGRATOR_EULA_PATH', 'resources/legal/fedex/end_user_license_agreement.html'),
+        'integrator_eula_version' => env('FEDEX_INTEGRATOR_EULA_VERSION', 'FedEx Form No. 2002382 v 4 June 2024 Rev'),
+        'integrator_eula_path' => env('FEDEX_INTEGRATOR_EULA_PATH', 'resources/legal/fedex/FedEx_Standard_End_User_License_Agreement_EULA_for_Hosted_3rd_party_solutions.pdf'),
+        'integrator_eula_form_number' => env('FEDEX_INTEGRATOR_EULA_FORM_NUMBER', '2002382'),
+        'integrator_eula_expected_pages' => (int) env('FEDEX_INTEGRATOR_EULA_EXPECTED_PAGES', 11),
+        'integrator_eula_sha256' => env('FEDEX_INTEGRATOR_EULA_SHA256', '3eea76a66fbae1d798c2069934ec9c2750c75e8f47879697cec16c84c47e8ab8'),
 
         'oauth_path' => env('FEDEX_OAUTH_PATH', '/oauth/token'),
 

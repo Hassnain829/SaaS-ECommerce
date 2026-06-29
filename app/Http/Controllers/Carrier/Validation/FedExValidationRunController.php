@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
 use App\Services\Carriers\FedEx\Operations\FedExAddressValidationService;
 use App\Services\Carriers\FedEx\Operations\FedExBasicIntegratedVisibilityService;
 use App\Services\Carriers\FedEx\Operations\FedExRateQuoteService;
@@ -27,6 +28,29 @@ use Illuminate\Http\Request;
 class FedExValidationRunController extends Controller
 {
     use ResolvesFedExValidationAccount;
+
+    public function beginEulaValidationReview(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExIntegratorRegistrationOrchestrator $orchestrator,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+
+        $session = $orchestrator->beginValidationEulaReview(
+            $account->store,
+            $request->user(),
+            $account,
+        );
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_eula_review_started', store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'registration_session_id' => $session->id,
+        ]);
+
+        return redirect()->route('settings.shipping.fedex-integrator.eula', $session);
+    }
 
     public function runAuthorizationEvidence(
         Request $request,

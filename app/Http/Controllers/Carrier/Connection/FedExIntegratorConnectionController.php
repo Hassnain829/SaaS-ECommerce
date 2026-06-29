@@ -13,6 +13,7 @@ use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceExporter;
 use App\Services\SecurityLogRecorder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -86,13 +87,71 @@ class FedExIntegratorConnectionController extends Controller
     {
         $this->resolveSessionForStore($request, $session);
 
+        $documentValid = $eulaService->isValid();
+        $documentHash = $documentValid ? $eulaService->hash() : null;
+
         return view('user_view.fedex_integrator.eula', [
             'selectedStore' => $session->store,
             'session' => $session,
-            'eulaHtml' => $eulaService->isAvailable() ? $eulaService->html() : null,
             'eulaAvailable' => $eulaService->isAvailable(),
+            'eulaValid' => $documentValid,
             'eulaVersion' => $eulaService->version(),
+            'eulaFormNumber' => $eulaService->formNumber(),
+            'eulaExpectedPages' => $eulaService->expectedPages(),
+            'eulaDocumentHash' => $documentHash,
+            'eulaMetadata' => $eulaService->metadata(),
+            'scrollCompleted' => $session->eula_scrolled_at !== null
+                && filled($session->eula_document_hash)
+                && $documentHash !== null
+                && hash_equals($documentHash, (string) $session->eula_document_hash),
+            'validationEulaReview' => $session->purpose === CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA,
             'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
+        ]);
+    }
+
+    public function showEulaDocument(
+        Request $request,
+        CarrierAccountRegistrationSession $session,
+        FedExEulaService $eulaService,
+    ): BinaryFileResponse {
+        $this->resolveSessionForStore($request, $session);
+        $eulaService->assertValid();
+
+        $path = $eulaService->documentPath();
+        abort_unless(is_file($path), 404);
+
+        return response()->file($path, [
+            'Content-Type' => $eulaService->mimeType(),
+            'Content-Disposition' => 'inline; filename="FedEx_Standard_End_User_License_Agreement_EULA_for_Hosted_3rd_party_solutions.pdf"',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    public function markEulaScrollComplete(
+        Request $request,
+        CarrierAccountRegistrationSession $session,
+        FedExIntegratorRegistrationOrchestrator $orchestrator,
+    ): JsonResponse {
+        $this->resolveSessionForStore($request, $session);
+        $this->authorizeManage($request, $session->store);
+
+        $validated = $request->validate([
+            'document_hash' => ['required', 'string', 'size:64'],
+            'rendered_page_count' => ['required', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $session = $orchestrator->markEulaScrollComplete(
+            $session,
+            strtolower((string) $validated['document_hash']),
+            (int) $validated['rendered_page_count'],
+        );
+
+        return response()->json([
+            'ok' => true,
+            'scrolled_at' => $session->eula_scrolled_at?->toIso8601String(),
+            'document_hash' => $session->eula_document_hash,
+            'rendered_page_count' => $session->eula_rendered_page_count,
         ]);
     }
 
@@ -100,15 +159,39 @@ class FedExIntegratorConnectionController extends Controller
         Request $request,
         CarrierAccountRegistrationSession $session,
         FedExIntegratorRegistrationOrchestrator $orchestrator,
+        FedExEulaService $eulaService,
+        SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
         $this->resolveSessionForStore($request, $session);
         $this->authorizeManage($request, $session->store);
 
-        $request->validate([
-            'accept_eula' => ['accepted'],
+        $validated = $request->validate([
+            'read_and_accept_eula' => ['accepted'],
+            'document_hash' => ['required', 'string', 'size:64'],
         ]);
 
-        $orchestrator->acceptEula($session, $request->user());
+        $session = $orchestrator->acceptEula(
+            $session,
+            $request->user(),
+            strtolower((string) $validated['document_hash']),
+        );
+
+        $securityLogRecorder->record($request, 'shipping.fedex_eula_accepted', store: $session->store, metadata: [
+            'registration_session_id' => $session->id,
+            'carrier_account_id' => $session->carrier_account_id,
+            'purpose' => $session->purpose,
+            'eula_version' => $session->eula_version,
+            'eula_document_hash' => $session->eula_document_hash,
+            'expected_pages' => $eulaService->expectedPages(),
+            'accepted_by_user_id' => $request->user()?->id,
+        ]);
+
+        if ($session->purpose === CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA
+            && $session->carrierAccount !== null) {
+            return redirect()
+                ->route('settings.shipping.carrier-accounts.fedex.validation', $session->carrierAccount)
+                ->with('success', 'FedEx End User License Agreement accepted for this validation account.');
+        }
 
         return redirect()->route('settings.shipping.fedex-integrator.account', $session);
     }
@@ -288,6 +371,13 @@ class FedExIntegratorConnectionController extends Controller
         $this->authorizeManage($request, $session->store);
 
         $orchestrator->cancel($session);
+
+        if ($session->purpose === CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA
+            && $session->carrierAccount !== null) {
+            return redirect()
+                ->route('settings.shipping.carrier-accounts.fedex.validation', $session->carrierAccount)
+                ->with('success', 'FedEx EULA review was cancelled.');
+        }
 
         return redirect()
             ->route('shippingAutomation', ['tab' => 'carriers'])

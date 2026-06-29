@@ -68,6 +68,7 @@ class FedExIntegratorRegistrationOrchestrator
             'provider' => CarrierAccountRegistrationSession::PROVIDER_FEDEX,
             'environment' => $environment,
             'connection_model' => CarrierAccountRegistrationSession::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
+            'purpose' => CarrierAccountRegistrationSession::PURPOSE_CONNECTION,
             'status' => CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED,
             'origin_location_id' => $location->id,
             'eula_version' => $this->eulaService->version(),
@@ -75,24 +76,132 @@ class FedExIntegratorRegistrationOrchestrator
         ]);
     }
 
-    public function acceptEula(CarrierAccountRegistrationSession $session, User $user): CarrierAccountRegistrationSession
-    {
-        $this->assertSessionActive($session);
+    public function beginValidationEulaReview(
+        Store $store,
+        User $user,
+        CarrierAccount $account,
+    ): CarrierAccountRegistrationSession {
+        abort_unless((int) $account->store_id === (int) $store->id, 404);
+        abort_unless($account->isFedEx(), 404);
 
-        if (! $this->eulaService->isAvailable()) {
+        $existing = CarrierAccountRegistrationSession::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('purpose', CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA)
+            ->where('status', CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED)
+            ->latest('id')
+            ->first();
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        return CarrierAccountRegistrationSession::query()->create([
+            'store_id' => $store->id,
+            'carrier_account_id' => $account->id,
+            'provider' => CarrierAccountRegistrationSession::PROVIDER_FEDEX,
+            'environment' => $account->environment,
+            'connection_model' => CarrierAccountRegistrationSession::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
+            'purpose' => CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA,
+            'status' => CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED,
+            'origin_location_id' => $account->default_origin_location_id,
+            'eula_version' => $this->eulaService->version(),
+            'created_by' => $user->id,
+        ]);
+    }
+
+    public function markEulaScrollComplete(
+        CarrierAccountRegistrationSession $session,
+        string $documentHash,
+        int $renderedPageCount,
+    ): CarrierAccountRegistrationSession {
+        $this->assertSessionActive($session);
+        abort_unless($session->status === CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED, 422);
+
+        $this->eulaService->assertValid();
+        $currentHash = $this->eulaService->hash();
+
+        if (! hash_equals($currentHash, $documentHash)) {
+            throw ValidationException::withMessages([
+                'document_hash' => 'The EULA document has changed. Reload the page and review the agreement again.',
+            ]);
+        }
+
+        if ($renderedPageCount !== $this->eulaService->expectedPages()) {
+            throw ValidationException::withMessages([
+                'rendered_page_count' => 'The agreement page count does not match the configured official document.',
+            ]);
+        }
+
+        $session->forceFill([
+            'eula_scrolled_at' => now(),
+            'eula_document_hash' => $currentHash,
+            'eula_rendered_page_count' => $renderedPageCount,
+        ])->save();
+
+        return $session->refresh();
+    }
+
+    public function acceptEula(
+        CarrierAccountRegistrationSession $session,
+        User $user,
+        string $documentHash,
+    ): CarrierAccountRegistrationSession {
+        $this->assertSessionActive($session);
+        abort_unless($session->status === CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED, 422);
+
+        if (! $this->eulaService->isValid()) {
             throw ValidationException::withMessages([
                 'eula' => 'FedEx End User License Agreement is not available. Contact a platform administrator.',
             ]);
         }
 
+        $currentHash = $this->eulaService->hash();
+
+        if (! hash_equals($currentHash, $documentHash)) {
+            throw ValidationException::withMessages([
+                'document_hash' => 'The EULA document has changed. Reload the page and review the agreement again.',
+            ]);
+        }
+
+        if ($session->eula_scrolled_at === null
+            || ! filled($session->eula_document_hash)
+            || ! hash_equals($currentHash, (string) $session->eula_document_hash)
+            || (int) $session->eula_rendered_page_count !== $this->eulaService->expectedPages()) {
+            throw ValidationException::withMessages([
+                'eula' => 'Scroll through the full agreement before accepting.',
+            ]);
+        }
+
+        $acceptedAt = now();
+
         $session->forceFill([
             'status' => CarrierAccountRegistrationSession::STATUS_EULA_ACCEPTED,
-            'eula_accepted_at' => now(),
+            'eula_accepted_at' => $acceptedAt,
             'eula_accepted_by' => $user->id,
             'eula_version' => $this->eulaService->version(),
+            'eula_document_hash' => $currentHash,
+            'eula_read_acknowledged_at' => $acceptedAt,
         ])->save();
 
+        if ($session->purpose === CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA
+            && $session->carrier_account_id !== null) {
+            $this->copyEulaAcceptanceToCarrierAccount($session);
+        }
+
         return $session->refresh();
+    }
+
+    public function copyEulaAcceptanceToCarrierAccount(CarrierAccountRegistrationSession $session): void
+    {
+        $account = $session->carrierAccount;
+        abort_unless($account !== null, 422);
+
+        $account->forceFill([
+            'eula_accepted_at' => $session->eula_accepted_at,
+            'eula_version' => $session->eula_version,
+            'eula_document_hash' => $session->eula_document_hash,
+        ])->save();
     }
 
     /**
@@ -326,6 +435,7 @@ class FedExIntegratorRegistrationOrchestrator
                 'registration_session_id' => $session->id,
                 'eula_accepted_at' => $session->eula_accepted_at,
                 'eula_version' => $session->eula_version,
+                'eula_document_hash' => $session->eula_document_hash,
                 'connection_context_json' => [
                     'connection_model' => CarrierAccountRegistrationSession::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
                     'integrator_registration' => true,

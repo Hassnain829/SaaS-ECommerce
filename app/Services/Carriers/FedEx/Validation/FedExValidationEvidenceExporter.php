@@ -22,6 +22,8 @@ class FedExValidationEvidenceExporter
         private readonly FedExValidationEvidenceQueryService $evidenceQuery,
         private readonly FedExValidationEvidenceSanitizer $sanitizer,
         private readonly FedExValidationScopeService $scopeService,
+        private readonly FedExHostedEulaEvidenceService $hostedEulaEvidence,
+        private readonly \App\Services\Carriers\FedEx\Connection\FedExEulaService $eulaService,
     ) {}
 
     public function exportDiagnostic(
@@ -240,6 +242,96 @@ class FedExValidationEvidenceExporter
         }
 
         $this->exportSwedenPassthroughScenario($directory, $store, $account, $preflight, $includeFailed);
+        $this->exportHostedEulaScenario($directory, $account, $preflight, $includeFailed);
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function exportHostedEulaScenario(
+        string $registrationDirectory,
+        CarrierAccount $account,
+        array $preflight,
+        bool $includeFailed,
+    ): void {
+        $folder = $registrationDirectory.'/'.FedExHostedEulaEvidenceService::EXPORT_FOLDER;
+        File::ensureDirectoryExists($folder.'/screenshots');
+
+        $documentCheck = collect($preflight['checks'] ?? [])->firstWhere('key', 'hosted_eula_document');
+        $acceptanceCheck = collect($preflight['checks'] ?? [])->firstWhere('key', 'hosted_eula_acceptance');
+        $documentPassed = ($documentCheck['status'] ?? '') === 'passed';
+        $acceptancePassed = ($acceptanceCheck['status'] ?? '') === 'passed';
+        $mode = $includeFailed ? 'diagnostic' : 'final';
+
+        if ($documentPassed && $this->eulaService->isValid()) {
+            $sourcePath = $this->eulaService->documentPath();
+            File::copy($sourcePath, $folder.'/official_eula.pdf');
+            $this->writeJson($folder.'/eula_document_metadata.json', $this->eulaService->metadata());
+        } else {
+            $this->writeJson($folder.'/eula_document_metadata.json', [
+                'status' => 'missing_or_invalid',
+                'metadata' => $this->eulaService->metadata(),
+            ]);
+        }
+
+        $acceptance = $this->hostedEulaEvidence->accountAcceptanceCheck($account);
+        $session = $acceptance['session'] ?? null;
+
+        if ($acceptancePassed && $session !== null) {
+            $this->writeJson($folder.'/eula_acceptance_record.json', [
+                'status' => 'accepted',
+                'eula_version' => $session->eula_version,
+                'eula_document_hash' => $session->eula_document_hash,
+                'all_pages_rendered' => (int) $session->eula_rendered_page_count === $this->eulaService->expectedPages(),
+                'scroll_completed' => $session->eula_scrolled_at !== null,
+                'read_acknowledged' => $session->eula_read_acknowledged_at !== null,
+                'accepted_at' => $session->eula_accepted_at?->toIso8601String(),
+                'button_label' => 'I accept',
+            ]);
+        } else {
+            $this->writeJson($folder.'/eula_acceptance_record.json', [
+                'status' => $acceptance['status'] ?? 'incomplete',
+                'note' => $acceptance['explanation'] ?? 'Hosted EULA acceptance is incomplete.',
+            ]);
+
+            if ($mode === 'final') {
+                throw new HttpException(422, 'Final export blocked: hosted EULA acceptance is incomplete or outdated.');
+            }
+        }
+
+        foreach ([
+            FedExValidationArtifact::TYPE_EULA_FULL_UI_EVIDENCE => '01_full_hosted_eula_ui.pdf',
+            FedExValidationArtifact::TYPE_EULA_ACCEPTANCE_CONFIRMATION => '02_acceptance_confirmation',
+        ] as $type => $basename) {
+            $artifact = $this->hostedEulaEvidence->findEulaArtifact($account, $type);
+
+            if ($artifact === null) {
+                if ($mode === 'final') {
+                    throw new HttpException(422, 'Final export blocked: hosted EULA screenshot evidence is incomplete.');
+                }
+
+                continue;
+            }
+
+            $path = $artifact->absolutePath();
+            if ($path === null || ! is_file($path)) {
+                if ($mode === 'final') {
+                    throw new HttpException(422, 'Final export blocked: hosted EULA screenshot evidence file is missing.');
+                }
+
+                continue;
+            }
+
+            $extension = strtolower(pathinfo((string) $artifact->original_filename, PATHINFO_EXTENSION)
+                ?: pathinfo($path, PATHINFO_EXTENSION)
+                ?: 'bin');
+
+            $target = $type === FedExValidationArtifact::TYPE_EULA_ACCEPTANCE_CONFIRMATION
+                ? $folder.'/screenshots/'.$basename.'.'.$extension
+                : $folder.'/screenshots/'.$basename;
+
+            File::copy($path, $target);
+        }
     }
 
     /**
@@ -286,11 +378,11 @@ class FedExValidationEvidenceExporter
         $this->writeJson($folder.'/result_summary.json', [
             'case' => 'Sweden MFA Passthrough',
             'account_last4' => data_get($addressEvent->request_summary, 'account_last4', '9268'),
-            'country_code' => 'SE',
-            'child_credentials_detected' => true,
-            'mfa_detected' => false,
-            'pin_or_invoice_steps_executed' => false,
-            'direct_child_authorization' => 'passed',
+            'country_code' => strtoupper((string) data_get($addressEvent->request_summary, 'country_code', 'SE')),
+            'child_credentials_detected' => (bool) data_get($addressEvent->response_summary, 'child_credentials_detected', false),
+            'mfa_detected' => (bool) data_get($addressEvent->response_summary, 'mfa_detected', false),
+            'pin_or_invoice_steps_executed' => (bool) data_get($addressEvent->response_summary, 'pin_or_invoice_steps_executed', false),
+            'direct_child_authorization' => $childEvent->isSuccessfulHttp() ? 'passed' : 'failed',
             'validation_run_id' => $pairedRun['validation_run_id'],
         ]);
 

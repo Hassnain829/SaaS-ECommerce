@@ -8,6 +8,7 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\FedExValidationArtifact;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Validation\FedExHostedEulaEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceQueryService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScenarioCatalog;
 use App\Services\SecurityLogRecorder;
@@ -154,6 +155,71 @@ class FedExValidationArtifactController extends Controller
         return redirect()
             ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
             ->with('success', 'Tracking screenshot uploaded.');
+    }
+
+    public function uploadEulaEvidence(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExHostedEulaEvidenceService $hostedEulaEvidence,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+        $store = $account->store;
+
+        abort_unless(
+            $hostedEulaEvidence->eulaEvidenceUploadAllowed($account),
+            422,
+            'Upload EULA evidence only after current-document acceptance is recorded.',
+        );
+
+        $acceptanceSession = $hostedEulaEvidence->acceptanceSession($account);
+        abort_unless($acceptanceSession !== null, 422);
+
+        $validated = $request->validate([
+            'full_ui_evidence' => ['required', 'file', 'mimes:pdf', 'max:20480'],
+            'acceptance_confirmation' => ['required', 'file', 'mimes:pdf,png,jpg,jpeg', 'max:20480'],
+        ]);
+
+        $metadata = [
+            'eula_document_hash' => (string) $account->eula_document_hash,
+            'eula_version' => (string) $account->eula_version,
+            'registration_session_id' => $acceptanceSession->id,
+        ];
+
+        $this->storeUploadedFile(
+            account: $account,
+            file: $request->file('full_ui_evidence'),
+            artifactType: FedExValidationArtifact::TYPE_EULA_FULL_UI_EVIDENCE,
+            role: FedExValidationArtifact::ROLE_EULA_SCREENSHOT,
+            actorId: $request->user()?->id,
+            extra: [
+                'registration_session_id' => $acceptanceSession->id,
+                'metadata_json' => $metadata,
+            ],
+        );
+
+        $this->storeUploadedFile(
+            account: $account,
+            file: $request->file('acceptance_confirmation'),
+            artifactType: FedExValidationArtifact::TYPE_EULA_ACCEPTANCE_CONFIRMATION,
+            role: FedExValidationArtifact::ROLE_EULA_SCREENSHOT,
+            actorId: $request->user()?->id,
+            extra: [
+                'registration_session_id' => $acceptanceSession->id,
+                'metadata_json' => $metadata,
+            ],
+        );
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_eula_evidence_upload', store: $store, metadata: [
+            'carrier_account_id' => $account->id,
+            'registration_session_id' => $acceptanceSession->id,
+            'eula_document_hash' => $account->eula_document_hash,
+        ]);
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('success', 'Hosted EULA evidence uploaded.');
     }
 
     public function uploadSwedenScreenshots(

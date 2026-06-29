@@ -16,6 +16,7 @@ class FedExValidationPreflightService
         private readonly FedExValidationEvidenceQueryService $evidenceQuery,
         private readonly FedExValidationEvidenceSanitizer $sanitizer,
         private readonly FedExValidationAuthorizationEvidenceRules $authorizationEvidenceRules,
+        private readonly FedExHostedEulaEvidenceService $hostedEulaEvidence,
     ) {}
 
     /**
@@ -51,6 +52,13 @@ class FedExValidationPreflightService
         }
 
         foreach ($this->swedenPassthroughChecks($store, $account) as $check) {
+            $checks[] = $check;
+            if ($check['required'] && $check['status'] !== 'passed') {
+                $blockers[] = $check;
+            }
+        }
+
+        foreach ($this->hostedEulaChecks($account) as $check) {
             $checks[] = $check;
             if ($check['required'] && $check['status'] !== 'passed') {
                 $blockers[] = $check;
@@ -602,6 +610,81 @@ class FedExValidationPreflightService
         }
 
         return 'passed';
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function hostedEulaChecks(CarrierAccount $account): array
+    {
+        $document = $this->hostedEulaEvidence->documentCheck();
+        $acceptance = $this->hostedEulaEvidence->accountAcceptanceCheck($account);
+        $fullUi = $this->hostedEulaEvidence->findEulaArtifact($account, FedExValidationArtifact::TYPE_EULA_FULL_UI_EVIDENCE);
+        $confirmation = $this->hostedEulaEvidence->findEulaArtifact($account, FedExValidationArtifact::TYPE_EULA_ACCEPTANCE_CONFIRMATION);
+
+        return [
+            [
+                'key' => 'hosted_eula_document',
+                'category' => 'registration_mfa',
+                'label' => 'Hosted FedEx EULA document',
+                'required' => true,
+                'status' => $document['status'],
+                'explanation' => (string) $document['explanation'],
+            ],
+            [
+                'key' => 'hosted_eula_acceptance',
+                'category' => 'registration_mfa',
+                'label' => 'Hosted FedEx EULA acceptance',
+                'required' => true,
+                'status' => match ($acceptance['status']) {
+                    'passed' => 'passed',
+                    'outdated' => 'outdated',
+                    default => 'incomplete',
+                },
+                'explanation' => (string) $acceptance['explanation'],
+            ],
+            [
+                'key' => 'hosted_eula_full_ui_evidence',
+                'category' => 'registration_mfa',
+                'label' => 'Hosted EULA full UI evidence',
+                'required' => true,
+                'status' => $this->eulaArtifactStatus($fullUi, ['application/pdf']),
+                'explanation' => $fullUi
+                    ? 'Full hosted EULA UI evidence uploaded.'
+                    : 'Upload the multi-page PDF created from Print / Save EULA evidence.',
+                'artifact_id' => $fullUi?->id,
+            ],
+            [
+                'key' => 'hosted_eula_acceptance_confirmation',
+                'category' => 'registration_mfa',
+                'label' => 'Hosted EULA acceptance confirmation',
+                'required' => true,
+                'status' => $this->eulaArtifactStatus($confirmation, ['application/pdf', 'image/png', 'image/jpeg']),
+                'explanation' => $confirmation
+                    ? 'Acceptance confirmation screenshot uploaded.'
+                    : 'Upload a screenshot or PDF showing successful current-document acceptance.',
+                'artifact_id' => $confirmation?->id,
+            ],
+        ];
+    }
+
+    /**
+     * @param  list<string>  $allowedMimeTypes
+     */
+    private function eulaArtifactStatus(?FedExValidationArtifact $artifact, array $allowedMimeTypes): string
+    {
+        if ($artifact === null) {
+            return 'incomplete';
+        }
+
+        if (! $this->artifactIntegrityValid($artifact)) {
+            return 'incomplete';
+        }
+
+        $path = $artifact->absolutePath();
+        $mime = (string) mime_content_type((string) $path);
+
+        return in_array($mime, $allowedMimeTypes, true) ? 'passed' : 'failed';
     }
 
     /**

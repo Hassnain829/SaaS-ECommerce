@@ -9,6 +9,7 @@ use App\Models\CarrierApiEvent;
 use App\Services\Carriers\FedEx\Presenters\FedExValidationStatusPresenter;
 use App\Services\Carriers\FedEx\Presenters\FedExValidationWorkspaceCardPresenter;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Validation\FedExHostedEulaEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceQueryService;
@@ -32,6 +33,7 @@ class FedExValidationWorkspaceController extends Controller
         FedExShipTestCaseFixtureService $fixtureService,
         FedExTestCaseFixtureService $testCaseFixtures,
         FedExValidationEvidenceQueryService $evidenceQuery,
+        FedExHostedEulaEvidenceService $hostedEulaEvidence,
     ): View {
         $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
         $store = $account->store;
@@ -64,6 +66,7 @@ class FedExValidationWorkspaceController extends Controller
                 : '9268',
             'swedenPassthroughStatus' => $this->swedenPassthroughStatus($canonicalSwedenRun, $latestSwedenAttempt, $assessment),
             'swedenScreenshotsUploadAllowed' => $canonicalSwedenRun !== null,
+            'hostedEulaStatus' => $hostedEulaEvidence->workspaceStatus($account),
         ]);
     }
 

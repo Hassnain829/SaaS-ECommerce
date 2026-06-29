@@ -35,6 +35,12 @@ Route::post('/settings/shipping/carriers/connect/fedex-integrator/origin', [FedE
 Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/eula', [FedExIntegratorConnectionController::class, 'showEula'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.fedex-integrator.eula');
+Route::get('/settings/shipping/carriers/connect/fedex-integrator/{session}/eula/document', [FedExIntegratorConnectionController::class, 'showEulaDocument'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.fedex-integrator.eula.document');
+Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/eula/scroll-complete', [FedExIntegratorConnectionController::class, 'markEulaScrollComplete'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.fedex-integrator.eula.scroll-complete');
 Route::post('/settings/shipping/carriers/connect/fedex-integrator/{session}/eula', [FedExIntegratorConnectionController::class, 'acceptEula'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.fedex-integrator.eula.accept');
@@ -92,6 +98,12 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validati
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/tracking-screenshot', [FedExValidationArtifactController::class, 'uploadTrackingScreenshot'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.tracking-screenshot.upload');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/eula-review', [FedExValidationRunController::class, 'beginEulaValidationReview'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.eula-review');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/eula-evidence', [FedExValidationArtifactController::class, 'uploadEulaEvidence'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.eula-evidence.upload');
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/authorization', [FedExValidationRunController::class, 'runAuthorizationEvidence'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.authorization');

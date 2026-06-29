@@ -74,6 +74,46 @@
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-[#0F172A]">Hosted FedEx EULA</h3>
+            <p class="mt-1 text-sm text-[#64748B]">Official FedEx hosted third-party End User License Agreement review, acceptance, and screenshot evidence.</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                @foreach ([
+                    ['label' => 'Official document', 'value' => ($hostedEulaStatus['document_valid'] ?? false) ? 'Valid' : 'Invalid'],
+                    ['label' => 'Document version', 'value' => $hostedEulaStatus['document_version'] ?? '—'],
+                    ['label' => 'Full agreement viewed', 'value' => $hostedEulaStatus['full_agreement_viewed'] ?? 'Incomplete'],
+                    ['label' => 'Read acknowledgement', 'value' => $hostedEulaStatus['read_acknowledgement'] ?? 'Missing'],
+                    ['label' => 'Current document acceptance', 'value' => $hostedEulaStatus['acceptance_status'] ?? 'Missing'],
+                    ['label' => 'Evidence screenshots', 'value' => $hostedEulaStatus['evidence_screenshots'] ?? 'Missing'],
+                ] as $row)
+                    <div class="flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                        <span class="text-sm font-semibold text-[#0F172A]">{{ $row['label'] }}</span>
+                        <span class="text-sm text-[#475569]">{{ $row['value'] }}</span>
+                    </div>
+                @endforeach
+            </div>
+            <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.eula-review', $account) }}" class="mt-4">
+                @csrf
+                <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Review and accept Hosted EULA</button>
+            </form>
+            @if ($hostedEulaStatus['upload_allowed'] ?? false)
+                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.eula-evidence.upload', $account) }}" enctype="multipart/form-data" class="mt-4 grid gap-3 md:grid-cols-2">
+                    @csrf
+                    <label class="block text-sm">
+                        <span class="font-semibold text-[#475569]">Full EULA UI evidence PDF</span>
+                        <input type="file" name="full_ui_evidence" accept="application/pdf" required class="mt-1 block w-full text-sm">
+                    </label>
+                    <label class="block text-sm">
+                        <span class="font-semibold text-[#475569]">Acceptance confirmation screenshot</span>
+                        <input type="file" name="acceptance_confirmation" accept="application/pdf,image/png,image/jpeg" required class="mt-1 block w-full text-sm">
+                    </label>
+                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white md:col-span-2 md:w-fit">Upload EULA Evidence</button>
+                </form>
+            @else
+                <p class="mt-3 text-xs text-[#64748B]">Accept the current official hosted EULA before uploading screenshot evidence.</p>
+            @endif
+        </section>
+
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <h3 class="text-lg font-semibold text-[#0F172A]">Authorization</h3>
             <p class="mt-1 text-sm text-[#64748B]">Fresh parent and child OAuth transactions for FedEx integrator validation evidence.</p>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">

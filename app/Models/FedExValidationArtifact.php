@@ -19,6 +19,12 @@ class FedExValidationArtifact extends Model
 
     public const ROLE_SWEDEN_PASSTHROUGH_SCREENSHOT = 'sweden_passthrough_screenshot';
 
+    public const ROLE_EULA_SCREENSHOT = 'eula_screenshot';
+
+    public const TYPE_EULA_FULL_UI_EVIDENCE = 'eula_full_ui_evidence';
+
+    public const TYPE_EULA_ACCEPTANCE_CONFIRMATION = 'eula_acceptance_confirmation';
+
     public const TYPE_SWEDEN_PASSTHROUGH_ADDRESS_SCREENSHOT = 'sweden_passthrough_address_result';
 
     public const TYPE_SWEDEN_PASSTHROUGH_CHILD_AUTH_SCREENSHOT = 'sweden_passthrough_child_authorization_result';

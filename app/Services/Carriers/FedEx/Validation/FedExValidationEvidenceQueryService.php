@@ -215,30 +215,8 @@ class FedExValidationEvidenceQueryService
 
     private function isValidSwedenPassthroughChildEvent(CarrierApiEvent $event): bool
     {
-        if (! $event->hasCompleteEvidence() || ! $event->isSuccessfulHttp()) {
-            return false;
-        }
-
-        if ($event->status !== CarrierApiEvent::STATUS_SUCCEEDED) {
-            return false;
-        }
-
-        if ((bool) data_get($event->request_summary, 'cached') || (bool) data_get($event->response_summary, 'cached')) {
-            return false;
-        }
-
-        $endpoint = (string) ($event->endpoint ?? data_get($event->request_summary, 'endpoint', ''));
-        if (! str_contains($endpoint, '/oauth/token')) {
-            return false;
-        }
-
-        if (strtoupper((string) $event->http_method) !== 'POST') {
-            return false;
-        }
-
-        $grantType = strtolower((string) data_get($event->request_body_encrypted, 'grant_type', ''));
-
-        return $grantType === 'csp_credentials';
+        return app(FedExValidationAuthorizationEvidenceRules::class)
+            ->satisfiesRequirements($event, 'csp_credentials');
     }
 
     public function canonicalShipLabelEvent(

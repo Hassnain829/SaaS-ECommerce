@@ -337,8 +337,18 @@ class Phase6FedExSwedenPassthroughTest extends TestCase
                 'endpoint' => '/oauth/token',
             ],
             'response_summary' => ['validation_run_id' => $runId],
-            'request_body_encrypted' => ['grant_type' => 'csp_credentials'],
-            'response_body_encrypted' => ['token_type' => 'bearer', 'expires_in' => 3600],
+            'request_body_encrypted' => [
+                'grant_type' => 'csp_credentials',
+                'client_id' => '[REDACTED]',
+                'client_secret' => '[REDACTED]',
+                'child_key' => '[REDACTED]',
+                'child_secret' => '[REDACTED]',
+            ],
+            'response_body_encrypted' => [
+                'access_token' => '[REDACTED]',
+                'token_type' => 'bearer',
+                'expires_in' => 3600,
+            ],
         ]);
     }
 

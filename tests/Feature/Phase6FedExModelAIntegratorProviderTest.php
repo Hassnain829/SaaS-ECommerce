@@ -33,6 +33,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
         $this->seed(CarrierSeeder::class);
         $this->configureFedExModelA();
+        $this->configureOfficialEula();
     }
 
     public function test_merchant_sees_fedex_model_a_connect_button_by_default(): void
@@ -82,11 +83,13 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
     {
         [$owner, $store, $location] = $this->fixtureParts('FedEx EULA Store');
         $session = $this->createSession($store, $owner, $location, CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED);
+        $this->completeEulaScroll($session);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.shipping.fedex-integrator.eula.accept', $session), [
-                'accept_eula' => '1',
+                'read_and_accept_eula' => '1',
+                'document_hash' => app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->hash(),
             ])
             ->assertRedirect(route('settings.shipping.fedex-integrator.account', $session));
 
@@ -94,10 +97,11 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $this->assertSame(CarrierAccountRegistrationSession::STATUS_EULA_ACCEPTED, $session->status);
         $this->assertNotNull($session->eula_accepted_at);
         $this->assertSame($owner->id, $session->eula_accepted_by);
-        $this->assertSame('1.0', $session->eula_version);
+        $this->assertSame('FedEx Form No. 2002382 v 4 June 2024 Rev', $session->eula_version);
+        $this->assertNotNull($session->eula_document_hash);
     }
 
-    public function test_short_eula_page_allows_acceptance_without_scroll_trap(): void
+    public function test_eula_page_requires_scroll_completion_before_acceptance(): void
     {
         [$owner, $store, $location] = $this->fixtureParts('FedEx Short EULA Store');
         $session = $this->createSession($store, $owner, $location, CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED);
@@ -106,20 +110,22 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.shipping.fedex-integrator.eula', $session))
             ->assertOk()
-            ->assertSee('contentRequiresScroll', false)
-            ->assertSee('canSubmit()', false)
-            ->assertSee('name="accept_eula"', false)
-            ->assertDontSee('onscroll="document.getElementById', false);
+            ->assertDontSee('initFedExEulaViewer', false)
+            ->assertSee('data-fedex-eula-config', false)
+            ->assertSee('I accept', false)
+            ->assertSee('read_and_accept_eula', false)
+            ->assertSee('Print / Save EULA evidence', false);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.shipping.fedex-integrator.eula.accept', $session), [
-                'accept_eula' => '1',
+                'read_and_accept_eula' => '1',
+                'document_hash' => app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->hash(),
             ])
-            ->assertRedirect(route('settings.shipping.fedex-integrator.account', $session));
+            ->assertSessionHasErrors('eula');
 
         $session->refresh();
-        $this->assertSame(CarrierAccountRegistrationSession::STATUS_EULA_ACCEPTED, $session->status);
+        $this->assertSame(CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED, $session->status);
     }
 
     public function test_account_details_validation_rejects_invalid_account_number(): void
@@ -813,6 +819,28 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         ]);
     }
 
+    private function configureOfficialEula(): void
+    {
+        $path = base_path('resources/legal/fedex/FedEx_Standard_End_User_License_Agreement_EULA_for_Hosted_3rd_party_solutions.pdf');
+
+        config([
+            'carriers.fedex.integrator_eula_path' => 'resources/legal/fedex/FedEx_Standard_End_User_License_Agreement_EULA_for_Hosted_3rd_party_solutions.pdf',
+            'carriers.fedex.integrator_eula_version' => 'FedEx Form No. 2002382 v 4 June 2024 Rev',
+            'carriers.fedex.integrator_eula_form_number' => '2002382',
+            'carriers.fedex.integrator_eula_expected_pages' => 11,
+            'carriers.fedex.integrator_eula_sha256' => is_file($path) ? hash_file('sha256', $path) : str_repeat('a', 64),
+        ]);
+    }
+
+    private function completeEulaScroll(CarrierAccountRegistrationSession $session): void
+    {
+        app(\App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator::class)->markEulaScrollComplete(
+            $session,
+            app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->hash(),
+            app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->expectedPages(),
+        );
+    }
+
     private function configureMfaPaths(): void
     {
         config([
@@ -946,7 +974,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
             'connection_model' => CarrierAccountRegistrationSession::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
             'status' => $status,
             'origin_location_id' => $location->id,
-            'eula_version' => '1.0',
+            'eula_version' => 'FedEx Form No. 2002382 v 4 June 2024 Rev',
             'created_by' => $owner->id,
         ]);
     }

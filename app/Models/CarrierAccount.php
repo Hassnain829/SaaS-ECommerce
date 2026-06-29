@@ -150,6 +150,7 @@ class CarrierAccount extends Model
         'registration_session_id',
         'eula_accepted_at',
         'eula_version',
+        'eula_document_hash',
         'connection_context_json',
         'billing_owner',
         'ownership_mode',

@@ -107,16 +107,31 @@ final class FedExConfig
 
     public function eulaVersion(): string
     {
-        return (string) config('carriers.fedex.integrator_eula_version', '1.0');
+        return (string) config('carriers.fedex.integrator_eula_version', 'FedEx Form No. 2002382 v 4 June 2024 Rev');
     }
 
     public function eulaPath(): string
     {
-        $path = (string) config('carriers.fedex.integrator_eula_path', 'resources/legal/fedex/end_user_license_agreement.html');
+        $path = (string) config('carriers.fedex.integrator_eula_path', 'resources/legal/fedex/FedEx_Standard_End_User_License_Agreement_EULA_for_Hosted_3rd_party_solutions.pdf');
 
         return str_starts_with($path, DIRECTORY_SEPARATOR) || preg_match('/^[A-Za-z]:\\\\/', $path)
             ? $path
             : base_path($path);
+    }
+
+    public function eulaFormNumber(): string
+    {
+        return (string) config('carriers.fedex.integrator_eula_form_number', '2002382');
+    }
+
+    public function eulaExpectedPages(): int
+    {
+        return max(1, (int) config('carriers.fedex.integrator_eula_expected_pages', 11));
+    }
+
+    public function eulaExpectedSha256(): string
+    {
+        return strtolower((string) config('carriers.fedex.integrator_eula_sha256', ''));
     }
 
     public function mfaPinGenerationPath(): ?string

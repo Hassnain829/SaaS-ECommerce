@@ -48,12 +48,17 @@ class CarrierAccountRegistrationSession extends Model
 
     public const MFA_NONE = 'none';
 
+    public const PURPOSE_CONNECTION = 'connection';
+
+    public const PURPOSE_VALIDATION_EULA = 'validation_eula';
+
     protected $fillable = [
         'store_id',
         'carrier_account_id',
         'provider',
         'environment',
         'connection_model',
+        'purpose',
         'status',
         'origin_location_id',
         'account_number_encrypted',
@@ -62,8 +67,12 @@ class CarrierAccountRegistrationSession extends Model
         'registration_address_json',
         'residential',
         'eula_version',
+        'eula_document_hash',
         'eula_accepted_at',
         'eula_accepted_by',
+        'eula_scrolled_at',
+        'eula_read_acknowledged_at',
+        'eula_rendered_page_count',
         'mfa_method',
         'mfa_destination_masked',
         'mfa_attempt_count',
@@ -93,6 +102,9 @@ class CarrierAccountRegistrationSession extends Model
         'mfa_options_json' => 'array',
         'residential' => 'boolean',
         'eula_accepted_at' => 'datetime',
+        'eula_scrolled_at' => 'datetime',
+        'eula_read_acknowledged_at' => 'datetime',
+        'eula_rendered_page_count' => 'integer',
         'account_auth_token_expires_at' => 'datetime',
         'mfa_expires_at' => 'datetime',
         'completed_at' => 'datetime',
