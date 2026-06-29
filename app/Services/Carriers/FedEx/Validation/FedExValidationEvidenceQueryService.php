@@ -9,6 +9,23 @@ use Illuminate\Database\Eloquent\Builder;
 
 class FedExValidationEvidenceQueryService
 {
+    public function canonicalAuthorizationEvent(
+        Store $store,
+        CarrierAccount $account,
+        string $scenarioKey,
+        string $action,
+    ): ?CarrierApiEvent {
+        return $this->firstCanonicalCandidate(
+            $this->baseQuery($store, $account)
+                ->where('scenario_key', $scenarioKey)
+                ->where('action', $action)
+                ->orderByDesc('id')
+                ->get()
+                ->reject(fn (CarrierApiEvent $event): bool => (bool) data_get($event->request_summary, 'cached')
+                    || (bool) data_get($event->response_summary, 'cached')),
+        );
+    }
+
     public function canonicalEvent(
         Store $store,
         CarrierAccount $account,

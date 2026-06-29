@@ -7,6 +7,7 @@ use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\Validation\FedExSensitiveFieldClassifier;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceSanitizer;
 
 class CarrierApiEventLogger
@@ -120,23 +121,17 @@ class CarrierApiEventLogger
 
     private function isSensitiveKey(string $key): bool
     {
-        return str_contains($key, 'secret')
-            || str_contains($key, 'password')
-            || str_contains($key, 'token')
-            || str_contains($key, 'authorization')
-            || str_contains($key, 'client_id')
-            || str_contains($key, 'consumer_key')
-            || str_contains($key, 'consumer_secret')
-            || str_contains($key, 'customer_key')
-            || str_contains($key, 'child_key')
-            || str_contains($key, 'child_secret')
-            || str_contains($key, 'crid')
-            || str_contains($key, 'master_mid')
-            || str_contains($key, 'labeler_mid')
-            || str_contains($key, 'access_token')
-            || str_contains($key, 'refresh_token')
-            || str_contains($key, 'pin')
-            || str_contains($key, 'accountauthtoken');
+        if (FedExSensitiveFieldClassifier::isSensitiveKey($key)) {
+            return true;
+        }
+
+        $normalizedKey = FedExSensitiveFieldClassifier::normalizeKey($key);
+
+        return in_array($normalizedKey, [
+            'clientid',
+            'consumerkey',
+            'consumersecret',
+        ], true);
     }
 
     private function maskAccountNumber(string $number): string

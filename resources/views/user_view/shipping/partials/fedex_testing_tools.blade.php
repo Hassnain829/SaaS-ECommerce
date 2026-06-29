@@ -6,7 +6,7 @@
 
     <details class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
         <summary class="cursor-pointer font-semibold text-[#0F172A]">{{ $account->usesFedExIntegratorProvider() ? 'FedEx validation tools' : 'FedEx testing tools' }}</summary>
-        <p class="mt-2 text-xs text-[#64748B]">Sandbox checks using your integrator child credentials. These tools validate FedEx API access for submission evidence. They do not buy labels for checkout, charge postage, or change checkout totals unless label generation is explicitly enabled.</p>
+        <p class="mt-2 text-xs text-[#64748B]">Sandbox checks using your integrator child credentials. For FedEx submission evidence, use the <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation', $account) }}" class="font-semibold text-[#1D4ED8]">validation workspace</a>. These carrier-page tools are optional developer diagnostics only.</p>
 
         @if ($showFedExTestResult)
             @php
@@ -150,6 +150,71 @@
         @endif
 
         @if ($canManageShipping ?? false)
+            @if ($account->usesFedExIntegratorProvider())
+                <div class="mt-4 space-y-4">
+                    <div class="rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-xs text-[#1E3A8A]">
+                        <p class="font-semibold text-[#0F172A]">One-click FedEx validation</p>
+                        <p class="mt-1">Each button runs a FedEx sandbox check using baseline test data from the integrator workbook — no form filling required. Results appear above with redacted request/response JSON.</p>
+                        @if ($fedExBaselineAvailable ?? false)
+                            <p class="mt-1">Baseline source: <span class="font-semibold">FedEx Integrator Test Case Baseline</span></p>
+                        @else
+                            <p class="mt-1">Baseline workbook not found locally — using built-in fallback fixtures.</p>
+                        @endif
+                    </div>
+
+                    <div class="grid gap-2 sm:grid-cols-2">
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-address', $account) }}" class="shipping-submit-form">
+                            @csrf
+                            <input type="hidden" name="use_baseline" value="1">
+                            <button type="submit" class="w-full rounded-lg bg-[#0052CC] px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn">
+                                <span class="block">Address check</span>
+                                <span class="mt-0.5 block text-xs font-normal text-blue-100">US validation account · New York NY</span>
+                            </button>
+                        </form>
+
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account) }}" class="shipping-submit-form">
+                            @csrf
+                            <input type="hidden" name="use_baseline" value="1">
+                            <button type="submit" class="w-full rounded-lg bg-[#0052CC] px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>
+                                <span class="block">Service availability</span>
+                                <span class="mt-0.5 block text-xs font-normal text-blue-100">US02 route · Collierville TN</span>
+                            </button>
+                        </form>
+
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-rate-quote', $account) }}" class="shipping-submit-form">
+                            @csrf
+                            <input type="hidden" name="use_baseline" value="1">
+                            <button type="submit" class="w-full rounded-lg bg-[#0052CC] px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>
+                                <span class="block">Rate quote test</span>
+                                <span class="mt-0.5 block text-xs font-normal text-blue-100">Chicago IL · PRIORITY_OVERNIGHT · US02 package</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="rounded-lg border border-[#E2E8F0] bg-white px-4 py-3">
+                        <p class="text-sm font-semibold text-[#0F172A]">Ship API validation</p>
+                        <p class="mt-1 text-xs text-[#64748B]">Sandbox ship validate and label generation for integrator evidence. Label format is locked per FedEx test case.</p>
+                        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                            @foreach (['IntegratorUS02' => 'Ship validate · US02 (ZPLII)', 'IntegratorUS04' => 'Ship validate · US04 (PNG)', 'IntegratorUS05' => 'Ship validate · US05 (PDF MPS)'] as $caseKey => $label)
+                                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-ship-validate', $account) }}" class="shipping-submit-form">
+                                    @csrf
+                                    <input type="hidden" name="use_baseline" value="1">
+                                    <input type="hidden" name="test_case" value="{{ $caseKey }}">
+                                    <button type="submit" class="w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 py-2 text-left text-sm font-semibold text-[#0F172A] shipping-submit-btn">{{ $label }}</button>
+                                </form>
+                            @endforeach
+                            @foreach (['IntegratorUS02' => 'Create label · US02 (ZPLII)', 'IntegratorUS04' => 'Create label · US04 (PNG)', 'IntegratorUS05' => 'Create label · US05 (PDF MPS)'] as $caseKey => $label)
+                                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-ship-label', $account) }}" class="shipping-submit-form">
+                                    @csrf
+                                    <input type="hidden" name="use_baseline" value="1">
+                                    <input type="hidden" name="test_case" value="{{ $caseKey }}">
+                                    <button type="submit" class="w-full rounded-lg bg-[#0052CC] px-4 py-2 text-left text-sm font-bold text-white shipping-submit-btn">{{ $label }}</button>
+                                </form>
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            @else
             <div class="mt-4 space-y-3">
                 <details class="rounded-lg border border-[#E2E8F0] bg-white px-3 py-3">
                     <summary class="cursor-pointer text-sm font-semibold text-[#0F172A]">Address check</summary>
@@ -245,50 +310,8 @@
                         <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Get FedEx test quote</button>
                     </form>
                 </details>
-
-                @if ($account->usesFedExIntegratorProvider())
-                    <details class="rounded-lg border border-[#E2E8F0] bg-white px-3 py-3">
-                        <summary class="cursor-pointer text-sm font-semibold text-[#0F172A]">Ship API validation</summary>
-                        <p class="mt-2 text-xs text-[#64748B]">Sandbox Ship API tools for FedEx integrator validation evidence. Label generation requires FEDEX_SHIP_SANDBOX_LABEL_GENERATION_ENABLED or FEDEX_SHIP_EVIDENCE_ENABLED.</p>
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-ship-validate', $account) }}" class="shipping-submit-form mt-3 space-y-3">
-                            @csrf
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Test case</span>
-                                <select name="test_case" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
-                                    @foreach (($fedExShipTestCases ?? []) as $key => $fixture)
-                                        <option value="{{ $key }}">{{ $fixture['label'] ?? $key }}</option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn">Run ship validate</button>
-                        </form>
-
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-ship-label', $account) }}" class="shipping-submit-form mt-4 space-y-3 border-t border-[#F1F5F9] pt-4">
-                            @csrf
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Test case</span>
-                                <select name="test_case" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
-                                    @foreach (($fedExShipTestCases ?? []) as $key => $fixture)
-                                        <option value="{{ $key }}">{{ $fixture['label'] ?? $key }}</option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Label format</span>
-                                <select name="label_format" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
-                                    <option value="PDF">PDF</option>
-                                    <option value="PNG">PNG</option>
-                                    <option value="ZPL">ZPL</option>
-                                </select>
-                            </label>
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn">Create sandbox label</button>
-                        </form>
-
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.cancel-test-shipment', $account) }}" class="shipping-submit-form mt-4 space-y-3 border-t border-[#F1F5F9] pt-4">
-                            @csrf
-                            <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Tracking number</span><input name="tracking_number" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="From prior label test"></label>
-                            <button type="submit" class="rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569] shipping-submit-btn">Cancel test shipment</button>
-                        </form>
-                    </details>
-                @endif
             </div>
+            @endif
         @endif
     </details>
 @endif

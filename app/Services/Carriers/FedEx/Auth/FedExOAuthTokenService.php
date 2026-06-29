@@ -47,7 +47,9 @@ class FedExOAuthTokenService
 
         $cacheKey = $this->cacheKey($environment, self::TOKEN_TYPE_PLATFORM);
 
-        if (! $fresh) {
+        if ($fresh) {
+            Cache::forget($cacheKey);
+        } else {
             /** @var array{access_token: string, token_type: string, expires_in: int}|null $cached */
             $cached = Cache::get($cacheKey);
 

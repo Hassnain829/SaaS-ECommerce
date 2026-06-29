@@ -42,9 +42,11 @@ class Phase6FedExShipValidationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation', ['tab' => 'carriers']))
             ->assertOk()
+            ->assertSeeText('One-click FedEx validation')
             ->assertSeeText('Ship API validation')
             ->assertSeeText('Validation capability status')
             ->assertSeeText('Integrator Provider')
+            ->assertSee('name="use_baseline"', false)
             ->assertSee(route('settings.shipping.carrier-accounts.fedex.test-ship-validate', $account), false);
     }
 

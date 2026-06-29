@@ -74,6 +74,28 @@
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-[#0F172A]">Authorization</h3>
+            <p class="mt-1 text-sm text-[#64748B]">Fresh parent and child OAuth transactions for FedEx integrator validation evidence.</p>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                @foreach ([
+                    'authorization_parent' => 'Parent authorization',
+                    'authorization_child' => 'Child authorization',
+                ] as $authKey => $authLabel)
+                    @php($authCheck = $checksByKey->get($authKey))
+                    <div class="flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                        <span class="text-sm font-semibold text-[#0F172A]">{{ $authLabel }}</span>
+                        <span class="rounded-full px-2 py-0.5 text-xs font-bold {{ $statusBadge((string) ($authCheck['status'] ?? 'not_tested')) }}">{{ str((string) ($authCheck['status'] ?? 'not_tested'))->replace('_', ' ')->title() }}</span>
+                    </div>
+                @endforeach
+            </div>
+            <p class="mt-3 text-xs text-[#64748B]">Uses stored sandbox platform and child credentials. A fresh OAuth transaction is generated for each required authorization check.</p>
+            <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.authorization', $account) }}" class="mt-4" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                @csrf
+                <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Parent + Child Authorization</button>
+            </form>
+        </section>
+
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <h3 class="text-lg font-semibold text-[#0F172A]">Required validation documents</h3>
             <p class="mt-1 text-sm text-[#64748B]">Upload the cover sheet, product worksheet, and customer-facing screenshots PDF.</p>
             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.documents.upload', $account) }}" enctype="multipart/form-data" class="mt-4 grid gap-3 md:grid-cols-3">
@@ -108,7 +130,7 @@
                 @unless ($invoiceEndpointConfigured ?? false)
                     <p class="mt-3 text-sm text-amber-800">Not configured — set <code class="text-xs">FEDEX_MFA_INVOICE_VALIDATION_PATH</code> before running this check.</p>
                 @else
-                    <p class="mt-3 text-xs text-[#64748B]">Sandbox defaults from the FedEx integrator workbook (account <strong>700257037</strong>). Invoice date must be within the last 6 months. A fresh FedEx authorization token is fetched automatically before each run.</p>
+                    <p class="mt-3 text-xs text-[#64748B]">Sandbox defaults from the FedEx integrator workbook (account ending <strong>{{ $sandboxAccountEnding ?? '****' }}</strong>). Invoice date must be within the last 6 months. A fresh FedEx authorization token is fetched automatically before each run.</p>
                     <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.mfa.invoice', $account) }}" class="mt-4 grid gap-3 sm:grid-cols-2">
                         @csrf
                         <label class="block space-y-1 text-sm">

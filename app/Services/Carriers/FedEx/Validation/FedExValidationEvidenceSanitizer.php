@@ -5,37 +5,6 @@ namespace App\Services\Carriers\FedEx\Validation;
 final class FedExValidationEvidenceSanitizer
 {
     /**
-     * @var list<string>
-     */
-    private const SENSITIVE_KEY_FRAGMENTS = [
-        'authorization',
-        'proxy-authorization',
-        'cookie',
-        'set-cookie',
-        'access_token',
-        'refresh_token',
-        'bearertoken',
-        'client_secret',
-        'clientsecret',
-        'child_secret',
-        'childsecret',
-        'child_key',
-        'customer_key',
-        'apikey',
-        'api_key',
-        'customerpassword',
-        'customer_password',
-        'accountauthtoken',
-        'pin',
-        'verificationpin',
-        'onetimepin',
-        'otp',
-        'password',
-        'secret',
-        'token',
-    ];
-
-    /**
      * @param  array<string>|list<string>  $knownSecrets
      * @return list<array{path: string, reason: string}>
      */
@@ -192,21 +161,7 @@ final class FedExValidationEvidenceSanitizer
 
     private function isSensitiveKey(string $key): bool
     {
-        if (str_ends_with($key, '_last4')) {
-            return false;
-        }
-
-        $normalizedKey = str_replace('_', '', $key);
-
-        foreach (self::SENSITIVE_KEY_FRAGMENTS as $fragment) {
-            $normalizedFragment = str_replace('_', '', $fragment);
-
-            if (str_contains($normalizedKey, $normalizedFragment)) {
-                return true;
-            }
-        }
-
-        return false;
+        return FedExSensitiveFieldClassifier::isSensitiveKey($key);
     }
 
     private function isLabelPayloadKey(string $key, mixed $value): bool

@@ -209,7 +209,23 @@ class FedExValidationEvidenceExporter
      */
     private function exportRegistrationScenarios(string $directory, Store $store, CarrierAccount $account, array $preflight, bool $includeFailed): void
     {
-        $order = 1;
+        foreach (FedExValidationScenarioCatalog::authorizationScenarios() as $scenarioKey => $meta) {
+            $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $scenarioKey)['event_id'] ?? null;
+            $event = $eventId
+                ? $this->evidenceQuery->eventById($store, $account, (int) $eventId)
+                : $this->evidenceQuery->canonicalAuthorizationEvent(
+                    $store,
+                    $account,
+                    $scenarioKey,
+                    (string) $meta['action'],
+                );
+
+            $folder = $directory.'/'.(string) $meta['export_folder'];
+            File::ensureDirectoryExists($folder);
+            $this->exportScenarioEvent($folder, $event, $includeFailed, $includeFailed ? 'diagnostic' : 'final');
+        }
+
+        $order = 3;
         foreach (FedExValidationScenarioCatalog::registrationScenarios() as $scenarioKey => $meta) {
             $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $scenarioKey)['event_id'] ?? null;
             $event = $eventId

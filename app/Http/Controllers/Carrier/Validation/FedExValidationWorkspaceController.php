@@ -50,7 +50,21 @@ class FedExValidationWorkspaceController extends Controller
             'validationCards' => $cardPresenter->cards($store, $account, $assessment),
             'invoiceEndpointConfigured' => $config->mfaInvoiceValidationPath() !== null,
             'mfaInvoicePrefill' => $fixtureService->mfaInvoice(),
+            'sandboxAccountEnding' => $this->maskedSandboxAccountEnding($account),
         ]);
+    }
+
+    private function maskedSandboxAccountEnding(CarrierAccount $account): string
+    {
+        $masked = $account->maskedAccountNumber();
+
+        if ($masked !== '—' && str_contains($masked, '*')) {
+            return $masked;
+        }
+
+        $number = (string) ($account->provider_account_number ?? '');
+
+        return strlen($number) >= 4 ? '****'.substr($number, -4) : '****';
     }
 
     /**

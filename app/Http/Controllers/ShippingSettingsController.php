@@ -92,6 +92,8 @@ class ShippingSettingsController extends Controller
             'fedExRegistrationRequestDiagnostics' => $this->fedExRegistrationRequestDiagnostics($store),
             'fedExValidationStatusByAccountId' => $fedExValidationStatusByAccountId,
             'fedExShipTestCases' => app(\App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService::class)->fixtures(),
+            'fedExQuickTestActions' => app(\App\Services\Carriers\FedEx\Validation\FedExValidationQuickTestPresets::class)->quickActions(),
+            'fedExBaselineAvailable' => app(\App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService::class)->baselineAvailable(),
             'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
             'uspsCarrier' => Carrier::query()->where('code', 'usps')->first(),
             'uspsAccounts' => $store->carrierAccounts()

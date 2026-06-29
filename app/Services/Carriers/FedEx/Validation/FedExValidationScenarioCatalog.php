@@ -2,8 +2,28 @@
 
 namespace App\Services\Carriers\FedEx\Validation;
 
+use App\Models\CarrierApiEvent;
+
 final class FedExValidationScenarioCatalog
 {
+    public static function authorizationScenarios(): array
+    {
+        return [
+            CarrierApiEvent::SCENARIO_AUTHORIZATION_PARENT => [
+                'label' => 'Parent authorization',
+                'action' => CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN,
+                'grant_type' => 'client_credentials',
+                'export_folder' => '01_parent_authorization',
+            ],
+            CarrierApiEvent::SCENARIO_AUTHORIZATION_CHILD => [
+                'label' => 'Child authorization',
+                'action' => CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN,
+                'grant_type' => 'csp_credentials',
+                'export_folder' => '02_child_authorization',
+            ],
+        ];
+    }
+
     /**
      * @return array<string, array<string, mixed>>
      */

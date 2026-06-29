@@ -35,6 +35,13 @@ class FedExValidationPreflightService
             }
         }
 
+        foreach ($this->authorizationChecks($store, $account) as $check) {
+            $checks[] = $check;
+            if ($check['required'] && $check['status'] !== 'passed') {
+                $blockers[] = $check;
+            }
+        }
+
         foreach ($this->registrationChecks($store, $account) as $check) {
             $checks[] = $check;
             if ($check['required'] && ! in_array($check['status'], ['passed', 'not_required'], true)) {
@@ -186,6 +193,46 @@ class FedExValidationPreflightService
                 'status' => $this->documentStatus($artifact),
                 'explanation' => $artifact ? 'Document uploaded.' : 'Upload the required PDF in the validation workspace.',
                 'artifact_id' => $artifact?->id,
+            ];
+        }
+
+        return $checks;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function authorizationChecks(Store $store, CarrierAccount $account): array
+    {
+        $checks = [];
+
+        foreach (FedExValidationScenarioCatalog::authorizationScenarios() as $scenarioKey => $meta) {
+            $event = $this->evidenceQuery->canonicalAuthorizationEvent(
+                $store,
+                $account,
+                $scenarioKey,
+                (string) $meta['action'],
+            );
+
+            if ($event === null) {
+                $latest = $this->evidenceQuery->latestCompleteEvent($store, $account, $scenarioKey);
+                if ($latest !== null
+                    && $latest->action === $meta['action']
+                    && $this->isCachedAuthorizationEvent($latest)) {
+                    $event = $latest;
+                }
+            }
+
+            $checks[] = [
+                'key' => $scenarioKey,
+                'category' => 'authorization',
+                'label' => (string) $meta['label'],
+                'required' => true,
+                'status' => $this->authorizationEvidenceStatus($event, (string) $meta['grant_type']),
+                'explanation' => $event
+                    ? 'Latest authorization evidence recorded for this scenario.'
+                    : 'Run Parent + Child Authorization in the validation workspace.',
+                'event_id' => $event?->id,
             ];
         }
 
@@ -381,6 +428,47 @@ class FedExValidationPreflightService
                 : 'Rate quote must return HTTP 2xx with complete evidence before final export.',
             'event_id' => $event->id,
         ];
+    }
+
+    private function authorizationEvidenceStatus(?CarrierApiEvent $event, string $expectedGrantType): string
+    {
+        if ($event === null) {
+            return 'not_tested';
+        }
+
+        if ($this->isCachedAuthorizationEvent($event)) {
+            return 'incomplete';
+        }
+
+        if (! $event->hasCompleteEvidence()) {
+            return 'incomplete';
+        }
+
+        if (strtoupper((string) $event->http_method) !== 'POST') {
+            return 'incomplete';
+        }
+
+        $endpoint = (string) ($event->endpoint ?? data_get($event->request_summary, 'endpoint', ''));
+        if (! str_contains($endpoint, '/oauth/token')) {
+            return 'incomplete';
+        }
+
+        $grantType = strtolower((string) data_get($event->request_body_encrypted, 'grant_type', ''));
+        if ($grantType !== strtolower($expectedGrantType)) {
+            return 'failed';
+        }
+
+        if ($event->status !== CarrierApiEvent::STATUS_SUCCEEDED || ! $event->isSuccessfulHttp()) {
+            return 'failed';
+        }
+
+        return 'passed';
+    }
+
+    private function isCachedAuthorizationEvent(CarrierApiEvent $event): bool
+    {
+        return (bool) data_get($event->request_summary, 'cached')
+            || (bool) data_get($event->response_summary, 'cached');
     }
 
     private function eventEvidenceStatus(?CarrierApiEvent $event, bool $requireSuccess = false): string

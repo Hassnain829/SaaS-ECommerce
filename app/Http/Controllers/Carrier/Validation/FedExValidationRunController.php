@@ -15,6 +15,7 @@ use App\Services\Carriers\FedEx\Operations\FedExShipValidationService;
 use App\Services\Carriers\FedEx\Operations\FedExTradeDocumentsUploadService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
+use App\Services\Carriers\FedEx\Validation\FedExValidationAuthorizationEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationMfaEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScopeService;
 use App\Services\SecurityLogRecorder;
@@ -24,6 +25,52 @@ use Illuminate\Http\Request;
 class FedExValidationRunController extends Controller
 {
     use ResolvesFedExValidationAccount;
+
+    public function runAuthorizationEvidence(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExValidationAuthorizationEvidenceService $authorizationEvidenceService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+
+        $outcome = $authorizationEvidenceService->runBoth($account);
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_validation_run_authorization',
+            store: $account->store,
+            metadata: [
+                'carrier_account_id' => $account->id,
+                'blocked' => $outcome['blocked'],
+                'parent_success' => $outcome['parent'] ? $outcome['parent']['result']->success : null,
+                'child_success' => $outcome['child'] ? $outcome['child']['result']->success : null,
+                'parent_event_id' => $outcome['parent']['event']->id ?? null,
+                'child_event_id' => $outcome['child']['event']->id ?? null,
+            ],
+        );
+
+        $message = (string) ($outcome['message'] ?? 'Authorization evidence run completed.');
+        $parentEventId = $outcome['parent']['event']->id ?? null;
+        $childEventId = $outcome['child']['event']->id ?? null;
+
+        if ($parentEventId) {
+            $message .= ' Parent evidence event #'.$parentEventId.'.';
+        }
+
+        if ($childEventId) {
+            $message .= ' Child evidence event #'.$childEventId.'.';
+        }
+
+        $success = ! ($outcome['blocked'] ?? false)
+            && ($outcome['parent']['result']->success ?? false)
+            && ($outcome['child']['result']->success ?? false);
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with($success ? 'success' : 'error', $message);
+    }
 
     public function runAddressValidation(
         Request $request,

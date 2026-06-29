@@ -14,6 +14,7 @@ use App\Services\Carriers\FedEx\Operations\FedExShipValidationService;
 use App\Services\Carriers\FedEx\Presenters\FedExCarrierTestResponsePresenter;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
+use App\Services\Carriers\FedEx\Validation\FedExValidationQuickTestPresets;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScenarioCatalog;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
@@ -36,14 +37,19 @@ class FedExCarrierTestController extends Controller
         $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
 
         $validated = $request->validate([
-            'address_line1' => ['required', 'string', 'max:120'],
+            'use_baseline' => ['nullable', 'boolean'],
+            'address_line1' => ['required_without:use_baseline', 'string', 'max:120'],
             'address_line2' => ['nullable', 'string', 'max:120'],
-            'city' => ['required', 'string', 'max:80'],
-            'state' => ['required', 'string', 'max:32'],
-            'postal_code' => ['required', 'string', 'max:16'],
-            'country_code' => ['required', 'string', 'size:2'],
+            'city' => ['required_without:use_baseline', 'string', 'max:80'],
+            'state' => ['required_without:use_baseline', 'string', 'max:32'],
+            'postal_code' => ['required_without:use_baseline', 'string', 'max:16'],
+            'country_code' => ['required_without:use_baseline', 'string', 'size:2'],
             'residential' => ['nullable', 'boolean'],
         ]);
+
+        if ($request->boolean('use_baseline')) {
+            $validated = app(FedExValidationQuickTestPresets::class)->addressCheck();
+        }
 
         ['result' => $result, 'presentation' => $presentation] = $addressValidationService->validateAddress(
             $store,
@@ -97,18 +103,28 @@ class FedExCarrierTestController extends Controller
         $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
 
         $validated = $request->validate([
+            'use_baseline' => ['nullable', 'boolean'],
             'origin_location_id' => [
-                'required',
+                'required_without:use_baseline',
                 'integer',
                 Rule::exists('locations', 'id')->where('store_id', $store->id),
             ],
-            'destination_country' => ['required', 'string', 'size:2'],
-            'destination_postal_code' => ['required', 'string', 'max:16'],
+            'destination_country' => ['required_without:use_baseline', 'string', 'size:2'],
+            'destination_postal_code' => ['required_without:use_baseline', 'string', 'max:16'],
             'destination_state' => ['nullable', 'string', 'max:32'],
             'destination_city' => ['nullable', 'string', 'max:80'],
             'ship_date' => ['nullable', 'date'],
             'packaging_type' => ['nullable', 'string', 'max:64'],
         ]);
+
+        if ($request->boolean('use_baseline')) {
+            $validated = array_merge(
+                app(FedExValidationQuickTestPresets::class)->serviceAvailability($store),
+                array_filter([
+                    'ship_date' => $validated['ship_date'] ?? null,
+                ]),
+            );
+        }
 
         $destinationCheck = $destinationValidator->validate([
             'country_code' => $validated['destination_country'],
@@ -178,24 +194,34 @@ class FedExCarrierTestController extends Controller
         $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
 
         $validated = $request->validate([
+            'use_baseline' => ['nullable', 'boolean'],
             'origin_location_id' => [
-                'required',
+                'required_without:use_baseline',
                 'integer',
                 Rule::exists('locations', 'id')->where('store_id', $store->id),
             ],
-            'destination_country' => ['required', 'string', 'size:2'],
-            'destination_postal_code' => ['required', 'string', 'max:16'],
+            'destination_country' => ['required_without:use_baseline', 'string', 'size:2'],
+            'destination_postal_code' => ['required_without:use_baseline', 'string', 'max:16'],
             'destination_state' => ['nullable', 'string', 'max:32'],
             'destination_city' => ['nullable', 'string', 'max:80'],
-            'weight_value' => ['required', 'numeric', 'gt:0'],
-            'length' => ['required', 'numeric', 'gt:0'],
-            'width' => ['required', 'numeric', 'gt:0'],
-            'height' => ['required', 'numeric', 'gt:0'],
+            'weight_value' => ['required_without:use_baseline', 'numeric', 'gt:0'],
+            'length' => ['required_without:use_baseline', 'numeric', 'gt:0'],
+            'width' => ['required_without:use_baseline', 'numeric', 'gt:0'],
+            'height' => ['required_without:use_baseline', 'numeric', 'gt:0'],
             'ship_date' => ['nullable', 'date'],
             'service_type' => ['nullable', 'string', 'max:64'],
             'packaging_type' => ['nullable', 'string', 'max:64'],
             'residential' => ['nullable', 'boolean'],
         ]);
+
+        if ($request->boolean('use_baseline')) {
+            $validated = array_merge(
+                app(FedExValidationQuickTestPresets::class)->rateQuote($store),
+                array_filter([
+                    'ship_date' => $validated['ship_date'] ?? null,
+                ]),
+            );
+        }
 
         $destinationCheck = $destinationValidator->validate([
             'country_code' => $validated['destination_country'],
@@ -286,9 +312,21 @@ class FedExCarrierTestController extends Controller
         $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
 
         $validated = $request->validate([
-            'test_case' => ['required', 'string', Rule::in($fixtureService->testCaseKeys())],
+            'use_baseline' => ['nullable', 'boolean'],
+            'test_case' => ['required_without:use_baseline', 'string', Rule::in($fixtureService->testCaseKeys())],
             'ship_date' => ['nullable', 'date'],
         ]);
+
+        if ($request->boolean('use_baseline')) {
+            $testCaseKey = (string) ($request->input('test_case') ?: 'IntegratorUS02');
+            abort_unless(in_array($testCaseKey, $fixtureService->testCaseKeys(), true), 422);
+            $validated = array_merge(
+                app(FedExValidationQuickTestPresets::class)->shipValidate($testCaseKey),
+                array_filter([
+                    'ship_date' => $validated['ship_date'] ?? null,
+                ]),
+            );
+        }
 
         $overrides = array_filter([
             'ship_date' => $validated['ship_date'] ?? null,
@@ -337,10 +375,22 @@ class FedExCarrierTestController extends Controller
         $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
 
         $validated = $request->validate([
-            'test_case' => ['required', 'string', Rule::in($fixtureService->testCaseKeys())],
+            'use_baseline' => ['nullable', 'boolean'],
+            'test_case' => ['required_without:use_baseline', 'string', Rule::in($fixtureService->testCaseKeys())],
             'label_format' => ['nullable', 'string', Rule::in(['PDF', 'PNG', 'ZPL', 'ZPLII'])],
             'ship_date' => ['nullable', 'date'],
         ]);
+
+        if ($request->boolean('use_baseline')) {
+            $testCaseKey = (string) ($request->input('test_case') ?: 'IntegratorUS02');
+            abort_unless(in_array($testCaseKey, $fixtureService->testCaseKeys(), true), 422);
+            $validated = array_merge(
+                app(FedExValidationQuickTestPresets::class)->shipLabel($testCaseKey),
+                array_filter([
+                    'ship_date' => $validated['ship_date'] ?? null,
+                ]),
+            );
+        }
 
         $lockedFormat = FedExValidationScenarioCatalog::lockedLabelFormat($validated['test_case']);
         $labelFormat = strtoupper(trim((string) ($validated['label_format'] ?? $lockedFormat ?? 'PDF')));

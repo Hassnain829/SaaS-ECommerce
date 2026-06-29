@@ -130,4 +130,40 @@ class FedExValidationEvidenceSanitizerTest extends TestCase
 
         $this->assertEmpty($blockers);
     }
+
+    public function test_preserves_shipping_charges_payment_object(): void
+    {
+        $payload = [
+            'requestedShipment' => [
+                'shippingChargesPayment' => [
+                    'paymentType' => 'SENDER',
+                    'payor' => [
+                        'responsibleParty' => [
+                            'accountNumber' => ['value' => '700257037'],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $sanitized = $this->sanitizer->sanitize($payload);
+
+        $this->assertSame('SENDER', data_get($sanitized, 'requestedShipment.shippingChargesPayment.paymentType'));
+        $this->assertSame('700257037', data_get($sanitized, 'requestedShipment.shippingChargesPayment.payor.responsibleParty.accountNumber.value'));
+    }
+
+    public function test_still_redacts_actual_pin_fields(): void
+    {
+        $payload = [
+            'secureCodePin' => '123456',
+            'verificationPin' => '654321',
+            'shippingChargesPayment' => ['paymentType' => 'RECIPIENT'],
+        ];
+
+        $sanitized = $this->sanitizer->sanitize($payload);
+
+        $this->assertSame('[REDACTED]', data_get($sanitized, 'secureCodePin'));
+        $this->assertSame('[REDACTED]', data_get($sanitized, 'verificationPin'));
+        $this->assertSame('RECIPIENT', data_get($sanitized, 'shippingChargesPayment.paymentType'));
+    }
 }

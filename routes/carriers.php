@@ -92,6 +92,9 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validati
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/tracking-screenshot', [FedExValidationArtifactController::class, 'uploadTrackingScreenshot'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.tracking-screenshot.upload');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/authorization', [FedExValidationRunController::class, 'runAuthorizationEvidence'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.authorization');
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/address', [FedExValidationRunController::class, 'runAddressValidation'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.address');

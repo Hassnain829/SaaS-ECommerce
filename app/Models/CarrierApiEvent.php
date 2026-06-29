@@ -22,6 +22,10 @@ class CarrierApiEvent extends Model
 
     public const ACTION_MERCHANT_OAUTH_TOKEN = 'merchant_oauth_token';
 
+    public const SCENARIO_AUTHORIZATION_PARENT = 'authorization_parent';
+
+    public const SCENARIO_AUTHORIZATION_CHILD = 'authorization_child';
+
     public const ACTION_TEST_CONNECTION = 'test_connection';
 
     public const ACTION_ADDRESS_VALIDATION = 'address_validation';
