@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateTaxRateRequest;
 use App\Http\Requests\UpdateTaxSettingsRequest;
 use App\Services\Tax\TaxConfigurationService;
 use App\Support\StorePermission;
+use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -38,6 +39,9 @@ class TaxSettingsController extends Controller
             ->get();
 
         $canManageTax = $request->user()?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE) ?? false;
+        $editingRateId = (int) (session('_tax_rate_edit_id') ?? $request->integer('edit_rate', 0));
+        $openCreateRateForm = session('_tax_rate_form') === 'create'
+            || ($canManageTax && $request->boolean('create_rate'));
 
         return view('user_view.settings.taxes', [
             'selectedStore' => $store,
@@ -45,6 +49,18 @@ class TaxSettingsController extends Controller
             'taxRates' => $taxRates,
             'activeRatesCount' => $taxRates->where('is_active', true)->count(),
             'canManageTax' => $canManageTax,
+            'countries' => TaxCountryCatalog::all(),
+            'regionCatalog' => TaxCountryCatalog::regionsFor('US') !== [] ? [
+                'US' => TaxCountryCatalog::regionsFor('US'),
+                'CA' => TaxCountryCatalog::regionsFor('CA'),
+                'AU' => TaxCountryCatalog::regionsFor('AU'),
+                'MX' => TaxCountryCatalog::regionsFor('MX'),
+                'IN' => TaxCountryCatalog::regionsFor('IN'),
+                'DE' => TaxCountryCatalog::regionsFor('DE'),
+                'GB' => TaxCountryCatalog::regionsFor('GB'),
+            ] : [],
+            'openCreateRateForm' => $openCreateRateForm,
+            'editingRateId' => $editingRateId,
         ]);
     }
 
@@ -77,7 +93,8 @@ class TaxSettingsController extends Controller
             $request
         );
 
-        return back()
+        return redirect()
+            ->route('settings.taxes.index')
             ->with('success', 'Tax rate added.')
             ->with('success_title', 'Taxes');
     }
@@ -97,7 +114,8 @@ class TaxSettingsController extends Controller
             $request
         );
 
-        return back()
+        return redirect()
+            ->route('settings.taxes.index')
             ->with('success', 'Tax rate updated.')
             ->with('success_title', 'Taxes');
     }
@@ -116,7 +134,8 @@ class TaxSettingsController extends Controller
             $request
         );
 
-        return back()
+        return redirect()
+            ->route('settings.taxes.index')
             ->with('success', 'Tax rate removed.')
             ->with('success_title', 'Taxes');
     }

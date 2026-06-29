@@ -1,42 +1,52 @@
 @php
     /** @var array<string, mixed> $taxDisplay */
+    use App\Support\MoneyDisplay;
     use App\Support\Tax\TaxDisplayPresenter;
 
     $currency = $currency ?? 'USD';
     $snapshot = $taxDisplay['snapshot'] ?? null;
     $taxLines = $taxDisplay['tax_lines'] ?? collect();
     $title = $title ?? 'Tax details';
+    $embedded = $embedded ?? false;
 @endphp
 
+@if (! $embedded)
 <section class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 md:p-5">
+@endif
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-            <h3 class="text-sm font-semibold text-slate-900">{{ $title }}</h3>
-            <p class="mt-1 text-xs text-slate-600">{{ $taxDisplay['source_label'] }}</p>
+            @if (! $embedded)
+                <h3 class="text-sm font-semibold text-slate-900">{{ $title }}</h3>
+            @endif
+            <p class="{{ $embedded ? 'text-sm' : 'mt-1 text-xs' }} text-slate-600">{{ $taxDisplay['source_label'] }}</p>
         </div>
-        @if ($taxDisplay['source'] === \App\Support\Tax\TaxDisplayPresenter::SOURCE_PLATFORM_CALCULATED)
+        @if ($taxDisplay['source'] === TaxDisplayPresenter::SOURCE_PLATFORM_CALCULATED)
             <span class="inline-flex rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-800">Calculated</span>
-        @elseif ($taxDisplay['source'] === \App\Support\Tax\TaxDisplayPresenter::SOURCE_MANUAL)
+        @elseif ($taxDisplay['source'] === TaxDisplayPresenter::SOURCE_MANUAL)
             <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-900">Manual</span>
-        @elseif ($taxDisplay['source'] === \App\Support\Tax\TaxDisplayPresenter::SOURCE_EXTERNAL_PRESERVED)
+        @elseif ($taxDisplay['source'] === TaxDisplayPresenter::SOURCE_EXTERNAL_PRESERVED)
             <span class="inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-800">External</span>
         @endif
     </div>
 
-    @if ($taxDisplay['source'] === \App\Support\Tax\TaxDisplayPresenter::SOURCE_EXTERNAL_PRESERVED)
-        <p class="mt-3 text-sm text-slate-700">External checkout tax total preserved by the platform: <strong>{{ $currency }}{{ number_format((float) $taxDisplay['total_tax'], 2) }}</strong></p>
+    @if ($taxDisplay['source'] === TaxDisplayPresenter::SOURCE_EXTERNAL_PRESERVED)
+        <p class="mt-3 text-sm text-slate-700">External checkout tax total preserved by the platform: <strong>{{ MoneyDisplay::formatWithCode($taxDisplay['total_tax'], $currency) }}</strong></p>
         <p class="mt-2 text-xs text-slate-500">This amount was supplied by the external website or integration. The platform did not recalculate it.</p>
-    @elseif ($taxDisplay['source'] === \App\Support\Tax\TaxDisplayPresenter::SOURCE_MANUAL)
-        <p class="mt-3 text-sm text-slate-700">Manual tax amount: <strong>{{ $currency }}{{ number_format((float) $taxDisplay['total_tax'], 2) }}</strong></p>
+    @elseif ($taxDisplay['source'] === TaxDisplayPresenter::SOURCE_MANUAL)
+        <p class="mt-3 text-sm text-slate-700">Manual tax amount: <strong>{{ MoneyDisplay::formatWithCode($taxDisplay['total_tax'], $currency) }}</strong></p>
         <p class="mt-2 text-xs text-slate-500">No calculated rate breakdown is available for manual tax.</p>
-    @elseif ($taxDisplay['source'] === \App\Support\Tax\TaxDisplayPresenter::SOURCE_NONE)
+    @elseif ($taxDisplay['source'] === TaxDisplayPresenter::SOURCE_NONE)
         <p class="mt-3 text-sm text-slate-600">No tax was recorded on this order.</p>
-    @elseif ($taxDisplay['source'] === \App\Support\Tax\TaxDisplayPresenter::SOURCE_LEGACY)
-        <p class="mt-3 text-sm text-slate-700">Tax total: <strong>{{ $currency }}{{ number_format((float) $taxDisplay['total_tax'], 2) }}</strong></p>
+    @elseif ($taxDisplay['source'] === TaxDisplayPresenter::SOURCE_LEGACY)
+        <p class="mt-3 text-sm text-slate-700">Tax total: <strong>{{ MoneyDisplay::formatWithCode($taxDisplay['total_tax'], $currency) }}</strong></p>
         <p class="mt-2 text-xs text-slate-500">Detailed tax breakdown was not stored for this order.</p>
     @else
         @if ($taxDisplay['show_inclusive_note'])
             <p class="mt-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-900">Tax is included in item prices. Item tax shown below is extracted from displayed prices and is not added again to the order total.</p>
+        @endif
+
+        @if ($taxDisplay['calculation_guidance'] ?? null)
+            <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{{ $taxDisplay['calculation_guidance'] }}</p>
         @endif
 
         <dl class="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
@@ -47,13 +57,31 @@
             @if ($rateLabel = TaxDisplayPresenter::matchedRateLabel($snapshot))
                 <div class="sm:col-span-2"><dt class="text-xs uppercase tracking-wide text-slate-500">Matched rate</dt><dd class="font-medium text-slate-900">{{ $rateLabel }}</dd></div>
             @endif
-            <div><dt class="text-xs uppercase tracking-wide text-slate-500">Item tax</dt><dd class="font-medium tabular-nums text-slate-900">{{ $currency }}{{ number_format((float) $taxDisplay['item_tax_total'], 2) }}</dd></div>
-            <div><dt class="text-xs uppercase tracking-wide text-slate-500">Shipping tax</dt><dd class="font-medium tabular-nums text-slate-900">{{ $currency }}{{ number_format((float) $taxDisplay['shipping_tax_total'], 2) }}</dd></div>
-            <div><dt class="text-xs uppercase tracking-wide text-slate-500">Total tax</dt><dd class="font-semibold tabular-nums text-slate-900">{{ $currency }}{{ number_format((float) $taxDisplay['total_tax'], 2) }}</dd></div>
+            <div><dt class="text-xs uppercase tracking-wide text-slate-500">Item tax</dt><dd class="font-medium tabular-nums text-slate-900">{{ MoneyDisplay::formatWithCode($taxDisplay['item_tax_total'], $currency) }}</dd></div>
+            <div><dt class="text-xs uppercase tracking-wide text-slate-500">Shipping tax</dt><dd class="font-medium tabular-nums text-slate-900">{{ MoneyDisplay::formatWithCode($taxDisplay['shipping_tax_total'], $currency) }}</dd></div>
+            <div><dt class="text-xs uppercase tracking-wide text-slate-500">Total tax</dt><dd class="font-semibold tabular-nums text-slate-900">{{ MoneyDisplay::formatWithCode($taxDisplay['total_tax'], $currency) }}</dd></div>
         </dl>
 
         @if ($taxLines->isNotEmpty())
-            <div class="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <div class="mt-4 space-y-3 md:hidden">
+                @foreach ($taxLines as $line)
+                    @php
+                        $region = trim((string) ($line->jurisdiction_region_code ?? ''));
+                        $jurisdiction = strtoupper((string) $line->jurisdiction_country_code).($region !== '' ? ' / '.$region : '');
+                    @endphp
+                    <div class="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+                        <dl class="space-y-2">
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Applies to</dt><dd class="font-medium text-slate-900">{{ TaxDisplayPresenter::lineAppliesLabel((string) $line->applies_to) }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Jurisdiction</dt><dd class="font-medium text-slate-900">{{ $jurisdiction !== '' ? $jurisdiction : '—' }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Rate</dt><dd class="tabular-nums text-slate-900">{{ number_format((float) $line->rate_percent, 4) }}%</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Taxable amount</dt><dd class="tabular-nums text-slate-900">{{ MoneyDisplay::formatWithCode($line->taxable_amount, $currency) }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Tax</dt><dd class="font-semibold tabular-nums text-slate-900">{{ MoneyDisplay::formatWithCode($line->tax_amount, $currency) }}</dd></div>
+                        </dl>
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="mt-4 hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
                 <table class="min-w-full text-left text-sm">
                     <thead class="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                         <tr>
@@ -74,8 +102,8 @@
                                 <td class="px-3 py-2 text-slate-700">{{ TaxDisplayPresenter::lineAppliesLabel((string) $line->applies_to) }}</td>
                                 <td class="px-3 py-2 text-slate-700">{{ $jurisdiction !== '' ? $jurisdiction : '—' }}</td>
                                 <td class="px-3 py-2 tabular-nums text-slate-700">{{ number_format((float) $line->rate_percent, 4) }}%</td>
-                                <td class="px-3 py-2 tabular-nums text-slate-700">{{ $currency }}{{ number_format((float) $line->taxable_amount, 2) }}</td>
-                                <td class="px-3 py-2 tabular-nums font-medium text-slate-900">{{ $currency }}{{ number_format((float) $line->tax_amount, 2) }}</td>
+                                <td class="px-3 py-2 tabular-nums text-slate-700">{{ MoneyDisplay::formatWithCode($line->taxable_amount, $currency) }}</td>
+                                <td class="px-3 py-2 tabular-nums font-medium text-slate-900">{{ MoneyDisplay::formatWithCode($line->tax_amount, $currency) }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -105,4 +133,6 @@
             </details>
         @endif
     @endif
+@if (! $embedded)
 </section>
+@endif

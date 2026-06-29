@@ -8,6 +8,27 @@ namespace App\Support;
 final class MoneyDisplay
 {
     /**
+     * Merchant-facing order money format: "USD 10.00"
+     *
+     * @param  float|string|int|null  $amount
+     */
+    public static function formatWithCode($amount, string $currency = 'USD'): string
+    {
+        $value = is_numeric($amount) ? abs((float) $amount) : 0.0;
+        $code = strtoupper(trim($currency) !== '' ? $currency : 'USD');
+
+        return sprintf('%s %s', $code, number_format($value, 2, '.', ','));
+    }
+
+    /**
+     * @param  float|string|int|null  $amount
+     */
+    public static function formatDiscountWithCode($amount, string $currency = 'USD'): string
+    {
+        return '-'.self::formatWithCode($amount, $currency);
+    }
+
+    /**
      * @param  float|string|int|null  $amount
      */
     public static function format($amount, string $currency = 'USD'): string

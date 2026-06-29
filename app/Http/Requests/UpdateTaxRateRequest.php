@@ -4,8 +4,10 @@ namespace App\Http\Requests;
 
 use App\Models\Store;
 use App\Models\TaxRate;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UpdateTaxRateRequest extends FormRequest
 {
@@ -68,5 +70,13 @@ class UpdateTaxRateRequest extends FormRequest
             'rate_percent.max' => 'Enter a rate between 0 and 100.',
             'rate_percent.decimal' => 'Enter a rate between 0 and 100 with up to four decimal places.',
         ];
+    }
+
+    protected function failedValidation(Validator $validator): void
+    {
+        session()->flash('_tax_rate_edit_id', (int) $this->route('taxRate'));
+
+        throw (new ValidationException($validator))
+            ->errorBag('updateTaxRate_'.$this->route('taxRate'));
     }
 }

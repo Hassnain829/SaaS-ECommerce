@@ -137,6 +137,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/draft-orders', [DraftOrderController::class, 'store'])
         ->middleware('store.permission:orders.manage')
         ->name('draft-orders.store');
+    Route::post('/draft-orders/preview-tax', [DraftOrderController::class, 'previewTax'])
+        ->middleware('store.permission:orders.manage')
+        ->name('draft-orders.preview-tax');
     Route::get('/draft-orders/{draftOrder}', [DraftOrderController::class, 'show'])
         ->middleware('store.permission:orders.manage')
         ->name('draft-orders.show');

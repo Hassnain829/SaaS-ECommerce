@@ -86,7 +86,7 @@ class TaxSettingsTest extends TestCase
         $this->actingAsStore($manager, $store)
             ->get(route('settings.taxes.index'))
             ->assertOk()
-            ->assertSee('Platform checkout tax', false);
+            ->assertSee('Tax status', false);
     }
 
     public function test_staff_can_view_tax_settings(): void
@@ -96,7 +96,7 @@ class TaxSettingsTest extends TestCase
         $this->actingAsStore($staff, $store)
             ->get(route('settings.taxes.index'))
             ->assertOk()
-            ->assertSee('Country and region rates', false);
+            ->assertSee('Tax rates', false);
     }
 
     public function test_guest_is_redirected_when_viewing_tax_settings(): void
@@ -300,7 +300,7 @@ class TaxSettingsTest extends TestCase
 
         $this->actingAsStore($owner, $store)
             ->post(route('settings.taxes.rates.store'), $this->storeRatePayload(['rate_percent' => '-1']))
-            ->assertSessionHasErrors('rate_percent');
+            ->assertSessionHasErrors('rate_percent', null, 'createTaxRate');
 
         $this->assertSame(1, $store->fresh()->taxSetting->settings_version);
     }
@@ -384,7 +384,7 @@ class TaxSettingsTest extends TestCase
 
         $this->actingAsStore($owner, $store)
             ->post(route('settings.taxes.rates.store'), $this->storeRatePayload(['name' => 'Duplicate CA Sales']))
-            ->assertSessionHasErrors('country_code');
+            ->assertSessionHasErrors('country_code', null, 'createTaxRate');
     }
 
     public function test_same_jurisdiction_allowed_across_stores(): void
@@ -410,7 +410,7 @@ class TaxSettingsTest extends TestCase
 
         $this->actingAsStore($owner, $store)
             ->post(route('settings.taxes.rates.store'), $this->storeRatePayload(['rate_percent' => '-0.01']))
-            ->assertSessionHasErrors('rate_percent');
+            ->assertSessionHasErrors('rate_percent', null, 'createTaxRate');
     }
 
     public function test_tax_rate_rejects_rate_above_one_hundred(): void
@@ -419,7 +419,7 @@ class TaxSettingsTest extends TestCase
 
         $this->actingAsStore($owner, $store)
             ->post(route('settings.taxes.rates.store'), $this->storeRatePayload(['rate_percent' => '100.0001']))
-            ->assertSessionHasErrors('rate_percent');
+            ->assertSessionHasErrors('rate_percent', null, 'createTaxRate');
     }
 
     public function test_tax_rate_rejects_invalid_country_code(): void
@@ -428,7 +428,7 @@ class TaxSettingsTest extends TestCase
 
         $this->actingAsStore($owner, $store)
             ->post(route('settings.taxes.rates.store'), $this->storeRatePayload(['country_code' => 'USA']))
-            ->assertSessionHasErrors('country_code');
+            ->assertSessionHasErrors('country_code', null, 'createTaxRate');
     }
 
     public function test_tax_rate_update_increments_settings_version(): void
@@ -733,8 +733,8 @@ class TaxSettingsTest extends TestCase
         $this->actingAsStore($owner, $store)
             ->get(route('settings.taxes.index'))
             ->assertOk()
-            ->assertSee('No tax rates have been added yet.', false)
-            ->assertSee('Add a country-wide or regional rate when you are ready.', false);
+            ->assertSee('No tax rates yet', false)
+            ->assertSee('Add a country-wide rate or a region-specific rate', false);
     }
 
     public function test_tax_settings_page_shows_disclaimer_text(): void
@@ -772,14 +772,14 @@ class TaxSettingsTest extends TestCase
         $this->actingAsStore($owner, $store)
             ->get(route('settings.taxes.index'))
             ->assertOk()
-            ->assertSee('Platform checkout tax is active', false);
+            ->assertSee('Platform checkout uses the customer', false);
 
         $store->taxSetting->update(['enabled' => false]);
 
         $this->actingAsStore($owner, $store)
             ->get(route('settings.taxes.index'))
             ->assertOk()
-            ->assertSee('Platform checkout tax is currently disabled', false);
+            ->assertSee('Configured rates are saved, but platform checkout will not apply calculated tax', false);
     }
 
     public function test_enabled_without_active_rates_renders_warning(): void
@@ -791,7 +791,7 @@ class TaxSettingsTest extends TestCase
         $this->actingAsStore($owner, $store)
             ->get(route('settings.taxes.index'))
             ->assertOk()
-            ->assertSeeText('Tax calculation is enabled, but no active tax rates are configured');
+            ->assertSeeText('Tax is active, but no active rates are configured');
     }
 
     public function test_disabled_with_active_rates_renders_informational_notice(): void
@@ -803,7 +803,7 @@ class TaxSettingsTest extends TestCase
         $this->actingAsStore($owner, $store)
             ->get(route('settings.taxes.index'))
             ->assertOk()
-            ->assertSeeText('Tax is disabled, so configured rates are saved but not applied');
+            ->assertSeeText('Rates are saved but currently inactive because platform tax is disabled');
     }
 
     public function test_tax_settings_summary_reflects_configuration(): void
@@ -820,10 +820,10 @@ class TaxSettingsTest extends TestCase
         $this->actingAsStore($owner, $store)
             ->get(route('settings.taxes.index'))
             ->assertOk()
-            ->assertSeeText('Configuration summary')
+            ->assertSeeText('Tax status')
             ->assertSeeText('Active')
-            ->assertSeeText('Tax included in prices')
-            ->assertSeeText('Not taxable')
+            ->assertSeeText('Tax included')
+            ->assertSeeText('Not taxable by default')
             ->assertSeeText('Country-wide');
     }
 
@@ -843,7 +843,7 @@ class TaxSettingsTest extends TestCase
             ]);
 
         $response->assertRedirect(route('settings.taxes.index'))
-            ->assertSessionHasErrors('country_code');
+            ->assertSessionHasErrors('country_code', null, 'createTaxRate');
 
         $this->actingAsStore($owner, $store)
             ->get($response->headers->get('Location'))
@@ -859,7 +859,7 @@ class TaxSettingsTest extends TestCase
         foreach (['U1', 'ÜS', 'United States'] as $invalidCountry) {
             $this->actingAsStore($owner, $store)
                 ->post(route('settings.taxes.rates.store'), $this->storeRatePayload(['country_code' => $invalidCountry]))
-                ->assertSessionHasErrors('country_code');
+                ->assertSessionHasErrors('country_code', null, 'createTaxRate');
         }
 
         $this->actingAsStore($owner, $store)
@@ -1043,5 +1043,638 @@ class TaxSettingsTest extends TestCase
             'priority' => 100,
             'is_active' => true,
         ], $overrides));
+    }
+
+    public function test_failed_create_preserves_only_create_form_values(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $existing = $this->createRate($store, [
+            'name' => 'Stable Existing Rate',
+            'country_code' => 'US',
+            'region_code' => 'NY',
+            'rate_percent' => '8.8750',
+        ]);
+
+        $response = $this->actingAsStore($owner, $store)
+            ->from(route('settings.taxes.index'))
+            ->post(route('settings.taxes.rates.store'), [
+                'name' => 'Bad Create Rate',
+                'country_code' => 'United States',
+                'region_code' => 'CA',
+                'rate_percent' => '7.25',
+                'is_active' => 1,
+            ]);
+
+        $response->assertRedirect(route('settings.taxes.index'))
+            ->assertSessionHasErrors('country_code', null, 'createTaxRate');
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->assertSee('Bad Create Rate', false)
+            ->assertSee('Stable Existing Rate', false)
+            ->assertDontSee('value="Stable Existing Rate"', false)
+            ->getContent();
+
+        $this->assertStringContainsString('id="tax-rate-create-dialog"', $html);
+        $this->assertTaxDialogIsOpen($html, 'tax-rate-create-dialog');
+    }
+
+    public function test_failed_edit_preserves_only_selected_rate_values(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $target = $this->createRate($store, [
+            'name' => 'Edit Target Rate',
+            'country_code' => 'US',
+            'region_code' => 'TX',
+            'rate_percent' => '6.2500',
+        ]);
+        $other = $this->createRate($store, [
+            'name' => 'Other Stable Rate',
+            'country_code' => 'US',
+            'region_code' => 'NY',
+            'rate_percent' => '8.8750',
+        ]);
+
+        $response = $this->actingAsStore($owner, $store)
+            ->from(route('settings.taxes.index'))
+            ->patch(route('settings.taxes.rates.update', $target), [
+                'name' => 'Broken Edit Rate',
+                'country_code' => 'United States',
+                'region_code' => 'TX',
+                'rate_percent' => '6.25',
+                'is_active' => 1,
+            ]);
+
+        $response->assertRedirect(route('settings.taxes.index'))
+            ->assertSessionHasErrors('country_code', null, 'updateTaxRate_'.$target->id);
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->assertSee('Broken Edit Rate', false)
+            ->assertSee('Other Stable Rate', false)
+            ->assertSee('id="tax-rate-edit-dialog-'.$target->id.'"', false)
+            ->getContent();
+
+        $this->assertTaxDialogIsOpen($html, 'tax-rate-edit-dialog-'.$target->id);
+    }
+
+    public function test_hidden_priority_defaults_to_one_hundred_on_create(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+
+        $this->actingAsStore($owner, $store)
+            ->post(route('settings.taxes.rates.store'), $this->storeRatePayload([
+                'name' => 'Default Priority Rate',
+                'country_code' => 'GB',
+                'region_code' => '',
+            ]))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('tax_rates', [
+            'store_id' => $store->id,
+            'name' => 'Default Priority Rate',
+            'country_code' => 'GB',
+            'priority' => 100,
+        ]);
+    }
+
+    public function test_taxes_page_renders_country_select_and_jurisdiction_labels(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $this->createRate($store, [
+            'name' => 'California Sales Tax',
+            'country_code' => 'US',
+            'region_code' => 'CA',
+            'rate_percent' => '7.2500',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSee('United States', false)
+            ->assertSee('Region-specific', false)
+            ->assertSee('California', false)
+            ->assertSee('+ Add tax rate', false)
+            ->assertDontSee('>Priority</th>', false)
+            ->assertDontSee('multiple rates could match', false);
+    }
+
+    public function test_successful_rate_update_redirects_to_clean_index_without_edit_rate(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Redirect Edit Rate',
+            'country_code' => 'US',
+            'region_code' => 'TX',
+            'rate_percent' => '6.2500',
+        ]);
+
+        $response = $this->actingAsStore($owner, $store)
+            ->from(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Redirect Edit Rate Updated',
+                'country_code' => 'US',
+                'region_code' => 'TX',
+                'rate_percent' => '6.25',
+            ]));
+
+        $response->assertRedirect(route('settings.taxes.index'))
+            ->assertSessionHas('success', 'Tax rate updated.');
+
+        $location = (string) $response->headers->get('Location');
+        $this->assertStringNotContainsString('edit_rate', $location);
+    }
+
+    public function test_successful_rate_update_page_does_not_render_edit_dialog_open(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Closed Edit Dialog Rate',
+            'country_code' => 'US',
+            'region_code' => 'FL',
+            'rate_percent' => '6.0000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->from(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Closed Edit Dialog Rate',
+                'country_code' => 'US',
+                'region_code' => 'FL',
+                'rate_percent' => '6.00',
+            ]))
+            ->assertRedirect(route('settings.taxes.index'));
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertDontSee('data-auto-open-tax-dialog="edit"', false);
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertTaxDialogIsClosed($html, 'tax-rate-create-dialog');
+        $this->assertStringNotContainsString('tax-rate-edit-dialog-', $html);
+    }
+
+    public function test_successful_delete_redirects_to_clean_index(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Delete Redirect Rate',
+            'country_code' => 'US',
+            'region_code' => 'WA',
+            'rate_percent' => '6.5000',
+        ]);
+
+        $response = $this->actingAsStore($owner, $store)
+            ->from(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->delete(route('settings.taxes.rates.destroy', $rate));
+
+        $response->assertRedirect(route('settings.taxes.index'))
+            ->assertSessionHas('success', 'Tax rate removed.');
+
+        $location = (string) $response->headers->get('Location');
+        $this->assertStringNotContainsString('edit_rate', $location);
+    }
+
+    public function test_failed_create_shows_global_summary_and_create_field_error(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+
+        $response = $this->actingAsStore($owner, $store)
+            ->from(route('settings.taxes.index'))
+            ->post(route('settings.taxes.rates.store'), [
+                'name' => 'Summary Create Rate',
+                'country_code' => 'United States',
+                'region_code' => 'CA',
+                'rate_percent' => '7.25',
+                'is_active' => 1,
+            ]);
+
+        $response->assertRedirect(route('settings.taxes.index'))
+            ->assertSessionHasErrors('country_code', null, 'createTaxRate');
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->assertSee('role="alert"', false)
+            ->assertSee('Summary Create Rate', false)
+            ->getContent();
+
+        $this->assertTaxDialogIsOpen($html, 'tax-rate-create-dialog');
+    }
+
+    public function test_failed_edit_shows_global_summary_and_selected_edit_field_error(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Summary Edit Rate',
+            'country_code' => 'US',
+            'region_code' => 'OR',
+            'rate_percent' => '5.0000',
+        ]);
+
+        $response = $this->actingAsStore($owner, $store)
+            ->from(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->patch(route('settings.taxes.rates.update', $rate), [
+                'name' => 'Summary Edit Broken',
+                'country_code' => 'United States',
+                'region_code' => 'OR',
+                'rate_percent' => '5.00',
+                'is_active' => 1,
+            ]);
+
+        $response->assertRedirect()
+            ->assertSessionHasErrors('country_code', null, 'updateTaxRate_'.$rate->id);
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->assertSee('role="alert"', false)
+            ->assertSee('Summary Edit Broken', false)
+            ->getContent();
+
+        $this->assertTaxDialogIsOpen($html, 'tax-rate-edit-dialog-'.$rate->id);
+        $this->assertTaxDialogIsClosed($html, 'tax-rate-create-dialog');
+    }
+
+    public function test_create_rate_query_renders_create_form(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index', ['create_rate' => 1]))
+            ->assertOk()
+            ->assertSee('id="tax-rate-create-dialog"', false)
+            ->getContent();
+
+        $this->assertTaxDialogIsOpen($html, 'tax-rate-create-dialog');
+    }
+
+    public function test_edit_rate_query_renders_selected_edit_dialog_open(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Edit Query Rate',
+            'country_code' => 'US',
+            'region_code' => 'WA',
+            'rate_percent' => '6.5000',
+        ]);
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->assertOk()
+            ->assertSee('Edit tax rate', false)
+            ->getContent();
+
+        $this->assertTaxDialogIsOpen($html, 'tax-rate-edit-dialog-'.$rate->id);
+    }
+
+    public function test_normal_index_does_not_render_open_tax_dialogs(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $this->createRate($store, [
+            'name' => 'Closed Index Rate',
+            'country_code' => 'US',
+            'region_code' => 'OR',
+            'rate_percent' => '5.0000',
+        ]);
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertTaxDialogIsClosed($html, 'tax-rate-create-dialog');
+        $this->assertStringNotContainsString('tax-rate-edit-dialog-', $html);
+    }
+
+    public function test_add_tax_rate_action_has_usable_href_fallback(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $createUrl = route('settings.taxes.index', ['create_rate' => 1]);
+
+        $rate = $this->createRate($store, [
+            'name' => 'Href Fallback Rate',
+            'country_code' => 'US',
+            'region_code' => 'CO',
+            'rate_percent' => '2.9000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSee('href="'.$createUrl.'"', false)
+            ->assertSee('data-open-tax-rate-create', false)
+            ->assertSee('href="'.route('settings.taxes.index', ['edit_rate' => $rate->id]).'"', false);
+    }
+
+    public function test_unauthorized_viewers_do_not_receive_open_mutation_dialog(): void
+    {
+        [, $store, , $staff] = $this->teamStoreFixture(true);
+        $rate = $this->createRate($store, [
+            'name' => 'Staff Hidden Rate',
+            'country_code' => 'US',
+            'region_code' => 'ME',
+            'rate_percent' => '5.5000',
+        ]);
+
+        $html = $this->actingAsStore($staff, $store)
+            ->get(route('settings.taxes.index', ['create_rate' => 1, 'edit_rate' => $rate->id]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('id="tax-rate-create-dialog"', $html);
+        $this->assertStringNotContainsString('tax-rate-edit-dialog-', $html);
+    }
+
+    public function test_mobile_card_shows_region_name_for_us_ca(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $this->createRate($store, [
+            'name' => 'California Mobile Card Rate',
+            'country_code' => 'US',
+            'region_code' => 'CA',
+            'rate_percent' => '7.2500',
+        ]);
+
+        $html = $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('California Mobile Card Rate', $html);
+        $this->assertStringContainsString('California', $html);
+        $this->assertGreaterThanOrEqual(2, substr_count($html, 'California'));
+    }
+
+    public function test_mobile_card_shows_region_code_fallback_for_unknown_region(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $this->createRate($store, [
+            'name' => 'Unknown Region Mobile Rate',
+            'country_code' => 'US',
+            'region_code' => 'ZZ',
+            'rate_percent' => '4.0000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSee('Unknown Region Mobile Rate', false)
+            ->assertSee('ZZ', false);
+    }
+
+    public function test_country_wide_mobile_card_does_not_show_fake_region_line(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $this->createRate($store, [
+            'name' => 'Country Wide Mobile Rate',
+            'country_code' => 'US',
+            'region_code' => '',
+            'rate_percent' => '5.0000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['Country Wide Mobile Rate', 'United States', 'Country-wide'], false);
+    }
+
+    public function test_editing_unrelated_fields_preserves_non_default_priority(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Legacy Priority Rate',
+            'country_code' => 'US',
+            'region_code' => 'NV',
+            'rate_percent' => '6.8500',
+            'priority' => 50,
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Legacy Priority Rate Renamed',
+                'country_code' => 'US',
+                'region_code' => 'NV',
+                'rate_percent' => '6.85',
+                'priority' => 50,
+            ]))
+            ->assertRedirect(route('settings.taxes.index'));
+
+        $this->assertDatabaseHas('tax_rates', [
+            'id' => $rate->id,
+            'name' => 'Legacy Priority Rate Renamed',
+            'priority' => 50,
+        ]);
+    }
+
+    public function test_existing_us_pr_rate_renders_custom_region_selected(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Puerto Rico Sales Tax',
+            'country_code' => 'US',
+            'region_code' => 'PR',
+            'rate_percent' => '10.5000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->assertOk()
+            ->assertSee('PR — Custom or legacy code', false)
+            ->assertSee('region code not included in the suggested list', false);
+    }
+
+    public function test_existing_us_zz_custom_rate_renders_and_preserves_zz(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Custom ZZ Rate',
+            'country_code' => 'US',
+            'region_code' => 'ZZ',
+            'rate_percent' => '4.0000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->assertOk()
+            ->assertSee('ZZ — Custom or legacy code', false);
+
+        $this->actingAsStore($owner, $store)
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Custom ZZ Rate',
+                'country_code' => 'US',
+                'region_code' => 'ZZ',
+                'rate_percent' => '4.00',
+            ]))
+            ->assertRedirect(route('settings.taxes.index'));
+
+        $this->assertDatabaseHas('tax_rates', [
+            'id' => $rate->id,
+            'region_code' => 'ZZ',
+        ]);
+    }
+
+    public function test_updating_only_rate_name_preserves_custom_region(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Rename Custom Region Rate',
+            'country_code' => 'US',
+            'region_code' => 'ZZ',
+            'rate_percent' => '4.0000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Renamed Custom Region Rate',
+                'country_code' => 'US',
+                'region_code' => 'ZZ',
+                'rate_percent' => '4.00',
+            ]))
+            ->assertRedirect(route('settings.taxes.index'));
+
+        $this->assertDatabaseHas('tax_rates', [
+            'id' => $rate->id,
+            'name' => 'Renamed Custom Region Rate',
+            'region_code' => 'ZZ',
+        ]);
+    }
+
+    public function test_updating_only_active_status_preserves_custom_region(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Toggle Custom Region Rate',
+            'country_code' => 'US',
+            'region_code' => 'ZZ',
+            'rate_percent' => '4.0000',
+            'is_active' => true,
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Toggle Custom Region Rate',
+                'country_code' => 'US',
+                'region_code' => 'ZZ',
+                'rate_percent' => '4.00',
+                'is_active' => 0,
+            ]))
+            ->assertRedirect(route('settings.taxes.index'));
+
+        $this->assertDatabaseHas('tax_rates', [
+            'id' => $rate->id,
+            'region_code' => 'ZZ',
+            'is_active' => false,
+        ]);
+    }
+
+    public function test_known_us_ca_edit_uses_california_selector(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'California Known Region Rate',
+            'country_code' => 'US',
+            'region_code' => 'CA',
+            'rate_percent' => '7.2500',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->assertOk()
+            ->assertSee('California (CA)', false)
+            ->assertDontSee('CA — Custom or legacy code', false);
+    }
+
+    public function test_country_wide_us_rate_edit_keeps_blank_region(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Country Wide US Rate',
+            'country_code' => 'US',
+            'region_code' => '',
+            'rate_percent' => '5.0000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->get(route('settings.taxes.index', ['edit_rate' => $rate->id]))
+            ->assertOk()
+            ->assertSee('Country-wide (all regions)', false);
+
+        $this->actingAsStore($owner, $store)
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Country Wide US Rate Updated',
+                'country_code' => 'US',
+                'region_code' => '',
+                'rate_percent' => '5.00',
+            ]))
+            ->assertRedirect(route('settings.taxes.index'));
+
+        $this->assertDatabaseHas('tax_rates', [
+            'id' => $rate->id,
+            'region_code' => '',
+        ]);
+    }
+
+    public function test_unrelated_edit_does_not_turn_unknown_region_into_country_wide(): void
+    {
+        [$owner, $store] = $this->ownerStoreFixture();
+        $rate = $this->createRate($store, [
+            'name' => 'Preserve Unknown Region',
+            'country_code' => 'US',
+            'region_code' => 'ZZ',
+            'rate_percent' => '4.0000',
+        ]);
+
+        $this->actingAsStore($owner, $store)
+            ->patch(route('settings.taxes.rates.update', $rate), $this->storeRatePayload([
+                'name' => 'Preserve Unknown Region Renamed',
+                'country_code' => 'US',
+                'region_code' => 'ZZ',
+                'rate_percent' => '4.25',
+            ]))
+            ->assertRedirect(route('settings.taxes.index'));
+
+        $this->assertDatabaseHas('tax_rates', [
+            'id' => $rate->id,
+            'region_code' => 'ZZ',
+            'rate_percent' => '4.2500',
+        ]);
+        $this->assertDatabaseMissing('tax_rates', [
+            'id' => $rate->id,
+            'region_code' => '',
+        ]);
+    }
+
+    private function assertTaxDialogIsOpen(string $html, string $dialogId): void
+    {
+        $this->assertTrue(
+            (bool) preg_match('/<dialog\b[^>]*\bid="'.preg_quote($dialogId, '/').'"[^>]*>/i', $html, $matches),
+            "Expected dialog {$dialogId} to be present."
+        );
+        $this->assertStringContainsString(
+            'open',
+            $matches[0],
+            "Expected dialog {$dialogId} to include native open attribute."
+        );
+    }
+
+    private function assertTaxDialogIsClosed(string $html, string $dialogId): void
+    {
+        if (! preg_match('/<dialog\b[^>]*\bid="'.preg_quote($dialogId, '/').'"[^>]*>/i', $html, $matches)) {
+            return;
+        }
+
+        $this->assertStringNotContainsString(
+            'open',
+            $matches[0],
+            "Expected dialog {$dialogId} to remain closed."
+        );
     }
 }

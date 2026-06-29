@@ -314,6 +314,41 @@ CSV;
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function onboardingEditPayload(Product $product, array $overrides = [], bool $includeTaxable = true): array
+    {
+        $payload = [
+            'mode' => 'edit',
+            'name' => $product->name,
+            'description' => $product->description,
+            'base_price' => (string) $product->base_price,
+            'sku' => $product->sku,
+            'product_type' => $product->product_type,
+            'default_stock' => 5,
+            'stock_alert' => 1,
+        ];
+
+        if ($includeTaxable) {
+            $payload['is_taxable'] = $product->is_taxable ? '1' : '0';
+        }
+
+        return array_merge($payload, $overrides);
+    }
+
+    private function assertProductTaxableCheckboxChecked(string $html, string $inputId, bool $checked): void
+    {
+        $pattern = '/id="'.preg_quote($inputId, '/').'"[^>]*\bchecked\b/s';
+
+        if ($checked) {
+            $this->assertMatchesRegularExpression($pattern, $html);
+        } else {
+            $this->assertDoesNotMatchRegularExpression($pattern, $html);
+        }
+    }
+
     private function productUpdatePayload(Product $product, array $overrides = [], bool $includeTaxable = true): array
     {
         $payload = [
@@ -432,6 +467,301 @@ CSV;
         $this->attach($store, $owner, Store::ROLE_OWNER);
 
         return $store;
+    }
+
+    public function test_onboarding_explicit_true_and_false_overrides_respect_store_default(): void
+    {
+        $owner = $this->merchant('onboarding-override-tax@example.test');
+        $store = $this->store($owner, 'Onboarding Override Tax Store');
+        $store->taxSetting->update(['default_product_taxable' => false]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingProductPayload('Onboarding Explicit On', 'ONBOARD-ON') + [
+                'is_taxable' => '1',
+            ])
+            ->assertRedirect();
+
+        $store->taxSetting->update(['default_product_taxable' => true]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingProductPayload('Onboarding Explicit Off', 'ONBOARD-OFF') + [
+                'is_taxable' => '0',
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue((bool) Product::query()->where('store_id', $store->id)->where('sku', 'ONBOARD-ON')->firstOrFail()->is_taxable);
+        $this->assertFalse((bool) Product::query()->where('store_id', $store->id)->where('sku', 'ONBOARD-OFF')->firstOrFail()->is_taxable);
+    }
+
+    public function test_onboarding_product_form_renders_taxable_control(): void
+    {
+        $owner = $this->merchant('onboarding-ui-tax@example.test');
+        $store = $this->store($owner, 'Onboarding UI Tax Store');
+        $store->taxSetting->update(['default_product_taxable' => true, 'enabled' => false]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
+            ->get(route('onboarding-Step2-AddProductVariations'))
+            ->assertOk()
+            ->assertSee('Charge tax on this product', false)
+            ->assertSee('Store default:', false)
+            ->assertSee('Taxable', false)
+            ->assertSee('platform checkout tax is currently disabled', false);
+    }
+
+    public function test_existing_product_unchanged_when_store_default_changes(): void
+    {
+        $owner = $this->merchant('default-shift-tax@example.test');
+        $store = $this->store($owner, 'Default Shift Tax Store');
+
+        $store->taxSetting->update(['default_product_taxable' => true]);
+        $taxableProduct = $this->product($store, ['is_taxable' => true, 'sku' => 'EXPLICIT-TAXABLE']);
+
+        $store->taxSetting->update(['default_product_taxable' => false]);
+        $this->assertTrue((bool) $taxableProduct->fresh()->is_taxable);
+
+        $exemptProduct = $this->product($store, ['is_taxable' => false, 'sku' => 'EXPLICIT-EXEMPT']);
+        $store->taxSetting->update(['default_product_taxable' => true]);
+        $this->assertFalse((bool) $exemptProduct->fresh()->is_taxable);
+    }
+
+    public function test_onboarding_edit_renders_actual_taxable_true(): void
+    {
+        $owner = $this->merchant('onboarding-edit-tax-true@example.test');
+        $store = $this->store($owner, 'Onboarding Edit Tax True Store');
+        $store->taxSetting->update(['default_product_taxable' => false]);
+        $product = $this->product($store, ['is_taxable' => true, 'sku' => 'ONBOARD-EDIT-TRUE']);
+
+        $html = $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->get(route('onboarding-Step2-AddProductVariations'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', true);
+    }
+
+    public function test_onboarding_edit_renders_actual_taxable_false(): void
+    {
+        $owner = $this->merchant('onboarding-edit-tax-false@example.test');
+        $store = $this->store($owner, 'Onboarding Edit Tax False Store');
+        $store->taxSetting->update(['default_product_taxable' => true]);
+        $product = $this->product($store, ['is_taxable' => false, 'sku' => 'ONBOARD-EDIT-FALSE']);
+
+        $html = $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->get(route('onboarding-Step2-AddProductVariations'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', false);
+    }
+
+    public function test_onboarding_edit_explicit_true_persists(): void
+    {
+        $owner = $this->merchant('onboarding-persist-true@example.test');
+        $store = $this->store($owner, 'Onboarding Persist True Store');
+        $product = $this->product($store, ['is_taxable' => false, 'sku' => 'ONBOARD-PERSIST-TRUE']);
+
+        $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingEditPayload($product, [
+                'is_taxable' => '1',
+            ]))
+            ->assertRedirect();
+
+        $this->assertTrue((bool) $product->fresh()->is_taxable);
+    }
+
+    public function test_onboarding_edit_explicit_false_persists(): void
+    {
+        $owner = $this->merchant('onboarding-persist-false@example.test');
+        $store = $this->store($owner, 'Onboarding Persist False Store');
+        $product = $this->product($store, ['is_taxable' => true, 'sku' => 'ONBOARD-PERSIST-FALSE']);
+
+        $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingEditPayload($product, [
+                'is_taxable' => '0',
+            ]))
+            ->assertRedirect();
+
+        $this->assertFalse((bool) $product->fresh()->is_taxable);
+    }
+
+    public function test_onboarding_edit_omitted_taxable_preserves_existing_value(): void
+    {
+        $owner = $this->merchant('onboarding-omit-tax@example.test');
+        $store = $this->store($owner, 'Onboarding Omit Tax Store');
+        $product = $this->product($store, ['is_taxable' => false, 'sku' => 'ONBOARD-OMIT-TAX']);
+
+        $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingEditPayload($product, [
+                'name' => 'Renamed Without Tax Field',
+            ], includeTaxable: false))
+            ->assertRedirect();
+
+        $this->assertFalse((bool) $product->fresh()->is_taxable);
+    }
+
+    public function test_onboarding_edit_store_default_does_not_overwrite_existing_product_taxability(): void
+    {
+        $owner = $this->merchant('onboarding-default-no-overwrite@example.test');
+        $store = $this->store($owner, 'Onboarding Default No Overwrite Store');
+        $store->taxSetting->update(['default_product_taxable' => true]);
+        $product = $this->product($store, ['is_taxable' => false, 'sku' => 'ONBOARD-NO-OVERWRITE']);
+
+        $store->taxSetting->update(['default_product_taxable' => true]);
+
+        $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingEditPayload($product, [
+                'name' => 'Updated Name Only',
+            ], includeTaxable: false))
+            ->assertRedirect();
+
+        $this->assertFalse((bool) $product->fresh()->is_taxable);
+    }
+
+    public function test_onboarding_create_validation_failure_preserves_unchecked_taxable(): void
+    {
+        $owner = $this->merchant('onboarding-old-false@example.test');
+        $store = $this->store($owner, 'Onboarding Old False Store');
+        $store->taxSetting->update(['default_product_taxable' => true]);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
+            ->from(route('onboarding-Step2-AddProductVariations'))
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingProductPayload('', 'ONBOARD-OLD-FALSE') + [
+                'is_taxable' => '0',
+            ]);
+
+        $response->assertSessionHasErrors('name');
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', false);
+    }
+
+    public function test_onboarding_create_validation_failure_preserves_checked_taxable(): void
+    {
+        $owner = $this->merchant('onboarding-old-true@example.test');
+        $store = $this->store($owner, 'Onboarding Old True Store');
+        $store->taxSetting->update(['default_product_taxable' => false]);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
+            ->from(route('onboarding-Step2-AddProductVariations'))
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingProductPayload('', 'ONBOARD-OLD-TRUE') + [
+                'is_taxable' => '1',
+            ]);
+
+        $response->assertSessionHasErrors('name');
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', true);
+    }
+
+    public function test_onboarding_edit_validation_failure_preserves_unchecked_taxable_change(): void
+    {
+        $owner = $this->merchant('onboarding-edit-old-false@example.test');
+        $store = $this->store($owner, 'Onboarding Edit Old False Store');
+        $product = $this->product($store, ['is_taxable' => true, 'sku' => 'ONBOARD-EDIT-OLD-FALSE']);
+
+        $response = $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->from(route('onboarding-Step2-AddProductVariations'))
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingEditPayload($product, [
+                'name' => '',
+                'is_taxable' => '0',
+            ]));
+
+        $response->assertSessionHasErrors('name');
+
+        $html = $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', false);
+    }
+
+    public function test_onboarding_edit_validation_failure_preserves_checked_taxable_change(): void
+    {
+        $owner = $this->merchant('onboarding-edit-old-true@example.test');
+        $store = $this->store($owner, 'Onboarding Edit Old True Store');
+        $product = $this->product($store, ['is_taxable' => false, 'sku' => 'ONBOARD-EDIT-OLD-TRUE']);
+
+        $response = $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->from(route('onboarding-Step2-AddProductVariations'))
+            ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingEditPayload($product, [
+                'name' => '',
+                'is_taxable' => '1',
+            ]));
+
+        $response->assertSessionHasErrors('name');
+
+        $html = $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'onboarding_store_id' => $store->id,
+                'onboarding_product_id' => $product->id,
+            ])
+            ->get($response->headers->get('Location'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', true);
     }
 
     private function attach(Store $store, User $user, string $role): void

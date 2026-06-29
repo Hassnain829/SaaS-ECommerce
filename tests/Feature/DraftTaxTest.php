@@ -30,6 +30,7 @@ class DraftTaxTest extends TestCase
 
         $draft = $this->createDraft($owner, $store, $variant, $this->draftPayload($variant, [
             'tax_total' => '4.44',
+            'tax_mode' => DraftOrder::TAX_SOURCE_MANUAL,
         ]));
         $before = $draft->fresh()->getAttributes();
 
@@ -95,7 +96,7 @@ class DraftTaxTest extends TestCase
                 'shipping_total' => '5.00',
             ]))
             ->assertRedirect(route('draft-orders.show', $draft))
-            ->assertSessionHas('success', 'Draft saved and tax recalculated from store settings.');
+            ->assertSessionHas('success', 'Draft saved.');
 
         $draft = $draft->fresh(['items', 'taxLines']);
         $this->assertSame(DraftOrder::TAX_SOURCE_CALCULATED, $draft->taxSource());
@@ -228,7 +229,8 @@ class DraftTaxTest extends TestCase
 
         $payload = $this->draftPayload($variant, [
             'tax_mode' => DraftOrder::TAX_SOURCE_MANUAL,
-            'tax_total' => '9.99',
+            'manual_tax_total' => '9.99',
+            'confirm_manual_tax_switch' => '1',
             'shipping_total' => '5.00',
             'notes' => 'Manual tax override.',
         ]);
@@ -298,7 +300,7 @@ class DraftTaxTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('draft-orders.show', $draft->fresh()))
             ->assertOk()
-            ->assertSeeText('Tax calculation details')
+            ->assertSeeText('View breakdown')
             ->assertSeeText('Calculated from store settings')
             ->assertSeeText('Shipping');
     }
@@ -371,7 +373,7 @@ class DraftTaxTest extends TestCase
             ->from(route('draft-orders.show', $draft))
             ->post(route('draft-orders.calculate-tax', $draft), $payload)
             ->assertRedirect(route('draft-orders.show', $draft))
-            ->assertSessionHas('success', 'Draft saved and tax recalculated from store settings.');
+            ->assertSessionHas('success', 'Draft saved.');
 
         $draft = $draft->fresh(['items', 'taxLines']);
         $this->assertSame(2, (int) $draft->items->first()->quantity);
@@ -389,8 +391,6 @@ class DraftTaxTest extends TestCase
         $owner = $this->merchant('draft-calc-fail@example.test');
         $store = $this->store($owner, 'Draft Calc Fail Store');
         [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
-        $this->enableTax($store);
-
         $draft = $this->createDraft($owner, $store, $variant, $this->draftPayload($variant, [
             'items' => [
                 [
@@ -401,7 +401,10 @@ class DraftTaxTest extends TestCase
             ],
             'shipping_total' => '5.00',
             'notes' => 'Original note.',
+            'tax_mode' => DraftOrder::TAX_SOURCE_MANUAL,
         ]));
+
+        $this->enableTax($store);
 
         $store->taxSetting->update(['enabled' => false]);
 
@@ -553,6 +556,199 @@ class DraftTaxTest extends TestCase
         $this->assertSame('CA', $draft->shippingAddress()['country']);
     }
 
+    public function test_automatic_create_calculates_tax_immediately_when_store_tax_enabled(): void
+    {
+        $owner = $this->merchant('draft-auto-create@example.test');
+        $store = $this->store($owner, 'Draft Auto Create Store');
+        [, $variant] = $this->product($store, ['price' => 100, 'stock' => 5]);
+        $this->enableTax($store, rates: [[
+            'country_code' => 'US',
+            'region_code' => 'CA',
+            'name' => 'CA Sales Tax',
+            'rate_percent' => '8.2500',
+        ]]);
+
+        $payload = $this->draftPayload($variant, [
+            'tax_mode' => DraftOrder::TAX_SOURCE_CALCULATED,
+            'shipping_state' => 'CA',
+            'shipping_country' => 'US',
+            'items' => [[
+                'product_variant_id' => $variant->id,
+                'quantity' => 1,
+                'unit_price' => '100.00',
+            ]],
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('draft-orders.store'), $payload)
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Draft saved with calculated tax.');
+
+        $draft = DraftOrder::query()->where('store_id', $store->id)->firstOrFail();
+        $this->assertSame(DraftOrder::TAX_SOURCE_CALCULATED, $draft->taxSource());
+        $this->assertSame(8.25, (float) $draft->tax_total);
+        $this->assertGreaterThan(0, DraftTaxLine::query()->where('draft_order_id', $draft->id)->count());
+    }
+
+    public function test_manual_create_preserves_entered_tax(): void
+    {
+        $owner = $this->merchant('draft-manual-create@example.test');
+        $store = $this->store($owner, 'Draft Manual Create Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+        $this->enableTax($store);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('draft-orders.store'), $this->draftPayload($variant, [
+                'tax_mode' => DraftOrder::TAX_SOURCE_MANUAL,
+                'tax_total' => '4.50',
+            ]))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Draft order saved.');
+
+        $draft = DraftOrder::query()->where('store_id', $store->id)->firstOrFail();
+        $this->assertSame(DraftOrder::TAX_SOURCE_MANUAL, $draft->taxSource());
+        $this->assertSame(4.50, (float) $draft->tax_total);
+        $this->assertSame(0, DraftTaxLine::query()->where('draft_order_id', $draft->id)->count());
+    }
+
+    public function test_failed_automatic_create_does_not_leave_inconsistent_draft(): void
+    {
+        $owner = $this->merchant('draft-failed-create@example.test');
+        $store = $this->store($owner, 'Draft Failed Create Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+        $this->enableTax($store);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('orders.create'))
+            ->post(route('draft-orders.store'), $this->draftPayload($variant, [
+                'tax_mode' => DraftOrder::TAX_SOURCE_CALCULATED,
+                'shipping_country' => '',
+            ]))
+            ->assertRedirect(route('orders.create'))
+            ->assertSessionHasErrors('shipping_country');
+
+        $this->assertSame(0, DraftOrder::query()->where('store_id', $store->id)->count());
+    }
+
+    public function test_draft_update_rejects_zero_valid_line_items(): void
+    {
+        $owner = $this->merchant('draft-zero-lines@example.test');
+        $store = $this->store($owner, 'Draft Zero Lines Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+
+        $draft = $this->createDraft($owner, $store, $variant);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('draft-orders.show', $draft))
+            ->patch(route('draft-orders.update', $draft), array_merge($this->draftPayload($variant), [
+                'items' => [[
+                    'product_variant_id' => '',
+                    'quantity' => '',
+                    'unit_price' => '',
+                ]],
+            ]))
+            ->assertRedirect(route('draft-orders.show', $draft))
+            ->assertSessionHasErrors('items');
+
+        $this->assertSame(1, $draft->fresh()->items()->count());
+    }
+
+    public function test_draft_update_accepts_multiple_new_lines_in_one_request(): void
+    {
+        $owner = $this->merchant('draft-multi-lines@example.test');
+        $store = $this->store($owner, 'Draft Multi Lines Store');
+        [$product, $variantA] = $this->product($store, ['price' => 10, 'stock' => 5, 'name' => 'Product A']);
+        [, $variantB] = $this->product($store, ['price' => 15, 'stock' => 5, 'name' => 'Product B']);
+
+        $draft = $this->createDraft($owner, $store, $variantA);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patch(route('draft-orders.update', $draft), $this->draftPayload($variantA, [
+                'items' => [
+                    [
+                        'product_variant_id' => $variantA->id,
+                        'quantity' => 1,
+                        'unit_price' => '10.00',
+                    ],
+                    [
+                        'product_variant_id' => $variantB->id,
+                        'quantity' => 2,
+                        'unit_price' => '15.00',
+                    ],
+                ],
+            ]))
+            ->assertRedirect(route('draft-orders.show', $draft));
+
+        $draft = $draft->fresh('items');
+        $this->assertSame(2, $draft->items->count());
+        $this->assertSame('40.00', $draft->subtotal);
+    }
+
+    public function test_draft_update_rejects_foreign_store_variant(): void
+    {
+        $owner = $this->merchant('draft-foreign-variant@example.test');
+        $store = $this->store($owner, 'Draft Foreign Variant Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+        $otherOwner = $this->merchant('other-draft-variant@example.test');
+        $otherStore = $this->store($otherOwner, 'Other Draft Variant Store');
+        [, $foreignVariant] = $this->product($otherStore, ['price' => 30, 'stock' => 5]);
+
+        $draft = $this->createDraft($owner, $store, $variant);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('draft-orders.show', $draft))
+            ->patch(route('draft-orders.update', $draft), $this->draftPayload($variant, [
+                'items' => [[
+                    'product_variant_id' => $foreignVariant->id,
+                    'quantity' => 1,
+                    'unit_price' => '30.00',
+                ]],
+            ]))
+            ->assertRedirect(route('draft-orders.show', $draft))
+            ->assertSessionHasErrors('items.0.product_variant_id');
+    }
+
+    public function test_validation_error_preserves_old_line_item_input_on_create_form(): void
+    {
+        $owner = $this->merchant('draft-old-input@example.test');
+        $store = $this->store($owner, 'Draft Old Input Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('orders.create'))
+            ->post(route('draft-orders.store'), $this->draftPayload($variant, [
+                'shipping_country' => 'United States',
+                'items' => [
+                    [
+                        'product_variant_id' => $variant->id,
+                        'quantity' => 3,
+                        'unit_price' => '20.00',
+                    ],
+                    [
+                        'product_variant_id' => '',
+                        'quantity' => 2,
+                        'unit_price' => '15.00',
+                    ],
+                ],
+            ]))
+            ->assertRedirect(route('orders.create'))
+            ->assertSessionHasErrors('shipping_country');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orders.create'))
+            ->assertOk()
+            ->assertSee('value="3"', false)
+            ->assertSee('name="items[1][quantity]"', false);
+    }
+
     public function test_calculated_draft_tax_matches_us_ca_configured_rate(): void
     {
         $owner = $this->merchant('draft-ca-rate@example.test');
@@ -598,6 +794,96 @@ class DraftTaxTest extends TestCase
         $this->assertSame(8.25, (float) $draft->tax_total);
         $this->assertSame(DraftOrder::TAX_SOURCE_CALCULATED, $draft->taxSource());
         $this->assertGreaterThan(0, $draft->taxLines->count());
+    }
+
+    public function test_automatic_tax_preview_returns_matched_us_ny_rate(): void
+    {
+        $owner = $this->merchant('draft-preview-ny@example.test');
+        $store = $this->store($owner, 'Draft Preview NY Store');
+        [, $variant] = $this->product($store, ['price' => 29.99, 'stock' => 5]);
+        $this->enableTax($store, rates: [[
+            'country_code' => 'US',
+            'region_code' => 'NY',
+            'name' => 'RATE',
+            'rate_percent' => '10.0000',
+        ]]);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->postJson(route('draft-orders.preview-tax'), $this->draftPayload($variant, [
+                'tax_mode' => DraftOrder::TAX_SOURCE_CALCULATED,
+                'shipping_state' => 'NY',
+                'shipping_country' => 'US',
+                'shipping_total' => '0.00',
+                'items' => [[
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 1,
+                    'unit_price' => '29.99',
+                ]],
+            ]))
+            ->assertOk()
+            ->json();
+
+        $this->assertTrue($response['ready']);
+        $this->assertSame(3.00, (float) $response['total_tax']);
+        $this->assertStringContainsString('10', (string) ($response['matched_rate_label'] ?? ''));
+    }
+
+    public function test_automatic_tax_preview_explains_unmatched_address(): void
+    {
+        $owner = $this->merchant('draft-preview-unmatched@example.test');
+        $store = $this->store($owner, 'Draft Preview Unmatched Store');
+        [, $variant] = $this->product($store, ['price' => 29.99, 'stock' => 5]);
+        $this->enableTax($store, rates: [[
+            'country_code' => 'US',
+            'region_code' => 'NY',
+            'name' => 'RATE',
+            'rate_percent' => '10.0000',
+        ]]);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->postJson(route('draft-orders.preview-tax'), $this->draftPayload($variant, [
+                'tax_mode' => DraftOrder::TAX_SOURCE_CALCULATED,
+                'shipping_state' => 'NY',
+                'shipping_country' => 'PA',
+                'shipping_total' => '0.00',
+                'items' => [[
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 1,
+                    'unit_price' => '29.99',
+                ]],
+            ]))
+            ->assertOk()
+            ->json();
+
+        $this->assertTrue($response['ready']);
+        $this->assertSame(0.00, (float) $response['total_tax']);
+        $this->assertStringContainsString('No active tax rate matches', (string) ($response['guidance'] ?? ''));
+    }
+
+    public function test_automatic_create_requires_state_when_store_has_regional_rates(): void
+    {
+        $owner = $this->merchant('draft-auto-state-required@example.test');
+        $store = $this->store($owner, 'Draft Auto State Required Store');
+        [, $variant] = $this->product($store, ['price' => 20, 'stock' => 5]);
+        $this->enableTax($store, rates: [[
+            'country_code' => 'US',
+            'region_code' => 'NY',
+            'name' => 'RATE',
+            'rate_percent' => '10.0000',
+        ]]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('orders.create'))
+            ->post(route('draft-orders.store'), $this->draftPayload($variant, [
+                'tax_mode' => DraftOrder::TAX_SOURCE_CALCULATED,
+                'shipping_state' => '',
+                'shipping_country' => 'US',
+            ]))
+            ->assertRedirect(route('orders.create'))
+            ->assertSessionHasErrors('shipping_state');
     }
 
     private function createDraft(User $owner, Store $store, ProductVariant $variant, ?array $payload = null): DraftOrder

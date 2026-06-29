@@ -1,16 +1,6 @@
 @php
-    $countryCodes = [
-        'US' => 'United States (US)',
-        'CA' => 'Canada (CA)',
-        'GB' => 'United Kingdom (GB)',
-        'AU' => 'Australia (AU)',
-        'DE' => 'Germany (DE)',
-        'FR' => 'France (FR)',
-        'PK' => 'Pakistan (PK)',
-        'IN' => 'India (IN)',
-        'MX' => 'Mexico (MX)',
-    ];
+    use App\Support\Tax\TaxCountryCatalog;
 @endphp
-@foreach ($countryCodes as $code => $label)
-    <option value="{{ $code }}">{{ $label }}</option>
+@foreach (TaxCountryCatalog::all() as $code => $label)
+    <option value="{{ $code }}">{{ $label }} ({{ $code }})</option>
 @endforeach

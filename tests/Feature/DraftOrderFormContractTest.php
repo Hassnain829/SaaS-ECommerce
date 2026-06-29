@@ -42,6 +42,27 @@ class DraftOrderFormContractTest extends TestCase
         $this->assertStringContainsString('formmethod="POST"', $formHtml);
         $this->assertStringContainsString('data-convert-draft-button', $formHtml);
         $this->assertStringContainsString('data-primary-save-button', $formHtml);
+
+        preg_match_all('/<button[^>]*type="submit"[^>]*>/', $formHtml, $submitButtons);
+        $this->assertNotEmpty($submitButtons[0]);
+        $this->assertStringContainsString('data-primary-save-button', $submitButtons[0][0]);
+    }
+
+    public function test_browser_style_form_post_to_update_route_saves_draft(): void
+    {
+        [$owner, $store, $draft, $variant] = $this->editableDraftFixture(returnVariant: true);
+
+        $payload = array_merge($this->draftPayload($variant), [
+            '_method' => 'PATCH',
+            'notes' => 'Saved through browser-style POST.',
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('draft-orders.update', $draft), $payload)
+            ->assertRedirect(route('draft-orders.show', $draft));
+
+        $this->assertSame('Saved through browser-style POST.', $draft->fresh()->notes);
     }
 
     public function test_save_button_submits_patch_to_update_route(): void

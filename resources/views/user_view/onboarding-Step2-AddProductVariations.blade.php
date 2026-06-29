@@ -225,6 +225,20 @@
                     </div>
 
                     @php
+                        $onboardingTaxableChecked = null;
+                        if (array_key_exists('is_taxable', $step2Data)) {
+                            $onboardingTaxableChecked = filter_var($step2Data['is_taxable'], FILTER_VALIDATE_BOOLEAN);
+                        }
+                    @endphp
+                    <div class="mt-4">
+                        @include('user_view.partials.product_taxable_control', [
+                            'taxSetting' => $taxSetting ?? $store->taxSetting,
+                            'inputId' => 'onboarding-product-is-taxable',
+                            'checkedOverride' => $onboardingTaxableChecked,
+                        ])
+                    </div>
+
+                    @php
                         $onboardingBrands = $brands ?? collect();
                         $onboardingTags = $tags ?? collect();
                         $onboardingProductCategories = $productCategories ?? collect();

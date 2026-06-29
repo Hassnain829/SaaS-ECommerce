@@ -5,15 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\DraftOrder;
 use App\Models\ProductVariant;
+use App\Models\TaxRate;
 use App\Support\Tax\TaxDisplayPresenter;
 use App\Services\Draft\DraftTaxService;
 use App\Services\DraftOrderService;
 use App\Services\ManualOrderConversionService;
 use App\Services\SecurityLogRecorder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class DraftOrderController extends Controller
@@ -30,11 +33,25 @@ class DraftOrderController extends Controller
         ]);
     }
 
-    public function store(Request $request, DraftOrderService $draftOrderService): RedirectResponse
+    public function store(Request $request, DraftOrderService $draftOrderService, DraftTaxService $draftTaxService): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
+        $taxMode = $this->resolvedTaxModeForCreate($request, $store);
+        $payload = $this->normalizeTaxInPayload(
+            $request,
+            $this->validatedDraftPayload($request, $store->id, store: $store),
+            $taxMode
+        );
 
-        $draft = $draftOrderService->create($store, $request->user(), $this->validatedDraftPayload($request, $store->id));
+        $draft = DB::transaction(function () use ($store, $request, $draftOrderService, $draftTaxService, $payload, $taxMode) {
+            if ($taxMode === DraftOrder::TAX_SOURCE_CALCULATED) {
+                $draft = $draftOrderService->create($store, $request->user(), $payload, DraftOrder::TAX_SOURCE_CALCULATED);
+
+                return $draftTaxService->calculate($draft, $store);
+            }
+
+            return $draftOrderService->create($store, $request->user(), $payload, DraftOrder::TAX_SOURCE_MANUAL);
+        });
 
         app(SecurityLogRecorder::class)->record(
             $request,
@@ -43,12 +60,15 @@ class DraftOrderController extends Controller
             metadata: [
                 'draft_order_id' => $draft->id,
                 'draft_number' => $draft->draft_number,
+                'tax_mode' => $taxMode,
             ]
         );
 
         return redirect()
             ->route('draft-orders.show', $draft)
-            ->with('success', 'Draft order saved.');
+            ->with('success', $taxMode === DraftOrder::TAX_SOURCE_CALCULATED
+                ? 'Draft saved with calculated tax.'
+                : 'Draft order saved.');
     }
 
     public function show(Request $request, DraftOrder $draftOrder): View
@@ -71,11 +91,23 @@ class DraftOrderController extends Controller
         $store = $request->attributes->get('currentStore');
         $this->assertDraftBelongsToStore($draftOrder, $store->id);
 
-        $payload = $this->validatedDraftPayload($request, $store->id, requireCustomer: false);
         $taxMode = $this->resolvedTaxMode($request, $draftOrder);
+        $payload = $this->normalizeTaxInPayload(
+            $request,
+            $this->validatedDraftPayload($request, $store->id, requireCustomer: false, draftOrder: $draftOrder, store: $store),
+            $taxMode,
+            $draftOrder
+        );
+        $wasCalculated = $draftOrder->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
 
-        if ($request->boolean('switch_to_manual')) {
-            $draftOrderService->update($draftOrder, $payload, 'switch_manual');
+        if ($taxMode === DraftOrder::TAX_SOURCE_MANUAL && $wasCalculated) {
+            if (! $request->boolean('confirm_manual_tax_switch')) {
+                throw ValidationException::withMessages([
+                    'confirm_manual_tax_switch' => 'Confirm that calculated tax lines and rate details will be removed before switching to manual tax.',
+                ]);
+            }
+
+            $draftOrderService->switchToManualTax($draftOrder, $payload);
 
             app(SecurityLogRecorder::class)->record(
                 $request,
@@ -90,7 +122,7 @@ class DraftOrderController extends Controller
 
             return redirect()
                 ->route('draft-orders.show', $draftOrder)
-                ->with('success', 'Draft switched to manual tax.');
+                ->with('success', 'Draft order updated.');
         }
 
         if ($taxMode === DraftOrder::TAX_SOURCE_CALCULATED) {
@@ -111,7 +143,7 @@ class DraftOrderController extends Controller
 
             return redirect()
                 ->route('draft-orders.show', $draftOrder)
-                ->with('success', 'Draft saved and tax recalculated from store settings.');
+                ->with('success', 'Draft saved.');
         }
 
         $draftOrderService->updateManual($draftOrder, $payload);
@@ -141,10 +173,25 @@ class DraftOrderController extends Controller
         $store = $request->attributes->get('currentStore');
         $this->assertDraftBelongsToStore($draftOrder, $store->id);
 
+        $taxMode = $request->has('items')
+            ? $this->resolvedTaxMode($request, $draftOrder)
+            : $draftOrder->taxSource();
         $payload = $request->has('items')
-            ? $this->validatedDraftPayload($request, $store->id, requireCustomer: false)
+            ? $this->normalizeTaxInPayload(
+                $request,
+                $this->validatedDraftPayload($request, $store->id, requireCustomer: false, draftOrder: $draftOrder, store: $store),
+                $taxMode,
+                $draftOrder
+            )
             : null;
-        $taxMode = $payload !== null ? $this->resolvedTaxMode($request, $draftOrder) : $draftOrder->taxSource();
+
+        if ($payload !== null && $taxMode === DraftOrder::TAX_SOURCE_MANUAL && $draftOrder->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED) {
+            if (! $request->boolean('confirm_manual_tax_switch')) {
+                throw ValidationException::withMessages([
+                    'confirm_manual_tax_switch' => 'Confirm that calculated tax lines and rate details will be removed before switching to manual tax.',
+                ]);
+            }
+        }
 
         $order = DB::transaction(function () use (
             $request,
@@ -196,7 +243,13 @@ class DraftOrderController extends Controller
         $store = $request->attributes->get('currentStore');
         $this->assertDraftBelongsToStore($draftOrder, $store->id);
 
-        $payload = $this->validatedDraftPayload($request, $store->id, requireCustomer: false);
+        $taxMode = DraftOrder::TAX_SOURCE_CALCULATED;
+        $payload = $this->normalizeTaxInPayload(
+            $request,
+            $this->validatedDraftPayload($request, $store->id, requireCustomer: false, draftOrder: $draftOrder, store: $store),
+            $taxMode,
+            $draftOrder
+        );
 
         DB::transaction(function () use ($draftOrder, $draftOrderService, $draftTaxService, $store, $payload): void {
             $draft = $draftOrderService->updateForRecalculation($draftOrder, $payload);
@@ -215,7 +268,45 @@ class DraftOrderController extends Controller
 
         return redirect()
             ->route('draft-orders.show', $draftOrder)
-            ->with('success', 'Draft saved and tax recalculated from store settings.');
+            ->with('success', 'Draft saved.');
+    }
+
+    public function previewTax(Request $request, DraftTaxService $draftTaxService): JsonResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        $taxMode = $this->submittedTaxMode($request, null, $store);
+
+        if ($taxMode !== DraftOrder::TAX_SOURCE_CALCULATED) {
+            return response()->json([
+                'ready' => false,
+                'guidance' => 'Select automatic tax mode to preview store tax.',
+            ]);
+        }
+
+        $payload = $this->normalizeTaxInPayload(
+            $request,
+            $this->validatedDraftPayload($request, $store->id, requireCustomer: false, store: $store),
+            $taxMode
+        );
+
+        return response()->json($draftTaxService->previewFromFormPayload($store, $payload));
+    }
+
+    private function resolvedTaxModeForCreate(Request $request, $store): string
+    {
+        $requested = (string) $request->input('tax_mode', '');
+
+        if ($requested === DraftOrder::TAX_SOURCE_CALCULATED) {
+            return DraftOrder::TAX_SOURCE_CALCULATED;
+        }
+
+        if ($requested === DraftOrder::TAX_SOURCE_MANUAL) {
+            return DraftOrder::TAX_SOURCE_MANUAL;
+        }
+
+        return ($store->taxSetting?->enabled ?? false)
+            ? DraftOrder::TAX_SOURCE_CALCULATED
+            : DraftOrder::TAX_SOURCE_MANUAL;
     }
 
     private function resolvedTaxMode(Request $request, DraftOrder $draftOrder): string
@@ -322,9 +413,17 @@ class DraftOrderController extends Controller
             ->get();
     }
 
-    private function validatedDraftPayload(Request $request, int $storeId, bool $requireCustomer = true): array
-    {
+    private function validatedDraftPayload(
+        Request $request,
+        int $storeId,
+        bool $requireCustomer = true,
+        ?DraftOrder $draftOrder = null,
+        $store = null
+    ): array {
         $billingSameAsShipping = $request->boolean('billing_same_as_shipping');
+        $taxMode = $this->submittedTaxMode($request, $draftOrder, $store);
+        $isCalculatedMode = $taxMode === DraftOrder::TAX_SOURCE_CALCULATED;
+        $requiresRegionForTax = $isCalculatedMode && $this->storeRequiresRegionForTax($store);
 
         $rules = [
             'customer_id' => [
@@ -340,22 +439,38 @@ class DraftOrderController extends Controller
             'shipping_address_line1' => ['nullable', 'string', 'max:255'],
             'shipping_address_line2' => ['nullable', 'string', 'max:255'],
             'shipping_city' => ['nullable', 'string', 'max:120'],
-            'shipping_state' => ['nullable', 'string', 'max:32'],
+            'shipping_state' => [
+                Rule::requiredIf($requiresRegionForTax),
+                'nullable',
+                'string',
+                'max:32',
+                'not_regex:/,/',
+                'regex:/\A[A-Za-z0-9\-]+\z/',
+            ],
             'shipping_postal_code' => ['nullable', 'string', 'max:40'],
-            'shipping_country' => ['nullable', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'],
-            'billing_same_as_shipping' => ['nullable', 'boolean'],
-            'billing_name' => ['nullable', 'string', 'max:160'],
-            'billing_phone' => ['nullable', 'string', 'max:80'],
-            'billing_address_line1' => ['nullable', 'string', 'max:255'],
-            'billing_address_line2' => ['nullable', 'string', 'max:255'],
-            'billing_city' => ['nullable', 'string', 'max:120'],
-            'billing_state' => ['nullable', 'string', 'max:32'],
-            'billing_postal_code' => ['nullable', 'string', 'max:40'],
-            'billing_country' => ['nullable', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'],
+            'shipping_country' => [
+                Rule::requiredIf($isCalculatedMode),
+                'nullable',
+                'string',
+                'size:2',
+                'regex:/\A[A-Za-z]{2}\z/',
+            ],
+            'billing_same_as_shipping' => ['boolean'],
+            'billing_name' => [Rule::excludeIf($billingSameAsShipping), 'required', 'string', 'max:160'],
+            'billing_phone' => [Rule::excludeIf($billingSameAsShipping), 'nullable', 'string', 'max:80'],
+            'billing_address_line1' => [Rule::excludeIf($billingSameAsShipping), 'required', 'string', 'max:255'],
+            'billing_address_line2' => [Rule::excludeIf($billingSameAsShipping), 'nullable', 'string', 'max:255'],
+            'billing_city' => [Rule::excludeIf($billingSameAsShipping), 'required', 'string', 'max:120'],
+            'billing_state' => [Rule::excludeIf($billingSameAsShipping), 'nullable', 'string', 'max:32'],
+            'billing_postal_code' => [Rule::excludeIf($billingSameAsShipping), 'nullable', 'string', 'max:40'],
+            'billing_country' => [Rule::excludeIf($billingSameAsShipping), 'required', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
             'tax_total' => ['nullable', 'numeric', 'min:0'],
+            'manual_tax_total' => [Rule::excludeIf($isCalculatedMode), 'nullable', 'numeric', 'min:0'],
             'shipping_total' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'tax_mode' => ['nullable', 'string', Rule::in([DraftOrder::TAX_SOURCE_MANUAL, DraftOrder::TAX_SOURCE_CALCULATED])],
+            'confirm_manual_tax_switch' => [Rule::excludeIf($isCalculatedMode), 'nullable', 'boolean'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => [
                 'nullable',
@@ -366,16 +481,13 @@ class DraftOrderController extends Controller
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
         ];
 
-        if (! $billingSameAsShipping) {
-            $rules['billing_name'] = ['required', 'string', 'max:160'];
-            $rules['billing_address_line1'] = ['required', 'string', 'max:255'];
-            $rules['billing_city'] = ['required', 'string', 'max:120'];
-            $rules['billing_country'] = ['required', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'];
-        }
-
         $payload = $request->validate($rules, [
+            'shipping_country.required' => 'Enter a shipping country code when using automatic tax.',
             'shipping_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
             'shipping_country.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'shipping_state.required' => 'Enter the shipping state or region code that matches your tax rate (for example NY).',
+            'shipping_state.not_regex' => 'Enter one state or region code only, such as NY or CA.',
+            'shipping_state.regex' => 'Enter one state or region code only, such as NY or CA.',
             'billing_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
             'billing_country.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
             'billing_name.required' => 'Enter a billing recipient name when billing differs from shipping.',
@@ -385,6 +497,61 @@ class DraftOrderController extends Controller
         ]);
 
         $payload['billing_same_as_shipping'] = $billingSameAsShipping;
+
+        return $payload;
+    }
+
+    private function storeRequiresRegionForTax($store): bool
+    {
+        return TaxRate::query()
+            ->forStore((int) $store->id)
+            ->active()
+            ->where('region_code', '!=', '')
+            ->exists();
+    }
+
+    private function submittedTaxMode(Request $request, ?DraftOrder $draftOrder = null, $store = null): string
+    {
+        $requested = (string) $request->input('tax_mode', '');
+
+        if ($requested === DraftOrder::TAX_SOURCE_CALCULATED) {
+            return DraftOrder::TAX_SOURCE_CALCULATED;
+        }
+
+        if ($requested === DraftOrder::TAX_SOURCE_MANUAL) {
+            return DraftOrder::TAX_SOURCE_MANUAL;
+        }
+
+        if ($draftOrder !== null) {
+            return $draftOrder->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED
+                ? DraftOrder::TAX_SOURCE_CALCULATED
+                : DraftOrder::TAX_SOURCE_MANUAL;
+        }
+
+        return ($store?->taxSetting?->enabled ?? false)
+            ? DraftOrder::TAX_SOURCE_CALCULATED
+            : DraftOrder::TAX_SOURCE_MANUAL;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function normalizeTaxInPayload(Request $request, array $payload, string $taxMode, ?DraftOrder $draft = null): array
+    {
+        if ($taxMode === DraftOrder::TAX_SOURCE_CALCULATED) {
+            unset($payload['tax_total'], $payload['manual_tax_total'], $payload['confirm_manual_tax_switch']);
+
+            return $payload;
+        }
+
+        if ($request->filled('manual_tax_total')) {
+            $payload['tax_total'] = $request->input('manual_tax_total');
+        } elseif (! array_key_exists('tax_total', $payload) || $payload['tax_total'] === null) {
+            $payload['tax_total'] = $draft?->tax_total ?? '0.00';
+        }
+
+        unset($payload['manual_tax_total']);
 
         return $payload;
     }

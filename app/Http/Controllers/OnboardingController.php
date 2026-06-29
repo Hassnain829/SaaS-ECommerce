@@ -171,6 +171,10 @@ class OnboardingController extends Controller
 
         $draft = $request->session()->get('onboarding_product_draft', []);
 
+        if ($draft === [] && ($sessionProduct = $this->resolveSessionProduct($request, $store))) {
+            $draft = array_merge($this->mapProductToDraft($sessionProduct), ['mode' => 'edit']);
+        }
+
         return view('user_view.onboarding-Step2-AddProductVariations', [
             'store' => $store,
             'draft' => $draft,
@@ -179,6 +183,7 @@ class OnboardingController extends Controller
             'productCategories' => $store->categories()->where('status', 'active')->orderBy('sort_order')->orderBy('name')->get(),
             'productTypes' => ['physical', 'digital', 'service', 'subscription', 'virtual'],
             'variationInputTypes' => ['select', 'radio', 'checkbox'],
+            'taxSetting' => $store->taxSetting,
         ]);
     }
 
@@ -226,18 +231,26 @@ class OnboardingController extends Controller
             'brand_id' => CatalogRules::brandIdForStore($store),
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
+            'is_taxable' => ['nullable', 'boolean'],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
 
         $productSku = trim((string) ($validated['sku'] ?? ''));
-        if ($productSku !== '' && Product::query()
-            ->where('store_id', $store->id)
-            ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)])
-            ->exists()) {
-            return back()
-                ->withErrors(['sku' => 'That product SKU is already used in this store. Use a different SKU or edit the existing product.'])
-                ->withInput($request->except(['product_images']));
+        if ($productSku !== '') {
+            $skuQuery = Product::query()
+                ->where('store_id', $store->id)
+                ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)]);
+
+            if (($validated['mode'] ?? '') === 'edit' && ($editProductId = $request->session()->get('onboarding_product_id'))) {
+                $skuQuery->where('id', '!=', (int) $editProductId);
+            }
+
+            if ($skuQuery->exists()) {
+                return back()
+                    ->withErrors(['sku' => 'That product SKU is already used in this store. Use a different SKU or edit the existing product.'])
+                    ->withInput($request->except(['product_images']));
+            }
         }
 
         $normalizedVariants = $this->normalizeCustomVariants(
@@ -294,9 +307,6 @@ class OnboardingController extends Controller
                 'product_type' => $validated['product_type'],
                 ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
-                'is_taxable' => $request->has('is_taxable')
-                    ? $request->boolean('is_taxable')
-                    : app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => true,
                 'meta' => [
                     'default_stock' => $validated['default_stock'],
@@ -307,7 +317,9 @@ class OnboardingController extends Controller
             ];
 
             if ($product) {
-                unset($productPayload['is_taxable']);
+                if (array_key_exists('is_taxable', $validated)) {
+                    $productPayload['is_taxable'] = (bool) $validated['is_taxable'];
+                }
                 $product->update($productPayload);
                 $product->variationTypes()->delete();
                 $product->variants()->delete();
@@ -315,6 +327,9 @@ class OnboardingController extends Controller
                 $product = Product::create($productPayload + [
                     'store_id' => $store->id,
                     'slug' => $this->uniqueProductSlug($store->id, $validated['name']),
+                    'is_taxable' => array_key_exists('is_taxable', $validated)
+                        ? (bool) $validated['is_taxable']
+                        : app(ProductTaxableDefaultResolver::class)->forStore($store),
                 ]);
             }
 
@@ -802,6 +817,7 @@ class OnboardingController extends Controller
             'base_price' => (float) $product->base_price,
             'sku' => $product->sku,
             'product_type' => $product->product_type,
+            'is_taxable' => (bool) $product->is_taxable,
             'brand_id' => $product->brand_id,
             'default_stock' => (int) ($meta['default_stock'] ?? 0),
             'stock_alert' => (int) ($meta['stock_alert'] ?? 0),
@@ -1907,8 +1923,8 @@ class OnboardingController extends Controller
                 'product_type' => $validated['product_type'],
                 ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
                 'brand_id' => $validated['brand_id'] ?? null,
-                'is_taxable' => $request->has('is_taxable')
-                    ? $request->boolean('is_taxable')
+                'is_taxable' => array_key_exists('is_taxable', $validated)
+                    ? (bool) $validated['is_taxable']
                     : app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => true,
                 'meta' => [

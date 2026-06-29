@@ -13,10 +13,15 @@ use Illuminate\Validation\ValidationException;
 
 class DraftOrderService
 {
-    public function create(Store $store, User $actor, array $data): DraftOrder
+    public function create(Store $store, User $actor, array $data, string $taxSource = DraftOrder::TAX_SOURCE_MANUAL): DraftOrder
     {
-        return DB::transaction(function () use ($store, $actor, $data): DraftOrder {
+        return DB::transaction(function () use ($store, $actor, $data, $taxSource): DraftOrder {
             $customer = $this->resolveCustomer($store, $data);
+
+            $addressMeta = $this->addressMetadata($data);
+            $metadata = $taxSource === DraftOrder::TAX_SOURCE_CALCULATED
+                ? array_merge($addressMeta, ['tax_source' => DraftOrder::TAX_SOURCE_CALCULATED])
+                : $this->manualTaxMetadata($addressMeta);
 
             $draft = DraftOrder::query()->create([
                 'store_id' => $store->id,
@@ -25,11 +30,13 @@ class DraftOrderService
                 'status' => DraftOrder::STATUS_DRAFT,
                 'currency' => $store->currency ?: 'USD',
                 'discount_total' => $this->money($data['discount_total'] ?? 0),
-                'tax_total' => $this->money($data['tax_total'] ?? 0),
+                'tax_total' => $taxSource === DraftOrder::TAX_SOURCE_CALCULATED
+                    ? '0.00'
+                    : $this->money($data['tax_total'] ?? 0),
                 'shipping_total' => $this->money($data['shipping_total'] ?? 0),
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $actor->id,
-                'metadata' => $this->manualTaxMetadata($this->addressMetadata($data)),
+                'metadata' => $metadata,
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);

@@ -25,7 +25,9 @@
 
 @section('content')
     @php
-        $currency = $selectedStore->currency ?? '$';
+        use App\Support\MoneyDisplay;
+
+        $currency = strtoupper(trim((string) ($order->currency_code ?: $selectedStore->currency ?: 'USD')));
         $shipping = $order->addresses->firstWhere('type', 'shipping');
         $billing = $order->addresses->firstWhere('type', 'billing');
         $customerName = $order->customer?->full_name ?? $order->customer_email ?? 'Guest customer';
@@ -142,7 +144,7 @@
                 </div>
                 <div class="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/90 to-white px-4 py-3 ring-1 ring-indigo-100/80">
                     <p class="text-xs font-semibold uppercase tracking-wide text-indigo-800/80">Total</p>
-                    <p class="mt-1.5 text-xl font-bold tabular-nums text-indigo-700 md:text-2xl">{{ $currency }}{{ number_format($displayTotal, 2) }}</p>
+                    <p class="mt-1.5 text-xl font-bold tabular-nums text-indigo-700 md:text-2xl">{{ MoneyDisplay::formatWithCode($displayTotal, $currency) }}</p>
                 </div>
             </div>
         </section>
@@ -188,11 +190,13 @@
                                     </div>
                                 </div>
                                 <div class="shrink-0 border-t border-slate-100 pt-3 text-left sm:border-0 sm:pt-0 sm:text-right">
-                                    <p class="text-sm text-slate-500">Qty {{ $item->quantity }} × {{ $currency }}{{ number_format((float) $item->unit_price, 2) }}</p>
+                                    <p class="text-sm text-slate-500">Qty {{ $item->quantity }} × {{ MoneyDisplay::formatWithCode($item->unit_price, $currency) }}</p>
                                     @if ((float) $item->tax_amount > 0)
-                                        <p class="mt-1 text-xs text-slate-500">Subtotal {{ $currency }}{{ number_format((float) $item->subtotal, 2) }} · Tax {{ $currency }}{{ number_format((float) $item->tax_amount, 2) }}</p>
+                                        <p class="mt-1 text-xs text-slate-500">Subtotal {{ MoneyDisplay::formatWithCode($item->subtotal, $currency) }} · Tax {{ MoneyDisplay::formatWithCode($item->tax_amount, $currency) }}</p>
+                                    @else
+                                        <p class="mt-1 text-xs text-slate-500">Subtotal {{ MoneyDisplay::formatWithCode($item->subtotal, $currency) }}</p>
                                     @endif
-                                    <p class="mt-1 text-lg font-bold tabular-nums text-slate-900 md:text-xl">{{ $currency }}{{ number_format((float) $item->total, 2) }}</p>
+                                    <p class="mt-1 text-lg font-bold tabular-nums text-slate-900 md:text-xl">{{ MoneyDisplay::formatWithCode($item->total, $currency) }}</p>
                                 </div>
                             </div>
                         @empty
@@ -225,34 +229,42 @@
                     <div class="mt-6 divide-y divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/50">
                         <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
                             <span>Subtotal</span>
-                            <span class="font-semibold tabular-nums">{{ $currency }}{{ number_format((float) $order->subtotal, 2) }}</span>
-                        </div>
-                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
-                            <span>Shipping</span>
-                            <span class="font-semibold tabular-nums">{{ $currency }}{{ number_format((float) $order->shipping, 2) }}</span>
-                        </div>
-                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
-                            <span>Tax</span>
-                            <span class="font-semibold tabular-nums">{{ $currency }}{{ number_format((float) $order->tax, 2) }}</span>
+                            <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatWithCode($order->subtotal, $currency) }}</span>
                         </div>
                         @if ((float) $order->discount > 0)
                             <div class="flex justify-between gap-4 px-4 py-3 text-sm text-emerald-800">
                                 <span>Discount</span>
-                                <span class="font-semibold tabular-nums">−{{ $currency }}{{ number_format((float) $order->discount, 2) }}</span>
+                                <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatDiscountWithCode($order->discount, $currency) }}</span>
                             </div>
                         @endif
+                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
+                            <span>Shipping</span>
+                            <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatWithCode($order->shipping, $currency) }}</span>
+                        </div>
+                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
+                            <span>
+                                Tax
+                                @isset($taxDisplay)
+                                    @if ($taxDisplay['compact_summary'] ?? null)
+                                        <span class="mt-0.5 block text-xs font-normal text-slate-500">{{ $taxDisplay['compact_summary'] }}</span>
+                                    @endif
+                                @endisset
+                            </span>
+                            <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatWithCode($order->tax, $currency) }}</span>
+                        </div>
                     </div>
 
                     <div class="mt-6 flex flex-wrap items-end justify-between gap-4 rounded-xl bg-indigo-50/70 px-4 py-4 ring-1 ring-indigo-100/80 md:px-5">
                         <span class="text-base font-semibold text-slate-900">Total</span>
-                        <span class="text-2xl font-bold tabular-nums text-indigo-800 md:text-3xl">{{ $currency }}{{ number_format($displayTotal, 2) }}</span>
+                        <span class="text-2xl font-bold tabular-nums text-indigo-800 md:text-3xl">{{ MoneyDisplay::formatWithCode($displayTotal, $currency) }}</span>
                     </div>
 
                     @isset($taxDisplay)
                         <div class="mt-6">
-                            @include('user_view.partials.tax_detail_breakdown', [
+                            @include('user_view.partials.tax_detail_disclosure', [
                                 'taxDisplay' => $taxDisplay,
                                 'currency' => $currency,
+                                'disclosureId' => 'order-tax-breakdown',
                                 'title' => 'Tax details',
                             ])
                         </div>

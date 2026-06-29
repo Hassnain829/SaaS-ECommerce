@@ -9,11 +9,13 @@ use App\Data\Tax\TaxCalculationResult;
 use App\Data\Tax\TaxLineItemInput;
 use App\Models\DraftOrder;
 use App\Models\DraftTaxLine;
+use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Services\Tax\TaxCalculator;
 use App\Support\Money\CurrencyPrecision;
+use App\Support\Tax\TaxDisplayPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +26,131 @@ class DraftTaxService
     public function __construct(
         private readonly TaxCalculator $taxCalculator,
     ) {}
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function previewFromFormPayload(Store $store, array $payload): array
+    {
+        $settings = TaxSetting::query()
+            ->where('store_id', $store->id)
+            ->first();
+
+        if (! $settings || ! $settings->enabled) {
+            return [
+                'ready' => false,
+                'guidance' => 'Enable platform tax in Tax settings to preview automatic tax.',
+            ];
+        }
+
+        $destination = new TaxAddressInput(
+            TaxRate::normalizeCountryCode($payload['shipping_country'] ?? ''),
+            TaxRate::normalizeRegionCode($payload['shipping_state'] ?? ''),
+        );
+
+        if ($destination->countryCode === '') {
+            return [
+                'ready' => false,
+                'guidance' => 'Enter a two-letter shipping country code (for example US) to preview automatic tax.',
+            ];
+        }
+
+        $currencyCode = (string) ($store->currency ?: 'USD');
+        $lineInputs = [];
+        $variantIds = collect($payload['items'] ?? [])
+            ->pluck('product_variant_id')
+            ->filter(fn ($id) => (int) $id > 0)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $variants = ProductVariant::query()
+            ->where('store_id', $store->id)
+            ->whereIn('id', $variantIds)
+            ->with('product')
+            ->get()
+            ->keyBy('id');
+
+        foreach ($payload['items'] ?? [] as $index => $row) {
+            $variantId = (int) ($row['product_variant_id'] ?? 0);
+            if ($variantId <= 0) {
+                continue;
+            }
+
+            $variant = $variants->get($variantId);
+            $quantity = max(1, (int) ($row['quantity'] ?? 1));
+            $unitPrice = number_format((float) ($row['unit_price'] ?? $variant?->price ?? 0), 2, '.', '');
+
+            $lineInputs[] = new TaxLineItemInput(
+                lineKey: 'preview:'.$index,
+                quantity: $quantity,
+                unitPrice: $unitPrice,
+                isTaxable: (bool) ($variant?->product?->is_taxable ?? true),
+            );
+        }
+
+        if ($lineInputs === []) {
+            return [
+                'ready' => false,
+                'guidance' => 'Add at least one product line to preview automatic tax.',
+            ];
+        }
+
+        $result = $this->taxCalculator->calculate(new TaxCalculationRequest(
+            store: $store,
+            settings: $settings,
+            currencyCode: $currencyCode,
+            items: $lineInputs,
+            shippingAmount: number_format((float) ($payload['shipping_total'] ?? 0), 2, '.', ''),
+            destination: $destination,
+        ));
+
+        $snapshot = [
+            'destination' => [
+                'country_code' => $destination->countryCode,
+                'region_code' => $destination->regionCode,
+            ],
+            'matched_rate' => $result->matchedRate ? [
+                'name' => $result->matchedRate->name,
+                'rate_percent' => $result->matchedRate->ratePercent,
+                'country_code' => $result->matchedRate->countryCode,
+                'region_code' => $result->matchedRate->regionCode,
+            ] : null,
+            'tax_calculation_skipped' => $result->taxCalculationSkipped,
+            'skip_reason' => $result->skipReason,
+            'prices_include_tax' => (bool) $settings->prices_include_tax,
+        ];
+
+        $discount = number_format((float) ($payload['discount_total'] ?? 0), 2, '.', '');
+        $estimatedTotal = $this->grandTotal(
+            subtotal: $result->itemsSubtotal,
+            shippingTotal: number_format((float) ($payload['shipping_total'] ?? 0), 2, '.', ''),
+            itemsTax: $result->itemsTax,
+            shippingTax: $result->shippingTax,
+            discountTotal: $discount,
+            pricesIncludeTax: (bool) $settings->prices_include_tax,
+            currencyCode: $currencyCode,
+        );
+
+        return [
+            'ready' => true,
+            'total_tax' => $result->totalTax,
+            'items_tax' => $result->itemsTax,
+            'shipping_tax' => $result->shippingTax,
+            'subtotal' => $result->itemsSubtotal,
+            'estimated_total' => $estimatedTotal,
+            'prices_include_tax' => (bool) $settings->prices_include_tax,
+            'destination_label' => TaxDisplayPresenter::destinationLabel($snapshot),
+            'matched_rate_label' => TaxDisplayPresenter::matchedRateLabel($snapshot),
+            'guidance' => TaxDisplayPresenter::calculationGuidance([
+                'source' => TaxDisplayPresenter::SOURCE_PLATFORM_CALCULATED,
+                'total_tax' => $result->totalTax,
+                'snapshot' => $snapshot,
+            ]),
+        ];
+    }
 
     public function calculate(DraftOrder $draft, Store $store): DraftOrder
     {
@@ -275,6 +402,7 @@ class DraftTaxService
 
         return [
             'tax_rate_id' => $matchedRate->taxRateId,
+            'name' => $matchedRate->name,
             'country_code' => $matchedRate->countryCode,
             'region_code' => $matchedRate->regionCode,
             'rate_percent' => $matchedRate->ratePercent,

@@ -32,6 +32,7 @@ class TaxDisplayPresenter
      *     total_tax: string,
      *     has_breakdown: bool,
      *     show_inclusive_note: bool,
+     *     compact_summary: ?string,
      * }
      */
     public static function forOrder(Order $order): array
@@ -46,7 +47,7 @@ class TaxDisplayPresenter
         $shippingTaxTotal = self::sumTaxLines($taxLines, OrderTaxLine::APPLIES_TO_SHIPPING);
 
         if ($source === self::SOURCE_EXTERNAL_PRESERVED) {
-            return [
+            return self::withCompactSummary([
                 'source' => $source,
                 'source_label' => 'Preserved from external checkout',
                 'snapshot' => $snapshot,
@@ -57,11 +58,11 @@ class TaxDisplayPresenter
                 'total_tax' => number_format((float) $order->tax, 2, '.', ''),
                 'has_breakdown' => false,
                 'show_inclusive_note' => false,
-            ];
+            ]);
         }
 
         if ($source === self::SOURCE_MANUAL) {
-            return [
+            return self::withCompactSummary([
                 'source' => $source,
                 'source_label' => 'Entered manually',
                 'snapshot' => $snapshot,
@@ -72,11 +73,11 @@ class TaxDisplayPresenter
                 'total_tax' => number_format((float) $order->tax, 2, '.', ''),
                 'has_breakdown' => false,
                 'show_inclusive_note' => false,
-            ];
+            ]);
         }
 
         if ($source === self::SOURCE_NONE) {
-            return [
+            return self::withCompactSummary([
                 'source' => $source,
                 'source_label' => 'No tax recorded',
                 'snapshot' => $snapshot,
@@ -87,11 +88,11 @@ class TaxDisplayPresenter
                 'total_tax' => number_format((float) $order->tax, 2, '.', ''),
                 'has_breakdown' => false,
                 'show_inclusive_note' => false,
-            ];
+            ]);
         }
 
         if ($taxLines->isEmpty() && $source === self::SOURCE_LEGACY) {
-            return [
+            return self::withCompactSummary([
                 'source' => $source,
                 'source_label' => 'Tax total only',
                 'snapshot' => $snapshot,
@@ -102,7 +103,7 @@ class TaxDisplayPresenter
                 'total_tax' => number_format((float) $order->tax, 2, '.', ''),
                 'has_breakdown' => false,
                 'show_inclusive_note' => false,
-            ];
+            ]);
         }
 
         if ($itemTaxTotal === '0.00' && $taxLines->isNotEmpty()) {
@@ -113,7 +114,7 @@ class TaxDisplayPresenter
             $shippingTaxTotal = number_format((float) $order->shipping_tax, 2, '.', '');
         }
 
-        return [
+        return self::withCompactSummary([
             'source' => self::SOURCE_PLATFORM_CALCULATED,
             'source_label' => 'Calculated by platform',
             'snapshot' => $snapshot,
@@ -124,7 +125,7 @@ class TaxDisplayPresenter
             'total_tax' => number_format((float) $order->tax, 2, '.', ''),
             'has_breakdown' => $taxLines->isNotEmpty() || $snapshot !== null,
             'show_inclusive_note' => $pricesIncludeTax,
-        ];
+        ]);
     }
 
     /**
@@ -139,6 +140,7 @@ class TaxDisplayPresenter
      *     total_tax: string,
      *     has_breakdown: bool,
      *     show_inclusive_note: bool,
+     *     compact_summary: ?string,
      * }
      */
     public static function forDraft(DraftOrder $draft): array
@@ -152,7 +154,7 @@ class TaxDisplayPresenter
         $pricesIncludeTax = (bool) data_get($snapshot, 'prices_include_tax', false);
 
         if ($source === self::SOURCE_MANUAL) {
-            return [
+            return self::withCompactSummary([
                 'source' => $source,
                 'source_label' => 'Manual tax',
                 'snapshot' => $snapshot,
@@ -163,7 +165,7 @@ class TaxDisplayPresenter
                 'total_tax' => number_format((float) $draft->tax_total, 2, '.', ''),
                 'has_breakdown' => false,
                 'show_inclusive_note' => false,
-            ];
+            ]);
         }
 
         $itemTaxTotal = self::sumTaxLines($taxLines, DraftTaxLine::APPLIES_TO_ITEMS);
@@ -173,7 +175,7 @@ class TaxDisplayPresenter
             $itemTaxTotal = number_format((float) $draft->items->sum('tax_amount'), 2, '.', '');
         }
 
-        return [
+        return self::withCompactSummary([
             'source' => self::SOURCE_PLATFORM_CALCULATED,
             'source_label' => 'Calculated from store settings',
             'snapshot' => $snapshot,
@@ -184,7 +186,73 @@ class TaxDisplayPresenter
             'total_tax' => number_format((float) $draft->tax_total, 2, '.', ''),
             'has_breakdown' => $taxLines->isNotEmpty() || $snapshot !== null,
             'show_inclusive_note' => $pricesIncludeTax,
-        ];
+            'calculation_guidance' => self::calculationGuidance([
+                'source' => self::SOURCE_PLATFORM_CALCULATED,
+                'total_tax' => number_format((float) $draft->tax_total, 2, '.', ''),
+                'snapshot' => $snapshot,
+            ]),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $taxDisplay
+     */
+    public static function calculationGuidance(array $taxDisplay): ?string
+    {
+        if (($taxDisplay['source'] ?? '') !== self::SOURCE_PLATFORM_CALCULATED) {
+            return null;
+        }
+
+        $snapshot = $taxDisplay['snapshot'] ?? null;
+
+        if (data_get($snapshot, 'tax_calculation_skipped')) {
+            return 'Add a valid two-letter shipping country code, then save the draft to calculate tax.';
+        }
+
+        if (bccomp((string) ($taxDisplay['total_tax'] ?? '0'), '0', 2) === 0 && ! is_array(data_get($snapshot, 'matched_rate'))) {
+            $destination = self::destinationLabel($snapshot) ?? 'this shipping address';
+
+            return "No active tax rate matches {$destination}. Use country and state codes that match a rate in Tax settings (for example US and NY).";
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private static function withCompactSummary(array $payload): array
+    {
+        $payload['compact_summary'] = self::compactSummaryLine(
+            (string) $payload['source'],
+            $payload['snapshot'] ?? null,
+            (string) $payload['total_tax']
+        );
+
+        return $payload;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $snapshot
+     */
+    public static function compactSummaryLine(string $source, ?array $snapshot, string $totalTax): ?string
+    {
+        if ($source === self::SOURCE_MANUAL || $source === self::SOURCE_NONE) {
+            return null;
+        }
+
+        if ($source === self::SOURCE_EXTERNAL_PRESERVED) {
+            return 'Preserved from external checkout';
+        }
+
+        if ($source === self::SOURCE_LEGACY) {
+            return 'Legacy total only';
+        }
+
+        $rateLabel = self::matchedRateLabel($snapshot);
+
+        return $rateLabel;
     }
 
     /**
