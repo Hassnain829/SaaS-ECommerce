@@ -31,6 +31,10 @@ class FedExValidationArtifact extends Model
 
     public const ROLE_TRADE_DOCUMENT = 'trade_document_sample';
 
+    public const ROLE_COMPREHENSIVE_RATE_SCREENSHOT = 'comprehensive_rate_screenshot';
+
+    public const TYPE_COMPREHENSIVE_RATE_RESULT_UI = 'comprehensive_rate_result_ui';
+
     public const DOC_COVER_SHEET = 'integrator_validation_cover_sheet';
 
     public const DOC_PIW = 'product_information_worksheet';

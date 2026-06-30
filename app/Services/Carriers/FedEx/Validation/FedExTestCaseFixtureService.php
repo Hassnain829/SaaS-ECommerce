@@ -11,8 +11,11 @@ class FedExTestCaseFixtureService
 {
     public const CACHE_KEY = 'fedex.integrator.test_case_fixtures';
 
+    public const COMPREHENSIVE_RATE_CASE_KEY = 'comprehensive_rate_baseline';
+
     public function __construct(
         private readonly FedExConfig $config,
+        private readonly FedExShipTestCaseFixtureService $shipFixtures,
     ) {}
 
     /**
@@ -93,6 +96,37 @@ class FedExTestCaseFixtureService
     public function swedenPassthroughAvailable(): bool
     {
         return $this->swedenMfaPassthroughAccount() !== null;
+    }
+
+    /**
+     * Locked comprehensive rate validation fixture derived from IntegratorUS02 baseline.
+     *
+     * @return array<string, mixed>
+     */
+    public function comprehensiveRateQuoteCase(): array
+    {
+        $us02 = $this->shipFixtures->fixture('IntegratorUS02');
+        $shipper = is_array($us02['shipper'] ?? null) ? $us02['shipper'] : [];
+        $recipient = is_array($us02['recipient'] ?? null) ? $us02['recipient'] : [];
+        $package = is_array($us02['packages'][0] ?? null) ? $us02['packages'][0] : [];
+
+        return [
+            'case_key' => self::COMPREHENSIVE_RATE_CASE_KEY,
+            'source' => $this->baselineAvailable() ? 'fedex_integrator_workbook' : 'fedex_ship_test_case_baseline',
+            'origin_country' => strtoupper((string) ($shipper['country_code'] ?? 'US')),
+            'destination_country' => strtoupper((string) ($recipient['country_code'] ?? 'US')),
+            'expected_service_type' => (string) ($us02['service_type'] ?? 'PRIORITY_OVERNIGHT'),
+            'expected_rate_type' => 'ACCOUNT',
+            'shipper' => $shipper,
+            'recipient' => $recipient,
+            'package' => $package,
+            'pickup_type' => 'DROPOFF_AT_FEDEX_LOCATION',
+            'packaging_type' => (string) ($us02['packaging_type'] ?? 'YOUR_PACKAGING'),
+            'rate_request_types' => ['ACCOUNT', 'LIST'],
+            'carrier_codes' => ['FDXE', 'FDXG'],
+            'rate_display_option' => 'SELECTED_RATES_EXCLUDING_F1R',
+            'return_transit_times' => true,
+        ];
     }
 
     private function resolveBaselinePath(): ?string

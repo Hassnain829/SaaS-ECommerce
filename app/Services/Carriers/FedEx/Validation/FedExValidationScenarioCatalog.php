@@ -3,6 +3,7 @@
 namespace App\Services\Carriers\FedEx\Validation;
 
 use App\Models\CarrierApiEvent;
+use App\Services\Carriers\FedEx\Support\FedExConfig;
 
 final class FedExValidationScenarioCatalog
 {
@@ -99,5 +100,21 @@ final class FedExValidationScenarioCatalog
     public static function scenarioKeyForTestCase(string $testCaseKey): ?string
     {
         return self::lockedShipScenarios()[$testCaseKey]['scenario_key'] ?? null;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    public static function comprehensiveRateScenario(): array
+    {
+        return [
+            CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE => [
+                'scenario_key' => CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE,
+                'label' => 'Comprehensive Rates & Transit Times',
+                'method' => 'POST',
+                'endpoint' => FedExConfig::COMPREHENSIVE_RATE_QUOTE_PATH,
+                'export_folder' => FedExComprehensiveRateEvidenceService::EXPORT_FOLDER,
+            ],
+        ];
     }
 }

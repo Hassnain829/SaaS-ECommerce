@@ -23,6 +23,7 @@ return [
         'address_validation_path' => env('FEDEX_ADDRESS_VALIDATION_PATH', '/address/v1/addresses/resolve'),
         'service_availability_path' => env('FEDEX_SERVICE_AVAILABILITY_PATH', '/availability/v1/packageandserviceoptions'),
         'rate_quote_path' => env('FEDEX_RATE_QUOTE_PATH', '/rate/v1/rates/quotes'),
+        'comprehensive_rate_quote_path' => env('FEDEX_COMPREHENSIVE_RATE_PATH', '/rate/v1/comprehensiverates/quotes'),
 
         // Deprecated — do not use: POST /irc/v2/customerkeys, /registration/v1/address/keysgeneration
         // Current Credential Registration API (FedEx Developer Portal): POST /registration/v2/address/keysgeneration

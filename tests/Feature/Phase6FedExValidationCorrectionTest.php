@@ -21,6 +21,7 @@ use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceExporter;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceSanitizer;
 use App\Services\Carriers\FedEx\Validation\FedExValidationPreflightService;
+use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScenarioCatalog;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScopeService;
 use Database\Seeders\CarrierSeeder;
@@ -502,23 +503,29 @@ class Phase6FedExValidationCorrectionTest extends TestCase
             'carrier_account_id' => $account->id,
             'provider' => CarrierAccount::PROVIDER_FEDEX,
             'action' => CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
-            'scenario_key' => 'rate_quote',
+            'scenario_key' => CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE,
             'status' => CarrierApiEvent::STATUS_FAILED,
             'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
             'http_status' => 403,
-            'error_code' => 'fedex_authorization_blocked',
-            'request_body_encrypted' => ['rateRequestControlParameters' => []],
-            'response_body_encrypted' => ['errors' => [['code' => 'FORBIDDEN.ERROR']]],
+            'http_method' => 'POST',
+            'endpoint' => FedExConfig::COMPREHENSIVE_RATE_QUOTE_PATH,
+            'error_code' => 'fedex_comprehensive_rate_blocked_entitlement',
+            'request_body_encrypted' => ['rateRequestControlParameters' => ['returnTransitTimes' => true]],
+            'response_body_encrypted' => ['errors' => [['code' => 'FORBIDDEN.ERROR', 'message' => 'Access denied']]],
+            'response_summary' => [
+                'access_state' => 'blocked_entitlement',
+                'fedex_error_code' => 'FORBIDDEN.ERROR',
+            ],
         ]);
 
         $check = collect(app(FedExValidationPreflightService::class)->assess(
             $store,
             $account,
             [FedExValidationScopeService::SCOPE_COMPREHENSIVE_RATES],
-        )['checks'])->firstWhere('key', 'rate_quote');
+        )['checks'])->firstWhere('key', 'comprehensive_rate_transaction');
 
         $this->assertSame('blocked', $check['status']);
-        $this->assertStringContainsString('Blocked — FedEx entitlement pending', (string) $check['explanation']);
+        $this->assertStringContainsString('Blocked — FedEx access required', (string) $check['explanation']);
     }
 
     public function test_validation_workspace_invoice_mfa_run_records_evidence(): void
@@ -677,10 +684,12 @@ class Phase6FedExValidationCorrectionTest extends TestCase
             'carrier_account_id' => $account->id,
             'provider' => CarrierAccount::PROVIDER_FEDEX,
             'action' => CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
-            'scenario_key' => 'rate_quote',
+            'scenario_key' => CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE,
             'status' => CarrierApiEvent::STATUS_FAILED,
             'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
             'http_status' => 403,
+            'http_method' => 'POST',
+            'endpoint' => FedExConfig::COMPREHENSIVE_RATE_QUOTE_PATH,
             'request_body_encrypted' => ['note' => 'child-secret-a leaked in request'],
             'response_body_encrypted' => ['errors' => []],
         ]);

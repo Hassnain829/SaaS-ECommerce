@@ -70,7 +70,7 @@
                         'registration' => 'Registration',
                         'address_validation' => 'Address validation',
                         'service_availability' => 'Service availability',
-                        'rate_quote' => 'Rate quote',
+                        'rate_quote' => 'Comprehensive rate quote',
                         'ship_validate' => 'Ship validate',
                         'ship_label_pdf' => 'Label PDF',
                         'ship_label_png' => 'Label PNG',

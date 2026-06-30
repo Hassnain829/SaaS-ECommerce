@@ -23,6 +23,7 @@ class FedExValidationEvidenceExporter
         private readonly FedExValidationEvidenceSanitizer $sanitizer,
         private readonly FedExValidationScopeService $scopeService,
         private readonly FedExHostedEulaEvidenceService $hostedEulaEvidence,
+        private readonly FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
         private readonly \App\Services\Carriers\FedEx\Connection\FedExEulaService $eulaService,
     ) {}
 
@@ -107,7 +108,7 @@ class FedExValidationEvidenceExporter
         File::ensureDirectoryExists($bundleDir.'/01_registration_mfa');
         File::ensureDirectoryExists($bundleDir.'/02_address_validation');
         File::ensureDirectoryExists($bundleDir.'/03_service_availability');
-        File::ensureDirectoryExists($bundleDir.'/04_rates');
+        File::ensureDirectoryExists($bundleDir.'/04_comprehensive_rates');
         File::ensureDirectoryExists($bundleDir.'/05_ship_us02_zplii/generated');
         File::ensureDirectoryExists($bundleDir.'/05_ship_us02_zplii/printed_scans');
         File::ensureDirectoryExists($bundleDir.'/06_ship_us04_png/generated');
@@ -126,7 +127,7 @@ class FedExValidationEvidenceExporter
         $this->exportRegistrationScenarios($bundleDir.'/01_registration_mfa', $store, $account, $preflight, $includeFailedAttempts);
         $this->exportScenarioEvent($bundleDir.'/02_address_validation', $this->resolveCheckEvent($store, $account, $preflight, 'address_validation', $includeFailedAttempts), $includeFailedAttempts, $mode);
         $this->exportScenarioEvent($bundleDir.'/03_service_availability', $this->resolveCheckEvent($store, $account, $preflight, 'service_availability', $includeFailedAttempts), $includeFailedAttempts, $mode);
-        $this->exportScenarioEvent($bundleDir.'/04_rates', $this->resolveCheckEvent($store, $account, $preflight, 'rate_quote', true), true, $mode);
+        $this->exportComprehensiveRates($bundleDir.'/04_comprehensive_rates', $store, $account, $preflight, $mode);
         $this->exportLockedShipScenario($bundleDir.'/05_ship_us02_zplii', $store, $account, 'IntegratorUS02', $preflight, $includeFailedAttempts, $mode);
         $this->exportLockedShipScenario($bundleDir.'/06_ship_us04_png', $store, $account, 'IntegratorUS04', $preflight, $includeFailedAttempts, $mode);
         $this->exportLockedShipScenario($bundleDir.'/07_ship_us05_pdf_mps', $store, $account, 'IntegratorUS05', $preflight, $includeFailedAttempts, $mode);
@@ -198,7 +199,7 @@ class FedExValidationEvidenceExporter
         return match ($checkKey) {
             'address_validation' => $this->evidenceQuery->canonicalEvent($store, $account, 'address_validation'),
             'service_availability' => $this->evidenceQuery->canonicalEvent($store, $account, 'service_availability'),
-            'rate_quote' => $this->evidenceQuery->canonicalEvent($store, $account, 'rate_quote'),
+            'comprehensive_rate_transaction' => $this->comprehensiveRateEvidence->canonicalEvent($store, $account),
             'tracking' => $this->evidenceQuery->canonicalEvent($store, $account, 'basic_integrated_visibility'),
             'ship_cancel' => $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'ship_cancel'),
             'trade_documents' => $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'trade_documents_upload'),
@@ -468,6 +469,46 @@ class FedExValidationEvidenceExporter
         $path = $artifact?->absolutePath();
         if ($path !== null && is_file($path)) {
             File::copy($path, $directory.'/tracking-screenshot.'.pathinfo($path, PATHINFO_EXTENSION));
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function exportComprehensiveRates(string $directory, Store $store, CarrierAccount $account, array $preflight, string $mode): void
+    {
+        File::ensureDirectoryExists($directory.'/screenshots');
+
+        $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', 'comprehensive_rate_transaction')['event_id'] ?? null;
+        $canonical = $eventId
+            ? $this->evidenceQuery->eventById($store, $account, (int) $eventId)
+            : $this->comprehensiveRateEvidence->canonicalEvent($store, $account);
+
+        $exportEvent = $canonical;
+        if ($exportEvent === null) {
+            $exportEvent = $this->comprehensiveRateEvidence->latestAccessBlocker($store, $account);
+        }
+
+        $this->exportScenarioEvent($directory, $exportEvent, true, $mode);
+        $this->writeJson(
+            $directory.'/result_summary.json',
+            $this->comprehensiveRateEvidence->exportResultSummary($exportEvent, $exportEvent !== null && ! $exportEvent->isSuccessfulHttp()),
+        );
+
+        if ($canonical !== null) {
+            $artifact = FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('carrier_api_event_id', $canonical->id)
+                ->where('artifact_role', FedExValidationArtifact::ROLE_COMPREHENSIVE_RATE_SCREENSHOT)
+                ->where('artifact_type', FedExValidationArtifact::TYPE_COMPREHENSIVE_RATE_RESULT_UI)
+                ->latest('id')
+                ->first();
+
+            $path = $artifact?->absolutePath();
+            if ($path !== null && is_file($path) && filled($artifact->sha256) && hash_file('sha256', $path) === (string) $artifact->sha256) {
+                File::copy($path, $directory.'/screenshots/01_customer_rate_result.'.pathinfo($path, PATHINFO_EXTENSION));
+            }
         }
     }
 

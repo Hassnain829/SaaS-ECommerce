@@ -5,12 +5,14 @@ namespace App\Services\Carriers\FedEx\Validation;
 use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Store;
+use App\Services\Carriers\FedEx\Support\FedExConfig;
 use Illuminate\Database\Eloquent\Builder;
 
 class FedExValidationEvidenceQueryService
 {
     public function __construct(
         private readonly FedExValidationAuthorizationEvidenceRules $authorizationEvidenceRules,
+        private readonly FedExConfig $config,
     ) {}
 
     public function canonicalAuthorizationEvent(
@@ -277,6 +279,70 @@ class FedExValidationEvidenceQueryService
             ->orderByDesc('id')
             ->get()
             ->first(fn (CarrierApiEvent $event): bool => $event->hasCompleteEvidence());
+    }
+
+    public function canonicalComprehensiveRateEvent(Store $store, CarrierAccount $account): ?CarrierApiEvent
+    {
+        return $this->baseQuery($store, $account)
+            ->where('scenario_key', CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE)
+            ->where('action', CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE)
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn (CarrierApiEvent $event): bool => $this->isValidComprehensiveRateSuccessEvent($event));
+    }
+
+    public function latestComprehensiveRateAccessBlocker(Store $store, CarrierAccount $account): ?CarrierApiEvent
+    {
+        return $this->baseQuery($store, $account)
+            ->where('scenario_key', CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE)
+            ->where('action', CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE)
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn (CarrierApiEvent $event): bool => $this->isValidComprehensiveRateBlockerEvent($event));
+    }
+
+    private function isValidComprehensiveRateSuccessEvent(CarrierApiEvent $event): bool
+    {
+        if (! $this->isValidComprehensiveRateEventBase($event)) {
+            return false;
+        }
+
+        if (! $event->isSuccessfulHttp() || $event->status !== CarrierApiEvent::STATUS_SUCCEEDED) {
+            return false;
+        }
+
+        $amount = data_get($event->response_summary, 'amount');
+        $currency = data_get($event->response_summary, 'currency');
+
+        return is_numeric($amount) && filled($currency);
+    }
+
+    private function isValidComprehensiveRateBlockerEvent(CarrierApiEvent $event): bool
+    {
+        if (! $this->isValidComprehensiveRateEventBase($event)) {
+            return false;
+        }
+
+        return (int) $event->http_status === 403
+            || in_array((string) $event->error_code, [
+                'fedex_comprehensive_rate_blocked_entitlement',
+                'fedex_comprehensive_rate_blocked_access',
+            ], true);
+    }
+
+    private function isValidComprehensiveRateEventBase(CarrierApiEvent $event): bool
+    {
+        if (! $event->hasCompleteEvidence()) {
+            return false;
+        }
+
+        if (strtoupper((string) $event->http_method) !== 'POST') {
+            return false;
+        }
+
+        $endpoint = '/'.ltrim((string) ($event->endpoint ?? data_get($event->request_summary, 'endpoint', '')), '/');
+
+        return $endpoint === FedExConfig::COMPREHENSIVE_RATE_QUOTE_PATH;
     }
 
     private function baseQuery(Store $store, CarrierAccount $account): Builder

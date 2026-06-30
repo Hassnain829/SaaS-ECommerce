@@ -4,9 +4,13 @@ namespace App\Http\Controllers\Carrier\Operations;
 
 use App\Http\Controllers\Controller;
 use App\Models\CarrierAccount;
+use App\Models\CarrierApiEvent;
 use App\Models\Location;
+use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Operations\FedExAddressValidationService;
 use App\Services\Carriers\FedEx\Operations\FedExBasicIntegratedVisibilityService;
+use App\Services\Carriers\FedEx\Operations\FedExComprehensiveRateAccessClassifier;
+use App\Services\Carriers\FedEx\Operations\FedExComprehensiveRateQuoteService;
 use App\Services\Carriers\FedEx\Operations\FedExDestinationInputValidator;
 use App\Services\Carriers\FedEx\Operations\FedExRateQuoteService;
 use App\Services\Carriers\FedEx\Operations\FedExServiceAvailabilityService;
@@ -187,11 +191,24 @@ class FedExCarrierTestController extends Controller
         Request $request,
         CarrierAccount $carrierAccount,
         FedExRateQuoteService $rateQuoteService,
+        FedExComprehensiveRateQuoteService $comprehensiveRateQuoteService,
         FedExDestinationInputValidator $destinationValidator,
+        FedExConfig $config,
         SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $account = $this->resolveMerchantFedExAccount($store, $carrierAccount);
+
+        if ($account->usesFedExIntegratorProvider()) {
+            return $this->testIntegratorComprehensiveRateQuote(
+                request: $request,
+                store: $store,
+                account: $account,
+                comprehensiveRateQuoteService: $comprehensiveRateQuoteService,
+                config: $config,
+                securityLogRecorder: $securityLogRecorder,
+            );
+        }
 
         $validated = $request->validate([
             'use_baseline' => ['nullable', 'boolean'],
@@ -521,6 +538,121 @@ class FedExCarrierTestController extends Controller
                 'tracking_number_last4' => $presentation['tracking_number_last4'] ?? null,
             ],
         );
+    }
+
+    private function testIntegratorComprehensiveRateQuote(
+        Request $request,
+        \App\Models\Store $store,
+        CarrierAccount $account,
+        FedExComprehensiveRateQuoteService $comprehensiveRateQuoteService,
+        FedExConfig $config,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $compResult = $comprehensiveRateQuoteService->quote(store: $store, account: $account);
+        $event = $compResult->eventId
+            ? CarrierApiEvent::query()->find($compResult->eventId)
+            : null;
+
+        $requestSummary = is_array($event?->request_summary) ? $event->request_summary : [
+            'endpoint' => $config->comprehensiveRateQuotePath(),
+            'fixture_case_key' => 'comprehensive_rate_baseline',
+        ];
+
+        $responseSummary = array_merge(
+            is_array($event?->response_summary) ? $event->response_summary : [],
+            array_filter([
+                'http_status' => $compResult->httpStatus,
+                'fedex_transaction_id' => $compResult->transactionId,
+                'access_state' => $compResult->accessState,
+                'errors' => $compResult->errors,
+            ]),
+        );
+
+        $presentation = [
+            'rates' => collect($compResult->availableRates)->map(fn (array $rate): array => [
+                'service_type' => $rate['service_type'] ?? null,
+                'service_name' => $rate['service_name'] ?? null,
+                'amount' => $rate['amount'] ?? null,
+                'currency' => $rate['currency'] ?? null,
+            ])->all(),
+            'rate_count' => count($compResult->availableRates),
+            'selected_service_type' => $compResult->serviceType,
+            'selected_rate_type' => $compResult->rateType,
+            'selected_amount' => $compResult->amount,
+            'selected_currency' => $compResult->currency,
+        ];
+
+        $result = $compResult->successful
+            ? CarrierApiResult::success(
+                data: is_array($event?->response_body_encrypted) ? $event->response_body_encrypted : null,
+                requestSummary: $requestSummary,
+                responseSummary: $responseSummary,
+            )
+            : CarrierApiResult::failure(
+                message: $this->comprehensiveRateFailureMessage($compResult),
+                code: match ($compResult->accessState) {
+                    FedExComprehensiveRateAccessClassifier::STATE_BLOCKED_ENTITLEMENT => 'fedex_comprehensive_rate_blocked_entitlement',
+                    FedExComprehensiveRateAccessClassifier::STATE_BLOCKED_ACCESS => 'fedex_comprehensive_rate_blocked_access',
+                    FedExComprehensiveRateAccessClassifier::STATE_FAILED_AUTHENTICATION => 'fedex_comprehensive_rate_auth_failed',
+                    default => 'fedex_comprehensive_rate_failed',
+                },
+                requestSummary: $requestSummary,
+                responseSummary: $responseSummary,
+            );
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.fedex_comprehensive_rate_quote_test',
+            store: $store,
+            metadata: [
+                'carrier_account_id' => $account->id,
+                'success' => $compResult->successful,
+                'http_status' => $compResult->httpStatus,
+                'access_state' => $compResult->accessState,
+                'endpoint' => $config->comprehensiveRateQuotePath(),
+                'event_id' => $compResult->eventId,
+            ],
+        );
+
+        $resultKind = $compResult->successful
+            ? 'success'
+            : (in_array($compResult->accessState, [
+                FedExComprehensiveRateAccessClassifier::STATE_BLOCKED_ENTITLEMENT,
+                FedExComprehensiveRateAccessClassifier::STATE_BLOCKED_ACCESS,
+            ], true) ? 'fedex_authorization_blocked' : 'failure');
+
+        return $this->responses->redirectWithFedExTestResult(
+            account: $account,
+            tool: 'rate_quote',
+            label: 'Comprehensive rate quote test',
+            result: $result,
+            presentation: $presentation,
+            inputSummary: [
+                'endpoint' => $config->comprehensiveRateQuotePath(),
+                'fixture' => 'Locked IntegratorUS02 baseline',
+                'expected_service' => $compResult->serviceType ?? 'PRIORITY_OVERNIGHT',
+                'expected_rate_type' => $compResult->rateType ?? 'ACCOUNT',
+            ],
+            resultKind: $resultKind,
+        );
+    }
+
+    private function comprehensiveRateFailureMessage(\App\Services\Carriers\FedEx\DTO\FedExComprehensiveRateResult $result): string
+    {
+        if ($result->accessState === FedExComprehensiveRateAccessClassifier::STATE_BLOCKED_ENTITLEMENT) {
+            return 'FedEx blocked Comprehensive Rates for this sandbox child credential. Review the sanitized response and confirm project access with FedEx if the payload is complete.';
+        }
+
+        if ($result->accessState === FedExComprehensiveRateAccessClassifier::STATE_FAILED_AUTHENTICATION) {
+            return 'FedEx rejected the child OAuth token for Comprehensive Rates. Reconnect the integrator child credentials or run the child authorization check first.';
+        }
+
+        if ($result->accessState === FedExComprehensiveRateAccessClassifier::STATE_FAILED_INVALID_REQUEST) {
+            return 'FedEx rejected the Comprehensive Rates request payload. Review the request evidence for missing or invalid fields — this is usually a local request-shape issue, not an entitlement issue.';
+        }
+
+        return $result->fedexErrorMessage
+            ?? 'FedEx Comprehensive Rates request did not complete successfully. Review the response evidence below.';
     }
 
     private function resolveStore(Request $request): \App\Models\Store

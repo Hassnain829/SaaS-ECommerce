@@ -10,7 +10,8 @@ use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
 use App\Services\Carriers\FedEx\Operations\FedExAddressValidationService;
 use App\Services\Carriers\FedEx\Operations\FedExBasicIntegratedVisibilityService;
-use App\Services\Carriers\FedEx\Operations\FedExRateQuoteService;
+use App\Services\Carriers\FedEx\Operations\FedExComprehensiveRateAccessClassifier;
+use App\Services\Carriers\FedEx\Operations\FedExComprehensiveRateQuoteService;
 use App\Services\Carriers\FedEx\Operations\FedExServiceAvailabilityService;
 use App\Services\Carriers\FedEx\Operations\FedExShipValidationService;
 use App\Services\Carriers\FedEx\Operations\FedExTradeDocumentsUploadService;
@@ -220,41 +221,51 @@ class FedExValidationRunController extends Controller
         Request $request,
         CarrierAccount $carrierAccount,
         FedExConfig $config,
-        FedExRateQuoteService $rateQuoteService,
-        FedExShipTestCaseFixtureService $fixtureService,
+        FedExComprehensiveRateQuoteService $comprehensiveRateQuoteService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->runComprehensiveRateQuote(
+            $request,
+            $carrierAccount,
+            $config,
+            $comprehensiveRateQuoteService,
+            $securityLogRecorder,
+        );
+    }
+
+    public function runComprehensiveRateQuote(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExComprehensiveRateQuoteService $comprehensiveRateQuoteService,
         SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
         $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
-        $origin = $this->resolveOriginLocation($account);
-        $fixture = $fixtureService->fixture('IntegratorUS02');
-        $recipient = $fixture['recipient'] ?? [];
-        $package = $fixture['packages'][0] ?? [];
 
-        ['result' => $result] = $rateQuoteService->quoteRate(
+        $result = $comprehensiveRateQuoteService->quote(
             store: $account->store,
             account: $account,
-            originLocation: $origin,
-            destinationInput: [
-                'country_code' => $recipient['country_code'] ?? 'US',
-                'postal_code' => $recipient['postal_code'] ?? '38017',
-                'state' => $recipient['state'] ?? 'TN',
-                'city' => $recipient['city'] ?? 'Collierville',
-            ],
-            packageInput: $package,
-            shipDate: now()->toDateString(),
-            serviceType: $fixture['service_type'] ?? 'FEDEX_GROUND',
-            residential: (bool) ($recipient['residential'] ?? false),
-            packagingType: $fixture['packaging_type'] ?? 'YOUR_PACKAGING',
         );
 
-        $securityLogRecorder->record($request, 'shipping.fedex_validation_run_rate_quote', store: $account->store, metadata: [
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_run_comprehensive_rate_quote', store: $account->store, metadata: [
             'carrier_account_id' => $account->id,
-            'success' => $result->success,
-            'http_status' => data_get($result->responseSummary, 'http_status'),
-            'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
+            'success' => $result->successful,
+            'http_status' => $result->httpStatus,
+            'access_state' => $result->accessState,
+            'event_id' => $result->eventId,
         ]);
 
-        return $this->redirectWithRunResult($account, 'Comprehensive rate quote', $result);
+        $message = match ($result->accessState) {
+            FedExComprehensiveRateAccessClassifier::STATE_BLOCKED_ENTITLEMENT,
+            FedExComprehensiveRateAccessClassifier::STATE_BLOCKED_ACCESS => 'Comprehensive Rates access is blocked by FedEx. Review the sanitized response evidence in the workspace.',
+            default => $result->successful
+                ? 'Comprehensive rate quote completed successfully.'
+                : 'Comprehensive rate quote did not complete successfully. Review the workspace evidence.',
+        };
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with($result->successful ? 'success' : 'warning', $message);
     }
 
     public function runLockedShipLabel(

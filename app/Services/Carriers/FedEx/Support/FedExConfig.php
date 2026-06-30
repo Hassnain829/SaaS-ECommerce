@@ -240,9 +240,21 @@ final class FedExConfig
         return (string) config('carriers.fedex.service_availability_path', '/availability/v1/packageandserviceoptions');
     }
 
+    public const COMPREHENSIVE_RATE_QUOTE_PATH = '/rate/v1/comprehensiverates/quotes';
+
     public function rateQuotePath(): string
     {
         return (string) config('carriers.fedex.rate_quote_path', '/rate/v1/rates/quotes');
+    }
+
+    public function comprehensiveRateQuotePath(): string
+    {
+        return (string) config('carriers.fedex.comprehensive_rate_quote_path', self::COMPREHENSIVE_RATE_QUOTE_PATH);
+    }
+
+    public function comprehensiveRateQuotePathConfigured(): bool
+    {
+        return $this->comprehensiveRateQuotePath() === self::COMPREHENSIVE_RATE_QUOTE_PATH;
     }
 
     public function accountRegistrationPath(?string $environment = null): string

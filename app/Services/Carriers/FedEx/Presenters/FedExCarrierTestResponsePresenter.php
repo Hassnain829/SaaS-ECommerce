@@ -123,13 +123,20 @@ final class FedExCarrierTestResponsePresenter
         $fedexCode = data_get($result->responseSummary, 'errors.0.code');
         $endpoint = data_get($result->requestSummary, 'endpoint');
 
+        $endpoint = data_get($result->requestSummary, 'endpoint');
+        $isLegacyRateEndpoint = is_string($endpoint) && str_contains($endpoint, '/rate/v1/rates/quotes');
+
         return collect([
             'FedEx authorization blocked (HTTP '.$httpStatus.')',
             'Tool: '.str($tool)->replace('_', ' ')->title(),
             'Endpoint: '.$endpoint,
             filled($fedexCode) ? 'FedEx error code: '.$fedexCode : null,
-            'This is a FedEx entitlement/validation blocker — not a local payload defect.',
-            'Next step: confirm API entitlement with FedEx integrator support before resubmitting validation evidence.',
+            $isLegacyRateEndpoint
+                ? 'Likely cause: wrong endpoint for integrator validation. Use /rate/v1/comprehensiverates/quotes instead of /rate/v1/rates/quotes.'
+                : 'Review the sanitized request/response evidence before contacting FedEx support.',
+            $isLegacyRateEndpoint
+                ? 'Next step: run the Comprehensive rate quote test or open the FedEx validation workspace.'
+                : 'Next step: confirm Comprehensive Rates access with FedEx integrator support only if the comprehensive endpoint and payload are already correct.',
         ])->filter()->implode("\n");
     }
 

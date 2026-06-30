@@ -42,17 +42,17 @@ class Phase6FedExValidationExportTest extends TestCase
             'carrier_account_id' => $account->id,
             'provider' => CarrierAccount::PROVIDER_FEDEX,
             'action' => CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
-            'scenario_key' => 'rate_quote',
+            'scenario_key' => CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE,
             'status' => CarrierApiEvent::STATUS_FAILED,
             'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
             'http_status' => 403,
-            'error_code' => 'fedex_authorization_blocked',
-            'endpoint' => '/rate/v1/rates/quotes',
+            'error_code' => 'fedex_comprehensive_rate_blocked_entitlement',
+            'endpoint' => \App\Services\Carriers\FedEx\Support\FedExConfig::COMPREHENSIVE_RATE_QUOTE_PATH,
             'http_method' => 'POST',
             'request_body_encrypted' => ['rateRequestControlParameters' => ['returnTransitTimes' => true]],
             'response_body_encrypted' => ['errors' => [['code' => 'FORBIDDEN.ERROR', 'message' => 'Not authorized']]],
-            'request_summary' => ['endpoint' => '/rate/v1/rates/quotes'],
-            'response_summary' => ['http_status' => 403, 'authorization_blocked' => true],
+            'request_summary' => ['endpoint' => \App\Services\Carriers\FedEx\Support\FedExConfig::COMPREHENSIVE_RATE_QUOTE_PATH],
+            'response_summary' => ['http_status' => 403, 'access_state' => 'blocked_entitlement', 'fedex_error_code' => 'FORBIDDEN.ERROR'],
         ]);
 
         $zipPath = app(FedExValidationEvidenceExporter::class)->exportDiagnostic(
@@ -64,7 +64,7 @@ class Phase6FedExValidationExportTest extends TestCase
         $zip = new ZipArchive;
         $zip->open($zipPath);
         $readme = (string) $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/README.md');
-        $rateResponse = (string) $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/04_rates/response.json');
+        $rateResponse = (string) $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/04_comprehensive_rates/response.json');
         $preflight = (string) $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/preflight-report.json');
         $zip->close();
 
@@ -85,11 +85,13 @@ class Phase6FedExValidationExportTest extends TestCase
             'carrier_account_id' => $account->id,
             'provider' => CarrierAccount::PROVIDER_FEDEX,
             'action' => CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
-            'scenario_key' => 'rate_quote',
+            'scenario_key' => CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE,
             'status' => CarrierApiEvent::STATUS_FAILED,
             'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
             'http_status' => 403,
-            'error_code' => 'fedex_authorization_blocked',
+            'error_code' => 'fedex_comprehensive_rate_blocked_entitlement',
+            'endpoint' => \App\Services\Carriers\FedEx\Support\FedExConfig::COMPREHENSIVE_RATE_QUOTE_PATH,
+            'http_method' => 'POST',
             'request_body_encrypted' => ['rateRequestControlParameters' => []],
             'response_body_encrypted' => ['errors' => [['code' => 'FORBIDDEN.ERROR']]],
         ]);

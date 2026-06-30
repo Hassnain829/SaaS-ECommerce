@@ -257,7 +257,6 @@
                 @foreach ([
                     ['key' => 'address_validation', 'label' => 'Address Validation', 'route' => 'settings.shipping.carrier-accounts.fedex.validation.run.address', 'baseline' => 'IntegratorUS02 recipient baseline'],
                     ['key' => 'service_availability', 'label' => 'Service Availability', 'route' => 'settings.shipping.carrier-accounts.fedex.validation.run.service-availability', 'baseline' => 'Default origin to IntegratorUS02 destination'],
-                    ['key' => 'rate_quote', 'label' => 'Comprehensive Rate Quote', 'route' => 'settings.shipping.carrier-accounts.fedex.validation.run.rate', 'baseline' => 'IntegratorUS02 package baseline'],
                 ] as $card)
                     <article class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                         <div class="flex items-start justify-between gap-2">
@@ -274,6 +273,92 @@
                     </article>
                 @endforeach
             </div>
+        </section>
+
+        @php($comprehensiveRate = $comprehensiveRateStatus ?? [])
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-[#0F172A]">Comprehensive Rates &amp; Transit Times</h3>
+            <p class="mt-1 text-sm text-[#64748B]">One-click locked baseline quote on the required FedEx Comprehensive Rates endpoint.</p>
+            <div class="mt-4 grid gap-3 md:grid-cols-2">
+                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Endpoint</p>
+                    <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $comprehensiveRate['endpoint'] ?? '/rate/v1/comprehensiverates/quotes' }}</p>
+                </div>
+                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Fixture</p>
+                    <p class="mt-1 text-sm font-semibold text-[#0F172A]">Locked FedEx baseline (IntegratorUS02 package)</p>
+                </div>
+                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">HTTP transaction</p>
+                    <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ str($comprehensiveRate['transaction_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</p>
+                </div>
+                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">UI/response match</p>
+                    <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ ($comprehensiveRate['ui_matches_response'] ?? false) ? 'Passed' : (($comprehensiveRate['transaction_status'] ?? '') === 'passed' ? 'Failed' : 'Not tested') }}</p>
+                </div>
+            </div>
+
+            @if (($comprehensiveRate['transaction_status'] ?? '') === 'blocked')
+                <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p class="font-semibold">Comprehensive Rates access is blocked by FedEx.</p>
+                    <p class="mt-2">The request was sent to the required Comprehensive Rates endpoint. Review the sanitized response evidence and contact the FedEx validation or project-access team.</p>
+                    @if (! empty($comprehensiveRate['event']))
+                        <ul class="mt-3 space-y-1 text-xs">
+                            <li>HTTP status: {{ $comprehensiveRate['event']->http_status ?? '403' }}</li>
+                            <li>FedEx error: {{ data_get($comprehensiveRate['event']->response_summary, 'fedex_error_code', '—') }}</li>
+                            <li>Event ID: {{ $comprehensiveRate['event']->id }}</li>
+                        </ul>
+                    @endif
+                </div>
+            @elseif (($comprehensiveRate['transaction_status'] ?? '') === 'passed')
+                <div class="mt-4 rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] p-4">
+                    <p class="text-sm font-semibold text-[#166534]">Customer rate result</p>
+                    <p class="mt-2 text-2xl font-bold text-[#0F172A]">{{ $comprehensiveRate['display_currency'] ?? 'USD' }} {{ $comprehensiveRate['display_amount'] ?? '—' }}</p>
+                    <p class="mt-1 text-sm text-[#475569]">{{ $comprehensiveRate['display_service_type'] ?? 'Service' }} · {{ $comprehensiveRate['display_rate_type'] ?? 'ACCOUNT' }} rate</p>
+                    @if (! empty($comprehensiveRate['available_rates']))
+                        <div class="mt-4 overflow-x-auto">
+                            <table class="min-w-full text-left text-xs">
+                                <thead class="text-[#64748B]">
+                                    <tr>
+                                        <th class="py-1 pr-3">Service</th>
+                                        <th class="py-1 pr-3">Rate type</th>
+                                        <th class="py-1">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($comprehensiveRate['available_rates'] as $rateOption)
+                                        <tr class="border-t border-[#DCFCE7] {{ ($rateOption['service_type'] ?? null) === ($comprehensiveRate['display_service_type'] ?? null) && ($rateOption['rate_type'] ?? null) === ($comprehensiveRate['display_rate_type'] ?? null) ? 'font-bold' : '' }}">
+                                            <td class="py-2 pr-3">{{ $rateOption['service_name'] ?? $rateOption['service_type'] ?? 'Service' }}</td>
+                                            <td class="py-2 pr-3">{{ $rateOption['rate_type'] ?? '—' }}</td>
+                                            <td class="py-2">{{ $rateOption['currency'] ?? 'USD' }} {{ $rateOption['amount'] ?? '—' }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.comprehensive-rate', $account) }}" class="mt-4" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                @csrf
+                <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Comprehensive Rate Quote</button>
+            </form>
+
+            @if (! empty($comprehensiveRate['canonical_event']))
+                <div class="mt-6 border-t border-[#E2E8F0] pt-4">
+                    <p class="text-sm font-semibold text-[#0F172A]">Comprehensive rate result screenshot</p>
+                    <p class="mt-1 text-xs text-[#64748B]">Upload a screenshot of the customer-facing rate result panel above. PNG, JPG, or PDF only.</p>
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.comprehensive-rate-screenshot.upload', $account) }}" enctype="multipart/form-data" class="mt-4 flex flex-wrap items-end gap-3">
+                        @csrf
+                        <label class="block space-y-1 text-sm">
+                            <span class="font-semibold text-[#475569]">Screenshot file</span>
+                            <input type="file" name="screenshot" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-sm">
+                        </label>
+                        <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Upload Rate Screenshot</button>
+                    </form>
+                </div>
+            @endif
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">

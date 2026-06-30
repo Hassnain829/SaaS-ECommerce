@@ -8,6 +8,7 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\FedExValidationArtifact;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Validation\FedExComprehensiveRateEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExHostedEulaEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceQueryService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScenarioCatalog;
@@ -291,6 +292,63 @@ class FedExValidationArtifactController extends Controller
         return redirect()
             ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
             ->with('success', 'Sweden passthrough screenshots uploaded.');
+    }
+
+    public function uploadComprehensiveRateScreenshot(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+        $store = $account->store;
+
+        $validated = $request->validate([
+            'screenshot' => ['required', 'file', 'mimes:pdf,png,jpg,jpeg', 'max:20480'],
+        ]);
+
+        $canonical = $comprehensiveRateEvidence->canonicalEvent($store, $account);
+        abort_unless($canonical !== null, 422, 'Upload a comprehensive rate screenshot only after a successful canonical rate event exists.');
+
+        $metadata = [
+            'scenario_key' => $canonical->scenario_key,
+            'service_type' => data_get($canonical->response_summary, 'service_type'),
+            'rate_type' => data_get($canonical->response_summary, 'rate_type'),
+            'currency' => data_get($canonical->response_summary, 'currency'),
+            'amount' => data_get($canonical->response_summary, 'amount'),
+        ];
+
+        FedExValidationArtifact::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('carrier_api_event_id', $canonical->id)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_COMPREHENSIVE_RATE_SCREENSHOT)
+            ->delete();
+
+        $this->storeUploadedFile(
+            account: $account,
+            file: $request->file('screenshot'),
+            artifactType: FedExValidationArtifact::TYPE_COMPREHENSIVE_RATE_RESULT_UI,
+            role: FedExValidationArtifact::ROLE_COMPREHENSIVE_RATE_SCREENSHOT,
+            actorId: $request->user()?->id,
+            extra: [
+                'carrier_api_event_id' => $canonical->id,
+                'scenario_key' => $canonical->scenario_key,
+                'metadata_json' => $metadata,
+            ],
+        );
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_comprehensive_rate_screenshot_upload', store: $store, metadata: [
+            'carrier_account_id' => $account->id,
+            'rate_event_id' => $canonical->id,
+            'currency' => $metadata['currency'],
+            'amount' => $metadata['amount'],
+        ]);
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('success', 'Comprehensive rate screenshot uploaded.');
     }
 
     public function download(

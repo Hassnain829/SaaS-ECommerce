@@ -36,7 +36,7 @@ class FedExValidationStatusPresenter
             'registration' => $this->aggregateRegistrationStatus($checksByKey),
             'address_validation' => $this->checkStatus($checksByKey->get('address_validation'), 'address_validation', $store, $account, CarrierApiEvent::ACTION_FEDEX_ADDRESS_VALIDATION),
             'service_availability' => $this->checkStatus($checksByKey->get('service_availability'), 'service_availability', $store, $account, CarrierApiEvent::ACTION_FEDEX_SERVICE_AVAILABILITY),
-            'rate_quote' => $this->rateQuoteStatus($checksByKey->get('rate_quote'), $store, $account),
+            'rate_quote' => $this->comprehensiveRateStatus($checksByKey, $store, $account),
             'ship_validate' => $this->shipValidateStatus($store, $account),
             'ship_label_zpl' => $this->lockedShipLabelStatus($checksByKey, 'IntegratorUS02', 'ship_us02_zplii', $store, $account),
             'ship_label_png' => $this->lockedShipLabelStatus($checksByKey, 'IntegratorUS04', 'ship_us04_png', $store, $account),
@@ -145,6 +145,56 @@ class FedExValidationStatusPresenter
                 ->pluck('explanation')
                 ->filter()
                 ->first(),
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<string, array<string, mixed>>  $checksByKey
+     * @return array<string, mixed>
+     */
+    private function comprehensiveRateStatus(\Illuminate\Support\Collection $checksByKey, Store $store, CarrierAccount $account): array
+    {
+        $transaction = $checksByKey->get('comprehensive_rate_transaction');
+        $statusKey = (string) ($transaction['status'] ?? 'not_tested');
+
+        if ($statusKey === 'passed') {
+            $uiMatch = $checksByKey->get('comprehensive_rate_ui_match');
+            $screenshot = $checksByKey->get('comprehensive_rate_screenshot');
+            $inProgress = ($uiMatch['status'] ?? '') !== 'passed' || ($screenshot['status'] ?? '') !== 'passed';
+
+            return [
+                'status' => $inProgress ? 'in_progress' : 'passed',
+                'label' => $inProgress ? 'Comprehensive rate evidence incomplete' : 'Passed',
+                'http_status' => 200,
+                'detail' => $inProgress
+                    ? 'Comprehensive rate transaction succeeded. Upload screenshot evidence and confirm UI/response match in the validation workspace.'
+                    : null,
+            ];
+        }
+
+        if ($statusKey === 'blocked') {
+            return [
+                'status' => 'blocked',
+                'label' => 'Blocked — FedEx access required',
+                'http_status' => 403,
+                'detail' => $transaction['explanation'] ?? 'Comprehensive Rates access is blocked by FedEx.',
+            ];
+        }
+
+        if (in_array($statusKey, ['failed', 'incomplete'], true)) {
+            return [
+                'status' => 'failed',
+                'label' => 'Comprehensive rate failed',
+                'http_status' => null,
+                'detail' => $transaction['explanation'] ?? 'Comprehensive rate evidence is incomplete.',
+            ];
+        }
+
+        return [
+            'status' => 'not_run',
+            'label' => 'Not run',
+            'http_status' => null,
+            'detail' => 'Run Comprehensive Rates from the validation workspace or the one-click comprehensive rate test below.',
         ];
     }
 

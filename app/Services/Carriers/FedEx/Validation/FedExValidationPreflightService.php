@@ -17,6 +17,7 @@ class FedExValidationPreflightService
         private readonly FedExValidationEvidenceSanitizer $sanitizer,
         private readonly FedExValidationAuthorizationEvidenceRules $authorizationEvidenceRules,
         private readonly FedExHostedEulaEvidenceService $hostedEulaEvidence,
+        private readonly FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
     ) {}
 
     /**
@@ -90,12 +91,20 @@ class FedExValidationPreflightService
         }
 
         if (in_array(FedExValidationScopeService::SCOPE_COMPREHENSIVE_RATES, $scopes, true)) {
-            $rateEvent = $this->evidenceQuery->latestCompleteEvent($store, $account, 'rate_quote');
+            $canonicalRate = $this->comprehensiveRateEvidence->canonicalEvent($store, $account);
+            $blockerRate = $canonicalRate === null
+                ? $this->comprehensiveRateEvidence->latestAccessBlocker($store, $account)
+                : null;
 
-            $rateCheck = $this->rateQuoteCheck($rateEvent);
-            $checks[] = $rateCheck;
-            if ($rateCheck['required'] && $rateCheck['status'] !== 'passed') {
-                $blockers[] = $rateCheck;
+            foreach ([
+                $this->comprehensiveRateEvidence->transactionCheck($canonicalRate, $blockerRate),
+                $this->comprehensiveRateEvidence->uiMatchCheck($canonicalRate),
+                $this->comprehensiveRateEvidence->screenshotCheck($store, $account, $canonicalRate),
+            ] as $rateCheck) {
+                $checks[] = $rateCheck;
+                if ($rateCheck['required'] && $rateCheck['status'] !== 'passed') {
+                    $blockers[] = $rateCheck;
+                }
             }
         }
 
@@ -403,45 +412,6 @@ class FedExValidationPreflightService
                 ? 'API evidence recorded.'
                 : 'Run the '.$label.' tool and record evidence.',
             'event_id' => $event?->id,
-        ];
-    }
-
-    private function rateQuoteCheck(?CarrierApiEvent $event): array
-    {
-        if ($event === null) {
-            return [
-                'key' => 'rate_quote',
-                'category' => 'api',
-                'label' => 'Comprehensive Rate Quote',
-                'required' => true,
-                'status' => 'not_tested',
-                'explanation' => 'Run the rate quote test before final export.',
-                'event_id' => null,
-            ];
-        }
-
-        if ((int) $event->http_status === 403 || $event->error_code === 'fedex_authorization_blocked') {
-            return [
-                'key' => 'rate_quote',
-                'category' => 'api',
-                'label' => 'Comprehensive Rate Quote',
-                'required' => true,
-                'status' => 'blocked',
-                'explanation' => 'Blocked — FedEx entitlement pending. FedEx sandbox entitlement blocker (HTTP 403). Final export remains blocked until FedEx enables Comprehensive Rates for this account.',
-                'event_id' => $event->id,
-            ];
-        }
-
-        return [
-            'key' => 'rate_quote',
-            'category' => 'api',
-            'label' => 'Comprehensive Rate Quote',
-            'required' => true,
-            'status' => $this->eventEvidenceStatus($event, requireSuccess: true),
-            'explanation' => $event->isSuccessfulHttp()
-                ? 'Successful rate quote evidence recorded.'
-                : 'Rate quote must return HTTP 2xx with complete evidence before final export.',
-            'event_id' => $event->id,
         ];
     }
 

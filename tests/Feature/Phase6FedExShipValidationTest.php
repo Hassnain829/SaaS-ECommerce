@@ -263,18 +263,18 @@ class Phase6FedExShipValidationTest extends TestCase
             'carrier_account_id' => $account->id,
             'provider' => CarrierAccount::PROVIDER_FEDEX,
             'action' => CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
-            'scenario_key' => 'rate_quote',
+            'scenario_key' => CarrierApiEvent::SCENARIO_RATE_COMPREHENSIVE_QUOTE,
             'status' => CarrierApiEvent::STATUS_FAILED,
             'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
             'http_status' => 403,
-            'error_code' => 'fedex_authorization_blocked',
-            'endpoint' => '/rate/v1/rates/quotes',
+            'error_code' => 'fedex_comprehensive_rate_blocked_entitlement',
+            'endpoint' => '/rate/v1/comprehensiverates/quotes',
             'http_method' => 'POST',
             'request_body_encrypted' => ['rateRequestControlParameters' => ['returnTransitTimes' => true]],
             'response_body_encrypted' => ['errors' => [['code' => 'FORBIDDEN.ERROR', 'message' => 'Not authorized']]],
-            'request_summary' => ['endpoint' => '/rate/v1/rates/quotes', 'test_quote_only' => true],
-            'response_summary' => ['http_status' => 403, 'authorization_blocked' => true],
-            'error_message' => 'FedEx authorization blocked',
+            'request_summary' => ['endpoint' => '/rate/v1/comprehensiverates/quotes', 'test_quote_only' => true],
+            'response_summary' => ['http_status' => 403, 'access_state' => 'blocked_entitlement', 'fedex_error_code' => 'FORBIDDEN.ERROR'],
+            'error_message' => 'Comprehensive Rates access blocked',
         ]);
 
         $zipPath = app(FedExValidationEvidenceExporter::class)->export(
@@ -286,7 +286,7 @@ class Phase6FedExShipValidationTest extends TestCase
 
         $zip = new ZipArchive;
         $zip->open($zipPath);
-        $rateQuoteJson = (string) $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/04_rates/response.json');
+        $rateQuoteJson = (string) $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/04_comprehensive_rates/response.json');
         $zip->close();
 
         $this->assertStringNotContainsString('placeholder', $rateQuoteJson);

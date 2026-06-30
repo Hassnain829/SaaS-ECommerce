@@ -1,8 +1,8 @@
-# FedEx Integrator Validation — Packages 1–4 Session Report
+# FedEx Integrator Validation — Packages 1–5 Session Report
 
 **Date:** 30 June 2026 (updated)  
 **Scope:** FedEx Model A integrator validation workspace — **Demo Digital** store (#2), sandbox account ending **7037** (`700257037`)  
-**Status:** Packages 1–4 implemented and verified; diagnostic ZIP reviewed; final submission still blocked on remaining checklist items.
+**Status:** Packages 1–5 implemented and verified; latest diagnostic ZIP reviewed; final submission still blocked on remaining checklist items (ship labels, MFA, documents, etc.).
 
 ---
 
@@ -16,17 +16,20 @@ This session completed guided implementation packages for FedEx integrator valid
 | **2** | Parent + Child OAuth authorization (one-click, fresh network calls) | Done |
 | **3** | Sweden MFA Passthrough (validation-only, no account mutation) | Done |
 | **4** | Official Hosted FedEx EULA (PDF.js viewer, scroll/accept, export folder) | Done |
+| **5** | Comprehensive Rates & Transit Times (correct endpoint, UI match, screenshot evidence) | Done |
 | **Hardening** | Secret scan, OAuth preflight strictness, export regression tests | Done |
 
 Sweden MFA Passthrough was unblocked by correcting the workbook address format: street line must be `HAGAGATAN 1, VI` (comma included), not `VI` as a separate state field.
 
-**Latest diagnostic ZIP reviewed:** `fedex-validation-diagnostic-2-20260629_225513.zip` — structure and Package 1–4 evidence are **correct for diagnostic export**. Final FedEx submission is **not yet ready** (`ready: false`, 14/38 checks).
+Package 5 was unblocked by switching certification evidence from the legacy standard Rate API (`POST /rate/v1/rates/quotes`) to the **Comprehensive Rates** endpoint required by the integrator child OAuth scope (`POST /rate/v1/comprehensiverates/quotes`). Live sandbox run returned HTTP **200**, **PRIORITY_OVERNIGHT**, **ACCOUNT** rate **USD 159.42**, with UI/response match and screenshot uploaded.
+
+**Latest diagnostic ZIP reviewed:** `fedex-validation-diagnostic-2-20260630_000019.zip` — structure and Package 1–5 evidence are **correct for diagnostic export**. Final FedEx submission is **not yet ready** (`ready: false`, **17/40** checks, 43%).
 
 ---
 
-## Diagnostic ZIP verification (29 Jun 2026)
+## Diagnostic ZIP verification (30 Jun 2026 — latest)
 
-**File:** `fedex-validation-diagnostic-2-20260629_225513.zip`  
+**File:** `fedex-validation-diagnostic-2-20260630_000019.zip`  
 **Store / account (from README):** Demo Digital (#2), carrier *****7037  
 **Mode:** diagnostic — `INCOMPLETE — NOT READY FOR FEDEX SUBMISSION`
 
@@ -38,14 +41,60 @@ Sweden MFA Passthrough was unblocked by correcting the workbook address format: 
 | Child authorization | `01_registration_mfa/02_child_authorization/` | OK — `grant_type: csp_credentials`, child fields redacted |
 | Registration MFA events | `03`–`11` folders | OK — SMS PIN, invoice, child credentials present |
 | Sweden passthrough | `12_sweden_mfa_passthrough/` | OK — address `HAGAGATAN 1, VI`, `direct_child_authorization: passed` |
-| **Hosted EULA (Package 4)** | `13_hosted_eula/` | OK — see below |
+| **Hosted EULA (Package 4)** | `13_hosted_eula/` | OK — official PDF, acceptance record, UI screenshots |
 | Address / service API | `02_`, `03_` | OK |
-| Rate quote | `04_rates/` | OK — HTTP 403 entitlement documented (expected blocker) |
+| **Comprehensive rates (Package 5)** | `04_comprehensive_rates/` | OK — see below |
 | Ship scenarios | `05`–`07` | Placeholder `missing` — labels not run yet (expected) |
-| Secret scan | All JSON | OK — no raw tokens, account numbers, or child secrets found |
-| Preflight report | `preflight-report.json` | OK — honest 14/38 complete |
+| Secret scan | All JSON | OK — Authorization headers redacted; no raw tokens or child secrets |
+| Preflight report | `preflight-report.json` | OK — honest **17/40** complete |
 
-### Package 4 folder — passed
+### Package 5 folder — passed
+
+```
+04_comprehensive_rates/
+├── request.json              (IntegratorUS02 fixture — Aurora OH → Collierville TN)
+├── response.json             (HTTP 200, transactionId present, rateReplyDetails)
+├── result_summary.json       (canonical parsed amount + UI match flags)
+└── 01_customer_rate_result.png (169,296 bytes — merchant-uploaded screenshot)
+```
+
+**Canonical event:** `event_id: 42`, scenario `rate_comprehensive_quote`  
+**Endpoint:** `POST /rate/v1/comprehensiverates/quotes`  
+**HTTP status:** 200  
+**Service:** PRIORITY_OVERNIGHT · **Rate type:** ACCOUNT · **Currency:** USD · **Amount:** **159.42**  
+**UI match:** `ui_matches_response: true`, `displayed_amount` = `response_amount` = `159.42`  
+**Submission ready:** `submission_ready: true`
+
+**Request highlights (locked fixture):**
+
+- `rateRequestControlParameters.returnTransitTimes: true`
+- `rateRequestControlParameters.servicesNeededOnRateFailure: true`
+- Shipper: Aurora OH 44202 → Recipient: Collierville TN 38017
+- Service: PRIORITY_OVERNIGHT · Pickup: DROPOFF_AT_FEDEX_LOCATION · Packaging: YOUR_PACKAGING
+
+**Merchant verification (30 Jun 2026):** Shipping automation comprehensive rate test **Passed**; validation workspace shows HTTP transaction **Passed**, UI/response match **Passed**, and comprehensive rate screenshot **uploaded** on Demo Digital.
+
+### Preflight — Package 1–5 checks in this ZIP
+
+| Check | Status |
+|-------|--------|
+| Parent / Child authorization | passed |
+| Sweden passthrough address + child auth | passed |
+| Hosted EULA (document + acceptance + UI + confirmation) | passed |
+| **Comprehensive rate transaction** | **passed** (event 42) |
+| **Comprehensive rate UI/response match** | **passed** (event 42) |
+| **Comprehensive rate screenshot** | **passed** (artifact 5) |
+| Sweden passthrough screenshots | **incomplete** (upload pending on workspace) |
+| Registration address validation | **failed** (event 31 — re-run needed) |
+| Ship labels / scans / tracking / 3 PDFs | **incomplete / not_tested** |
+
+**Conclusion:** The ZIP is a **valid diagnostic bundle** for progress review including Package 5. It is **not** the final FedEx submission package until remaining blockers are cleared and **Export final FedEx package** passes preflight.
+
+### Previous diagnostic ZIP (29 Jun 2026 — superseded for rates)
+
+**File:** `fedex-validation-diagnostic-2-20260629_225513.zip` — contained legacy `04_rates/` with HTTP **403** on `POST /rate/v1/rates/quotes`. That failure was an **application endpoint mismatch**, not a FedEx entitlement block. Do **not** use legacy `rate_quote` events or `04_rates/` for certification evidence.
+
+### Package 4 folder (included in latest ZIP)
 
 ```
 01_registration_mfa/13_hosted_eula/
@@ -60,22 +109,6 @@ Sweden MFA Passthrough was unblocked by correcting the workbook address format: 
 **Official PDF hash:** `3eea76a66fbae1d798c2069934ec9c2750c75e8f47879697cec16c84c47e8ab8`  
 **Form:** FedEx Form No. 2002382 v 4 June 2024 Rev, 11 pages  
 **Acceptance timestamp:** 2026-06-29T22:52:30+00:00
-
-### Preflight — Package 1–4 checks in this ZIP
-
-| Check | Status |
-|-------|--------|
-| Parent / Child authorization | passed |
-| Sweden passthrough address + child auth | passed |
-| Hosted EULA document | passed |
-| Hosted EULA acceptance | passed |
-| Hosted EULA full UI evidence | passed |
-| Hosted EULA acceptance confirmation | passed |
-| Sweden passthrough screenshots | **incomplete** (not in ZIP — upload pending on workspace) |
-| Rate quote | **blocked** (HTTP 403 — FedEx entitlement) |
-| Ship labels / scans / tracking / 3 PDFs | **incomplete / not_tested** |
-
-**Conclusion:** The ZIP is a **valid diagnostic bundle** for progress review. It is **not** the final FedEx submission package until remaining blockers are cleared and **Export final FedEx package** passes preflight.
 
 ---
 
@@ -264,6 +297,91 @@ FEDEX_INTEGRATOR_EULA_SHA256=3eea76a66fbae1d798c2069934ec9c2750c75e8f47879697cec
 
 ---
 
+## Package 5 — Comprehensive Rates & Transit Times
+
+### Problem
+
+Certification evidence was calling the **legacy standard Rate API**:
+
+```text
+POST /rate/v1/rates/quotes
+```
+
+Integrator child OAuth scope is **`comprehensive_rates`**, which requires:
+
+```text
+POST /rate/v1/comprehensiverates/quotes
+```
+
+The legacy endpoint returned HTTP **403** even though the sandbox account was entitled — the failure was an **endpoint and payload mismatch**, not a FedEx support entitlement issue. Legacy `rate_quote` scenario events must **never** qualify as Package 5 evidence.
+
+### Critical architectural decision
+
+Do **not** replace every rate caller globally. Merchant developer test tools may keep the existing `FedExRateQuoteService`. Certification uses a **dedicated comprehensive rate service** only.
+
+### Implementation
+
+| Component | Purpose |
+|-----------|---------|
+| `FedExComprehensiveRateQuoteService.php` | HTTP call to comprehensive endpoint |
+| `FedExComprehensiveRatePayloadFactory.php` | Locked payload from IntegratorUS02 baseline |
+| `FedExComprehensiveRateResponseParser.php` | Deterministic service/rate/amount parsing |
+| `FedExComprehensiveRateAccessClassifier.php` | Classifies 403 (wrong endpoint vs real entitlement) |
+| `FedExComprehensiveRateResult.php` | Typed result DTO |
+| `FedExComprehensiveRateEvidenceService.php` | Workspace status, UI match, export assembly |
+| Scenario key | `rate_comprehensive_quote` |
+| Export folder | `04_comprehensive_rates/` (replaces legacy `04_rates/`) |
+| Workspace UI | **Run Comprehensive Rate Quote** + screenshot upload |
+| Routes | `POST .../validation/run/comprehensive-rate`, `.../comprehensive-rate-screenshot` |
+
+### Locked fixture (IntegratorUS02 baseline)
+
+| Field | Value |
+|-------|--------|
+| Origin | Aurora OH 44202 (US) |
+| Destination | Collierville TN 38017 (US) |
+| Service | PRIORITY_OVERNIGHT |
+| Pickup type | DROPOFF_AT_FEDEX_LOCATION |
+| Packaging | YOUR_PACKAGING |
+| Control params | `returnTransitTimes: true`, `servicesNeededOnRateFailure: true` |
+
+### Preflight checks (3 required)
+
+- `comprehensive_rate_transaction` — successful HTTP call on required endpoint
+- `comprehensive_rate_ui_match` — customer-facing panel amount matches stored canonical response
+- `comprehensive_rate_screenshot` — merchant-uploaded screenshot linked to canonical event
+
+### Verified working state (30 Jun 2026)
+
+| Property | Value |
+|----------|--------|
+| HTTP status | 200 |
+| Endpoint | `/rate/v1/comprehensiverates/quotes` |
+| Service | PRIORITY_OVERNIGHT |
+| Rate type | ACCOUNT |
+| Currency | USD |
+| Amount | **159.42** |
+| UI match | Passed |
+| Screenshot | Uploaded (`01_customer_rate_result.png` in export) |
+| Canonical event | 42 |
+
+Legacy `runRateQuote()` on the validation controller **delegates** to comprehensive rate for certification. Integrator rate test in `FedExCarrierTestController` also uses the comprehensive service.
+
+### `.env` key
+
+```env
+FEDEX_COMPREHENSIVE_RATE_PATH=/rate/v1/comprehensiverates/quotes
+```
+
+(Config default in `config/carriers.php` — `comprehensive_rate_quote_path`.)
+
+### Tests
+
+- `tests/Feature/Phase6FedExComprehensiveRateValidationTest.php` (8 tests)
+- Updated: `Phase6FedExValidationCorrectionTest`, `Phase6FedExValidationExportTest`, `Phase6FedExShipValidationTest` for `04_comprehensive_rates/`
+
+---
+
 ## Post-Package-2 hardening (fixes.txt)
 
 ### Fix 1 — Secret scanner bypass (critical)
@@ -287,7 +405,7 @@ Removed file-level `[REDACTED]` exemption in `FedExValidationEvidenceSanitizer::
 php artisan test --filter="Phase6FedEx"
 ```
 
-**177 tests** at last full run (includes Packages 1–4 + hardening). One unrelated sandbox residential payload ordering test may fail intermittently.
+**~185 tests** at last full run (includes Packages 1–5 + hardening). One unrelated sandbox residential payload ordering test may fail intermittently.
 
 ---
 
@@ -305,6 +423,9 @@ php artisan test --filter="Phase6FedEx"
 | `app/Services/Carriers/FedEx/Validation/FedExValidationAuthorizationEvidenceService.php` | Package 2 OAuth runner |
 | `app/Services/Carriers/FedEx/Validation/FedExValidationAuthorizationEvidenceRules.php` | OAuth evidence validation rules |
 | `app/Services/Carriers/FedEx/Validation/FedExValidationSwedenPassthroughService.php` | Package 3 orchestrator |
+| `app/Services/Carriers/FedEx/Operations/FedExComprehensiveRateQuoteService.php` | Package 5 comprehensive rate HTTP |
+| `app/Services/Carriers/FedEx/Operations/FedExComprehensiveRatePayloadFactory.php` | Package 5 locked payload |
+| `app/Services/Carriers/FedEx/Validation/FedExComprehensiveRateEvidenceService.php` | Package 5 preflight + export |
 | `app/Services/Carriers/FedEx/Validation/FedExValidationPreflightService.php` | Readiness checks before final export |
 | `app/Services/Carriers/FedEx/Validation/FedExValidationEvidenceExporter.php` | Diagnostic + final ZIP |
 | `resources/views/user_view/fedex_validation/workspace.blade.php` | Validation workspace UI |
@@ -314,15 +435,16 @@ php artisan test --filter="Phase6FedEx"
 
 ## Workspace validation progress (merchant checklist)
 
-Packages 1–4 code is complete on **Demo Digital / carrier account #2**. **Final FedEx submission** still requires (~24 remaining checks from 38 total), including:
+Packages 1–5 code is complete on **Demo Digital / carrier account #2**. **Final FedEx submission** still requires (~23 remaining checks from 40 total), including:
 
-- Sweden passthrough **screenshots** (API evidence done; uploads pending in latest ZIP)
+- Sweden passthrough **screenshots** (API evidence done; uploads pending)
 - Email + phone-call PIN MFA steps
 - Re-run or fix **registration address validation** (latest event failed in preflight)
 - US02/US04/US05 **locked ship labels** + 600 DPI printed scans
 - Tracking + customer-facing tracking screenshot
 - Three required PDFs (cover sheet, PIW, customer screenshots)
-- **Comprehensive Rate Quote** — HTTP 403 FedEx entitlement (contact FedEx support)
+
+**Package 5 (Comprehensive Rates) is complete** — HTTP 200, USD 159.42, UI match passed, screenshot uploaded.
 
 Use **Export diagnostic bundle** to review progress; **Export final FedEx package** unlocks only when preflight `ready: true`.
 
@@ -346,11 +468,11 @@ All evidence for final submission must live on **one store + one carrier account
 
 ## Next steps toward final submission
 
-1. Upload Sweden passthrough screenshots on Demo Digital workspace
-2. Complete email/call PIN MFA + fix registration address validation
-3. Run locked ship label flows (US02/US04/US05) + printed scans
-4. Tracking + screenshot + 3 required PDF documents
-5. Resolve Rate Quote entitlement with FedEx (or document blocked status per FedEx guidance)
+1. **Package 6** — next guided implementation package (ship label flows US02/US04/US05 are the primary remaining API evidence blockers)
+2. Upload Sweden passthrough screenshots on Demo Digital workspace
+3. Complete email/call PIN MFA + fix registration address validation
+4. Run locked ship label flows (US02/US04/US05) + printed scans
+5. Tracking + screenshot + 3 required PDF documents
 6. When preflight shows **ready** → **Export final FedEx package** from Demo Digital account #2
 
 ---
@@ -359,4 +481,4 @@ All evidence for final submission must live on **one store + one carrier account
 
 - `docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md` — Model A architecture overview
 - `docs/FEDEX_MODEL_A_INTEGRATOR_PROVIDER_ROADMAP.md` — Phase 6C-4/6C-5 roadmap
-- Desktop `Guidance.txt` — Package 4 EULA specification
+- Desktop `Guidance.txt` — Package 4 EULA and Package 5 Comprehensive Rates specifications

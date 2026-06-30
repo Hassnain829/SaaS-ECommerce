@@ -72,6 +72,8 @@ class CarrierApiEvent extends Model
 
     public const SCENARIO_REGISTRATION_CHILD_CREDENTIALS = 'registration_child_credentials_generated';
 
+    public const SCENARIO_RATE_COMPREHENSIVE_QUOTE = 'rate_comprehensive_quote';
+
     protected $fillable = [
         'store_id',
         'carrier_account_id',

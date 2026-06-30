@@ -79,7 +79,7 @@
                 @if (($fedExTestResult['tool'] ?? '') === 'rate_quote')
                     <p class="mt-2 text-xs text-[#64748B]">This is a FedEx test quote only. It does not create a shipment, buy a label, charge FedEx postage, or change checkout totals.</p>
                     @if (($fedExTestResult['result_kind'] ?? '') === 'fedex_authorization_blocked')
-                        <p class="mt-2 text-xs font-semibold text-amber-900">FedEx authorization blocked — treat as an entitlement blocker for validation submission, not a local payload bug.</p>
+                        <p class="mt-2 text-xs font-semibold text-amber-900">FedEx access blocked for this rate request. Check whether the endpoint is Comprehensive Rates and whether the request payload is complete before treating this as a FedEx entitlement issue.</p>
                     @endif
                     @if (! empty($fedExTestResult['presentation']['rates']))
                         <ul class="mt-3 space-y-1 text-xs text-[#475569]">
@@ -185,8 +185,8 @@
                             @csrf
                             <input type="hidden" name="use_baseline" value="1">
                             <button type="submit" class="w-full rounded-lg bg-[#0052CC] px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>
-                                <span class="block">Rate quote test</span>
-                                <span class="mt-0.5 block text-xs font-normal text-blue-100">Chicago IL · PRIORITY_OVERNIGHT · US02 package</span>
+                                <span class="block">Comprehensive rate quote</span>
+                                <span class="mt-0.5 block text-xs font-normal text-blue-100">IntegratorUS02 baseline · /comprehensiverates/quotes</span>
                             </button>
                         </form>
                     </div>

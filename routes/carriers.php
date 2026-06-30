@@ -113,6 +113,9 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validati
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/sweden-screenshots', [FedExValidationArtifactController::class, 'uploadSwedenScreenshots'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.sweden-screenshots.upload');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/comprehensive-rate-screenshot', [FedExValidationArtifactController::class, 'uploadComprehensiveRateScreenshot'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.comprehensive-rate-screenshot.upload');
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/address', [FedExValidationRunController::class, 'runAddressValidation'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.address');
@@ -122,6 +125,9 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validati
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/rate', [FedExValidationRunController::class, 'runRateQuote'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.rate');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/comprehensive-rate', [FedExValidationRunController::class, 'runComprehensiveRateQuote'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.comprehensive-rate');
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/mfa/invoice', [FedExValidationRunController::class, 'runInvoiceValidation'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.mfa.invoice');
