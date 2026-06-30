@@ -67,7 +67,8 @@ class FedExValidationArtifactController extends Controller
             'test_case_key' => ['required', 'string', 'in:IntegratorUS02,IntegratorUS04,IntegratorUS05'],
             'package_sequence' => ['required', 'integer', 'min:1', 'max:5'],
             'scan_dpi' => ['required', 'integer', 'min:600', 'max:2400'],
-            'scan' => ['required', 'file', 'mimes:pdf,png', 'max:20480'],
+            'printed_scan_attestation' => ['accepted'],
+            'scan' => ['required', 'file', 'mimes:pdf,png,jpg,jpeg', 'max:20480'],
         ]);
 
         $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$validated['test_case_key']];
@@ -79,11 +80,63 @@ class FedExValidationArtifactController extends Controller
             labelFormat: (string) $meta['label_format'],
         );
 
-        abort_unless(
-            $event !== null && $event->isSuccessfulHttp() && $event->hasCompleteEvidence(),
-            422,
-            'Upload a printed scan only after the successful locked '.$validated['test_case_key'].' ship run completes.',
+        if ($event === null || ! $event->isSuccessfulHttp() || ! $event->hasCompleteEvidence()) {
+            return $this->scanUploadError(
+                $account,
+                'Upload a printed scan only after the successful locked '.$validated['test_case_key'].' ship run completes.',
+            );
+        }
+
+        $generatedLabel = FedExValidationArtifact::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('carrier_api_event_id', $event->id)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_GENERATED_LABEL)
+            ->where('package_sequence', (int) $validated['package_sequence'])
+            ->latest('id')
+            ->first();
+
+        if ($generatedLabel === null) {
+            return $this->scanUploadError(
+                $account,
+                'Generate the package '.$validated['package_sequence'].' label before uploading its printed scan.',
+            );
+        }
+
+        $scanBinary = file_get_contents($request->file('scan')->getRealPath()) ?: '';
+        if ($scanBinary === '') {
+            return $this->scanUploadError($account, 'The uploaded scan file is empty.');
+        }
+
+        if (hash('sha256', $scanBinary) === (string) $generatedLabel->sha256) {
+            return $this->scanUploadError(
+                $account,
+                'You uploaded the same file that was downloaded from the API. FedEx requires a scan of the physically printed label. Print the label, scan the paper at 600 DPI or higher, then upload that scan file (PNG, JPG, or scanner PDF). Do not re-upload the generated label download.',
+            );
+        }
+
+        $tempPath = storage_path('app/fedex-validation/'.$store->id.'/tmp-scan-'.Str::uuid().'.tmp');
+        File::ensureDirectoryExists(dirname($tempPath));
+        File::put($tempPath, $scanBinary);
+        $scanValidation = \App\Services\Carriers\FedEx\Validation\FedExLabelArtifactValidator::validateScan(
+            $tempPath,
+            (int) $validated['scan_dpi'],
         );
+        File::delete($tempPath);
+        if (! $scanValidation['valid']) {
+            return $this->scanUploadError(
+                $account,
+                'The uploaded scan did not pass minimum 600 DPI validation checks. Use a scanner or phone scan app at 600 DPI or higher after printing the label.',
+            );
+        }
+
+        FedExValidationArtifact::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('carrier_api_event_id', $event->id)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_PRINTED_SCAN)
+            ->where('package_sequence', (int) $validated['package_sequence'])
+            ->delete();
 
         $this->storeUploadedFile(
             account: $account,
@@ -98,7 +151,13 @@ class FedExValidationArtifactController extends Controller
                 'label_format' => $meta['label_format'],
                 'package_sequence' => (int) $validated['package_sequence'],
                 'scan_dpi' => (int) $validated['scan_dpi'],
-                'metadata_json' => ['scan_dpi_source' => 'user_confirmed'],
+                'metadata_json' => [
+                    'scan_dpi_claimed' => (int) $validated['scan_dpi'],
+                    'scan_dpi_detected' => $scanValidation['detected_dpi'],
+                    'scan_dpi_source' => $scanValidation['detected_dpi'] !== null ? 'detected_metadata' : 'user_attested',
+                    'printed_scan_attestation' => true,
+                    'generated_label_sha256' => $generatedLabel->sha256,
+                ],
             ],
         );
 
@@ -366,6 +425,13 @@ class FedExValidationArtifactController extends Controller
         abort_unless(is_file($path), 404);
 
         return response()->download($path, $artifact->original_filename ?: basename($path));
+    }
+
+    private function scanUploadError(CarrierAccount $account, string $message): RedirectResponse
+    {
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('error', $message);
     }
 
     /**

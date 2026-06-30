@@ -24,6 +24,7 @@ class FedExValidationEvidenceExporter
         private readonly FedExValidationScopeService $scopeService,
         private readonly FedExHostedEulaEvidenceService $hostedEulaEvidence,
         private readonly FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
+        private readonly FedExShipEvidenceService $shipEvidenceService,
         private readonly \App\Services\Carriers\FedEx\Connection\FedExEulaService $eulaService,
     ) {}
 
@@ -445,6 +446,10 @@ class FedExValidationEvidenceExporter
 
         $this->exportScenarioEvent($directory, $event, $includeFailed, $mode);
         if ($event !== null) {
+            $this->writeJson(
+                $directory.'/result_summary.json',
+                $this->shipEvidenceService->exportResultSummary($event, $testCaseKey, $mode !== 'final'),
+            );
             $this->copyArtifacts($directory.'/generated', $event, FedExValidationArtifact::ROLE_GENERATED_LABEL);
             $this->copyArtifacts($directory.'/printed_scans', $event, FedExValidationArtifact::ROLE_PRINTED_SCAN);
         }

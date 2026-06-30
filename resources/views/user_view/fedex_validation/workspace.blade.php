@@ -362,24 +362,41 @@
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-            <h3 class="text-lg font-semibold text-[#0F172A]">Locked Ship baseline scenarios</h3>
-            <p class="mt-1 text-sm text-[#64748B]">Fixed workbook mapping — format cannot be changed. Upload printed scans after each successful label run.</p>
+            <h3 class="text-lg font-semibold text-[#0F172A]">Locked US Ship Transactions & Labels</h3>
+            <p class="mt-1 text-sm text-[#64748B]">Package 6 — one-click fresh label generation per workbook case. Print each generated label, scan at 600+ DPI, then upload the physical scan — never the raw API file.</p>
             <div class="mt-4 grid gap-4 lg:grid-cols-3">
                 @foreach ($lockedShipScenarios as $testCaseKey => $meta)
                     @php($scenarioKey = $meta['scenario_key'])
+                    @php($shipStatus = $lockedShipStatuses[$testCaseKey] ?? [])
                     <article class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                         <div class="flex items-start justify-between gap-2">
                             <div>
                                 <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">{{ $testCaseKey }}</p>
-                                <p class="mt-1 font-semibold text-[#0F172A]">{{ $meta['label_format'] }} / {{ $meta['label_stock_type'] }}</p>
+                                <p class="mt-1 font-semibold text-[#0F172A]">{{ $shipStatus['label'] ?? ($meta['label_format'].' / '.$meta['label_stock_type']) }}</p>
                                 <p class="mt-1 text-sm text-[#64748B]">{{ $meta['expected_packages'] }} package(s)</p>
                             </div>
                             <span class="rounded-full px-2 py-0.5 text-xs font-bold {{ $statusBadge($checkStatus($scenarioKey.'_event')) }}">{{ str($checkStatus($scenarioKey.'_event'))->replace('_', ' ')->title() }}</span>
                         </div>
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.ship', [$account, 'testCaseKey' => $testCaseKey]) }}" class="mt-3">
+
+                        <dl class="mt-3 space-y-1 text-xs text-[#475569]">
+                            <div class="flex justify-between gap-3"><dt>API transaction</dt><dd class="font-semibold">{{ str($shipStatus['transaction_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt>Expected service</dt><dd class="font-semibold">{{ $shipStatus['expected_service_type'] ?? '—' }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt>Response service</dt><dd class="font-semibold">{{ $shipStatus['response_service_type'] ?? '—' }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt>Service match</dt><dd class="font-semibold">{{ str($shipStatus['service_match_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt>Generated labels</dt><dd class="font-semibold">{{ $shipStatus['generated_labels'] ?? '0 of '.$meta['expected_packages'] }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt>Printed scans</dt><dd class="font-semibold">{{ $shipStatus['printed_scans'] ?? '0 of '.$meta['expected_packages'] }}</dd></div>
+                            @if ($testCaseKey === 'IntegratorUS05')
+                                <div class="flex justify-between gap-3"><dt>MPS correlation</dt><dd class="font-semibold">{{ str($shipStatus['mps_correlation_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
+                            @endif
+                        </dl>
+
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.ship', [$account, 'testCaseKey' => $testCaseKey]) }}" class="mt-3" onsubmit="this.querySelector('button[type=submit]').disabled=true">
                             @csrf
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Run locked {{ $meta['label_format'] }} label</button>
+                            <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Generate Fresh {{ $testCaseKey }} Label{{ $meta['expected_packages'] > 1 ? 's' : '' }}</button>
                         </form>
+
+                        <p class="mt-2 text-xs text-[#64748B]">{{ $shipStatus['printing_instructions'] ?? 'Print the downloaded label before scanning.' }}</p>
+
                         <div class="mt-3 space-y-1">
                             @for ($i = 1; $i <= (int) $meta['expected_packages']; $i++)
                                 @php($labelCheck = $checksByKey->get($scenarioKey.'_label_'.$i))
@@ -392,7 +409,19 @@
                                 @endif
                             @endfor
                         </div>
-                        <p class="mt-2 text-xs text-[#64748B]">Print the downloaded label, scan it at 600+ DPI, then upload the scan below — not the raw API file.</p>
+
+                        @if (! empty($shipStatus['generated_label_artifacts']))
+                            <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                                <p class="font-bold">Printed scan workflow (required by FedEx)</p>
+                                <ol class="mt-2 list-decimal space-y-1 pl-4">
+                                    <li>Download the generated label for this package.</li>
+                                    <li>Print it on the correct stock (laser printer, actual size, no scaling).</li>
+                                    <li>Scan the <strong>printed paper</strong> at 600 DPI or higher (PNG/JPG recommended).</li>
+                                    <li>Upload that scan file here — <strong>not</strong> the downloaded API label.</li>
+                                </ol>
+                            </div>
+                        @endif
+
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.scans.upload', $account) }}" enctype="multipart/form-data" class="mt-4 space-y-2">
                             @csrf
                             <input type="hidden" name="test_case_key" value="{{ $testCaseKey }}">
@@ -404,8 +433,13 @@
                             </select>
                             <label class="block text-xs font-semibold text-[#475569]">Scan DPI (minimum 600)</label>
                             <input type="number" name="scan_dpi" min="600" max="2400" value="600" required class="h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-sm">
-                            <label class="block text-xs font-semibold text-[#475569]">Printed scan (PDF or PNG)</label>
-                            <input type="file" name="scan" accept="application/pdf,image/png" required class="block w-full text-xs">
+                            <label class="block text-xs font-semibold text-[#475569]">Printed scan (PDF, PNG, or JPG)</label>
+                            <p class="text-xs text-[#B45309]">Do not upload the downloaded API label file. Print the label first, then scan the physical print at 600 DPI or higher.</p>
+                            <input type="file" name="scan" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-xs">
+                            <label class="flex items-start gap-2 text-xs text-[#475569]">
+                                <input type="checkbox" name="printed_scan_attestation" value="1" required class="mt-0.5">
+                                <span>I confirm that this file was created by physically printing the generated FedEx label and scanning the printed label at 600 DPI or higher without scaling.</span>
+                            </label>
                             <button type="submit" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Upload printed scan</button>
                         </form>
                     </article>

@@ -2,8 +2,14 @@
 
 namespace App\Services\Carriers\FedEx\Validation;
 
+use Carbon\Carbon;
+
 class FedExShipTestCaseFixtureService
 {
+    public const FIXTURE_VERSION = '2026-06-30-workbook-v1';
+
+    public const BASELINE_SHEET = 'Americas_US_Test cases';
+
     /**
      * @return array<string, array<string, mixed>>
      */
@@ -43,6 +49,29 @@ class FedExShipTestCaseFixtureService
     }
 
     /**
+     * Saturday Delivery requires a valid Friday ship date that is not in the past.
+     */
+    public function nextValidFriday(?Carbon $now = null): string
+    {
+        $now = ($now ?? now())->copy()->startOfDay();
+        $candidate = $now->copy();
+
+        if ($candidate->dayOfWeek !== Carbon::FRIDAY) {
+            $candidate = $candidate->next(Carbon::FRIDAY);
+        }
+
+        return $candidate->toDateString();
+    }
+
+    /**
+     * Home Delivery Premium delivery date — approximately one week after ship date.
+     */
+    public function homeDeliveryPremiumDeliveryDate(string $shipDate): string
+    {
+        return Carbon::parse($shipDate)->addWeek()->toDateString();
+    }
+
+    /**
      * FedEx integrator sandbox invoice MFA test values for validation workspace prefill.
      *
      * @return array{number: string, date: string, currency: string, amount: string}
@@ -64,14 +93,21 @@ class FedExShipTestCaseFixtureService
     {
         return [
             'key' => 'IntegratorUS02',
-            'label' => 'Integrator US02 — Priority Overnight · ZPLII · STOCK_4X6',
+            'label' => 'Priority Overnight · ZPLII · 1 package',
             'scenario_key' => 'ship_us02_zplii',
-            'account_number' => '700257037',
+            'baseline_sheet' => self::BASELINE_SHEET,
+            'baseline_case' => 'IntegratorUS02',
+            'fixture_version' => self::FIXTURE_VERSION,
+            'expected_service_type' => 'PRIORITY_OVERNIGHT',
+            'expected_label_format' => 'ZPLII',
+            'expected_package_count' => 1,
             'service_type' => 'PRIORITY_OVERNIGHT',
             'packaging_type' => 'YOUR_PACKAGING',
             'pickup_type' => 'USE_SCHEDULED_PICKUP',
             'label_format' => 'ZPLII',
             'label_stock_type' => 'STOCK_4X6',
+            'transportation_payment_type' => 'SENDER',
+            'ship_date_strategy' => 'next_valid_friday',
             'shipper' => [
                 'person_name' => 'James Weston',
                 'company_name' => 'RTC',
@@ -94,13 +130,30 @@ class FedExShipTestCaseFixtureService
                 'residential' => false,
             ],
             'packages' => [[
-                'weight' => 10.0,
+                'sequence_number' => 1,
+                'weight' => 20.0,
                 'weight_unit' => 'LB',
-                'length' => 12.0,
+                'length' => 10.0,
                 'width' => 10.0,
-                'height' => 8.0,
+                'height' => 10.0,
                 'dimension_unit' => 'IN',
             ]],
+            'shipment_special_services' => [
+                'specialServiceTypes' => ['EVENT_NOTIFICATION', 'SATURDAY_DELIVERY'],
+            ],
+            'email_notification_detail' => [
+                'aggregationType' => 'PER_PACKAGE',
+                'emailNotificationRecipients' => [[
+                    'name' => 'FedEx Validation Recipient',
+                    'emailNotificationRecipientType' => 'RECIPIENT',
+                    'emailAddress' => 'test001@fedex.com',
+                    'notificationFormatType' => 'HTML',
+                    'notificationType' => 'EMAIL',
+                    'locale' => 'en_US',
+                    'notificationEventType' => ['ON_SHIPMENT'],
+                ]],
+                'personalMessage' => 'FedEx integrator validation shipment notification.',
+            ],
         ];
     }
 
@@ -111,14 +164,20 @@ class FedExShipTestCaseFixtureService
     {
         return [
             'key' => 'IntegratorUS04',
-            'label' => 'Integrator US04 — Ground Home Delivery · PNG · PAPER_4X6',
+            'label' => 'Ground Home Delivery · PNG · 1 package',
             'scenario_key' => 'ship_us04_png',
-            'account_number' => '700257037',
+            'baseline_sheet' => self::BASELINE_SHEET,
+            'baseline_case' => 'IntegratorUS04',
+            'fixture_version' => self::FIXTURE_VERSION,
+            'expected_service_type' => 'GROUND_HOME_DELIVERY',
+            'expected_label_format' => 'PNG',
+            'expected_package_count' => 1,
             'service_type' => 'GROUND_HOME_DELIVERY',
             'packaging_type' => 'YOUR_PACKAGING',
             'pickup_type' => 'USE_SCHEDULED_PICKUP',
             'label_format' => 'PNG',
             'label_stock_type' => 'PAPER_4X6',
+            'transportation_payment_type' => 'SENDER',
             'shipper' => [
                 'person_name' => 'James Weston',
                 'company_name' => 'RTC',
@@ -132,7 +191,8 @@ class FedExShipTestCaseFixtureService
             'recipient' => [
                 'person_name' => 'Residential Recipient',
                 'company_name' => null,
-                'phone' => '9015550101',
+                'phone' => '9012633035',
+                'phone_extension' => '200',
                 'street_lines' => ['109 FEDEX PRKWY'],
                 'city' => 'Collierville',
                 'state' => 'TN',
@@ -141,18 +201,25 @@ class FedExShipTestCaseFixtureService
                 'residential' => true,
             ],
             'packages' => [[
+                'sequence_number' => 1,
                 'weight' => 30.0,
                 'weight_unit' => 'LB',
                 'length' => 20.0,
                 'width' => 15.0,
                 'height' => 20.0,
                 'dimension_unit' => 'IN',
+                'declared_value' => ['amount' => 300, 'currency' => 'USD'],
+                'package_special_services' => [
+                    'specialServiceTypes' => ['NON_STANDARD_CONTAINER'],
+                ],
             ]],
-            'special_services' => [[
+            'shipment_special_services' => [
                 'specialServiceTypes' => ['HOME_DELIVERY_PREMIUM'],
-                'homeDeliveryPremiumDetail' => ['homedeliveryPremiumType' => 'EVENING'],
-            ]],
-            'declared_value' => ['amount' => 300, 'currency' => 'USD'],
+                'homeDeliveryPremiumDetail' => [
+                    'homeDeliveryPremiumType' => 'EVENING',
+                ],
+            ],
+            'home_delivery_premium_delivery_date_strategy' => 'one_week_after_ship_date',
         ];
     }
 
@@ -161,11 +228,21 @@ class FedExShipTestCaseFixtureService
      */
     private function integratorUs05(): array
     {
+        $recipientPayorAccount = (string) config(
+            'carriers.fedex.validation_us05_recipient_payor_account',
+            config('carriers.fedex.validation_sandbox_account_number', '700257037'),
+        );
+
         return [
             'key' => 'IntegratorUS05',
-            'label' => 'Integrator US05 — FedEx Ground MPS · PDF · PAPER_85X11_TOP_HALF_LABEL',
+            'label' => 'FedEx Ground · PDF · 2-package MPS',
             'scenario_key' => 'ship_us05_pdf_mps',
-            'account_number' => '700257037',
+            'baseline_sheet' => self::BASELINE_SHEET,
+            'baseline_case' => 'IntegratorUS05',
+            'fixture_version' => self::FIXTURE_VERSION,
+            'expected_service_type' => 'FEDEX_GROUND',
+            'expected_label_format' => 'PDF',
+            'expected_package_count' => 2,
             'service_type' => 'FEDEX_GROUND',
             'packaging_type' => 'YOUR_PACKAGING',
             'pickup_type' => 'USE_SCHEDULED_PICKUP',
@@ -173,7 +250,11 @@ class FedExShipTestCaseFixtureService
             'label_stock_type' => 'PAPER_85X11_TOP_HALF_LABEL',
             'total_package_count' => 2,
             'transportation_payment_type' => 'RECIPIENT',
-            'transportation_payment_account' => '700257037',
+            'transportation_payment_account' => $recipientPayorAccount,
+            'processing_option' => [
+                'processingOptionType' => 'SYNCHRONOUS_ONLY',
+                'oneLabelAtATime' => false,
+            ],
             'shipper' => [
                 'person_name' => 'James Weston',
                 'company_name' => 'RTC',
@@ -197,6 +278,7 @@ class FedExShipTestCaseFixtureService
             ],
             'packages' => [
                 [
+                    'sequence_number' => 1,
                     'weight' => 8.0,
                     'weight_unit' => 'LB',
                     'length' => 12.0,
@@ -205,6 +287,7 @@ class FedExShipTestCaseFixtureService
                     'dimension_unit' => 'IN',
                 ],
                 [
+                    'sequence_number' => 2,
                     'weight' => 6.0,
                     'weight_unit' => 'LB',
                     'length' => 10.0,

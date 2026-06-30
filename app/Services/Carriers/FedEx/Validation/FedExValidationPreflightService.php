@@ -18,6 +18,7 @@ class FedExValidationPreflightService
         private readonly FedExValidationAuthorizationEvidenceRules $authorizationEvidenceRules,
         private readonly FedExHostedEulaEvidenceService $hostedEulaEvidence,
         private readonly FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
+        private readonly FedExShipEvidenceRules $shipEvidenceRules,
     ) {}
 
     /**
@@ -318,7 +319,7 @@ class FedExValidationPreflightService
             'category' => 'ship',
             'label' => $testCaseKey.' ship label API',
             'required' => true,
-            'status' => $this->eventEvidenceStatus($event, requireSuccess: true),
+            'status' => $this->shipEventEvidenceStatus($event, $testCaseKey),
             'explanation' => $event
                 ? 'Canonical successful ship label event recorded.'
                 : 'Run the locked '.$testCaseKey.' label button in the validation workspace. Ship validate alone does not create labels.',
@@ -444,6 +445,27 @@ class FedExValidationPreflightService
     {
         return (bool) data_get($event->request_summary, 'cached')
             || (bool) data_get($event->response_summary, 'cached');
+    }
+
+    private function shipEventEvidenceStatus(?CarrierApiEvent $event, string $testCaseKey): string
+    {
+        if ($event === null) {
+            return 'not_tested';
+        }
+
+        if ($this->shipEvidenceRules->isValidEventForTestCase($event, $testCaseKey)) {
+            return 'passed';
+        }
+
+        if (! $event->hasCompleteEvidence()) {
+            return 'incomplete';
+        }
+
+        if ((int) $event->http_status === 403) {
+            return 'blocked';
+        }
+
+        return $event->isSuccessfulHttp() ? 'failed' : 'failed';
     }
 
     private function eventEvidenceStatus(?CarrierApiEvent $event, bool $requireSuccess = false): string
@@ -577,6 +599,15 @@ class FedExValidationPreflightService
 
         if ((int) ($artifact->scan_dpi ?? 0) < 600) {
             return 'incomplete';
+        }
+
+        if (! (bool) data_get($artifact->metadata_json, 'printed_scan_attestation', false)) {
+            return 'incomplete';
+        }
+
+        $scanValidation = FedExLabelArtifactValidator::validateScan((string) $path, (int) $artifact->scan_dpi);
+        if (! $scanValidation['valid']) {
+            return 'failed';
         }
 
         return 'passed';

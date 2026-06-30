@@ -12,6 +12,7 @@ class FedExValidationEvidenceQueryService
 {
     public function __construct(
         private readonly FedExValidationAuthorizationEvidenceRules $authorizationEvidenceRules,
+        private readonly FedExShipEvidenceRules $shipEvidenceRules,
         private readonly FedExConfig $config,
     ) {}
 
@@ -228,10 +229,143 @@ class FedExValidationEvidenceQueryService
         ?string $testCaseKey = null,
         ?string $labelFormat = null,
     ): ?CarrierApiEvent {
-        return $this->firstCanonicalCandidate(
-            $this->canonicalCandidates($store, $account, $scenarioKey, $testCaseKey, $labelFormat, null)
-                ->where('action', CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL),
-        );
+        if ($testCaseKey === null) {
+            return $this->firstCanonicalCandidate(
+                $this->canonicalCandidates($store, $account, $scenarioKey, null, $labelFormat, null)
+                    ->where('action', CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL),
+            );
+        }
+
+        $run = $this->canonicalShipRun($store, $account, $testCaseKey);
+
+        return $run['event'] ?? null;
+    }
+
+    /**
+     * @return array{
+     *     event: ?CarrierApiEvent,
+     *     generated_labels: list<\App\Models\FedExValidationArtifact>,
+     *     printed_scans: list<\App\Models\FedExValidationArtifact>,
+     *     validation: array<string, mixed>
+     * }|null
+     */
+    public function canonicalShipRun(Store $store, CarrierAccount $account, string $testCaseKey): ?array
+    {
+        $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$testCaseKey] ?? null;
+        if ($meta === null) {
+            return null;
+        }
+
+        $scenarioKey = (string) $meta['scenario_key'];
+        $labelFormat = (string) $meta['label_format'];
+
+        $candidates = $this->canonicalCandidates(
+            $store,
+            $account,
+            $scenarioKey,
+            $testCaseKey,
+            $labelFormat,
+            null,
+        )->where('action', CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL);
+
+        foreach ($candidates as $event) {
+            if (! $this->shipEvidenceRules->isValidEventForTestCase($event, $testCaseKey)) {
+                continue;
+            }
+
+            $generatedLabels = \App\Models\FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('carrier_api_event_id', $event->id)
+                ->where('artifact_role', \App\Models\FedExValidationArtifact::ROLE_GENERATED_LABEL)
+                ->orderBy('package_sequence')
+                ->get()
+                ->filter(fn (\App\Models\FedExValidationArtifact $artifact): bool => $this->artifactIntegrityValid($artifact))
+                ->values()
+                ->all();
+
+            $artifactValidation = $this->shipEvidenceRules->validateGeneratedArtifacts($event, $testCaseKey, $generatedLabels);
+            if (! $artifactValidation['valid']) {
+                continue;
+            }
+
+            $printedScans = \App\Models\FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('carrier_api_event_id', $event->id)
+                ->where('artifact_role', \App\Models\FedExValidationArtifact::ROLE_PRINTED_SCAN)
+                ->orderBy('package_sequence')
+                ->get()
+                ->filter(fn (\App\Models\FedExValidationArtifact $artifact): bool => $this->scanArtifactValid($artifact))
+                ->values()
+                ->all();
+
+            $responseValidation = $this->shipEvidenceRules->validateResponse($event, $testCaseKey);
+            $requestValidation = $this->shipEvidenceRules->validateRequest($event, $testCaseKey);
+
+            return [
+                'event' => $event,
+                'generated_labels' => $generatedLabels,
+                'printed_scans' => $printedScans,
+                'validation' => [
+                    'request_valid' => $requestValidation['valid'],
+                    'response_valid' => $responseValidation['valid'],
+                    'response_service_matches' => $responseValidation['valid'],
+                    'response_service_type' => data_get($responseValidation, 'parsed.service_type'),
+                    'artifact_integrity_passed' => $artifactValidation['valid'],
+                    'mps_correlation_passed' => $testCaseKey === 'IntegratorUS05'
+                        ? $responseValidation['valid'] && $artifactValidation['valid']
+                        : null,
+                    'package_sequences' => array_keys($responseValidation['parsed']['labels'] ?? []),
+                    'reasons' => array_values(array_unique(array_merge(
+                        $requestValidation['reasons'],
+                        $responseValidation['reasons'],
+                        $artifactValidation['reasons'],
+                    ))),
+                ],
+            ];
+        }
+
+        return null;
+    }
+
+    public function latestShipLabelAttempt(
+        Store $store,
+        CarrierAccount $account,
+        string $scenarioKey,
+        ?string $testCaseKey = null,
+        ?string $labelFormat = null,
+    ): ?CarrierApiEvent {
+        return $this->canonicalCandidates($store, $account, $scenarioKey, $testCaseKey, $labelFormat, null)
+            ->where('action', CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL)
+            ->first(fn (CarrierApiEvent $event): bool => $event->hasCompleteEvidence());
+    }
+
+    private function artifactIntegrityValid(?\App\Models\FedExValidationArtifact $artifact): bool
+    {
+        if ($artifact === null || ! filled($artifact->file_path) || ! filled($artifact->sha256)) {
+            return false;
+        }
+
+        $path = $artifact->absolutePath();
+        if ($path === null || ! is_file($path)) {
+            return false;
+        }
+
+        return hash_file('sha256', $path) === (string) $artifact->sha256;
+    }
+
+    private function scanArtifactValid(?\App\Models\FedExValidationArtifact $artifact): bool
+    {
+        if (! $this->artifactIntegrityValid($artifact)) {
+            return false;
+        }
+
+        $path = (string) $artifact->absolutePath();
+        $scanValidation = FedExLabelArtifactValidator::validateScan($path, (int) ($artifact->scan_dpi ?? 0));
+
+        return $scanValidation['valid']
+            && (bool) data_get($artifact->metadata_json, 'printed_scan_attestation', false);
     }
 
     /**

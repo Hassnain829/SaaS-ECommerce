@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\Support\FedExShipTestEvidenceFactory;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -252,7 +253,7 @@ class Phase6FedExValidationCorrectionTest extends TestCase
                 'scan_dpi' => 600,
                 'scan' => UploadedFile::fake()->create('scan.pdf', 100, 'application/pdf'),
             ])
-            ->assertStatus(422);
+            ->assertInvalid(['printed_scan_attestation']);
     }
 
     public function test_old_scan_cannot_satisfy_newer_ship_event(): void
@@ -261,6 +262,7 @@ class Phase6FedExValidationCorrectionTest extends TestCase
 
         $oldEvent = $this->seedSuccessfulShipEvent($store, $account, 'IntegratorUS02', 'ship_us02_zplii', 'ZPLII', 1);
         $newEvent = $this->seedSuccessfulShipEvent($store, $account, 'IntegratorUS02', 'ship_us02_zplii', 'ZPLII', 1, secondRun: true);
+        $this->seedLabelArtifact($store, $account, $newEvent, 'IntegratorUS02', 'ship_us02_zplii', 'ZPLII', 1);
 
         $this->seedScanArtifact($store, $account, $oldEvent, 'IntegratorUS02', 'ship_us02_zplii', 'ZPLII', 1);
 
@@ -313,8 +315,13 @@ class Phase6FedExValidationCorrectionTest extends TestCase
 
         $this->assertSame(
             'EVENING',
-            data_get($payload, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail.homedeliveryPremiumType'),
+            data_get($payload, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail.homeDeliveryPremiumType'),
         );
+        $this->assertSame(
+            300.0,
+            (float) data_get($payload, 'requestedShipment.requestedPackageLineItems.0.declaredValue.amount'),
+        );
+        $this->assertContains('NON_STANDARD_CONTAINER', data_get($payload, 'requestedShipment.requestedPackageLineItems.0.packageSpecialServices.specialServiceTypes'));
         $this->assertContains('HOME_DELIVERY_PREMIUM', data_get($payload, 'requestedShipment.shipmentSpecialServices.specialServiceTypes'));
     }
 
@@ -388,9 +395,13 @@ class Phase6FedExValidationCorrectionTest extends TestCase
     {
         [, $store, $account] = $this->integratorAccountFixture('Ship Export Payment Store');
 
-        $this->seedShipExportEvent($store, $account, 'IntegratorUS02', 'ship_us02_zplii', 'ZPLII', 'SENDER');
-        $this->seedShipExportEvent($store, $account, 'IntegratorUS04', 'ship_us04_png', 'PNG', 'SENDER');
-        $this->seedShipExportEvent($store, $account, 'IntegratorUS05', 'ship_us05_pdf_mps', 'PDF', 'RECIPIENT');
+        $us02 = $this->seedShipExportEvent($store, $account, 'IntegratorUS02', 'ship_us02_zplii', 'ZPLII', 'SENDER');
+        $us04 = $this->seedShipExportEvent($store, $account, 'IntegratorUS04', 'ship_us04_png', 'PNG', 'SENDER');
+        $us05 = $this->seedShipExportEvent($store, $account, 'IntegratorUS05', 'ship_us05_pdf_mps', 'PDF', 'RECIPIENT');
+        $this->seedLabelArtifact($store, $account, $us02, 'IntegratorUS02', 'ship_us02_zplii', 'ZPLII', 1);
+        $this->seedLabelArtifact($store, $account, $us04, 'IntegratorUS04', 'ship_us04_png', 'PNG', 1);
+        $this->seedLabelArtifact($store, $account, $us05, 'IntegratorUS05', 'ship_us05_pdf_mps', 'PDF', 1);
+        $this->seedLabelArtifact($store, $account, $us05, 'IntegratorUS05', 'ship_us05_pdf_mps', 'PDF', 2);
 
         $zipPath = app(FedExValidationEvidenceExporter::class)->exportDiagnostic($store, $account);
         $zip = new ZipArchive;
@@ -462,7 +473,7 @@ class Phase6FedExValidationCorrectionTest extends TestCase
             ->assertOk()
             ->assertSeeText('Baseline API runs')
             ->assertSeeText('Run Address Validation')
-            ->assertSeeText('Run locked ZPLII label')
+            ->assertSeeText('Generate Fresh IntegratorUS02 Label')
             ->assertSeeText('Evidence cards');
     }
 
@@ -728,32 +739,8 @@ class Phase6FedExValidationCorrectionTest extends TestCase
         int $packageSequence,
         bool $secondRun = false,
     ): CarrierApiEvent {
-        return CarrierApiEvent::query()->create([
-            'store_id' => $store->id,
-            'carrier_account_id' => $account->id,
-            'provider' => CarrierAccount::PROVIDER_FEDEX,
-            'action' => CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL,
-            'scenario_key' => $scenarioKey,
-            'test_case_key' => $testCaseKey,
-            'label_format' => $labelFormat,
-            'status' => CarrierApiEvent::STATUS_SUCCEEDED,
-            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
-            'http_status' => 200,
-            'request_body_encrypted' => ['requestedShipment' => ['serviceType' => 'FEDEX_GROUND']],
-            'response_body_encrypted' => ['output' => ['transactionShipments' => []]],
-            'created_at' => $secondRun ? now()->addMinute() : now(),
-            'updated_at' => $secondRun ? now()->addMinute() : now(),
-        ]);
-    }
+        $bodies = FedExShipTestEvidenceFactory::eventBodies($account, $testCaseKey);
 
-    private function seedShipExportEvent(
-        Store $store,
-        CarrierAccount $account,
-        string $testCaseKey,
-        string $scenarioKey,
-        string $labelFormat,
-        string $paymentType,
-    ): CarrierApiEvent {
         return CarrierApiEvent::query()->create([
             'store_id' => $store->id,
             'carrier_account_id' => $account->id,
@@ -767,19 +754,38 @@ class Phase6FedExValidationCorrectionTest extends TestCase
             'http_status' => 200,
             'http_method' => 'POST',
             'endpoint' => '/ship/v1/shipments',
-            'request_body_encrypted' => [
-                'requestedShipment' => [
-                    'shippingChargesPayment' => [
-                        'paymentType' => $paymentType,
-                        'payor' => [
-                            'responsibleParty' => [
-                                'accountNumber' => ['value' => '700257037'],
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-            'response_body_encrypted' => ['output' => ['transactionShipments' => []]],
+            'request_body_encrypted' => $bodies['request'],
+            'response_body_encrypted' => $bodies['response'],
+            'created_at' => $secondRun ? now()->addMinute() : now(),
+            'updated_at' => $secondRun ? now()->addMinute() : now(),
+        ]);
+    }
+
+    private function seedShipExportEvent(
+        Store $store,
+        CarrierAccount $account,
+        string $testCaseKey,
+        string $scenarioKey,
+        string $labelFormat,
+        string $paymentType,
+    ): CarrierApiEvent {
+        $bodies = FedExShipTestEvidenceFactory::eventBodies($account, $testCaseKey);
+
+        return CarrierApiEvent::query()->create([
+            'store_id' => $store->id,
+            'carrier_account_id' => $account->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'action' => CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL,
+            'scenario_key' => $scenarioKey,
+            'test_case_key' => $testCaseKey,
+            'label_format' => $labelFormat,
+            'status' => CarrierApiEvent::STATUS_SUCCEEDED,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'http_status' => 200,
+            'http_method' => 'POST',
+            'endpoint' => '/ship/v1/shipments',
+            'request_body_encrypted' => $bodies['request'],
+            'response_body_encrypted' => $bodies['response'],
         ]);
     }
 
@@ -792,10 +798,15 @@ class Phase6FedExValidationCorrectionTest extends TestCase
         string $labelFormat,
         int $packageSequence,
     ): FedExValidationArtifact {
-        $relativePath = "fedex-validation/{$store->id}/labels/test-{$testCaseKey}-{$packageSequence}.pdf";
+        $relativePath = "fedex-validation/{$store->id}/labels/test-{$testCaseKey}-{$packageSequence}.".strtolower($labelFormat === 'ZPLII' ? 'zpl' : ($labelFormat === 'PNG' ? 'png' : 'pdf'));
         $absolutePath = storage_path('app/'.$relativePath);
         File::ensureDirectoryExists(dirname($absolutePath));
-        File::put($absolutePath, '%PDF-1.4 test');
+        $binary = match ($labelFormat) {
+            'PNG' => FedExShipTestEvidenceFactory::validPngBinary(),
+            'ZPLII', 'ZPL' => FedExShipTestEvidenceFactory::validZplBinary(),
+            default => FedExShipTestEvidenceFactory::validPdfBinary(),
+        };
+        File::put($absolutePath, $binary);
 
         return FedExValidationArtifact::query()->create([
             'store_id' => $store->id,
@@ -811,8 +822,8 @@ class Phase6FedExValidationCorrectionTest extends TestCase
             'label' => $testCaseKey.' package '.$packageSequence,
             'file_path' => $relativePath,
             'mime_type' => 'application/pdf',
-            'file_size' => 12,
-            'sha256' => hash('sha256', '%PDF-1.4 test'),
+            'file_size' => strlen($binary),
+            'sha256' => hash('sha256', $binary),
         ]);
     }
 
@@ -828,7 +839,8 @@ class Phase6FedExValidationCorrectionTest extends TestCase
         $relativePath = "fedex-validation/{$store->id}/uploads/scan-{$testCaseKey}-{$packageSequence}.pdf";
         $absolutePath = storage_path('app/'.$relativePath);
         File::ensureDirectoryExists(dirname($absolutePath));
-        File::put($absolutePath, '%PDF-1.4 scan');
+        $binary = FedExShipTestEvidenceFactory::validPdfBinary().'-scan';
+        File::put($absolutePath, $binary);
 
         return FedExValidationArtifact::query()->create([
             'store_id' => $store->id,
@@ -844,9 +856,14 @@ class Phase6FedExValidationCorrectionTest extends TestCase
             'label' => 'Scan '.$testCaseKey.' package '.$packageSequence,
             'file_path' => $relativePath,
             'mime_type' => 'application/pdf',
-            'file_size' => 11,
-            'sha256' => hash('sha256', '%PDF-1.4 scan'),
+            'file_size' => strlen($binary),
+            'sha256' => hash('sha256', $binary),
             'scan_dpi' => 600,
+            'metadata_json' => [
+                'printed_scan_attestation' => true,
+                'scan_dpi_claimed' => 600,
+                'scan_dpi_source' => 'user_attested',
+            ],
         ]);
     }
 

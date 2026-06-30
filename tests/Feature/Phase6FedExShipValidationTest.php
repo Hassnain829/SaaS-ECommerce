@@ -150,11 +150,15 @@ class Phase6FedExShipValidationTest extends TestCase
                     'transactionId' => 'fedex-ship-label-1',
                     'output' => [
                         'transactionShipments' => [[
+                            'serviceType' => 'PRIORITY_OVERNIGHT',
                             'masterTrackingNumber' => '794612345678',
                             'pieceResponses' => [[
+                                'packageSequenceNumber' => 1,
+                                'trackingNumber' => '794612345678',
                                 'packageDocuments' => [[
                                     'docType' => 'LABEL',
-                                    'encodedLabel' => base64_encode('%PDF-1.4 test label'),
+                                    'imageType' => 'ZPLII',
+                                    'encodedLabel' => base64_encode('^XA^FO50,50^FDTest^FS^XZ'),
                                 ]],
                             ]],
                         ]],

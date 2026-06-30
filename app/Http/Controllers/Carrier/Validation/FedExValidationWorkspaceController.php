@@ -12,6 +12,7 @@ use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExComprehensiveRateEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExHostedEulaEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
+use App\Services\Carriers\FedEx\Validation\FedExShipEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceQueryService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationPreflightService;
@@ -36,6 +37,7 @@ class FedExValidationWorkspaceController extends Controller
         FedExValidationEvidenceQueryService $evidenceQuery,
         FedExHostedEulaEvidenceService $hostedEulaEvidence,
         FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
+        FedExShipEvidenceService $shipEvidenceService,
     ): View {
         $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
         $store = $account->store;
@@ -70,6 +72,11 @@ class FedExValidationWorkspaceController extends Controller
             'swedenScreenshotsUploadAllowed' => $canonicalSwedenRun !== null,
             'hostedEulaStatus' => $hostedEulaEvidence->workspaceStatus($account),
             'comprehensiveRateStatus' => $comprehensiveRateEvidence->workspaceStatus($store, $account),
+            'lockedShipStatuses' => collect($fixtureService->testCaseKeys())
+                ->mapWithKeys(fn (string $testCaseKey): array => [
+                    $testCaseKey => $shipEvidenceService->workspaceStatus($store, $account, $testCaseKey),
+                ])
+                ->all(),
         ]);
     }
 
