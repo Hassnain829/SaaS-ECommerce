@@ -99,7 +99,68 @@ final class FedExValidationScenarioCatalog
 
     public static function scenarioKeyForTestCase(string $testCaseKey): ?string
     {
-        return self::lockedShipScenarios()[$testCaseKey]['scenario_key'] ?? null;
+        return self::lockedShipScenarios()[$testCaseKey]['scenario_key']
+            ?? self::globalShipScenarios()[$testCaseKey]['scenario_key']
+            ?? null;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    public static function globalShipScenarios(): array
+    {
+        $scenarios = [];
+
+        foreach (FedExGlobalShipCaseCatalog::casesByRegion()[FedExGlobalShipCaseCatalog::REGION_CA] ?? [] as $case) {
+            $key = (string) ($case['case_key'] ?? '');
+            if ($key === '' || str_starts_with((string) ($case['service_type'] ?? ''), 'WORKBOOK_')) {
+                continue;
+            }
+
+            $scenarios[$key] = [
+                'scenario_key' => self::globalScenarioKey($key),
+                'label_format' => (string) ($case['label_format'] ?? ''),
+                'label_stock_type' => self::globalLabelStockType($key),
+                'expected_packages' => (int) ($case['expected_packages'] ?? 1),
+                'validation_region' => FedExGlobalShipCaseCatalog::REGION_CA,
+                'transaction_representative' => (bool) ($case['transaction_representative'] ?? false),
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    public static function globalShipScenariosForRegion(string $region): array
+    {
+        return array_filter(
+            self::globalShipScenarios(),
+            static fn (array $meta): bool => strtoupper((string) ($meta['validation_region'] ?? '')) === strtoupper($region),
+        );
+    }
+
+    public static function globalScenarioKey(string $testCaseKey): string
+    {
+        return match ($testCaseKey) {
+            'IntegratorCA01' => 'ship_ca01_pdf',
+            'IntegratorCA02' => 'ship_ca02_png',
+            'IntegratorCA03' => 'ship_ca03_pdf',
+            'IntegratorCA04' => 'ship_ca04_pdf',
+            'IntegratorCA05' => 'ship_ca05_zplii',
+            default => 'ship_'.strtolower(str_replace(['Integrator', '-'], ['', '_'], $testCaseKey)),
+        };
+    }
+
+    private static function globalLabelStockType(string $testCaseKey): string
+    {
+        return match ($testCaseKey) {
+            'IntegratorCA01', 'IntegratorCA03', 'IntegratorCA04' => 'PAPER_85X11_TOP_HALF_LABEL',
+            'IntegratorCA02' => 'PAPER_4X6',
+            'IntegratorCA05' => 'STOCK_4X6',
+            default => 'PAPER_4X6',
+        };
     }
 
     /**

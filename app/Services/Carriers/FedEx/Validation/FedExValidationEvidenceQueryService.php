@@ -238,6 +238,13 @@ class FedExValidationEvidenceQueryService
 
         $run = $this->canonicalShipRun($store, $account, $testCaseKey);
 
+        if ($run === null) {
+            $region = app(FedExShipFixtureResolver::class)->regionForCase($testCaseKey);
+            if ($region !== null && $region !== 'US') {
+                $run = $this->canonicalGlobalShipRun($store, $account, $region, $testCaseKey);
+            }
+        }
+
         return $run['event'] ?? null;
     }
 
@@ -256,6 +263,60 @@ class FedExValidationEvidenceQueryService
             return null;
         }
 
+        return $this->buildCanonicalShipRun($store, $account, $testCaseKey, $meta, null);
+    }
+
+    /**
+     * @return array{
+     *     event: CarrierApiEvent,
+     *     generated_labels: list<\App\Models\FedExValidationArtifact>,
+     *     printed_scans: list<\App\Models\FedExValidationArtifact>,
+     *     validation: array<string, mixed>
+     * }|null
+     */
+    public function canonicalGlobalShipRun(
+        Store $store,
+        CarrierAccount $account,
+        string $region,
+        string $testCaseKey,
+    ): ?array {
+        $meta = FedExValidationScenarioCatalog::globalShipScenarios()[$testCaseKey] ?? null;
+        if ($meta === null || strtoupper((string) ($meta['validation_region'] ?? '')) !== strtoupper($region)) {
+            return null;
+        }
+
+        return $this->buildCanonicalShipRun($store, $account, $testCaseKey, $meta, strtoupper($region));
+    }
+
+    public function latestGlobalShipLabelAttempt(
+        Store $store,
+        CarrierAccount $account,
+        string $region,
+        string $scenarioKey,
+        ?string $testCaseKey = null,
+        ?string $labelFormat = null,
+    ): ?CarrierApiEvent {
+        return $this->canonicalCandidates($store, $account, $scenarioKey, $testCaseKey, $labelFormat, null, strtoupper($region))
+            ->where('action', CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL)
+            ->first(fn (CarrierApiEvent $event): bool => $event->hasCompleteEvidence());
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     * @return array{
+     *     event: CarrierApiEvent,
+     *     generated_labels: list<\App\Models\FedExValidationArtifact>,
+     *     printed_scans: list<\App\Models\FedExValidationArtifact>,
+     *     validation: array<string, mixed>
+     * }|null
+     */
+    private function buildCanonicalShipRun(
+        Store $store,
+        CarrierAccount $account,
+        string $testCaseKey,
+        array $meta,
+        ?string $validationRegion,
+    ): ?array {
         $scenarioKey = (string) $meta['scenario_key'];
         $labelFormat = (string) $meta['label_format'];
 
@@ -266,6 +327,7 @@ class FedExValidationEvidenceQueryService
             $testCaseKey,
             $labelFormat,
             null,
+            $validationRegion,
         )->where('action', CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL);
 
         foreach ($candidates as $event) {
@@ -378,14 +440,27 @@ class FedExValidationEvidenceQueryService
         ?string $testCaseKey,
         ?string $labelFormat,
         ?string $mfaMethod,
+        ?string $validationRegion = null,
     ) {
         return $this->baseQuery($store, $account)
             ->where('scenario_key', $scenarioKey)
             ->when($testCaseKey !== null, fn (Builder $q) => $q->where('test_case_key', $testCaseKey))
             ->when($labelFormat !== null, fn (Builder $q) => $q->where('label_format', strtoupper($labelFormat)))
             ->when($mfaMethod !== null, fn (Builder $q) => $q->where('mfa_method', strtolower($mfaMethod)))
+            ->when($validationRegion !== null, fn (Builder $q) => $q->where('validation_region', strtoupper($validationRegion)))
+            ->when($validationRegion === null && $this->isUsLockedShipTestCase($testCaseKey), function (Builder $q): void {
+                $q->where(function (Builder $inner): void {
+                    $inner->whereNull('validation_region')->orWhere('validation_region', 'US');
+                });
+            })
             ->orderByDesc('id')
             ->get();
+    }
+
+    private function isUsLockedShipTestCase(?string $testCaseKey): bool
+    {
+        return $testCaseKey !== null
+            && array_key_exists($testCaseKey, FedExValidationScenarioCatalog::lockedShipScenarios());
     }
 
     /**

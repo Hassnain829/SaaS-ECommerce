@@ -11,7 +11,7 @@ use App\Services\Carriers\FedEx\Support\FedExConfig;
 final class FedExShipEvidenceRules
 {
     public function __construct(
-        private readonly FedExShipTestCaseFixtureService $fixtureService,
+        private readonly FedExShipFixtureResolver $fixtureResolver,
         private readonly FedExShipResponseParser $responseParser,
         private readonly FedExConfig $config,
     ) {}
@@ -21,8 +21,10 @@ final class FedExShipEvidenceRules
      */
     public function expectedMetadata(string $testCaseKey): array
     {
-        $fixture = $this->fixtureService->fixture($testCaseKey);
-        $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$testCaseKey] ?? [];
+        $fixture = $this->fixtureResolver->fixture($testCaseKey);
+        $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$testCaseKey]
+            ?? FedExValidationScenarioCatalog::globalShipScenarios()[$testCaseKey]
+            ?? [];
 
         return [
             'test_case_key' => $testCaseKey,
@@ -38,8 +40,57 @@ final class FedExShipEvidenceRules
 
     public function isValidEventForTestCase(CarrierApiEvent $event, string $testCaseKey): bool
     {
+        if ($this->isLegacyGrandfathered($event)) {
+            return $this->validateLegacyGrandfathered($event, $testCaseKey)['valid'];
+        }
+
         return $this->validateRequest($event, $testCaseKey)['valid']
             && $this->validateResponse($event, $testCaseKey)['valid'];
+    }
+
+    public function isLegacyGrandfathered(CarrierApiEvent $event): bool
+    {
+        return (bool) data_get($event->response_summary, 'legacy_grandfathered', false);
+    }
+
+    /**
+     * @return array{valid: bool, reasons: list<string>}
+     */
+    public function validateLegacyGrandfathered(CarrierApiEvent $event, string $testCaseKey): array
+    {
+        $expected = $this->expectedMetadata($testCaseKey);
+        $reasons = [];
+
+        if ($event->action !== CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL) {
+            $reasons[] = 'action_not_create_label';
+        }
+
+        if (! $event->isSuccessfulHttp() || $event->status !== CarrierApiEvent::STATUS_SUCCEEDED) {
+            $reasons[] = 'http_not_successful';
+        }
+
+        if ((string) $event->scenario_key !== (string) $expected['scenario_key']) {
+            $reasons[] = 'scenario_key_mismatch';
+        }
+
+        if ((string) $event->test_case_key !== $testCaseKey) {
+            $reasons[] = 'test_case_key_mismatch';
+        }
+
+        if ((string) ($event->validation_region ?? 'US') !== 'US') {
+            $reasons[] = 'validation_region_not_us';
+        }
+
+        $parsed = $this->responseParser->parse(is_array($event->response_body_encrypted) ? $event->response_body_encrypted : []);
+        $responseService = strtoupper((string) ($parsed['service_type'] ?? ''));
+        if ($responseService === '' || $responseService !== (string) $expected['expected_service_type']) {
+            $reasons[] = 'response_service_mismatch';
+        }
+
+        return [
+            'valid' => $reasons === [],
+            'reasons' => $reasons,
+        ];
     }
 
     /**
@@ -47,6 +98,16 @@ final class FedExShipEvidenceRules
      */
     public function validateRequest(CarrierApiEvent $event, string $testCaseKey): array
     {
+        if ($this->isLegacyGrandfathered($event)) {
+            $legacy = $this->validateLegacyGrandfathered($event, $testCaseKey);
+
+            return [
+                'valid' => $legacy['valid'],
+                'reasons' => $legacy['reasons'],
+                'metadata' => $this->expectedMetadata($testCaseKey),
+            ];
+        }
+
         $expected = $this->expectedMetadata($testCaseKey);
         $reasons = [];
         $request = is_array($event->request_body_encrypted) ? $event->request_body_encrypted : [];
@@ -115,6 +176,20 @@ final class FedExShipEvidenceRules
             $reasons[] = 'us02_special_services_missing';
         }
 
+        if ($testCaseKey === 'IntegratorCA03') {
+            if (! $this->isFridayShipDate((string) data_get($request, 'requestedShipment.shipDatestamp', ''))) {
+                $reasons[] = 'ca03_ship_date_not_friday';
+            }
+
+            if (! $this->containsSpecialServices($request, ['SATURDAY_DELIVERY'])) {
+                $reasons[] = 'ca03_saturday_delivery_missing';
+            }
+
+            if (! data_get($request, 'requestedShipment.recipients.0.address.residential')) {
+                $reasons[] = 'ca03_residential_missing';
+            }
+        }
+
         if ($testCaseKey === 'IntegratorUS04') {
             if (! data_get($request, 'requestedShipment.recipients.0.address.residential')) {
                 $reasons[] = 'us04_residential_missing';
@@ -147,7 +222,20 @@ final class FedExShipEvidenceRules
     public function validateResponse(CarrierApiEvent $event, string $testCaseKey): array
     {
         $expected = $this->expectedMetadata($testCaseKey);
+        $parsed = $this->responseParser->parse(is_array($event->response_body_encrypted) ? $event->response_body_encrypted : []);
+
+        if ($this->isLegacyGrandfathered($event)) {
+            $legacy = $this->validateLegacyGrandfathered($event, $testCaseKey);
+
+            return [
+                'valid' => $legacy['valid'],
+                'reasons' => $legacy['reasons'],
+                'parsed' => $parsed,
+            ];
+        }
+
         $reasons = [];
+
         $response = is_array($event->response_body_encrypted) ? $event->response_body_encrypted : [];
         $parsed = $this->responseParser->parse($response);
 

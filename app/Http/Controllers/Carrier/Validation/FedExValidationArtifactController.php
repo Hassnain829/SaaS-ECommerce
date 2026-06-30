@@ -10,6 +10,8 @@ use App\Models\FedExValidationArtifact;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExComprehensiveRateEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExHostedEulaEvidenceService;
+use App\Services\Carriers\FedEx\Validation\FedExGlobalShipCaseCatalog;
+use App\Services\Carriers\FedEx\Validation\FedExShipFixtureResolver;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceQueryService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScenarioCatalog;
 use App\Services\SecurityLogRecorder;
@@ -17,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FedExValidationArtifactController extends Controller
@@ -58,25 +61,37 @@ class FedExValidationArtifactController extends Controller
         CarrierAccount $carrierAccount,
         FedExConfig $config,
         FedExValidationEvidenceQueryService $evidenceQuery,
+        FedExShipFixtureResolver $fixtureResolver,
         SecurityLogRecorder $securityLogRecorder,
     ): RedirectResponse {
         $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
         $store = $account->store;
 
+        $allowedTestCaseKeys = array_merge(
+            $fixtureResolver->usTestCaseKeys(),
+            $fixtureResolver->testCaseKeysForRegion(FedExGlobalShipCaseCatalog::REGION_CA),
+        );
+
         $validated = $request->validate([
-            'test_case_key' => ['required', 'string', 'in:IntegratorUS02,IntegratorUS04,IntegratorUS05'],
+            'test_case_key' => ['required', 'string', Rule::in($allowedTestCaseKeys)],
             'package_sequence' => ['required', 'integer', 'min:1', 'max:5'],
             'scan_dpi' => ['required', 'integer', 'min:600', 'max:2400'],
             'printed_scan_attestation' => ['accepted'],
             'scan' => ['required', 'file', 'mimes:pdf,png,jpg,jpeg', 'max:20480'],
         ]);
 
-        $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$validated['test_case_key']];
+        $testCaseKey = $validated['test_case_key'];
+        $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$testCaseKey]
+            ?? FedExValidationScenarioCatalog::globalShipScenarios()[$testCaseKey]
+            ?? null;
+
+        abort_if($meta === null, 422, 'The selected test case key is invalid.');
+
         $event = $evidenceQuery->canonicalShipLabelEvent(
             $store,
             $account,
             (string) $meta['scenario_key'],
-            testCaseKey: $validated['test_case_key'],
+            testCaseKey: $testCaseKey,
             labelFormat: (string) $meta['label_format'],
         );
 

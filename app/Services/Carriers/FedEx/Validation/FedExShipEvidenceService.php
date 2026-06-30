@@ -158,7 +158,7 @@ class FedExShipEvidenceService
 
     private function fixtureServiceLabel(string $testCaseKey): string
     {
-        return (string) (app(FedExShipTestCaseFixtureService::class)->fixture($testCaseKey)['label'] ?? $testCaseKey);
+        return (string) (app(FedExShipFixtureResolver::class)->fixture($testCaseKey)['label'] ?? $testCaseKey);
     }
 
     private function printingInstructions(string $testCaseKey): string

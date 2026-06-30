@@ -11,6 +11,7 @@ final class FedExValidationEventContext
         public readonly ?string $mfaMethod = null,
         public readonly ?string $labelFormat = null,
         public readonly ?int $packageCount = null,
+        public readonly ?string $validationRegion = null,
     ) {}
 
     /**
@@ -25,6 +26,7 @@ final class FedExValidationEventContext
             'mfa_method' => $this->mfaMethod,
             'label_format' => $this->labelFormat,
             'package_count' => $this->packageCount,
+            'validation_region' => $this->validationRegion,
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
     }
 }

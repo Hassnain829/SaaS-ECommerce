@@ -134,6 +134,9 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validati
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/ship/{testCaseKey}', [FedExValidationRunController::class, 'runLockedShipLabel'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.ship');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/global/{region}/{caseKey}/run', [FedExValidationRunController::class, 'runGlobalShipCase'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.global-ship');
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/tracking', [FedExValidationRunController::class, 'runTracking'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.tracking');

@@ -447,6 +447,113 @@
             </div>
         </section>
 
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-lg font-semibold text-[#0F172A]">Global Territories — Canada</h3>
+                    <p class="mt-1 text-sm text-[#64748B]">Package 7B — five locked Canada ship cases using the workbook CA test account. These run separately from US Package 6 evidence.</p>
+                </div>
+                <span class="rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-bold text-[#1D4ED8]">
+                    {{ $canadaRegionalPreflight['passed'] ?? 0 }} / {{ $canadaRegionalPreflight['total'] ?? 0 }} Canada checks
+                </span>
+            </div>
+
+            <dl class="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                    <dt class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Ship cases</dt>
+                    <dd class="mt-1 font-semibold text-[#0F172A]">{{ $canadaRegionalSummary['required_cases'] ?? 5 }} required</dd>
+                </div>
+                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                    <dt class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Labels & scans</dt>
+                    <dd class="mt-1 font-semibold text-[#0F172A]">{{ $canadaRegionalSummary['labels_passed'] ?? 0 }} labels · {{ $canadaRegionalSummary['scans_passed'] ?? 0 }} scan sets</dd>
+                </div>
+                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                    <dt class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Regional accounts</dt>
+                    <dd class="mt-1 font-semibold text-[#0F172A]">{{ $canadaRegionalAccounts['ready_accounts'] ?? 0 }} / {{ $canadaRegionalAccounts['total_accounts'] ?? 0 }} prepared</dd>
+                </div>
+            </dl>
+
+            @if (! empty($canadaRegionalAccounts['accounts']))
+                <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                    <p class="text-sm font-semibold text-[#0F172A]">Canada validation accounts</p>
+                    <ul class="mt-2 space-y-1 text-sm text-[#475569]">
+                        @foreach ($canadaRegionalAccounts['accounts'] as $regionalAccount)
+                            <li>{{ $regionalAccount['label'] }} — {{ $regionalAccount['masked_account'] }} · {{ str($regionalAccount['status'])->replace('_', ' ')->title() }}</li>
+                        @endforeach
+                    </ul>
+                    <p class="mt-2 text-xs text-[#64748B]">Register each Canada workbook account through the existing validation registration flow before expecting live label success. Ship payloads already use the locked workbook account numbers.</p>
+                </div>
+            @endif
+
+            <div class="mt-4 grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                @foreach ($globalShipScenarios as $testCaseKey => $meta)
+                    @php($scenarioKey = $meta['scenario_key'])
+                    @php($shipStatus = $canadaRegionalSummary['case_statuses'][$testCaseKey] ?? [])
+                    <article class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">{{ $testCaseKey }}</p>
+                                <p class="mt-1 font-semibold text-[#0F172A]">{{ $shipStatus['label'] ?? ($meta['label_format'].' label') }}</p>
+                                <p class="mt-1 text-sm text-[#64748B]">{{ $meta['expected_packages'] }} package(s) · Canada account context</p>
+                            </div>
+                            @if (! empty($shipStatus['transaction_representative']))
+                                <span class="rounded-full bg-[#ECFDF5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#047857]">Transaction rep</span>
+                            @endif
+                        </div>
+
+                        <dl class="mt-3 space-y-1 text-xs text-[#475569]">
+                            <div class="flex justify-between gap-3"><dt>API transaction</dt><dd class="font-semibold">{{ str($shipStatus['transaction_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt>Expected service</dt><dd class="font-semibold">{{ $shipStatus['expected_service_type'] ?? '—' }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt>Generated labels</dt><dd class="font-semibold">{{ $shipStatus['generated_labels'] ?? '0 of '.$meta['expected_packages'] }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt>Printed scans</dt><dd class="font-semibold">{{ $shipStatus['printed_scans'] ?? '0 of '.$meta['expected_packages'] }}</dd></div>
+                        </dl>
+
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.global-ship', [$account, 'region' => 'CA', 'caseKey' => $testCaseKey]) }}" class="mt-3" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                            @csrf
+                            <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Run {{ $testCaseKey }}</button>
+                        </form>
+
+                        <p class="mt-2 text-xs text-[#64748B]">{{ $shipStatus['printing_instructions'] ?? 'Print the downloaded label before scanning.' }}</p>
+
+                        <div class="mt-3 space-y-1">
+                            @php($generatedArtifacts = collect($shipStatus['generated_label_artifacts'] ?? []))
+                            @for ($i = 1; $i <= (int) $meta['expected_packages']; $i++)
+                                @php($artifact = $generatedArtifacts->firstWhere('package_sequence', $i) ?? $generatedArtifacts->get($i - 1))
+                                @if ($artifact)
+                                    <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation.artifacts.download', [$account, $artifact->id]) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052CC] hover:bg-[#EFF6FF]">
+                                        Download generated label — package {{ $i }}
+                                    </a>
+                                @else
+                                    <p class="text-xs text-[#94A3B8]">Package {{ $i }} label — run the case first</p>
+                                @endif
+                            @endfor
+                        </div>
+
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.scans.upload', $account) }}" enctype="multipart/form-data" class="mt-4 space-y-2">
+                            @csrf
+                            <input type="hidden" name="test_case_key" value="{{ $testCaseKey }}">
+                            <label class="block text-xs font-semibold text-[#475569]">Package sequence</label>
+                            <select name="package_sequence" class="h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-sm">
+                                @for ($i = 1; $i <= (int) $meta['expected_packages']; $i++)
+                                    <option value="{{ $i }}">Package {{ $i }}</option>
+                                @endfor
+                            </select>
+                            <label class="block text-xs font-semibold text-[#475569]">Scan DPI (minimum 600)</label>
+                            <input type="number" name="scan_dpi" min="600" max="2400" value="600" required class="h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-sm">
+                            <label class="block text-xs font-semibold text-[#475569]">Printed scan (PDF, PNG, or JPG)</label>
+                            <p class="text-xs text-[#B45309]">Print the generated label first, then upload a 600 DPI scan of the printed paper — not the API file.</p>
+                            <input type="file" name="scan" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-xs">
+                            <label class="flex items-start gap-2 text-xs text-[#475569]">
+                                <input type="checkbox" name="printed_scan_attestation" value="1" required class="mt-0.5">
+                                <span>I confirm this scan came from a physically printed Canada validation label at 600 DPI or higher.</span>
+                            </label>
+                            <button type="submit" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Upload printed scan</button>
+                        </form>
+                    </article>
+                @endforeach
+            </div>
+        </section>
+
         @if (in_array(\App\Services\Carriers\FedEx\Validation\FedExValidationScopeService::SCOPE_TRACKING, $requiredScopes, true))
             <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
                 <h3 class="text-lg font-semibold text-[#0F172A]">Tracking / Basic Integrated Visibility</h3>

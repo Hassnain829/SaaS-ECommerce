@@ -345,7 +345,7 @@ class Phase6FedExShipValidationTest extends TestCase
     /**
      * @return array{0: User, 1: Store, 2: CarrierAccount}
      */
-    private function integratorAccountFixture(string $name): array
+    protected function integratorAccountFixture(string $name): array
     {
         [$owner, $store] = $this->ownerStore($name);
         $location = $this->readyLocation($store);

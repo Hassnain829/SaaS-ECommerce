@@ -16,6 +16,7 @@ use App\Services\Carriers\FedEx\Operations\FedExServiceAvailabilityService;
 use App\Services\Carriers\FedEx\Operations\FedExShipValidationService;
 use App\Services\Carriers\FedEx\Operations\FedExTradeDocumentsUploadService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Validation\FedExShipFixtureResolver;
 use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationAuthorizationEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationMfaEvidenceService;
@@ -303,6 +304,54 @@ class FedExValidationRunController extends Controller
         ]);
 
         return $this->redirectWithRunResult($account, $testCaseKey.' locked ship label ('.$lockedFormat.')', $result);
+    }
+
+    public function runGlobalShipCase(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        string $region,
+        string $caseKey,
+        FedExConfig $config,
+        FedExShipValidationService $shipValidationService,
+        FedExShipFixtureResolver $fixtureResolver,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+        $region = strtoupper($region);
+        $caseKey = trim($caseKey);
+
+        abort_unless(
+            in_array($caseKey, $fixtureResolver->testCaseKeysForRegion($region), true),
+            422,
+            'Unknown FedEx global ship case for this region.',
+        );
+
+        abort_if(
+            $caseKey === 'IntegratorCA06',
+            422,
+            'IntegratorCA06 is a Rate-only workbook case and is excluded from Ship validation.',
+        );
+
+        $lockedFormat = $fixtureResolver->lockedLabelFormat($caseKey);
+
+        ['result' => $result, 'artifacts' => $artifacts] = $shipValidationService->createSandboxLabel(
+            store: $account->store,
+            account: $account,
+            testCaseKey: $caseKey,
+            labelFormat: $lockedFormat,
+            actor: $request->user(),
+        );
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_run_global_ship_label', store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'validation_region' => $region,
+            'test_case_key' => $caseKey,
+            'label_format' => $lockedFormat,
+            'success' => $result->success,
+            'artifact_count' => count($artifacts),
+        ]);
+
+        return $this->redirectWithRunResult($account, $caseKey.' '.$region.' ship label ('.$lockedFormat.')', $result);
     }
 
     public function runTracking(

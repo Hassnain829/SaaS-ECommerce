@@ -64,6 +64,50 @@ class FedExShipTestCaseFixtureService
     }
 
     /**
+     * Heuristic Friday for Saturday Delivery when live validate probing is unavailable.
+     *
+     * FedEx sandbox typically accepts a Friday 7–10 calendar days out, not the immediate next Friday.
+     */
+    public function nextSaturdayDeliveryFriday(?Carbon $now = null): string
+    {
+        $now = ($now ?? now())->copy()->startOfDay();
+        $windowStart = $now->copy()->addDays(7);
+        $windowEnd = $now->copy()->addDays(10);
+
+        $candidate = $windowStart->dayOfWeek === Carbon::FRIDAY
+            ? $windowStart->copy()
+            : $windowStart->copy()->next(Carbon::FRIDAY);
+
+        if ($candidate->lte($windowEnd)) {
+            return $candidate->toDateString();
+        }
+
+        $fallback = $windowEnd->copy()->previous(Carbon::FRIDAY);
+        if ($fallback->gte($windowStart)) {
+            return $fallback->toDateString();
+        }
+
+        return Carbon::parse($this->nextValidFriday($now))->addWeek()->toDateString();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function saturdayDeliveryFridayCandidates(?Carbon $now = null, int $weeks = 4): array
+    {
+        $now = ($now ?? now())->copy()->startOfDay();
+        $dates = [];
+        $candidate = Carbon::parse($this->nextValidFriday($now))->startOfDay();
+
+        for ($week = 0; $week < $weeks; $week++) {
+            $dates[] = $candidate->toDateString();
+            $candidate = $candidate->copy()->addWeek();
+        }
+
+        return $dates;
+    }
+
+    /**
      * Home Delivery Premium delivery date — approximately one week after ship date.
      */
     public function homeDeliveryPremiumDeliveryDate(string $shipDate): string
@@ -107,7 +151,7 @@ class FedExShipTestCaseFixtureService
             'label_format' => 'ZPLII',
             'label_stock_type' => 'STOCK_4X6',
             'transportation_payment_type' => 'SENDER',
-            'ship_date_strategy' => 'next_valid_friday',
+            'ship_date_strategy' => 'saturday_delivery_friday',
             'shipper' => [
                 'person_name' => 'James Weston',
                 'company_name' => 'RTC',

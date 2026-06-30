@@ -86,6 +86,7 @@ class CarrierApiEvent extends Model
         'test_case_key',
         'mfa_method',
         'label_format',
+        'validation_region',
         'package_count',
         'endpoint',
         'http_method',

@@ -12,8 +12,9 @@ use App\Services\Carriers\FedEx\Auth\FedExAuthorizationClassifier;
 use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 use App\Services\Carriers\FedEx\Presenters\FedExMerchantCheckPresenter;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Validation\FedExSaturdayDeliveryShipDateResolver;
 use App\Services\Carriers\FedEx\Validation\FedExShipEvidenceRules;
-use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
+use App\Services\Carriers\FedEx\Validation\FedExShipFixtureResolver;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScenarioCatalog;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -23,10 +24,11 @@ class FedExShipValidationService
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExMerchantApiClient $apiClient,
-        private readonly FedExShipTestCaseFixtureService $fixtureService,
+        private readonly FedExShipFixtureResolver $fixtureResolver,
         private readonly FedExShipPayloadFactory $payloadFactory,
         private readonly FedExShipResponseParser $responseParser,
         private readonly FedExShipEvidenceRules $evidenceRules,
+        private readonly FedExSaturdayDeliveryShipDateResolver $saturdayDeliveryShipDateResolver,
     ) {}
 
     /**
@@ -41,10 +43,11 @@ class FedExShipValidationService
     ): array {
         $this->assertSandboxShipTools($account);
 
-        $fixture = $this->fixtureService->fixture($testCaseKey);
+        $fixture = $this->fixtureResolver->fixture($testCaseKey);
         $endpoint = $this->config->shipValidatePath($account->environment);
         $labelFormat = strtoupper((string) ($overrides['label_format'] ?? $fixture['label_format'] ?? 'PDF'));
-        $payload = $this->payloadFactory->buildShipmentPayload($account, $fixture, $labelFormat, $overrides);
+        $shipDateOverride = $this->shipDateOverridesForFixture($store, $account, $fixture, $labelFormat);
+        $payload = $this->payloadFactory->buildShipmentPayload($account, $fixture, $labelFormat, array_merge($overrides, $shipDateOverride));
         $context = $this->eventContext($fixture, $testCaseKey, $labelFormat);
         $requestSummary = array_merge(
             $this->buildRequestSummary(
@@ -112,8 +115,8 @@ class FedExShipValidationService
             ];
         }
 
-        $fixture = $this->fixtureService->fixture($testCaseKey);
-        $labelFormat = strtoupper(trim($labelFormat ?? $this->fixtureService->lockedLabelFormat($testCaseKey)));
+        $fixture = $this->fixtureResolver->fixture($testCaseKey);
+        $labelFormat = strtoupper(trim($labelFormat ?? $this->fixtureResolver->lockedLabelFormat($testCaseKey)));
         abort_unless(
             strtoupper((string) ($fixture['label_format'] ?? '')) === $labelFormat,
             422,
@@ -121,9 +124,7 @@ class FedExShipValidationService
         );
 
         $endpoint = $this->config->shipCreatePath($account->environment);
-        $shipDateOverride = ($fixture['ship_date_strategy'] ?? null) === 'next_valid_friday'
-            ? ['ship_date' => $this->fixtureService->nextValidFriday()]
-            : [];
+        $shipDateOverride = $this->shipDateOverridesForFixture($store, $account, $fixture, $labelFormat);
         $payload = $this->payloadFactory->buildShipmentPayload($account, $fixture, $labelFormat, array_merge($overrides, $shipDateOverride));
         $context = $this->eventContext($fixture, $testCaseKey, $labelFormat);
         $requestSummary = $this->buildRequestSummary($account, $endpoint, $testCaseKey, $fixture, array_merge($overrides, $shipDateOverride, [
@@ -312,6 +313,7 @@ class FedExShipValidationService
             testCaseKey: $testCaseKey,
             labelFormat: strtoupper($labelFormat),
             packageCount: count($fixture['packages'] ?? []),
+            validationRegion: (string) ($fixture['validation_region'] ?? 'US'),
         );
     }
 
@@ -516,5 +518,24 @@ class FedExShipValidationService
             ?? data_get($data, 'output.transactionShipments.0.pieceResponses.0.trackingNumber');
 
         return is_string($tracking) && $tracking !== '' ? $tracking : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $fixture
+     * @return array{ship_date?: string}
+     */
+    private function shipDateOverridesForFixture(
+        Store $store,
+        CarrierAccount $account,
+        array $fixture,
+        string $labelFormat,
+    ): array {
+        return match ($fixture['ship_date_strategy'] ?? null) {
+            'next_valid_friday' => ['ship_date' => $this->fixtureResolver->nextValidFriday()],
+            'saturday_delivery_friday' => [
+                'ship_date' => $this->saturdayDeliveryShipDateResolver->resolve($store, $account, $fixture, $labelFormat),
+            ],
+            default => [],
+        };
     }
 }

@@ -34,9 +34,11 @@ final class FedExShipTestEvidenceFactory
         $labelFormat = (string) $fixture['label_format'];
 
         Carbon::setTestNow($now ?? Carbon::parse('2026-06-26')); // Friday
-        $shipDateOverride = ($fixture['ship_date_strategy'] ?? null) === 'next_valid_friday'
-            ? ['ship_date' => $fixtureService->nextValidFriday($now ?? Carbon::parse('2026-06-26'))]
-            : [];
+        $shipDateOverride = match ($fixture['ship_date_strategy'] ?? null) {
+            'next_valid_friday' => ['ship_date' => $fixtureService->nextValidFriday($now ?? Carbon::parse('2026-06-26'))],
+            'saturday_delivery_friday' => ['ship_date' => $fixtureService->nextSaturdayDeliveryFriday($now ?? Carbon::parse('2026-06-26'))],
+            default => [],
+        };
 
         $request = app(FedExShipPayloadFactory::class)->buildShipmentPayload(
             $account,

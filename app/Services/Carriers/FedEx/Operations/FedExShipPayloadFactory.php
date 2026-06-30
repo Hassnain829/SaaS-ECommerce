@@ -3,13 +3,14 @@
 namespace App\Services\Carriers\FedEx\Operations;
 
 use App\Models\CarrierAccount;
-use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
-use Carbon\Carbon;
+use App\Services\Carriers\FedEx\Validation\FedExShipFixtureResolver;
+use App\Services\Carriers\FedEx\Validation\Payload\FedExCustomsClearanceBuilder;
 
 class FedExShipPayloadFactory
 {
     public function __construct(
-        private readonly FedExShipTestCaseFixtureService $fixtureService,
+        private readonly FedExShipFixtureResolver $fixtureResolver,
+        private readonly FedExCustomsClearanceBuilder $customsClearanceBuilder,
     ) {}
 
     /**
@@ -24,7 +25,7 @@ class FedExShipPayloadFactory
         array $overrides = [],
     ): array {
         $fixture = array_replace_recursive($fixture, $overrides);
-        $accountNumber = (string) ($account->provider_account_number ?: ($fixture['account_number'] ?? ''));
+        $accountNumber = (string) ($fixture['account_number'] ?? $account->provider_account_number ?? '');
         $labelFormat = strtoupper(trim((string) ($labelFormat ?? $fixture['label_format'] ?? 'PDF')));
         $labelStockType = (string) ($fixture['label_stock_type'] ?? 'PAPER_4X6');
         $shipDate = (string) ($overrides['ship_date'] ?? $this->resolveShipDate($fixture));
@@ -56,6 +57,10 @@ class FedExShipPayloadFactory
             $requestedShipment['processingOption'] = $mpsControls;
         }
 
+        if ($customs = $this->customsClearanceBuilder->build($fixture, $accountNumber)) {
+            $requestedShipment['customsClearanceDetail'] = $customs;
+        }
+
         if (filled($labelFormat)) {
             $requestedShipment['labelSpecification'] = $this->buildLabelSpecification($labelFormat, $labelStockType);
         }
@@ -83,7 +88,7 @@ class FedExShipPayloadFactory
         if (($fixture['home_delivery_premium_delivery_date_strategy'] ?? null) === 'one_week_after_ship_date') {
             $detail = $payload['homeDeliveryPremiumDetail'] ?? [];
             if (is_array($detail) && ! isset($detail['deliveryDate'])) {
-                $detail['deliveryDate'] = $this->fixtureService->homeDeliveryPremiumDeliveryDate($shipDate);
+                $detail['deliveryDate'] = $this->fixtureResolver->homeDeliveryPremiumDeliveryDate($shipDate);
                 $payload['homeDeliveryPremiumDetail'] = $detail;
             }
         }
@@ -134,13 +139,16 @@ class FedExShipPayloadFactory
                     'units' => strtoupper((string) ($package['weight_unit'] ?? 'LB')),
                     'value' => max(0.01, (float) ($package['weight'] ?? 1)),
                 ],
-                'dimensions' => [
+            ];
+
+            if ($this->packageHasDimensions($package)) {
+                $item['dimensions'] = [
                     'length' => max(0.01, (float) ($package['length'] ?? 9)),
                     'width' => max(0.01, (float) ($package['width'] ?? 6)),
                     'height' => max(0.01, (float) ($package['height'] ?? 2)),
                     'units' => strtoupper((string) ($package['dimension_unit'] ?? 'IN')),
-                ],
-            ];
+                ];
+            }
 
             if (isset($package['group_package_count'])) {
                 $item['groupPackageCount'] = (int) $package['group_package_count'];
@@ -151,6 +159,10 @@ class FedExShipPayloadFactory
                     'amount' => (float) ($package['declared_value']['amount'] ?? 0),
                     'currency' => (string) ($package['declared_value']['currency'] ?? 'USD'),
                 ];
+            }
+
+            if ($references = $this->buildCustomerReferences($package['customer_references'] ?? [])) {
+                $item['customerReferences'] = $references;
             }
 
             if ($packageSpecialServices = $this->buildPackageSpecialServices($package)) {
@@ -168,6 +180,41 @@ class FedExShipPayloadFactory
     }
 
     /**
+     * @param  list<array<string, mixed>>  $references
+     * @return list<array<string, mixed>>
+     */
+    private function buildCustomerReferences(array $references): array
+    {
+        $items = [];
+
+        foreach ($references as $reference) {
+            if (! is_array($reference)) {
+                continue;
+            }
+
+            $type = $reference['customerReferenceType'] ?? $reference['customer_reference_type'] ?? null;
+            $value = $reference['value'] ?? null;
+
+            if (filled($type) && filled($value)) {
+                $items[] = [
+                    'customerReferenceType' => (string) $type,
+                    'value' => (string) $value,
+                ];
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param  array<string, mixed>  $package
+     */
+    private function packageHasDimensions(array $package): bool
+    {
+        return isset($package['length']) || isset($package['width']) || isset($package['height']);
+    }
+
+    /**
      * @param  array<string, mixed>  $package
      * @return array<string, mixed>|null
      */
@@ -175,7 +222,29 @@ class FedExShipPayloadFactory
     {
         $services = $package['package_special_services'] ?? null;
 
-        return is_array($services) && $services !== [] ? $services : null;
+        if (! is_array($services) || $services === []) {
+            return null;
+        }
+
+        $types = array_map(
+            strtoupper(...),
+            (array) ($services['specialServiceTypes'] ?? []),
+        );
+
+        if (in_array('SIGNATURE_OPTION', $types, true)) {
+            $option = $services['signatureOptionType']
+                ?? data_get($services, 'signatureOptionDetail.signatureOptionType')
+                ?? data_get($services, 'signatureOptionDetail.optionType');
+
+            if (filled($option)) {
+                return [
+                    'specialServiceTypes' => ['SIGNATURE_OPTION'],
+                    'signatureOptionType' => strtoupper((string) $option),
+                ];
+            }
+        }
+
+        return $services;
     }
 
     /**
@@ -187,17 +256,59 @@ class FedExShipPayloadFactory
         $paymentType = strtoupper((string) ($fixture['transportation_payment_type'] ?? 'SENDER'));
         $payment = ['paymentType' => $paymentType];
 
-        if ($paymentType === 'RECIPIENT') {
-            $payment['payor'] = [
+        if (in_array($paymentType, ['RECIPIENT', 'THIRD_PARTY'], true)) {
+            $payorAccount = (string) ($fixture['transportation_payment_account'] ?? $accountNumber);
+            $payor = [
                 'responsibleParty' => [
-                    'accountNumber' => [
-                        'value' => (string) ($fixture['transportation_payment_account'] ?? $accountNumber),
-                    ],
+                    'accountNumber' => ['value' => $payorAccount],
                 ],
             ];
+
+            if ($contact = $this->payorContact($fixture['transportation_payor'] ?? null)) {
+                $payor['responsibleParty']['contact'] = $contact;
+            }
+
+            if ($address = $this->payorAddress($fixture['transportation_payor'] ?? null)) {
+                $payor['responsibleParty']['address'] = $address;
+            }
+
+            $payment['payor'] = $payor;
         }
 
         return $payment;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payor
+     * @return array<string, mixed>|null
+     */
+    private function payorContact(?array $payor): ?array
+    {
+        if (! is_array($payor)) {
+            return null;
+        }
+
+        $contact = array_filter([
+            'personName' => $payor['person_name'] ?? null,
+            'companyName' => $payor['company_name'] ?? null,
+        ]);
+
+        return $contact !== [] ? $contact : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payor
+     * @return array<string, mixed>|null
+     */
+    private function payorAddress(?array $payor): ?array
+    {
+        if (! is_array($payor) || ! filled($payor['country_code'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'countryCode' => strtoupper((string) $payor['country_code']),
+        ];
     }
 
     /**
@@ -268,7 +379,11 @@ class FedExShipPayloadFactory
     private function resolveShipDate(array $fixture): string
     {
         if (($fixture['ship_date_strategy'] ?? null) === 'next_valid_friday') {
-            return $this->fixtureService->nextValidFriday();
+            return $this->fixtureResolver->nextValidFriday();
+        }
+
+        if (($fixture['ship_date_strategy'] ?? null) === 'saturday_delivery_friday') {
+            return (string) ($overrides['ship_date'] ?? $this->fixtureResolver->nextSaturdayDeliveryFriday());
         }
 
         return now()->toDateString();

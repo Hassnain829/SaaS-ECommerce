@@ -46,7 +46,9 @@ class FedExShipEvidenceRulesTest extends TestCase
         $this->assertContains('EVENT_NOTIFICATION', data_get($payload, 'requestedShipment.shipmentSpecialServices.specialServiceTypes'));
         $this->assertContains('SATURDAY_DELIVERY', data_get($payload, 'requestedShipment.shipmentSpecialServices.specialServiceTypes'));
         $this->assertSame('test001@fedex.com', data_get($payload, 'requestedShipment.emailNotificationDetail.emailNotificationRecipients.0.emailAddress'));
-        $this->assertSame('2026-06-26', data_get($payload, 'requestedShipment.shipDatestamp'));
+        $expectedShipDate = app(FedExShipTestCaseFixtureService::class)->nextSaturdayDeliveryFriday(Carbon::parse('2026-06-26'));
+        $this->assertSame($expectedShipDate, data_get($payload, 'requestedShipment.shipDatestamp'));
+        $this->assertSame('Friday', Carbon::parse($expectedShipDate)->format('l'));
         Carbon::setTestNow();
     }
 

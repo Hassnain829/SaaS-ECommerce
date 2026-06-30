@@ -17,6 +17,11 @@ use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceQueryService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationPreflightService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScopeService;
+use App\Services\Carriers\FedEx\Validation\FedExGlobalRegionalPreflightService;
+use App\Services\Carriers\FedEx\Validation\FedExGlobalShipCaseCatalog;
+use App\Services\Carriers\FedEx\Validation\FedExRegionalShipEvidenceService;
+use App\Services\Carriers\FedEx\Validation\FedExValidationRegionalAccountService;
+use App\Services\Carriers\FedEx\Validation\FedExValidationScenarioCatalog;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -38,6 +43,9 @@ class FedExValidationWorkspaceController extends Controller
         FedExHostedEulaEvidenceService $hostedEulaEvidence,
         FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
         FedExShipEvidenceService $shipEvidenceService,
+        FedExRegionalShipEvidenceService $regionalShipEvidence,
+        FedExValidationRegionalAccountService $regionalAccountService,
+        FedExGlobalRegionalPreflightService $globalRegionalPreflight,
     ): View {
         $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
         $store = $account->store;
@@ -77,6 +85,10 @@ class FedExValidationWorkspaceController extends Controller
                     $testCaseKey => $shipEvidenceService->workspaceStatus($store, $account, $testCaseKey),
                 ])
                 ->all(),
+            'canadaRegionalSummary' => $regionalShipEvidence->regionSummary($store, $account, FedExGlobalShipCaseCatalog::REGION_CA),
+            'canadaRegionalAccounts' => $regionalAccountService->workspaceSummary($store, $account, FedExGlobalShipCaseCatalog::REGION_CA),
+            'canadaRegionalPreflight' => $globalRegionalPreflight->assessCanada($store, $account),
+            'globalShipScenarios' => FedExValidationScenarioCatalog::globalShipScenariosForRegion(FedExGlobalShipCaseCatalog::REGION_CA),
         ]);
     }
 
