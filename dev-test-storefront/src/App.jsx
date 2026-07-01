@@ -106,6 +106,7 @@ export default function App() {
   const [shipmentSyncMessage, setShipmentSyncMessage] = useState('');
   const [platformCheckoutDraft, setPlatformCheckoutDraft] = useState(null);
   const [deliveryOptions, setDeliveryOptions] = useState([]);
+  const [deliveryOptionsWarning, setDeliveryOptionsWarning] = useState('');
   const [selectedDeliveryOptionId, setSelectedDeliveryOptionId] = useState('');
   const [selectedPickupLocationId, setSelectedPickupLocationId] = useState('');
   const [platformPayment, setPlatformPayment] = useState(null);
@@ -128,6 +129,14 @@ export default function App() {
   const checkoutDraft = platformCheckoutDraft ?? null;
   const isPlatformFinalReady = checkoutMode === 'platform' && Boolean(finalPaymentCheckout);
   const isPlatformDeliverySelecting = checkoutMode === 'platform' && Boolean(checkoutDraft) && !finalPaymentCheckout;
+  const platformCheckoutStep =
+    checkoutMode === 'platform'
+      ? isPlatformFinalReady
+        ? 3
+        : isPlatformDeliverySelecting
+          ? 2
+          : 1
+      : 0;
   const platformCurrency =
     finalPaymentCheckout?.currency_code || checkoutDraft?.currency_code || catalog?.store?.currency || 'USD';
   const externalPreviewTotals = useMemo(() => {
@@ -144,6 +153,7 @@ export default function App() {
     setPlatformPayment(null);
     setPlatformCheckoutDraft(null);
     setDeliveryOptions([]);
+    setDeliveryOptionsWarning('');
     setSelectedDeliveryOptionId('');
     setSelectedPickupLocationId('');
   };
@@ -391,6 +401,47 @@ export default function App() {
     phone: customerPhone.trim() || null,
   });
 
+  const applyDeliveryOptionsResponse = async (checkout, optionsRes, optionsRaw) => {
+    let optionsData = {};
+    try {
+      optionsData = optionsRaw ? JSON.parse(optionsRaw) : {};
+    } catch {
+      optionsData = {};
+    }
+
+    if (!optionsRes.ok) {
+      throw new Error(
+        optionsData.message ||
+          (optionsData.errors && JSON.stringify(optionsData.errors)) ||
+          (optionsRaw.startsWith('<') ? `HTTP ${optionsRes.status}: server returned HTML.` : optionsRes.statusText) ||
+          'Could not load delivery options.'
+      );
+    }
+
+    if (Array.isArray(optionsData.delivery_options) && optionsData.delivery_options.length) {
+      setPlatformCheckoutDraft(checkout);
+      setDeliveryOptions(optionsData.delivery_options);
+      setDeliveryOptionsWarning('');
+      setSelectedDeliveryOptionId(String(optionsData.delivery_options[0].id));
+      setPlatformPayment(null);
+      await loadCatalog({ quiet: true });
+      return true;
+    }
+
+    if (Array.isArray(optionsData.delivery_options) && optionsData.delivery_options.length === 0) {
+      setPlatformCheckoutDraft(checkout);
+      setDeliveryOptions([]);
+      setDeliveryOptionsWarning(
+        'No delivery methods matched this address or cart total. In the merchant dashboard, check: shipping zone (state/postal), method min/max order amount, and Checkout enabled. Shipping stays $0 until you pick a delivery option.'
+      );
+      setPlatformPayment(null);
+      await loadCatalog({ quiet: true });
+      return true;
+    }
+
+    return false;
+  };
+
   const platformPayload = () => ({
     source_channel: 'dev_storefront',
     currency_code: catalog?.store?.currency || 'USD',
@@ -430,6 +481,22 @@ export default function App() {
     try {
       const external = checkoutMode === 'external';
       const platform = checkoutMode === 'platform';
+      if (platform && platformCheckoutDraft && deliveryOptionsWarning && !deliveryOptions.length) {
+        const optionsRes = await fetch(`${checkoutBase}/${platformCheckoutDraft.id}/delivery-options`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            ...authHeaders(),
+          },
+          body: JSON.stringify({
+            shipping_address: shippingAddressPayload(),
+          }),
+        });
+        const optionsRaw = await optionsRes.text();
+        await applyDeliveryOptionsResponse(platformCheckoutDraft, optionsRes, optionsRaw);
+        return;
+      }
       if (platform && platformCheckoutDraft && deliveryOptions.length) {
         if (!selectedDeliveryOptionId) {
           throw new Error('Choose a delivery option before showing the Stripe payment form.');
@@ -528,18 +595,8 @@ export default function App() {
           }),
         });
         const optionsRaw = await optionsRes.text();
-        let optionsData = {};
-        try {
-          optionsData = optionsRaw ? JSON.parse(optionsRaw) : {};
-        } catch {
-          optionsData = {};
-        }
-        if (optionsRes.ok && Array.isArray(optionsData.delivery_options) && optionsData.delivery_options.length) {
-          setPlatformCheckoutDraft(data.checkout);
-          setDeliveryOptions(optionsData.delivery_options);
-          setSelectedDeliveryOptionId(String(optionsData.delivery_options[0].id));
-          setPlatformPayment(null);
-          await loadCatalog({ quiet: true });
+        const handled = await applyDeliveryOptionsResponse(data.checkout, optionsRes, optionsRaw);
+        if (handled) {
           return;
         }
 
@@ -906,6 +963,27 @@ export default function App() {
           }}
         >
           <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem' }}>Cart</h2>
+          {checkoutMode === 'platform' && cart.length > 0 && (
+            <div
+              style={{
+                marginBottom: '0.75rem',
+                padding: '0.65rem 0.75rem',
+                borderRadius: 8,
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                fontSize: '0.78rem',
+                color: '#1e3a8a',
+                lineHeight: 1.5,
+              }}
+            >
+              <strong style={{ display: 'block', marginBottom: 4 }}>Platform checkout steps</strong>
+              <span style={{ opacity: platformCheckoutStep === 1 ? 1 : 0.65 }}>1. Cart + address</span>
+              {' → '}
+              <span style={{ opacity: platformCheckoutStep === 2 ? 1 : 0.65 }}>2. Choose delivery</span>
+              {' → '}
+              <span style={{ opacity: platformCheckoutStep === 3 ? 1 : 0.65 }}>3. Pay with Stripe</span>
+            </div>
+          )}
           {!cart.length && <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>Empty</p>}
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, fontSize: '0.9rem' }}>
             {cart.map((line) => {
@@ -1298,6 +1376,24 @@ export default function App() {
               </>
             )}
 
+            {checkoutMode === 'platform' && platformCheckoutDraft && deliveryOptionsWarning && (
+              <div
+                style={{
+                  marginTop: '0.5rem',
+                  border: '1px solid #fecaca',
+                  borderRadius: 10,
+                  padding: '0.75rem',
+                  background: '#fef2f2',
+                  color: '#991b1b',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.55,
+                }}
+              >
+                <strong style={{ display: 'block', marginBottom: 4 }}>No delivery options</strong>
+                {deliveryOptionsWarning}
+              </div>
+            )}
+
             {checkoutMode === 'platform' && platformCheckoutDraft && deliveryOptions.length > 0 && (
               <div
                 style={{
@@ -1382,10 +1478,12 @@ export default function App() {
             >
               {checkoutMode === 'platform'
                 ? platformPayment
-                  ? 'Stripe form ready'
+                  ? 'Step 3: use Pay button below'
                   : platformCheckoutDraft && deliveryOptions.length
-                    ? 'Use delivery option and show Stripe'
-                    : 'Show delivery options'
+                    ? 'Step 2: Continue to payment'
+                    : platformCheckoutDraft && deliveryOptionsWarning
+                      ? 'Retry delivery options'
+                      : 'Step 1: Continue to delivery options'
                 : 'Sync external checkout order'}
             </button>
 

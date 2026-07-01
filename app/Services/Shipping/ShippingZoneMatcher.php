@@ -104,12 +104,104 @@ class ShippingZoneMatcher
             $address['province_code'] ?? null,
             $address['state'] ?? null,
             $address['region'] ?? null,
-            $address['city'] ?? null,
         ])
-            ->map(fn ($region): string => $this->normalized($region))
-            ->filter();
+            ->flatMap(fn ($region): array => $this->regionVariants($region))
+            ->filter()
+            ->unique()
+            ->values();
 
-        return $candidates->contains(fn (string $candidate): bool => $regions->contains($candidate));
+        $zoneRegions = $regions
+            ->flatMap(fn (string $region): array => $this->regionVariants($region))
+            ->unique()
+            ->values();
+
+        return $candidates->contains(fn (string $candidate): bool => $zoneRegions->contains($candidate));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function regionVariants(mixed $region): array
+    {
+        $normalized = $this->normalized($region);
+        if ($normalized === '') {
+            return [];
+        }
+
+        $variants = [$normalized];
+        $aliases = $this->usStateAliases();
+
+        if (isset($aliases[$normalized])) {
+            $variants[] = $aliases[$normalized];
+        }
+
+        foreach ($aliases as $abbreviation => $fullName) {
+            if ($fullName === $normalized) {
+                $variants[] = $abbreviation;
+            }
+        }
+
+        return array_values(array_unique($variants));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function usStateAliases(): array
+    {
+        return [
+            'AL' => 'ALABAMA',
+            'AK' => 'ALASKA',
+            'AZ' => 'ARIZONA',
+            'AR' => 'ARKANSAS',
+            'CA' => 'CALIFORNIA',
+            'CO' => 'COLORADO',
+            'CT' => 'CONNECTICUT',
+            'DE' => 'DELAWARE',
+            'FL' => 'FLORIDA',
+            'GA' => 'GEORGIA',
+            'HI' => 'HAWAII',
+            'ID' => 'IDAHO',
+            'IL' => 'ILLINOIS',
+            'IN' => 'INDIANA',
+            'IA' => 'IOWA',
+            'KS' => 'KANSAS',
+            'KY' => 'KENTUCKY',
+            'LA' => 'LOUISIANA',
+            'ME' => 'MAINE',
+            'MD' => 'MARYLAND',
+            'MA' => 'MASSACHUSETTS',
+            'MI' => 'MICHIGAN',
+            'MN' => 'MINNESOTA',
+            'MS' => 'MISSISSIPPI',
+            'MO' => 'MISSOURI',
+            'MT' => 'MONTANA',
+            'NE' => 'NEBRASKA',
+            'NV' => 'NEVADA',
+            'NH' => 'NEW HAMPSHIRE',
+            'NJ' => 'NEW JERSEY',
+            'NM' => 'NEW MEXICO',
+            'NY' => 'NEW YORK',
+            'NC' => 'NORTH CAROLINA',
+            'ND' => 'NORTH DAKOTA',
+            'OH' => 'OHIO',
+            'OK' => 'OKLAHOMA',
+            'OR' => 'OREGON',
+            'PA' => 'PENNSYLVANIA',
+            'RI' => 'RHODE ISLAND',
+            'SC' => 'SOUTH CAROLINA',
+            'SD' => 'SOUTH DAKOTA',
+            'TN' => 'TENNESSEE',
+            'TX' => 'TEXAS',
+            'UT' => 'UTAH',
+            'VT' => 'VERMONT',
+            'VA' => 'VIRGINIA',
+            'WA' => 'WASHINGTON',
+            'WV' => 'WEST VIRGINIA',
+            'WI' => 'WISCONSIN',
+            'WY' => 'WYOMING',
+            'DC' => 'DISTRICT OF COLUMBIA',
+        ];
     }
 
     /**
