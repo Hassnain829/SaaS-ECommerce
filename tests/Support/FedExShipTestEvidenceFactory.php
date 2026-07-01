@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use App\Models\CarrierAccount;
 use App\Services\Carriers\FedEx\Operations\FedExShipPayloadFactory;
+use App\Services\Carriers\FedEx\Validation\FedExShipFixtureResolver;
 use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
 use Carbon\Carbon;
 
@@ -29,14 +30,14 @@ final class FedExShipTestEvidenceFactory
      */
     public static function eventBodies(CarrierAccount $account, string $testCaseKey, ?Carbon $now = null): array
     {
-        $fixtureService = app(FedExShipTestCaseFixtureService::class);
+        $fixtureService = app(FedExShipFixtureResolver::class);
         $fixture = $fixtureService->fixture($testCaseKey);
         $labelFormat = (string) $fixture['label_format'];
 
         Carbon::setTestNow($now ?? Carbon::parse('2026-06-26')); // Friday
         $shipDateOverride = match ($fixture['ship_date_strategy'] ?? null) {
-            'next_valid_friday' => ['ship_date' => $fixtureService->nextValidFriday($now ?? Carbon::parse('2026-06-26'))],
-            'saturday_delivery_friday' => ['ship_date' => $fixtureService->nextSaturdayDeliveryFriday($now ?? Carbon::parse('2026-06-26'))],
+            'next_valid_friday' => ['ship_date' => app(FedExShipTestCaseFixtureService::class)->nextValidFriday($now ?? Carbon::parse('2026-06-26'))],
+            'saturday_delivery_friday' => ['ship_date' => app(FedExShipTestCaseFixtureService::class)->nextSaturdayDeliveryFriday($now ?? Carbon::parse('2026-06-26'))],
             default => [],
         };
 

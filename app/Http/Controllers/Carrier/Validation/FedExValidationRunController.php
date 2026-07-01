@@ -492,6 +492,95 @@ class FedExValidationRunController extends Controller
         return $this->redirectWithRunResult($account, 'Invoice validation', $result);
     }
 
+    public function runRegistrationAddressValidation(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExValidationMfaEvidenceService $mfaEvidenceService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+
+        $result = $mfaEvidenceService->runRegistrationAddressValidation($account);
+        $success = $mfaEvidenceService->registrationAddressResultIsEvidenceSuccess($result);
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_run_registration_address', store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'success' => $success,
+            'http_status' => data_get($result->responseSummary, 'http_status'),
+            'event_id' => data_get($result->responseSummary, 'carrier_api_event_id'),
+            'error_code' => $result->errorCode,
+        ]);
+
+        $httpStatus = data_get($result->responseSummary, 'http_status');
+        $eventId = data_get($result->responseSummary, 'carrier_api_event_id');
+        $message = $success
+            ? 'Registration address validation completed successfully. FedEx accepted the address and returned verification options.'.($httpStatus ? ' HTTP '.$httpStatus.'.' : '')
+            : 'Registration address validation did not pass.'.($result->errorMessage ? ' '.$result->errorMessage : '');
+
+        if ($eventId) {
+            $message .= ' Evidence event #'.$eventId.' recorded.';
+        }
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with($success ? 'success' : 'error', $message);
+    }
+
+    public function runPinGeneration(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        string $method,
+        FedExConfig $config,
+        FedExValidationMfaEvidenceService $mfaEvidenceService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+
+        $result = $mfaEvidenceService->runPinGeneration($account, $method);
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_run_mfa_pin_generation', store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'mfa_method' => strtolower($method),
+            'success' => $result->success,
+            'http_status' => data_get($result->responseSummary, 'http_status'),
+            'event_id' => data_get($result->responseSummary, 'carrier_api_event_id'),
+        ]);
+
+        $label = strtolower($method) === 'call' ? 'Phone-call PIN generation' : 'Email PIN generation';
+
+        return $this->redirectWithRunResult($account, $label, $result);
+    }
+
+    public function runPinValidation(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        string $method,
+        FedExConfig $config,
+        FedExValidationMfaEvidenceService $mfaEvidenceService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+
+        $validated = $request->validate([
+            'pin' => ['required', 'string', 'min:4', 'max:12'],
+        ]);
+
+        $result = $mfaEvidenceService->runPinValidation($account, $method, $validated['pin']);
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_run_mfa_pin_validation', store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'mfa_method' => strtolower($method),
+            'success' => $result->success,
+            'http_status' => data_get($result->responseSummary, 'http_status'),
+            'event_id' => data_get($result->responseSummary, 'carrier_api_event_id'),
+        ]);
+
+        $label = strtolower($method) === 'call' ? 'Phone-call PIN validation' : 'Email PIN validation';
+
+        return $this->redirectWithRunResult($account, $label, $result);
+    }
+
     private function resolveOriginLocation(CarrierAccount $account): Location
     {
         $locationId = $account->default_origin_location_id ?? data_get($account->settings, 'default_origin_location_id');

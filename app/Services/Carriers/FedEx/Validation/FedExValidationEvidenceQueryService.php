@@ -112,9 +112,81 @@ class FedExValidationEvidenceQueryService
         ?string $labelFormat = null,
         ?string $mfaMethod = null,
     ): ?CarrierApiEvent {
+        if ($scenarioKey === CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS) {
+            return $this->canonicalRegistrationAddressEvent($store, $account);
+        }
+
         return $this->firstCanonicalCandidate(
             $this->canonicalCandidates($store, $account, $scenarioKey, $testCaseKey, $labelFormat, $mfaMethod),
         );
+    }
+
+    public function canonicalRegistrationAddressEvent(Store $store, CarrierAccount $account): ?CarrierApiEvent
+    {
+        return $this->baseQuery($store, $account)
+            ->where('scenario_key', CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS)
+            ->where('action', CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION)
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn (CarrierApiEvent $event): bool => $this->isValidRegistrationAddressEvent($event));
+    }
+
+    public function latestRegistrationAddressAttempt(Store $store, CarrierAccount $account): ?CarrierApiEvent
+    {
+        return $this->baseQuery($store, $account)
+            ->where('scenario_key', CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS)
+            ->where('action', CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION)
+            ->orderByDesc('id')
+            ->get()
+            ->first(fn (CarrierApiEvent $event): bool => $event->hasCompleteEvidence());
+    }
+
+    public function isValidRegistrationAddressEvent(CarrierApiEvent $event): bool
+    {
+        if ($event->scenario_key !== CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS) {
+            return false;
+        }
+
+        if (! $event->hasCompleteEvidence()) {
+            return false;
+        }
+
+        $httpStatus = (int) ($event->http_status ?? 0);
+        if ($httpStatus < 200 || $httpStatus >= 300) {
+            return false;
+        }
+
+        if ($event->isSuccessfulHttp()) {
+            return true;
+        }
+
+        if ($event->error_code === 'registration_mfa_required') {
+            return true;
+        }
+
+        if (data_get($event->response_summary, 'mfa_detected')) {
+            return true;
+        }
+
+        if (data_get($event->response_summary, 'registered')) {
+            return true;
+        }
+
+        return data_get($event->response_summary, 'credential_key_detected')
+            && data_get($event->response_summary, 'credential_secret_detected');
+    }
+
+    public function isFinalExportableEvent(CarrierApiEvent $event): bool
+    {
+        if (! $event->hasCompleteEvidence()) {
+            return false;
+        }
+
+        if ($event->scenario_key === CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS) {
+            return $this->isValidRegistrationAddressEvent($event);
+        }
+
+        return $event->isSuccessfulHttp();
     }
 
     /**

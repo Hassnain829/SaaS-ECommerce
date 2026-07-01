@@ -3,6 +3,7 @@
 namespace App\Services\Carriers\FedEx\Validation;
 
 use App\Models\CarrierAccount;
+use App\Models\FedExValidationArtifact;
 use App\Models\Store;
 
 class FedExGlobalRegionalPreflightService
@@ -10,6 +11,7 @@ class FedExGlobalRegionalPreflightService
     public function __construct(
         private readonly FedExRegionalShipEvidenceService $regionalShipEvidence,
         private readonly FedExValidationRegionalAccountService $regionalAccountService,
+        private readonly FedExValidationEvidenceQueryService $evidenceQuery,
     ) {}
 
     /**
@@ -26,24 +28,39 @@ class FedExGlobalRegionalPreflightService
         foreach (FedExGlobalShipCaseCatalog::casesByRegion()[$region] ?? [] as $case) {
             $key = (string) ($case['case_key'] ?? '');
             $scenarioKey = FedExValidationScenarioCatalog::globalScenarioKey($key);
-            $status = $summary['case_statuses'][$key] ?? [];
+            $meta = FedExValidationScenarioCatalog::globalShipScenarios()[$key] ?? [];
+            $labelFormat = (string) ($meta['label_format'] ?? '');
+            $canonicalRun = $this->evidenceQuery->canonicalGlobalShipRun($store, $account, $region, $key);
+            $event = $canonicalRun['event'] ?? null;
+            $latestAttempt = $this->evidenceQuery->latestGlobalShipLabelAttempt(
+                $store,
+                $account,
+                $region,
+                $scenarioKey,
+                $key,
+                $labelFormat,
+            );
 
             $checks[] = [
                 'key' => strtolower($scenarioKey).'_event',
                 'label' => $key.' ship label',
                 'required' => true,
-                'status' => ($status['transaction_status'] ?? '') === 'passed' ? 'passed' : (($status['display_event_id'] ?? null) ? 'failed' : 'missing'),
+                'status' => $this->canonicalEventStatus($event, $latestAttempt),
+                'event_id' => $event?->id,
                 'region' => $region,
             ];
 
             $expectedPackages = (int) ($case['expected_packages'] ?? 1);
-            for ($i = 1; $i <= $expectedPackages; $i++) {
-                $scanCount = count($status['printed_scan_artifacts'] ?? []);
+            for ($sequence = 1; $sequence <= $expectedPackages; $sequence++) {
+                $scanArtifact = $this->artifactForSequence($canonicalRun['printed_scans'] ?? [], $sequence);
+
                 $checks[] = [
-                    'key' => strtolower($scenarioKey).'_scan_'.$i,
-                    'label' => $key.' printed scan package '.$i,
+                    'key' => strtolower($scenarioKey).'_scan_'.$sequence,
+                    'label' => $key.' printed scan package '.$sequence,
                     'required' => true,
-                    'status' => $scanCount >= $i ? 'passed' : 'missing',
+                    'status' => $scanArtifact !== null ? 'passed' : 'missing',
+                    'event_id' => $event?->id,
+                    'artifact_id' => $scanArtifact?->id,
                     'region' => $region,
                 ];
             }
@@ -54,12 +71,16 @@ class FedExGlobalRegionalPreflightService
                 continue;
             }
 
-            $caseStatus = $summary['case_statuses'][$caseKey] ?? [];
+            $representativeRun = $this->evidenceQuery->canonicalGlobalShipRun($store, $account, $region, $caseKey);
+            $representativeEvent = $representativeRun['event'] ?? null;
+
             $checks[] = [
                 'key' => 'ca_transaction_representative_'.strtolower($format),
                 'label' => 'Canada '.$format.' transaction representative ('.$caseKey.')',
                 'required' => true,
-                'status' => ($caseStatus['transaction_status'] ?? '') === 'passed' ? 'passed' : 'missing',
+                'status' => $representativeEvent !== null ? 'passed' : 'missing',
+                'event_id' => $representativeEvent?->id,
+                'representative_case' => $caseKey,
                 'region' => $region,
             ];
         }
@@ -84,5 +105,28 @@ class FedExGlobalRegionalPreflightService
             'blockers' => $blockers,
             'submission_ready' => $blockers === [],
         ];
+    }
+
+    private function canonicalEventStatus(?\App\Models\CarrierApiEvent $canonical, ?\App\Models\CarrierApiEvent $latest): string
+    {
+        if ($canonical !== null) {
+            return 'passed';
+        }
+
+        return $latest === null ? 'missing' : 'failed';
+    }
+
+    /**
+     * @param  list<FedExValidationArtifact>  $artifacts
+     */
+    private function artifactForSequence(array $artifacts, int $sequence): ?FedExValidationArtifact
+    {
+        foreach ($artifacts as $artifact) {
+            if ((int) $artifact->package_sequence === $sequence) {
+                return $artifact;
+            }
+        }
+
+        return null;
     }
 }

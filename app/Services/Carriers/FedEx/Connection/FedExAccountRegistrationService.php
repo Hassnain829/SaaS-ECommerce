@@ -136,6 +136,8 @@ class FedExAccountRegistrationService
         CarrierAccountRegistrationSession $session,
         string $pin,
         array $platformToken,
+        bool $finalizeRegistration = true,
+        ?CarrierAccount $carrierAccount = null,
     ): CarrierApiResult {
         $path = $this->config->mfaPinValidationPath();
         if ($path === null) {
@@ -165,8 +167,10 @@ class FedExAccountRegistrationService
                 'registration_session_id' => $session->id,
                 'account_last4' => $session->account_last4,
             ],
+            finalizeRegistration: $finalizeRegistration,
             scenarioKey: $this->pinScenarioKey('validation', $session->mfa_method),
             mfaMethod: $session->mfa_method,
+            carrierAccount: $carrierAccount,
         );
     }
 
@@ -177,6 +181,7 @@ class FedExAccountRegistrationService
         CarrierAccountRegistrationSession $session,
         string $method,
         array $platformToken,
+        ?CarrierAccount $carrierAccount = null,
     ): CarrierApiResult {
         $path = $this->config->mfaPinGenerationPath();
         if ($path === null) {
@@ -209,6 +214,7 @@ class FedExAccountRegistrationService
             finalizeRegistration: false,
             scenarioKey: $this->pinScenarioKey('generation', $method),
             mfaMethod: $method,
+            carrierAccount: $carrierAccount,
         );
     }
 

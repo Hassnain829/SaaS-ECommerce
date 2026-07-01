@@ -4,6 +4,7 @@ namespace App\Services\Carriers\FedEx\Validation;
 
 use App\Models\CarrierAccount;
 use App\Models\CarrierAccountRegistrationSession;
+use App\Models\CarrierApiEvent;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorParentOAuthService;
 use App\Services\Carriers\FedEx\Connection\FedExAccountRegistrationService;
@@ -58,6 +59,159 @@ class FedExValidationMfaEvidenceService
         return $result ?? CarrierApiResult::failure(
             message: 'Invoice validation could not be completed.',
             code: 'invoice_validation_failed',
+        );
+    }
+
+    public function runRegistrationAddressValidation(CarrierAccount $account): CarrierApiResult
+    {
+        abort_unless($this->config->validationModeEnabled(), 403);
+
+        $session = $this->resolveRegistrationSession($account);
+        $address = $this->resolveRegistrationAddress($session, $account);
+
+        abort_if(
+            $address === [],
+            422,
+            'Registration address details are missing. Reconnect FedEx or restore the linked registration session address before rerunning this check.',
+        );
+
+        $platformToken = $this->parentOAuth->fetchTokenResult($session->environment, fresh: true);
+        if (! $platformToken->success) {
+            return CarrierApiResult::failure(
+                message: $platformToken->errorMessage ?? 'FedEx platform authentication failed.',
+                code: $platformToken->errorCode ?? 'platform_oauth_failed',
+            );
+        }
+
+        $result = $this->registrationService->registerSession(
+            $session->store,
+            $session,
+            $address,
+            is_array($platformToken->data) ? $platformToken->data : null,
+        );
+
+        $this->registrationEventLinker->linkSessionEventsToAccount($account, $session);
+
+        $event = CarrierApiEvent::query()
+            ->where('store_id', $account->store_id)
+            ->where('scenario_key', CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS)
+            ->where(function ($query) use ($account, $session): void {
+                $query->where('carrier_account_id', $account->id)
+                    ->orWhere('registration_session_id', $session->id);
+            })
+            ->latest('id')
+            ->first();
+
+        return $result->copyWith(
+            responseSummary: array_merge(
+                is_array($result->responseSummary) ? $result->responseSummary : [],
+                ['carrier_api_event_id' => $event?->id],
+            ),
+        );
+    }
+
+    public function registrationAddressResultIsEvidenceSuccess(CarrierApiResult $result): bool
+    {
+        if ($result->success) {
+            return true;
+        }
+
+        if ($result->errorCode === 'registration_mfa_required') {
+            return true;
+        }
+
+        return (bool) data_get($result->responseSummary, 'mfa_detected');
+    }
+
+    public function runPinGeneration(CarrierAccount $account, string $method): CarrierApiResult
+    {
+        abort_unless($this->config->validationModeEnabled(), 403);
+        abort_unless(
+            $this->config->mfaPinGenerationPath() !== null,
+            422,
+            'FedEx PIN generation endpoint is not configured. Set FEDEX_MFA_PIN_GENERATION_PATH in your environment.',
+        );
+
+        $method = $this->normalizePinMfaMethod($method);
+        $session = $this->resolveRegistrationSession($account);
+
+        if ($refreshResult = $this->refreshAccountAuthToken($session, $account)) {
+            return $refreshResult;
+        }
+
+        $platformToken = $this->parentOAuth->fetchTokenResult($session->environment);
+        if (! $platformToken->success) {
+            return CarrierApiResult::failure(
+                message: $platformToken->errorMessage ?? 'FedEx platform authentication failed.',
+                code: $platformToken->errorCode ?? 'platform_oauth_failed',
+            );
+        }
+
+        $session->forceFill(['mfa_method' => $method])->save();
+
+        $result = $this->registrationService->initiateMfaPinGeneration(
+            $session,
+            $method,
+            is_array($platformToken->data) ? $platformToken->data : [],
+            carrierAccount: $account,
+        );
+
+        $this->registrationEventLinker->linkSessionEventsToAccount($account, $session);
+
+        return $result;
+    }
+
+    public function runPinValidation(CarrierAccount $account, string $method, string $pin): CarrierApiResult
+    {
+        abort_unless($this->config->validationModeEnabled(), 403);
+        abort_unless(
+            $this->config->mfaPinValidationPath() !== null,
+            422,
+            'FedEx PIN validation endpoint is not configured. Set FEDEX_MFA_PIN_VALIDATION_PATH in your environment.',
+        );
+
+        $method = $this->normalizePinMfaMethod($method);
+        $session = $this->resolveRegistrationSession($account);
+        $result = null;
+
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            if ($refreshResult = $this->refreshAccountAuthToken($session, $account)) {
+                return $refreshResult;
+            }
+
+            $platformToken = $this->parentOAuth->fetchTokenResult($session->environment);
+            if (! $platformToken->success) {
+                return CarrierApiResult::failure(
+                    message: $platformToken->errorMessage ?? 'FedEx platform authentication failed.',
+                    code: $platformToken->errorCode ?? 'platform_oauth_failed',
+                );
+            }
+
+            $session->forceFill(['mfa_method' => $method])->save();
+
+            $result = $this->registrationService->validateMfaPin(
+                session: $session,
+                pin: $pin,
+                platformToken: is_array($platformToken->data) ? $platformToken->data : [],
+                finalizeRegistration: false,
+                carrierAccount: $account,
+            );
+
+            if ($result->success || ! $this->isAuthTokenExpiredFailure($result)) {
+                break;
+            }
+
+            $session->forceFill([
+                'fedex_account_auth_token_encrypted' => null,
+                'account_auth_token_expires_at' => null,
+            ])->save();
+        }
+
+        $this->registrationEventLinker->linkSessionEventsToAccount($account, $session);
+
+        return $result ?? CarrierApiResult::failure(
+            message: 'PIN validation could not be completed.',
+            code: 'pin_validation_failed',
         );
     }
 
@@ -135,12 +289,18 @@ class FedExValidationMfaEvidenceService
         CarrierAccountRegistrationSession $session,
         CarrierAccount $account,
     ): ?CarrierApiResult {
+        if ($session->hasAccountAuthToken()
+            && ! $session->isAccountAuthTokenExpired()
+            && filled($session->fedex_transaction_id)) {
+            return null;
+        }
+
         $address = $this->resolveRegistrationAddress($session, $account);
 
         abort_if(
             $address === [],
             422,
-            'Registration address details are missing. Restore registration settings before running invoice validation.',
+            'Registration address details are missing. Restore registration settings before running MFA evidence.',
         );
 
         $platformToken = $this->parentOAuth->fetchTokenResult($session->environment, fresh: true);
@@ -161,19 +321,16 @@ class FedExValidationMfaEvidenceService
         $this->registrationEventLinker->linkSessionEventsToAccount($account, $session);
 
         if ($result->errorCode === 'registration_mfa_required') {
-            $authToken = $this->responseAnalyzer->extractAccountAuthToken($result->data);
+            $this->syncRegistrationMfaSessionState($session, $result);
 
-            if ($authToken !== null && filled($authToken['token'])) {
-                $session->setAccountAuthToken($authToken['token'], $authToken['expires_at'] ?? null);
-                $session->save();
-
+            if ($session->hasAccountAuthToken() && ! $session->isAccountAuthTokenExpired()) {
                 return null;
             }
         }
 
         if (! $result->success && $result->errorCode !== 'registration_mfa_required') {
             return CarrierApiResult::failure(
-                message: $result->errorMessage ?? 'FedEx could not refresh verification authorization for invoice validation.',
+                message: $result->errorMessage ?? 'FedEx could not refresh verification authorization.',
                 code: $result->errorCode ?? 'account_auth_refresh_failed',
                 responseSummary: $result->responseSummary,
             );
@@ -187,6 +344,46 @@ class FedExValidationMfaEvidenceService
             message: 'FedEx did not return a fresh account authorization token. Try again or reconnect FedEx if this continues.',
             code: 'account_auth_token_missing',
         );
+    }
+
+    private function syncRegistrationMfaSessionState(
+        CarrierAccountRegistrationSession $session,
+        CarrierApiResult $result,
+    ): void {
+        $updates = [];
+
+        $transactionId = data_get($result->responseSummary, 'fedex_transaction_id')
+            ?? data_get($result->data, 'transactionId');
+
+        if (filled($transactionId)) {
+            $updates['fedex_transaction_id'] = $transactionId;
+        }
+
+        $authToken = $this->responseAnalyzer->extractAccountAuthToken($result->data);
+        if ($authToken !== null && filled($authToken['token'])) {
+            $session->setAccountAuthToken($authToken['token'], $authToken['expires_at'] ?? null);
+        }
+
+        if ($updates !== []) {
+            $session->forceFill($updates);
+        }
+
+        if ($updates !== [] || ($authToken !== null && filled($authToken['token']))) {
+            $session->save();
+        }
+    }
+
+    private function normalizePinMfaMethod(string $method): string
+    {
+        $method = strtolower(trim($method));
+
+        abort_unless(
+            in_array($method, ['email', 'call'], true),
+            422,
+            'PIN MFA method must be email or call.',
+        );
+
+        return $method;
     }
 
     /**

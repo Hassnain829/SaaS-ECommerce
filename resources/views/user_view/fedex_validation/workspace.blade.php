@@ -74,6 +74,68 @@
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-[#0F172A]">Package 8 - Final submission</h3>
+            <p class="mt-1 text-sm text-[#64748B]">Branding, capability disclosure, immutable snapshot, and deterministic final ZIP.</p>
+
+            <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($finalReadinessGroups ?? [] as $group)
+                    <div class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm">
+                        <p class="font-semibold text-[#0F172A]">{{ $group['label'] ?? 'Group' }}</p>
+                        <p class="mt-1 text-xs text-[#64748B]">{{ $group['passed'] ?? 0 }} / {{ $group['total'] ?? 0 }} · {{ str($group['status'] ?? 'incomplete')->replace('_', ' ') }}</p>
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+                <a href="{{ route('settings.shipping.carrier-accounts.fedex.capabilities', $account) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Open capabilities page</a>
+                <a href="{{ route('settings.shipping.carrier-accounts.fedex.capabilities', [$account, 'evidence_mode' => 1]) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Evidence capture mode</a>
+            </div>
+
+            <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.final-preflight', $account) }}" class="mt-4">
+                @csrf
+                <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Run Final Submission Preflight</button>
+            </form>
+
+            @if ($finalPreflight['ready'] ?? false)
+                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.final-snapshot', $account) }}" class="mt-3 flex flex-wrap items-end gap-3">
+                    @csrf
+                    <label class="block space-y-1 text-sm">
+                        <span class="font-semibold text-[#475569]">Case reference (optional)</span>
+                        <input type="text" name="case_reference" placeholder="Americas" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 md:w-64">
+                    </label>
+                    <button type="submit" class="h-10 rounded-lg border border-[#0052CC] bg-white px-4 text-sm font-bold text-[#0052CC]">Create Final Submission Snapshot</button>
+                </form>
+            @endif
+
+            @if ($latestFinalSnapshot ?? null)
+                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.final-export', [$account, $latestFinalSnapshot]) }}" class="mt-3">
+                    @csrf
+                    <button type="submit" class="h-10 rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white">Export Final FedEx Package (snapshot #{{ $latestFinalSnapshot->id }})</button>
+                </form>
+            @endif
+
+            <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                <p class="text-sm font-semibold text-[#0F172A]">Branding screenshots</p>
+                <p class="mt-1 text-xs text-[#64748B]">Logo approved: {{ ($brandComplianceStatus['logo_approved_source'] ?? false) ? 'yes' : 'no — supply official FedEx asset first' }}</p>
+                @foreach ([
+                    \App\Models\FedExValidationArtifact::TYPE_FEDEX_BRANDING_UI_SCREENSHOT => 'Branding and legal notice',
+                    \App\Models\FedExValidationArtifact::TYPE_FEDEX_SERVICES_PACKAGING_SCREENSHOT => 'Services and packaging',
+                    \App\Models\FedExValidationArtifact::TYPE_FEDEX_SPECIAL_HANDLING_SCREENSHOT => 'Special handling',
+                ] as $type => $label)
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.branding-screenshots.upload', $account) }}" enctype="multipart/form-data" class="mt-3 flex flex-wrap items-end gap-3">
+                        @csrf
+                        <input type="hidden" name="screenshot_type" value="{{ $type }}">
+                        <label class="block space-y-1 text-sm">
+                            <span class="font-semibold text-[#475569]">{{ $label }}</span>
+                            <input type="file" name="screenshot" accept=".pdf,.png,.jpg,.jpeg" required class="block w-full text-sm">
+                        </label>
+                        <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Upload</button>
+                    </form>
+                @endforeach
+            </div>
+        </section>
+
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <h3 class="text-lg font-semibold text-[#0F172A]">Hosted FedEx EULA</h3>
             <p class="mt-1 text-sm text-[#64748B]">Official FedEx hosted third-party End User License Agreement review, acceptance, and screenshot evidence.</p>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
@@ -215,6 +277,19 @@
             <article class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                 <div class="flex flex-wrap items-start justify-between gap-2">
                     <div>
+                        <p class="font-semibold text-[#0F172A]">Registration address / account validation</p>
+                        <p class="mt-1 text-xs text-[#64748B]">Re-runs the linked FedEx registration address step. A successful result includes FedEx MFA options — that is expected and counts as passed evidence.</p>
+                    </div>
+                    <span class="rounded-full px-2 py-0.5 text-xs font-bold {{ $statusBadge($checkStatus('registration_address_validation')) }}">{{ str($checkStatus('registration_address_validation'))->replace('_', ' ')->title() }}</span>
+                </div>
+                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.mfa.registration-address', $account) }}" class="mt-4">
+                    @csrf
+                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Run Registration Address Validation</button>
+                </form>
+            </article>
+            <article class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
                         <p class="font-semibold text-[#0F172A]">Invoice validation</p>
                         <p class="mt-1 text-xs text-[#64748B]">FedEx sandbox invoice MFA workbook step — uses your linked registration session.</p>
                     </div>
@@ -248,6 +323,51 @@
                     </form>
                 @endunless
             </article>
+            @foreach ([
+                [
+                    'method' => 'email',
+                    'title' => 'Email PIN',
+                    'generation_key' => 'registration_pin_generation_email',
+                    'validation_key' => 'registration_pin_validation_email',
+                    'hint' => 'FedEx sends a secure code to the email on your FedEx account registration.',
+                ],
+                [
+                    'method' => 'call',
+                    'title' => 'Phone-call PIN',
+                    'generation_key' => 'registration_pin_generation_call',
+                    'validation_key' => 'registration_pin_validation_call',
+                    'hint' => 'FedEx calls the phone number on your FedEx account registration with a secure code.',
+                ],
+            ] as $pinCard)
+                <article class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                            <p class="font-semibold text-[#0F172A]">{{ $pinCard['title'] }}</p>
+                            <p class="mt-1 text-xs text-[#64748B]">{{ $pinCard['hint'] }} Run generation first, then enter the code you receive. A fresh FedEx authorization token is fetched automatically when needed.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-1">
+                            <span class="rounded-full px-2 py-0.5 text-xs font-bold {{ $statusBadge($checkStatus($pinCard['generation_key'])) }}">Gen: {{ str($checkStatus($pinCard['generation_key']))->replace('_', ' ')->title() }}</span>
+                            <span class="rounded-full px-2 py-0.5 text-xs font-bold {{ $statusBadge($checkStatus($pinCard['validation_key'])) }}">Validate: {{ str($checkStatus($pinCard['validation_key']))->replace('_', ' ')->title() }}</span>
+                        </div>
+                    </div>
+                    @unless (($pinGenerationEndpointConfigured ?? false) && ($pinValidationEndpointConfigured ?? false))
+                        <p class="mt-3 text-sm text-amber-800">Not configured — set <code class="text-xs">FEDEX_MFA_PIN_GENERATION_PATH</code> and <code class="text-xs">FEDEX_MFA_PIN_VALIDATION_PATH</code> before running these checks.</p>
+                    @else
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.mfa.pin.generate', [$account, $pinCard['method']]) }}" class="mt-4">
+                            @csrf
+                            <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Send {{ strtolower($pinCard['title']) }}</button>
+                        </form>
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.mfa.pin.validate', [$account, $pinCard['method']]) }}" class="mt-3 flex flex-wrap items-end gap-3">
+                            @csrf
+                            <label class="block min-w-[12rem] flex-1 space-y-1 text-sm">
+                                <span class="font-semibold text-[#475569]">Secure code</span>
+                                <input type="text" name="pin" inputmode="numeric" autocomplete="one-time-code" required minlength="4" maxlength="12" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm tracking-widest" placeholder="Enter PIN">
+                            </label>
+                            <button type="submit" class="rounded-lg border border-[#0052CC] bg-white px-4 py-2 text-sm font-bold text-[#0052CC]">Validate {{ strtolower($pinCard['title']) }}</button>
+                        </form>
+                    @endunless
+                </article>
+            @endforeach
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">

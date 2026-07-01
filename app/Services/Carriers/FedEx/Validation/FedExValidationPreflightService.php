@@ -19,13 +19,16 @@ class FedExValidationPreflightService
         private readonly FedExHostedEulaEvidenceService $hostedEulaEvidence,
         private readonly FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
         private readonly FedExShipEvidenceRules $shipEvidenceRules,
+        private readonly Preflight\GlobalShipCheckProvider $globalShipCheckProvider,
+        private readonly FedExBrandComplianceService $brandCompliance,
+        private readonly FedExCapabilityEvidenceService $capabilityEvidence,
     ) {}
 
     /**
      * @param  list<string>|null  $scopes
      * @return array<string, mixed>
      */
-    public function assess(Store $store, CarrierAccount $account, ?array $scopes = null): array
+    public function assess(Store $store, CarrierAccount $account, ?array $scopes = null, bool $includePackageEight = false): array
     {
         $scopes = $this->scopeService->resolveRequiredScopes($scopes);
         $checks = [];
@@ -34,35 +37,35 @@ class FedExValidationPreflightService
 
         foreach ($this->requiredDocumentChecks($store, $account) as $check) {
             $checks[] = $check;
-            if ($check['required'] && $check['status'] !== 'passed') {
+            if ($this->isBlockingCheck($check)) {
                 $blockers[] = $check;
             }
         }
 
         foreach ($this->authorizationChecks($store, $account) as $check) {
             $checks[] = $check;
-            if ($check['required'] && $check['status'] !== 'passed') {
+            if ($this->isBlockingCheck($check)) {
                 $blockers[] = $check;
             }
         }
 
         foreach ($this->registrationChecks($store, $account) as $check) {
             $checks[] = $check;
-            if ($check['required'] && ! in_array($check['status'], ['passed', 'not_required'], true)) {
+            if ($this->isBlockingCheck($check)) {
                 $blockers[] = $check;
             }
         }
 
         foreach ($this->swedenPassthroughChecks($store, $account) as $check) {
             $checks[] = $check;
-            if ($check['required'] && $check['status'] !== 'passed') {
+            if ($this->isBlockingCheck($check)) {
                 $blockers[] = $check;
             }
         }
 
         foreach ($this->hostedEulaChecks($account) as $check) {
             $checks[] = $check;
-            if ($check['required'] && $check['status'] !== 'passed') {
+            if ($this->isBlockingCheck($check)) {
                 $blockers[] = $check;
             }
         }
@@ -74,7 +77,7 @@ class FedExValidationPreflightService
                 $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'address_validation'),
             );
             $checks[] = $addressCheck;
-            if ($addressCheck['required'] && $addressCheck['status'] !== 'passed') {
+            if ($this->isBlockingCheck($addressCheck)) {
                 $blockers[] = $addressCheck;
             }
         }
@@ -86,7 +89,7 @@ class FedExValidationPreflightService
                 $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'service_availability'),
             );
             $checks[] = $serviceCheck;
-            if ($serviceCheck['required'] && $serviceCheck['status'] !== 'passed') {
+            if ($this->isBlockingCheck($serviceCheck)) {
                 $blockers[] = $serviceCheck;
             }
         }
@@ -103,7 +106,7 @@ class FedExValidationPreflightService
                 $this->comprehensiveRateEvidence->screenshotCheck($store, $account, $canonicalRate),
             ] as $rateCheck) {
                 $checks[] = $rateCheck;
-                if ($rateCheck['required'] && $rateCheck['status'] !== 'passed') {
+                if ($this->isBlockingCheck($rateCheck)) {
                     $blockers[] = $rateCheck;
                 }
             }
@@ -113,9 +116,32 @@ class FedExValidationPreflightService
             foreach (FedExValidationScenarioCatalog::lockedShipScenarios() as $testCaseKey => $meta) {
                 foreach ($this->shipScenarioChecks($store, $account, $testCaseKey, $meta) as $check) {
                     $checks[] = $check;
-                    if ($check['required'] && $check['status'] !== 'passed') {
+                    if ($this->isBlockingCheck($check)) {
                         $blockers[] = $check;
                     }
+                }
+            }
+        }
+
+        foreach ($this->globalShipCheckProvider->checks($store, $account) as $check) {
+            $checks[] = $check;
+            if ($this->isBlockingCheck($check)) {
+                $blockers[] = $check;
+            }
+        }
+
+        if ($includePackageEight) {
+            foreach ($this->brandCompliance->preflightChecks() as $check) {
+                $checks[] = $check;
+                if ($this->isBlockingCheck($check)) {
+                    $blockers[] = $check;
+                }
+            }
+
+            foreach ($this->capabilityEvidence->preflightChecks($store, $account) as $check) {
+                $checks[] = $check;
+                if ($this->isBlockingCheck($check)) {
+                    $blockers[] = $check;
                 }
             }
         }
@@ -128,13 +154,13 @@ class FedExValidationPreflightService
                 $trackingEvent,
             );
             $checks[] = $trackingCheck;
-            if ($trackingCheck['status'] !== 'passed') {
+            if ($this->isBlockingCheck($trackingCheck)) {
                 $blockers[] = $trackingCheck;
             }
 
             $screenshotCheck = $this->trackingScreenshotCheck($store, $account, $trackingEvent);
             $checks[] = $screenshotCheck;
-            if ($screenshotCheck['status'] !== 'passed') {
+            if ($this->isBlockingCheck($screenshotCheck)) {
                 $blockers[] = $screenshotCheck;
             }
         }
@@ -146,7 +172,7 @@ class FedExValidationPreflightService
                 $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'ship_cancel'),
             );
             $checks[] = $cancelCheck;
-            if ($cancelCheck['status'] !== 'passed') {
+            if ($this->isBlockingCheck($cancelCheck)) {
                 $blockers[] = $cancelCheck;
             }
         }
@@ -158,13 +184,13 @@ class FedExValidationPreflightService
                 $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'trade_documents_upload'),
             );
             $checks[] = $tradeCheck;
-            if ($tradeCheck['status'] !== 'passed') {
+            if ($this->isBlockingCheck($tradeCheck)) {
                 $blockers[] = $tradeCheck;
             }
         }
 
         $requiredChecks = collect($checks)->where('required', true);
-        $completed = $requiredChecks->where('status', 'passed')->count();
+        $completed = $requiredChecks->whereIn('status', ['passed', 'not_required'])->count();
         $total = $requiredChecks->count();
 
         return [
@@ -174,6 +200,7 @@ class FedExValidationPreflightService
             'total_count' => $total,
             'percentage' => $total > 0 ? (int) round(($completed / $total) * 100) : 0,
             'checks' => $checks,
+            'preflight_hash' => hash('sha256', json_encode($checks)),
             'canonical_event_ids' => collect($checks)
                 ->filter(fn (array $check): bool => filled($check['event_id'] ?? null))
                 ->mapWithKeys(fn (array $check): array => [(string) $check['key'] => (int) $check['event_id']])
@@ -272,6 +299,27 @@ class FedExValidationPreflightService
         $checks = [];
 
         foreach (FedExValidationScenarioCatalog::registrationScenarios() as $scenarioKey => $meta) {
+            if ($scenarioKey === 'registration_address_validation') {
+                $canonical = $this->evidenceQuery->canonicalRegistrationAddressEvent($store, $account);
+                $latest = $this->evidenceQuery->latestRegistrationAddressAttempt($store, $account);
+
+                $checks[] = [
+                    'key' => $scenarioKey,
+                    'category' => 'registration_mfa',
+                    'label' => $meta['label'],
+                    'required' => true,
+                    'status' => $this->registrationAddressEvidenceStatus($canonical, $latest),
+                    'explanation' => $canonical
+                        ? 'FedEx accepted the registration address and returned MFA options or child credentials.'
+                        : ($latest
+                            ? 'Latest registration address attempt did not qualify as canonical evidence. Use Run Registration Address Validation.'
+                            : 'Run Registration Address Validation from the validation workspace.'),
+                    'event_id' => ($canonical ?? $latest)?->id,
+                ];
+
+                continue;
+            }
+
             $event = $this->evidenceQuery->canonicalSuccessfulEvent(
                 $store,
                 $account,
@@ -487,6 +535,27 @@ class FedExValidationPreflightService
         }
 
         return $event->isSuccessfulHttp() ? 'passed' : 'failed';
+    }
+
+    private function registrationAddressEvidenceStatus(?CarrierApiEvent $canonical, ?CarrierApiEvent $latest): string
+    {
+        if ($canonical !== null) {
+            return 'passed';
+        }
+
+        if ($latest === null) {
+            return 'not_tested';
+        }
+
+        if (! $latest->hasCompleteEvidence()) {
+            return 'incomplete';
+        }
+
+        if ((int) $latest->http_status === 403) {
+            return 'blocked';
+        }
+
+        return 'failed';
     }
 
     private function documentStatus(?FedExValidationArtifact $artifact): string
@@ -803,5 +872,22 @@ class FedExValidationPreflightService
             'artifact_id' => $artifact?->id,
             'event_id' => $trackingEvent?->id,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $check
+     */
+    private function isBlockingCheck(array $check): bool
+    {
+        if (! ($check['required'] ?? false)) {
+            return false;
+        }
+
+        return ! in_array((string) ($check['status'] ?? ''), [
+            'passed',
+            'not_required',
+            'not_applicable',
+            'waived_confirmed',
+        ], true);
     }
 }

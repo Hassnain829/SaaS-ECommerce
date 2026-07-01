@@ -8,6 +8,8 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\FedExValidationArtifact;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService;
+use App\Services\Carriers\FedEx\Capabilities\FedExCapabilityRegistry;
 use App\Services\Carriers\FedEx\Validation\FedExComprehensiveRateEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExHostedEulaEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExGlobalShipCaseCatalog;
@@ -423,6 +425,50 @@ class FedExValidationArtifactController extends Controller
         return redirect()
             ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
             ->with('success', 'Comprehensive rate screenshot uploaded.');
+    }
+
+    public function uploadBrandingScreenshot(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExBrandComplianceService $brandCompliance,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+
+        $validated = $request->validate([
+            'screenshot_type' => ['required', 'string', Rule::in([
+                FedExValidationArtifact::TYPE_FEDEX_BRANDING_UI_SCREENSHOT,
+                FedExValidationArtifact::TYPE_FEDEX_SERVICES_PACKAGING_SCREENSHOT,
+                FedExValidationArtifact::TYPE_FEDEX_SPECIAL_HANDLING_SCREENSHOT,
+            ])],
+            'screenshot' => ['required', 'file', 'mimes:pdf,png,jpg,jpeg', 'max:20480'],
+        ]);
+
+        $metadata = [
+            'logo_sha256' => $brandCompliance->logoHash(),
+            'capability_registry_version' => FedExCapabilityRegistry::VERSION,
+            'legal_notice_version' => hash('sha256', $brandCompliance->legalNotice()),
+            'captured_at' => now()->toIso8601String(),
+        ];
+
+        $this->storeUploadedFile(
+            account: $account,
+            file: $request->file('screenshot'),
+            artifactType: $validated['screenshot_type'],
+            role: FedExValidationArtifact::ROLE_BRANDING_CAPABILITY_EVIDENCE,
+            actorId: $request->user()?->id,
+            extra: ['metadata_json' => $metadata],
+        );
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_branding_screenshot_upload', store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'screenshot_type' => $validated['screenshot_type'],
+        ]);
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('success', 'Branding/capability screenshot uploaded.');
     }
 
     public function download(

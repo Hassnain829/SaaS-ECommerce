@@ -6,8 +6,12 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierAccountRegistrationSession;
 use App\Models\CarrierApiEvent;
 use App\Models\FedExValidationArtifact;
+use App\Models\FedExValidationSubmissionSnapshot;
 use App\Models\Store;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService;
+use App\Services\Carriers\FedEx\Validation\FedExCapabilityEvidenceService;
+use App\Services\Carriers\FedEx\Validation\FedExGlobalShipCaseCatalog;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use ZipArchive;
@@ -26,6 +30,9 @@ class FedExValidationEvidenceExporter
         private readonly FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
         private readonly FedExShipEvidenceService $shipEvidenceService,
         private readonly \App\Services\Carriers\FedEx\Connection\FedExEulaService $eulaService,
+        private readonly FedExBrandComplianceService $brandCompliance,
+        private readonly FedExCapabilityEvidenceService $capabilityEvidence,
+        private readonly FedExFeedbackMatrixBuilder $feedbackMatrix,
     ) {}
 
     public function exportDiagnostic(
@@ -73,6 +80,111 @@ class FedExValidationEvidenceExporter
         );
     }
 
+    public function exportFinalSubmission(
+        Store $store,
+        CarrierAccount $account,
+        FedExValidationSubmissionSnapshot $snapshot,
+        string $caseReference,
+        string $timestamp,
+    ): string {
+        abort_unless($snapshot->isReady(), 422, 'Snapshot is not ready for final export.');
+
+        $manifest = is_array($snapshot->snapshot_manifest_json) ? $snapshot->snapshot_manifest_json : [];
+        $preflight = [
+            'ready' => true,
+            'checks' => $manifest['checks'] ?? [],
+            'blockers' => $manifest['blockers'] ?? [],
+            'selected_scopes' => $manifest['selected_scopes'] ?? $this->scopeService->resolveRequiredScopes(),
+            'canonical_event_ids' => is_array($snapshot->evidence_ids_json) ? $snapshot->evidence_ids_json : [],
+            'preflight_hash' => $snapshot->preflight_hash,
+            'snapshot_id' => $snapshot->id,
+        ];
+
+        $environment = $this->config->environment($account->environment ?? CarrierAccount::ENVIRONMENT_SANDBOX);
+        $root = 'FedEx_Validation_Submission_'.$caseReference.'_'.$timestamp;
+        $bundleDir = storage_path("app/fedex-validation/{$store->id}/{$timestamp}/{$root}");
+
+        foreach ([
+            '00_submission_documents',
+            '01_registration_mfa',
+            '02_address_validation',
+            '03_service_availability',
+            '04_comprehensive_rates',
+            '05_ship_us02_zplii/generated',
+            '05_ship_us02_zplii/printed_scans',
+            '06_ship_us04_png/generated',
+            '06_ship_us04_png/printed_scans',
+            '07_ship_us05_pdf_mps/generated',
+            '07_ship_us05_pdf_mps/printed_scans',
+            '08_global_territories/ca',
+            '08_global_territories/scope_notes',
+            '09_tracking',
+            '10_branding_and_capabilities/screenshots',
+            '11_written_confirmations',
+            '12_customer_screenshots',
+        ] as $dir) {
+            File::ensureDirectoryExists($bundleDir.'/'.$dir);
+        }
+
+        $this->exportFinalSubmissionDocuments($bundleDir.'/00_submission_documents', $store, $account);
+        $this->exportRegistrationScenarios($bundleDir.'/01_registration_mfa', $store, $account, $preflight, false);
+        $this->exportScenarioEvent($bundleDir.'/02_address_validation', $this->resolveCheckEvent($store, $account, $preflight, 'address_validation', false), false, 'final');
+        $this->exportScenarioEvent($bundleDir.'/03_service_availability', $this->resolveCheckEvent($store, $account, $preflight, 'service_availability', false), false, 'final');
+        $this->exportComprehensiveRates($bundleDir.'/04_comprehensive_rates', $store, $account, $preflight, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/05_ship_us02_zplii', $store, $account, 'IntegratorUS02', $preflight, false, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/06_ship_us04_png', $store, $account, 'IntegratorUS04', $preflight, false, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/07_ship_us05_pdf_mps', $store, $account, 'IntegratorUS05', $preflight, false, 'final');
+        $this->exportGlobalCanadaTerritories($bundleDir.'/08_global_territories/ca', $store, $account, $preflight, 'final');
+        $this->writeJson($bundleDir.'/08_global_territories/scope_notes/americas_scope.json', [
+            'scope' => 'Americas — US and Canada only',
+            'lac' => 'not_applicable',
+            'amea' => 'not_applicable',
+            'europe_etd' => 'not_applicable',
+            'note' => 'LAC, AMEA, and Europe+ETD excluded per Integrator Validation Cover Sheet.',
+        ]);
+
+        if ($this->scopeService->trackingRequired($preflight['selected_scopes'] ?? null)) {
+            $this->exportScenarioEvent($bundleDir.'/09_tracking', $this->resolveCheckEvent($store, $account, $preflight, 'tracking', false), false, 'final');
+            $this->copyTrackingScreenshot($bundleDir.'/09_tracking', $store, $account, $preflight);
+        }
+
+        $this->exportBrandingAndCapabilities($bundleDir.'/10_branding_and_capabilities', $store, $account);
+        $this->exportWrittenConfirmations($bundleDir.'/11_written_confirmations', $store, $account);
+        $this->copyCustomerScreenshotsPdf($bundleDir.'/12_customer_screenshots', $store, $account);
+
+        $this->verifyFinalExportIntegrity($bundleDir, $preflight);
+
+        $matrixRows = $this->feedbackMatrix->build($store, $account, $preflight);
+        $this->writeJson($bundleDir.'/FEDEX_FEEDBACK_RESPONSE_MATRIX.json', $matrixRows);
+        $this->writeFile($bundleDir.'/FEDEX_FEEDBACK_RESPONSE_MATRIX.csv', $this->feedbackMatrixCsv($matrixRows));
+        $this->writeJson($bundleDir.'/FINAL_PREFLIGHT_REPORT.json', $preflight);
+        $this->writeFile($bundleDir.'/README_FINAL_SUBMISSION.txt', $this->finalSubmissionReadme($store, $account, $environment, $snapshot, $preflight));
+        $this->writeFile($bundleDir.'/FEDEX_SUBMISSION_EMAIL_DRAFT.txt', $this->submissionEmailDraft($caseReference, $snapshot, $root));
+
+        $fileManifest = $this->buildFileManifest($bundleDir, $root);
+        $this->writeJson($bundleDir.'/FILE_MANIFEST_SHA256.json', $fileManifest);
+
+        $knownSecrets = $this->knownSecretsForScan($account, $environment);
+        $secretScan = $this->sanitizer->scanStagingDirectory($bundleDir, $knownSecrets);
+        if ($secretScan !== []) {
+            throw new HttpException(422, 'Final export blocked: secret scan failed.');
+        }
+
+        $zipFilename = $root.'.zip';
+        $zipPath = storage_path("app/fedex-validation/{$store->id}/{$timestamp}/{$zipFilename}");
+        $zip = new ZipArchive;
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        foreach (File::allFiles($bundleDir) as $file) {
+            $zip->addFile($file->getPathname(), $root.'/'.str_replace('\\', '/', $file->getRelativePathname()));
+        }
+
+        $zip->close();
+        $this->verifyZipAgainstManifest($zipPath, $fileManifest, $root);
+
+        return $zipPath;
+    }
+
     /** @deprecated use exportDiagnostic() */
     public function export(
         Store $store,
@@ -116,6 +228,8 @@ class FedExValidationEvidenceExporter
         File::ensureDirectoryExists($bundleDir.'/06_ship_us04_png/printed_scans');
         File::ensureDirectoryExists($bundleDir.'/07_ship_us05_pdf_mps/generated');
         File::ensureDirectoryExists($bundleDir.'/07_ship_us05_pdf_mps/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/08_global_territories/ca');
+        File::ensureDirectoryExists($bundleDir.'/08_global_territories/scope_notes');
         File::ensureDirectoryExists($bundleDir.'/08_tracking');
         if ($this->scopeService->shipCancelRequired($scopes)) {
             File::ensureDirectoryExists($bundleDir.'/10_cancel_shipment');
@@ -132,6 +246,18 @@ class FedExValidationEvidenceExporter
         $this->exportLockedShipScenario($bundleDir.'/05_ship_us02_zplii', $store, $account, 'IntegratorUS02', $preflight, $includeFailedAttempts, $mode);
         $this->exportLockedShipScenario($bundleDir.'/06_ship_us04_png', $store, $account, 'IntegratorUS04', $preflight, $includeFailedAttempts, $mode);
         $this->exportLockedShipScenario($bundleDir.'/07_ship_us05_pdf_mps', $store, $account, 'IntegratorUS05', $preflight, $includeFailedAttempts, $mode);
+        $this->exportGlobalCanadaTerritories($bundleDir.'/08_global_territories/ca', $store, $account, $preflight, $mode);
+        $this->writeJson($bundleDir.'/08_global_territories/scope_notes/americas_scope.json', [
+            'scope' => 'Americas — US and Canada only',
+            'lac' => 'not_applicable',
+            'amea' => 'not_applicable',
+            'europe_etd' => 'not_applicable',
+            'note' => 'LAC, AMEA, and Europe+ETD excluded per Integrator Validation Cover Sheet.',
+        ]);
+
+        if ($mode === 'final') {
+            $this->verifyFinalExportIntegrity($bundleDir, $preflight);
+        }
 
         if ($this->scopeService->trackingRequired($scopes)) {
             $this->exportScenarioEvent($bundleDir.'/08_tracking', $this->resolveCheckEvent($store, $account, $preflight, 'tracking', $includeFailedAttempts), $includeFailedAttempts, $mode);
@@ -235,7 +361,9 @@ class FedExValidationEvidenceExporter
             $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $scenarioKey)['event_id'] ?? null;
             $event = $eventId
                 ? $this->evidenceQuery->eventById($store, $account, (int) $eventId)
-                : $this->evidenceQuery->canonicalEvent($store, $account, $scenarioKey, mfaMethod: $meta['mfa_method']);
+                : ($scenarioKey === 'registration_address_validation'
+                    ? $this->evidenceQuery->canonicalRegistrationAddressEvent($store, $account)
+                    : $this->evidenceQuery->canonicalEvent($store, $account, $scenarioKey, mfaMethod: $meta['mfa_method']));
 
             $folder = $directory.'/'.str_pad((string) $order, 2, '0', STR_PAD_LEFT).'_'.$scenarioKey;
             File::ensureDirectoryExists($folder);
@@ -536,7 +664,7 @@ class FedExValidationEvidenceExporter
             return;
         }
 
-        if ($mode === 'final' && (! $event->hasCompleteEvidence() || ! $event->isSuccessfulHttp())) {
+        if ($mode === 'final' && ! $this->evidenceQuery->isFinalExportableEvent($event)) {
             throw new HttpException(422, 'Final export blocked: incomplete or unsuccessful evidence for '.$event->scenario_key);
         }
 
@@ -632,7 +760,8 @@ class FedExValidationEvidenceExporter
             'project' => config('app.name'),
             'store_id' => $store->id,
             'account_last4' => $account->maskedAccountNumber(),
-            'region' => strtoupper($region),
+            'region' => $this->exportRegionLabel($region),
+            'validation_regions' => ['US', 'CA'],
             'environment' => $environment,
             'generated_at' => now()->toIso8601String(),
             'selected_scopes' => $preflight['selected_scopes'] ?? $this->scopeService->resolveRequiredScopes(),
@@ -679,7 +808,7 @@ class FedExValidationEvidenceExporter
             'Mode: '.$mode,
             'Store: '.$store->name.' (#'.$store->id.')',
             'Environment: '.$environment,
-            'Region: '.$region,
+            'Region: '.$this->exportRegionLabel($region),
             'Carrier account: '.$account->maskedAccountNumber(),
             '',
             'This bundle contains sanitized complete request/response JSON where recorded, plus private artifact copies.',
@@ -700,5 +829,358 @@ class FedExValidationEvidenceExporter
     {
         File::ensureDirectoryExists(dirname($path));
         File::put($path, $contents);
+    }
+
+    private function exportFinalSubmissionDocuments(string $directory, Store $store, CarrierAccount $account): void
+    {
+        $map = [
+            FedExValidationArtifact::DOC_COVER_SHEET => 'FedEx_Cover_Sheet.pdf',
+            FedExValidationArtifact::DOC_PIW => 'Product_Integration_Worksheet.pdf',
+            FedExValidationArtifact::DOC_CUSTOMER_SCREENSHOTS => 'Customer_Screenshots.pdf',
+        ];
+
+        foreach ($map as $type => $filename) {
+            $artifact = FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('artifact_type', $type)
+                ->latest('id')
+                ->first();
+
+            $path = $artifact?->absolutePath();
+            if ($path !== null && is_file($path)) {
+                File::copy($path, $directory.'/'.$filename);
+            } else {
+                throw new HttpException(422, 'Final export blocked: missing required document '.$filename);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function exportGlobalCanadaTerritories(
+        string $directory,
+        Store $store,
+        CarrierAccount $account,
+        array $preflight,
+        string $mode,
+    ): void {
+        foreach (FedExValidationScenarioCatalog::globalShipScenariosForRegion(FedExGlobalShipCaseCatalog::REGION_CA) as $testCaseKey => $meta) {
+            $eventCheckKey = strtolower((string) ($meta['scenario_key'] ?? '')).'_event';
+            $subdir = $directory.'/'.strtolower($testCaseKey);
+            File::ensureDirectoryExists($subdir.'/generated');
+            File::ensureDirectoryExists($subdir.'/printed_scans');
+
+            $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $eventCheckKey)['event_id'] ?? null;
+            $event = $eventId
+                ? $this->evidenceQuery->eventById($store, $account, (int) $eventId)
+                : ($this->evidenceQuery->canonicalGlobalShipRun(
+                    $store,
+                    $account,
+                    FedExGlobalShipCaseCatalog::REGION_CA,
+                    $testCaseKey,
+                )['event'] ?? null);
+
+            $allowIncomplete = $mode !== 'final';
+            $this->exportScenarioEvent($subdir, $event, $allowIncomplete, $mode);
+            if ($event !== null) {
+                $this->writeJson($subdir.'/result_summary.json', $this->shipEvidenceService->exportResultSummary($event, $testCaseKey, false));
+                $this->copyArtifacts($subdir.'/generated', $event, FedExValidationArtifact::ROLE_GENERATED_LABEL);
+                $this->copyArtifacts($subdir.'/printed_scans', $event, FedExValidationArtifact::ROLE_PRINTED_SCAN);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function verifyFinalExportIntegrity(string $bundleDir, array $preflight): void
+    {
+        foreach ($preflight['checks'] ?? [] as $check) {
+            if (($check['category'] ?? '') !== 'global_territories') {
+                continue;
+            }
+
+            if (! ($check['required'] ?? false)) {
+                continue;
+            }
+
+            if (($check['status'] ?? '') !== 'passed') {
+                continue;
+            }
+
+            $this->verifyCanadaCheckExported($bundleDir, $check);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $check
+     */
+    private function verifyCanadaCheckExported(string $bundleDir, array $check): void
+    {
+        $checkKey = (string) ($check['key'] ?? '');
+
+        if ($checkKey === 'ca_regional_accounts_ready') {
+            return;
+        }
+
+        $testCaseKey = $this->canadaTestCaseKeyFromCheck($checkKey);
+        if ($testCaseKey === null) {
+            return;
+        }
+
+        $caseDir = $bundleDir.'/08_global_territories/ca/'.strtolower($testCaseKey);
+
+        if (str_ends_with($checkKey, '_event') || str_starts_with($checkKey, 'ca_transaction_representative_')) {
+            foreach (['request.json', 'response.json', 'result_summary.json'] as $filename) {
+                if (! is_file($caseDir.'/'.$filename)) {
+                    throw new HttpException(422, 'Final export integrity failed: missing '.$filename.' for '.$checkKey);
+                }
+            }
+
+            if (File::isEmptyDirectory($caseDir.'/generated')) {
+                throw new HttpException(422, 'Final export integrity failed: missing generated labels for '.$checkKey);
+            }
+
+            return;
+        }
+
+        if (preg_match('/_scan_(\d+)$/', $checkKey, $matches) !== 1) {
+            return;
+        }
+
+        $sequence = (int) $matches[1];
+        $scanMatches = glob($caseDir.'/printed_scans/package-'.$sequence.'.*') ?: [];
+        if ($scanMatches === []) {
+            throw new HttpException(422, 'Final export integrity failed: missing printed scan package '.$sequence.' for '.$checkKey);
+        }
+    }
+
+    private function canadaTestCaseKeyFromCheck(string $checkKey): ?string
+    {
+        if (preg_match('/^ship_ca(\d+)_(pdf|png|zplii)_/', $checkKey, $matches) === 1) {
+            return 'IntegratorCA'.str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+        }
+
+        if (str_starts_with($checkKey, 'ca_transaction_representative_')) {
+            $format = strtoupper(str_replace('ca_transaction_representative_', '', $checkKey));
+
+            return FedExGlobalShipCaseCatalog::transactionRepresentatives(FedExGlobalShipCaseCatalog::REGION_CA)[$format] ?? null;
+        }
+
+        return null;
+    }
+
+    private function exportRegionLabel(string $region): string
+    {
+        return strtoupper($region) === 'US' ? 'US + CA (Americas)' : strtoupper($region);
+    }
+
+    private function exportBrandingAndCapabilities(string $directory, Store $store, CarrierAccount $account): void
+    {
+        $metadata = $this->brandCompliance->logoMetadata();
+        $this->writeJson($directory.'/logo_metadata.json', $metadata);
+        $this->writeJson($directory.'/capability_registry.json', $this->capabilityEvidence->exportSummary());
+        $this->writeFile($directory.'/legal_notice.txt', $this->brandCompliance->legalNotice()."\n");
+        $this->writeJson($directory.'/branding_status.json', $this->brandCompliance->workspaceStatus());
+
+        $screenshots = [
+            FedExValidationArtifact::TYPE_FEDEX_BRANDING_UI_SCREENSHOT => '01_fedex_branding_legal',
+            FedExValidationArtifact::TYPE_FEDEX_SERVICES_PACKAGING_SCREENSHOT => '02_services_packaging',
+            FedExValidationArtifact::TYPE_FEDEX_SPECIAL_HANDLING_SCREENSHOT => '03_special_handling',
+        ];
+
+        foreach ($screenshots as $type => $basename) {
+            $artifact = FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('artifact_type', $type)
+                ->latest('id')
+                ->first();
+
+            $path = $artifact?->absolutePath();
+            if ($path === null || ! is_file($path)) {
+                throw new HttpException(422, 'Final export blocked: missing branding screenshot '.$basename);
+            }
+
+            File::copy($path, $directory.'/screenshots/'.$basename.'.'.pathinfo($path, PATHINFO_EXTENSION));
+        }
+    }
+
+    private function exportWrittenConfirmations(string $directory, Store $store, CarrierAccount $account): void
+    {
+        $artifacts = FedExValidationArtifact::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_FEDEX_WRITTEN_CONFIRMATION)
+            ->orderBy('id')
+            ->get();
+
+        if ($artifacts->isEmpty()) {
+            $this->writeJson($directory.'/written_confirmations_index.json', ['status' => 'none_uploaded']);
+
+            return;
+        }
+
+        $index = [];
+        foreach ($artifacts as $artifact) {
+            $path = $artifact->absolutePath();
+            if ($path === null || ! is_file($path)) {
+                continue;
+            }
+
+            $target = $directory.'/confirmation_'.$artifact->id.'.'.pathinfo($path, PATHINFO_EXTENSION);
+            File::copy($path, $target);
+            $index[] = [
+                'artifact_id' => $artifact->id,
+                'sha256' => $artifact->sha256,
+                'metadata' => $artifact->metadata_json,
+            ];
+        }
+
+        $this->writeJson($directory.'/written_confirmations_index.json', $index);
+    }
+
+    private function copyCustomerScreenshotsPdf(string $directory, Store $store, CarrierAccount $account): void
+    {
+        $artifact = FedExValidationArtifact::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('artifact_type', FedExValidationArtifact::DOC_CUSTOMER_SCREENSHOTS)
+            ->latest('id')
+            ->first();
+
+        $path = $artifact?->absolutePath();
+        if ($path !== null && is_file($path)) {
+            File::copy($path, $directory.'/Customer_Screenshots.pdf');
+        }
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function buildFileManifest(string $bundleDir, string $root): array
+    {
+        $entries = [];
+        foreach (File::allFiles($bundleDir) as $file) {
+            if ($file->getFilename() === 'FILE_MANIFEST_SHA256.json') {
+                continue;
+            }
+
+            $relative = str_replace('\\', '/', $file->getRelativePathname());
+            $entries[] = [
+                'path' => $root.'/'.$relative,
+                'sha256' => hash_file('sha256', $file->getPathname()),
+                'size' => $file->getSize(),
+                'mime_type' => mime_content_type($file->getPathname()) ?: 'application/octet-stream',
+                'source_type' => 'artifact',
+            ];
+        }
+
+        usort($entries, fn (array $a, array $b): int => strcmp((string) $a['path'], (string) $b['path']));
+
+        return [
+            'generated_at' => now()->toIso8601String(),
+            'file_count' => count($entries),
+            'files' => $entries,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $manifest
+     */
+    private function verifyZipAgainstManifest(string $zipPath, array $manifest, string $root): void
+    {
+        $zip = new ZipArchive;
+        $zip->open($zipPath);
+
+        foreach ($manifest['files'] ?? [] as $entry) {
+            $path = (string) ($entry['path'] ?? '');
+            $expectedHash = (string) ($entry['sha256'] ?? '');
+            $contents = $zip->getFromName($path);
+            if ($contents === false) {
+                $zip->close();
+                throw new HttpException(422, 'Final export verification failed: missing '.$path);
+            }
+
+            if (! hash_equals($expectedHash, hash('sha256', $contents))) {
+                $zip->close();
+                throw new HttpException(422, 'Final export verification failed: hash mismatch for '.$path);
+            }
+        }
+
+        $zip->close();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function feedbackMatrixCsv(array $rows): string
+    {
+        $lines = ['FedEx feedback item,Resolution status,Implementation package,Evidence folder,Notes'];
+        foreach ($rows as $row) {
+            $lines[] = implode(',', array_map(
+                fn (string $value): string => '"'.str_replace('"', '""', $value).'"',
+                [
+                    (string) ($row['fedex_feedback_item'] ?? ''),
+                    (string) ($row['resolution_status'] ?? ''),
+                    (string) ($row['implementation_package'] ?? ''),
+                    (string) ($row['evidence_folder'] ?? ''),
+                    (string) ($row['notes'] ?? ''),
+                ],
+            ));
+        }
+
+        return implode("\n", $lines)."\n";
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function finalSubmissionReadme(
+        Store $store,
+        CarrierAccount $account,
+        string $environment,
+        FedExValidationSubmissionSnapshot $snapshot,
+        array $preflight,
+    ): string {
+        return implode("\n", [
+            'FINAL SUBMISSION SNAPSHOT',
+            '',
+            'Project: '.config('app.name'),
+            'Store: '.$store->name,
+            'Environment: '.$environment,
+            'Root account: '.$account->maskedAccountNumber(),
+            'Snapshot ID: '.$snapshot->id,
+            'Case reference: '.($snapshot->case_reference ?: 'Americas'),
+            'Created: '.($snapshot->finalized_at?->toIso8601String() ?? now()->toIso8601String()),
+            'Preflight status: ready',
+            'Logo hash: '.($snapshot->logo_sha256 ?: 'n/a'),
+            'Capability registry: '.($snapshot->capability_registry_version ?: 'n/a'),
+            'Manifest: FILE_MANIFEST_SHA256.json',
+            'Feedback matrix: FEDEX_FEEDBACK_RESPONSE_MATRIX.json',
+            '',
+            'This package was generated from an immutable snapshot. No secrets or source code are included.',
+        ]);
+    }
+
+    private function submissionEmailDraft(string $caseReference, FedExValidationSubmissionSnapshot $snapshot, string $zipRoot): string
+    {
+        return implode("\n", [
+            'Subject: FedEx Integrator Validation — corrected submission',
+            '',
+            'Case reference: '.$caseReference,
+            'Attached ZIP: '.$zipRoot.'.zip',
+            'Snapshot ID: '.$snapshot->id,
+            '',
+            'Tracking evidence: previously approved where applicable.',
+            'Americas scope: US + Canada only (LAC/AMEA/Europe excluded per Cover Sheet).',
+            '',
+            'Review this draft before sending through the FedEx case email thread.',
+        ]);
     }
 }

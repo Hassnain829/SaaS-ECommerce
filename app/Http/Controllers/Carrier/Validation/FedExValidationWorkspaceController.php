@@ -17,6 +17,9 @@ use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceQueryService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationPreflightService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScopeService;
+use App\Models\FedExValidationSubmissionSnapshot;
+use App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService;
+use App\Services\Carriers\FedEx\Validation\FedExFinalSubmissionService;
 use App\Services\Carriers\FedEx\Validation\FedExGlobalRegionalPreflightService;
 use App\Services\Carriers\FedEx\Validation\FedExGlobalShipCaseCatalog;
 use App\Services\Carriers\FedEx\Validation\FedExRegionalShipEvidenceService;
@@ -46,11 +49,21 @@ class FedExValidationWorkspaceController extends Controller
         FedExRegionalShipEvidenceService $regionalShipEvidence,
         FedExValidationRegionalAccountService $regionalAccountService,
         FedExGlobalRegionalPreflightService $globalRegionalPreflight,
+        FedExFinalSubmissionService $finalSubmission,
+        FedExBrandComplianceService $brandCompliance,
     ): View {
         $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
         $store = $account->store;
 
         $assessment = $preflight->assess($store, $account);
+        $finalAssessment = $preflight->assess($store, $account, null, includePackageEight: true);
+        $latestSnapshot = FedExValidationSubmissionSnapshot::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('status', FedExValidationSubmissionSnapshot::STATUS_READY)
+            ->whereNull('invalidated_at')
+            ->latest('id')
+            ->first();
         $swedenFixture = $testCaseFixtures->swedenMfaPassthroughAccount();
         $canonicalSwedenRun = $evidenceQuery->canonicalSwedenPassthroughRun($store, $account);
         $latestSwedenAttempt = $evidenceQuery->latestSwedenPassthroughAttempt($store, $account);
@@ -59,6 +72,10 @@ class FedExValidationWorkspaceController extends Controller
             'selectedStore' => $store,
             'account' => $account,
             'preflight' => $assessment,
+            'finalPreflight' => $finalAssessment,
+            'finalReadinessGroups' => $finalSubmission->groupedReadiness($store, $account),
+            'latestFinalSnapshot' => $latestSnapshot,
+            'brandComplianceStatus' => $brandCompliance->workspaceStatus(),
             'capabilityMatrix' => $statusPresenter->capabilityMatrix($store, $account),
             'requiredScopes' => $scopeService->resolveRequiredScopes(),
             'lockedShipScenarios' => \App\Services\Carriers\FedEx\Validation\FedExValidationScenarioCatalog::lockedShipScenarios(),
@@ -70,6 +87,8 @@ class FedExValidationWorkspaceController extends Controller
             'tradeDocumentsConfigured' => filled($config->tradeDocumentsUploadPath()),
             'validationCards' => $cardPresenter->cards($store, $account, $assessment),
             'invoiceEndpointConfigured' => $config->mfaInvoiceValidationPath() !== null,
+            'pinGenerationEndpointConfigured' => $config->mfaPinGenerationPath() !== null,
+            'pinValidationEndpointConfigured' => $config->mfaPinValidationPath() !== null,
             'mfaInvoicePrefill' => $fixtureService->mfaInvoice(),
             'sandboxAccountEnding' => $this->maskedSandboxAccountEnding($account),
             'swedenPassthroughAvailable' => $swedenFixture !== null,

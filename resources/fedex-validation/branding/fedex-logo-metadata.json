@@ -1,0 +1,14 @@
+{
+  "source": "fedex_supplied",
+  "filename": "fedex-unified-logo.svg",
+  "public_path": "assets/carriers/fedex/fedex-unified-logo.svg",
+  "sha256": "b41090407d0618be138ee75262ec38fa37a105131de5d698e8116e9bca818646",
+  "mime_type": "image/svg+xml",
+  "approved_for_validation": true,
+  "clear_space_x_ratio": 0.5,
+  "notes": "Embedded PNG extracted unchanged from FedEx_Integrator_Test_Case_Baseline.xlsx cover page (xl/media/image1.png).",
+  "baseline_source": "FedEx_Integrator_Test_Case_Baseline.xlsx",
+  "baseline_media_file": "xl/media/image1.png",
+  "intrinsic_width": 453,
+  "intrinsic_height": 222
+}

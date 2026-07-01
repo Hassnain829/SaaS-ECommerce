@@ -35,6 +35,22 @@ class FedExValidationArtifact extends Model
 
     public const TYPE_COMPREHENSIVE_RATE_RESULT_UI = 'comprehensive_rate_result_ui';
 
+    public const ROLE_BRANDING_CAPABILITY_EVIDENCE = 'branding_capability_evidence';
+
+    public const ROLE_FEDEX_WRITTEN_CONFIRMATION = 'fedex_written_confirmation';
+
+    public const TYPE_FEDEX_BRANDING_UI_SCREENSHOT = 'fedex_branding_ui_screenshot';
+
+    public const TYPE_FEDEX_SERVICES_PACKAGING_SCREENSHOT = 'fedex_services_packaging_screenshot';
+
+    public const TYPE_FEDEX_SPECIAL_HANDLING_SCREENSHOT = 'fedex_special_handling_screenshot';
+
+    public const TYPE_FEDEX_COVER_SHEET = 'integrator_validation_cover_sheet';
+
+    public const TYPE_FEDEX_PRODUCT_INTEGRATION_WORKSHEET = 'product_information_worksheet';
+
+    public const TYPE_FEDEX_CUSTOMER_SCREENSHOTS_PDF = 'customer_facing_screenshots';
+
     public const DOC_COVER_SHEET = 'integrator_validation_cover_sheet';
 
     public const DOC_PIW = 'product_information_worksheet';
