@@ -27,6 +27,11 @@ class TaxConfigurationService
         );
     }
 
+    public function settingsForStore(Store $store): ?TaxSetting
+    {
+        return TaxSetting::query()->where('store_id', $store->id)->first();
+    }
+
     /**
      * @param  array<string, mixed>  $validated
      */

@@ -81,4 +81,45 @@ class DeliveryAreaInputNormalizerTest extends TestCase
         $this->assertSame(['TX', 'ON'], $result['regions']);
         $this->assertSame(['606*', '75002'], $result['postal_patterns']);
     }
+
+    public function test_legacy_mode_preserves_unknown_country_codes_and_records_warning(): void
+    {
+        $result = $this->normalizer->normalizeFromRequest(Request::create('/', 'POST', [
+            'zone_editor_mode' => 'legacy',
+            'legacy_countries' => 'US, ZZ',
+        ]));
+
+        $this->assertSame(['US', 'ZZ'], $result['countries']);
+        $this->assertSame([
+            'Country code "ZZ" is not in the standard catalog and was kept as imported.',
+        ], $this->normalizer->consumeCountryWarnings());
+    }
+
+    public function test_legacy_unknown_country_codes_round_trip_after_save(): void
+    {
+        $result = $this->normalizer->normalizeFromRequest(Request::create('/', 'POST', [
+            'zone_editor_mode' => 'legacy',
+            'legacy_countries' => 'US, ZZ',
+        ]));
+
+        $this->assertSame(['US', 'ZZ'], $result['countries']);
+
+        $secondPass = $this->normalizer->normalizeFromRequest(Request::create('/', 'POST', [
+            'zone_editor_mode' => 'legacy',
+            'legacy_countries' => implode(', ', $result['countries']),
+        ]));
+
+        $this->assertSame(['US', 'ZZ'], $secondPass['countries']);
+    }
+
+    public function test_tokenize_accepts_array_input_without_string_cast_warning(): void
+    {
+        $result = $this->normalizer->normalizeFromRequest(Request::create('/', 'POST', [
+            'countries' => ['US', 'CA'],
+            'regions' => ['TX', 'ON'],
+        ]));
+
+        $this->assertSame(['US', 'CA'], $result['countries']);
+        $this->assertSame(['TX', 'ON'], $result['regions']);
+    }
 }

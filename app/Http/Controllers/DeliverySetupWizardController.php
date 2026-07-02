@@ -9,7 +9,6 @@ use App\Services\Delivery\DeliveryAddressDiagnosticService;
 use App\Services\Delivery\DeliveryAreaInputNormalizer;
 use App\Services\Delivery\DeliverySetupStatusService;
 use App\Services\Delivery\DeliveryWizardPersistenceService;
-use App\Services\Inventory\DefaultLocationService;
 use App\Services\Tax\TaxConfigurationService;
 use App\Support\StorePermission;
 use App\Support\Tax\TaxCountryCatalog;
@@ -65,12 +64,16 @@ class DeliverySetupWizardController extends Controller
         $zones = $store->shippingZones()->orderByDesc('is_active')->orderBy('name')->get();
         $selectedZone = $this->selectedZone($store, $request);
         $zonePayload = $selectedZone ? $areaNormalizer->presentationFromZone($selectedZone) : null;
+        $zoneCatalog = $zones->mapWithKeys(fn (ShippingZone $zone): array => [
+            $zone->id => $areaNormalizer->presentationFromZone($zone),
+        ])->all();
 
         return view('user_view.delivery.setup.deliver-to', $this->wizardContext($request, $store, $taxConfiguration, [
             'step' => 2,
             'shippingZones' => $zones,
             'selectedZone' => $selectedZone,
             'zonePayload' => $zonePayload,
+            'zoneCatalog' => $zoneCatalog,
             'legacyZones' => $zones->filter(fn (ShippingZone $zone): bool => app(DeliveryWizardPersistenceService::class)->isLegacyZone($zone)),
         ]));
     }
@@ -96,10 +99,30 @@ class DeliverySetupWizardController extends Controller
                 : ((float) ($selectedMethod->free_over_amount ?? 0) > 0 ? 'free_over' : 'fixed');
         }
 
+        $methods = $store->shippingMethods()->orderBy('name')->get();
+        $methodCatalog = $methods->mapWithKeys(function (ShippingMethod $method): array {
+            $priceMode = $method->rate_type === ShippingMethod::RATE_FREE
+                ? 'free'
+                : ((float) ($method->free_over_amount ?? 0) > 0 ? 'free_over' : 'fixed');
+
+            return [$method->id => [
+                'name' => $method->name,
+                'delivery_speed_label' => $method->delivery_speed_label,
+                'shipping_zone_id' => $method->shipping_zone_id,
+                'delivery_price_mode' => $priceMode,
+                'flat_rate' => $method->flat_rate,
+                'free_over_amount' => $method->free_over_amount,
+                'estimated_min_days' => $method->estimated_min_days,
+                'estimated_max_days' => $method->estimated_max_days,
+                'available_to_customers' => (bool) $method->enabled_for_checkout,
+            ]];
+        })->all();
+
         return view('user_view.delivery.setup.delivery-option', $this->wizardContext($request, $store, $taxConfiguration, [
             'step' => 3,
             'shippingZones' => $store->shippingZones()->where('is_active', true)->orderBy('name')->get(),
-            'shippingMethods' => $store->shippingMethods()->orderBy('name')->get(),
+            'shippingMethods' => $methods,
+            'methodCatalog' => $methodCatalog,
             'selectedZone' => $selectedZone,
             'selectedMethod' => $selectedMethod,
             'priceMode' => $priceMode,
@@ -116,13 +139,13 @@ class DeliverySetupWizardController extends Controller
         $zones = $store->shippingZones()->orderByDesc('is_active')->orderBy('name')->get();
         $methods = $store->shippingMethods()->with('shippingZone')->orderBy('name')->get();
         $carrierAccounts = $store->carrierAccounts()->orderBy('display_name')->get();
-        $taxSetting = $taxConfiguration->ensureSettingsForStore($store);
+        $taxSetting = $taxConfiguration->settingsForStore($store);
 
         $deliverySetup = $deliverySetupStatus->assess($store, $locations, $zones, $methods, $carrierAccounts, $taxSetting);
 
-        $selectedLocation = $this->selectedLocation($store, $request);
-        $selectedZone = $this->selectedZone($store, $request);
-        $selectedMethod = $this->selectedMethod($store, $request);
+        $selectedLocation = $this->selectedLocation($store, $request)?->fresh();
+        $selectedZone = $this->selectedZone($store, $request)?->fresh();
+        $selectedMethod = $this->selectedMethod($store, $request)?->fresh(['shippingZone']);
 
         if ($selectedLocation !== null) {
             $deliverySetup['ship_from'] = $deliverySetupStatus->summarizeShipFromLocation($selectedLocation);
@@ -143,10 +166,25 @@ class DeliverySetupWizardController extends Controller
         ]));
     }
 
-    public function finish(Request $request): RedirectResponse
+    public function finish(Request $request, DeliverySetupStatusService $deliverySetupStatus, TaxConfigurationService $taxConfiguration): RedirectResponse
     {
         $store = $this->store($request);
         $this->authorizeManage($request, $store);
+
+        $deliverySetup = $deliverySetupStatus->assess(
+            $store,
+            $store->locations()->orderByDesc('is_default')->orderBy('name')->get(),
+            $store->shippingZones()->orderByDesc('is_active')->orderBy('name')->get(),
+            $store->shippingMethods()->with('shippingZone')->orderBy('name')->get(),
+            $store->carrierAccounts()->orderBy('display_name')->get(),
+            $taxConfiguration->settingsForStore($store),
+        );
+
+        if (! ($deliverySetup['is_ready'] ?? false)) {
+            return redirect()
+                ->route('settings.delivery.setup.review')
+                ->withErrors(['delivery_setup' => 'Finish delivery setup after ship-from, delivery area, and checkout-visible options are ready.']);
+        }
 
         $request->session()->forget([
             self::SESSION_LOCATION,
@@ -156,7 +194,7 @@ class DeliverySetupWizardController extends Controller
 
         return redirect()
             ->route('shippingAutomation')
-            ->with('success', 'Delivery setup saved. Review your delivery hub for any remaining items.')
+            ->with('success', 'Delivery setup is ready for platform checkout. Review your delivery hub for optional improvements.')
             ->with('success_title', 'Delivery setup');
     }
 
@@ -209,8 +247,6 @@ class DeliverySetupWizardController extends Controller
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
-
-        app(DefaultLocationService::class)->ensureFromStoreDefaults($store, $request->user());
 
         return $store;
     }

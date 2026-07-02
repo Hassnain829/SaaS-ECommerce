@@ -71,6 +71,31 @@
         });
     }
 
+    window.wizardRenderRegionMulti = renderRegionMulti;
+
+    function hydratePostalRules(container, rules) {
+        if (!container) return;
+        var list = container.querySelector('[data-postal-rules-list]');
+        if (!list) return;
+        list.innerHTML = '';
+        rules = rules || [];
+        if (!rules.length) {
+            list.innerHTML = '<p class="rounded-lg border border-dashed border-[#CBD5E1] bg-white px-3 py-2 text-xs text-[#94A3B8]" data-postal-rules-empty>No postal rules — entire selected geography applies.</p>';
+        } else {
+            rules.forEach(function (rule) {
+                var row = document.createElement('div');
+                row.className = 'flex flex-wrap items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2';
+                row.setAttribute('data-postal-rule-row', '1');
+                var type = (rule.type === 'prefix' || rule.type === 'starts_with') ? 'prefix' : 'exact';
+                row.innerHTML = '<select class="h-9 rounded-lg border border-[#CBD5E1] bg-white px-2 text-xs font-semibold" data-postal-rule-type><option value="exact"' + (type === 'exact' ? ' selected' : '') + '>Exact postal code</option><option value="prefix"' + (type === 'prefix' ? ' selected' : '') + '>Starts with</option></select><input type="text" value="' + (rule.value || '') + '" class="h-9 min-w-[8rem] flex-1 rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm uppercase" data-postal-rule-value><button type="button" class="rounded-lg border border-[#FECACA] bg-white px-2 py-1 text-xs font-semibold text-[#991B1B]" data-postal-rule-remove>Remove</button>';
+                list.appendChild(row);
+            });
+        }
+        syncPostal(container);
+    }
+
+    window.wizardHydratePostalRules = hydratePostalRules;
+
     bindPostalBuilder(document.getElementById('wizard-zone-postal-builder'));
     var postalForm = document.querySelector('form[action*="deliver-to"]');
     if (postalForm) {

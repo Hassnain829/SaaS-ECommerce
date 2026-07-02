@@ -56,6 +56,19 @@ class DeliverySetupStatusService
         $this->assessDeliveryProviders($carrierAccounts, $healthItems);
 
         $blocking = collect($healthItems)->contains(fn (array $item): bool => ($item['severity'] ?? '') === 'error');
+        $configurationReady = $this->hasConfigurationReadyCheckoutOption($checkoutMethods, $activeZones, $carrierAccounts);
+
+        if ($checkoutMethods->isNotEmpty() && ! $configurationReady) {
+            $healthItems[] = $this->healthItem(
+                id: 'delivery_option_not_configuration_ready',
+                label: 'Checkout delivery options',
+                severity: 'error',
+                message: 'Delivery options are shown at checkout, but none are fully configured with an active delivery area and valid pricing.',
+                actionLabel: 'Review delivery options',
+                actionHref: route('settings.delivery.setup.delivery-option'),
+            );
+            $blocking = true;
+        }
 
         return [
             'is_ready' => ! $blocking
@@ -63,7 +76,8 @@ class DeliverySetupStatusService
                 && $this->locationAddressComplete($defaultLocation)
                 && $onlineFulfillmentLocations->isNotEmpty()
                 && $activeZones->isNotEmpty()
-                && $checkoutMethods->isNotEmpty(),
+                && $checkoutMethods->isNotEmpty()
+                && $configurationReady,
             'ship_from' => $this->shipFromSummary($defaultLocation),
             'delivery_areas' => $this->deliveryAreasSummary($activeZones),
             'delivery_options' => $this->deliveryOptionsSummary($checkoutMethods, $activeMethods),
@@ -545,6 +559,100 @@ class DeliverySetupStatusService
         $catalog = TaxCountryCatalog::all();
 
         return $catalog[$code] ?? $code;
+    }
+
+    /**
+     * @param  Collection<int, ShippingMethod>  $checkoutMethods
+     * @param  Collection<int, ShippingZone>  $activeZones
+     * @param  Collection<int, CarrierAccount>  $carrierAccounts
+     */
+    private function hasConfigurationReadyCheckoutOption(
+        Collection $checkoutMethods,
+        Collection $activeZones,
+        Collection $carrierAccounts,
+    ): bool {
+        if ($checkoutMethods->isEmpty()) {
+            return false;
+        }
+
+        $activeZoneIds = $activeZones->pluck('id')->all();
+
+        foreach ($checkoutMethods as $method) {
+            if ($this->methodIsConfigurationReady($method, $activeZoneIds, $carrierAccounts)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<int|string>  $activeZoneIds
+     * @param  Collection<int, CarrierAccount>  $carrierAccounts
+     */
+    private function methodIsConfigurationReady(
+        ShippingMethod $method,
+        array $activeZoneIds,
+        Collection $carrierAccounts,
+    ): bool {
+        if ($method->shipping_zone_id === null || ! in_array($method->shipping_zone_id, $activeZoneIds, true)) {
+            return false;
+        }
+
+        $zone = $method->shippingZone;
+        if ($zone === null || ! $zone->is_active) {
+            return false;
+        }
+
+        if (collect($zone->countries)->filter()->isEmpty()) {
+            return false;
+        }
+
+        if ($method->min_order_amount !== null
+            && $method->max_order_amount !== null
+            && (float) $method->max_order_amount > 0
+            && (float) $method->min_order_amount > (float) $method->max_order_amount) {
+            return false;
+        }
+
+        if ((float) ($method->flat_rate ?? 0) < 0
+            || ($method->free_over_amount !== null && (float) $method->free_over_amount < 0)
+            || ($method->min_order_amount !== null && (float) $method->min_order_amount < 0)
+            || ($method->max_order_amount !== null && (float) $method->max_order_amount < 0)) {
+            return false;
+        }
+
+        if ($method->rate_type === ShippingMethod::RATE_CARRIER_CALCULATED_LATER && $method->carrier_account_id === null) {
+            return false;
+        }
+
+        if ($method->carrier_account_id !== null) {
+            $account = $carrierAccounts->firstWhere('id', $method->carrier_account_id);
+            if ($account === null
+                || (int) $account->store_id !== (int) $method->store_id
+                || ! $this->carrierAccountIsConfigurationReady($account)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function carrierAccountIsConfigurationReady(CarrierAccount $account): bool
+    {
+        if ($account->status !== CarrierAccount::STATUS_ENABLED) {
+            return false;
+        }
+
+        if (! $account->enabled_for_checkout) {
+            return false;
+        }
+
+        if ($account->isManualProvider()) {
+            return true;
+        }
+
+        return $account->isConnected() || $account->isSandboxPlatformFallback();
     }
 
     /**

@@ -69,18 +69,24 @@ class DeliveryWizardPersistenceService
 
         if ($existing !== null) {
             $existing->update($payload);
+            $location = $existing->fresh();
+        } else {
+            $location = $store->locations()->create([
+                ...$payload,
+                'is_default' => false,
+                'is_active' => true,
+                'created_by' => $actor?->id,
+            ]);
 
-            return $existing->fresh();
+            if ($store->locations()->where('is_default', true)->doesntExist()) {
+                app(DefaultLocationService::class)->makeDefault($location, $actor);
+            }
         }
 
-        $location = $store->locations()->create([
-            ...$payload,
-            'is_default' => false,
-            'is_active' => true,
-            'created_by' => $actor?->id,
-        ]);
-
-        if ($store->locations()->where('is_default', true)->doesntExist()) {
+        if ($location->fulfills_online_orders
+            && filled($location->address_line1)
+            && filled($location->city)
+            && filled($location->country_code)) {
             app(DefaultLocationService::class)->makeDefault($location, $actor);
         }
 
@@ -124,7 +130,10 @@ class DeliveryWizardPersistenceService
         ];
 
         if ($existing !== null) {
-            $existing->update($attributes);
+            $existing->update([
+                ...$attributes,
+                'sort_order' => $existing->sort_order,
+            ]);
 
             return $existing->fresh();
         }
@@ -163,6 +172,7 @@ class DeliveryWizardPersistenceService
         ]);
 
         $validated = $this->optionNormalizer->applyPricingMode($validated['delivery_price_mode'] ?? 'fixed', $validated);
+        $this->optionNormalizer->assertValidPricingAndDays($validated['delivery_price_mode'] ?? 'fixed', $validated);
         $validated = $this->optionNormalizer->applySimpleAvailability($request, $validated, $existing);
 
         $carrierAccountId = $existing?->carrier_account_id;
@@ -185,7 +195,7 @@ class DeliveryWizardPersistenceService
         ];
 
         if ($existing !== null) {
-            $existing->update($attributes);
+            $existing->update($this->optionNormalizer->mergePreservedMethodFields($existing, $attributes));
 
             return $existing->fresh();
         }

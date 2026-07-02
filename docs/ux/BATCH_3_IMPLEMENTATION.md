@@ -1,6 +1,7 @@
 # Batch 3 — Delivery UX (Guided Flow & Advanced Polish)
 
-**Status:** Sign-off ready (Delivery UX scope)  
+**Status:** Sign-off complete (Delivery UX scope)
+**Final report:** [DELIVERY_UX_FINAL_ACCEPTANCE_REPORT.md](./DELIVERY_UX_FINAL_ACCEPTANCE_REPORT.md)
 **Plan reference:** [MERCHANT_SETUP_AND_DELIVERY_UX_SIMPLIFICATION_PLAN.md](./MERCHANT_SETUP_AND_DELIVERY_UX_SIMPLIFICATION_PLAN.md) §13, §17  
 **Depends on:** [Batch 1](./BATCH_1_IMPLEMENTATION.md), [Batch 2](./BATCH_2_IMPLEMENTATION.md)
 
@@ -22,15 +23,14 @@
 | Permissions / store scoping | ✅ | Staff view-only test-address; wizard POST 403; cross-store zone blocked |
 | FedEx/USPS behavior untouched | ✅ | No carrier service changes; carrier regression tests pass |
 | Coupons not started | ✅ | Out of scope per plan §14 |
-| Full repo regression suite | ⚠️ | **1169 passed**; **3 unrelated pre-existing failures** (see below) |
+| Full repo regression suite | ✅ | **1182 passed**, 2 skipped (see final acceptance report) |
 
-### Unrelated failures (not Batch 3 scope)
+### Sign-off correction pass (2026-05-24)
 
-These fail without touching Delivery UX files and are outside Batch 1–3 sign-off:
-
-1. `FedExValidationPreflightServiceTest` — rate-quote blocker key expectation drift
-2. `Phase5RTaxMigrationRoundTripTest` — migration rollback step count vs `checkout_tax_lines`
-3. `Phase6FedExSandboxCarrierFoundationTest` — address key **order** assertion (values unchanged)
+- Hub GET read-only; checkout-usable readiness; wizard finish validation
+- Selector hydration on all wizard steps; preserved advanced fields
+- Storefront E2E: wizard option appears in `/api/v1/checkout/{id}/delivery-options`
+- Regression fixes: tax migration rollback step, FedEx test expectations, `DeliverySetupStatusServiceTest` DI
 
 ---
 
@@ -105,7 +105,7 @@ routes/web.php (settings/delivery/*)
 
 | Test | Coverage |
 |------|----------|
-| `tests/Feature/DeliveryUxBatch3Test.php` | Full wizard, legacy block, carrier preserve, staff, tax, diagnostic, a11y |
+| `tests/Feature/DeliveryUxBatch3Test.php` | Full wizard, legacy block, carrier preserve, staff, tax, diagnostic, a11y, hub read-only, storefront E2E |
 | `tests/Unit/DeliveryAddressDiagnosticServiceTest.php` | Available/unavailable + reason codes |
 | `tests/Unit/DeliveryOptionInputNormalizerTest.php` | Shared pricing/availability |
 | `tests/Feature/DeliveryUxBatch2Test.php` | Structured inputs regression |

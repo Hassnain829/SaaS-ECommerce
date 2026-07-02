@@ -84,7 +84,7 @@
                 ['key' => 'ship_from', 'heading' => 'Where do you ship from?', 'edit_href' => route('settings.locations.index'), 'edit_label' => 'Edit ship-from location'],
                 ['key' => 'delivery_areas', 'heading' => 'Where do you deliver?', 'edit_tab' => 'areas', 'edit_label' => 'Edit delivery areas'],
                 ['key' => 'delivery_options', 'heading' => 'What do customers see at checkout?', 'edit_tab' => 'options', 'edit_label' => 'Edit delivery options'],
-                ['key' => 'delivery_providers', 'heading' => 'Delivery provider', 'edit_tab' => 'providers', 'edit_label' => 'Edit delivery providers'],
+                ['key' => 'delivery_providers', 'heading' => 'Delivery provider', 'edit_tab' => 'providers', 'edit_label' => 'Manage connected providers', 'connect_href' => route('shipping.carriers.connect.index'), 'connect_label' => 'Connect delivery provider'],
             ];
         @endphp
 
@@ -103,7 +103,10 @@
                 </div>
                 <p class="mt-2 text-sm leading-relaxed text-[#64748B]">{{ $summary['detail'] ?? '' }}</p>
                 @if ($canManageShipping ?? false)
-                    <div class="mt-4">
+                    <div class="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+                        @if (! empty($card['connect_href']))
+                            <a href="{{ $card['connect_href'] }}" class="text-sm font-semibold text-[#1D4ED8]">{{ $card['connect_label'] ?? 'Connect delivery provider' }}</a>
+                        @endif
                         @if (! empty($card['edit_href']))
                             <a href="{{ $card['edit_href'] }}" class="text-sm font-semibold text-[#1D4ED8]">{{ $card['edit_label'] }}</a>
                         @elseif (! empty($card['edit_tab']))
@@ -134,6 +137,7 @@
             <h3 class="text-sm font-semibold text-[#0F172A]">Quick actions</h3>
             <div class="mt-3 flex flex-wrap gap-2">
                 <a href="{{ route('settings.locations.index') }}" class="inline-flex h-9 items-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-semibold text-[#475569]">Add ship-from address</a>
+                <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-9 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 text-sm font-semibold text-[#1D4ED8]">Connect delivery provider</a>
                 <button type="button" data-shipping-tab="areas" data-open-drawer="zone-add" class="inline-flex h-9 items-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-semibold text-[#475569]">Choose a delivery area</button>
                 <button type="button" data-shipping-tab="options" data-open-drawer="method-add" class="inline-flex h-9 items-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-semibold text-[#475569]">Add a delivery option</button>
                 <button type="button" data-shipping-tab="options" class="inline-flex h-9 items-center rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm font-semibold text-[#475569]">Fix checkout visibility</button>

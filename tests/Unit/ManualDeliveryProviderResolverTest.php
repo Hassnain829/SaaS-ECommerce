@@ -48,6 +48,34 @@ class ManualDeliveryProviderResolverTest extends TestCase
         $this->assertSame(1, CarrierAccount::query()->where('store_id', $store->id)->where('provider', CarrierAccount::PROVIDER_MANUAL)->count());
     }
 
+    public function test_reuses_disabled_manual_account_instead_of_creating_duplicate(): void
+    {
+        [$store, $user] = $this->storeWithOwner();
+        $manualCarrier = Carrier::query()->where('code', 'manual-delivery')->firstOrFail();
+
+        $existing = CarrierAccount::query()->create([
+            'store_id' => $store->id,
+            'carrier_id' => $manualCarrier->id,
+            'provider' => CarrierAccount::PROVIDER_MANUAL,
+            'display_name' => 'Manual delivery',
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'connection_type' => CarrierAccount::CONNECTION_MANUAL,
+            'connection_mode' => CarrierAccount::CONNECTION_MODE_MANUAL,
+            'status' => CarrierAccount::STATUS_DISABLED,
+            'connection_status' => CarrierAccount::CONNECTION_NOT_CONNECTED,
+            'enabled_for_checkout' => false,
+            ...CarrierAccount::ownershipAttributesForManual(),
+        ]);
+
+        $resolved = app(ManualDeliveryProviderResolver::class)->resolveForStore($store, $user);
+
+        $this->assertSame($existing->id, $resolved->id);
+        $this->assertSame(CarrierAccount::STATUS_ENABLED, $resolved->status);
+        $this->assertTrue($resolved->enabled_for_checkout);
+        $this->assertSame(CarrierAccount::CONNECTION_CONNECTED, $resolved->connection_status);
+        $this->assertSame(1, CarrierAccount::query()->where('store_id', $store->id)->where('provider', CarrierAccount::PROVIDER_MANUAL)->count());
+    }
+
     public function test_creates_manual_account_when_missing(): void
     {
         [$store, $user] = $this->storeWithOwner();

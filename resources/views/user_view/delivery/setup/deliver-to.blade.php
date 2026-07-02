@@ -79,5 +79,42 @@
     </section>
 
     <script type="application/json" id="wizard-region-catalog">@json($wizardRegionCatalog)</script>
+    <script type="application/json" id="wizard-zone-catalog">@json($zoneCatalog ?? [])</script>
     @include('user_view.delivery.partials.wizard-geo-script')
+    <script>
+    (function () {
+        var catalog = {};
+        try {
+            var el = document.getElementById('wizard-zone-catalog');
+            if (el) catalog = JSON.parse(el.textContent || '{}');
+        } catch (e) {}
+
+        var select = document.getElementById('wizard-zone-select');
+        var form = select ? select.closest('form') : null;
+        if (!select || !form) return;
+
+        select.addEventListener('change', function () {
+            var data = catalog[select.value];
+            if (!data || data.editor_mode === 'legacy') return;
+
+            var nameField = form.querySelector('[name="name"]');
+            if (nameField) nameField.value = data.name || '';
+
+            var country = document.getElementById('wizard-zone-country');
+            if (country) {
+                country.value = data.country_code || '';
+                if (window.wizardRenderRegionMulti) {
+                    window.wizardRenderRegionMulti('wizard-zone-region-host', country.value, data.region_codes || []);
+                }
+            }
+
+            var activeField = form.querySelector('[name="is_active"][type="checkbox"]');
+            if (activeField) activeField.checked = !!data.is_active;
+
+            if (window.wizardHydratePostalRules) {
+                window.wizardHydratePostalRules(document.getElementById('wizard-zone-postal-builder'), data.postal_rules || []);
+            }
+        });
+    })();
+    </script>
 @endsection

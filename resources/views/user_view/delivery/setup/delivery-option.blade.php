@@ -22,7 +22,7 @@
             @if ($shippingMethods->isNotEmpty())
                 <label class="block space-y-1">
                     <span class="text-xs font-semibold text-[#64748B]">Delivery option</span>
-                    <select name="shipping_method_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                    <select name="shipping_method_id" id="wizard-method-select" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
                         <option value="">Create a new delivery option</option>
                         @foreach ($shippingMethods as $method)
                             <option value="{{ $method->id }}" @selected(old('shipping_method_id', $selectedMethod?->id) == $method->id)>{{ $method->name }}</option>
@@ -95,4 +95,48 @@
             </div>
         </form>
     </section>
+
+    <script type="application/json" id="wizard-method-catalog">@json($methodCatalog ?? [])</script>
+    <script>
+    (function () {
+        var catalog = {};
+        try {
+            var el = document.getElementById('wizard-method-catalog');
+            if (el) catalog = JSON.parse(el.textContent || '{}');
+        } catch (e) {}
+
+        var select = document.getElementById('wizard-method-select');
+        var form = select ? select.closest('form') : null;
+        if (!select || !form) return;
+
+        function setValue(name, value) {
+            var field = form.querySelector('[name="' + name + '"]');
+            if (!field) return;
+            if (field.type === 'checkbox') {
+                field.checked = !!value;
+            } else {
+                field.value = value ?? '';
+            }
+        }
+
+        select.addEventListener('change', function () {
+            var data = catalog[select.value];
+            if (!data) return;
+
+            setValue('name', data.name);
+            setValue('delivery_speed_label', data.delivery_speed_label);
+            setValue('shipping_zone_id', data.shipping_zone_id);
+            setValue('flat_rate', data.flat_rate);
+            setValue('free_over_amount', data.free_over_amount);
+            setValue('estimated_min_days', data.estimated_min_days);
+            setValue('estimated_max_days', data.estimated_max_days);
+            setValue('available_to_customers', data.available_to_customers);
+
+            var mode = data.delivery_price_mode || 'fixed';
+            form.querySelectorAll('[name="delivery_price_mode"]').forEach(function (radio) {
+                radio.checked = radio.value === mode;
+            });
+        });
+    })();
+    </script>
 @endsection

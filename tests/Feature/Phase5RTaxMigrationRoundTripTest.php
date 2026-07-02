@@ -31,7 +31,8 @@ class Phase5RTaxMigrationRoundTripTest extends TestCase
             $this->assertTrue(Schema::hasColumn('draft_order_items', 'tax_amount'));
             $this->assertTrue(Schema::hasTable('draft_tax_lines'));
 
-            Artisan::call('migrate:rollback', ['--step' => 7, '--force' => true]);
+            // Seven tax slice migrations, plus four later FedEx validation migrations that run after them.
+            Artisan::call('migrate:rollback', ['--step' => 11, '--force' => true]);
 
             $this->assertFalse(Schema::hasTable('order_tax_lines'));
             $this->assertFalse(Schema::hasTable('checkout_tax_lines'));

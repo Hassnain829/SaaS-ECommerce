@@ -52,8 +52,6 @@ class ShippingSettingsController extends Controller
                 ->withErrors(['store' => 'No active store was found.']);
         }
 
-        $store = $channelOwnership->ensureChannelsStructure($store);
-
         $locations = $store->locations()
             ->orderByDesc('is_default')
             ->orderByDesc('is_active')
@@ -89,7 +87,7 @@ class ShippingSettingsController extends Controller
             ->orderBy('name')
             ->get();
 
-        $taxSetting = $taxConfiguration->ensureSettingsForStore($store);
+        $taxSetting = $taxConfiguration->settingsForStore($store);
 
         $deliverySetup = $deliverySetupStatus->assess(
             $store,
@@ -718,9 +716,7 @@ class ShippingSettingsController extends Controller
             metadata: ['shipping_zone_id' => $zone->id, 'name' => $zone->name]
         );
 
-        return back()
-            ->with('success', 'Delivery area added.')
-            ->with('success_title', 'Shipping & delivery');
+        return $this->zoneSavedRedirect('Delivery area added.', $areaNormalizer);
     }
 
     public function updateZone(Request $request, ShippingZone $shippingZone, SecurityLogRecorder $securityLogRecorder, DeliveryAreaInputNormalizer $areaNormalizer): RedirectResponse
@@ -747,8 +743,18 @@ class ShippingSettingsController extends Controller
             metadata: ['shipping_zone_id' => $shippingZone->id, 'name' => $shippingZone->name]
         );
 
+        return $this->zoneSavedRedirect('Delivery area updated.', $areaNormalizer);
+    }
+
+    private function zoneSavedRedirect(string $message, DeliveryAreaInputNormalizer $areaNormalizer): RedirectResponse
+    {
+        $warnings = $areaNormalizer->consumeCountryWarnings();
+        if ($warnings !== []) {
+            $message .= ' '.implode(' ', $warnings);
+        }
+
         return back()
-            ->with('success', 'Delivery area updated.')
+            ->with('success', $message)
             ->with('success_title', 'Shipping & delivery');
     }
 
@@ -778,6 +784,7 @@ class ShippingSettingsController extends Controller
 
         $validated = $this->validateMethod($request, $store->id);
         $validated = $optionNormalizer->applyPricingMode($request->input('delivery_price_mode'), $validated);
+        $optionNormalizer->assertValidPricingAndDays((string) $request->input('delivery_price_mode', 'fixed'), $validated);
         $validated = $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: true);
         $validated['carrier_account_id'] = $this->resolveMethodCarrierAccountId(
             $store,
@@ -815,6 +822,7 @@ class ShippingSettingsController extends Controller
 
         $validated = $this->validateMethod($request, $store->id);
         $validated = $optionNormalizer->applyPricingMode($request->input('delivery_price_mode'), $validated);
+        $optionNormalizer->assertValidPricingAndDays((string) $request->input('delivery_price_mode', 'fixed'), $validated);
         $validated = $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: false, existing: $shippingMethod);
         $validated['carrier_account_id'] = $this->resolveMethodCarrierAccountId(
             $store,
@@ -824,14 +832,14 @@ class ShippingSettingsController extends Controller
             $shippingMethod->carrier_account_id,
         );
 
-        $shippingMethod->update([
+        $shippingMethod->update($optionNormalizer->mergePreservedMethodFields($shippingMethod, [
             ...$validated,
             'carrier_account_id' => $validated['carrier_account_id'],
             'flat_rate' => $validated['flat_rate'] ?? 0,
-            'sort_order' => (int) ($validated['sort_order'] ?? 0),
+            'sort_order' => (int) ($validated['sort_order'] ?? $shippingMethod->sort_order ?? 0),
             'enabled_for_checkout' => (bool) ($validated['enabled_for_checkout'] ?? false),
             'is_active' => (bool) ($validated['is_active'] ?? false),
-        ]);
+        ]));
 
         $securityLogRecorder->record(
             $request,

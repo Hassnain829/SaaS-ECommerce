@@ -19,7 +19,11 @@ class ManualDeliveryProviderResolver
             ->first();
 
         if ($existing !== null) {
-            return $existing;
+            if (! $existing->enabled_for_checkout) {
+                $existing->update(['enabled_for_checkout' => true]);
+            }
+
+            return $existing->fresh();
         }
 
         $manualCarrier = Carrier::query()
@@ -37,10 +41,13 @@ class ManualDeliveryProviderResolver
             ->first();
 
         if ($existingAny !== null) {
-            if ($existingAny->status !== CarrierAccount::STATUS_ENABLED) {
+            if ($existingAny->status !== CarrierAccount::STATUS_ENABLED
+                || ! $existingAny->enabled_for_checkout
+                || $existingAny->connection_status !== CarrierAccount::CONNECTION_CONNECTED) {
                 $existingAny->update([
                     'status' => CarrierAccount::STATUS_ENABLED,
                     'connection_status' => CarrierAccount::CONNECTION_CONNECTED,
+                    'enabled_for_checkout' => true,
                 ]);
             }
 
@@ -57,7 +64,7 @@ class ManualDeliveryProviderResolver
             'status' => CarrierAccount::STATUS_ENABLED,
             'connection_status' => CarrierAccount::CONNECTION_CONNECTED,
             'supported_countries' => null,
-            'enabled_for_checkout' => false,
+            'enabled_for_checkout' => true,
             'created_by' => $actor?->id,
             ...CarrierAccount::ownershipAttributesForManual(),
         ]);

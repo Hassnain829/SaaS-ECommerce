@@ -5,6 +5,7 @@ namespace App\Services\Delivery;
 use App\Models\ShippingMethod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class DeliveryOptionInputNormalizer
 {
@@ -117,5 +118,55 @@ class DeliveryOptionInputNormalizer
         }
 
         return $code;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    public function assertValidPricingAndDays(string $priceMode, array $validated): array
+    {
+        if ($priceMode === 'fixed') {
+            if (! array_key_exists('flat_rate', $validated) || $validated['flat_rate'] === null || $validated['flat_rate'] === '') {
+                throw ValidationException::withMessages(['flat_rate' => 'Enter a delivery price for fixed pricing.']);
+            }
+            if ((float) $validated['flat_rate'] < 0) {
+                throw ValidationException::withMessages(['flat_rate' => 'Delivery price cannot be negative.']);
+            }
+        }
+
+        if ($priceMode === 'free_over') {
+            if (! array_key_exists('free_over_amount', $validated) || (float) ($validated['free_over_amount'] ?? 0) <= 0) {
+                throw ValidationException::withMessages(['free_over_amount' => 'Enter the order amount required for free delivery.']);
+            }
+            if ((float) ($validated['flat_rate'] ?? 0) < 0) {
+                throw ValidationException::withMessages(['flat_rate' => 'Delivery price cannot be negative.']);
+            }
+        }
+
+        $minDays = $validated['estimated_min_days'] ?? null;
+        $maxDays = $validated['estimated_max_days'] ?? null;
+        if ($minDays !== null && $maxDays !== null && (int) $minDays > (int) $maxDays) {
+            throw ValidationException::withMessages(['estimated_max_days' => 'Maximum days must be greater than or equal to minimum days.']);
+        }
+
+        return $validated;
+    }
+
+    /**
+     * Preserve advanced fields not exposed in simple/wizard editors.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    public function mergePreservedMethodFields(ShippingMethod $existing, array $attributes): array
+    {
+        return array_merge($attributes, [
+            'code' => $existing->code,
+            'description' => $existing->description,
+            'min_order_amount' => $existing->min_order_amount,
+            'max_order_amount' => $existing->max_order_amount,
+            'sort_order' => $existing->sort_order,
+        ]);
     }
 }

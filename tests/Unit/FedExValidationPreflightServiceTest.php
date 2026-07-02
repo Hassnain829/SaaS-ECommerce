@@ -111,7 +111,7 @@ class FedExValidationPreflightServiceTest extends TestCase
         $assessment = app(FedExValidationPreflightService::class)->assess($store, $account);
 
         $this->assertFalse($assessment['ready']);
-        $this->assertTrue(collect($assessment['blockers'])->contains(fn (array $blocker): bool => ($blocker['key'] ?? '') === 'rate_quote'));
+        $this->assertTrue(collect($assessment['blockers'])->contains(fn (array $blocker): bool => str_starts_with((string) ($blocker['key'] ?? ''), 'comprehensive_rate')));
     }
 
     public function test_missing_us05_package_two_label_fails_preflight(): void

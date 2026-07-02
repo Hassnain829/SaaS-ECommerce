@@ -9,6 +9,20 @@ use Illuminate\Validation\ValidationException;
 
 class DeliveryAreaInputNormalizer
 {
+    /** @var list<string> */
+    private array $countryWarnings = [];
+
+    /**
+     * @return list<string>
+     */
+    public function consumeCountryWarnings(): array
+    {
+        $warnings = $this->countryWarnings;
+        $this->countryWarnings = [];
+
+        return $warnings;
+    }
+
     /**
      * @return array{countries: ?list<string>, regions: ?list<string>, postal_patterns: ?list<string>}
      */
@@ -16,14 +30,14 @@ class DeliveryAreaInputNormalizer
     {
         if ($request->input('zone_editor_mode') === 'legacy') {
             return [
-                'countries' => $this->normalizeCountryList($request->input('legacy_countries')),
+                'countries' => $this->normalizeCountryList($request->input('legacy_countries'), preserveUnknown: true),
                 'regions' => $this->normalizeRegionTokens($request->input('legacy_regions'), null),
                 'postal_patterns' => $this->normalizeLegacyPostalInput($request->input('legacy_postal_patterns')),
             ];
         }
 
         if ($request->filled('countries') || $request->filled('regions') || $request->filled('postal_patterns')) {
-            $countries = $this->normalizeCountryList($request->input('countries'));
+            $countries = $this->normalizeCountryList($request->input('countries'), preserveUnknown: true);
             $primaryCountry = $countries[0] ?? null;
 
             return [
@@ -52,7 +66,7 @@ class DeliveryAreaInputNormalizer
 
         return [
             'countries' => [$countryCode],
-            'regions' => $this->normalizeRegionTokens($regionCodes, $countryCode),
+            'regions' => $this->normalizeRegionTokens($regionCodes, $countryCode, strict: true),
             'postal_patterns' => $this->rulesToPostalPatterns($postalRules),
         ];
     }
@@ -118,6 +132,12 @@ class DeliveryAreaInputNormalizer
                     return null;
                 }
 
+                if (str_contains($value, '*')) {
+                    throw ValidationException::withMessages([
+                        'postal_rules_json' => 'Enter postal codes without wildcard characters. Use Starts with for prefixes.',
+                    ]);
+                }
+
                 if ($type === 'prefix' || $type === 'starts_with') {
                     return rtrim($value, '*').'*';
                 }
@@ -166,17 +186,32 @@ class DeliveryAreaInputNormalizer
     /**
      * @return list<string>|null
      */
-    private function normalizeCountryList(mixed $value): ?array
+    private function normalizeCountryList(mixed $value, bool $preserveUnknown = false): ?array
     {
         $parts = $this->tokenize($value);
         $countries = collect($parts)
             ->map(fn (string $part): string => strtoupper(trim($part)))
-            ->filter(fn (string $code): bool => array_key_exists($code, TaxCountryCatalog::all()))
+            ->filter(fn (string $code): bool => $code !== '')
             ->unique()
+            ->values();
+
+        if ($preserveUnknown) {
+            $catalog = TaxCountryCatalog::all();
+            foreach ($countries as $code) {
+                if (! array_key_exists($code, $catalog)) {
+                    $this->countryWarnings[] = 'Country code "'.$code.'" is not in the standard catalog and was kept as imported.';
+                }
+            }
+
+            return $countries->isEmpty() ? null : $countries->all();
+        }
+
+        $valid = $countries
+            ->filter(fn (string $code): bool => array_key_exists($code, TaxCountryCatalog::all()))
             ->values()
             ->all();
 
-        return $countries === [] ? null : $countries;
+        return $valid === [] ? null : $valid;
     }
 
     /**
@@ -200,9 +235,11 @@ class DeliveryAreaInputNormalizer
     /**
      * @return list<string>|null
      */
-    private function normalizeRegionTokens(mixed $value, ?string $countryCode): ?array
+    private function normalizeRegionTokens(mixed $value, ?string $countryCode, bool $strict = false): ?array
     {
         $tokens = is_array($value) ? $value : $this->tokenize($value);
+        $catalog = ($countryCode !== null && $countryCode !== '') ? TaxCountryCatalog::regionsFor($countryCode) : [];
+        $hasCatalog = $catalog !== [];
 
         $regions = collect($tokens)
             ->map(fn ($token): string => $this->normalizeRegionToken((string) $token, $countryCode))
@@ -210,6 +247,15 @@ class DeliveryAreaInputNormalizer
             ->unique()
             ->values()
             ->all();
+
+        if ($strict && $hasCatalog && $regions !== []) {
+            $invalid = collect($regions)->reject(fn (string $code): bool => isset($catalog[$code]))->values();
+            if ($invalid->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'region_codes' => 'Choose states or provinces that belong to the selected country.',
+                ]);
+            }
+        }
 
         return $regions === [] ? null : $regions;
     }
@@ -242,7 +288,7 @@ class DeliveryAreaInputNormalizer
      */
     private function tokenize(mixed $value): array
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null) {
             return [];
         }
 
@@ -252,6 +298,10 @@ class DeliveryAreaInputNormalizer
                 ->filter()
                 ->values()
                 ->all();
+        }
+
+        if (trim((string) $value) === '') {
+            return [];
         }
 
         return collect(preg_split('/[\r\n,]+/', (string) $value) ?: [])

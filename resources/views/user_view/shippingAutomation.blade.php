@@ -75,8 +75,9 @@
                 </div>
                 @if ($canManageShipping ?? false)
                     <div class="flex flex-wrap gap-2">
-                        <button type="button" data-shipping-tab="options" data-open-drawer="method-add" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Add delivery option</button>
-                        <a href="{{ route('settings.locations.index') }}" class="inline-flex h-10 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Ship-from locations</a>
+                        <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect delivery provider</a>
+                        <button type="button" data-shipping-tab="options" data-open-drawer="method-add" class="inline-flex h-10 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Add delivery option</button>
+                        <a href="{{ route('settings.locations.index') }}" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Ship-from locations</a>
                         <button type="button" data-shipping-tab="advanced" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Advanced settings</button>
                     </div>
                 @endif

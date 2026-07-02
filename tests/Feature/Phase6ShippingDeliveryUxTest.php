@@ -45,6 +45,8 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             ->assertSeeText('Delivery setup')
             ->assertSeeText('Where do you ship from?')
             ->assertSeeText('Where do you deliver?')
+            ->assertSeeText('Connect delivery provider')
+            ->assertSee(route('shipping.carriers.connect.index'), false)
             ->assertSeeText('Checkout tax (read-only)')
             ->assertSeeText('Edit tax settings')
             ->assertSee('data-shipping-tab="setup"', false)

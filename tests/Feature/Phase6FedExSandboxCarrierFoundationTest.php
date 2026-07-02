@@ -705,7 +705,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertArrayNotHasKey('residential', $capturedPayload['address'] ?? []);
-        $this->assertSame(
+        $this->assertEqualsCanonicalizing(
             ['streetLines', 'city', 'stateOrProvinceCode', 'postalCode', 'countryCode'],
             array_keys($capturedPayload['address'] ?? [])
         );

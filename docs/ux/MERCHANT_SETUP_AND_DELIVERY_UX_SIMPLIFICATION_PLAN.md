@@ -4,7 +4,8 @@
 **Date:** 2026-05-24  
 **Revised:** 2026-07-02  
 **Revision reason:** Implementation-readiness corrections before Batch 1  
-**Status:** Analysis and redesign planning only — **no production implementation**  
+**Status:** **Completed implementation** — Batches 1–3 shipped; sign-off correction pass complete (2026-05-24)
+**Implementation docs:** [Batch 1](./BATCH_1_IMPLEMENTATION.md) · [Batch 2](./BATCH_2_IMPLEMENTATION.md) · [Batch 3](./BATCH_3_IMPLEMENTATION.md) · [Final acceptance report](./DELIVERY_UX_FINAL_ACCEPTANCE_REPORT.md)
 **Author:** Cursor UX audit (Guidance.txt + observation.txt)
 
 ---
@@ -834,4 +835,4 @@ Example output:
 
 ---
 
-*End of plan — analysis and redesign planning only; no production code changed in this revision.*
+*End of plan — Batches 1–3 implemented per linked implementation and acceptance docs.*

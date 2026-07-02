@@ -68,4 +68,60 @@
             </div>
         </form>
     </section>
+
+    @php
+        $wizardLocationCatalog = $locations->mapWithKeys(fn ($location) => [
+            $location->id => [
+                'name' => $location->name,
+                'type' => $location->type,
+                'address_line1' => $location->address_line1,
+                'city' => $location->city,
+                'state' => $location->state,
+                'postal_code' => $location->postal_code,
+                'country_code' => $location->country_code,
+                'fulfills_online_orders' => (bool) $location->fulfills_online_orders,
+            ],
+        ])->all();
+    @endphp
+    <script type="application/json" id="wizard-location-catalog">@json($wizardLocationCatalog)</script>
+    <script>
+    (function () {
+        var catalog = {};
+        try {
+            var el = document.getElementById('wizard-location-catalog');
+            if (el) catalog = JSON.parse(el.textContent || '{}');
+        } catch (e) {}
+
+        var select = document.getElementById('wizard-location-select');
+        var form = select ? select.closest('form') : null;
+        if (!select || !form) return;
+
+        function setValue(name, value) {
+            var field = form.querySelector('[name="' + name + '"]');
+            if (!field) return;
+            if (field.type === 'checkbox') {
+                field.checked = !!value;
+            } else {
+                field.value = value || '';
+            }
+        }
+
+        select.addEventListener('change', function () {
+            var data = catalog[select.value];
+            if (!data) return;
+            setValue('name', data.name);
+            setValue('type', data.type);
+            setValue('address_line1', data.address_line1);
+            setValue('city', data.city);
+            setValue('state', data.state);
+            setValue('postal_code', data.postal_code);
+            var country = document.getElementById('wizard-ship-country');
+            if (country) {
+                country.value = data.country_code || '';
+                country.dispatchEvent(new Event('change'));
+            }
+            setValue('fulfills_online_orders', data.fulfills_online_orders);
+        });
+    })();
+    </script>
 @endsection

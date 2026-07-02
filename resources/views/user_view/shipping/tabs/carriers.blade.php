@@ -2,6 +2,18 @@
     $manualAccounts = $carrierAccounts->filter(fn ($a) => $a->isManualProvider());
 @endphp
 <section class="space-y-8">
+    @if ($canManageShipping ?? false)
+        <div class="rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] px-5 py-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-[#0F172A]">Connect a delivery provider</h2>
+                    <p class="mt-1 text-sm text-[#475569]">Choose FedEx, USPS, manual/local delivery, or see planned carriers like DHL and UPS.</p>
+                </div>
+                <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect delivery provider</a>
+            </div>
+        </div>
+    @endif
+
     {{-- FedEx Merchant Account --}}
     <div>
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

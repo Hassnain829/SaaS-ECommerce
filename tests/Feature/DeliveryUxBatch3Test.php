@@ -5,11 +5,15 @@ namespace Tests\Feature;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Location;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Support\CheckoutMode;
 use App\Models\Role;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Shipping\DeliveryOptionService;
 use App\Services\Tax\TaxConfigurationService;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -277,10 +281,75 @@ class DeliveryUxBatch3Test extends TestCase
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.delivery.setup.finish'))
-            ->assertRedirect(route('shippingAutomation'));
+            ->assertRedirect(route('settings.delivery.setup.review'))
+            ->assertSessionHasErrors('delivery_setup');
 
         $taxSetting->refresh();
         $this->assertSame($updatedAt?->toDateTimeString(), $taxSetting->updated_at?->toDateTimeString());
+    }
+
+    public function test_delivery_hub_get_is_read_only(): void
+    {
+        [$owner, $store] = $this->ownerStore('Batch3 Readonly Hub Store');
+        $locationCount = Location::query()->where('store_id', $store->id)->count();
+        $taxCount = \App\Models\TaxSetting::query()->where('store_id', $store->id)->count();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('shippingAutomation'))
+            ->assertOk();
+
+        $this->assertSame($locationCount, Location::query()->where('store_id', $store->id)->count());
+        $this->assertSame($taxCount, \App\Models\TaxSetting::query()->where('store_id', $store->id)->count());
+    }
+
+    public function test_wizard_created_delivery_option_is_checkout_usable(): void
+    {
+        [$owner, $store] = $this->ownerStore('Batch3 Checkout E2E Store');
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.delivery.setup.ship-from'), [
+                'name' => 'E2E warehouse',
+                'type' => 'warehouse',
+                'address_line1' => '500 Commerce St',
+                'city' => 'Dallas',
+                'state' => 'TX',
+                'postal_code' => '75002',
+                'country_code' => 'US',
+                'fulfills_online_orders' => '1',
+            ]);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.delivery.setup.deliver-to'), [
+                'name' => 'Texas delivery',
+                'zone_editor_mode' => 'simple',
+                'country_code' => 'US',
+                'region_codes' => ['TX'],
+                'is_active' => '1',
+            ]);
+
+        $zone = ShippingZone::query()->where('store_id', $store->id)->where('name', 'Texas delivery')->firstOrFail();
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.delivery.setup.delivery-option'), [
+                'shipping_zone_id' => $zone->id,
+                'name' => 'Wizard Standard',
+                'delivery_price_mode' => 'fixed',
+                'flat_rate' => '8.00',
+                'available_to_customers' => '1',
+            ]);
+
+        $method = ShippingMethod::query()->where('store_id', $store->id)->where('name', 'Wizard Standard')->firstOrFail();
+
+        $options = app(DeliveryOptionService::class)->optionsFor(
+            $store,
+            ['country_code' => 'US', 'state' => 'TX', 'postal_code' => '75002'],
+            25.0,
+            'USD',
+        );
+
+        $this->assertNotEmpty($options);
+        $this->assertTrue(collect($options)->contains(fn (array $option): bool => ($option['shipping_method_id'] ?? null) === $method->id));
     }
 
     public function test_test_address_tool_is_read_only(): void
@@ -313,7 +382,109 @@ class DeliveryUxBatch3Test extends TestCase
             ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSeeText('Set up delivery')
-            ->assertSeeText('Test a customer address');
+            ->assertSeeText('Test a customer address')
+            ->assertSeeText('Connect delivery provider')
+            ->assertSee(route('shipping.carriers.connect.index'), false);
+    }
+
+    public function test_wizard_created_delivery_option_appears_in_storefront_delivery_options_api(): void
+    {
+        [$owner, $store] = $this->ownerStore('Batch3 Storefront API Store');
+        $store->forceFill([
+            'settings' => ['checkout_mode' => CheckoutMode::PLATFORM],
+            'developer_storefront_token_hash' => hash('sha256', 'wizard-e2e-token'),
+            'developer_storefront_token_created_at' => now(),
+        ])->save();
+
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Wizard API Product',
+            'slug' => 'wizard-api-product-'.Str::random(6),
+            'base_price' => 15,
+            'sku' => 'WIZ-'.Str::random(4),
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => [],
+        ]);
+        $variant = ProductVariant::query()->create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'sku' => $product->sku.'-V',
+            'price' => 15,
+            'stock' => 10,
+        ]);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.delivery.setup.ship-from'), [
+                'name' => 'API warehouse',
+                'type' => 'warehouse',
+                'address_line1' => '500 Commerce St',
+                'city' => 'Dallas',
+                'state' => 'TX',
+                'postal_code' => '75002',
+                'country_code' => 'US',
+                'fulfills_online_orders' => '1',
+            ]);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.delivery.setup.deliver-to'), [
+                'name' => 'Texas API delivery',
+                'zone_editor_mode' => 'simple',
+                'country_code' => 'US',
+                'region_codes' => ['TX'],
+                'is_active' => '1',
+            ]);
+
+        $zone = ShippingZone::query()->where('store_id', $store->id)->where('name', 'Texas API delivery')->firstOrFail();
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.delivery.setup.delivery-option'), [
+                'shipping_zone_id' => $zone->id,
+                'name' => 'Wizard API Standard',
+                'delivery_price_mode' => 'fixed',
+                'flat_rate' => '9.50',
+                'available_to_customers' => '1',
+            ]);
+
+        $method = ShippingMethod::query()->where('store_id', $store->id)->where('name', 'Wizard API Standard')->firstOrFail();
+
+        $this->withToken('wizard-e2e-token')
+            ->postJson('/api/v1/checkout', [
+                'source_channel' => 'dev_storefront',
+                'currency_code' => 'USD',
+                'customer' => [
+                    'full_name' => 'API Buyer',
+                    'email' => 'api.buyer@example.test',
+                ],
+                'shipping_address' => [
+                    'address_line1' => '100 Test St',
+                    'city' => 'Dallas',
+                    'state' => 'TX',
+                    'postal_code' => '75002',
+                    'country' => 'US',
+                ],
+                'billing_address' => ['same_as_shipping' => true],
+                'items' => [
+                    ['variant_id' => $variant->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated();
+
+        $checkout = \App\Models\Checkout::query()->where('store_id', $store->id)->firstOrFail();
+
+        $this->withToken('wizard-e2e-token')
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/delivery-options', [
+                'shipping_address' => [
+                    'country' => 'US',
+                    'state' => 'TX',
+                    'postal_code' => '75002',
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonFragment([
+                'shipping_method_id' => $method->id,
+                'name' => 'Wizard API Standard',
+            ]);
     }
 
     public function test_wizard_layout_exposes_progress_navigation_for_accessibility(): void
