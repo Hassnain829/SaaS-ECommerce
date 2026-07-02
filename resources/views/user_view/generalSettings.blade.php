@@ -175,11 +175,11 @@
                             </div>
                             <div>
                                 <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#94A3B8]">Delivery setup</p>
-                                <h3 class="mt-1 text-xl font-semibold text-[#0F172A]">Shipping &amp; delivery</h3>
-                                <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Set delivery zones, delivery methods, carrier accounts, and the locations orders can ship from.</p>
+                                <h3 class="mt-1 text-xl font-semibold text-[#0F172A]">Delivery</h3>
+                                <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Set ship-from locations, delivery areas, checkout delivery options, and optional delivery providers.</p>
                             </div>
                         </div>
-                        <a href="{{ route('shippingAutomation') }}" class="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Configure shipping &amp; delivery</a>
+                        <a href="{{ route('shippingAutomation') }}" class="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Open delivery setup</a>
                     </aside>
                 </div>
             </section>

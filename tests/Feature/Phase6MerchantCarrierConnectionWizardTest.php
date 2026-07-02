@@ -187,9 +187,9 @@ class Phase6MerchantCarrierConnectionWizardTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Connect carrier')
+            ->assertSeeText('Connect FedEx account')
             ->assertSeeText('Add manual/local delivery')
-            ->assertSee(route('shipping.carriers.connect.index'), false);
+            ->assertSee(route('shipping.carriers.connect.show', 'manual'), false);
     }
 
     public function test_shipping_page_does_not_show_raw_carrier_account_form(): void
@@ -201,7 +201,7 @@ class Phase6MerchantCarrierConnectionWizardTest extends TestCase
             ->get(route('shippingAutomation'));
 
         $response->assertOk()
-            ->assertSeeText('Connect carrier')
+            ->assertSeeText('Connect FedEx account')
             ->assertDontSee('Add carrier account', false)
             ->assertDontSee('name="connection_type"', false)
             ->assertDontSee('settings/shipping/carrier-accounts', false);

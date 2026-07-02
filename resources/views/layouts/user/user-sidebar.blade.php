@@ -177,23 +177,17 @@
                     </svg>
                     <span>Payments</span>
                 </a>
-                <a href="{{ route('settings.locations.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.locations.*')])>
-                    <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path d="M10 18C8.4 16.65 7.1 15.4 6.1 14.25C5.1 13.1 4.35 12.05 3.85 11.1C3.35 10.15 3.1 9.25 3.1 8.4C3.1 6.35 3.76667 4.75 5.1 3.6C6.43333 2.45 8.06667 1.875 10 1.875C11.9333 1.875 13.5667 2.45 14.9 3.6C16.2333 4.75 16.9 6.35 16.9 8.4C16.9 9.25 16.65 10.15 16.15 11.1C15.65 12.05 14.9 13.1 13.9 14.25C12.9 15.4 11.6 16.65 10 18ZM10 10.5C10.5833 10.5 11.0792 10.2958 11.4875 9.8875C11.8958 9.47917 12.1 8.98333 12.1 8.4C12.1 7.81667 11.8958 7.32083 11.4875 6.9125C11.0792 6.50417 10.5833 6.3 10 6.3C9.41667 6.3 8.92083 6.50417 8.5125 6.9125C8.10417 7.32083 7.9 7.81667 7.9 8.4C7.9 8.98333 8.10417 9.47917 8.5125 9.8875C8.92083 10.2958 9.41667 10.5 10 10.5Z" fill="currentColor"/>
-                    </svg>
-                    <span>Locations</span>
-                </a>
                 <a href="{{ route('settings.taxes.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.taxes.*')])>
                     <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                         <path d="M3 15V5C3 3.9 3.9 3 5 3H15C16.1 3 17 3.9 17 5V15C17 16.1 16.1 17 15 17H5C3.9 17 3 16.1 3 15ZM5 7H15V5H5V7ZM5 10H11V8H5V10ZM5 13H9V11H5V13Z" fill="currentColor"/>
                     </svg>
-                    <span>Taxes</span>
+                    <span>Checkout &amp; tax</span>
                 </a>
                 <a href="{{ route('shippingAutomation') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('shippingAutomation', 'settings.shipping.*')])>
                     <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                         <path d="M6 17C5.45 17 4.97917 16.8042 4.5875 16.4125C4.19583 16.0208 4 15.55 4 15C4 14.45 4.19583 13.9792 4.5875 13.5875C4.97917 13.1958 5.45 13 6 13C6.55 13 7.02083 13.1958 7.4125 13.5875C7.80417 13.9792 8 14.45 8 15C8 15.55 7.80417 16.0208 7.4125 16.4125C7.02083 16.8042 6.55 17 6 17ZM14 17C13.45 17 12.9792 16.8042 12.5875 16.4125C12.1958 16.0208 12 15.55 12 15C12 14.45 12.1958 13.9792 12.5875 13.5875C12.9792 13.1958 13.45 13 14 13C14.55 13 15.0208 13.1958 15.4125 13.5875C15.8042 13.9792 16 14.45 16 15C16 15.55 15.8042 16.0208 15.4125 16.4125C15.0208 16.8042 14.55 17 14 17ZM3 3H7L9 7H17C17.2833 7 17.5208 7.09583 17.7125 7.2875C17.9042 7.47917 18 7.71667 18 8C18 8.08333 17.9917 8.17083 17.975 8.2625C17.9583 8.35417 17.925 8.44167 17.875 8.525L16.1 11.75C15.9167 12.0833 15.6708 12.3333 15.3625 12.5C15.0542 12.6667 14.7167 12.75 14.35 12.75H8.25C7.88333 12.75 7.56667 12.675 7.3 12.525C7.03333 12.375 6.83333 12.1667 6.7 11.9L3 4H1V2H3V3Z" fill="currentColor"/>
                     </svg>
-                    <span>Shipping</span>
+                    <span>Delivery</span>
                 </a>
 
                 <a href="{{ route('developer-storefront.settings') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('developer-storefront.*')])>

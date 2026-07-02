@@ -3,12 +3,20 @@
 @section('title', 'Locations | BaaS Core')
 
 @php
+    use App\Support\Tax\TaxCountryCatalog;
+
     $typeLabels = [
         'warehouse' => 'Warehouse',
         'store' => 'Store / shop',
         'third_party' => 'Third-party storage',
         'other' => 'Other',
     ];
+    $countries = $countries ?? TaxCountryCatalog::all();
+    $addCountry = strtoupper((string) old('country_code', 'US'));
+    $locationRegionCatalog = [];
+    foreach (array_keys($countries) as $catalogCountryCode) {
+        $locationRegionCatalog[$catalogCountryCode] = TaxCountryCatalog::regionsFor($catalogCountryCode);
+    }
 @endphp
 
 @section('topbar')
@@ -96,45 +104,46 @@
                                 <span class="text-xs font-semibold text-[#64748B]">City</span>
                                 <input name="city" value="{{ old('city') }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-xs font-semibold text-[#64748B]">State/Province</span>
-                                <input name="state" value="{{ old('state') }}" placeholder="TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                            </label>
+                            <div class="space-y-1" data-location-address-fields data-form-prefix="add">
+                                <x-geo.country-select name="country_code" id="location-add-country" :selected="$addCountry" :countries="$countries" required />
+                                <x-geo.region-select name="state" id="location-add-state" :country-code="$addCountry" :selected="strtoupper((string) old('state', ''))" />
+                            </div>
                             <label class="space-y-1">
                                 <span class="text-xs font-semibold text-[#64748B]">Postal/ZIP code</span>
                                 <input name="postal_code" value="{{ old('postal_code') }}" placeholder="75002" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-xs font-semibold text-[#64748B]">Country code</span>
-                                <input name="country_code" value="{{ old('country_code', 'US') }}" placeholder="US" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                            </label>
-                            <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
+                            <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155] sm:col-span-2">
                                 <input type="hidden" name="fulfills_online_orders" value="0">
                                 <input type="checkbox" name="fulfills_online_orders" value="1" @checked(old('fulfills_online_orders', '1'))>
                                 Fulfill online orders
                             </label>
-                            <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
-                                <input type="hidden" name="pickup_enabled" value="0">
-                                <input type="checkbox" name="pickup_enabled" value="1" @checked(old('pickup_enabled'))>
-                                Offer pickup
-                            </label>
-                            <label class="space-y-1">
-                                <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
-                                <input name="routing_priority" type="number" min="1" max="9999" value="{{ old('routing_priority', 100) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
-                            </label>
-                            <label class="space-y-1">
-                                <span class="text-xs font-semibold text-[#64748B]">Service countries</span>
-                                <input name="service_countries" value="{{ old('service_countries') }}" placeholder="US, CA" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                            </label>
-                            <label class="space-y-1">
-                                <span class="text-xs font-semibold text-[#64748B]">Service regions</span>
-                                <input name="service_regions" value="{{ old('service_regions') }}" placeholder="CA, TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                            </label>
-                            <label class="space-y-1">
-                                <span class="text-xs font-semibold text-[#64748B]">Service postal patterns</span>
-                                <input name="service_postal_patterns" value="{{ old('service_postal_patterns') }}" placeholder="60601, 606*" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                <span class="text-[11px] text-[#94A3B8]">Use exact postal codes or prefix patterns such as 60601 or 606*.</span>
-                            </label>
+                            <details class="sm:col-span-2 rounded-xl border border-[#E2E8F0] bg-white p-3">
+                                <summary class="cursor-pointer text-sm font-semibold text-[#475569]">Advanced routing (optional)</summary>
+                                <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                    <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]">
+                                        <input type="hidden" name="pickup_enabled" value="0">
+                                        <input type="checkbox" name="pickup_enabled" value="1" @checked(old('pickup_enabled'))>
+                                        Offer pickup
+                                    </label>
+                                    <label class="space-y-1">
+                                        <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
+                                        <input name="routing_priority" type="number" min="1" max="9999" value="{{ old('routing_priority', 100) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                    </label>
+                                    <label class="space-y-1 sm:col-span-2">
+                                        <span class="text-xs font-semibold text-[#64748B]">Service countries</span>
+                                        <input name="service_countries" value="{{ old('service_countries') }}" placeholder="US, CA" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                    </label>
+                                    <label class="space-y-1">
+                                        <span class="text-xs font-semibold text-[#64748B]">Service regions</span>
+                                        <input name="service_regions" value="{{ old('service_regions') }}" placeholder="CA, TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                    </label>
+                                    <label class="space-y-1">
+                                        <span class="text-xs font-semibold text-[#64748B]">Service postal patterns</span>
+                                        <input name="service_postal_patterns" value="{{ old('service_postal_patterns') }}" placeholder="60601, 606*" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                        <span class="text-[11px] text-[#94A3B8]">Use exact postal codes or prefix patterns such as 60601 or 606*.</span>
+                                    </label>
+                                </div>
+                            </details>
                         </div>
                         <button type="submit" class="mt-4 inline-flex rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Add location</button>
                     </form>
@@ -168,7 +177,9 @@
                     </thead>
                     <tbody class="divide-y divide-[#F1F5F9]">
                         @foreach ($locations as $location)
-                            @php($readiness = $originReadinessByLocationId[$location->id] ?? null)
+                            @php
+                                $readiness = $originReadinessByLocationId[$location->id] ?? null;
+                            @endphp
                             <tr>
                                 <td class="px-5 py-4 align-top">
                                     <p class="font-semibold text-[#0F172A]">{{ $location->name }}</p>
@@ -252,47 +263,53 @@
                                                     </label>
                                                     <label class="space-y-1">
                                                         <span class="text-xs font-semibold text-[#64748B]">City</span>
-                                                        <input name="city" value="{{ old('city', $location->city) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                                        <input name="city" value="{{ old('name') === $location->name ? old('city') : $location->city }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                                                     </label>
-                                                    <label class="space-y-1">
-                                                        <span class="text-xs font-semibold text-[#64748B]">State/Province</span>
-                                                        <input name="state" value="{{ old('state', $location->state) }}" placeholder="TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                                    </label>
+                                                    @php
+                                                        $editCountry = strtoupper((string) (old('name') === $location->name ? old('country_code', $location->country_code) : $location->country_code));
+                                                        $editState = strtoupper((string) (old('name') === $location->name ? old('state', $location->state) : $location->state));
+                                                        $editFulfillsOnline = old('name') === $location->name ? old('fulfills_online_orders', $location->fulfills_online_orders) : $location->fulfills_online_orders;
+                                                        $editPickupEnabled = old('name') === $location->name ? old('pickup_enabled', $location->pickup_enabled) : $location->pickup_enabled;
+                                                    @endphp
+                                                    <div class="space-y-1 sm:col-span-2" data-location-address-fields data-location-id="{{ $location->id }}">
+                                                        <x-geo.country-select name="country_code" :id="'location-edit-country-'.$location->id" :selected="$editCountry" :countries="$countries" required />
+                                                        <x-geo.region-select name="state" :id="'location-edit-state-'.$location->id" :country-code="$editCountry" :selected="$editState" />
+                                                    </div>
                                                     <label class="space-y-1">
                                                         <span class="text-xs font-semibold text-[#64748B]">Postal/ZIP code</span>
-                                                        <input name="postal_code" value="{{ old('postal_code', $location->postal_code) }}" placeholder="75002" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                                        <input name="postal_code" value="{{ old('name') === $location->name ? old('postal_code', $location->postal_code) : $location->postal_code }}" placeholder="75002" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                                                     </label>
-                                                    <label class="space-y-1">
-                                                        <span class="text-xs font-semibold text-[#64748B]">Country code</span>
-                                                        <input name="country_code" value="{{ old('country_code', $location->country_code) }}" placeholder="US" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                                    </label>
-                                                    <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
+                                                    <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155] sm:col-span-2">
                                                         <input type="hidden" name="fulfills_online_orders" value="0">
-                                                        <input type="checkbox" name="fulfills_online_orders" value="1" @checked(old('fulfills_online_orders', $location->fulfills_online_orders))>
+                                                        <input type="checkbox" name="fulfills_online_orders" value="1" @checked($editFulfillsOnline)>
                                                         Fulfill online orders
                                                     </label>
-                                                    <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155]">
-                                                        <input type="hidden" name="pickup_enabled" value="0">
-                                                        <input type="checkbox" name="pickup_enabled" value="1" @checked(old('pickup_enabled', $location->pickup_enabled))>
-                                                        Offer pickup
-                                                    </label>
-                                                    <label class="space-y-1">
-                                                        <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
-                                                        <input name="routing_priority" type="number" min="1" max="9999" value="{{ old('routing_priority', $location->routing_priority ?? 100) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
-                                                    </label>
-                                                    <label class="space-y-1">
-                                                        <span class="text-xs font-semibold text-[#64748B]">Service countries</span>
-                                                        <input name="service_countries" value="{{ old('service_countries', collect($location->service_countries)->filter()->implode(', ')) }}" placeholder="US, CA" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                                    </label>
-                                                    <label class="space-y-1">
-                                                        <span class="text-xs font-semibold text-[#64748B]">Service regions</span>
-                                                        <input name="service_regions" value="{{ old('service_regions', collect($location->service_regions)->filter()->implode(', ')) }}" placeholder="CA, TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                                    </label>
-                                                    <label class="space-y-1">
-                                                        <span class="text-xs font-semibold text-[#64748B]">Service postal patterns</span>
-                                                        <input name="service_postal_patterns" value="{{ old('service_postal_patterns', collect($location->service_postal_patterns)->filter()->implode(', ')) }}" placeholder="60601, 606*" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                                        <span class="text-[11px] text-[#94A3B8]">Use exact postal codes or prefix patterns such as 60601 or 606*.</span>
-                                                    </label>
+                                                    <details class="sm:col-span-2 rounded-xl border border-[#E2E8F0] bg-white p-3">
+                                                        <summary class="cursor-pointer text-sm font-semibold text-[#475569]">Advanced routing (optional)</summary>
+                                                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                                            <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]">
+                                                                <input type="hidden" name="pickup_enabled" value="0">
+                                                                <input type="checkbox" name="pickup_enabled" value="1" @checked($editPickupEnabled)>
+                                                                Offer pickup
+                                                            </label>
+                                                            <label class="space-y-1">
+                                                                <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
+                                                                <input name="routing_priority" type="number" min="1" max="9999" value="{{ old('name') === $location->name ? old('routing_priority', $location->routing_priority ?? 100) : ($location->routing_priority ?? 100) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                                            </label>
+                                                            <label class="space-y-1 sm:col-span-2">
+                                                                <span class="text-xs font-semibold text-[#64748B]">Service countries</span>
+                                                                <input name="service_countries" value="{{ old('name') === $location->name ? old('service_countries', collect($location->service_countries)->filter()->implode(', ')) : collect($location->service_countries)->filter()->implode(', ') }}" placeholder="US, CA" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                            </label>
+                                                            <label class="space-y-1">
+                                                                <span class="text-xs font-semibold text-[#64748B]">Service regions</span>
+                                                                <input name="service_regions" value="{{ old('name') === $location->name ? old('service_regions', collect($location->service_regions)->filter()->implode(', ')) : collect($location->service_regions)->filter()->implode(', ') }}" placeholder="CA, TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                            </label>
+                                                            <label class="space-y-1">
+                                                                <span class="text-xs font-semibold text-[#64748B]">Service postal patterns</span>
+                                                                <input name="service_postal_patterns" value="{{ old('name') === $location->name ? old('service_postal_patterns', collect($location->service_postal_patterns)->filter()->implode(', ')) : collect($location->service_postal_patterns)->filter()->implode(', ') }}" placeholder="60601, 606*" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
+                                                            </label>
+                                                        </div>
+                                                    </details>
                                                     <div class="sm:col-span-2">
                                                         <button class="rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-bold text-white">Save location</button>
                                                     </div>
@@ -310,4 +327,47 @@
             </div>
         </section>
     </div>
+
+    <script type="application/json" id="location-region-catalog">@json($locationRegionCatalog)</script>
+    <script>
+    (function () {
+        var regionCatalog = {};
+        try {
+            var catalogEl = document.getElementById('location-region-catalog');
+            if (catalogEl) regionCatalog = JSON.parse(catalogEl.textContent || '{}');
+        } catch (e) {}
+
+        function renderLocationRegionSelect(wrapper, countryCode, selected) {
+            if (!wrapper) return;
+            var stateHost = wrapper.querySelector('[data-role="geo-region-single-wrapper"]');
+            if (!stateHost) return;
+            var regions = regionCatalog[countryCode] || {};
+            var keys = Object.keys(regions);
+            selected = (selected || '').toUpperCase();
+            if (!keys.length) {
+                stateHost.innerHTML = '<span class="text-xs font-semibold text-[#64748B]">State / province</span><input type="text" name="state" value="' + selected + '" placeholder="Region" data-role="geo-region-text" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase mt-1">';
+                return;
+            }
+            var html = '<span class="text-xs font-semibold text-[#64748B]">State / province</span><select name="state" data-role="geo-region-single-select" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm mt-1"><option value="">Select a state / province</option>';
+            keys.forEach(function (code) {
+                html += '<option value="' + code + '"' + (selected === code ? ' selected' : '') + '>' + regions[code] + ' (' + code + ')</option>';
+            });
+            if (selected && keys.indexOf(selected) === -1) {
+                html += '<option value="' + selected + '" selected>' + selected + ' (legacy)</option>';
+            }
+            html += '</select>';
+            stateHost.innerHTML = html;
+        }
+
+        document.querySelectorAll('[data-location-address-fields]').forEach(function (wrapper) {
+            var countrySelect = wrapper.querySelector('[data-role="geo-country-select"]');
+            if (!countrySelect) return;
+            var stateSelect = wrapper.querySelector('[data-role="geo-region-single-select"], [data-role="geo-region-text"]');
+            var selected = stateSelect ? stateSelect.value : '';
+            countrySelect.addEventListener('change', function () {
+                renderLocationRegionSelect(wrapper, countrySelect.value || '', '');
+            });
+        });
+    })();
+    </script>
 @endsection

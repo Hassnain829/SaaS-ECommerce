@@ -8,8 +8,8 @@
             <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
         </button>
         <div>
-            <h1 class="font-poppins text-lg font-semibold md:text-xl">Taxes</h1>
-            <p class="hidden text-xs text-[#64748B] sm:block">Configure platform checkout tax for this store.</p>
+            <h1 class="font-poppins text-lg font-semibold md:text-xl">Checkout &amp; tax</h1>
+            <p class="hidden text-xs text-[#64748B] sm:block">Configure platform checkout tax separately from delivery setup.</p>
         </div>
         <a href="{{ route('generalSettings') }}" class="ml-auto inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">General settings</a>
     </header>

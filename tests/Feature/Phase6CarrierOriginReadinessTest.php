@@ -274,7 +274,7 @@ class Phase6CarrierOriginReadinessTest extends TestCase
             ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSeeText('Fulfillment locations')
-            ->assertSeeText('Fulfillment origin')
+            ->assertSeeText('Default origin')
             ->assertSeeText('Carrier-ready');
     }
 

@@ -7,6 +7,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CurrentStoreController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeliverySetupWizardController;
 use App\Http\Controllers\DeveloperStorefrontSettingsController;
 use App\Http\Controllers\DraftOrderController;
 use App\Http\Controllers\LocationController;
@@ -292,6 +293,27 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/shippingAutomation', [ShippingSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('shippingAutomation');
+    Route::prefix('settings/delivery')->middleware('store.permission:settings.view')->group(function () {
+        Route::get('/setup', [DeliverySetupWizardController::class, 'index'])
+            ->name('settings.delivery.setup');
+        Route::match(['get', 'post'], '/setup/ship-from', [DeliverySetupWizardController::class, 'shipFrom'])
+            ->middleware('store.permission:settings.manage')
+            ->name('settings.delivery.setup.ship-from');
+        Route::match(['get', 'post'], '/setup/deliver-to', [DeliverySetupWizardController::class, 'deliverTo'])
+            ->middleware('store.permission:settings.manage')
+            ->name('settings.delivery.setup.deliver-to');
+        Route::match(['get', 'post'], '/setup/delivery-option', [DeliverySetupWizardController::class, 'deliveryOption'])
+            ->middleware('store.permission:settings.manage')
+            ->name('settings.delivery.setup.delivery-option');
+        Route::get('/setup/review', [DeliverySetupWizardController::class, 'review'])
+            ->middleware('store.permission:settings.manage')
+            ->name('settings.delivery.setup.review');
+        Route::post('/setup/finish', [DeliverySetupWizardController::class, 'finish'])
+            ->middleware('store.permission:settings.manage')
+            ->name('settings.delivery.setup.finish');
+        Route::match(['get', 'post'], '/test-address', [DeliverySetupWizardController::class, 'testAddress'])
+            ->name('settings.delivery.test-address');
+    });
     require __DIR__.'/carriers.php';
     Route::post('/settings/shipping/zones', [ShippingSettingsController::class, 'storeZone'])
         ->middleware('store.permission:settings.manage')

@@ -8,6 +8,7 @@ use App\Models\CarrierApiEvent;
 use App\Models\Location;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
+use App\Models\Store;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Carriers\Core\CarrierProviderManager;
 use App\Services\Carriers\FedEx\Connection\FedExAccountRegistrationService;
@@ -17,7 +18,13 @@ use App\Services\Carriers\USPS\Auth\USPSOAuthTokenService;
 use App\Services\Carriers\USPS\Operations\USPSDomesticRateQuoteService;
 use App\Services\Carriers\USPS\Support\USPSConfig;
 use App\Services\Channels\ChannelOwnershipService;
+use App\Services\Delivery\DeliveryAreaInputNormalizer;
+use App\Services\Delivery\DeliveryOptionInputNormalizer;
+use App\Services\Delivery\DeliverySetupStatusService;
+use App\Services\Delivery\ManualDeliveryProviderResolver;
 use App\Services\SecurityLogRecorder;
+use App\Services\Tax\TaxConfigurationService;
+use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,7 +34,16 @@ use Illuminate\View\View;
 
 class ShippingSettingsController extends Controller
 {
-    public function index(Request $request, ChannelOwnershipService $channelOwnership, FedExConfig $fedExConfig, FedExValidationStatusPresenter $fedExValidationStatus, USPSConfig $uspsConfig, CarrierOriginReadinessService $originReadiness): View|RedirectResponse
+    public function index(
+        Request $request,
+        ChannelOwnershipService $channelOwnership,
+        FedExConfig $fedExConfig,
+        FedExValidationStatusPresenter $fedExValidationStatus,
+        USPSConfig $uspsConfig,
+        CarrierOriginReadinessService $originReadiness,
+        DeliverySetupStatusService $deliverySetupStatus,
+        TaxConfigurationService $taxConfiguration,
+    ): View|RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         if (! $store) {
@@ -53,6 +69,37 @@ class ShippingSettingsController extends Controller
         $hasCarrierReadyOrigin = collect($originReadinessByLocationId)
             ->contains(fn ($readiness): bool => $readiness->ready);
 
+        $carrierAccounts = $store->carrierAccounts()
+            ->with(['carrier', 'shippingMethods', 'defaultOriginLocation'])
+            ->orderByDesc('status')
+            ->orderBy('display_name')
+            ->get();
+
+        $shippingZones = $store->shippingZones()
+            ->with('shippingMethods.carrierAccount.carrier')
+            ->orderByDesc('is_active')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $shippingMethods = $store->shippingMethods()
+            ->with(['shippingZone', 'carrierAccount.carrier'])
+            ->orderByDesc('is_active')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $taxSetting = $taxConfiguration->ensureSettingsForStore($store);
+
+        $deliverySetup = $deliverySetupStatus->assess(
+            $store,
+            $locations,
+            $shippingZones,
+            $shippingMethods,
+            $carrierAccounts,
+            $taxSetting,
+        );
+
         $fedExValidationStatusByAccountId = ($fedExAccounts = $store->carrierAccounts()
             ->where('provider', CarrierAccount::PROVIDER_FEDEX)
             ->with('carrier')
@@ -71,11 +118,9 @@ class ShippingSettingsController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
-            'carrierAccounts' => $store->carrierAccounts()
-                ->with(['carrier', 'shippingMethods', 'defaultOriginLocation'])
-                ->orderByDesc('status')
-                ->orderBy('display_name')
-                ->get(),
+            'carrierAccounts' => $carrierAccounts,
+            'deliverySetup' => $deliverySetup,
+            'taxSetting' => $taxSetting,
             'fedExCarrier' => Carrier::query()->where('code', 'fedex')->first(),
             'fedExAccounts' => $fedExAccounts,
             'fedExApiEvents' => $store->carrierApiEvents()
@@ -117,18 +162,8 @@ class ShippingSettingsController extends Controller
                 ->limit(5)
                 ->get(),
             'uspsStepDiagnostics' => $this->uspsLatestStepDiagnostics($store),
-            'shippingZones' => $store->shippingZones()
-                ->with('shippingMethods.carrierAccount.carrier')
-                ->orderByDesc('is_active')
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get(),
-            'shippingMethods' => $store->shippingMethods()
-                ->with(['shippingZone', 'carrierAccount.carrier'])
-                ->orderByDesc('is_active')
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get(),
+            'shippingZones' => $shippingZones,
+            'shippingMethods' => $shippingMethods,
             'locations' => $locations,
             'originReadinessByLocationId' => $originReadinessByLocationId,
             'hasCarrierReadyOrigin' => $hasCarrierReadyOrigin,
@@ -136,6 +171,7 @@ class ShippingSettingsController extends Controller
             'connectionTypes' => CarrierAccount::CONNECTION_TYPES,
             'carrierAccountStatuses' => CarrierAccount::STATUSES,
             'rateTypes' => ShippingMethod::RATE_TYPES,
+            'countries' => TaxCountryCatalog::all(),
         ]);
     }
 
@@ -658,18 +694,19 @@ class ShippingSettingsController extends Controller
             ->with('success_title', 'Shipping & delivery');
     }
 
-    public function storeZone(Request $request, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    public function storeZone(Request $request, SecurityLogRecorder $securityLogRecorder, DeliveryAreaInputNormalizer $areaNormalizer): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
 
         $validated = $this->validateZone($request);
+        $coverage = $areaNormalizer->normalizeFromRequest($request);
 
         $zone = $store->shippingZones()->create([
-            ...$validated,
-            'countries' => $this->listFromInput($validated['countries'] ?? null, true),
-            'regions' => $this->listFromInput($validated['regions'] ?? null),
-            'postal_patterns' => $this->listFromInput($validated['postal_patterns'] ?? null),
+            'name' => $validated['name'],
+            'countries' => $coverage['countries'],
+            'regions' => $coverage['regions'],
+            'postal_patterns' => $coverage['postal_patterns'],
             'is_active' => $request->boolean('is_active', true),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
         ]);
@@ -682,22 +719,23 @@ class ShippingSettingsController extends Controller
         );
 
         return back()
-            ->with('success', 'Shipping zone added.')
+            ->with('success', 'Delivery area added.')
             ->with('success_title', 'Shipping & delivery');
     }
 
-    public function updateZone(Request $request, ShippingZone $shippingZone, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    public function updateZone(Request $request, ShippingZone $shippingZone, SecurityLogRecorder $securityLogRecorder, DeliveryAreaInputNormalizer $areaNormalizer): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $shippingZone->store_id === (int) $store->id, 404);
 
         $validated = $this->validateZone($request);
+        $coverage = $areaNormalizer->normalizeFromRequest($request);
 
         $shippingZone->update([
-            ...$validated,
-            'countries' => $this->listFromInput($validated['countries'] ?? null, true),
-            'regions' => $this->listFromInput($validated['regions'] ?? null),
-            'postal_patterns' => $this->listFromInput($validated['postal_patterns'] ?? null),
+            'name' => $validated['name'],
+            'countries' => $coverage['countries'],
+            'regions' => $coverage['regions'],
+            'postal_patterns' => $coverage['postal_patterns'],
             'is_active' => $request->boolean('is_active'),
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
         ]);
@@ -710,7 +748,7 @@ class ShippingSettingsController extends Controller
         );
 
         return back()
-            ->with('success', 'Shipping zone updated.')
+            ->with('success', 'Delivery area updated.')
             ->with('success_title', 'Shipping & delivery');
     }
 
@@ -733,21 +771,29 @@ class ShippingSettingsController extends Controller
             ->with('success_title', 'Shipping & delivery');
     }
 
-    public function storeMethod(Request $request, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    public function storeMethod(Request $request, SecurityLogRecorder $securityLogRecorder, ManualDeliveryProviderResolver $manualProviderResolver, DeliveryOptionInputNormalizer $optionNormalizer): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
 
         $validated = $this->validateMethod($request, $store->id);
+        $validated = $optionNormalizer->applyPricingMode($request->input('delivery_price_mode'), $validated);
+        $validated = $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: true);
+        $validated['carrier_account_id'] = $this->resolveMethodCarrierAccountId(
+            $store,
+            $validated,
+            $manualProviderResolver,
+            $request->user(),
+        );
 
         $method = $store->shippingMethods()->create([
             ...$validated,
-            'code' => $this->uniqueMethodCode($store->id, $validated['name']),
-            'carrier_account_id' => $validated['carrier_account_id'] ?? null,
+            'code' => $optionNormalizer->uniqueMethodCode($store->id, $validated['name']),
+            'carrier_account_id' => $validated['carrier_account_id'],
             'flat_rate' => $validated['flat_rate'] ?? 0,
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
-            'enabled_for_checkout' => $request->boolean('enabled_for_checkout', true),
-            'is_active' => $request->boolean('is_active', true),
+            'enabled_for_checkout' => (bool) ($validated['enabled_for_checkout'] ?? true),
+            'is_active' => (bool) ($validated['is_active'] ?? true),
         ]);
 
         $securityLogRecorder->record(
@@ -758,24 +804,33 @@ class ShippingSettingsController extends Controller
         );
 
         return back()
-            ->with('success', 'Delivery method added.')
+            ->with('success', 'Delivery option added.')
             ->with('success_title', 'Shipping & delivery');
     }
 
-    public function updateMethod(Request $request, ShippingMethod $shippingMethod, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    public function updateMethod(Request $request, ShippingMethod $shippingMethod, SecurityLogRecorder $securityLogRecorder, ManualDeliveryProviderResolver $manualProviderResolver, DeliveryOptionInputNormalizer $optionNormalizer): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $shippingMethod->store_id === (int) $store->id, 404);
 
         $validated = $this->validateMethod($request, $store->id);
+        $validated = $optionNormalizer->applyPricingMode($request->input('delivery_price_mode'), $validated);
+        $validated = $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: false, existing: $shippingMethod);
+        $validated['carrier_account_id'] = $this->resolveMethodCarrierAccountId(
+            $store,
+            $validated,
+            $manualProviderResolver,
+            $request->user(),
+            $shippingMethod->carrier_account_id,
+        );
 
         $shippingMethod->update([
             ...$validated,
-            'carrier_account_id' => $validated['carrier_account_id'] ?? null,
+            'carrier_account_id' => $validated['carrier_account_id'],
             'flat_rate' => $validated['flat_rate'] ?? 0,
             'sort_order' => (int) ($validated['sort_order'] ?? 0),
-            'enabled_for_checkout' => $request->boolean('enabled_for_checkout'),
-            'is_active' => $request->boolean('is_active'),
+            'enabled_for_checkout' => (bool) ($validated['enabled_for_checkout'] ?? false),
+            'is_active' => (bool) ($validated['is_active'] ?? false),
         ]);
 
         $securityLogRecorder->record(
@@ -786,7 +841,7 @@ class ShippingSettingsController extends Controller
         );
 
         return back()
-            ->with('success', 'Delivery method updated.')
+            ->with('success', 'Delivery option updated.')
             ->with('success_title', 'Shipping & delivery');
     }
 
@@ -816,6 +871,14 @@ class ShippingSettingsController extends Controller
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'zone_editor_mode' => ['nullable', Rule::in(['simple', 'legacy'])],
+            'country_code' => ['nullable', 'string', 'max:8'],
+            'region_codes' => ['nullable', 'array'],
+            'region_codes.*' => ['nullable', 'string', 'max:32'],
+            'postal_rules_json' => ['nullable', 'string'],
+            'legacy_countries' => ['nullable'],
+            'legacy_regions' => ['nullable'],
+            'legacy_postal_patterns' => ['nullable'],
             'countries' => ['nullable'],
             'regions' => ['nullable'],
             'postal_patterns' => ['nullable'],
@@ -843,17 +906,40 @@ class ShippingSettingsController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:1000'],
             'delivery_speed_label' => ['nullable', 'string', 'max:120'],
-            'rate_type' => ['required', Rule::in(ShippingMethod::RATE_TYPES)],
+            'delivery_price_mode' => ['nullable', Rule::in(['fixed', 'free', 'free_over'])],
+            'rate_type' => ['nullable', Rule::in(ShippingMethod::RATE_TYPES)],
             'flat_rate' => ['nullable', 'numeric', 'min:0'],
             'free_over_amount' => ['nullable', 'numeric', 'min:0'],
             'min_order_amount' => ['nullable', 'numeric', 'min:0'],
             'max_order_amount' => ['nullable', 'numeric', 'min:0'],
             'estimated_min_days' => ['nullable', 'integer', 'min:0', 'max:365'],
             'estimated_max_days' => ['nullable', 'integer', 'min:0', 'max:365'],
+            'available_to_customers' => ['nullable', 'boolean'],
             'enabled_for_checkout' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:100000'],
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function resolveMethodCarrierAccountId(
+        Store $store,
+        array $validated,
+        ManualDeliveryProviderResolver $manualProviderResolver,
+        ?\App\Models\User $actor,
+        ?int $existingCarrierAccountId = null,
+    ): ?int {
+        if (! empty($validated['carrier_account_id'])) {
+            return (int) $validated['carrier_account_id'];
+        }
+
+        if (($validated['rate_type'] ?? null) === ShippingMethod::RATE_CARRIER_CALCULATED_LATER) {
+            return $existingCarrierAccountId;
+        }
+
+        return $manualProviderResolver->resolveForStore($store, $actor)->id;
     }
 
     /**
@@ -876,20 +962,6 @@ class ShippingSettingsController extends Controller
             ->all();
 
         return $parts === [] ? null : $parts;
-    }
-
-    private function uniqueMethodCode(int $storeId, string $name): string
-    {
-        $base = Str::slug($name) ?: 'delivery-method';
-        $code = $base;
-        $counter = 2;
-
-        while (ShippingMethod::query()->where('store_id', $storeId)->where('code', $code)->exists()) {
-            $code = $base.'-'.$counter;
-            $counter++;
-        }
-
-        return $code;
     }
 
     /**

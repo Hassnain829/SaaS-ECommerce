@@ -7,6 +7,7 @@ use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
 use App\Support\StorePermission;
+use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -43,6 +44,7 @@ class LocationController extends Controller
             'selectedStore' => $store,
             'locations' => $locations,
             'locationTypes' => Location::TYPES,
+            'countries' => TaxCountryCatalog::all(),
             'canManageLocations' => $request->user()?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE) ?? false,
             'originReadinessByLocationId' => $originReadinessByLocationId,
         ]);
@@ -197,6 +199,13 @@ class LocationController extends Controller
             $validated['country_code'] = null;
         }
 
+        if (filled($validated['state'] ?? null) && filled($validated['country_code'] ?? null)) {
+            $validated['state'] = $this->normalizeStateCode(
+                (string) $validated['state'],
+                (string) $validated['country_code'],
+            );
+        }
+
         $validated['fulfills_online_orders'] = $request->has('fulfills_online_orders')
             ? $request->boolean('fulfills_online_orders')
             : true;
@@ -287,5 +296,26 @@ class LocationController extends Controller
             ->all();
 
         return $normalized === [] ? null : $normalized;
+    }
+
+    private function normalizeStateCode(string $state, string $countryCode): string
+    {
+        $token = strtoupper(trim($state));
+        if ($token === '') {
+            return '';
+        }
+
+        $catalog = TaxCountryCatalog::regionsFor($countryCode);
+        if (isset($catalog[$token])) {
+            return $token;
+        }
+
+        foreach ($catalog as $code => $label) {
+            if (strtoupper($label) === $token) {
+                return $code;
+            }
+        }
+
+        return $token;
     }
 }

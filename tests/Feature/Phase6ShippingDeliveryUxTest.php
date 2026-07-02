@@ -33,7 +33,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
         ]);
     }
 
-    public function test_shipping_page_renders_tabbed_overview_and_checklist(): void
+    public function test_shipping_page_renders_delivery_setup_hub(): void
     {
         [$owner, $store] = $this->ownerStore('Shipping UX Overview Store');
         $this->readyLocation($store);
@@ -42,13 +42,25 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Setup checklist')
-            ->assertSeeText('Recommended next step')
-            ->assertSee('data-shipping-tab="overview"', false)
-            ->assertSee('data-shipping-tab="carriers"', false)
-            ->assertSee('data-shipping-tab="zones"', false)
-            ->assertSee('data-shipping-tab="methods"', false)
-            ->assertSee('data-shipping-tab="locations"', false);
+            ->assertSeeText('Delivery setup')
+            ->assertSeeText('Where do you ship from?')
+            ->assertSeeText('Where do you deliver?')
+            ->assertSeeText('Checkout tax (read-only)')
+            ->assertSeeText('Edit tax settings')
+            ->assertSee('data-shipping-tab="setup"', false)
+            ->assertSee('data-shipping-tab="advanced"', false);
+    }
+
+    public function test_legacy_shipping_tab_query_still_opens_advanced_view(): void
+    {
+        [$owner, $store] = $this->ownerStore('Shipping UX Legacy Tab Store');
+        $this->readyLocation($store);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('shippingAutomation', ['tab' => 'zones']))
+            ->assertOk()
+            ->assertSeeText('Delivery areas');
     }
 
     public function test_shipping_page_separates_fedex_usps_and_manual_sections(): void
@@ -58,7 +70,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shippingAutomation'))
+            ->get(route('shippingAutomation', ['tab' => 'advanced']))
             ->assertOk()
             ->assertSeeText('FedEx Merchant Account')
             ->assertSeeText('USPS Sandbox Tools')
