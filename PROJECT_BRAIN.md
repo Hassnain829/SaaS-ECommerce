@@ -181,7 +181,7 @@ Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integr
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier rates/labels/tracking
-- API keys/scopes, webhooks, event outbox
+- API keys/scopes, webhooks, event outbox — **plan:** `docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`
 - Notifications
 - SaaS billing and subscriptions
 - Markets and B2B
