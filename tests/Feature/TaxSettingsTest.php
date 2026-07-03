@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Http\Controllers\TaxSettingsController;
+use App\Http\Controllers\Settings\TaxSettingsController;
 use App\Models\Role;
 use App\Models\SecurityLog;
 use App\Models\Store;

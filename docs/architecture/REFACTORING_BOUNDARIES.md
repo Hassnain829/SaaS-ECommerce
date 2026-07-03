@@ -36,6 +36,11 @@ This document records **internal extraction boundaries** introduced during CLEAN
 |-------|----------|----------------|
 | Main web routes | `routes/web.php` | Core merchant routes; includes `require routes/onboarding.php` inside authenticated store group |
 | Onboarding routes | `routes/onboarding.php` | Onboarding steps, store management mutations, store-scoped product CRUD from onboarding flows |
+| Onboarding controller | `App\Http\Controllers\Store\OnboardingController` | Onboarding + product save pipeline |
+| Dashboard controller | `App\Http\Controllers\Store\DashboardController` | Merchant shell, auth, product list |
+| Shipping settings | `App\Http\Controllers\Settings\ShippingSettingsController` | Delivery hub |
+| Product workspace | `App\Http\Controllers\Catalog\ProductWorkspaceController` | Product workspace read/edit |
+| Import HTTP | `App\Http\Controllers\Catalog\ProductImportController` | Import upload/mapping |
 
 **Preserved:** all route names, URIs, middleware, controller@action bindings.
 
@@ -52,10 +57,10 @@ See `docs/architecture/CARRIER_CODE_STRUCTURE.md` for carrier folder layout.
 
 | Target | LOC (approx.) | Reason deferred |
 |--------|---------------|-----------------|
-| `OnboardingController` | ~2260 | No dedicated characterization suite; high merchant workflow risk |
-| `DashboardController` | ~1220 | 34 public actions; weak isolated test coverage |
-| `ShippingSettingsController` | ~870 | Touches shipping automation surface |
+| `OnboardingController` | ~2260 | `App\Http\Controllers\Store\OnboardingController` — no dedicated characterization suite; high merchant workflow risk |
+| `DashboardController` | ~1220 | `App\Http\Controllers\Store\DashboardController` — 34 public actions; weak isolated test coverage |
+| `ShippingSettingsController` | ~870 | `App\Http\Controllers\Settings\ShippingSettingsController` — touches shipping automation surface |
 | `ProductImportVariantFinalizer` | ~925 | Variant matrix rules; needs phase-specific tests before extraction |
-| `ProductImportController` | large | HTTP/session patterns; separate from row-mapping seam |
+| `ProductImportController` | large | `App\Http\Controllers\Catalog\ProductImportController` — HTTP/session patterns; separate from row-mapping seam |
 
 Future extractions must follow the same rules: characterization tests first, one concern per change, no route or behavior drift.

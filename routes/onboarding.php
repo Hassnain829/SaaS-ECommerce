@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\Store\OnboardingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/onboarding-StoreDetails-1', [OnboardingController::class, 'step1'])->name('onboarding-StoreDetails-1');

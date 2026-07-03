@@ -43,19 +43,16 @@ Before implementing any task, always read these files first:
 1. `ENTERPRISE_PROJECT_CONTEXT.md`
 2. `ENTERPRISE_ROADMAP_2026.md`
 3. `PROJECT_BRAIN.md`
-4. `.agents/rules/PROJECT-CONTEXT.txt`
-5. `.agents/rules/ROADMAP.txt`
-6. `.agents/rules/Updated ERD similar to Shopify.txt`
-7. `.agents/rules/cursor_project_context_and_development-day-17last.md`
-8. `.agents/rules/OVERVIEW FOR SAAS.txt`
-9. `.cursor/rules/*` if present
+4. `PROJECT_STRUCTURE.md` — codebase folder map, controller domains, docs layout
+5. `.cursor/rules/*` if present
+
+Historical context only (do not follow on conflict): `.agents/rules/*.txt` and day-specific notes in that folder.
 
 The canonical source of truth is:
 
 - `ENTERPRISE_PROJECT_CONTEXT.md` for product vision, architecture rules, and development principles.
 - `ENTERPRISE_ROADMAP_2026.md` for build order, implementation phases, tests, and acceptance criteria.
-
-Older files such as `ROADMAP.txt` and `PROJECT-CONTEXT.txt` are retained for history and compatibility, but the enterprise files override them when there is conflict.
+- `PROJECT_STRUCTURE.md` for where code lives and how layers connect.
 
 ---
 

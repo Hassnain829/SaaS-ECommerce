@@ -3,13 +3,13 @@
 use App\Http\Controllers\Carrier\Connection\CarrierConnectionWizardController;
 use App\Http\Controllers\Carrier\Connection\FedExIntegratorConnectionController;
 use App\Http\Controllers\Carrier\Operations\FedExCarrierTestController;
-use App\Http\Controllers\Carrier\Validation\FedExValidationCapabilitiesController;
-use App\Http\Controllers\Carrier\Validation\FedExValidationFinalSubmissionController;
 use App\Http\Controllers\Carrier\Validation\FedExValidationArtifactController;
+use App\Http\Controllers\Carrier\Validation\FedExValidationCapabilitiesController;
 use App\Http\Controllers\Carrier\Validation\FedExValidationExportController;
+use App\Http\Controllers\Carrier\Validation\FedExValidationFinalSubmissionController;
 use App\Http\Controllers\Carrier\Validation\FedExValidationRunController;
 use App\Http\Controllers\Carrier\Validation\FedExValidationWorkspaceController;
-use App\Http\Controllers\ShippingSettingsController;
+use App\Http\Controllers\Settings\ShippingSettingsController;
 use Illuminate\Support\Facades\Route;
 
 /*

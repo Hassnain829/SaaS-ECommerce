@@ -1,27 +1,27 @@
 <?php
 
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\AttributeController;
-use App\Http\Controllers\BrandController;
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\CurrentStoreController;
-use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DeliverySetupWizardController;
-use App\Http\Controllers\DeveloperStorefrontSettingsController;
-use App\Http\Controllers\DraftOrderController;
-use App\Http\Controllers\LocationController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\PaymentSettingsController;
-use App\Http\Controllers\ProductBulkController;
-use App\Http\Controllers\ProductImportController;
-use App\Http\Controllers\ProductWorkspaceController;
-use App\Http\Controllers\ProductWorkspaceDataController;
-use App\Http\Controllers\ShipmentController;
-use App\Http\Controllers\ShippingSettingsController;
-use App\Http\Controllers\TagController;
-use App\Http\Controllers\TaxSettingsController;
-use App\Http\Controllers\TeamMemberController;
+use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Catalog\AttributeController;
+use App\Http\Controllers\Catalog\BrandController;
+use App\Http\Controllers\Catalog\CategoryController;
+use App\Http\Controllers\Catalog\ProductBulkController;
+use App\Http\Controllers\Catalog\ProductImportController;
+use App\Http\Controllers\Catalog\ProductWorkspaceController;
+use App\Http\Controllers\Catalog\ProductWorkspaceDataController;
+use App\Http\Controllers\Catalog\TagController;
+use App\Http\Controllers\Commerce\CustomerController;
+use App\Http\Controllers\Commerce\DraftOrderController;
+use App\Http\Controllers\Commerce\OrderController;
+use App\Http\Controllers\Commerce\ShipmentController;
+use App\Http\Controllers\Settings\DeliverySetupWizardController;
+use App\Http\Controllers\Settings\DeveloperStorefrontSettingsController;
+use App\Http\Controllers\Settings\LocationController;
+use App\Http\Controllers\Settings\PaymentSettingsController;
+use App\Http\Controllers\Settings\ShippingSettingsController;
+use App\Http\Controllers\Settings\TaxSettingsController;
+use App\Http\Controllers\Settings\TeamMemberController;
+use App\Http\Controllers\Store\CurrentStoreController;
+use App\Http\Controllers\Store\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 //

@@ -51,6 +51,7 @@
 *.tmp
 *.temp
 *.bak
+tmp_*.php
 Thumbs.db
 Homestead.json
 Homestead.yaml

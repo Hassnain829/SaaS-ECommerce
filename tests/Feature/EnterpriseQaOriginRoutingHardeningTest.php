@@ -480,7 +480,7 @@ class EnterpriseQaOriginRoutingHardeningTest extends TestCase
 
         $this->assertStringContainsString('service area routing', $orderView);
 
-        $phaseReport = base_path('docs/PHASE_6C_0A_NEAREST_ELIGIBLE_ORIGIN_ROUTING_REPORT.md');
+        $phaseReport = base_path('docs/phases/PHASE_6C_0A_NEAREST_ELIGIBLE_ORIGIN_ROUTING_REPORT.md');
         $this->assertFileExists($phaseReport);
         $reportContents = strtolower(file_get_contents($phaseReport) ?: '');
         $this->assertStringContainsString('nearest eligible', $reportContents);

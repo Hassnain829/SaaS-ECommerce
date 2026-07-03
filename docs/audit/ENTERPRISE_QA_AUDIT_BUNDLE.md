@@ -4569,7 +4569,7 @@ Document the distinction between Locations, Markets, Currency, and Timezone in:
 
 - `ENTERPRISE_PROJECT_CONTEXT.md`
 - `ENTERPRISE_ROADMAP_2026.md`
-- `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+- `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
 
 ## 3.5.5 Future guardrails
 
@@ -6011,7 +6011,7 @@ Order lifecycle status separation, order events, storefront order event recordin
 
 ---
 
-## FILE: docs/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md
+## FILE: docs/phases/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md
 
 ```markdown
 # Phase 1 SaaS Foundation Hardening Report
@@ -6061,7 +6061,7 @@ The final cleanup pass tightened the role-to-permission matrix, made security au
 - `tests/Feature/SecurityLogAndSessionTest.php`
 - `tests/Feature/TeamMemberFlowTest.php`
 - `.gitignore`
-- `docs/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
+- `docs/phases/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
 
 Removed local root cache file:
 
@@ -6244,7 +6244,7 @@ The foundation is now more store-scoped, auditable, permission-aware, session-aw
 
 ---
 
-## FILE: docs/PHASE_2_CATALOG_COMPLETION_REPORT.md
+## FILE: docs/phases/PHASE_2_CATALOG_COMPLETION_REPORT.md
 
 ```markdown
 # Phase 2 Catalog Completion and Data Cleanup Report
@@ -6265,7 +6265,7 @@ The work makes product and variant SKUs SaaS-safe, adds structured product attri
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
 - `.cursor/rules/*`
-- `docs/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
+- `docs/phases/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
 - `docs/ORDER_LIFECYCLE_HARDENING_REPORT.md`
 - Product/catalog models, migrations, controllers, import services, product workspace views, catalog list views, API routes, and product/import/storefront tests.
 
@@ -6303,7 +6303,7 @@ The work makes product and variant SKUs SaaS-safe, adds structured product attri
 - `routes/api.php`
 - `routes/web.php`
 - `tests/Feature/Phase2CatalogCompletionTest.php`
-- `docs/PHASE_2_CATALOG_COMPLETION_REPORT.md`
+- `docs/phases/PHASE_2_CATALOG_COMPLETION_REPORT.md`
 
 ## SKU Policy
 
@@ -6542,7 +6542,7 @@ Phase 2 catalog completion is implemented and verified. The catalog is now safer
 
 ---
 
-## FILE: docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md
+## FILE: docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md
 
 ```markdown
 # Phase 3 Enterprise Inventory Model Report
@@ -6565,12 +6565,12 @@ The implementation adds store-scoped locations, inventory items, inventory level
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
 - `.cursor/rules/*`
-- `docs/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
+- `docs/phases/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
 - `docs/ORDER_LIFECYCLE_HARDENING_REPORT.md`
-- `docs/PHASE_2_CATALOG_COMPLETION_REPORT.md`
+- `docs/phases/PHASE_2_CATALOG_COMPLETION_REPORT.md`
 - Product, variant, stock movement, store, customer, order, import, product workspace, storefront API, bulk action, route, seeder, and test files related to stock reads/writes.
 
-Note: `docs/PHASE_0_STABILIZATION_REPORT.md` was requested by the prompt but is not present in this checkout.
+Note: `docs/phases/PHASE_0_STABILIZATION_REPORT.md` was requested by the prompt but is not present in this checkout.
 
 ## Files Changed
 
@@ -6922,7 +6922,7 @@ Verification:
 
 ---
 
-## FILE: docs/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md
+## FILE: docs/phases/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md
 
 ```markdown
 # Phase 4 Commerce Core Completion Report
@@ -6943,10 +6943,10 @@ The implementation keeps the developer storefront flow working, uses inventory s
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
 - `.cursor/rules/*`
-- `docs/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
+- `docs/phases/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
 - `docs/ORDER_LIFECYCLE_HARDENING_REPORT.md`
-- `docs/PHASE_2_CATALOG_COMPLETION_REPORT.md`
-- `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+- `docs/phases/PHASE_2_CATALOG_COMPLETION_REPORT.md`
+- `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
 - `app/Models/Order.php`
 - `app/Models/OrderItem.php`
 - `app/Models/OrderAddress.php`
@@ -7213,7 +7213,7 @@ The commerce core now has audited lifecycle separation, real order events, dynam
 
 ---
 
-## FILE: docs/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md
+## FILE: docs/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md
 
 ```markdown
 # Phase 5 External Checkout Sync Report
@@ -7234,11 +7234,11 @@ No Stripe checkout, payment intents, refunds, tax engine, coupons, fulfillment, 
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
 - `.cursor/rules/*`
-- `docs/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
+- `docs/phases/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md`
 - `docs/ORDER_LIFECYCLE_HARDENING_REPORT.md`
-- `docs/PHASE_2_CATALOG_COMPLETION_REPORT.md`
-- `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
-- `docs/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md`
+- `docs/phases/PHASE_2_CATALOG_COMPLETION_REPORT.md`
+- `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+- `docs/phases/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md`
 - `routes/api.php`
 - `routes/web.php`
 - `app/Http/Middleware/AuthenticateDeveloperStorefrontToken.php`
@@ -7282,7 +7282,7 @@ No Stripe checkout, payment intents, refunds, tax engine, coupons, fulfillment, 
 - `resources/views/user_view/developer_storefront.blade.php`
 - `dev-test-storefront/src/App.jsx`
 - `tests/Feature/Phase5ExternalCheckoutSyncTest.php`
-- `docs/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
+- `docs/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
 
 ## API Endpoint
 
@@ -7459,7 +7459,7 @@ External Checkout Sync is implemented as a store-scoped, token-protected, idempo
 
 ---
 
-## FILE: docs/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md
+## FILE: docs/phases/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md
 
 ```markdown
 # Phase 5 Platform Checkout Stripe Sandbox Report
@@ -7482,9 +7482,9 @@ External Checkout Sync remains intact for already-paid or externally pending ord
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
 - `.cursor/rules/*`
-- `docs/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
-- `docs/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md`
-- `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+- `docs/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
+- `docs/phases/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md`
+- `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
 - Existing Phase 5 external checkout code/tests
 - Order, checkout, inventory, storefront, and dashboard files touched by this phase
 
@@ -7667,7 +7667,7 @@ Store owners connect through Stripe hosted onboarding only. See `docs/STRIPE_SAN
 
 ---
 
-## FILE: docs/PHASE_5_STRIPE_CONNECT_FOUNDATION_REPORT.md
+## FILE: docs/phases/PHASE_5_STRIPE_CONNECT_FOUNDATION_REPORT.md
 
 ```markdown
 # Phase 5 Stripe Connect Foundation Report
@@ -7687,10 +7687,10 @@ External Checkout Sync and Platform Stripe sandbox checkout remain intact. This 
 - `.agents/rules/PROJECT-CONTEXT.txt`
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
-- `docs/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
-- `docs/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md`
-- `docs/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md`
-- `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+- `docs/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
+- `docs/phases/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md`
+- `docs/phases/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md`
+- `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
 - Existing Phase 5 checkout/payment models, services, controllers, routes, views, dev storefront simulator, and tests.
 
 ## Files Changed
@@ -8315,7 +8315,7 @@ Dev storefront catalog API exposes `store.external_checkout.inventory_owner` for
 
 ---
 
-## FILE: docs/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md
+## FILE: docs/phases/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md
 
 ```markdown
 # Phase 6A Manual Fulfillment Foundation Report
@@ -8336,9 +8336,9 @@ The platform now has store-scoped carriers, carrier accounts, shipping zones, de
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
 - `.cursor/rules/*`
-- `docs/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
-- `docs/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md`
-- `docs/PHASE_5_STRIPE_CONNECT_FOUNDATION_REPORT.md`
+- `docs/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
+- `docs/phases/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md`
+- `docs/phases/PHASE_5_STRIPE_CONNECT_FOUNDATION_REPORT.md`
 - Current order, inventory, payment, settings, route, seeder, and test files.
 
 ## Files Changed
@@ -8632,7 +8632,7 @@ Intentionally not implemented in Phase 6A:
 - API keys, webhooks, event outbox, automation
 - SaaS billing
 
-Phase 6B now implements checkout delivery method selection and shipping snapshots. See `docs/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md`.
+Phase 6B now implements checkout delivery method selection and shipping snapshots. See `docs/phases/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md`.
 
 ## Final Phase 6A Status
 
@@ -8644,7 +8644,7 @@ Manual fulfillment foundation is implemented, store-scoped, event-backed, audite
 
 ---
 
-## FILE: docs/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md
+## FILE: docs/phases/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md
 
 ```markdown
 # Phase 6B Checkout Delivery Methods Report
@@ -8664,10 +8664,10 @@ Customers can now receive simple delivery choices from store-scoped shipping zon
 - `.agents/rules/PROJECT-CONTEXT.txt`
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
-- `docs/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
-- `docs/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md`
-- `docs/PHASE_5_STRIPE_CONNECT_FOUNDATION_REPORT.md`
-- `docs/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md`
+- `docs/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md`
+- `docs/phases/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md`
+- `docs/phases/PHASE_5_STRIPE_CONNECT_FOUNDATION_REPORT.md`
+- `docs/phases/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md`
 - Existing checkout, payment, external sync, shipping settings, order detail, and dev storefront files.
 
 ## Files Changed
@@ -8687,7 +8687,7 @@ Customers can now receive simple delivery choices from store-scoped shipping zon
 - `resources/views/user_view/orderViewDetails.blade.php`
 - `dev-test-storefront/src/App.jsx`
 - `tests/Feature/Phase6CheckoutDeliveryMethodsTest.php`
-- `docs/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md`
+- `docs/phases/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md`
 
 ## Shipping Selection Schema
 
@@ -8836,7 +8836,7 @@ Checkout delivery methods are store-scoped, customer-facing, priced from Shippin
 
 ---
 
-## FILE: docs/PHASE_6C_0A_NEAREST_ELIGIBLE_ORIGIN_ROUTING_REPORT.md
+## FILE: docs/phases/PHASE_6C_0A_NEAREST_ELIGIBLE_ORIGIN_ROUTING_REPORT.md
 
 ```markdown
 # Phase 6C-0A Nearest Eligible Origin Routing Report
@@ -8856,9 +8856,9 @@ This phase does not implement latitude/longitude, geocoding, miles, kilometers, 
 - `.agents/rules/PROJECT-CONTEXT.txt`
 - `.agents/rules/ROADMAP.txt`
 - `.agents/rules/Updated ERD similar to Shopify.txt`
-- `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
-- `docs/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md`
-- `docs/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md`
+- `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+- `docs/phases/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md`
+- `docs/phases/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md`
 - `docs/EXTERNAL_MANAGED_CHANNEL_MODE_REPORT.md`
 - checkout, inventory, shipping, fulfillment, location, external sync, and dev storefront code paths
 

@@ -1974,10 +1974,10 @@ Customer/store-owner wording must say "nearest eligible fulfillment location", "
 
 **Phase 6C-1A (2026-06-04):** FedEx sandbox connection foundation complete (provider architecture, registration, OAuth test, encrypted credentials, API event logs, merchant UI). FedEx Credential Registration may remain blocked pending FedEx support.
 
-**Phase 6C-1B-USPS (2026-06-02):** USPS public API foundation — platform OAuth, address validation, domestic test rate quotes, package builder, safe API event logs. Uses platform USPS credentials from `.env`. **Not implemented:** labels, EPS/payment authorization, pickup, production live mode, checkout live rates. See `docs/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`.
+**Phase 6C-1B-USPS (2026-06-02):** USPS public API foundation — platform OAuth, address validation, domestic test rate quotes, package builder, safe API event logs. Uses platform USPS credentials from `.env`. **Not implemented:** labels, EPS/payment authorization, pickup, production live mode, checkout live rates. See `docs/phases/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`.
 
 
-**Phase 6C-2B — FedEx Merchant Credentials Mode (historical / developer fallback):** Implemented earlier as a merchant-owned Developer API credential path. **Not the primary architecture.** Normal merchant onboarding uses Model A (Phase 6C-4). Model B remains behind `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED` for developer testing only. See `docs/PHASE_6C_2B_FEDEX_MERCHANT_CREDENTIALS_MODE_REPORT.md`.
+**Phase 6C-2B — FedEx Merchant Credentials Mode (historical / developer fallback):** Implemented earlier as a merchant-owned Developer API credential path. **Not the primary architecture.** Normal merchant onboarding uses Model A (Phase 6C-4). Model B remains behind `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED` for developer testing only. See `docs/phases/PHASE_6C_2B_FEDEX_MERCHANT_CREDENTIALS_MODE_REPORT.md`.
 
 **FedEx Credential Registration decision:** FedEx Credential Registration (`/registration/v2/address/keysgeneration`) was tested and hardened, but FedEx continued returning HTTP 422 `INVALID.INPUT.EXCEPTION`. FedEx email confirmed production keys require the Integrator Validation process. Therefore Credential Registration is not the normal merchant setup path right now.
 
@@ -3705,7 +3705,7 @@ Document the distinction between Locations, Markets, Currency, and Timezone in:
 
 - `ENTERPRISE_PROJECT_CONTEXT.md`
 - `ENTERPRISE_ROADMAP_2026.md`
-- `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+- `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
 
 ## 3.5.5 Future guardrails
 

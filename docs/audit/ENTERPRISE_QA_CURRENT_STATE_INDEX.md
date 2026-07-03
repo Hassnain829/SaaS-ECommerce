@@ -35,20 +35,20 @@ Companion files:
 
 | Phase / patch | Status | Evidence (tests / docs) |
 |---------------|--------|-------------------------|
-| **Phase 1 — SaaS foundation** (auth, permissions, security) | **Implemented** | `StorePermissionLayerTest`, `SecurityLogAndSessionTest`, `RegistrationTest`, `ProfileHardeningTest`, `TeamMemberFlowTest`, `StoreRoleAuthorizationTest`, `CurrentStoreTest`; `docs/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md` |
+| **Phase 1 — SaaS foundation** (auth, permissions, security) | **Implemented** | `StorePermissionLayerTest`, `SecurityLogAndSessionTest`, `RegistrationTest`, `ProfileHardeningTest`, `TeamMemberFlowTest`, `StoreRoleAuthorizationTest`, `CurrentStoreTest`; `docs/phases/PHASE_1_SAAS_FOUNDATION_HARDENING_REPORT.md` |
 | **Order lifecycle hardening** (separate order/payment/fulfillment statuses) | **Implemented** | `OrderLifecycleTest`, `OrderEventsTimelineTest`; `docs/ORDER_LIFECYCLE_HARDENING_REPORT.md` |
-| **Phase 2 — Catalog** (products, variants, attributes, import) | **Implemented** | `Phase2CatalogCompletionTest`, `Phase2CatalogCleanupTest`, `VariantSystemUpgradeTest`, import test suite; `docs/PHASE_2_CATALOG_COMPLETION_REPORT.md` |
-| **Phase 3 — Inventory** (locations, levels, reservations, stock movements) | **Implemented** | `Phase3EnterpriseInventoryTest`, `StockMovementTest`, `Inventory`-filter tests (24); `docs/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md` |
+| **Phase 2 — Catalog** (products, variants, attributes, import) | **Implemented** | `Phase2CatalogCompletionTest`, `Phase2CatalogCleanupTest`, `VariantSystemUpgradeTest`, import test suite; `docs/phases/PHASE_2_CATALOG_COMPLETION_REPORT.md` |
+| **Phase 3 — Inventory** (locations, levels, reservations, stock movements) | **Implemented** | `Phase3EnterpriseInventoryTest`, `StockMovementTest`, `Inventory`-filter tests (24); `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md` |
 | **Phase 3.5 — Onboarding / default location alignment** | **Implemented** | `Phase35StoreSettingsAlignmentTest`; covered in Phase 3 report + location services |
-| **Phase 4 — Commerce core** (orders, draft/manual orders, CRM) | **Implemented** | `Phase4CommerceCoreRegressionTest`, `Phase4DraftOrderTest`, `Phase4CustomerCrmTest`, `Phase4OrderDetailTest`; `docs/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md` |
-| **Phase 5 — Payments** (platform checkout, Stripe sandbox) | **Implemented** | `Phase5PlatformCheckoutStripeTest`, `Phase5PaymentUxCleanupTest`; `docs/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md` |
-| **Phase 5 — External checkout sync** | **Implemented** | `Phase5ExternalCheckoutSyncTest`, `ExternalManagedChannelModeTest`; `docs/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md` |
-| **Phase 5 — Stripe Connect foundation** | **Implemented** | `Phase5StripeConnectFoundationTest`, `PaymentProviderAccountModeTest`; `docs/PHASE_5_STRIPE_CONNECT_FOUNDATION_REPORT.md` |
+| **Phase 4 — Commerce core** (orders, draft/manual orders, CRM) | **Implemented** | `Phase4CommerceCoreRegressionTest`, `Phase4DraftOrderTest`, `Phase4CustomerCrmTest`, `Phase4OrderDetailTest`; `docs/phases/PHASE_4_COMMERCE_CORE_COMPLETION_REPORT.md` |
+| **Phase 5 — Payments** (platform checkout, Stripe sandbox) | **Implemented** | `Phase5PlatformCheckoutStripeTest`, `Phase5PaymentUxCleanupTest`; `docs/phases/PHASE_5_PLATFORM_CHECKOUT_STRIPE_SANDBOX_REPORT.md` |
+| **Phase 5 — External checkout sync** | **Implemented** | `Phase5ExternalCheckoutSyncTest`, `ExternalManagedChannelModeTest`; `docs/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md` |
+| **Phase 5 — Stripe Connect foundation** | **Implemented** | `Phase5StripeConnectFoundationTest`, `PaymentProviderAccountModeTest`; `docs/phases/PHASE_5_STRIPE_CONNECT_FOUNDATION_REPORT.md` |
 | **Patch A — External managed channel mode** | **Implemented** | `ExternalManagedChannelModeTest`; `docs/EXTERNAL_MANAGED_CHANNEL_MODE_REPORT.md` |
 | **Patch B — Stripe test/live Connect support** | **Implemented** | `StripeSandboxConnectSupportTest` (17 tests); `docs/STRIPE_SANDBOX_CONNECT_SUPPORT_REPORT.md` |
-| **Phase 6A — Manual fulfillment / shipments** | **Implemented** | `Phase6ManualFulfillmentTest`, `ExternalShipmentSyncTest`; `docs/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md` |
-| **Phase 6B — Checkout delivery methods** | **Implemented** | `Phase6CheckoutDeliveryMethodsTest`; `docs/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md` |
-| **Phase 6C-0A — Nearest eligible origin routing / pickup foundation** | **Implemented** | `Phase6NearestEligibleOriginRoutingTest` (5 tests); `docs/PHASE_6C_0A_NEAREST_ELIGIBLE_ORIGIN_ROUTING_REPORT.md` |
+| **Phase 6A — Manual fulfillment / shipments** | **Implemented** | `Phase6ManualFulfillmentTest`, `ExternalShipmentSyncTest`; `docs/phases/PHASE_6A_MANUAL_FULFILLMENT_REPORT.md` |
+| **Phase 6B — Checkout delivery methods** | **Implemented** | `Phase6CheckoutDeliveryMethodsTest`; `docs/phases/PHASE_6B_CHECKOUT_DELIVERY_METHODS_REPORT.md` |
+| **Phase 6C-0A — Nearest eligible origin routing / pickup foundation** | **Implemented** | `Phase6NearestEligibleOriginRoutingTest` (5 tests); `docs/phases/PHASE_6C_0A_NEAREST_ELIGIBLE_ORIGIN_ROUTING_REPORT.md` |
 | **Phase 6C-1 — Carrier sandbox** | **Not implemented** | Deferred (pause point before this work) |
 
 **Note:** `--filter=Phase1` returns no tests; Phase 1 coverage uses security/store-permission test names instead of a `Phase1*` prefix.
