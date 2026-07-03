@@ -264,8 +264,8 @@ Future extractions must keep route names and behavior unchanged; add characteriz
 
 ## 13. Phase 9 (Integration Foundation)
 
-Planning document (goals, baseline, batch order, do-not-do list):
+Approved Phase 9 execution plan (goals, baseline, batch order, do-not-do list). **Not** a root canonical document — root enterprise docs remain authoritative on conflict:
 
 **[`docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)**
 
-Status: not started in code. First batch when approved: **9-0** (contract tests + architecture docs only).
+Status: not started in code. First batch when explicitly instructed: **9-0** (contract tests + architecture docs only).

@@ -151,7 +151,7 @@ ALWAYS:
 
 Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integrator connectivity and validation tooling are implemented; **production carrier approvals and live carrier operation remain pending.**
 
-**Next focus:** Start Phase **5R-2** coupons — carrier-neutral portal completion while courier production approvals remain pending.
+Current approved focus: Phase 9 Integration Foundation. Phase 5R-2, Phase 5R-3, and Phase 7 remain pending and are not considered complete.
 
 ### Phase 5R (calculation and tax)
 
@@ -181,7 +181,7 @@ Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integr
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier rates/labels/tracking
-- API keys/scopes, webhooks, event outbox — **plan:** `docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`
+- API keys/scopes, webhooks, event outbox — **approved execution plan (not root canonical):** `docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`
 - Notifications
 - SaaS billing and subscriptions
 - Markets and B2B

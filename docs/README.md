@@ -22,7 +22,7 @@ Runtime application code lives in `app/`, `routes/`, `resources/`, and `database
 | `fedex/` | FedEx integrator and validation documentation |
 | `operations/` | Local setup, security hardening, release checklist |
 | `reports/` | Standalone hardening/support reports |
-| `plans/` | Detailed implementation plans — **Phase 9:** [`PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md) |
+| `plans/` | Approved execution plans (not root canonical) — **Phase 9:** [`PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md) |
 | `archive/` | Notes on deprecated agent context files |
 
 Phase report paths use `docs/phases/PHASE_*.md` (moved from `docs/` root on 2026-07-03).
