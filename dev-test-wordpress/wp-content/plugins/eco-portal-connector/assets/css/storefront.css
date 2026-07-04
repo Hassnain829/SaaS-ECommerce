@@ -1,0 +1,261 @@
+.eco-portal {
+  --eco-bg: #f6f8fb;
+  --eco-card: #ffffff;
+  --eco-text: #142033;
+  --eco-muted: #5b6b82;
+  --eco-border: #d9e1ec;
+  --eco-accent: #0f6cbd;
+  --eco-accent-dark: #0b4f8a;
+  --eco-success: #0f7b4a;
+  --eco-error: #b42318;
+  --eco-info: #175cd3;
+  color: var(--eco-text);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+.eco-portal__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.eco-portal__eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--eco-muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.eco-portal__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.75rem;
+}
+
+.eco-portal__meta {
+  margin: 0.15rem 0 0;
+  color: var(--eco-muted);
+  font-size: 0.92rem;
+}
+
+.eco-portal__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.eco-portal__card {
+  background: var(--eco-card);
+  border: 1px solid var(--eco-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(20, 32, 51, 0.05);
+}
+
+.eco-portal__image-wrap {
+  aspect-ratio: 4 / 3;
+  background: var(--eco-bg);
+  display: grid;
+  place-items: center;
+}
+
+.eco-portal__image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.eco-portal__image-fallback {
+  color: var(--eco-muted);
+  font-size: 0.9rem;
+}
+
+.eco-portal__card-body {
+  padding: 1rem;
+}
+
+.eco-portal__card-body h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+
+.eco-portal__badge {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #e8f1fb;
+  color: var(--eco-accent-dark);
+  font-size: 0.78rem;
+}
+
+.eco-portal__description {
+  color: var(--eco-muted);
+  font-size: 0.92rem;
+}
+
+.eco-portal__variant {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--eco-border);
+}
+
+.eco-portal__variant-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.eco-portal__variant-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.eco-portal__variant-actions input[type="number"],
+.eco-portal__form input,
+.eco-portal__form select,
+.eco-portal__table input[type="number"] {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--eco-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+}
+
+.eco-portal__variant-actions input[type="number"] {
+  width: 4.5rem;
+}
+
+.eco-portal__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--eco-accent);
+  color: #fff;
+  text-decoration: none;
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.eco-portal__button:hover,
+.eco-portal__button:focus {
+  background: var(--eco-accent-dark);
+  color: #fff;
+}
+
+.eco-portal__button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.eco-portal__button--secondary {
+  background: #eef3f9;
+  color: var(--eco-text);
+}
+
+.eco-portal__button--secondary:hover,
+.eco-portal__button--secondary:focus {
+  background: #dfe8f3;
+  color: var(--eco-text);
+}
+
+.eco-portal__table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--eco-card);
+  border: 1px solid var(--eco-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.eco-portal__table th,
+.eco-portal__table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--eco-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.eco-portal__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.eco-portal__action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.eco-portal__checkout-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+
+.eco-portal__form,
+.eco-portal__summary {
+  background: var(--eco-card);
+  border: 1px solid var(--eco-border);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.eco-portal__form label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.eco-portal__form label input,
+.eco-portal__form label select {
+  display: block;
+  margin-top: 0.35rem;
+  font-weight: 400;
+}
+
+.eco-portal-notice {
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.eco-portal-notice--error {
+  background: #fef3f2;
+  color: var(--eco-error);
+  border: 1px solid #fecdca;
+}
+
+.eco-portal-notice--success {
+  background: #ecfdf3;
+  color: var(--eco-success);
+  border: 1px solid #abefc6;
+}
+
+.eco-portal-notice--info {
+  background: #eff8ff;
+  color: var(--eco-info);
+  border: 1px solid #b2ddff;
+}
+
+@media (max-width: 800px) {
+  .eco-portal__checkout-layout,
+  .eco-portal__header {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+}
