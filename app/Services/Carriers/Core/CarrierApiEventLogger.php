@@ -131,6 +131,10 @@ class CarrierApiEventLogger
             'clientid',
             'consumerkey',
             'consumersecret',
+            'accesstoken',
+            'refreshtoken',
+            'authorizationcode',
+            'code',
         ], true);
     }
 

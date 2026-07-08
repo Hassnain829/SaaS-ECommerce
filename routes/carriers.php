@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Carrier\Connection\CarrierConnectionWizardController;
 use App\Http\Controllers\Carrier\Connection\FedExIntegratorConnectionController;
+use App\Http\Controllers\Carrier\Connection\USPSMerchantConnectionController;
 use App\Http\Controllers\Carrier\Operations\FedExCarrierTestController;
 use App\Http\Controllers\Carrier\Validation\FedExValidationArtifactController;
 use App\Http\Controllers\Carrier\Validation\FedExValidationCapabilitiesController;
@@ -31,6 +32,43 @@ Route::post('/settings/shipping/carriers/connect/fedex/details', [CarrierConnect
 Route::get('/settings/shipping/carriers/connect/fedex-integrator', [FedExIntegratorConnectionController::class, 'start'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.fedex-integrator.start');
+Route::get('/settings/shipping/carriers/connect/usps-merchant', [USPSMerchantConnectionController::class, 'start'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.start');
+Route::post('/settings/shipping/carriers/connect/usps-merchant/origin', [USPSMerchantConnectionController::class, 'storeOrigin'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.origin');
+Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/usps/wizard/{step}', [USPSMerchantConnectionController::class, 'showWizard'])
+    ->middleware('store.permission:settings.manage')
+    ->where('step', 'requirements|origin|identifiers|authorization')
+    ->name('settings.shipping.usps-merchant.wizard');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/origin', [USPSMerchantConnectionController::class, 'updateOrigin'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.origin.update');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/identifiers', [USPSMerchantConnectionController::class, 'storeIdentifiers'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.identifiers');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/authorization', [USPSMerchantConnectionController::class, 'storeAuthorizationAcknowledgement'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.authorization');
+Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/usps/oauth/start', [USPSMerchantConnectionController::class, 'startOAuth'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.oauth.start');
+Route::get('/settings/shipping/carriers/usps/oauth/callback', [USPSMerchantConnectionController::class, 'oauthCallback'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.oauth.callback');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/verify', [USPSMerchantConnectionController::class, 'verifyConnection'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.verify');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/reauthorize', [USPSMerchantConnectionController::class, 'reauthorize'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.reauthorize');
+Route::get('/settings/shipping/carrier-accounts/{carrierAccount}/usps/manage', [USPSMerchantConnectionController::class, 'manage'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.manage');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/disconnect', [USPSMerchantConnectionController::class, 'disconnect'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.disconnect');
 Route::post('/settings/shipping/carriers/connect/fedex-integrator/origin', [FedExIntegratorConnectionController::class, 'storeOrigin'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.fedex-integrator.origin');

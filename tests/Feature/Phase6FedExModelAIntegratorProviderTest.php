@@ -782,7 +782,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation', ['tab' => 'carriers']))
             ->assertOk()
-            ->assertSeeText('USPS Sandbox Tools');
+            ->assertSeeText('USPS Merchant Account');
     }
 
     /**

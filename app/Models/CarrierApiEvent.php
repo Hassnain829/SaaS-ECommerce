@@ -22,6 +22,14 @@ class CarrierApiEvent extends Model
 
     public const ACTION_MERCHANT_OAUTH_TOKEN = 'merchant_oauth_token';
 
+    public const ACTION_USPS_OAUTH_AUTHORIZE = 'usps_oauth_authorize';
+
+    public const ACTION_USPS_AUTHORIZATION_VERIFY = 'usps_authorization_verify';
+
+    public const ACTION_USPS_USERINFO = 'usps_userinfo';
+
+    public const ACTION_USPS_OAUTH_REVOKE = 'usps_oauth_revoke';
+
     public const SCENARIO_AUTHORIZATION_PARENT = 'authorization_parent';
 
     public const SCENARIO_AUTHORIZATION_CHILD = 'authorization_child';

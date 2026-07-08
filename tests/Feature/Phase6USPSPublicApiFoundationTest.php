@@ -39,8 +39,8 @@ class Phase6USPSPublicApiFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('USPS Sandbox Tools')
-            ->assertSeeText('Connect USPS for testing');
+            ->assertSeeText('USPS Merchant Account')
+            ->assertSeeText('USPS sandbox diagnostics');
     }
 
     public function test_missing_usps_config_shows_friendly_setup_required_message(): void
@@ -517,7 +517,7 @@ class Phase6USPSPublicApiFoundationTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('USPS Sandbox Tools')
+            ->assertSeeText('USPS Merchant Account')
             ->assertDontSeeText('Buy label')
             ->assertDontSeeText('Generate label')
             ->assertDontSeeText('Purchase label')

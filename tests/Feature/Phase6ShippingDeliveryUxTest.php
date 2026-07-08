@@ -75,9 +75,8 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             ->get(route('shippingAutomation', ['tab' => 'advanced']))
             ->assertOk()
             ->assertSeeText('FedEx Merchant Account')
-            ->assertSeeText('USPS Sandbox Tools')
+            ->assertSeeText('USPS Merchant Account')
             ->assertSeeText('Manual / Local Delivery')
-            ->assertSeeText('Platform testing only')
             ->assertSeeText('Connect FedEx account');
     }
 

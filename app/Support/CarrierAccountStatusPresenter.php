@@ -90,7 +90,15 @@ final class CarrierAccountStatusPresenter
                 return 'Your merchant-owned FedEx account is connected for testing. FedEx billing stays between you and FedEx. This platform does not pay FedEx charges or buy labels.';
             }
 
+            if ($this->account->isUspsMerchantLabelProvider()) {
+                return 'Your merchant-owned USPS account setup is in progress. Postage stays on your USPS payment account. Authorize BmyBrand as your Label Provider in the USPS Business Portal to continue.';
+            }
+
             return 'Your merchant-owned carrier account is connected.';
+        }
+
+        if ($this->account->isMerchantOwned() && $this->account->isUspsMerchantLabelProvider()) {
+            return 'Finish USPS authorization in the USPS Business Portal. You never paste API keys or passwords into BmyBrand.';
         }
 
         if ($this->account->isMerchantOwned() && $this->account->isFedEx()) {

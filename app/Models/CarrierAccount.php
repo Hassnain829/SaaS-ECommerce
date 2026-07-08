@@ -43,7 +43,43 @@ class CarrierAccount extends Model
 
     public const CONNECTION_MODEL_MERCHANT_DEVELOPER = 'merchant_developer';
 
+    public const CONNECTION_MODEL_USPS_PLATFORM_LABEL_PROVIDER = 'usps_platform_label_provider';
+
     public const CONNECTION_MODE_USPS_PLATFORM = 'usps_platform_api';
+
+    public const CONNECTION_MODE_USPS_MERCHANT_LABEL_PROVIDER = 'usps_merchant_label_provider';
+
+    public const USPS_AUTH_SETUP_REQUIRED = 'setup_required';
+
+    public const USPS_AUTH_AWAITING_AUTHORIZATION = 'awaiting_authorization';
+
+    public const USPS_AUTH_VERIFYING = 'verifying';
+
+    public const USPS_AUTH_CONNECTED = 'connected';
+
+    public const USPS_AUTH_ACTION_REQUIRED = 'action_required';
+
+    public const USPS_AUTH_REVOKED = 'revoked';
+
+    public const USPS_AUTH_DISABLED = 'disabled';
+
+    public const USPS_AUTH_STATUSES = [
+        self::USPS_AUTH_SETUP_REQUIRED,
+        self::USPS_AUTH_AWAITING_AUTHORIZATION,
+        self::USPS_AUTH_VERIFYING,
+        self::USPS_AUTH_CONNECTED,
+        self::USPS_AUTH_ACTION_REQUIRED,
+        self::USPS_AUTH_REVOKED,
+        self::USPS_AUTH_DISABLED,
+    ];
+
+    public const USPS_ENROLLMENT_NOT_STARTED = 'not_started';
+
+    public const USPS_ENROLLMENT_PENDING = 'pending';
+
+    public const USPS_ENROLLMENT_VERIFIED = 'verified';
+
+    public const USPS_ENROLLMENT_FAILED = 'failed';
 
     public const ENVIRONMENT_SANDBOX = 'sandbox';
 
@@ -82,6 +118,8 @@ class CarrierAccount extends Model
     public const CREDENTIALS_MERCHANT_ENCRYPTED = 'merchant_encrypted';
 
     public const CREDENTIALS_MERCHANT_OAUTH = 'merchant_oauth';
+
+    public const CREDENTIALS_USPS_MERCHANT_AUTHORIZATION = 'usps_merchant_authorization';
 
     public const CREDENTIALS_MANUAL_ENTRY = 'manual_entry';
 
@@ -152,6 +190,10 @@ class CarrierAccount extends Model
         'eula_version',
         'eula_document_hash',
         'connection_context_json',
+        'usps_authorization_status',
+        'usps_enrollment_status',
+        'usps_payment_verified_at',
+        'usps_active_store_key',
         'billing_owner',
         'ownership_mode',
         'connection_owner',
@@ -183,6 +225,7 @@ class CarrierAccount extends Model
         'enabled_for_checkout' => 'boolean',
         'last_verified_at' => 'datetime',
         'eula_accepted_at' => 'datetime',
+        'usps_payment_verified_at' => 'datetime',
     ];
 
     protected $hidden = [
@@ -244,6 +287,22 @@ class CarrierAccount extends Model
     {
         return $this->provider === self::PROVIDER_USPS
             || $this->carrier?->code === 'usps';
+    }
+
+    public function isUspsMerchantLabelProvider(): bool
+    {
+        return $this->isUsps()
+            && $this->connection_mode === self::CONNECTION_MODE_USPS_MERCHANT_LABEL_PROVIDER;
+    }
+
+    public function isUspsPlatformTestingAccount(): bool
+    {
+        return $this->isUsps()
+            && (
+                $this->connection_mode === self::CONNECTION_MODE_USPS_PLATFORM
+                || $this->isPlatformTesting()
+            )
+            && ! $this->isUspsMerchantLabelProvider();
     }
 
     public function isTestingEnvironment(): bool
@@ -377,6 +436,7 @@ class CarrierAccount extends Model
             self::CREDENTIALS_MERCHANT_ACCOUNT,
             self::CREDENTIALS_MERCHANT_ENCRYPTED,
             self::CREDENTIALS_MERCHANT_OAUTH,
+            self::CREDENTIALS_USPS_MERCHANT_AUTHORIZATION,
         ], true);
     }
 
@@ -450,6 +510,30 @@ class CarrierAccount extends Model
                 'platform_credentials' => true,
                 'merchant_owned_connection' => false,
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function ownershipAttributesForUspsMerchantLabelProvider(): array
+    {
+        return [
+            'ownership_mode' => self::OWNERSHIP_MERCHANT_OWNED,
+            'connection_owner' => self::CONNECTION_OWNER_MERCHANT,
+            'credentials_source' => self::CREDENTIALS_NONE,
+            'billing_owner' => self::BILLING_OWNER_MERCHANT,
+            'capabilities' => [
+                'rates' => false,
+                'labels' => false,
+                'tracking' => false,
+                'pickup' => false,
+                'checkout_rates' => false,
+                'merchant_owned_connection' => true,
+                'usps_label_provider' => true,
+                'portal_authorization_required' => true,
+            ],
+            'connection_model' => self::CONNECTION_MODEL_USPS_PLATFORM_LABEL_PROVIDER,
         ];
     }
 
@@ -586,6 +670,246 @@ class CarrierAccount extends Model
         $this->credentials_encrypted = $credentials;
     }
 
+    public function setUspsMerchantIdentifiers(
+        string $crid,
+        string $mid,
+        string $epa,
+        ?string $manifestMid = null,
+    ): void {
+        $credentials = $this->credentials();
+        $credentials['merchant_crid'] = trim($crid);
+        $credentials['merchant_mid'] = trim($mid);
+        $credentials['merchant_epa'] = trim($epa);
+
+        if (filled($manifestMid)) {
+            $credentials['merchant_manifest_mid'] = trim((string) $manifestMid);
+        } else {
+            unset($credentials['merchant_manifest_mid']);
+        }
+
+        $this->credentials_encrypted = $credentials;
+        $this->credentials_source = self::CREDENTIALS_USPS_MERCHANT_AUTHORIZATION;
+
+        $context = is_array($this->connection_context_json) ? $this->connection_context_json : [];
+        $merchant = is_array($context['usps_merchant'] ?? null) ? $context['usps_merchant'] : [];
+        $merchant['merchant_crid_masked'] = self::maskSensitiveIdentifier($crid);
+        $merchant['merchant_mid_masked'] = self::maskSensitiveIdentifier($mid);
+        $merchant['merchant_epa_masked'] = self::maskSensitiveIdentifier($epa);
+
+        if (filled($manifestMid)) {
+            $merchant['manifest_mid_masked'] = self::maskSensitiveIdentifier((string) $manifestMid);
+        }
+
+        $context['usps_merchant'] = $merchant;
+        $this->connection_context_json = $context;
+    }
+
+    public function hasUspsMerchantIdentifiers(): bool
+    {
+        return filled($this->uspsMerchantCrid())
+            && filled($this->uspsMerchantMid())
+            && filled($this->uspsMerchantEpa());
+    }
+
+    public function uspsMerchantCrid(): ?string
+    {
+        $value = (string) ($this->credentials()['merchant_crid'] ?? '');
+
+        return $value !== '' ? $value : null;
+    }
+
+    public function uspsMerchantMid(): ?string
+    {
+        $value = (string) ($this->credentials()['merchant_mid'] ?? '');
+
+        return $value !== '' ? $value : null;
+    }
+
+    public function uspsMerchantEpa(): ?string
+    {
+        $value = (string) ($this->credentials()['merchant_epa'] ?? '');
+
+        return $value !== '' ? $value : null;
+    }
+
+    public function uspsMerchantManifestMid(): ?string
+    {
+        $value = (string) ($this->credentials()['merchant_manifest_mid'] ?? '');
+
+        return $value !== '' ? $value : null;
+    }
+
+    public function setMerchantOAuthTokens(
+        string $accessToken,
+        ?string $refreshToken,
+        int $expiresIn,
+        ?string $subjectId = null,
+    ): void {
+        $credentials = $this->credentials();
+        $credentials['oauth_access_token'] = trim($accessToken);
+
+        if (filled($refreshToken)) {
+            $credentials['oauth_refresh_token'] = trim((string) $refreshToken);
+        }
+
+        $credentials['oauth_expires_at'] = now()->addSeconds(max(60, $expiresIn))->toIso8601String();
+
+        if (filled($subjectId)) {
+            $credentials['oauth_subject_id'] = trim((string) $subjectId);
+        }
+
+        $this->credentials_encrypted = $credentials;
+        $this->credentials_source = self::CREDENTIALS_MERCHANT_OAUTH;
+        $this->save();
+
+        if (filled($subjectId)) {
+            $this->storeMerchantOAuthSubjectContext(trim((string) $subjectId));
+        }
+    }
+
+    public function setMerchantOAuthSubjectId(string $subjectId): void
+    {
+        $subjectId = trim($subjectId);
+
+        if ($subjectId === '') {
+            return;
+        }
+
+        $credentials = $this->credentials();
+        $credentials['oauth_subject_id'] = $subjectId;
+        $this->credentials_encrypted = $credentials;
+        $this->save();
+
+        $this->storeMerchantOAuthSubjectContext($subjectId);
+    }
+
+    public function merchantOAuthSubjectId(): ?string
+    {
+        $subjectId = (string) ($this->credentials()['oauth_subject_id'] ?? '');
+
+        return $subjectId !== '' ? $subjectId : null;
+    }
+
+    public function hasMerchantOAuthSubjectId(): bool
+    {
+        return filled($this->merchantOAuthSubjectId());
+    }
+
+    public function clearMerchantOAuthSubjectId(): void
+    {
+        $credentials = $this->credentials();
+        unset($credentials['oauth_subject_id']);
+        $this->credentials_encrypted = $credentials;
+        $this->save();
+
+        $context = is_array($this->connection_context_json) ? $this->connection_context_json : [];
+        $merchant = is_array($context['usps_merchant'] ?? null) ? $context['usps_merchant'] : [];
+        unset($merchant['oauth_subject_id_masked'], $merchant['oauth_subject_recorded_at']);
+        $context['usps_merchant'] = $merchant;
+        $this->forceFill(['connection_context_json' => $context])->save();
+    }
+
+    public function markUspsMerchantActiveForStore(): void
+    {
+        if (! $this->isUspsMerchantLabelProvider()) {
+            return;
+        }
+
+        $this->forceFill([
+            'usps_active_store_key' => $this->store_id,
+        ])->save();
+    }
+
+    public function clearUspsMerchantActiveForStore(): void
+    {
+        if (! $this->isUspsMerchantLabelProvider()) {
+            return;
+        }
+
+        $this->forceFill([
+            'usps_active_store_key' => null,
+        ])->save();
+    }
+
+    private function storeMerchantOAuthSubjectContext(string $subjectId): void
+    {
+        $context = is_array($this->connection_context_json) ? $this->connection_context_json : [];
+        $merchant = is_array($context['usps_merchant'] ?? null) ? $context['usps_merchant'] : [];
+        $merchant['oauth_subject_id_masked'] = self::maskSensitiveIdentifier($subjectId);
+        $merchant['oauth_subject_recorded_at'] = now()->toIso8601String();
+        $context['usps_merchant'] = $merchant;
+        $this->forceFill(['connection_context_json' => $context])->save();
+    }
+
+    public function hasMerchantOAuthTokens(): bool
+    {
+        return filled($this->credentials()['oauth_access_token'] ?? null);
+    }
+
+    public function merchantOAuthAccessToken(): ?string
+    {
+        $token = (string) ($this->credentials()['oauth_access_token'] ?? '');
+
+        return $token !== '' ? $token : null;
+    }
+
+    public function merchantOAuthRefreshToken(): ?string
+    {
+        $token = (string) ($this->credentials()['oauth_refresh_token'] ?? '');
+
+        return $token !== '' ? $token : null;
+    }
+
+    public function merchantOAuthAccessTokenExpired(): bool
+    {
+        $expiresAt = (string) ($this->credentials()['oauth_expires_at'] ?? '');
+
+        if ($expiresAt === '') {
+            return true;
+        }
+
+        try {
+            return now()->greaterThanOrEqualTo(\Illuminate\Support\Carbon::parse($expiresAt)->subSeconds(60));
+        } catch (\Throwable) {
+            return true;
+        }
+    }
+
+    public function clearMerchantOAuthTokens(): void
+    {
+        $credentials = $this->credentials();
+        unset(
+            $credentials['oauth_access_token'],
+            $credentials['oauth_refresh_token'],
+            $credentials['oauth_expires_at'],
+        );
+
+        $this->credentials_encrypted = $credentials;
+
+        if ($this->hasUspsMerchantIdentifiers()) {
+            $this->credentials_source = self::CREDENTIALS_USPS_MERCHANT_AUTHORIZATION;
+        } elseif ($credentials === []) {
+            $this->credentials_source = self::CREDENTIALS_NONE;
+        }
+
+        $this->save();
+    }
+
+    public static function maskSensitiveIdentifier(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (strlen($value) <= 4) {
+            return str_repeat('*', strlen($value));
+        }
+
+        return str_repeat('*', max(0, strlen($value) - 4)).substr($value, -4);
+    }
+
     public function hasMerchantCredentials(): bool
     {
         return $this->hasMerchantFedExDeveloperCredentials()
@@ -610,8 +934,20 @@ class CarrierAccount extends Model
 
     public function usesMerchantFedExDeveloperCredentials(): bool
     {
-        return $this->connection_mode === self::CONNECTION_MODE_FEDEX_MERCHANT_CREDENTIALS
-            || $this->credentials_source === self::CREDENTIALS_MERCHANT_ENCRYPTED;
+        return $this->isFedEx()
+            && (
+                $this->connection_mode === self::CONNECTION_MODE_FEDEX_MERCHANT_CREDENTIALS
+                || $this->credentials_source === self::CREDENTIALS_MERCHANT_ENCRYPTED
+            );
+    }
+
+    public function usesUspsMerchantAuthorizationCredentials(): bool
+    {
+        return $this->isUspsMerchantLabelProvider()
+            && in_array($this->credentials_source, [
+                self::CREDENTIALS_USPS_MERCHANT_AUTHORIZATION,
+                self::CREDENTIALS_MERCHANT_OAUTH,
+            ], true);
     }
 
     public function usesLegacyFedExIntegratorRegistration(): bool
