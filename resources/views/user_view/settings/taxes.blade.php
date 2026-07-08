@@ -44,7 +44,7 @@
         ] : [];
     @endphp
 
-    <div class="mx-auto max-w-[1280px] space-y-6">
+    <div class="settings-workspace-fluid settings-page">
         @include('user_view.partials.flash_success')
 
         @if ($hasRateMutationErrors && $rateMutationSummary)
@@ -57,224 +57,249 @@
             </div>
         @endif
 
-        {{-- SECTION 1: Tax status --}}
-        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Tax status</p>
-            <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-5">
-                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Platform tax</dt>
-                    <dd class="mt-1 font-semibold text-[#0F172A]">{{ $taxSetting->enabled ? 'Active' : 'Disabled' }}</dd>
-                </div>
-                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Product prices</dt>
-                    <dd class="mt-1 font-semibold text-[#0F172A]">{{ $taxSetting->prices_include_tax ? 'Tax included' : 'Tax added at checkout' }}</dd>
-                </div>
-                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#64748B]">New products</dt>
-                    <dd class="mt-1 font-semibold text-[#0F172A]">{{ $taxSetting->default_product_taxable ? 'Taxable by default' : 'Not taxable by default' }}</dd>
-                </div>
-                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Shipping</dt>
-                    <dd class="mt-1 font-semibold text-[#0F172A]">{{ $taxSetting->shipping_taxable ? 'Taxable' : 'Not taxable' }}</dd>
-                </div>
-                <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Active rates</dt>
-                    <dd class="mt-1 font-semibold text-[#0F172A]">{{ $activeRatesCount }}</dd>
-                </div>
-            </dl>
+        <div class="settings-status-strip">
+            <span @class([
+                'settings-status-pill',
+                'settings-status-pill-ready' => $taxSetting->enabled,
+                'settings-status-pill-pending' => ! $taxSetting->enabled,
+            ])>Platform tax <strong>{{ $taxSetting->enabled ? 'On' : 'Off' }}</strong></span>
+            <span class="settings-status-pill">Active rates <strong>{{ $activeRatesCount }}</strong></span>
+            <span class="settings-status-pill">Product prices <strong>{{ $taxSetting->prices_include_tax ? 'Tax included' : 'Tax added at checkout' }}</strong></span>
+        </div>
 
-            <div class="mt-4 space-y-2 text-sm leading-relaxed text-[#475569]">
-                @if ($taxSetting->enabled)
-                    <p>Platform checkout uses the customer&apos;s shipping country and region to match an active tax rate.</p>
-                @else
-                    <p>Configured rates are saved, but platform checkout will not apply calculated tax.</p>
+        @if ($taxSetting->enabled && $activeRatesCount === 0)
+            <div class="settings-alert settings-alert-error" role="alert">
+                Tax is active, but no active rates are configured.
+                @if ($canManageTax)
+                    <a href="{{ $createRateUrl }}" class="ml-2 font-semibold underline" data-open-tax-rate-create>Add tax rate</a>
                 @endif
-                <p class="text-xs text-[#64748B]">External checkouts continue to send and preserve their own tax totals.</p>
             </div>
+        @elseif (! $taxSetting->enabled && $activeRatesCount > 0)
+            <div class="settings-alert" role="alert">
+                Rates are saved but currently inactive because platform tax is disabled.
+                @if ($canManageTax)
+                    <a href="#tax-behavior-settings" class="ml-2 font-semibold underline">Enable tax</a>
+                @endif
+            </div>
+        @endif
 
-            @if ($taxSetting->enabled && $activeRatesCount === 0)
-                <div class="mt-4 flex flex-col gap-3 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-sm text-[#92400E]">Tax is active, but no active rates are configured. Eligible checkouts may calculate zero tax.</p>
-                    @if ($canManageTax)
-                        <a href="{{ $createRateUrl }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white" data-open-tax-rate-create>Add tax rate</a>
-                    @endif
-                </div>
-            @elseif (! $taxSetting->enabled && $activeRatesCount > 0)
-                <div class="mt-4 flex flex-col gap-3 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-sm text-[#1E3A8A]">Rates are saved but currently inactive because platform tax is disabled.</p>
-                    @if ($canManageTax)
-                        <a href="#tax-behavior-settings" class="inline-flex h-10 shrink-0 items-center rounded-lg border border-[#93C5FD] bg-white px-4 text-sm font-semibold text-[#1D4ED8]">Enable tax</a>
-                    @endif
-                </div>
-            @endif
-        </section>
-
-        {{-- SECTION 2: Tax behavior --}}
-        <section id="tax-behavior-settings" class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Tax behavior</p>
-            <h2 class="mt-1 font-[Poppins] text-xl font-semibold text-[#0F172A]">Platform checkout settings</h2>
-            <p class="mt-2 text-sm text-[#64748B]">These settings affect new platform checkouts. Historical order snapshots stay unchanged.</p>
-
-            @if ($canManageTax)
-                <form method="POST" action="{{ route('settings.taxes.update') }}" class="mt-6 space-y-4">
-                    @csrf
-                    @method('PUT')
-                    <input type="hidden" name="calculation_address" value="shipping">
-
-                    <label class="flex items-start gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                        <input type="checkbox" name="enabled" value="1" class="mt-1" @checked(old('enabled', $taxSetting->enabled))>
-                        <span>
-                            <span class="block text-sm font-semibold text-[#0F172A]">Enable platform tax calculation</span>
-                            <span class="mt-1 block text-sm text-[#64748B]">Applies configured rates to eligible platform checkouts.</span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                        <input type="checkbox" name="prices_include_tax" value="1" class="mt-1" @checked(old('prices_include_tax', $taxSetting->prices_include_tax))>
-                        <span>
-                            <span class="block text-sm font-semibold text-[#0F172A]">Product prices include tax</span>
-                            <span class="mt-1 block text-sm text-[#64748B]">Catalog prices already include tax when this is on.</span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                        <input type="checkbox" name="default_product_taxable" value="1" class="mt-1" @checked(old('default_product_taxable', $taxSetting->default_product_taxable))>
-                        <span>
-                            <span class="block text-sm font-semibold text-[#0F172A]">New products are taxable by default</span>
-                            <span class="mt-1 block text-sm text-[#64748B]">Applies to new products created after you save this setting.</span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                        <input type="checkbox" name="shipping_taxable" value="1" class="mt-1" @checked(old('shipping_taxable', $taxSetting->shipping_taxable))>
-                        <span>
-                            <span class="block text-sm font-semibold text-[#0F172A]">Charge tax on shipping</span>
-                            <span class="mt-1 block text-sm text-[#64748B]">Adds shipping tax when a matching rate applies.</span>
-                        </span>
-                    </label>
-
-                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                        <p class="text-sm font-semibold text-[#0F172A]">Calculation address</p>
-                        <p class="mt-1 text-sm text-[#64748B]">Customer shipping address</p>
+        <div class="settings-page-layout">
+            <div class="settings-page-stack">
+                <section id="tax-behavior-settings" class="settings-panel">
+                    <div class="settings-panel-header">
+                        <h2 class="settings-panel-title">Tax behavior</h2>
+                        <p class="settings-panel-lead">These settings affect new platform checkouts. Historical order snapshots stay unchanged.</p>
                     </div>
 
-                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-5 text-sm font-semibold text-white hover:bg-[#0047B3]">Save tax settings</button>
-                </form>
-            @else
-                <div class="mt-6 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-sm text-[#475569]">
-                    <p><span class="font-semibold text-[#0F172A]">Platform tax:</span> {{ $taxSetting->enabled ? 'Active' : 'Disabled' }}</p>
-                    <p><span class="font-semibold text-[#0F172A]">Product prices:</span> {{ $taxSetting->prices_include_tax ? 'Tax included' : 'Tax added at checkout' }}</p>
-                    <p><span class="font-semibold text-[#0F172A]">New products:</span> {{ $taxSetting->default_product_taxable ? 'Taxable by default' : 'Not taxable by default' }}</p>
-                    <p><span class="font-semibold text-[#0F172A]">Shipping:</span> {{ $taxSetting->shipping_taxable ? 'Taxable' : 'Not taxable' }}</p>
-                    <p class="pt-2 text-sm font-semibold text-[#64748B]">Only the store owner can change tax settings.</p>
-                </div>
-            @endif
-
-            <details class="mt-6 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-xs leading-relaxed text-[#64748B]">
-                <summary class="cursor-pointer text-sm font-semibold text-[#475569]">Tax and legal disclaimer</summary>
-                <p class="mt-2">These are basic configurable tax rates and are not tax or legal advice. Confirm the correct rates and rules with your accountant or tax adviser.</p>
-            </details>
-        </section>
-
-        {{-- SECTION 3: Tax rates --}}
-        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h2 class="font-[Poppins] text-xl font-semibold text-[#0F172A]">Tax rates</h2>
-                    <p class="mt-1 text-sm text-[#64748B]">Add a country-wide rate or a region-specific rate.</p>
-                </div>
-                @if ($canManageTax)
-                    <a href="{{ $createRateUrl }}" class="inline-flex h-10 items-center justify-center rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]" data-open-tax-rate-create>+ Add tax rate</a>
-                @endif
-            </div>
-
-            @if ($taxRates->isEmpty())
-                <div class="mt-6 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-10 text-center">
-                    <p class="text-sm font-semibold text-[#0F172A]">No tax rates yet</p>
-                    <p class="mt-2 text-sm text-[#64748B]">Add a country-wide rate or a region-specific rate to start matching checkout addresses.</p>
                     @if ($canManageTax)
-                        <a href="{{ $createRateUrl }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white" data-open-tax-rate-create>Add tax rate</a>
-                    @endif
-                </div>
-            @else
-                <div class="mt-6 hidden md:block overflow-x-auto">
-                    <table class="min-w-full text-left text-sm">
-                        <thead class="border-b border-[#E2E8F0] text-xs uppercase tracking-wide text-[#64748B]">
-                            <tr>
-                                <th class="px-3 py-2">Rate name</th>
-                                <th class="px-3 py-2">Jurisdiction</th>
-                                <th class="px-3 py-2">Rate</th>
-                                <th class="px-3 py-2">Status</th>
-                                @if ($canManageTax)
-                                    <th class="px-3 py-2">Actions</th>
+                        <form method="POST" action="{{ route('settings.taxes.update') }}">
+                            @csrf
+                            @method('PUT')
+                            <input type="hidden" name="calculation_address" value="shipping">
+
+                            <div class="settings-toggle-list">
+                                <div class="settings-toggle-row">
+                                    <span class="settings-toggle-copy">
+                                        <strong>Enable platform tax calculation</strong>
+                                        <span>Applies configured rates to eligible platform checkouts.</span>
+                                    </span>
+                                    <label class="settings-switch">
+                                        <input type="checkbox" name="enabled" value="1" @checked(old('enabled', $taxSetting->enabled))>
+                                        <span class="settings-switch-track" aria-hidden="true"></span>
+                                    </label>
+                                </div>
+
+                                <div class="settings-toggle-row">
+                                    <span class="settings-toggle-copy">
+                                        <strong>Product prices include tax</strong>
+                                        <span>Catalog prices already include tax when this is on.</span>
+                                    </span>
+                                    <label class="settings-switch">
+                                        <input type="checkbox" name="prices_include_tax" value="1" @checked(old('prices_include_tax', $taxSetting->prices_include_tax))>
+                                        <span class="settings-switch-track" aria-hidden="true"></span>
+                                    </label>
+                                </div>
+
+                                <div class="settings-toggle-row">
+                                    <span class="settings-toggle-copy">
+                                        <strong>New products are taxable by default</strong>
+                                        <span>Applies to new products created after you save this setting.</span>
+                                    </span>
+                                    <label class="settings-switch">
+                                        <input type="checkbox" name="default_product_taxable" value="1" @checked(old('default_product_taxable', $taxSetting->default_product_taxable))>
+                                        <span class="settings-switch-track" aria-hidden="true"></span>
+                                    </label>
+                                </div>
+
+                                <div class="settings-toggle-row">
+                                    <span class="settings-toggle-copy">
+                                        <strong>Charge tax on shipping</strong>
+                                        <span>Adds shipping tax when a matching rate applies.</span>
+                                    </span>
+                                    <label class="settings-switch">
+                                        <input type="checkbox" name="shipping_taxable" value="1" @checked(old('shipping_taxable', $taxSetting->shipping_taxable))>
+                                        <span class="settings-switch-track" aria-hidden="true"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                                <p class="text-sm font-semibold text-[#0F172A]">Calculation address</p>
+                                <p class="mt-1 text-sm text-[#64748B]">Customer shipping address</p>
+                                @if ($taxSetting->enabled)
+                                    <p class="mt-2 text-xs leading-relaxed text-[#64748B]">Platform checkout uses the customer shipping address to match configured tax rates.</p>
+                                @else
+                                    <p class="mt-2 text-xs leading-relaxed text-[#64748B]">Configured rates are saved, but platform checkout will not apply calculated tax until platform tax is enabled.</p>
                                 @endif
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-[#E2E8F0]">
+                            </div>
+
+                            <div class="settings-form-footer">
+                                <p class="text-xs text-[#64748B]">Changes apply to future checkouts only.</p>
+                                <button type="submit" class="settings-btn settings-btn-primary">Save tax settings</button>
+                            </div>
+                        </form>
+                    @else
+                        <div class="settings-toggle-list">
+                            <div class="settings-toggle-row">
+                                <span class="settings-toggle-copy"><strong>Platform tax</strong><span>{{ $taxSetting->enabled ? 'Active' : 'Disabled' }}</span></span>
+                            </div>
+                            <div class="settings-toggle-row">
+                                <span class="settings-toggle-copy"><strong>Product prices</strong><span>{{ $taxSetting->prices_include_tax ? 'Tax included' : 'Tax added at checkout' }}</span></span>
+                            </div>
+                            <div class="settings-toggle-row">
+                                <span class="settings-toggle-copy"><strong>New products</strong><span>{{ $taxSetting->default_product_taxable ? 'Taxable by default' : 'Not taxable by default' }}</span></span>
+                            </div>
+                            <div class="settings-toggle-row">
+                                <span class="settings-toggle-copy"><strong>Shipping</strong><span>{{ $taxSetting->shipping_taxable ? 'Taxable' : 'Not taxable' }}</span></span>
+                            </div>
+                        </div>
+                        <p class="mt-4 text-sm font-semibold text-[#64748B]">Only the store owner can change tax settings.</p>
+                    @endif
+
+                    <details class="settings-collapse mt-4 text-xs leading-relaxed text-[#64748B]">
+                        <summary>Tax and legal disclaimer</summary>
+                        <p class="mt-2">These are basic configurable tax rates and are not tax or legal advice. Confirm the correct rates and rules with your accountant or tax adviser.</p>
+                    </details>
+                </section>
+
+                <section class="settings-panel">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="settings-panel-header" style="margin-bottom: 0;">
+                            <h2 class="settings-panel-title">Tax rates</h2>
+                            <p class="settings-panel-lead">Add a country-wide rate or a region-specific rate.</p>
+                        </div>
+                        @if ($canManageTax)
+                            <a href="{{ $createRateUrl }}" class="settings-btn settings-btn-primary shrink-0" data-open-tax-rate-create>+ Add tax rate</a>
+                        @endif
+                    </div>
+
+                    @if ($taxRates->isEmpty())
+                        <div class="mt-4 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-10 text-center">
+                            <p class="text-sm font-semibold text-[#0F172A]">No tax rates yet</p>
+                            <p class="mt-2 text-sm text-[#64748B]">Add a country-wide rate or a region-specific rate to start matching checkout addresses.</p>
+                            @if ($canManageTax)
+                                <a href="{{ $createRateUrl }}" class="settings-btn settings-btn-primary mt-4" data-open-tax-rate-create>Add tax rate</a>
+                            @endif
+                        </div>
+                    @else
+                        <div class="settings-table-wrap hidden md:block">
+                            <table class="settings-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rate name</th>
+                                        <th>Jurisdiction</th>
+                                        <th>Rate</th>
+                                        <th>Status</th>
+                                        @if ($canManageTax)
+                                            <th>Actions</th>
+                                        @endif
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($taxRates as $rate)
+                                        @php
+                                            $jurisdiction = TaxCountryCatalog::jurisdictionSummary($rate->country_code, $rate->region_code);
+                                        @endphp
+                                        <tr>
+                                            <td class="font-semibold text-[#0F172A]">{{ $rate->name }}</td>
+                                            <td class="text-[#475569]">
+                                                <div>{{ $jurisdiction['country_name'] }}</div>
+                                                <div class="text-xs text-[#64748B]">{{ $jurisdiction['scope'] === 'country-wide' ? 'Country-wide' : 'Region-specific' }}</div>
+                                                @if ($jurisdiction['scope'] === 'region-specific')
+                                                    <div class="text-xs font-medium text-[#334155]">{{ $jurisdiction['region_label'] ?? strtoupper((string) $rate->region_code) }}</div>
+                                                @endif
+                                            </td>
+                                            <td class="text-[#475569]">{{ $rate->rate_percent }}%</td>
+                                            <td>
+                                                <span class="settings-pill {{ $rate->is_active ? 'settings-pill-success' : 'settings-pill-muted' }}">
+                                                    {{ $rate->is_active ? 'Active' : 'Inactive' }}
+                                                </span>
+                                            </td>
+                                            @if ($canManageTax)
+                                                <td>
+                                                    <a href="{{ route('settings.taxes.index', ['edit_rate' => $rate->id]) }}" class="text-sm font-semibold text-[#4F46E5] hover:underline">Edit</a>
+                                                </td>
+                                            @endif
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-4 space-y-3 md:hidden">
                             @foreach ($taxRates as $rate)
                                 @php
                                     $jurisdiction = TaxCountryCatalog::jurisdictionSummary($rate->country_code, $rate->region_code);
                                 @endphp
-                                <tr>
-                                    <td class="px-3 py-3 font-semibold text-[#0F172A]">{{ $rate->name }}</td>
-                                    <td class="px-3 py-3 text-[#475569]">
-                                        <div>{{ $jurisdiction['country_name'] }}</div>
-                                        <div class="text-xs text-[#64748B]">{{ $jurisdiction['scope'] === 'country-wide' ? 'Country-wide' : 'Region-specific' }}</div>
-                                        @if ($jurisdiction['scope'] === 'region-specific')
-                                            <div class="text-xs font-medium text-[#334155]">{{ $jurisdiction['region_label'] ?? strtoupper((string) $rate->region_code) }}</div>
-                                        @endif
-                                    </td>
-                                    <td class="px-3 py-3 text-[#475569]">{{ $rate->rate_percent }}%</td>
-                                    <td class="px-3 py-3">
-                                        <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $rate->is_active ? 'bg-[#DCFCE7] text-[#166534]' : 'bg-[#F1F5F9] text-[#64748B]' }}">
+                                <article class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div>
+                                            <h3 class="font-semibold text-[#0F172A]">{{ $rate->name }}</h3>
+                                            <p class="mt-1 text-sm text-[#475569]">{{ $jurisdiction['country_name'] }}</p>
+                                            @if ($jurisdiction['scope'] === 'region-specific')
+                                                <p class="text-sm font-medium text-[#334155]">{{ $jurisdiction['region_label'] ?? strtoupper((string) $rate->region_code) }}</p>
+                                            @endif
+                                            <p class="text-xs text-[#64748B]">{{ $jurisdiction['scope'] === 'country-wide' ? 'Country-wide' : 'Region-specific' }}</p>
+                                        </div>
+                                        <span class="text-sm font-semibold text-[#0F172A]">{{ $rate->rate_percent }}%</span>
+                                    </div>
+                                    <div class="mt-3 flex items-center justify-between">
+                                        <span class="settings-pill {{ $rate->is_active ? 'settings-pill-success' : 'settings-pill-muted' }}">
                                             {{ $rate->is_active ? 'Active' : 'Inactive' }}
                                         </span>
-                                    </td>
-                                    @if ($canManageTax)
-                                        <td class="px-3 py-3">
-                                            <a href="{{ route('settings.taxes.index', ['edit_rate' => $rate->id]) }}" class="text-sm font-semibold text-[#0052CC] hover:underline">Edit</a>
-                                        </td>
-                                    @endif
-                                </tr>
+                                        @if ($canManageTax)
+                                            <a href="{{ route('settings.taxes.index', ['edit_rate' => $rate->id]) }}" class="text-sm font-semibold text-[#4F46E5]">Edit</a>
+                                        @endif
+                                    </div>
+                                </article>
                             @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                        </div>
+                    @endif
 
-                <div class="mt-6 space-y-3 md:hidden">
-                    @foreach ($taxRates as $rate)
+                    @if (! $canManageTax)
+                        <p class="mt-4 text-sm font-semibold text-[#64748B]">Only the store owner can change tax rates.</p>
+                    @endif
+                </section>
+            </div>
+
+            <aside class="settings-page-aside">
+                <p class="settings-page-aside-title">Tax status</p>
+                <div class="settings-page-aside-list">
+                    <div class="settings-page-aside-item">Status <strong>{{ $taxSetting->enabled ? 'Active' : 'Disabled' }}</strong></div>
+                    <div class="settings-page-aside-item">Active rates <strong>{{ $activeRatesCount }}</strong></div>
+                    <div class="settings-page-aside-item">Product prices <strong>{{ $taxSetting->prices_include_tax ? 'Tax included' : 'Tax added at checkout' }}</strong></div>
+                    <div class="settings-page-aside-item">New products <strong>{{ $taxSetting->default_product_taxable ? 'Taxable by default' : 'Not taxable by default' }}</strong></div>
+                    <div class="settings-page-aside-item">Shipping <strong>{{ $taxSetting->shipping_taxable ? 'Taxable' : 'Not taxable' }}</strong></div>
+                    @if ($taxRates->isNotEmpty())
                         @php
-                            $jurisdiction = TaxCountryCatalog::jurisdictionSummary($rate->country_code, $rate->region_code);
+                            $firstRate = $taxRates->first();
+                            $firstJurisdiction = TaxCountryCatalog::jurisdictionSummary($firstRate->country_code, $firstRate->region_code);
                         @endphp
-                        <article class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                            <div class="flex items-start justify-between gap-3">
-                                <div>
-                                    <h3 class="font-semibold text-[#0F172A]">{{ $rate->name }}</h3>
-                                    <p class="mt-1 text-sm text-[#475569]">{{ $jurisdiction['country_name'] }}</p>
-                                    @if ($jurisdiction['scope'] === 'region-specific')
-                                        <p class="text-sm font-medium text-[#334155]">{{ $jurisdiction['region_label'] ?? strtoupper((string) $rate->region_code) }}</p>
-                                    @endif
-                                    <p class="text-xs text-[#64748B]">{{ $jurisdiction['scope'] === 'country-wide' ? 'Country-wide' : 'Region-specific' }}</p>
-                                </div>
-                                <span class="text-sm font-semibold text-[#0F172A]">{{ $rate->rate_percent }}%</span>
-                            </div>
-                            <div class="mt-3 flex items-center justify-between">
-                                <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $rate->is_active ? 'bg-[#DCFCE7] text-[#166534]' : 'bg-white text-[#64748B]' }}">
-                                    {{ $rate->is_active ? 'Active' : 'Inactive' }}
-                                </span>
-                                @if ($canManageTax)
-                                    <a href="{{ route('settings.taxes.index', ['edit_rate' => $rate->id]) }}" class="text-sm font-semibold text-[#0052CC]">Edit</a>
-                                @endif
-                            </div>
-                        </article>
-                    @endforeach
+                        <div class="settings-page-aside-item">Sample scope <strong>{{ $firstJurisdiction['scope'] === 'country-wide' ? 'Country-wide' : 'Region-specific' }}</strong></div>
+                    @endif
                 </div>
-            @endif
-
-            @if (! $canManageTax)
-                <p class="mt-4 text-sm font-semibold text-[#64748B]">Only the store owner can change tax rates.</p>
-            @endif
-        </section>
+            </aside>
+        </div>
     </div>
 
     @if ($canManageTax)

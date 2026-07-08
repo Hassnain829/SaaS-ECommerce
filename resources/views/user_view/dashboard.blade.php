@@ -57,6 +57,48 @@
     $d = $dashboard ?? ['has_store' => false];
     $hasStore = $d['has_store'] ?? false;
     $currency = $d['currency'] ?? 'USD';
+    $setup = $d['setup_progress'] ?? [];
+    $setupSteps = [
+        [
+            'title' => 'Set store location',
+            'description' => (($setup['location']['count'] ?? 0) > 0)
+                ? (($setup['location']['count'] ?? 0).' active ship-from location(s)')
+                : 'Add at least one active ship-from location',
+            'ready' => (bool) ($setup['location']['ready'] ?? false),
+            'href' => route('settings.locations.index'),
+            'cta' => ((bool) ($setup['location']['ready'] ?? false)) ? 'Manage locations' : 'Set location',
+        ],
+        [
+            'title' => 'Configure checkout tax',
+            'description' => ((bool) ($setup['tax']['ready'] ?? false))
+                ? (($setup['tax']['count'] ?? 0).' active tax rate(s)')
+                : 'Enable tax and add at least one active tax rate',
+            'ready' => (bool) ($setup['tax']['ready'] ?? false),
+            'href' => route('settings.taxes.index'),
+            'cta' => ((bool) ($setup['tax']['ready'] ?? false)) ? 'Review tax' : 'Set tax',
+        ],
+        [
+            'title' => 'Prepare delivery setup',
+            'description' => ((bool) ($setup['delivery']['ready'] ?? false))
+                ? (($setup['delivery']['areas_count'] ?? 0).' area(s), '.($setup['delivery']['options_count'] ?? 0).' option(s)')
+                : 'Add delivery areas and checkout delivery options',
+            'ready' => (bool) ($setup['delivery']['ready'] ?? false),
+            'href' => route('shippingAutomation'),
+            'cta' => ((bool) ($setup['delivery']['ready'] ?? false)) ? 'Review delivery' : 'Set delivery',
+        ],
+        [
+            'title' => 'Connect payments',
+            'description' => ((bool) ($setup['payments']['ready'] ?? false))
+                ? 'Payment account is ready for checkout'
+                : 'Connect Stripe or use platform payment setup',
+            'ready' => (bool) ($setup['payments']['ready'] ?? false),
+            'href' => route('settings.payments.index'),
+            'cta' => ((bool) ($setup['payments']['ready'] ?? false)) ? 'Review payments' : 'Set payments',
+        ],
+    ];
+    $setupReadyCount = collect($setupSteps)->where('ready', true)->count();
+    $setupComplete = $setupReadyCount === count($setupSteps);
+    $setupPercent = count($setupSteps) > 0 ? (int) round(($setupReadyCount / count($setupSteps)) * 100) : 0;
     $chartDays = $d['chart_days'] ?? [];
     $chartMax = 0.0;
     foreach ($chartDays as $day) {
@@ -76,19 +118,77 @@
 @else
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Dashboard</h1>
+            <h1 class="text-2xl font-semibold tracking-tight text-stone-900">{{ $setupComplete ? 'Dashboard' : 'Store setup' }}</h1>
             <p class="mt-0.5 text-sm text-stone-600">
                 <span class="font-medium text-stone-800">{{ $d['store']->name }}</span>
-                <span class="text-stone-400"> · </span>
-                Revenue and activity use the last 30 days; the chart uses the last 7 days.
+                @if ($setupComplete)
+                    <span class="text-stone-400"> · </span>
+                    Revenue and activity use the last 30 days.
+                @else
+                    <span class="text-stone-400"> · </span>
+                    Complete the steps below to get your store ready for sales.
+                @endif
             </p>
         </div>
-        <div class="inline-flex items-center gap-2 self-start rounded-lg border border-stone-200/90 bg-stone-50/90 px-2.5 py-1.5 text-xs font-medium text-stone-600">
-            <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25" aria-hidden="true"></span>
-            Connected to your store
-        </div>
+        @if ($setupComplete)
+            <div class="inline-flex items-center gap-2 self-start rounded-lg border border-stone-200/90 bg-stone-50/90 px-2.5 py-1.5 text-xs font-medium text-stone-600">
+                <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25" aria-hidden="true"></span>
+                Store setup complete
+            </div>
+        @endif
     </div>
 
+    <section class="dashboard-setup-hero">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">Store setup</p>
+                <h2 class="mt-1 text-xl font-semibold text-stone-900">
+                    {{ $setupComplete ? 'Your store is ready to operate' : 'Finish setup to start selling confidently' }}
+                </h2>
+                <p class="mt-1 text-sm text-stone-600">{{ $setupReadyCount }} of {{ count($setupSteps) }} areas are ready.</p>
+            </div>
+            <a href="{{ route('generalSettings') }}" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50">
+                Store settings
+            </a>
+        </div>
+        <div class="dashboard-setup-progress" aria-hidden="true">
+            <div class="dashboard-setup-progress-bar" style="width: {{ $setupPercent }}%"></div>
+        </div>
+        <div class="mt-4 settings-checklist">
+            @foreach ($setupSteps as $index => $step)
+                <article class="settings-checklist-row">
+                    <span @class([
+                        'settings-checklist-icon',
+                        'settings-checklist-icon-ready' => $step['ready'],
+                        'settings-checklist-icon-pending' => ! $step['ready'],
+                    ])>{{ $step['ready'] ? '✓' : ($index + 1) }}</span>
+                    <div>
+                        <p class="settings-checklist-label">Step {{ $index + 1 }}</p>
+                        <h3 class="settings-checklist-title">{{ $step['title'] }}</h3>
+                        <p class="settings-checklist-detail">{{ $step['description'] }}</p>
+                    </div>
+                    <a href="{{ $step['href'] }}" class="settings-checklist-action {{ $step['ready'] ? 'settings-checklist-action-secondary' : 'settings-checklist-action-primary' }}">
+                        {{ $step['cta'] }}
+                    </a>
+                </article>
+            @endforeach
+        </div>
+    </section>
+
+    @if (! $setupComplete)
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div class="merchant-card p-4">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Open orders</p>
+                <p class="mt-1.5 text-xl font-semibold tabular-nums text-stone-900">{{ number_format($d['active_orders_count']) }}</p>
+                <p class="mt-1.5 text-xs text-stone-500">Orders waiting for action.</p>
+            </div>
+            <div class="merchant-card p-4">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Products</p>
+                <p class="mt-1.5 text-xl font-semibold tabular-nums text-stone-900">{{ number_format($d['products_count']) }}</p>
+                <p class="mt-1.5 text-xs text-stone-500">Items in your catalog.</p>
+            </div>
+        </div>
+    @else
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div class="merchant-card p-4">
             <div class="flex items-start justify-between gap-3">
@@ -262,5 +362,6 @@
             </table>
         </div>
     </div>
+    @endif
 @endif
 @endsection

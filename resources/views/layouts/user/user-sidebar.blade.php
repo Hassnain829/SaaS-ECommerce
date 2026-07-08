@@ -259,8 +259,12 @@
     
 
     function initTopbarProfileMenu(profileSettingsUrl, logoutUrl) {
-      var headers = document.querySelectorAll('header');
+      var headers = document.querySelectorAll('main > header');
       headers.forEach(function (header) {
+        if (header.dataset.noProfileMenu === 'true') {
+          return;
+        }
+
         var avatar = header.querySelector('div.rounded-full.overflow-hidden');
         if (avatar && avatar.closest('aside')) return;
         if (avatar && avatar.closest('.profile-menu-wrapper')) return;
@@ -301,13 +305,15 @@
           trigger.className = avatar.className + ' profileMenuToggle';
           trigger.innerHTML = avatar.innerHTML;
           avatar.replaceWith(wrapper);
-        } else {
+        } else if (header.dataset.profileMenu === 'true') {
           var rightActions = header.querySelector('.flex.items-center.gap-3.shrink-0, .flex.items-center.gap-4.shrink-0, .flex.items-center.gap-2.shrink-0');
           if (rightActions) {
             rightActions.appendChild(wrapper);
           } else {
             header.appendChild(wrapper);
           }
+        } else {
+          return;
         }
 
         trigger.addEventListener('click', function (e) {

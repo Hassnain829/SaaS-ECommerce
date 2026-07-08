@@ -13,7 +13,7 @@
 @endsection
 
 @section('content')
-    <div class="mx-auto max-w-[960px] space-y-6">
+    <div class="settings-workspace max-w-[1280px] space-y-6">
         @include('user_view.partials.flash_success')
 
         @if ($errors->any())

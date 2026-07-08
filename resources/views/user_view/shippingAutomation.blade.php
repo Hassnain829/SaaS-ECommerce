@@ -47,7 +47,7 @@
 @endsection
 
 @section('content')
-    <div class="mx-auto max-w-[1200px] space-y-6" id="shipping-page">
+    <div class="settings-workspace-wide settings-hub" id="shipping-page">
         @include('user_view.partials.flash_success')
 
         @if ($errors->any())
@@ -55,57 +55,23 @@
         @endif
 
         @if ($isExternalManaged ?? false)
-            <section class="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-950">
-                External storefront manages checkout shipping. Settings below apply to platform checkout and dashboard fulfillment.
-            </section>
+            <div class="settings-alert">External storefront manages checkout shipping. The settings below apply to platform checkout and dashboard fulfillment.</div>
         @elseif ($isPlatformManaged ?? false)
-            <section class="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-5 py-4 text-sm text-emerald-950">
-                Delivery options can be shown during platform checkout when setup is complete.
-            </section>
+            <div class="settings-alert" style="border-color:#bbf7d0;background:#f0fdf4;color:#166534;">Delivery options can appear during platform checkout when setup is complete.</div>
         @endif
 
-        <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <h2 class="text-2xl font-poppins font-semibold text-[#0F172A]">Delivery setup</h2>
-                    <p class="mt-1 max-w-2xl text-sm text-[#64748B]">
-                        Manage ship-from locations, delivery areas, checkout delivery options, and optional delivery providers.
-                        Use advanced settings only when you need routing rules or live carriers.
-                    </p>
-                </div>
-                @if ($canManageShipping ?? false)
-                    <div class="flex flex-wrap gap-2">
-                        <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect delivery provider</a>
-                        <button type="button" data-shipping-tab="options" data-open-drawer="method-add" class="inline-flex h-10 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Add delivery option</button>
-                        <a href="{{ route('settings.locations.index') }}" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Ship-from locations</a>
-                        <button type="button" data-shipping-tab="advanced" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Advanced settings</button>
-                    </div>
-                @endif
-            </div>
+        @include('user_view.shipping.tabs.overview')
 
-            @if ($deliverySetup['is_ready'] ?? false)
-                <div class="mt-5 rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-sm text-[#166534]">
-                    Core delivery setup looks ready for platform checkout.
-                </div>
-            @elseif (($deliverySetup['health_items'] ?? []) !== [])
-                <div class="mt-5 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
-                    {{ count($deliverySetup['health_items'] ?? []) }} setup item(s) need attention. Review the setup overview below.
-                </div>
-            @endif
-        </section>
-
-        <div class="rounded-2xl border border-[#CBD5E1] bg-white shadow-sm">
-            <div class="flex flex-wrap gap-1 border-b border-[#F1F5F9] p-2" role="tablist" aria-label="Delivery settings">
-                <button type="button" role="tab" data-shipping-tab="setup" class="shipping-tab-btn rounded-lg px-4 py-2 text-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC]" aria-selected="false">Setup overview</button>
-                <button type="button" role="tab" data-shipping-tab="advanced" class="shipping-tab-btn rounded-lg px-4 py-2 text-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC]" aria-selected="false">Advanced</button>
+        @php
+            $advancedTab = request('tab');
+            $openAdvanced = in_array($advancedTab, ['advanced', 'providers', 'areas', 'options', 'ship-from', 'zones', 'methods', 'carriers', 'locations'], true);
+        @endphp
+        <details id="delivery-advanced-panel" class="settings-hub-details" @if($openAdvanced) open @endif>
+            <summary>Advanced delivery &amp; carrier settings</summary>
+            <div class="settings-hub-details-body">
+                @include('user_view.shipping.tabs.advanced')
             </div>
-            <div class="p-5 md:p-6">
-                <div class="shipping-tab-panel hidden" data-shipping-panel="setup">@include('user_view.shipping.tabs.overview')</div>
-                <div class="shipping-tab-panel hidden" data-shipping-panel="advanced">
-                    @include('user_view.shipping.tabs.advanced')
-                </div>
-            </div>
-        </div>
+        </details>
     </div>
 
     @if ($canManageShipping ?? false)
@@ -114,8 +80,6 @@
 
     <script>
     (function () {
-        var STORAGE_KEY = 'delivery_active_tab';
-        var validTabs = ['setup', 'advanced', 'providers', 'areas', 'options', 'ship-from'];
         var legacyTabMap = {
             overview: 'setup',
             carriers: 'providers',
@@ -125,49 +89,32 @@
         };
 
         function normalizeTab(tab) {
-            if (!tab) return 'setup';
-            if (validTabs.indexOf(tab) !== -1) return tab;
+            if (!tab) return null;
             if (legacyTabMap[tab]) return legacyTabMap[tab];
-            return 'setup';
+            return tab;
         }
 
-        function resolveTab() {
-            var params = new URLSearchParams(window.location.search);
-            var fromQuery = params.get('tab');
-            if (fromQuery) return normalizeTab(fromQuery);
-            try {
-                var stored = localStorage.getItem(STORAGE_KEY);
-                if (stored) return normalizeTab(stored);
-            } catch (e) {}
-            return 'setup';
-        }
-
-        function activateTab(tab) {
-            tab = normalizeTab(tab);
-            if (['providers', 'areas', 'options', 'ship-from'].indexOf(tab) !== -1) {
-                tab = 'advanced';
-            }
-            document.querySelectorAll('.shipping-tab-btn').forEach(function (btn) {
-                var active = btn.getAttribute('data-shipping-tab') === tab;
-                btn.setAttribute('aria-selected', active ? 'true' : 'false');
-                btn.classList.toggle('bg-[#0052CC]', active);
-                btn.classList.toggle('text-white', active);
-                btn.classList.toggle('text-[#64748B]', !active);
-            });
-            document.querySelectorAll('.shipping-tab-panel').forEach(function (panel) {
-                panel.classList.toggle('hidden', panel.getAttribute('data-shipping-panel') !== tab);
-            });
-            try { localStorage.setItem(STORAGE_KEY, tab); } catch (e) {}
-            var url = new URL(window.location.href);
-            url.searchParams.set('tab', tab);
-            window.history.replaceState({}, '', url);
+        function openAdvancedPanel() {
+            var panel = document.getElementById('delivery-advanced-panel');
+            if (panel) panel.open = true;
         }
 
         function openAdvancedSection(section) {
-            activateTab('advanced');
+            openAdvancedPanel();
             var target = document.querySelector('[data-advanced-section="' + section + '"]');
             if (target) {
+                var detailsParent = target.closest('details');
+                if (detailsParent) detailsParent.open = true;
                 target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        function resolveInitialSection() {
+            var params = new URLSearchParams(window.location.search);
+            var tab = normalizeTab(params.get('tab'));
+            if (!tab || tab === 'setup') return;
+            if (['providers', 'areas', 'options', 'ship-from', 'advanced'].indexOf(tab) !== -1) {
+                openAdvancedSection(tab === 'advanced' ? 'ship-from' : tab);
             }
         }
 
@@ -356,6 +303,7 @@
             var drawer = document.getElementById('shipping-drawer-' + id);
             if (!drawer) return;
             drawer.classList.remove('hidden');
+            drawer.classList.add('is-open');
             drawer.setAttribute('aria-hidden', 'false');
             document.body.style.overflow = 'hidden';
             var focusTarget = drawer.querySelector('input:not([type="hidden"]), select, textarea, button[data-close-drawer]');
@@ -364,6 +312,7 @@
 
         function closeDrawers() {
             document.querySelectorAll('.shipping-drawer').forEach(function (d) {
+                d.classList.remove('is-open');
                 d.classList.add('hidden');
                 d.setAttribute('aria-hidden', 'true');
             });
@@ -383,11 +332,7 @@
             el.addEventListener('click', function () {
                 var tab = el.getAttribute('data-shipping-tab');
                 if (tab) {
-                    if (['providers', 'areas', 'options', 'ship-from'].indexOf(tab) !== -1) {
-                        openAdvancedSection(tab);
-                    } else {
-                        activateTab(tab);
-                    }
+                    openAdvancedSection(tab);
                 }
                 var drawerRaw = el.getAttribute('data-open-drawer');
                 if (!drawerRaw) return;
@@ -551,7 +496,7 @@
             });
         });
 
-        activateTab(resolveTab());
+        resolveInitialSection();
         bindPostalRuleBuilder(document.getElementById('zone-postal-builder'));
         syncMethodFields();
     })();

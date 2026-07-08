@@ -33,7 +33,7 @@
 @endsection
 
 @section('content')
-    <div class="mx-auto max-w-[1280px] space-y-6">
+    <div class="settings-workspace space-y-6">
         @include('user_view.partials.flash_success')
 
         @if ($errors->any())
@@ -41,6 +41,15 @@
                 {{ $errors->first() }}
             </div>
         @endif
+
+        <section class="settings-guide">
+            <p class="settings-guide-title">Locations guide</p>
+            <ul class="settings-guide-list">
+                <li><span class="settings-guide-step">1</span><span>Create each physical fulfillment location (warehouse, shop, or 3PL) with complete address fields.</span></li>
+                <li><span class="settings-guide-step">2</span><span>Set one default location for fallback stock and shipping origin behavior.</span></li>
+                <li><span class="settings-guide-step">3</span><span>Use service countries/regions/postal rules only when you need routing control beyond standard fulfillment.</span></li>
+            </ul>
+        </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

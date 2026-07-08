@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Store;
 
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
+use App\Models\CarrierAccount;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerTag;
 use App\Models\DraftOrder;
 use App\Models\Order;
+use App\Models\PaymentProviderAccount;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\SecurityLog;
@@ -299,6 +301,32 @@ class DashboardController extends Controller
                 DB::raw('SUM(order_items.total) as revenue'),
             ]);
 
+        $activeLocationsCount = $store->locations()->where('is_active', true)->count();
+        $activeDeliveryAreasCount = $store->shippingZones()->where('is_active', true)->count();
+        $checkoutDeliveryOptionsCount = $store->shippingMethods()
+            ->where('is_active', true)
+            ->where('enabled_for_checkout', true)
+            ->count();
+        $connectedProvidersCount = $store->carrierAccounts()
+            ->whereIn('connection_status', [
+                CarrierAccount::CONNECTION_CONNECTED,
+                CarrierAccount::CONNECTION_SANDBOX_PLATFORM_FALLBACK,
+            ])
+            ->count();
+        $taxSetting = $store->taxSetting()->first();
+        $taxRatesCount = $store->taxRates()->where('is_active', true)->count();
+        $taxReady = (bool) ($taxSetting?->enabled) && $taxRatesCount > 0;
+        $paymentReady = $store->paymentProviderAccounts()
+            ->where('status', 'active')
+            ->where(function ($query): void {
+                $query->where('connection_type', PaymentProviderAccount::CONNECTION_PLATFORM)
+                    ->orWhere(function ($connectQuery): void {
+                        $connectQuery->where('connection_type', PaymentProviderAccount::CONNECTION_CONNECT)
+                            ->whereNotNull('provider_account_id');
+                    });
+            })
+            ->exists();
+
         return [
             'has_store' => true,
             'store' => $store,
@@ -312,6 +340,25 @@ class DashboardController extends Controller
             'chart_days' => $chartDays,
             'recent_orders' => $recentOrders,
             'top_products' => $topProducts,
+            'setup_progress' => [
+                'location' => [
+                    'ready' => $activeLocationsCount > 0,
+                    'count' => $activeLocationsCount,
+                ],
+                'tax' => [
+                    'ready' => $taxReady,
+                    'count' => $taxRatesCount,
+                ],
+                'delivery' => [
+                    'ready' => $activeDeliveryAreasCount > 0 && $checkoutDeliveryOptionsCount > 0,
+                    'areas_count' => $activeDeliveryAreasCount,
+                    'options_count' => $checkoutDeliveryOptionsCount,
+                    'providers_count' => $connectedProvidersCount,
+                ],
+                'payments' => [
+                    'ready' => $paymentReady,
+                ],
+            ],
         ];
     }
 
