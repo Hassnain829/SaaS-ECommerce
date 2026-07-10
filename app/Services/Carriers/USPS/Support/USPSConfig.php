@@ -244,7 +244,46 @@ final class USPSConfig
 
     public function shipEnrollmentPath(): string
     {
-        return (string) config('carriers.usps.ship_enrollment_path', '/shipments/v3/enrollment');
+        return (string) config('carriers.usps.ship_enrollment_path', '/ship-enrollment/v3/enrollment');
+    }
+
+    public function paymentAuthorizationPath(): string
+    {
+        return (string) config('carriers.usps.payment_authorization_path', '/payments/v3/payment-authorization');
+    }
+
+    public function merchantShipSuiteVerifyEnabled(): bool
+    {
+        return (bool) config('carriers.usps.merchant_ship_suite_verify_enabled', false)
+            && $this->merchantConnectionEnabled()
+            && $this->isConfigured();
+    }
+
+    public function platformMasterMid(): ?string
+    {
+        $value = (string) config('carriers.usps.platform_master_mid', config('carriers.usps.master_mid', ''));
+
+        return $value !== '' ? $value : null;
+    }
+
+    public function paymentPlatformRoleName(): string
+    {
+        return (string) config('carriers.usps.payment_platform_role_name', 'PLATFORM');
+    }
+
+    public function paymentLabelProviderRoleName(): string
+    {
+        return (string) config('carriers.usps.payment_label_provider_role_name', 'LABEL_PROVIDER');
+    }
+
+    public function paymentIncludeLabelProviderRole(): bool
+    {
+        return (bool) config('carriers.usps.payment_include_label_provider_role', false);
+    }
+
+    public function paymentAccountType(): string
+    {
+        return (string) config('carriers.usps.payment_account_type', 'EPS');
     }
 
     public function connectTimeout(): int

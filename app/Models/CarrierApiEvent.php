@@ -30,6 +30,10 @@ class CarrierApiEvent extends Model
 
     public const ACTION_USPS_OAUTH_REVOKE = 'usps_oauth_revoke';
 
+    public const ACTION_USPS_SHIP_ENROLLMENT_VERIFY = 'usps_ship_enrollment_verify';
+
+    public const ACTION_USPS_PAYMENT_AUTHORIZATION = 'usps_payment_authorization';
+
     public const SCENARIO_AUTHORIZATION_PARENT = 'authorization_parent';
 
     public const SCENARIO_AUTHORIZATION_CHILD = 'authorization_child';

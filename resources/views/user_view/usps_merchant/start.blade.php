@@ -42,7 +42,7 @@
                 @endforeach
             </ol>
             <p class="mt-4 text-sm text-[#64748B]">
-                <a href="{{ $businessPortalUrl }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-[#1D4ED8] underline">Open USPS Business Portal</a>
+                <a href="{{ $businessPortalUrl }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-[#1D4ED8] underline">Manage USPS Business Account</a>
             </p>
         </section>
 

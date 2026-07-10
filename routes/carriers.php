@@ -60,6 +60,9 @@ Route::get('/settings/shipping/carriers/usps/oauth/callback', [USPSMerchantConne
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/verify', [USPSMerchantConnectionController::class, 'verifyConnection'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.usps-merchant.verify');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/verify-ship-suite', [USPSMerchantConnectionController::class, 'verifyShipSuite'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.usps-merchant.verify-ship-suite');
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/usps/reauthorize', [USPSMerchantConnectionController::class, 'reauthorize'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.usps-merchant.reauthorize');

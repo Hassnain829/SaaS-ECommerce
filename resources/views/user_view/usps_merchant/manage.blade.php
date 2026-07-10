@@ -48,7 +48,7 @@
                         @if ($merchantOAuthAvailable ?? false)
                             Use Verify with USPS below after completing USPS authorization, or authorize again with the secure OAuth button from the authorization step.
                         @else
-                            Your Label Provider authorization is recorded. Automated verification will be available once BmyBrand platform Label Provider OAuth is enabled.
+                            This connection is awaiting official USPS Label Provider authorization. Portal sign-in alone does not complete authorization.
                         @endif
                     </p>
                     @if ($context->authorizationAcknowledgedAt())
@@ -129,15 +129,22 @@
                     <a href="{{ route('settings.shipping.usps-merchant.wizard', ['carrierAccount' => $account, 'step' => 'origin']) }}" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Change ship-from location</a>
                     <form method="POST" action="{{ route('settings.shipping.usps-merchant.reauthorize', $account) }}">
                         @csrf
-                        <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Reauthorize in USPS portal</button>
+                        <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Reset authorization</button>
                     </form>
                     @if ($merchantOAuthAvailable ?? false)
                         <form method="POST" action="{{ route('settings.shipping.usps-merchant.verify', $account) }}">
                             @csrf
-                            <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Verify with USPS</button>
+                            <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Verify Label Provider authorization</button>
                         </form>
                         @if (! $context->hasOAuthAuthorizationVerified())
                             <a href="{{ route('settings.shipping.usps-merchant.oauth.start', $account) }}" class="inline-flex h-10 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Authorize with USPS</a>
+                        @elseif ($merchantShipSuiteVerifyAvailable ?? false)
+                            <form method="POST" action="{{ route('settings.shipping.usps-merchant.verify-ship-suite', $account) }}">
+                                @csrf
+                                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Verify postage account</button>
+                            </form>
+                        @else
+                            <span class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#64748B]">Verify postage account — available after USPS Shipping Suite approval</span>
                         @endif
                     @else
                         <span class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#64748B]">Verify with USPS — available after platform OAuth approval</span>

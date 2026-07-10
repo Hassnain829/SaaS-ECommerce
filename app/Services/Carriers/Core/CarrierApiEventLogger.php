@@ -135,6 +135,9 @@ class CarrierApiEventLogger
             'refreshtoken',
             'authorizationcode',
             'code',
+            'paymentauthorizationtoken',
+            'payment_authorization_token',
+            'authorizationtoken',
         ], true);
     }
 

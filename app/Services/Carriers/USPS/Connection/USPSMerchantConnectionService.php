@@ -195,6 +195,8 @@ class USPSMerchantConnectionService
             'connection_status' => CarrierAccount::CONNECTION_PENDING_VALIDATION,
             'status' => CarrierAccount::STATUS_SETUP_REQUIRED,
             'usps_authorization_status' => CarrierAccount::USPS_AUTH_AWAITING_AUTHORIZATION,
+            'usps_enrollment_status' => CarrierAccount::USPS_ENROLLMENT_NOT_STARTED,
+            'usps_payment_verified_at' => null,
             'last_error_code' => null,
             'last_error_message' => null,
         ])->save();
@@ -239,6 +241,73 @@ class USPSMerchantConnectionService
             'oauth_authorization_verified_at' => now()->toIso8601String(),
             'oauth_authorization_verification_method' => $verificationMethod,
         ]);
+    }
+
+    public function markEnrollmentPending(CarrierAccount $account): void
+    {
+        abort_unless($account->isUspsMerchantLabelProvider(), 404);
+
+        $account->forceFill([
+            'usps_enrollment_status' => CarrierAccount::USPS_ENROLLMENT_PENDING,
+            'last_error_code' => null,
+            'last_error_message' => null,
+        ])->save();
+    }
+
+    public function markEnrollmentVerified(CarrierAccount $account): void
+    {
+        abort_unless($account->isUspsMerchantLabelProvider(), 404);
+
+        $account->forceFill([
+            'usps_enrollment_status' => CarrierAccount::USPS_ENROLLMENT_VERIFIED,
+            'last_error_code' => null,
+            'last_error_message' => null,
+        ])->save();
+    }
+
+    public function markEnrollmentFailed(CarrierAccount $account, string $code, string $message): void
+    {
+        abort_unless($account->isUspsMerchantLabelProvider(), 404);
+
+        $account->forceFill([
+            'usps_enrollment_status' => CarrierAccount::USPS_ENROLLMENT_FAILED,
+            'usps_authorization_status' => CarrierAccount::USPS_AUTH_ACTION_REQUIRED,
+            'last_error_code' => $code,
+            'last_error_message' => $message,
+        ])->save();
+    }
+
+    public function markPaymentVerificationFailed(CarrierAccount $account, string $code, string $message): void
+    {
+        abort_unless($account->isUspsMerchantLabelProvider(), 404);
+
+        $account->forceFill([
+            'usps_authorization_status' => CarrierAccount::USPS_AUTH_ACTION_REQUIRED,
+            'last_error_code' => $code,
+            'last_error_message' => $message,
+        ])->save();
+    }
+
+    public function markPaymentVerifiedAndConnected(CarrierAccount $account): void
+    {
+        abort_unless($account->isUspsMerchantLabelProvider(), 404);
+
+        $account->forceFill([
+            'usps_payment_verified_at' => now(),
+            'usps_authorization_status' => CarrierAccount::USPS_AUTH_CONNECTED,
+        ])->save();
+
+        $account->markConnected([
+            'rates' => false,
+            'labels' => false,
+            'tracking' => false,
+            'pickup' => false,
+        ]);
+    }
+
+    public function merchantShipSuiteVerifyAvailable(): bool
+    {
+        return $this->config->merchantShipSuiteVerifyEnabled();
     }
 
     public function merchantOAuthAvailable(): bool

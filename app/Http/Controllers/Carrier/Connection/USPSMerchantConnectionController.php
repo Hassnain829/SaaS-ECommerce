@@ -9,6 +9,7 @@ use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Carriers\USPS\Auth\USPSMerchantOAuthService;
 use App\Services\Carriers\USPS\Connection\USPSMerchantAuthorizationVerificationService;
 use App\Services\Carriers\USPS\Connection\USPSMerchantConnectionService;
+use App\Services\Carriers\USPS\Connection\USPSMerchantShipSuiteVerificationService;
 use App\Services\Carriers\USPS\Presenters\USPSMerchantStatusPresenter;
 use App\Services\Carriers\USPS\Support\USPSMerchantConnectionContext;
 use App\Services\Carriers\USPS\Support\USPSMerchantOAuthException;
@@ -232,7 +233,7 @@ class USPSMerchantConnectionController extends Controller
                 'carrierAccount' => $account->fresh(),
                 'step' => USPSMerchantWizard::STEP_AUTHORIZATION,
             ])
-            ->with('success', 'USPS account details saved. Authorize BmyBrand in the USPS Business Portal to continue.');
+            ->with('success', 'USPS account details saved. Complete Label Provider authorization when the official USPS authorization flow is available.');
     }
 
     public function storeAuthorizationAcknowledgement(
@@ -245,23 +246,7 @@ class USPSMerchantConnectionController extends Controller
         $this->authorizeManage($request, $store);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
-        $request->validate([
-            'requirements_confirmed' => ['accepted'],
-            'portal_authorization_confirmed' => ['accepted'],
-        ], [
-            'requirements_confirmed.accepted' => 'Confirm that your USPS business account and EPA are ready.',
-            'portal_authorization_confirmed.accepted' => 'Confirm that you authorized BmyBrand as your Label Provider in the USPS portal.',
-        ]);
-
-        $connectionService->acknowledgePortalAuthorization($account->fresh());
-
-        $securityLogRecorder->record($request, 'shipping.usps_merchant.authorization_acknowledged', store: $store, metadata: [
-            'carrier_account_id' => $account->id,
-        ]);
-
-        return redirect()
-            ->route('settings.shipping.usps-merchant.manage', $account)
-            ->with('success', 'Thank you. Your authorization is recorded and will be verified once USPS platform access is enabled.');
+        abort(404);
     }
 
     public function reauthorize(
@@ -285,7 +270,7 @@ class USPSMerchantConnectionController extends Controller
                 'carrierAccount' => $account,
                 'step' => USPSMerchantWizard::STEP_AUTHORIZATION,
             ])
-            ->with('success', 'Return to the USPS Business Portal and authorize BmyBrand again, then confirm here.');
+            ->with('success', 'Authorization reset. Use Authorize with USPS when you are ready to authorize again.');
     }
 
     public function manage(
@@ -321,7 +306,34 @@ class USPSMerchantConnectionController extends Controller
             'labelProviderName' => $connectionService->platformLabelProviderName(),
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
             'merchantOAuthAvailable' => $connectionService->merchantOAuthAvailable(),
+            'merchantShipSuiteVerifyAvailable' => $connectionService->merchantShipSuiteVerifyAvailable(),
         ]);
+    }
+
+    public function verifyShipSuite(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        USPSMerchantConnectionService $connectionService,
+        USPSMerchantShipSuiteVerificationService $shipSuiteVerificationService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $this->authorizeManage($request, $store);
+        $account = $this->resolveMerchantAccount($store, $carrierAccount);
+
+        $verification = $shipSuiteVerificationService->verify($store, $account);
+
+        $securityLogRecorder->record($request, 'shipping.usps_merchant.ship_suite_verify_requested', store: $store, metadata: [
+            'carrier_account_id' => $account->id,
+            'verification_code' => $verification['code'],
+            'verification_success' => $verification['success'],
+        ]);
+
+        if ($verification['success']) {
+            return back()->with('success', $verification['message']);
+        }
+
+        return back()->withErrors(['usps' => $verification['message']]);
     }
 
     public function startOAuth(

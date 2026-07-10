@@ -57,7 +57,7 @@ class Phase6USPSMerchantConnectionFoundationTest extends TestCase
             ->assertDontSeeText('USPS password');
     }
 
-    public function test_full_wizard_flow_reaches_verifying_status(): void
+    public function test_wizard_stops_at_awaiting_authorization_without_official_usps_flow(): void
     {
         [$owner, $store] = $this->ownerStore('USPS Merchant Wizard Store');
         $location = $this->createOriginLocation($store);
@@ -104,20 +104,31 @@ class Phase6USPSMerchantConnectionFoundationTest extends TestCase
                 'requirements_confirmed' => '1',
                 'portal_authorization_confirmed' => '1',
             ])
-            ->assertRedirect(route('settings.shipping.usps-merchant.manage', $account));
+            ->assertNotFound();
 
         $account->refresh();
-        $this->assertSame(CarrierAccount::USPS_AUTH_VERIFYING, $account->usps_authorization_status);
+        $this->assertSame(CarrierAccount::USPS_AUTH_AWAITING_AUTHORIZATION, $account->usps_authorization_status);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.shipping.usps-merchant.wizard', [
+                'carrierAccount' => $account,
+                'step' => USPSMerchantWizard::STEP_AUTHORIZATION,
+            ]))
+            ->assertOk()
+            ->assertSeeText('Awaiting official USPS authorization')
+            ->assertSeeText('Manage USPS Business Account')
+            ->assertDontSeeText('Confirm authorization')
+            ->assertDontSeeText('I authorized')
+            ->assertDontSeeText('Open USPS Business Portal');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.shipping.usps-merchant.manage', $account))
-            ->assertOk()
-            ->assertSeeText('Verifying connection')
-            ->assertSeeText('Waiting for authorization verification')
-            ->assertSeeText('****8300')
-            ->assertDontSeeText('49188300')
-            ->assertDontSeeText('Buy label');
+            ->assertRedirect(route('settings.shipping.usps-merchant.wizard', [
+                'carrierAccount' => $account->id,
+                'step' => USPSMerchantWizard::STEP_AUTHORIZATION,
+            ]));
     }
 
     public function test_identifiers_page_never_shows_password_or_api_secret_fields(): void
