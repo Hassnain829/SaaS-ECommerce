@@ -44,50 +44,52 @@
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
 @section('content')
-    <div class="flex-1 overflow-y-auto bg-[#F1F5F9]/40 p-4 lg:p-10">
+    <div class="ui-page-enter flex-1 overflow-y-auto p-4 lg:p-10">
         <div class="mx-auto max-w-[1400px] space-y-9 lg:space-y-10">
             @include('user_view.partials.flash_success')
 
-            <div class="flex flex-col gap-4 border-b border-[#E2E8F0]/80 pb-7 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-                <div class="space-y-1.5">
-                    <a href="{{ route('products') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-[#0052CC] hover:underline">
-                        <span aria-hidden="true">←</span> Catalog
-                    </a>
-                    <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Product workspace</p>
-                </div>
-                <div class="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <a href="{{ route('products', ['q' => $product->sku ?: $product->name]).'#product-row-'.$product->id }}"
-                       class="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#475569] shadow-sm transition hover:border-[#CBD5E1] hover:bg-[#F8FAFC]">
-                        Find in table
-                    </a>
-                    @if ($canManageCatalog)
-                        <a href="{{ route('products.edit', $product) }}"
-                           class="inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0047B3]">
-                            Edit product
-                        </a>
-                    @endif
-                </div>
-            </div>
+            <x-ui.page-header title="{{ $product->name }}" lead="Product workspace — review catalog data, options, inventory, and store details in one place.">
+                <a href="{{ route('products') }}" class="ui-btn ui-btn-ghost">← Catalog</a>
+                <a href="{{ route('products', ['q' => $product->sku ?: $product->name]).'#product-row-'.$product->id }}" class="ui-btn ui-btn-secondary">
+                    Find in table
+                </a>
+                @if ($canManageCatalog)
+                    <x-ui.button :href="route('products.edit', $product)">Edit details</x-ui.button>
+                @endif
+            </x-ui.page-header>
 
-            <header class="relative overflow-hidden rounded-3xl border border-[#E2E8F0] bg-gradient-to-br from-white via-[#F8FAFC] to-[#E0E7FF]/50 p-6 shadow-md ring-1 ring-black/[0.03] sm:p-10" aria-labelledby="product-workspace-overview-heading">
-                <div class="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#0052CC]/[0.07] blur-3xl" aria-hidden="true"></div>
-                <div class="pointer-events-none absolute -bottom-24 left-1/3 h-40 w-40 rounded-full bg-[#6366F1]/10 blur-2xl" aria-hidden="true"></div>
+            @if ($canManageCatalog && (! $hasMedia || ! $hasOrganization))
+                @php
+                    $workspaceNext = ! $hasMedia
+                        ? 'Add product photos so the listing looks trustworthy.'
+                        : 'Add a brand, category, or tags so this item is easier to find.';
+                @endphp
+                <x-ui.sticky-next
+                    :message="$workspaceNext"
+                    action-label="Edit details"
+                    :action-href="route('products.edit', $product)"
+                    class="!static rounded-xl border border-[color:var(--color-border)]"
+                />
+            @endif
+
+            <header class="relative overflow-hidden rounded-3xl border border-[color:var(--color-border)] bg-gradient-to-br from-white via-[color:var(--color-surface-muted)] to-[color:var(--color-brand-soft)] p-6 shadow-md ring-1 ring-black/[0.03] sm:p-10" aria-labelledby="product-workspace-overview-heading">
+                <div class="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[color:var(--color-brand)]/[0.07] blur-3xl" aria-hidden="true"></div>
                 <div class="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                     <div class="min-w-0 flex-1 space-y-4">
                         <div>
-                            <h2 id="product-workspace-overview-heading" class="text-xs font-bold uppercase tracking-[0.14em] text-[#64748B]">Overview</h2>
-                            <h1 class="mt-2 text-2xl font-semibold leading-tight text-[#0F172A] font-[Poppins] sm:text-4xl sm:leading-tight break-words">{{ $product->name }}</h1>
+                            <h2 id="product-workspace-overview-heading" class="text-xs font-bold uppercase tracking-[0.14em] text-[color:var(--color-ink-muted)]">Overview</h2>
+                            <h1 class="mt-2 break-words font-heading text-2xl font-semibold leading-tight text-[color:var(--color-ink)] sm:text-4xl sm:leading-tight">{{ $product->name }}</h1>
                         </div>
-                        <p class="max-w-3xl text-base leading-relaxed text-[#475569]">
-                            One place to review catalog data, inventory, and storefront context for <span class="font-semibold text-[#0F172A]">{{ $selectedStore?->name ?? 'this store' }}</span>.
+                        <p class="max-w-3xl text-base leading-relaxed text-[color:var(--color-ink-secondary)]">
+                            One place to review catalog data, inventory, and storefront context for <span class="font-semibold text-[color:var(--color-ink)]">{{ $selectedStore?->name ?? 'this store' }}</span>.
                         </p>
                         <div class="flex flex-wrap items-center gap-2 text-sm">
                             @if ($product->status)
-                                <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-100">Published</span>
+                                <x-ui.badge tone="success">Published</x-ui.badge>
                             @else
-                                <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 ring-1 ring-slate-200">Draft</span>
+                                <x-ui.badge>Draft</x-ui.badge>
                             @endif
-                            <span class="text-[#94A3B8]">·</span>
+                            <span class="text-[color:var(--color-ink-muted)]">·</span>
                             <span class="text-[#64748B]">Visibility follows status when you sell on the storefront.</span>
                         </div>
                         <dl class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -176,12 +176,20 @@ class FedExValidationEvidenceSanitizerTest extends TestCase
                     ],
                 ],
             ],
+            'accountNumber' => ['value' => '700257037'],
         ];
 
         $sanitized = $this->sanitizer->sanitize($payload);
 
         $this->assertSame('SENDER', data_get($sanitized, 'requestedShipment.shippingChargesPayment.paymentType'));
-        $this->assertSame('700257037', data_get($sanitized, 'requestedShipment.shippingChargesPayment.payor.responsibleParty.accountNumber.value'));
+        $this->assertIsArray(data_get($sanitized, 'requestedShipment.shippingChargesPayment'));
+        $this->assertNotSame('[REDACTED]', data_get($sanitized, 'requestedShipment.shippingChargesPayment'));
+        $this->assertIsArray(data_get($sanitized, 'requestedShipment.shippingChargesPayment.payor.responsibleParty.accountNumber'));
+        $this->assertNotSame('[REDACTED]', data_get($sanitized, 'requestedShipment.shippingChargesPayment.payor.responsibleParty.accountNumber'));
+        $this->assertSame('[REDACTED]', data_get($sanitized, 'requestedShipment.shippingChargesPayment.payor.responsibleParty.accountNumber.value'));
+        $this->assertIsArray(data_get($sanitized, 'accountNumber'));
+        $this->assertNotSame('[REDACTED]', data_get($sanitized, 'accountNumber'));
+        $this->assertSame('[REDACTED]', data_get($sanitized, 'accountNumber.value'));
     }
 
     public function test_still_redacts_actual_pin_fields(): void

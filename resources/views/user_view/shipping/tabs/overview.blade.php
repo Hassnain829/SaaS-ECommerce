@@ -109,8 +109,19 @@
         @endforeach
     </div>
 
-    <p class="text-sm text-[#64748B]">
+    @if (! $isReady && ($canManageShipping ?? false))
+        <div class="mt-4">
+            <x-ui.empty-state
+                title="Finish delivery setup"
+                lead="Answer a few setup questions so customers can see delivery options at checkout."
+                action-label="Start delivery setup"
+                :action-href="route('settings.delivery.setup.ship-from')"
+            />
+        </div>
+    @endif
+
+    <p class="text-sm text-[color:var(--color-ink-muted)]">
         Tax is configured separately in
-        <a href="{{ route('settings.taxes.index') }}" class="font-semibold text-[#1D4ED8] hover:underline">Checkout &amp; tax</a>.
+        <a href="{{ route('settings.taxes.index') }}" class="font-semibold text-[color:var(--color-brand)] hover:underline">Checkout &amp; tax</a>.
     </p>
 </section>

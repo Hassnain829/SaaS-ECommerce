@@ -31,8 +31,9 @@ class Phase6FedExCanadaShipValidationTest extends Phase6FedExShipValidationTest
         ]);
 
         [$owner, $store, $account] = $this->integratorAccountFixture('FedEx Canada Ship Store');
+        $capturedShipPayload = null;
 
-        Http::fake(function ($request) {
+        Http::fake(function ($request) use (&$capturedShipPayload) {
             $url = $request->url();
 
             if (str_contains($url, '/oauth/token')) {
@@ -40,6 +41,8 @@ class Phase6FedExCanadaShipValidationTest extends Phase6FedExShipValidationTest
             }
 
             if (str_contains($url, '/ship/v1/shipments') && ! str_contains($url, 'validate')) {
+                $capturedShipPayload = $request->data();
+
                 return Http::response([
                     'transactionId' => 'fedex-ca-ship-1',
                     'output' => [
@@ -82,7 +85,9 @@ class Phase6FedExCanadaShipValidationTest extends Phase6FedExShipValidationTest
 
         $this->assertNotNull($event);
         $this->assertSame('ship_ca01_pdf', $event->scenario_key);
-        $this->assertSame('614365501', data_get($event->request_body_encrypted, 'accountNumber.value'));
+        $this->assertSame('614365501', data_get($capturedShipPayload, 'accountNumber.value'));
+        $this->assertSame('[REDACTED]', data_get($event->request_body_encrypted, 'accountNumber.value'));
+        $this->assertStringNotContainsString('614365501', json_encode($event->request_body_encrypted));
     }
 
     public function test_ca06_is_rejected_from_global_ship_route(): void

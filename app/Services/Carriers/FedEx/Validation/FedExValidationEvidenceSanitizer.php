@@ -112,6 +112,30 @@ final class FedExValidationEvidenceSanitizer
             $normalizedKey = strtolower((string) $key);
             $childPath = $path === null ? (string) $key : $path.'.'.$key;
 
+            if ($normalizedKey === '_operator_secrets' || $normalizedKey === 'operatorsecrets') {
+                $sanitized[$key] = '[REDACTED]';
+
+                continue;
+            }
+
+            if (FedExSensitiveFieldClassifier::isAccountNumberKey($normalizedKey)) {
+                $sanitized[$key] = $this->redactAccountNumber($item);
+
+                continue;
+            }
+
+            if ($this->isConsolidationIndexField($normalizedKey, $path)) {
+                $sanitized[$key] = '[REDACTED]';
+
+                continue;
+            }
+
+            if ($this->isTinNumberField($normalizedKey, $path)) {
+                $sanitized[$key] = '[REDACTED]';
+
+                continue;
+            }
+
             if ($this->isSensitiveKey($normalizedKey)) {
                 $sanitized[$key] = '[REDACTED]';
 
@@ -163,6 +187,54 @@ final class FedExValidationEvidenceSanitizer
     private function isSensitiveKey(string $key): bool
     {
         return FedExSensitiveFieldClassifier::isSensitiveKey($key);
+    }
+
+    private function isTinNumberField(string $normalizedKey, ?string $path): bool
+    {
+        if ($normalizedKey !== 'number' || $path === null) {
+            return false;
+        }
+
+        return (bool) preg_match('/(^|\.)tins(\.|$)/i', $path);
+    }
+
+    private function isConsolidationIndexField(string $normalizedKey, ?string $path): bool
+    {
+        if ($normalizedKey !== 'index' || $path === null) {
+            return false;
+        }
+
+        return (bool) preg_match('/(^|\.)consolidationKey(\.|$)/i', $path);
+    }
+
+    /**
+     * Preserve accountNumber object shape while redacting the account value.
+     */
+    private function redactAccountNumber(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return '[REDACTED]';
+        }
+
+        $redacted = [];
+
+        foreach ($value as $key => $item) {
+            if (strtolower((string) $key) === 'value') {
+                $redacted[$key] = '[REDACTED]';
+
+                continue;
+            }
+
+            $redacted[$key] = is_array($item)
+                ? $this->redactAccountNumber($item)
+                : $this->sanitize($item);
+        }
+
+        if (! array_key_exists('value', $redacted) && $redacted === []) {
+            return ['value' => '[REDACTED]'];
+        }
+
+        return $redacted;
     }
 
     private function isLabelPayloadKey(string $key, mixed $value): bool

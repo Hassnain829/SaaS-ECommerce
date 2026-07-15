@@ -108,7 +108,7 @@ class FedExHttpClient
             'X-locale' => 'en_US',
         ], $headers);
 
-        $maxAttempts = str_contains($normalizedPath, '/ship/v1/') ? 3 : 1;
+        $maxAttempts = $this->transientShipRetryAttempts($normalizedPath);
 
         try {
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
@@ -157,11 +157,16 @@ class FedExHttpClient
                     continue;
                 }
 
-                $message = $this->extractErrorMessage($json) ?? 'FedEx request failed.';
-                $message = $this->merchantFriendlyFailureMessage($httpStatus, $normalizedPath, $message);
                 $errorCode = is_array($json)
                     ? (string) (data_get($json, 'errors.0.code') ?? $httpStatus)
                     : (string) $httpStatus;
+                $message = $this->extractErrorMessage($json) ?? 'FedEx request failed.';
+                $message = $this->merchantFriendlyFailureMessage(
+                    $httpStatus,
+                    $normalizedPath,
+                    $message,
+                    $errorCode !== '' ? $errorCode : null,
+                );
 
                 return CarrierApiResult::failure(
                     message: $message,
@@ -365,8 +370,12 @@ class FedExHttpClient
         return $summary;
     }
 
-    private function merchantFriendlyFailureMessage(int $httpStatus, string $path, string $defaultMessage): string
-    {
+    private function merchantFriendlyFailureMessage(
+        int $httpStatus,
+        string $path,
+        string $defaultMessage,
+        ?string $errorCode = null,
+    ): string {
         if ($httpStatus === 401) {
             return 'FedEx rejected the OAuth token for this request. Reconnect the FedEx credentials or verify the API key, secret, environment, and project permissions.';
         }
@@ -379,8 +388,19 @@ class FedExHttpClient
             return 'FedEx blocked Comprehensive Rates for this sandbox child credential. Review the sanitized response. If the request payload is complete, confirm Comprehensive Rates project access with FedEx support.';
         }
 
+        // Preserve the exact FedEx 403 code/message for Ship / Freight / Consolidation paths.
+        // Do not remap every /ship/v1/* 403 into a generic "Ship API entitlement" claim.
         if ($httpStatus === 403 && str_contains($path, '/ship/v1/')) {
-            return 'FedEx authorization blocked: the connected sandbox account/child credentials are not entitled for Ship API in this environment. This is a FedEx entitlement blocker — confirm Ship API access with FedEx support before resubmitting validation evidence.';
+            $fedexMessage = trim($defaultMessage);
+            if ($fedexMessage === '' || $fedexMessage === 'FedEx request failed.') {
+                $fedexMessage = 'We could not authorize your credentials. Please check your permissions and try again.';
+            }
+
+            $prefix = filled($errorCode) && $errorCode !== '403'
+                ? 'FedEx returned HTTP 403 ('.$errorCode.'): '
+                : 'FedEx returned HTTP 403: ';
+
+            return $prefix.$fedexMessage;
         }
 
         if ($httpStatus >= 500 && str_contains($path, '/availability/v1/packageandserviceoptions')) {
@@ -392,6 +412,22 @@ class FedExHttpClient
         }
 
         return $defaultMessage;
+    }
+
+    /**
+     * Transient 502/503 retries apply only to parcel Ship paths — never Freight LTL or Consolidation.
+     */
+    private function transientShipRetryAttempts(string $normalizedPath): int
+    {
+        if (! str_contains($normalizedPath, '/ship/v1/shipments')) {
+            return 1;
+        }
+
+        if (str_contains($normalizedPath, '/freight/')) {
+            return 1;
+        }
+
+        return 3;
     }
 
     /**

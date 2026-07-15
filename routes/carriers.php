@@ -203,6 +203,27 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validati
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/ship/{testCaseKey}', [FedExValidationRunController::class, 'runLockedShipLabel'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.ship');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/freight/us08', [FedExValidationRunController::class, 'runFreightUs08'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.freight-us08');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/us09/upload/letterhead', [FedExValidationRunController::class, 'runUs09UploadLetterhead'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.us09.upload.letterhead');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/us09/upload/signature', [FedExValidationRunController::class, 'runUs09UploadSignature'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.us09.upload.signature');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/us09/ship/image', [FedExValidationRunController::class, 'runUs09ShipImage'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.us09.ship.image');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/us09/upload/document', [FedExValidationRunController::class, 'runUs09UploadDocument'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.us09.upload.document');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/us09/ship/document', [FedExValidationRunController::class, 'runUs09ShipDocument'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.us09.ship.document');
+Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/run/us10/consolidation', [FedExValidationRunController::class, 'runUs10Consolidation'])
+    ->middleware('store.permission:settings.manage')
+    ->name('settings.shipping.carrier-accounts.fedex.validation.run.us10.consolidation');
 Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/validation/global/{region}/{caseKey}/run', [FedExValidationRunController::class, 'runGlobalShipCase'])
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.carrier-accounts.fedex.validation.run.global-ship');

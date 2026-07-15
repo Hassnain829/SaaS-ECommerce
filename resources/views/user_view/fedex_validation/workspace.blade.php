@@ -3,12 +3,12 @@
 @section('title', 'FedEx Validation Workspace | BaaS Core')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[#E2E8F0] bg-white px-4 md:px-8">
+    <header class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[color:var(--color-border)] bg-white px-4 md:px-8">
         <div>
-            <h1 class="font-poppins text-lg font-semibold text-[#0F172A] md:text-xl">FedEx validation workspace</h1>
-            <p class="hidden text-xs text-[#64748B] sm:block">Sandbox integrator evidence preparation for {{ $account->display_name }}</p>
+            <h1 class="font-heading text-lg font-semibold text-[color:var(--color-ink)] md:text-xl">FedEx approval tools</h1>
+            <p class="hidden text-xs text-[color:var(--color-ink-muted)] sm:block">Certification checklist for {{ $account->display_name }}</p>
         </div>
-        <a href="{{ route('shippingAutomation', ['tab' => 'carriers']) }}" class="ml-auto inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569]">Back to carriers</a>
+        <x-ui.button variant="secondary" :href="route('shippingAutomation', ['tab' => 'advanced'])">Back to Delivery</x-ui.button>
     </header>
 @endsection
 
@@ -27,7 +27,11 @@
         $checkStatus = fn (string $key): string => (string) (($checksByKey[$key]['status'] ?? 'not_tested'));
     @endphp
 
-    <div class="mx-auto max-w-[1100px] space-y-6">
+    <div class="ui-page-enter mx-auto max-w-[1100px] space-y-6">
+        <x-ui.operator-banner title="Certification tools — not required for day-to-day shipping setup">
+            Use this workspace only when preparing a FedEx approval package. Everyday delivery setup lives under Delivery.
+        </x-ui.operator-banner>
+
         @include('user_view.partials.flash_success')
         @if ($errors->any())
             <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>
@@ -36,16 +40,16 @@
             <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
         @endif
 
-        <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
+        <section class="rounded-2xl border border-[color:var(--color-border)] bg-white p-5 shadow-sm">
             <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Validation readiness</p>
-                    <h2 class="mt-1 text-2xl font-semibold text-[#0F172A]">
+                    <p class="text-xs font-bold uppercase tracking-[1px] text-[color:var(--color-ink-muted)]">Approval checklist</p>
+                    <h2 class="mt-1 text-2xl font-semibold text-[color:var(--color-ink)]">
                         {{ $preflight['completed_count'] ?? 0 }} of {{ $preflight['total_count'] ?? 0 }} required checks complete
                     </h2>
-                    <p class="mt-2 text-sm text-[#64748B]">
+                    <p class="mt-2 text-sm text-[color:var(--color-ink-muted)]">
                         @if ($ready)
-                            Final FedEx submission export is available when you are ready to send the package.
+                            Final submission export is available when you are ready to send the package.
                         @else
                             Complete the remaining evidence below before requesting the final FedEx validation package.
                         @endif
@@ -87,8 +91,8 @@
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
-                <a href="{{ route('settings.shipping.carrier-accounts.fedex.capabilities', $account) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Open capabilities page</a>
-                <a href="{{ route('settings.shipping.carrier-accounts.fedex.capabilities', [$account, 'evidence_mode' => 1]) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Evidence capture mode</a>
+                <x-ui.button variant="secondary" :href="route('settings.shipping.carrier-accounts.fedex.capabilities', $account)">Open capabilities page</x-ui.button>
+                <x-ui.button variant="secondary" :href="route('settings.shipping.carrier-accounts.fedex.capabilities', [$account, 'evidence_mode' => 1])">Open branding evidence page</x-ui.button>
             </div>
 
             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.final-preflight', $account) }}" class="mt-4">
@@ -486,85 +490,353 @@
             <p class="mt-1 text-sm text-[#64748B]">Package 6 — one-click fresh label generation per workbook case. Print each generated label, scan at 600+ DPI, then upload the physical scan — never the raw API file.</p>
             <div class="mt-4 grid gap-4 lg:grid-cols-3">
                 @foreach ($lockedShipScenarios as $testCaseKey => $meta)
+                    @if (in_array($testCaseKey, ['IntegratorUS09_IMAGE', 'IntegratorUS09_DOCUMENT'], true))
+                        @continue
+                    @endif
                     @php($scenarioKey = $meta['scenario_key'])
                     @php($shipStatus = $lockedShipStatuses[$testCaseKey] ?? [])
+                    @php($us08Excluded = $testCaseKey === 'IntegratorUS08' && ! ($us08ValidationEnabled ?? false))
                     <article class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                         <div class="flex items-start justify-between gap-2">
                             <div>
                                 <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">{{ $testCaseKey }}</p>
                                 <p class="mt-1 font-semibold text-[#0F172A]">{{ $shipStatus['label'] ?? ($meta['label_format'].' / '.$meta['label_stock_type']) }}</p>
-                                <p class="mt-1 text-sm text-[#64748B]">{{ $meta['expected_packages'] }} package(s)</p>
-                            </div>
-                            <span class="rounded-full px-2 py-0.5 text-xs font-bold {{ $statusBadge($checkStatus($scenarioKey.'_event')) }}">{{ str($checkStatus($scenarioKey.'_event'))->replace('_', ' ')->title() }}</span>
-                        </div>
-
-                        <dl class="mt-3 space-y-1 text-xs text-[#475569]">
-                            <div class="flex justify-between gap-3"><dt>API transaction</dt><dd class="font-semibold">{{ str($shipStatus['transaction_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
-                            <div class="flex justify-between gap-3"><dt>Expected service</dt><dd class="font-semibold">{{ $shipStatus['expected_service_type'] ?? '—' }}</dd></div>
-                            <div class="flex justify-between gap-3"><dt>Response service</dt><dd class="font-semibold">{{ $shipStatus['response_service_type'] ?? '—' }}</dd></div>
-                            <div class="flex justify-between gap-3"><dt>Service match</dt><dd class="font-semibold">{{ str($shipStatus['service_match_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
-                            <div class="flex justify-between gap-3"><dt>Generated labels</dt><dd class="font-semibold">{{ $shipStatus['generated_labels'] ?? '0 of '.$meta['expected_packages'] }}</dd></div>
-                            <div class="flex justify-between gap-3"><dt>Printed scans</dt><dd class="font-semibold">{{ $shipStatus['printed_scans'] ?? '0 of '.$meta['expected_packages'] }}</dd></div>
-                            @if ($testCaseKey === 'IntegratorUS05')
-                                <div class="flex justify-between gap-3"><dt>MPS correlation</dt><dd class="font-semibold">{{ str($shipStatus['mps_correlation_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
-                            @endif
-                        </dl>
-
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.ship', [$account, 'testCaseKey' => $testCaseKey]) }}" class="mt-3" onsubmit="this.querySelector('button[type=submit]').disabled=true">
-                            @csrf
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Generate Fresh {{ $testCaseKey }} Label{{ $meta['expected_packages'] > 1 ? 's' : '' }}</button>
-                        </form>
-
-                        <p class="mt-2 text-xs text-[#64748B]">{{ $shipStatus['printing_instructions'] ?? 'Print the downloaded label before scanning.' }}</p>
-
-                        <div class="mt-3 space-y-1">
-                            @for ($i = 1; $i <= (int) $meta['expected_packages']; $i++)
-                                @php($labelCheck = $checksByKey->get($scenarioKey.'_label_'.$i))
-                                @if (! empty($labelCheck['artifact_id']))
-                                    <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation.artifacts.download', [$account, $labelCheck['artifact_id']]) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052CC] hover:bg-[#EFF6FF]">
-                                        Download generated label — package {{ $i }}
-                                    </a>
+                                @if ($us08Excluded)
+                                    <p class="mt-1 text-sm text-[#64748B]">Excluded from active validation</p>
                                 @else
-                                    <p class="text-xs text-[#94A3B8]">Package {{ $i }} label — run the scenario first</p>
+                                    <p class="mt-1 text-sm text-[#64748B]">{{ $meta['expected_packages'] }} package(s)</p>
                                 @endif
-                            @endfor
+                            </div>
+                            @if ($us08Excluded)
+                                <span class="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-xs font-bold text-[#64748B]">Excluded</span>
+                            @else
+                                <span class="rounded-full px-2 py-0.5 text-xs font-bold {{ $statusBadge($checkStatus($scenarioKey.'_event')) }}">{{ str($checkStatus($scenarioKey.'_event'))->replace('_', ' ')->title() }}</span>
+                            @endif
                         </div>
 
-                        @if (! empty($shipStatus['generated_label_artifacts']))
-                            <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
-                                <p class="font-bold">Printed scan workflow (required by FedEx)</p>
-                                <ol class="mt-2 list-decimal space-y-1 pl-4">
-                                    <li>Download the generated label for this package.</li>
-                                    <li>Print it on the correct stock (laser printer, actual size, no scaling).</li>
-                                    <li>Scan the <strong>printed paper</strong> at 600 DPI or higher (PNG/JPG recommended).</li>
-                                    <li>Upload that scan file here — <strong>not</strong> the downloaded API label.</li>
-                                </ol>
+                        @if ($us08Excluded)
+                            <div class="mt-3 rounded-lg border border-[#E2E8F0] bg-white p-3 text-xs text-[#475569]">
+                                <p class="font-bold text-[#0F172A]">Freight LTL not in scope</p>
+                                <p class="mt-1">{{ $us08ExclusionNote ?? 'IntegratorUS08 Freight LTL is excluded because Freight LTL is not a supported capability of this application and is no longer available through the current FedEx Developer Portal project.' }}</p>
                             </div>
-                        @endif
+                        @else
+                            <dl class="mt-3 space-y-1 text-xs text-[#475569]">
+                                <div class="flex justify-between gap-3"><dt>API transaction</dt><dd class="font-semibold">{{ str($shipStatus['transaction_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt>Expected service</dt><dd class="font-semibold">{{ $shipStatus['expected_service_type'] ?? '—' }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt>Response service</dt><dd class="font-semibold">{{ $shipStatus['response_service_type'] ?? '—' }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt>Service match</dt><dd class="font-semibold">{{ str($shipStatus['service_match_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt>Generated labels</dt><dd class="font-semibold">{{ $shipStatus['generated_labels'] ?? '0 of '.$meta['expected_packages'] }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt>Printed scans</dt><dd class="font-semibold">{{ $shipStatus['printed_scans'] ?? '0 of '.$meta['expected_packages'] }}</dd></div>
+                                @if ($testCaseKey === 'IntegratorUS05')
+                                    <div class="flex justify-between gap-3"><dt>MPS correlation</dt><dd class="font-semibold">{{ str($shipStatus['mps_correlation_status'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd></div>
+                                @endif
+                            </dl>
 
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.scans.upload', $account) }}" enctype="multipart/form-data" class="mt-4 space-y-2">
-                            @csrf
-                            <input type="hidden" name="test_case_key" value="{{ $testCaseKey }}">
-                            <label class="block text-xs font-semibold text-[#475569]">Package sequence</label>
-                            <select name="package_sequence" class="h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-sm">
+                            @if ($testCaseKey === 'IntegratorUS08')
+                                <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                                    <p class="font-bold">Freight LTL one-click run</p>
+                                    <p class="mt-1">Runs local preflight, then a single sandbox POST to /ship/v1/freight/shipments. Persists the handling-unit ZPLII label, Straight Bill of Lading, and Commercial Invoice when FedEx returns them. Does not retry after authorization failures.</p>
+                                </div>
+                                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.freight-us08', $account) }}" class="mt-3 space-y-2" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                                    @csrf
+                                    <label class="flex items-start gap-2 text-xs text-[#475569]">
+                                        <input type="checkbox" name="confirm_freight_creation" value="1" required class="mt-0.5 rounded border-[#CBD5E1]">
+                                        <span>I understand this creates one sandbox Freight shipment when local preflight passes.</span>
+                                    </label>
+                                    <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Run IntegratorUS08 Freight LTL</button>
+                                </form>
+                            @else
+                                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.ship', [$account, 'testCaseKey' => $testCaseKey]) }}" class="mt-3" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                                    @csrf
+                                    <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Generate Fresh {{ $testCaseKey }} Label{{ $meta['expected_packages'] > 1 ? 's' : '' }}</button>
+                                </form>
+                            @endif
+
+                            <p class="mt-2 text-xs text-[#64748B]">{{ $shipStatus['printing_instructions'] ?? 'Print the downloaded label before scanning.' }}</p>
+
+                            <div class="mt-3 space-y-1">
                                 @for ($i = 1; $i <= (int) $meta['expected_packages']; $i++)
-                                    <option value="{{ $i }}">Package {{ $i }}</option>
+                                    @php($labelCheck = $checksByKey->get($scenarioKey.'_label_'.$i))
+                                    @if (! empty($labelCheck['artifact_id']))
+                                        <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation.artifacts.download', [$account, $labelCheck['artifact_id']]) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052CC] hover:bg-[#EFF6FF]">
+                                            Download generated label — package {{ $i }}
+                                        </a>
+                                    @else
+                                        <p class="text-xs text-[#94A3B8]">Package {{ $i }} label — run the scenario first</p>
+                                    @endif
                                 @endfor
-                            </select>
-                            <label class="block text-xs font-semibold text-[#475569]">Scan DPI (minimum 600)</label>
-                            <input type="number" name="scan_dpi" min="600" max="2400" value="600" required class="h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-sm">
-                            <label class="block text-xs font-semibold text-[#475569]">Printed scan (PDF, PNG, or JPG)</label>
-                            <p class="text-xs text-[#B45309]">Do not upload the downloaded API label file. Print the label first, then scan the physical print at 600 DPI or higher.</p>
-                            <input type="file" name="scan" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-xs">
-                            <label class="flex items-start gap-2 text-xs text-[#475569]">
-                                <input type="checkbox" name="printed_scan_attestation" value="1" required class="mt-0.5">
-                                <span>I confirm that this file was created by physically printing the generated FedEx label and scanning the printed label at 600 DPI or higher without scaling.</span>
-                            </label>
-                            <button type="submit" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Upload printed scan</button>
-                        </form>
+                            </div>
+
+                            @if (! empty($shipStatus['generated_label_artifacts']))
+                                <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                                    <p class="font-bold">Printed scan workflow (required by FedEx)</p>
+                                    <ol class="mt-2 list-decimal space-y-1 pl-4">
+                                        <li>Download the generated label for this package.</li>
+                                        <li>Print it on the correct stock (laser printer, actual size, no scaling).</li>
+                                        <li>Scan the <strong>printed paper</strong> at 600 DPI or higher (PNG/JPG recommended).</li>
+                                        <li>Upload that scan file here — <strong>not</strong> the downloaded API label.</li>
+                                    </ol>
+                                </div>
+                            @endif
+
+                            <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.scans.upload', $account) }}" enctype="multipart/form-data" class="mt-4 space-y-2">
+                                @csrf
+                                <input type="hidden" name="test_case_key" value="{{ $testCaseKey }}">
+                                <label class="block text-xs font-semibold text-[#475569]">Package sequence</label>
+                                <select name="package_sequence" class="h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-sm">
+                                    @for ($i = 1; $i <= (int) $meta['expected_packages']; $i++)
+                                        <option value="{{ $i }}">Package {{ $i }}</option>
+                                    @endfor
+                                </select>
+                                <label class="block text-xs font-semibold text-[#475569]">Scan DPI (minimum 600)</label>
+                                <input type="number" name="scan_dpi" min="600" max="2400" value="600" required class="h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-sm">
+                                <label class="block text-xs font-semibold text-[#475569]">Printed scan (PDF, PNG, or JPG)</label>
+                                <p class="text-xs text-[#B45309]">Do not upload the downloaded API label file. Print the label first, then scan the physical print at 600 DPI or higher.</p>
+                                <input type="file" name="scan" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-xs">
+                                <label class="flex items-start gap-2 text-xs text-[#475569]">
+                                    <input type="checkbox" name="printed_scan_attestation" value="1" required class="mt-0.5">
+                                    <span>I confirm that this file was created by physically printing the generated FedEx label and scanning the printed label at 600 DPI or higher without scaling.</span>
+                                </label>
+                                <button type="submit" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Upload printed scan</button>
+                            </form>
+                        @endif
                     </article>
                 @endforeach
             </div>
+        </section>
+
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-[#0F172A]">IntegratorUS09 — ETD Image</h3>
+            <p class="mt-1 text-sm text-[#64748B]">Upload letterhead (IMAGE_1) and signature (IMAGE_2), create the international ETD PDF shipment, then print/scan the label. Do not use the generic parcel ship button.</p>
+            <div class="mt-3 rounded-lg border border-[#DBEAFE] bg-[#EFF6FF] p-3 text-xs text-[#1E3A8A]">
+                <p class="font-bold">Next step</p>
+                <p class="mt-1">{{ $us09Status['image_next_action'] ?? 'Follow the numbered steps below.' }}</p>
+            </div>
+            @if ((! ($us09Status['assets']['letterhead'] ?? false) || ! ($us09Status['assets']['signature'] ?? false))
+                && ($us09Status['image_ship']['transaction_status'] ?? null) !== 'passed')
+                <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                    Workbook assets are missing under <code>resources/fedex-validation/us09/</code>. Place real <code>signature3.png</code> and <code>signature2.png</code> before the final evidence run.
+                </div>
+            @endif
+            <ol class="mt-4 list-decimal space-y-4 pl-5 text-sm text-[#475569]">
+                <li>
+                    <p class="font-semibold text-[#0F172A]">Upload letterhead image</p>
+                    <p class="text-xs">Status: {{ str($us09Status['letterhead_check'] ?? 'not_tested')->replace('_', ' ')->title() }}</p>
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.us09.upload.letterhead', $account) }}" class="mt-2 space-y-2" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                        @csrf
+                        <label class="flex items-start gap-2 text-xs">
+                            <input type="checkbox" name="confirm_us09_upload" value="1" required class="mt-0.5">
+                            <span>I understand this uploads a sandbox letterhead image.</span>
+                        </label>
+                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['letterhead'] ?? false))>Upload letterhead</button>
+                    </form>
+                </li>
+                <li>
+                    <p class="font-semibold text-[#0F172A]">Upload signature image</p>
+                    <p class="text-xs">Status: {{ str($us09Status['signature_check'] ?? 'not_tested')->replace('_', ' ')->title() }}</p>
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.us09.upload.signature', $account) }}" class="mt-2 space-y-2" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                        @csrf
+                        <label class="flex items-start gap-2 text-xs">
+                            <input type="checkbox" name="confirm_us09_upload" value="1" required class="mt-0.5">
+                            <span>I understand this uploads a sandbox signature image.</span>
+                        </label>
+                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['signature'] ?? false))>Upload signature</button>
+                    </form>
+                </li>
+                <li>
+                    <p class="font-semibold text-[#0F172A]">Create image ETD shipment</p>
+                    <p class="text-xs">Ship status: {{ str(($us09Status['image_ship']['transaction_status'] ?? 'not_tested'))->replace('_', ' ')->title() }}</p>
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.us09.ship.image', $account) }}" class="mt-2 space-y-2" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                        @csrf
+                        <label class="flex items-start gap-2 text-xs">
+                            <input type="checkbox" name="confirm_us09_ship" value="1" required class="mt-0.5">
+                            <span>I understand this creates a sandbox international ETD shipment.</span>
+                        </label>
+                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['image_ship_ready'] ?? false))>Create IntegratorUS09 Image Shipment</button>
+                    </form>
+                </li>
+            </ol>
+            @include('user_view.fedex_validation.partials.printed_scan_workflow', [
+                'account' => $account,
+                'testCaseKey' => 'IntegratorUS09_IMAGE',
+                'shipStatus' => $us09Status['image_ship'] ?? [],
+            ])
+        </section>
+
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-[#0F172A]">IntegratorUS09 — ETD Document</h3>
+            <p class="mt-1 text-sm text-[#64748B]">Upload the commercial invoice PDF, create the document-mode ETD shipment, then print/scan the label. The returned document id is injected automatically — never paste ids into the workspace.</p>
+            <div class="mt-3 rounded-lg border border-[#DBEAFE] bg-[#EFF6FF] p-3 text-xs text-[#1E3A8A]">
+                <p class="font-bold">Next step</p>
+                <p class="mt-1">{{ $us09Status['document_next_action'] ?? 'Follow the numbered steps below.' }}</p>
+            </div>
+            @if (! ($us09Status['assets']['document'] ?? false)
+                && ($us09Status['document_ship']['transaction_status'] ?? null) !== 'passed')
+                <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                    Missing <code>resources/fedex-validation/us09/commercial_invoice.pdf</code>. Provide a real workbook commercial invoice before the final evidence run.
+                </div>
+            @endif
+            <ol class="mt-4 list-decimal space-y-4 pl-5 text-sm text-[#475569]">
+                <li>
+                    <p class="font-semibold text-[#0F172A]">Upload commercial invoice</p>
+                    <p class="text-xs">Status: {{ str($us09Status['document_check'] ?? 'not_tested')->replace('_', ' ')->title() }}</p>
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.us09.upload.document', $account) }}" class="mt-2 space-y-2" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                        @csrf
+                        <label class="flex items-start gap-2 text-xs">
+                            <input type="checkbox" name="confirm_us09_upload" value="1" required class="mt-0.5">
+                            <span>I understand this uploads a sandbox commercial invoice document.</span>
+                        </label>
+                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['document'] ?? false))>Upload commercial invoice</button>
+                    </form>
+                </li>
+                <li>
+                    <p class="font-semibold text-[#0F172A]">Create document ETD shipment</p>
+                    <p class="text-xs">Ship status: {{ str(($us09Status['document_ship']['transaction_status'] ?? 'not_tested'))->replace('_', ' ')->title() }}</p>
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.us09.ship.document', $account) }}" class="mt-2 space-y-2" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                        @csrf
+                        <label class="flex items-start gap-2 text-xs">
+                            <input type="checkbox" name="confirm_us09_ship" value="1" required class="mt-0.5">
+                            <span>I understand this creates a sandbox international ETD shipment.</span>
+                        </label>
+                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['document_ship_ready'] ?? false))>Create IntegratorUS09 Document Shipment</button>
+                    </form>
+                </li>
+            </ol>
+            @include('user_view.fedex_validation.partials.printed_scan_workflow', [
+                'account' => $account,
+                'testCaseKey' => 'IntegratorUS09_DOCUMENT',
+                'shipStatus' => $us09Status['document_ship'] ?? [],
+            ])
+        </section>
+
+        <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-lg font-semibold text-[#0F172A]">IntegratorUS10 — Consolidation / IPD</h3>
+                    <p class="mt-1 text-sm text-[#64748B]">
+                        @if ($us10Status['excluded'] ?? ! ($us10ValidationEnabled ?? false))
+                            Excluded from active validation
+                        @else
+                            Runs Create → 6 Add Shipments → Confirm → Confirm Results against the dedicated Consolidation account. Child labels and the Consolidated Commercial Invoice are preserved when returned.
+                        @endif
+                    </p>
+                </div>
+                @if ($us10Status['excluded'] ?? ! ($us10ValidationEnabled ?? false))
+                    <span class="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-xs font-bold text-[#64748B]">Excluded</span>
+                @endif
+            </div>
+
+            @if ($us10Status['excluded'] ?? ! ($us10ValidationEnabled ?? false))
+                <div class="mt-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-xs text-[#475569]">
+                    <p class="font-bold text-[#0F172A]">Consolidation / IPD not in scope</p>
+                    <p class="mt-1">{{ $us10ExclusionNote ?? ($us10Status['exclusion_note'] ?? 'IntegratorUS10 Consolidation / IPD is excluded because Consolidation API is not a supported capability of this application and was not included in the current FedEx Developer Portal project.') }}</p>
+                    <p class="mt-2">Historical Consolidation events remain stored for audit and do not block final readiness.</p>
+                </div>
+            @else
+                <div class="mt-3 rounded-lg border border-[#DBEAFE] bg-[#EFF6FF] p-3 text-xs text-[#1E3A8A]">
+                    <p class="font-bold">Next step</p>
+                    <p class="mt-1">{{ $us10Status['next_action'] ?? 'Confirm configuration, then run the Consolidation chain once.' }}</p>
+                </div>
+                <dl class="mt-4 grid gap-3 text-sm md:grid-cols-2 lg:grid-cols-4">
+                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                        <dt class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Consolidation account</dt>
+                        <dd class="mt-1 font-semibold text-[#0F172A]">
+                            @if ($us10Status['account_configured'] ?? false)
+                                {{ $us10Status['account_last4'] ?? 'Configured' }}
+                            @else
+                                Missing
+                            @endif
+                        </dd>
+                    </div>
+                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                        <dt class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Shipper TIN</dt>
+                        <dd class="mt-1 font-semibold text-[#0F172A]">{{ ($us10Status['tin_configured'] ?? false) ? 'Configured' : 'Missing' }}</dd>
+                    </div>
+                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                        <dt class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Completed steps</dt>
+                        <dd class="mt-1 font-semibold text-[#0F172A]">{{ $us10Status['completed_count'] ?? 0 }} / {{ $us10Status['required_count'] ?? 0 }}</dd>
+                    </div>
+                    <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                        <dt class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Documents</dt>
+                        <dd class="mt-1 font-semibold text-[#0F172A]">Labels {{ str($us10Status['child_labels_check'] ?? 'not_tested')->replace('_', ' ')->title() }} · CCI {{ str($us10Status['cci_check'] ?? 'not_tested')->replace('_', ' ')->title() }}</dd>
+                    </div>
+                </dl>
+
+                @if (! empty($us10Status['steps']))
+                    <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                        <p class="text-sm font-semibold text-[#0F172A]">Chain checklist</p>
+                        <ul class="mt-2 grid gap-1 text-xs text-[#475569] sm:grid-cols-2 lg:grid-cols-3">
+                            @foreach ($us10Status['steps'] as $step)
+                                <li class="flex items-center justify-between gap-2 rounded-lg bg-white px-2 py-1.5">
+                                    <span>{{ $step['label'] ?? $step['test_case_key'] }}</span>
+                                    <span class="rounded-full px-2 py-0.5 text-[10px] font-bold {{ $statusBadge($step['status'] ?? 'not_tested') }}">{{ str($step['status'] ?? 'not_tested')->replace('_', ' ')->title() }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                @if (! empty($us10Status['last_failure']) && ($us10Status['completed_count'] ?? 0) < ($us10Status['required_count'] ?? 9))
+                    <div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-950">
+                        <p class="font-bold">Last Consolidation failure</p>
+                        <p class="mt-1">
+                            Stopped at {{ $us10Status['last_failure']['failed_step'] ?? 'unknown' }}
+                            @if (! empty($us10Status['last_failure']['http_status']))
+                                · HTTP {{ $us10Status['last_failure']['http_status'] }}
+                            @endif
+                            @if (! empty($us10Status['last_failure']['error_code']))
+                                · {{ $us10Status['last_failure']['error_code'] }}
+                            @endif
+                        </p>
+                        @if (! empty($us10Status['last_failure']['error_message']))
+                            <p class="mt-1">{{ $us10Status['last_failure']['error_message'] }}</p>
+                        @endif
+                        @if ($us10Status['do_not_retry'] ?? false)
+                            <p class="mt-2 font-semibold">Do not retry blindly. Fix Consolidation / IPD account entitlement with FedEx first, then run once.</p>
+                        @endif
+                    </div>
+                @endif
+
+                @if ($us10Status['uses_workbook_third_party_as_root'] ?? false)
+                    <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                        <p class="font-bold">Wrong account role in .env</p>
+                        <p class="mt-1">Workbook <code>Test Account Numbers</code> lists US Test Account <strong>700257037</strong> for Integrator credentials. Workbook value {{ $us10Status['workbook_third_party_last4'] ?? '****6789' }} is only for US10 soldTo / THIRD_PARTY billing fields (already applied automatically). Set <code>FEDEX_VALIDATION_US10_CONSOLIDATION_ACCOUNT=700257037</code>, reload, then run once.</p>
+                    </div>
+                @elseif (! ($us10Status['account_configured'] ?? false) || ! ($us10Status['tin_configured'] ?? false))
+                    <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                        Set <code>FEDEX_VALIDATION_US10_CONSOLIDATION_ACCOUNT=700257037</code> and <code>FEDEX_VALIDATION_US10_SHIPPER_TIN=59165821389</code> in <code>.env</code>, then reload this workspace.
+                    </div>
+                @else
+                    <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                        A successful sandbox Consolidation run creates open consolidations and documents. Confirm before running during the final evidence window. Root account uses your env value; soldTo / THIRD_PARTY payors keep the workbook {{ $us10Status['workbook_third_party_last4'] ?? '****6789' }} billing account.
+                    </div>
+                @endif
+
+                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.us10.consolidation', $account) }}" class="mt-3 space-y-2" onsubmit="this.querySelector('button[type=submit]').disabled=true">
+                    @csrf
+                    <label class="flex items-start gap-2 text-xs text-[#475569]">
+                        <input type="checkbox" name="confirm_us10_consolidation" value="1" required class="mt-0.5 rounded border-[#CBD5E1]" @disabled(! ($us10Status['ready_to_run'] ?? false))>
+                        <span>I understand this creates a sandbox Consolidation / IPD workflow.</span>
+                    </label>
+                    <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60" @disabled(! ($us10Status['ready_to_run'] ?? false))>Run IntegratorUS10 Consolidation Chain</button>
+                </form>
+
+                @if (! empty($us10Status['child_label_artifacts']) || ! empty($us10Status['cci_artifact']))
+                    <div class="mt-4 space-y-2 border-t border-[#E2E8F0] pt-4">
+                        <p class="text-sm font-semibold text-[#0F172A]">Preserved Consolidation documents</p>
+                        @foreach ($us10Status['child_label_artifacts'] ?? [] as $labelArtifact)
+                            <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation.artifacts.download', [$account, $labelArtifact->id]) }}" class="mr-2 inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052CC] hover:bg-[#EFF6FF]">
+                                Download child label {{ $labelArtifact->package_sequence ?? '' }}
+                            </a>
+                        @endforeach
+                        @if (! empty($us10Status['cci_artifact']))
+                            <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation.artifacts.download', [$account, $us10Status['cci_artifact']->id]) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#0052CC] hover:bg-[#EFF6FF]">
+                                Download Consolidated Commercial Invoice
+                            </a>
+                        @endif
+                    </div>
+                @endif
+            @endif
         </section>
 
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">

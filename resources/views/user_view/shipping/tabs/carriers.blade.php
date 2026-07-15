@@ -11,7 +11,7 @@
                     <h2 class="text-lg font-semibold text-[#0F172A]">Connect a delivery provider</h2>
                     <p class="mt-1 text-sm text-[#475569]">Choose FedEx, USPS, manual/local delivery, or see planned carriers like DHL and UPS.</p>
                 </div>
-                <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect delivery provider</a>
+                <a href="{{ route('shipping.carriers.connect.index') }}" class="ui-btn ui-btn-primary shrink-0">Connect delivery provider</a>
             </div>
         </div>
     @endif
@@ -31,11 +31,11 @@
         @if (! ($fedExEnabled ?? false) && ! app()->environment(['local', 'testing']))
             <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">FedEx account setup is not available on this platform environment yet.</div>
         @elseif (($fedExAccounts ?? collect())->isEmpty())
-            <div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-6 py-10 text-center">
-                <p class="font-semibold text-[#0F172A]">Connect your FedEx merchant account</p>
-                <p class="mx-auto mt-2 max-w-lg text-sm text-[#64748B]">Use your FedEx account number and billing address on file with FedEx. FedEx billing stays between you and FedEx.</p>
+                    <div class="rounded-2xl border border-dashed border-[color:var(--color-border-strong)] bg-[color:var(--color-surface-muted)] px-6 py-10 text-center">
+                <p class="font-semibold text-[color:var(--color-ink)]">Connect your FedEx merchant account</p>
+                <p class="mx-auto mt-2 max-w-lg text-sm text-[color:var(--color-ink-muted)]">Use your FedEx account number and billing address on file with FedEx. FedEx billing stays between you and FedEx.</p>
                 @if (($fedExEnabled ?? false) && ($canManageShipping ?? false))
-                    <a href="{{ route(($fedExConfig->modelAEnabled() ?? false) ? 'settings.shipping.fedex-integrator.start' : 'shipping.carriers.connect.show', ($fedExConfig->modelAEnabled() ?? false) ? [] : 'fedex') }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect FedEx account</a>
+                    <a href="{{ route(($fedExConfig->modelAEnabled() ?? false) ? 'settings.shipping.fedex-integrator.start' : 'shipping.carriers.connect.show', ($fedExConfig->modelAEnabled() ?? false) ? [] : 'fedex') }}" class="ui-btn ui-btn-primary mt-4">Connect FedEx account</a>
                 @endif
             </div>
         @else

@@ -17,19 +17,32 @@ final class FedExShipResponseParser
      *         document_type: ?string,
      *         image_type: ?string,
      *         encoded_label: ?string
-     *     }>
+     *     }>,
+     *     documents: list<array{
+     *         content_type: ?string,
+     *         doc_type: ?string,
+     *         image_type: ?string,
+     *         document_type: ?string,
+     *         encoded_label: ?string,
+     *         is_commercial_invoice: bool,
+     *         response_path: string
+     *     }>,
+     *     commercial_invoice_present: bool
      * }
      */
     public function parse(?array $responseBody): array
     {
         $labels = [];
+        $documents = [];
         $serviceType = null;
         $masterTracking = null;
 
-        foreach ((array) data_get($responseBody, 'output.transactionShipments', []) as $shipment) {
+        foreach ((array) data_get($responseBody, 'output.transactionShipments', []) as $shipmentIndex => $shipment) {
             if (! is_array($shipment)) {
                 continue;
             }
+
+            $shipmentPath = 'output.transactionShipments.'.$shipmentIndex;
 
             $serviceType ??= $this->normalizeServiceType(
                 $shipment['serviceType']
@@ -68,6 +81,32 @@ final class FedExShipResponseParser
                         : null,
                 ];
             }
+
+            foreach ((array) ($shipment['shipmentDocuments'] ?? []) as $docIndex => $document) {
+                if (! is_array($document)) {
+                    continue;
+                }
+
+                $contentType = strtoupper((string) ($document['contentType'] ?? ''));
+                $docType = strtoupper((string) ($document['docType'] ?? ''));
+                $documentType = $contentType !== '' ? $contentType : $docType;
+                $isCommercialInvoice = str_contains($documentType, 'COMMERCIAL_INVOICE');
+
+                // Skip label-like entries that belong under packageDocuments.
+                if ($documentType === 'LABEL' || str_ends_with($documentType, '_LABEL')) {
+                    continue;
+                }
+
+                $documents[] = [
+                    'content_type' => $contentType !== '' ? $contentType : null,
+                    'doc_type' => $docType !== '' ? $docType : null,
+                    'image_type' => isset($document['imageType']) ? strtoupper((string) $document['imageType']) : null,
+                    'document_type' => $documentType !== '' ? $documentType : null,
+                    'encoded_label' => is_string($document['encodedLabel'] ?? null) ? $document['encodedLabel'] : null,
+                    'is_commercial_invoice' => $isCommercialInvoice,
+                    'response_path' => $shipmentPath.'.shipmentDocuments.'.$docIndex,
+                ];
+            }
         }
 
         ksort($labels);
@@ -77,6 +116,10 @@ final class FedExShipResponseParser
             'master_tracking_number' => $masterTracking,
             'master_tracking_number_last4' => $this->lastFour($masterTracking),
             'labels' => $labels,
+            'documents' => $documents,
+            'commercial_invoice_present' => collect($documents)->contains(
+                static fn (array $document): bool => (bool) ($document['is_commercial_invoice'] ?? false)
+            ),
         ];
     }
 

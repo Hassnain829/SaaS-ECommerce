@@ -154,6 +154,13 @@
                 <p class="font-semibold text-[#0F172A]">FedEx End User License Agreement</p>
                 <p>{{ $eulaVersion }}</p>
                 <p>{{ (int) ($eulaExpectedPages ?? 11) }} pages</p>
+                <p class="mt-2 font-medium text-[#0F172A]" x-text="`${pagesRendered} of {{ (int) ($eulaExpectedPages ?? 11) }} pages loaded`"></p>
+                <p x-show="! scrollCompleted" class="mt-1 text-amber-800">
+                    Acceptance locked until the end of page {{ (int) ($eulaExpectedPages ?? 11) }}
+                </p>
+                <p x-show="scrollCompleted" x-cloak class="mt-1 text-emerald-700">
+                    All {{ (int) ($eulaExpectedPages ?? 11) }} pages reviewed
+                </p>
             </div>
 
             @unless ($eulaAvailable && $eulaValid)
@@ -174,7 +181,7 @@
                 </div>
 
                 <p x-show="! scrollCompleted && pagesRendered === {{ (int) ($eulaExpectedPages ?? 11) }}" class="mt-2 text-xs text-[#64748B]">
-                    Scroll to the end of the agreement to enable acceptance.
+                    Scroll to the end of page {{ (int) ($eulaExpectedPages ?? 11) }} to enable acceptance.
                 </p>
 
                 <form method="POST" action="{{ route('settings.shipping.fedex-integrator.eula.accept', $session) }}" class="fedex-eula-print-evidence mt-4 space-y-3">

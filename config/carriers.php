@@ -12,6 +12,32 @@ return [
         'integrator_production_enabled' => filter_var(env('FEDEX_INTEGRATOR_PRODUCTION_ENABLED', false), FILTER_VALIDATE_BOOL),
         'model_b_developer_fallback_enabled' => filter_var(env('FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED', false), FILTER_VALIDATE_BOOL),
         'validation_mode_enabled' => filter_var(env('FEDEX_VALIDATION_MODE_ENABLED', false), FILTER_VALIDATE_BOOL),
+        // IntegratorUS07 dedicated Ground Economy / SmartPost account (workbook Test Account Numbers).
+        'validation_us07_ground_economy_account' => env('FEDEX_VALIDATION_US07_GROUND_ECONOMY_ACCOUNT'),
+        // IntegratorUS08 is archived / excluded from active Integrator validation by default.
+        // Freight LTL is not a supported capability of this application (FedEx Freight is a separate platform).
+        // Both flags must be true only if a separate FedEx Freight integration is added later.
+        'validation_us08_enabled' => filter_var(env('FEDEX_VALIDATION_US08_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'freight_ltl_api_enabled' => filter_var(env('FEDEX_FREIGHT_LTL_API_ENABLED', false), FILTER_VALIDATE_BOOL),
+        // Archived: IntegratorUS08 dedicated Freight LTL account (not required for active readiness).
+        'validation_us08_freight_account' => env('FEDEX_VALIDATION_US08_FREIGHT_ACCOUNT'),
+        'freight_ltl_ship_path' => env('FEDEX_FREIGHT_LTL_SHIP_PATH', '/ship/v1/freight/shipments'),
+        // IntegratorUS10 Consolidation / IPD is archived / excluded from active Integrator validation by default.
+        // Consolidation API was not included in this application's FedEx Developer Portal project.
+        'validation_us10_enabled' => filter_var(env('FEDEX_VALIDATION_US10_ENABLED', false), FILTER_VALIDATE_BOOL),
+        // Archived: IntegratorUS10 root/OAuth-linked Consolidation account and shipper TIN (not required for readiness).
+        'validation_us10_consolidation_account' => env('FEDEX_VALIDATION_US10_CONSOLIDATION_ACCOUNT'),
+        'validation_us10_shipper_tin' => env('FEDEX_VALIDATION_US10_SHIPPER_TIN'),
+        // Official Consolidation API V1 paths (FedEx OpenAPI / Developer Portal JSON collection).
+        'consolidation_create_path' => env('FEDEX_CONSOLIDATION_CREATE_PATH', '/ship/v1/consolidations'),
+        'consolidation_shipment_path' => env('FEDEX_CONSOLIDATION_SHIPMENT_PATH', '/ship/v1/consolidations/shipments'),
+        'consolidation_confirm_path' => env('FEDEX_CONSOLIDATION_CONFIRM_PATH', '/ship/v1/consolidations/confirmations'),
+        'consolidation_confirm_results_path' => env('FEDEX_CONSOLIDATION_CONFIRM_RESULTS_PATH', '/ship/v1/consolidations/confirmationresults'),
+        // Trade Documents Upload API uses a separate document host (not apis-sandbox.fedex.com).
+        'document_api_sandbox_base_url' => env('FEDEX_DOCUMENT_API_SANDBOX_BASE_URL', 'https://documentapitest.prod.fedex.com/sandbox'),
+        'document_api_live_base_url' => env('FEDEX_DOCUMENT_API_LIVE_BASE_URL', 'https://documentapi.prod.fedex.com'),
+        'trade_documents_upload_image_path' => env('FEDEX_TRADE_DOCUMENTS_UPLOAD_IMAGE_PATH', '/documents/v1/lhsimages/upload'),
+        'trade_documents_upload_document_path' => env('FEDEX_TRADE_DOCUMENTS_UPLOAD_DOCUMENT_PATH', '/documents/v1/etds/upload'),
         'integrator_eula_version' => env('FEDEX_INTEGRATOR_EULA_VERSION', 'FedEx Form No. 2002382 v 4 June 2024 Rev'),
         'integrator_eula_path' => env('FEDEX_INTEGRATOR_EULA_PATH', 'resources/legal/fedex/FedEx_Standard_End_User_License_Agreement_EULA_for_Hosted_3rd_party_solutions.pdf'),
         'integrator_eula_form_number' => env('FEDEX_INTEGRATOR_EULA_FORM_NUMBER', '2002382'),

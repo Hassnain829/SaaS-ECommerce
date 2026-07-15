@@ -53,6 +53,7 @@ class FedExMerchantApiClient
     /**
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $requestSummary
+     * @param  array<string, string>  $headers
      */
     public function postJson(
         Store $store,
@@ -62,6 +63,7 @@ class FedExMerchantApiClient
         array $payload,
         array $requestSummary,
         ?FedExValidationEventContext $context = null,
+        array $headers = [],
     ): CarrierApiResult {
         $this->assertFedExApiAccount($account);
         $account->loadMissing('store');
@@ -118,6 +120,7 @@ class FedExMerchantApiClient
             environment: $environment,
             path: $path,
             payload: $payload,
+            headers: $headers,
             bearerToken: $accessToken,
             requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken, $credentialsMode),
         );
@@ -189,6 +192,7 @@ class FedExMerchantApiClient
                 environment: $environment,
                 path: $path,
                 payload: $payload,
+                headers: $headers,
                 bearerToken: $refreshedToken,
                 requestSummary: $retrySummary,
             );

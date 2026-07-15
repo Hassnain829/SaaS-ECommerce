@@ -53,19 +53,20 @@
             </div>
         </details>
 
-        <details class="rounded-2xl border border-[#E2E8F0] bg-white p-4">
+        <details class="rounded-2xl border border-[color:var(--color-border)] bg-white p-4">
             <summary class="cursor-pointer list-none">
                 <div class="flex items-center justify-between gap-3">
                     <div>
-                        <h3 class="text-base font-semibold text-[#0F172A]">Connected providers & testing</h3>
-                        <p class="text-sm text-[#64748B]">Carrier setup, diagnostics, and validation helpers.</p>
+                        <h3 class="text-base font-semibold text-[color:var(--color-ink)]">Connected providers</h3>
+                        <p class="text-sm text-[color:var(--color-ink-muted)]">Carrier accounts for labels and rates.</p>
                     </div>
-                    <span class="text-xs font-semibold text-[#64748B]">Expand</span>
+                    <span class="text-xs font-semibold text-[color:var(--color-ink-muted)]">Expand</span>
                 </div>
             </summary>
-            <div class="mt-4 border-t border-[#F1F5F9] pt-4">
+            <div class="mt-4 border-t border-[color:var(--color-border)] pt-4">
                 <section data-advanced-section="providers" class="scroll-mt-24">
                     @include('user_view.shipping.tabs.carriers')
+                    @include('user_view.shipping.partials.fedex_certification_tools')
                 </section>
             </div>
         </details>

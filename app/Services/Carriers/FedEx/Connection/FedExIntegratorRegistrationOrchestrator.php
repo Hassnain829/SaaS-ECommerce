@@ -16,6 +16,7 @@ use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorParentOAuthService;
 use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -616,12 +617,20 @@ class FedExIntegratorRegistrationOrchestrator
         ?array $requestSummary = null,
         ?array $responseSummary = null,
     ): CarrierAccountRegistrationSession {
+        $preservedResponse = is_array($responseSummary)
+            ? $responseSummary
+            : (is_array($session->response_summary_json) ? $session->response_summary_json : []);
+        $preservedResponse['technical_error_message'] = $message;
+        if ($code !== null) {
+            $preservedResponse['technical_error_code'] = $code;
+        }
+
         $session->forceFill([
             'status' => CarrierAccountRegistrationSession::STATUS_FAILED,
             'last_error_code' => $code,
-            'last_error_message' => $message,
+            'last_error_message' => FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
             'request_summary_json' => $requestSummary ?? $session->request_summary_json,
-            'response_summary_json' => $responseSummary ?? $session->response_summary_json,
+            'response_summary_json' => $preservedResponse,
         ])->save();
 
         return $session->refresh();
@@ -629,10 +638,15 @@ class FedExIntegratorRegistrationOrchestrator
 
     private function lockSession(CarrierAccountRegistrationSession $session, string $message): CarrierAccountRegistrationSession
     {
+        $preservedResponse = is_array($session->response_summary_json) ? $session->response_summary_json : [];
+        $preservedResponse['technical_error_message'] = $message;
+        $preservedResponse['technical_error_code'] = 'mfa_locked';
+
         $session->forceFill([
             'status' => CarrierAccountRegistrationSession::STATUS_LOCKED,
-            'last_error_message' => $message,
+            'last_error_message' => FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
             'last_error_code' => 'mfa_locked',
+            'response_summary_json' => $preservedResponse,
         ])->save();
 
         return $session->refresh();

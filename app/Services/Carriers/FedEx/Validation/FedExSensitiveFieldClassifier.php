@@ -31,9 +31,20 @@ final class FedExSensitiveFieldClassifier
         'apikey',
         'customerkey',
         'childkey',
+        'accountnumber',
         'crid',
         'mastermid',
         'labelermid',
+        'documentid',
+        'imageid',
+        'docid',
+        'returneddocumentid',
+        'returnedimageid',
+        'documentidentifier',
+        'imageidentifier',
+        'jobid',
+        'trackingnumber',
+        'mastertrackingnumber',
     ];
 
     /**
@@ -48,7 +59,24 @@ final class FedExSensitiveFieldClassifier
         'shipping',
         'responsibleparty',
         'payor',
-        'accountnumber',
+        'freightrequestedshipment',
+        'freightshipmentdetail',
+        'requestedpackagelineitems',
+        'etddetail',
+        'attacheddocuments',
+        'shippingdocumentspecification',
+        'customerimageusages',
+        'shipmentspecialservices',
+        'requestedconsolidation',
+        'requestedshipment',
+        'consolidationkey',
+        'dutiespayment',
+        'labelspecification',
+        'specialservicesrequested',
+        'internationaldistributiondetail',
+        'consolidationdocumentspecification',
+        'customsclearancedetail',
+        'commodities',
     ];
 
     public static function isSensitiveKey(string $key): bool
@@ -71,6 +99,13 @@ final class FedExSensitiveFieldClassifier
             'secret',
             'token',
         ], true) && ! in_array($normalized, ['tokentype'], true);
+    }
+
+    public static function isAccountNumberKey(string $key): bool
+    {
+        $normalized = self::normalizeKey($key);
+
+        return $normalized === 'accountnumber' || str_ends_with($normalized, 'accountnumber');
     }
 
     public static function normalizeKey(string $key): string

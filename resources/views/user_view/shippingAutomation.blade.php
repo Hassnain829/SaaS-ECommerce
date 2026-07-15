@@ -29,25 +29,42 @@
     ];
     $statusBadge = fn (bool $active) => $active ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#F1F5F9] text-[#64748B]';
     $deliverySetup = $deliverySetup ?? [];
+    $advancedTab = request('tab');
+    $openAdvanced = in_array($advancedTab, ['advanced', 'providers', 'areas', 'options', 'ship-from', 'zones', 'methods', 'carriers', 'locations'], true);
 @endphp
 
 @section('topbar')
-    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-        <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
+    <header class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[color:var(--color-border)] bg-white/95 px-4 backdrop-blur md:px-8">
+        <button id="sidebarToggle" onclick="openSidebar()" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[color:var(--color-border)] bg-white text-[color:var(--color-ink-secondary)] shadow-sm md:hidden" aria-label="Open sidebar">
             <svg width="18" height="14" viewBox="0 0 20 14" fill="none"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
         </button>
         <div class="min-w-0">
-            <h1 class="truncate text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Delivery</h1>
-            <p class="hidden text-xs text-[#64748B] sm:block">Where orders ship from, where you deliver, and what customers see at checkout.</p>
+            <h1 class="truncate font-heading text-lg font-semibold text-[color:var(--color-ink)] md:text-xl">Delivery</h1>
+            <p class="hidden text-xs text-[color:var(--color-ink-muted)] sm:block">Where orders ship from, where you deliver, and what customers see at checkout.</p>
         </div>
-        <a href="{{ route('settings.taxes.index') }}" class="ml-auto hidden h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC] sm:inline-flex">
+        <a href="{{ route('settings.taxes.index') }}" class="ui-btn ui-btn-secondary ml-auto hidden sm:inline-flex">
             Checkout &amp; tax
         </a>
     </header>
 @endsection
 
 @section('content')
-    <div class="settings-workspace-wide settings-hub" id="shipping-page">
+    <div
+        class="settings-workspace-wide settings-hub ui-page-enter"
+        id="shipping-page"
+        x-data="{
+            advancedOpen: {{ $openAdvanced ? 'true' : 'false' }},
+            storageKey: 'delivery-advanced-open-{{ (int) optional($selectedStore ?? $currentStore ?? null)->id }}',
+            init() {
+                if (! this.advancedOpen && localStorage.getItem(this.storageKey) === '1') {
+                    this.advancedOpen = true;
+                }
+            },
+            persist() {
+                localStorage.setItem(this.storageKey, this.advancedOpen ? '1' : '0');
+            }
+        }"
+    >
         @include('user_view.partials.flash_success')
 
         @if ($errors->any())
@@ -62,16 +79,27 @@
 
         @include('user_view.shipping.tabs.overview')
 
-        @php
-            $advancedTab = request('tab');
-            $openAdvanced = in_array($advancedTab, ['advanced', 'providers', 'areas', 'options', 'ship-from', 'zones', 'methods', 'carriers', 'locations'], true);
-        @endphp
-        <details id="delivery-advanced-panel" class="settings-hub-details" @if($openAdvanced) open @endif>
+        <details
+            id="delivery-advanced-panel"
+            class="settings-hub-details"
+            x-bind:open="advancedOpen"
+            @toggle="advancedOpen = $event.target.open; persist()"
+        >
             <summary>Advanced delivery &amp; carrier settings</summary>
             <div class="settings-hub-details-body">
                 @include('user_view.shipping.tabs.advanced')
             </div>
         </details>
+
+        @if (! ($deliverySetup['is_ready'] ?? false) && ($canManageShipping ?? false))
+            @php
+                $next = collect($deliverySetup['health_items'] ?? [])->first();
+                $nextHref = $next['action_href'] ?? route('settings.delivery.setup.ship-from');
+                $nextLabel = $next['action_label'] ?? 'Continue setup';
+                $nextMessage = $next['message'] ?? 'Finish delivery setup so customers can see delivery options at checkout.';
+            @endphp
+            <x-ui.sticky-next :message="$nextMessage" :action-label="$nextLabel" :action-href="$nextHref" />
+        @endif
     </div>
 
     @if ($canManageShipping ?? false)

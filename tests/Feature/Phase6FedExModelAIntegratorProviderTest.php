@@ -168,11 +168,42 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $this->assertSame(CarrierAccountRegistrationSession::STATUS_REGISTERED, $session->status);
         $this->assertNotNull($session->carrier_account_id);
 
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.shipping.fedex-integrator.success', $session))
+            ->assertOk()
+            ->assertSeeText('Direct Child Authorization completed')
+            ->assertSeeText('PIN, SMS, phone, and invoice verification were skipped');
+
+        $this->assertTrue(data_get($session->response_summary_json, 'credential_key_detected'));
+        $this->assertTrue(data_get($session->response_summary_json, 'credential_secret_detected'));
+        $this->assertFalse(data_get($session->response_summary_json, 'mfa_detected'));
+
         $account = CarrierAccount::query()->findOrFail($session->carrier_account_id);
         $this->assertTrue($account->usesFedExIntegratorProvider());
         $this->assertTrue($account->hasLegacyFedExChildCredentials());
         $this->assertSame('700257037', $account->provider_account_number);
         $this->assertStringNotContainsString('child-secret-value-456', json_encode($account->toArray()));
+    }
+
+    public function test_registered_session_without_credential_evidence_hides_direct_child_authorization(): void
+    {
+        [$owner, $store, $location] = $this->fixtureParts('FedEx No Credential Evidence Store');
+        $session = $this->createSession($store, $owner, $location, CarrierAccountRegistrationSession::STATUS_REGISTERED);
+        $session->forceFill([
+            'mfa_method' => null,
+            'response_summary_json' => [
+                'credential_key_detected' => false,
+                'credential_secret_detected' => false,
+                'mfa_detected' => false,
+            ],
+        ])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.shipping.fedex-integrator.success', $session))
+            ->assertOk()
+            ->assertDontSeeText('Direct Child Authorization completed');
     }
 
     public function test_registration_payload_uses_nested_account_number_value_shape(): void
@@ -351,7 +382,14 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $session->refresh();
         $this->assertSame(CarrierAccountRegistrationSession::STATUS_FAILED, $session->status);
         $this->assertSame('fedex-reg-txn-fail', $session->fedex_transaction_id);
-        $this->assertStringContainsString('match your FedEx account records', (string) $session->last_error_message);
+        $this->assertSame(
+            \App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
+            $session->last_error_message,
+        );
+        $this->assertStringContainsString(
+            'match your FedEx account records',
+            (string) data_get($session->response_summary_json, 'technical_error_message'),
+        );
     }
 
     public function test_registration_mfa_response_moves_session_to_method_selection(): void
@@ -476,7 +514,14 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $session->refresh();
         $this->assertSame(CarrierAccountRegistrationSession::STATUS_FAILED, $session->status);
         $this->assertSame('account_auth_token_missing', $session->last_error_code);
-        $this->assertStringContainsString('accountAuthToken', (string) $session->last_error_message);
+        $this->assertSame(
+            \App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
+            $session->last_error_message,
+        );
+        $this->assertStringContainsString(
+            'accountAuthToken',
+            (string) data_get($session->response_summary_json, 'technical_error_message'),
+        );
     }
 
     public function test_pin_generation_includes_account_auth_token_header(): void
@@ -552,6 +597,13 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
         $this->assertNotNull($pinValidationHeaders);
         $this->assertSame('fedex-account-auth-token-test', $pinValidationHeaders['accountAuthToken'][0] ?? null);
+
+        $session->refresh();
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.shipping.fedex-integrator.success', $session))
+            ->assertOk()
+            ->assertDontSeeText('Direct Child Authorization completed');
     }
 
     public function test_invoice_validation_includes_account_auth_token_header(): void
@@ -699,7 +751,14 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $session->refresh();
         $this->assertSame(CarrierAccountRegistrationSession::STATUS_FAILED, $session->status);
         $this->assertSame('registration_incomplete', $session->last_error_code);
-        $this->assertStringContainsString('did not return child credentials or MFA options', (string) $session->last_error_message);
+        $this->assertSame(
+            \App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
+            $session->last_error_message,
+        );
+        $this->assertStringContainsString(
+            'did not return child credentials or MFA options',
+            (string) data_get($session->response_summary_json, 'technical_error_message'),
+        );
     }
 
     public function test_store_isolation_blocks_foreign_registration_session(): void

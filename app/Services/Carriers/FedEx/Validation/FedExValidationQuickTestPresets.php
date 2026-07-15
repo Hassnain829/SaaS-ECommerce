@@ -105,17 +105,40 @@ class FedExValidationQuickTestPresets
      */
     public function quickActions(): array
     {
-        return [
+        $actions = [
             ['key' => 'address', 'label' => 'Run address check (baseline US account)', 'action' => 'address'],
             ['key' => 'service', 'label' => 'Check service availability (US02 route)', 'action' => 'service'],
             ['key' => 'rate', 'label' => 'Get comprehensive rate quote (baseline)', 'action' => 'rate'],
+            ['key' => 'ship_us01', 'label' => 'Ship validate — IntegratorUS01', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS01'],
             ['key' => 'ship_us02', 'label' => 'Ship validate — IntegratorUS02', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS02'],
+            ['key' => 'ship_us03', 'label' => 'Ship validate — IntegratorUS03', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS03'],
             ['key' => 'ship_us04', 'label' => 'Ship validate — IntegratorUS04', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS04'],
             ['key' => 'ship_us05', 'label' => 'Ship validate — IntegratorUS05', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS05'],
+            ['key' => 'ship_us06', 'label' => 'Ship validate — IntegratorUS06', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS06'],
+            ['key' => 'ship_us07', 'label' => 'Ship validate — IntegratorUS07', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS07'],
+            ['key' => 'ship_us08', 'label' => 'Freight LTL create — IntegratorUS08 (no validate-only API)', 'action' => 'freight_ltl_create', 'test_case' => 'IntegratorUS08'],
+            ['key' => 'ship_us09_image', 'label' => 'Ship validate — IntegratorUS09 Image ETD (after letterhead+signature upload)', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS09_IMAGE'],
+            ['key' => 'ship_us09_document', 'label' => 'Ship validate — IntegratorUS09 Document ETD (after document upload)', 'action' => 'ship_validate', 'test_case' => 'IntegratorUS09_DOCUMENT'],
+            ['key' => 'label_us01', 'label' => 'Create label — IntegratorUS01 (PDF Alcohol)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS01'],
             ['key' => 'label_us02', 'label' => 'Create label — IntegratorUS02 (ZPLII)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS02'],
+            ['key' => 'label_us03', 'label' => 'Create label — IntegratorUS03 (PDF Intl)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS03'],
             ['key' => 'label_us04', 'label' => 'Create label — IntegratorUS04 (PNG)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS04'],
             ['key' => 'label_us05', 'label' => 'Create label — IntegratorUS05 (PDF MPS)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS05'],
+            ['key' => 'label_us06', 'label' => 'Create label — IntegratorUS06 (PDF Return)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS06'],
+            ['key' => 'label_us07', 'label' => 'Create label — IntegratorUS07 (PDF Ground Economy)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS07'],
+            ['key' => 'label_us08', 'label' => 'Create Freight LTL — IntegratorUS08 (ZPLII)', 'action' => 'freight_ltl_create', 'test_case' => 'IntegratorUS08'],
+            ['key' => 'label_us09_image', 'label' => 'Create label — IntegratorUS09 Image ETD (PDF)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS09_IMAGE'],
+            ['key' => 'label_us09_document', 'label' => 'Create label — IntegratorUS09 Document ETD (PDF)', 'action' => 'ship_label', 'test_case' => 'IntegratorUS09_DOCUMENT'],
         ];
+
+        if (! FedExValidationScenarioCatalog::isShipScenarioEnabled('IntegratorUS08')) {
+            $actions = array_values(array_filter(
+                $actions,
+                static fn (array $action): bool => ($action['test_case'] ?? null) !== 'IntegratorUS08',
+            ));
+        }
+
+        return $actions;
     }
 
     /**

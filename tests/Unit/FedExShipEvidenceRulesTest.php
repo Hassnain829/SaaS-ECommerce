@@ -52,6 +52,139 @@ class FedExShipEvidenceRulesTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_us04_and_us05_payment_types_match_revenue_baseline(): void
+    {
+        $account = $this->makeAccount();
+        $factory = app(FedExShipPayloadFactory::class);
+        $fixtures = app(FedExShipTestCaseFixtureService::class);
+
+        $us04 = $factory->buildShipmentPayload($account, $fixtures->fixture('IntegratorUS04'), 'PNG');
+        $this->assertSame('SENDER', data_get($us04, 'requestedShipment.shippingChargesPayment.paymentType'));
+        $this->assertSame('PNG', data_get($us04, 'requestedShipment.labelSpecification.imageType'));
+        $this->assertSame('GROUND_HOME_DELIVERY', data_get($us04, 'requestedShipment.serviceType'));
+        $this->assertTrue((bool) data_get($us04, 'requestedShipment.recipients.0.address.residential'));
+        $this->assertSame('9015550101', data_get($us04, 'requestedShipment.recipients.0.contact.phoneNumber'));
+        $this->assertArrayNotHasKey('phoneExtension', (array) data_get($us04, 'requestedShipment.recipients.0.contact', []));
+        $this->assertContains('HOME_DELIVERY_PREMIUM', (array) data_get($us04, 'requestedShipment.shipmentSpecialServices.specialServiceTypes', []));
+        $this->assertSame(
+            'EVENING',
+            data_get($us04, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail.homedeliveryPremiumType'),
+        );
+        $this->assertArrayNotHasKey(
+            'homeDeliveryPremiumType',
+            (array) data_get($us04, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail', []),
+        );
+        $this->assertArrayNotHasKey(
+            'deliveryDate',
+            (array) data_get($us04, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail', []),
+        );
+        $this->assertSame(300.0, (float) data_get($us04, 'requestedShipment.totalDeclaredValue.amount'));
+        $this->assertSame('USD', data_get($us04, 'requestedShipment.totalDeclaredValue.currency'));
+        $this->assertNull(data_get($us04, 'requestedShipment.requestedPackageLineItems.0.declaredValue'));
+        $this->assertNull(data_get($us04, 'requestedShipment.requestedPackageLineItems.0.packageSpecialServices'));
+        $this->assertNotContains(
+            'NON_STANDARD_CONTAINER',
+            (array) data_get($us04, 'requestedShipment.requestedPackageLineItems.0.packageSpecialServices.specialServiceTypes', []),
+        );
+
+        $us05 = $factory->buildShipmentPayload($account, $fixtures->fixture('IntegratorUS05'), 'PDF');
+        $this->assertSame('RECIPIENT', data_get($us05, 'requestedShipment.shippingChargesPayment.paymentType'));
+        $this->assertSame('PDF', data_get($us05, 'requestedShipment.labelSpecification.imageType'));
+        $this->assertNotEmpty(data_get($us05, 'requestedShipment.shippingChargesPayment.payor.responsibleParty.accountNumber.value'));
+    }
+
+    public function test_sanitized_export_validation_rejects_wholly_redacted_payment_and_missing_us02_services(): void
+    {
+        $rules = app(FedExShipEvidenceRules::class);
+
+        $whollyRedacted = $rules->validateSanitizedExport([
+            'requestedShipment' => [
+                'shippingChargesPayment' => '[REDACTED]',
+                'labelSpecification' => ['imageType' => 'ZPLII'],
+                'shipmentSpecialServices' => [
+                    'specialServiceTypes' => ['EVENT_NOTIFICATION', 'SATURDAY_DELIVERY'],
+                ],
+            ],
+        ], 'IntegratorUS02');
+        $this->assertFalse($whollyRedacted['valid']);
+        $this->assertContains('shipping_charges_payment_wholly_redacted', $whollyRedacted['reasons']);
+
+        $missingServices = $rules->validateSanitizedExport([
+            'requestedShipment' => [
+                'shippingChargesPayment' => ['paymentType' => 'SENDER'],
+                'labelSpecification' => ['imageType' => 'ZPLII'],
+                'shipmentSpecialServices' => [
+                    'specialServiceTypes' => ['SATURDAY_DELIVERY'],
+                ],
+            ],
+        ], 'IntegratorUS02');
+        $this->assertFalse($missingServices['valid']);
+        $this->assertContains('us02_event_notification_missing', $missingServices['reasons']);
+
+        $unredactedAccount = $rules->validateSanitizedExport([
+            'requestedShipment' => [
+                'shippingChargesPayment' => [
+                    'paymentType' => 'RECIPIENT',
+                    'payor' => [
+                        'responsibleParty' => [
+                            'accountNumber' => ['value' => '700257037'],
+                        ],
+                    ],
+                ],
+                'labelSpecification' => ['imageType' => 'PDF'],
+            ],
+        ], 'IntegratorUS05');
+        $this->assertFalse($unredactedAccount['valid']);
+        $this->assertContains('us05_recipient_payor_account_missing_or_not_redacted', $unredactedAccount['reasons']);
+
+        $missingPayorAccount = $rules->validateSanitizedExport([
+            'requestedShipment' => [
+                'shippingChargesPayment' => [
+                    'paymentType' => 'RECIPIENT',
+                    'payor' => [
+                        'responsibleParty' => [],
+                    ],
+                ],
+                'labelSpecification' => ['imageType' => 'PDF'],
+            ],
+        ], 'IntegratorUS05');
+        $this->assertFalse($missingPayorAccount['valid']);
+        $this->assertContains('us05_recipient_payor_account_missing_or_not_redacted', $missingPayorAccount['reasons']);
+
+        $whollyRedactedPayorAccount = $rules->validateSanitizedExport([
+            'requestedShipment' => [
+                'shippingChargesPayment' => [
+                    'paymentType' => 'RECIPIENT',
+                    'payor' => [
+                        'responsibleParty' => [
+                            'accountNumber' => '[REDACTED]',
+                        ],
+                    ],
+                ],
+                'labelSpecification' => ['imageType' => 'PDF'],
+            ],
+        ], 'IntegratorUS05');
+        $this->assertFalse($whollyRedactedPayorAccount['valid']);
+        $this->assertContains('us05_recipient_payor_account_missing_or_not_redacted', $whollyRedactedPayorAccount['reasons']);
+
+        $validUs05 = $rules->validateSanitizedExport([
+            'accountNumber' => ['value' => '[REDACTED]'],
+            'requestedShipment' => [
+                'shippingChargesPayment' => [
+                    'paymentType' => 'RECIPIENT',
+                    'payor' => [
+                        'responsibleParty' => [
+                            'accountNumber' => ['value' => '[REDACTED]'],
+                        ],
+                    ],
+                ],
+                'labelSpecification' => ['imageType' => 'PDF'],
+            ],
+        ], 'IntegratorUS05');
+        $this->assertTrue($validUs05['valid']);
+        $this->assertSame([], $validUs05['reasons']);
+    }
+
     public function test_service_mismatch_event_is_not_canonical(): void
     {
         $account = $this->makeAccount();

@@ -245,7 +245,7 @@
         @yield('topbar')
     @endif
 
-    <div class="merchant-app flex-1 space-y-6 overflow-y-auto p-4 lg:p-8">
+    <div class="merchant-app ui-page-enter flex-1 space-y-6 overflow-y-auto p-4 lg:p-8">
         @yield('content')
     </div>
 </main>

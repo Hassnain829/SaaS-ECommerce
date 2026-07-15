@@ -134,7 +134,7 @@ class CarrierApiEventLogger
             'accesstoken',
             'refreshtoken',
             'authorizationcode',
-            'code',
+            'authorization_code',
             'paymentauthorizationtoken',
             'payment_authorization_token',
             'authorizationtoken',

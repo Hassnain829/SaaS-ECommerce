@@ -66,6 +66,8 @@ class CarrierApiEvent extends Model
 
     public const ACTION_FEDEX_TRADE_DOCUMENTS_UPLOAD = 'fedex_trade_documents_upload';
 
+    public const ACTION_FEDEX_CONSOLIDATION = 'fedex_consolidation';
+
     public const SCENARIO_REGISTRATION_ADDRESS = 'registration_address_validation';
 
     public const SCENARIO_REGISTRATION_INVOICE = 'registration_invoice_validation';

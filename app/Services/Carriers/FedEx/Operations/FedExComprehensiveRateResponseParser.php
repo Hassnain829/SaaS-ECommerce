@@ -2,6 +2,8 @@
 
 namespace App\Services\Carriers\FedEx\Operations;
 
+use App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService;
+
 final class FedExComprehensiveRateResponseParser
 {
     /**
@@ -28,7 +30,9 @@ final class FedExComprehensiveRateResponseParser
             }
 
             $serviceType = $this->stringValue($detail['serviceType'] ?? null);
-            $serviceName = $this->stringValue($detail['serviceName'] ?? null) ?: $serviceType;
+            $serviceName = app(FedExBrandComplianceService::class)->registeredDisplayName(
+                $this->stringValue($detail['serviceName'] ?? null) ?: $serviceType
+            );
 
             foreach ((array) ($detail['ratedShipmentDetails'] ?? []) as $ratedIndex => $rated) {
                 if (! is_array($rated)) {

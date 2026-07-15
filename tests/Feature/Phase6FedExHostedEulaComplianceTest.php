@@ -70,6 +70,21 @@ class Phase6FedExHostedEulaComplianceTest extends TestCase
         $this->assertSame(CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED, $session->status);
     }
 
+    public function test_eula_page_shows_eleven_page_status_and_scroll_lock_copy(): void
+    {
+        [$owner, $store, $location] = $this->fixtureParts('EULA Status Copy Store');
+        $session = $this->createSession($store, $owner, $location);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.shipping.fedex-integrator.eula', $session))
+            ->assertOk()
+            ->assertSeeText('11 pages')
+            ->assertSee('of 11 pages loaded', false)
+            ->assertSeeText('Acceptance locked until the end of page 11')
+            ->assertSeeText('All 11 pages reviewed');
+    }
+
     public function test_validation_eula_review_creates_session_and_copies_acceptance_to_account(): void
     {
         [$owner, $store, $account] = $this->integratorAccountFixture('Validation EULA Store');

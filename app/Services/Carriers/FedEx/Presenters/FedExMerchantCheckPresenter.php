@@ -3,6 +3,7 @@
 namespace App\Services\Carriers\FedEx\Presenters;
 
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
+use App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService;
 
 final class FedExMerchantCheckPresenter
 {
@@ -196,7 +197,9 @@ final class FedExMerchantCheckPresenter
             }
 
             $serviceType = self::keyValue($detail['serviceType'] ?? null) ?: self::displayValue($detail['serviceType'] ?? null);
-            $serviceName = self::displayValue($detail['serviceName'] ?? null) ?: $serviceType;
+            $serviceName = self::brandedDisplay(
+                self::displayValue($detail['serviceName'] ?? null) ?: $serviceType
+            );
 
             foreach ((array) ($detail['ratedShipmentDetails'] ?? []) as $rated) {
                 if (! is_array($rated)) {
@@ -380,13 +383,15 @@ final class FedExMerchantCheckPresenter
         array $option,
     ): array {
         $serviceTypeCode = self::keyValue($serviceType) ?: self::displayValue($serviceType);
-        $serviceDisplay = self::displayValue($serviceName) ?: self::displayValue($serviceType) ?: $serviceTypeCode;
+        $serviceDisplay = self::brandedDisplay(
+            self::displayValue($serviceName) ?: self::displayValue($serviceType) ?: $serviceTypeCode
+        );
 
         return array_filter([
             'service_type' => $serviceTypeCode,
             'service_name' => $serviceDisplay,
             'packaging_type' => $packagingType,
-            'packaging_name' => $packagingName,
+            'packaging_name' => self::brandedDisplay($packagingName),
             'service_category' => self::displayValue($option['serviceCategory'] ?? null),
             'operating_org_codes' => self::normalizeStringList($option['operatingOrgCodes'] ?? null),
             'max_weight_allowed' => self::displayValue($option['maxWeightAllowed'] ?? null),
@@ -572,6 +577,11 @@ final class FedExMerchantCheckPresenter
         }
 
         return $text;
+    }
+
+    private static function brandedDisplay(?string $value): ?string
+    {
+        return app(FedExBrandComplianceService::class)->registeredDisplayName($value);
     }
 
     /**
