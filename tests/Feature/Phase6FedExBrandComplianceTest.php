@@ -62,6 +62,7 @@ class Phase6FedExBrandComplianceTest extends TestCase
         $this->assertSame('FedEx® Small Box', $service->registeredDisplayName('FedEx Extra Small Box'));
         $this->assertSame('FedEx® Large Box', $service->registeredDisplayName('FedEx Large Box'));
         $this->assertSame('FedEx First Overnight®', $service->registeredDisplayName('FedEx First Overnight'));
+        $this->assertSame('FedEx First Overnight®', $service->registeredDisplayName('FIRST_OVERNIGHT'));
         $this->assertSame('FedEx® Medium Box', $service->registeredDisplayName('FedEx Medium Box'));
         $this->assertSame('FedEx® Pak', $service->registeredDisplayName('FedEx Pak'));
 
@@ -124,6 +125,7 @@ class Phase6FedExBrandComplianceTest extends TestCase
             'FedEx Priority Overnight®',
             'FedEx Standard Overnight®',
             'FedEx Express Saver®',
+            'FedEx First Overnight®',
             'FedEx® Envelope',
             'FedEx® Pak',
             'FedEx® Small Box',
@@ -142,6 +144,7 @@ class Phase6FedExBrandComplianceTest extends TestCase
             'FedEx Priority Overnight',
             'FedEx Standard Overnight',
             'FedEx Express Saver',
+            'FedEx First Overnight',
             'FedEx Envelope',
             'FedEx Pak',
             'FedEx Small Box',
@@ -163,6 +166,27 @@ class Phase6FedExBrandComplianceTest extends TestCase
                 'evidence_mode' => 1,
             ]))
             ->assertNotFound();
+    }
+
+    public function test_first_overnight_uses_api_enum_for_mapping_and_registered_display_on_branding_evidence_only(): void
+    {
+        $brand = app(FedExBrandComplianceService::class);
+        $registry = app(FedExCapabilityRegistry::class);
+
+        $this->assertArrayHasKey('FIRST_OVERNIGHT', $brand->registeredDisplayNameMap());
+        $this->assertSame('FedEx First Overnight®', $brand->registeredDisplayNameMap()['FIRST_OVERNIGHT']);
+        $this->assertSame('FedEx First Overnight®', $brand->registeredDisplayName('FIRST_OVERNIGHT'));
+
+        $evidenceNames = $registry->brandingEvidenceDisplayNames();
+        $this->assertContains('FedEx First Overnight®', $evidenceNames['services'] ?? []);
+
+        $registryServiceTypes = collect($registry->services())->pluck('service_type')->all();
+        $this->assertNotContains('FIRST_OVERNIGHT', $registryServiceTypes);
+
+        $customerServiceTypes = collect($registry->customerFacingCapabilities()['services'] ?? [])
+            ->pluck('service_type')
+            ->all();
+        $this->assertNotContains('FIRST_OVERNIGHT', $customerServiceTypes);
     }
 
     public function test_customer_facing_capabilities_exclude_validation_only_services(): void

@@ -39,8 +39,8 @@
             <svg width="18" height="14" viewBox="0 0 20 14" fill="none"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
         </button>
         <div class="min-w-0">
-            <h1 class="truncate font-heading text-lg font-semibold text-[color:var(--color-ink)] md:text-xl">Delivery</h1>
-            <p class="hidden text-xs text-[color:var(--color-ink-muted)] sm:block">Where orders ship from, where you deliver, and what customers see at checkout.</p>
+            <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-ink-muted)]">Settings · Delivery</p>
+            <h1 class="truncate font-heading text-lg font-semibold tracking-tight text-[color:var(--color-ink)] md:text-xl">Delivery</h1>
         </div>
         <a href="{{ route('settings.taxes.index') }}" class="ui-btn ui-btn-secondary ml-auto hidden sm:inline-flex">
             Checkout &amp; tax
@@ -85,8 +85,8 @@
             x-bind:open="advancedOpen"
             @toggle="advancedOpen = $event.target.open; persist()"
         >
-            <summary>Advanced delivery &amp; carrier settings</summary>
-            <div class="settings-hub-details-body">
+            <summary class="sr-only">Advanced delivery &amp; carrier settings</summary>
+            <div class="settings-hub-details-body !border-0 !bg-transparent !p-0 !shadow-none">
                 @include('user_view.shipping.tabs.advanced')
             </div>
         </details>

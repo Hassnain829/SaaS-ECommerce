@@ -107,6 +107,11 @@
                 <div class="mt-5 rounded-xl border border-[#E2E8F0] bg-white p-4">
                     <p class="text-sm font-semibold text-[#0F172A]">USPS package quote tester</p>
                     <p class="mt-1 text-xs text-[#64748B]">Informational domestic quote only.</p>
+                    @unless ($hasCarrierReadyOrigin ?? false)
+                        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                            Set up a carrier-ready US fulfillment origin before USPS testing.
+                        </div>
+                    @endunless
                     @php($primaryUspsAccount = $uspsPlatformTestingAccounts->first())
                     <form method="POST" action="{{ route('settings.shipping.usps.test-package-quote') }}" class="shipping-submit-form mt-4 space-y-3">
                         @csrf

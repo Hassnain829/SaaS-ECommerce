@@ -105,6 +105,7 @@ final class FedExCapabilityRegistry
                 $this->display('PRIORITY_OVERNIGHT'),
                 $this->display('STANDARD_OVERNIGHT'),
                 $this->display('FEDEX_EXPRESS_SAVER'),
+                $this->display('FIRST_OVERNIGHT'),
             ],
             'packaging' => [
                 $this->display('FEDEX_ENVELOPE'),
