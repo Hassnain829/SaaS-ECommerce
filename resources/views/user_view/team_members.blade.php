@@ -77,7 +77,7 @@
         <div class="flex items-center gap-3">
             <div class="rounded-2xl bg-[#F8FAFC] px-4 py-3">
                 <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Your Store Role</p>
-                <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $roleLabels[$currentUserStoreRole] ?? ucfirst((string) $currentUserStoreRole) }}</p>
+                <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $roleLabels[(string) $currentUserStoreRole] ?? ucfirst((string) $currentUserStoreRole) }}</p>
             </div>
             @if ($canInviteMembers)
                 <button type="button" data-open-team-invite class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-br from-[#003D9B] to-[#0052CC] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(0,82,204,0.18)] transition hover:translate-y-[-1px]">
@@ -293,8 +293,8 @@
         var memberRows = Array.from(document.querySelectorAll('[data-member-row]'));
         var inviteOverlay = document.getElementById('teamInviteOverlay');
         var inviteDrawer = document.getElementById('teamInviteDrawer');
-        var roleOverlay = document.getElementById('teamRoleOverlay');
         var roleModal = document.getElementById('teamRoleModal');
+        var rolePanel = document.querySelector('[data-team-role-panel]');
         var accessOverlay = document.getElementById('teamAccessOverlay');
         var accessPanel = document.getElementById('teamAccessPanel');
 
@@ -317,7 +317,7 @@
         }
 
         function openRoleModal(member) {
-            if (!roleOverlay || !roleModal) return;
+            if (!roleModal) return;
             document.querySelectorAll('[data-role-member-name]').forEach(function (el) {
                 el.textContent = member.name || 'Selected member';
             });
@@ -337,17 +337,21 @@
             var hiddenMemberEmail = document.querySelector('[data-role-member-email-input]');
             if (hiddenMemberEmail) hiddenMemberEmail.value = member.email || '';
 
-            roleOverlay.classList.remove('hidden');
             roleModal.classList.remove('hidden');
-            roleModal.classList.remove('scale-95', 'opacity-0');
+            roleModal.classList.add('flex');
+            if (rolePanel) {
+                rolePanel.classList.remove('scale-95', 'opacity-0');
+            }
             lockBody(true);
         }
 
         function closeRoleModal() {
-            if (!roleOverlay || !roleModal) return;
-            roleOverlay.classList.add('hidden');
-            roleModal.classList.add('scale-95', 'opacity-0');
+            if (!roleModal) return;
+            if (rolePanel) {
+                rolePanel.classList.add('scale-95', 'opacity-0');
+            }
             roleModal.classList.add('hidden');
+            roleModal.classList.remove('flex');
             lockBody(false);
         }
 
@@ -436,6 +440,29 @@
         });
         document.querySelectorAll('[data-close-team-access]').forEach(function (button) {
             button.addEventListener('click', closeAccessPanel);
+        });
+
+        inviteOverlay?.addEventListener('click', closeInviteDrawer);
+        accessOverlay?.addEventListener('click', closeAccessPanel);
+        roleModal?.addEventListener('click', function (event) {
+            if (event.target === roleModal) {
+                closeRoleModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape') return;
+            if (roleModal && !roleModal.classList.contains('hidden')) {
+                closeRoleModal();
+                return;
+            }
+            if (inviteDrawer && !inviteDrawer.classList.contains('translate-x-full')) {
+                closeInviteDrawer();
+                return;
+            }
+            if (accessPanel && !accessPanel.classList.contains('translate-x-full')) {
+                closeAccessPanel();
+            }
         });
 
         if (searchInput) {

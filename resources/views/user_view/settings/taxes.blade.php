@@ -303,7 +303,7 @@
     </div>
 
     @if ($canManageTax)
-        <dialog id="tax-rate-create-dialog" class="w-[min(100%,640px)] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#E2E8F0] bg-white p-0 shadow-xl backdrop:bg-black/40" @if ($openCreateRateForm) open data-auto-open-tax-dialog="create" @endif>
+        <dialog id="tax-rate-create-dialog" class="ui-native-dialog" @if ($openCreateRateForm) open data-auto-open-tax-dialog="create" @endif>
             <form method="POST" action="{{ route('settings.taxes.rates.store') }}" class="p-5 sm:p-6">
                 @csrf
                 <div class="flex items-start justify-between gap-4">
@@ -343,7 +343,7 @@
                         'is_active' => $editHasErrors ? old('is_active', $rate->is_active) : $rate->is_active,
                     ];
                 @endphp
-                <dialog id="tax-rate-edit-dialog-{{ $rate->id }}" class="w-[min(100%,640px)] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#E2E8F0] bg-white p-0 shadow-xl backdrop:bg-black/40" open data-auto-open-tax-dialog="edit">
+                <dialog id="tax-rate-edit-dialog-{{ $rate->id }}" class="ui-native-dialog" open data-auto-open-tax-dialog="edit">
                     <form method="POST" action="{{ route('settings.taxes.rates.update', $rate) }}" class="p-5 sm:p-6">
                         @csrf
                         @method('PATCH')

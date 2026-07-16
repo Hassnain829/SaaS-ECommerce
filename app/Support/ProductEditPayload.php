@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\Store;
 use Illuminate\Support\Str;
 
 /**
@@ -12,6 +13,60 @@ use Illuminate\Support\Str;
  */
 final class ProductEditPayload
 {
+    /**
+     * Empty create payload so Add product can reuse the full workspace editor.
+     *
+     * @return array<string, mixed>
+     */
+    public static function forCreate(Store $store, ?bool $defaultTaxable = null): array
+    {
+        $taxable = $defaultTaxable;
+        if ($taxable === null) {
+            $taxable = (bool) ($store->taxSetting?->default_product_taxable ?? true);
+        }
+
+        return [
+            'id' => null,
+            'name' => '',
+            'description' => '',
+            'sku' => '',
+            'base_price' => '',
+            'product_type' => 'physical',
+            'custom_product_type' => '',
+            'is_taxable' => $taxable,
+            'brand_id' => null,
+            'tag_ids' => [],
+            'category_ids' => [],
+            'attribute_term_ids' => [],
+            'custom_fields' => [
+                ['key' => '', 'type' => 'text', 'value' => ''],
+            ],
+            'stock_alert' => 5,
+            'image_url' => null,
+            'image_paths' => [],
+            'image_urls' => [],
+            'catalog_images' => [],
+            'variation_types' => [],
+            'variants' => [
+                [
+                    'id' => null,
+                    'option_map' => [],
+                    'sku' => '',
+                    'price' => '',
+                    'compare_at_price' => '',
+                    'stock' => '0',
+                    'stock_alert' => 5,
+                    'product_image_id' => null,
+                    'custom_fields' => [],
+                ],
+            ],
+            'store_url' => route('product.store'),
+            'update_url' => '',
+            'delete_url' => '',
+            'is_create' => true,
+        ];
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -132,74 +187,33 @@ final class ProductEditPayload
             })->values()->all(),
             'update_url' => route('product.update', ['productId' => $product->id]),
             'delete_url' => route('product.destroy', ['productId' => $product->id]),
+            'edit_workspace_url' => route('products.edit', ['product' => $product->id]),
+            'is_create' => false,
         ];
     }
 
     /**
-     * @return list<array{key: string, type: string, value: string}>
+     * Rebuild a create payload after validation errors.
+     *
+     * @param  array<string, mixed>  $old
+     * @return array<string, mixed>
      */
-    private static function editorRowsFromMeta(array $meta): array
+    public static function withFormOldForCreate(Store $store, array $old, ?bool $defaultTaxable = null): array
     {
-        $cf = is_array($meta['custom_fields'] ?? null) ? $meta['custom_fields'] : [];
-        $rows = [];
-        foreach ($cf as $key => $value) {
-            if (! is_string($key) || $key === '') {
-                continue;
-            }
-            $rows[] = [
-                'key' => $key,
-                'type' => self::inferEditorType($value),
-                'value' => self::editorValueAsString($value),
-            ];
-        }
-        if ($rows === []) {
-            $rows[] = ['key' => '', 'type' => 'text', 'value' => ''];
+        $base = self::forCreate($store, $defaultTaxable);
+        if ($old === []) {
+            return $base;
         }
 
-        return $rows;
-    }
+        // Reuse the same merge rules as edit, against a synthetic product-shaped base.
+        $merged = self::mergeFormOldOntoBase($base, $old);
+        $merged['store_url'] = route('product.store');
+        $merged['update_url'] = '';
+        $merged['delete_url'] = '';
+        $merged['is_create'] = true;
+        $merged['id'] = null;
 
-    private static function inferEditorType(mixed $value): string
-    {
-        if (is_bool($value)) {
-            return 'boolean';
-        }
-        if (is_int($value) || is_float($value)) {
-            return 'number';
-        }
-        if (is_array($value)) {
-            $isList = $value === [] || array_keys($value) === range(0, count($value) - 1);
-
-            return $isList ? 'list' : 'text';
-        }
-
-        return 'text';
-    }
-
-    private static function editorValueAsString(mixed $value): string
-    {
-        if ($value === null) {
-            return '';
-        }
-        if (is_bool($value)) {
-            return $value ? 'yes' : 'no';
-        }
-        if (is_int($value) || is_float($value)) {
-            return is_float($value)
-                ? rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.')
-                : (string) $value;
-        }
-        if (is_array($value)) {
-            $isList = $value === [] || array_keys($value) === range(0, count($value) - 1);
-            if ($isList) {
-                return implode(', ', array_map(static fn ($v): string => is_scalar($v) ? (string) $v : '', $value));
-            }
-            $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-            return $encoded !== false ? $encoded : '';
-        }
-
-        return (string) $value;
+        return $merged;
     }
 
     /**
@@ -215,10 +229,24 @@ final class ProductEditPayload
             return $base;
         }
 
+        return self::mergeFormOldOntoBase($base, $old);
+    }
+
+    /**
+     * @param  array<string, mixed>  $base
+     * @param  array<string, mixed>  $old
+     * @return array<string, mixed>
+     */
+    private static function mergeFormOldOntoBase(array $base, array $old): array
+    {
         foreach (['name', 'description', 'sku', 'base_price', 'stock_alert'] as $key) {
             if (array_key_exists($key, $old)) {
                 $base[$key] = $old[$key];
             }
+        }
+
+        if (array_key_exists('bulk_price', $old) && (! array_key_exists('base_price', $old) || $old['base_price'] === '' || $old['base_price'] === null)) {
+            $base['base_price'] = $old['bulk_price'];
         }
 
         if (array_key_exists('is_taxable', $old)) {
@@ -354,5 +382,72 @@ final class ProductEditPayload
         }
 
         return $base;
+    }
+
+    /**
+     * @return list<array{key: string, type: string, value: string}>
+     */
+    private static function editorRowsFromMeta(array $meta): array
+    {
+        $cf = is_array($meta['custom_fields'] ?? null) ? $meta['custom_fields'] : [];
+        $rows = [];
+        foreach ($cf as $key => $value) {
+            if (! is_string($key) || $key === '') {
+                continue;
+            }
+            $rows[] = [
+                'key' => $key,
+                'type' => self::inferEditorType($value),
+                'value' => self::editorValueAsString($value),
+            ];
+        }
+        if ($rows === []) {
+            $rows[] = ['key' => '', 'type' => 'text', 'value' => ''];
+        }
+
+        return $rows;
+    }
+
+    private static function inferEditorType(mixed $value): string
+    {
+        if (is_bool($value)) {
+            return 'boolean';
+        }
+        if (is_int($value) || is_float($value)) {
+            return 'number';
+        }
+        if (is_array($value)) {
+            $isList = $value === [] || array_keys($value) === range(0, count($value) - 1);
+
+            return $isList ? 'list' : 'text';
+        }
+
+        return 'text';
+    }
+
+    private static function editorValueAsString(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+        if (is_bool($value)) {
+            return $value ? 'yes' : 'no';
+        }
+        if (is_int($value) || is_float($value)) {
+            return is_float($value)
+                ? rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.')
+                : (string) $value;
+        }
+        if (is_array($value)) {
+            $isList = $value === [] || array_keys($value) === range(0, count($value) - 1);
+            if ($isList) {
+                return implode(', ', array_map(static fn ($v): string => is_scalar($v) ? (string) $v : '', $value));
+            }
+            $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            return $encoded !== false ? $encoded : '';
+        }
+
+        return (string) $value;
     }
 }

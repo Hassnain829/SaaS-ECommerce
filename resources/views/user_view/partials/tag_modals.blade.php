@@ -15,11 +15,11 @@
 @endphp
 
 @if ($canManageTags)
-<div id="tagHubModal" class="@if ($embedCatalogHubs) flex min-h-0 w-full flex-1 flex-col overflow-hidden @else fixed inset-0 z-[73] {{ $openTagHub ? 'flex' : 'hidden' }} items-center justify-center px-4 py-6 @endif">
+<div id="tagHubModal" class="@if ($embedCatalogHubs) flex min-h-0 w-full flex-1 flex-col overflow-hidden @else ui-modal-shell ui-modal-shell--clear {{ $openTagHub ? 'flex' : 'hidden' }} @endif">
     @unless ($embedCatalogHubs)
-        <button type="button" class="absolute inset-0 bg-[#0F172A]/70 backdrop-blur-[3px]" data-tag-hub-backdrop aria-label="Close"></button>
+        <button type="button" class="ui-modal-backdrop" data-tag-hub-backdrop aria-label="Close"></button>
     @endunless
-    <div class="relative flex w-full flex-col overflow-hidden rounded-xl bg-white @if ($embedCatalogHubs) max-h-full min-h-0 flex-1 border border-[#E2E8F0] shadow-sm @else max-h-[min(88vh,480px)] max-w-md border border-[#E2E8F0] shadow-md @endif">
+    <div class="@if ($embedCatalogHubs) relative flex max-h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm @else ui-modal-panel ui-modal-panel--md @endif">
         <div class="flex shrink-0 items-start justify-between gap-3 border-b border-[#E2E8F0] bg-white px-4 py-3.5 sm:px-5">
             <div class="min-w-0">
                 <h2 class="text-base font-semibold tracking-tight text-[#0F172A] font-[Poppins]">Tags</h2>
@@ -161,16 +161,16 @@
     </div>
 </div>
 
-<div id="tagEditModal" class="fixed inset-0 z-[72] {{ $reopenEdit ? 'flex' : 'hidden' }} items-center justify-center px-4 py-6">
-    <button type="button" class="absolute inset-0 bg-[#0F172A]/70 backdrop-blur-[3px]" data-tag-edit-backdrop aria-label="Close"></button>
-    <div class="relative w-full max-w-md overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-md">
+<div id="tagEditModal" class="ui-modal-shell ui-modal-shell--clear ui-modal-shell--nested {{ $reopenEdit ? 'flex' : 'hidden' }}">
+    <button type="button" class="ui-modal-backdrop" data-tag-edit-backdrop aria-label="Close"></button>
+    <div class="ui-modal-panel ui-modal-panel--md">
         <div class="flex items-center justify-between border-b border-[#E2E8F0] px-4 py-2.5">
             <h2 class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Edit <span id="tagEditTitleName" class="text-[#475569]">{{ $reopenEdit ? $editingTag->name : '…' }}</span></h2>
             <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#D9E2EC] text-[#64748B]" data-tag-edit-close aria-label="Close">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             </button>
         </div>
-        <div class="max-h-[min(70vh,420px)] overflow-y-auto px-4 py-3">
+        <div class="ui-modal-body !px-4 !py-3">
             @if ($reopenEdit)
                 <div class="mb-3 rounded-lg border border-[#F4B8BF] bg-[#FFF1F2] px-3 py-2 text-xs text-[#B42318]">
                     <ul class="ml-5 list-disc space-y-1">
@@ -224,8 +224,8 @@
     </div>
 </div>
 
-<div id="tagDeleteWarningModal" class="fixed inset-0 z-[78] hidden items-center justify-center bg-[#0F172A]/70 px-4 py-6 backdrop-blur-[3px]">
-    <div class="w-full max-w-sm overflow-hidden rounded-xl border border-[#FECACA] bg-white shadow-md">
+<div id="tagDeleteWarningModal" class="ui-modal-shell ui-modal-shell--alert hidden">
+    <div class="ui-modal-panel ui-modal-panel--sm border-[#FECACA]">
         <div class="px-4 pb-3 pt-4">
             <h3 class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Remove <span id="deleteTagName" class="text-[#475569]"></span>?</h3>
             <p class="mt-1.5 text-xs text-[#64748B]">Products keep their catalog data; this label is removed from them.</p>

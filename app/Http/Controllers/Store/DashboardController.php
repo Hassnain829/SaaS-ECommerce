@@ -26,6 +26,7 @@ use App\Services\SecurityLogRecorder;
 use App\Services\UserSessionTracker;
 use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
+use App\Support\ProductEditPayload;
 use App\Support\ProductTypeBehavior;
 use App\Support\StorePermission;
 use Illuminate\Http\JsonResponse;
@@ -747,12 +748,28 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
+        $catalogAttributes = $selectedStore->attributes()
+            ->with(['terms' => fn ($query) => $query->orderBy('sort_order')->orderBy('name')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        /** @var array<string, mixed> $old */
+        $old = $request->session()->get('_old_input', []);
+        $createProductPayload = ProductEditPayload::withFormOldForCreate(
+            $selectedStore,
+            $old,
+            (bool) ($selectedStore->taxSetting?->default_product_taxable ?? true)
+        );
+
         return view('user_view.product_create', [
             'selectedStore' => $selectedStore,
             'stores' => $stores,
             'catalogBrands' => $catalogBrands,
             'catalogTags' => $catalogTags,
             'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
+            'catalogAttributes' => $catalogAttributes,
+            'createProductPayload' => $createProductPayload,
             'taxSetting' => $selectedStore->taxSetting,
         ]);
     }

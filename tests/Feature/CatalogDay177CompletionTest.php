@@ -13,9 +13,7 @@ use App\Support\ProductEditPayload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
-use Illuminate\Support\ViewErrorBag;
 use Tests\TestCase;
 
 class CatalogDay177CompletionTest extends TestCase
@@ -49,7 +47,7 @@ class CatalogDay177CompletionTest extends TestCase
         $this->assertSame(1, $product->variants()->count());
     }
 
-    public function test_add_product_page_submit_redirects_to_full_editor(): void
+    public function test_add_product_page_submit_redirects_to_workspace(): void
     {
         $owner = $this->merchantUser();
         $store = $this->makeStore($owner);
@@ -57,19 +55,29 @@ class CatalogDay177CompletionTest extends TestCase
         $response = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('product.store'), [
-                '_from_product_create_page' => '1',
+                '_full_workspace_create' => '1',
                 'name' => 'Page Flow Tee',
                 'description' => null,
+                'base_price' => 12,
                 'bulk_price' => 12,
                 'bulk_stock' => 10,
                 'stock_alert' => 1,
                 'product_type' => 'physical',
                 'sku' => 'PFT-001',
                 'inventory_variant_stock_mode' => 'split_total',
+                'variants' => [
+                    [
+                        'sku' => 'PFT-001-A',
+                        'price' => 12,
+                        'stock' => 10,
+                        'stock_alert' => 1,
+                        'option_map' => [],
+                    ],
+                ],
             ]);
 
         $product = Product::query()->where('store_id', $store->id)->where('name', 'Page Flow Tee')->firstOrFail();
-        $response->assertRedirect(route('products.edit', ['product' => $product->id]));
+        $response->assertRedirect(route('products.show', ['product' => $product->id]));
     }
 
     public function test_open_add_product_query_redirects_to_create_page(): void
@@ -93,7 +101,11 @@ class CatalogDay177CompletionTest extends TestCase
             ->get(route('products.create'))
             ->assertOk()
             ->assertSee('Add product', false)
-            ->assertSee('id="product-create-form"', false);
+            ->assertSee('id="editProductForm"', false)
+            ->assertSee('Option groups', false)
+            ->assertSee('Sellable combinations', false)
+            ->assertSee('Additional details', false)
+            ->assertDontSee('Save and continue in full editor', false);
     }
 
     public function test_products_page_collapses_advanced_filters_and_table_settings(): void
@@ -527,21 +539,22 @@ class CatalogDay177CompletionTest extends TestCase
         $this->assertSame([], $payload['image_paths']);
     }
 
-    public function test_create_product_page_renders_form_without_variant_fields(): void
+    public function test_create_product_page_renders_full_workspace_fields(): void
     {
-        $store = $this->makeStore($this->merchantUser());
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner);
 
-        $html = View::make('user_view.partials.product_create_form', [
-            'errors' => new ViewErrorBag,
-            'productModalSelectedStore' => $store,
-            'catalogBrands' => collect(),
-            'catalogTags' => collect(),
-            'catalogTaxonomyCategories' => collect(),
-            'productCreateCancelUrl' => '/products',
-        ])->render();
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.create'))
+            ->assertOk()
+            ->getContent() ?: '';
 
-        $this->assertStringContainsString('id="product-create-form"', $html);
-        $this->assertStringNotContainsString('name="variants[', $html);
+        $this->assertStringContainsString('id="editProductForm"', $html);
+        $this->assertStringContainsString('name="variants[', $html);
+        $this->assertStringContainsString('Option groups', $html);
+        $this->assertStringContainsString('Additional details', $html);
+        $this->assertStringContainsString('_full_workspace_create', $html);
     }
 
     protected function merchantUser(?string $email = null): User

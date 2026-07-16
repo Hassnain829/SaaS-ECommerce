@@ -333,7 +333,7 @@
             drawer.classList.remove('hidden');
             drawer.classList.add('is-open');
             drawer.setAttribute('aria-hidden', 'false');
-            document.body.style.overflow = 'hidden';
+            document.body.classList.add('overflow-hidden');
             var focusTarget = drawer.querySelector('input:not([type="hidden"]), select, textarea, button[data-close-drawer]');
             if (focusTarget) focusTarget.focus();
         }
@@ -344,7 +344,7 @@
                 d.classList.add('hidden');
                 d.setAttribute('aria-hidden', 'true');
             });
-            document.body.style.overflow = '';
+            document.body.classList.remove('overflow-hidden');
         }
 
         document.addEventListener('keydown', function (event) {
@@ -374,6 +374,13 @@
         });
         document.querySelectorAll('[data-close-drawer]').forEach(function (el) {
             el.addEventListener('click', closeDrawers);
+        });
+        document.querySelectorAll('.shipping-drawer').forEach(function (drawer) {
+            drawer.addEventListener('click', function (event) {
+                if (event.target === drawer) {
+                    closeDrawers();
+                }
+            });
         });
 
         document.querySelectorAll('.zone-edit-btn').forEach(function (btn) {

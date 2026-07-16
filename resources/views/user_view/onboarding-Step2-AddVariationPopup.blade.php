@@ -11,10 +11,10 @@
 <body class="user-typography min-h-screen flex items-center justify-center p-4 overflow-x-hidden font-[Inter]">
 
     <!-- semiâ€‘transparent overlay (mimics the popup background) -->
-    <div class="fixed inset-0 bg-[#0F172A]/60 backdrop-blur-[2px] flex items-center justify-center p-4 z-50">
+    <div class="ui-modal-shell flex">
         
         <!-- popup card Â· 512px width, white, rounded-xl, shadow -->
-        <div class="w-full max-w-[512px] bg-white rounded-xl shadow-2xl border border-[#E2E8F0] overflow-hidden">
+        <div class="ui-modal-panel ui-modal-panel--md">
             
             <!-- header with title and close icon -->
             <div class="flex justify-between items-center px-6 py-4 border-b border-[#F1F5F9]">

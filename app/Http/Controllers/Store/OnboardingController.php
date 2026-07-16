@@ -1815,10 +1815,15 @@ class OnboardingController extends Controller
     {
         $this->syncActiveStoreSessions($request, $store);
 
+        $isFullWorkspaceCreate = $request->boolean('_full_workspace_create');
+        $isCatalogQuickAdd = $request->boolean('_open_add_product_modal')
+            || ($request->boolean('_from_product_create_page') && ! $isFullWorkspaceCreate);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:4000'],
-            'bulk_price' => ['required', 'numeric', 'min:0'],
+            'bulk_price' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'numeric', 'min:0'],
+            'base_price' => ['nullable', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
             'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
             'product_type_selector' => ['nullable', 'string', Rule::in(array_merge(ProductTypeBehavior::types(), ['__custom__']))],
@@ -1826,7 +1831,7 @@ class OnboardingController extends Controller
             'custom_product_type_behavior' => ['nullable', 'string', Rule::in(ProductTypeBehavior::types())],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'bulk_stock' => ['required', 'integer', 'min:0'],
+            'bulk_stock' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'integer', 'min:0'],
             'stock_alert' => ['required', 'integer', 'min:0'],
             'inventory_variant_stock_mode' => ['nullable', 'string', Rule::in(['split_total', 'repeat_each'])],
             'variation_types' => ['nullable', 'array'],
@@ -1846,6 +1851,13 @@ class OnboardingController extends Controller
             'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
             'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
             'variants.*.custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
+            'custom_fields' => ['nullable', 'array', 'max:40'],
+            'custom_fields.*.key' => ['nullable', 'string', 'max:128'],
+            'custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
+            'custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
+            'attribute_terms' => ['nullable', 'array'],
+            'attribute_terms.*' => ['nullable', 'array'],
+            'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
             'brand_id' => CatalogRules::brandIdForStore($store),
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
@@ -1853,6 +1865,15 @@ class OnboardingController extends Controller
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
+
+        $resolvedPrice = $validated['base_price'] ?? $validated['bulk_price'] ?? null;
+        if ($resolvedPrice === null || $resolvedPrice === '') {
+            return back()
+                ->withErrors(['base_price' => 'The base price field is required.'])
+                ->withInput($request->except(['product_images']));
+        }
+        $validated['base_price'] = (float) $resolvedPrice;
+        $validated['bulk_price'] = $validated['base_price'];
 
         $productSku = trim((string) ($validated['sku'] ?? ''));
         if ($productSku !== '' && Product::query()
@@ -1864,15 +1885,36 @@ class OnboardingController extends Controller
                 ->withInput($request->except(['product_images']));
         }
 
-        // Map bulk_price and bulk_stock to base_price and default_stock for processing
-        $validated['base_price'] = $validated['bulk_price'];
-        $validated['default_stock'] = $validated['bulk_stock'];
         $validated['brand_id'] = $validated['brand_id'] ?? null;
 
-        $isCatalogQuickAdd = $request->boolean('_open_add_product_modal')
-            || $request->boolean('_from_product_create_page');
         if ($isCatalogQuickAdd) {
             $validated['variation_types'] = [];
+        }
+
+        if ($isFullWorkspaceCreate && $request->filled('_custom_fields_editor')) {
+            foreach (array_values($validated['custom_fields'] ?? []) as $i => $cfRow) {
+                if (! is_array($cfRow)) {
+                    continue;
+                }
+                $key = trim((string) ($cfRow['key'] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
+                if (! ProductCustomFieldHelper::isValidKey($key)) {
+                    return back()
+                        ->withErrors([
+                            'custom_fields.'.$i.'.key' => 'Field name can only use letters, numbers, dots, dashes, and underscores (up to 128 characters).',
+                        ])
+                        ->withInput($request->except(['product_images']));
+                }
+                if (! ProductCustomFieldHelper::isAllowedKey($key)) {
+                    return back()
+                        ->withErrors([
+                            'custom_fields.'.$i.'.key' => 'This name is reserved for catalog or import data. Choose a different field name.',
+                        ])
+                        ->withInput($request->except(['product_images']));
+                }
+            }
         }
 
         $tagIds = collect($validated['tag_ids'] ?? [])
@@ -1893,8 +1935,27 @@ class OnboardingController extends Controller
             $variantStockMode = 'split_total';
         }
 
+        $incomingVariants = $isCatalogQuickAdd ? [] : $request->input('variants', []);
+        $defaultStockFromVariants = 0;
+        if (is_array($incomingVariants)) {
+            foreach ($incomingVariants as $variantRow) {
+                if (! is_array($variantRow)) {
+                    continue;
+                }
+                $defaultStockFromVariants += max(0, (int) ($variantRow['stock'] ?? 0));
+            }
+        }
+
+        if ($isFullWorkspaceCreate) {
+            $validated['default_stock'] = array_key_exists('bulk_stock', $validated) && $validated['bulk_stock'] !== null && $validated['bulk_stock'] !== ''
+                ? (int) $validated['bulk_stock']
+                : $defaultStockFromVariants;
+        } else {
+            $validated['default_stock'] = (int) ($validated['bulk_stock'] ?? 0);
+        }
+
         $normalizedVariants = $this->normalizeCustomVariants(
-            $isCatalogQuickAdd ? [] : $request->input('variants', []),
+            $incomingVariants,
             $validated['variation_types'] ?? [],
             (float) $validated['base_price'],
             (int) $validated['default_stock'],
@@ -1907,6 +1968,17 @@ class OnboardingController extends Controller
 
         $validated['variants'] = $normalizedVariants['variants'];
 
+        if ($isFullWorkspaceCreate) {
+            foreach ($validated['variants'] as $rowIndex => $variantData) {
+                if (empty($variantData['custom_fields']) || ! is_array($variantData['custom_fields'])) {
+                    continue;
+                }
+                $validated['variants'][$rowIndex]['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
+                    $variantData['custom_fields']
+                );
+            }
+        }
+
         $variationOptionErrorsCatalog = $this->validateVariationOptionUniqueness($validated['variation_types'] ?? []);
         if ($variationOptionErrorsCatalog !== []) {
             return back()
@@ -1914,8 +1986,18 @@ class OnboardingController extends Controller
                 ->withInput($request->except(['product_images']));
         }
 
-        $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode, $customProductTypeLabel): int {
+        $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode, $customProductTypeLabel, $isFullWorkspaceCreate): int {
             $oldFingerprintStocks = [];
+            $productMeta = [
+                'default_stock' => $validated['default_stock'],
+                'stock_alert' => $validated['stock_alert'],
+                'custom_product_type_label' => $customProductTypeLabel,
+            ];
+            if ($isFullWorkspaceCreate && $request->filled('_custom_fields_editor')) {
+                $productMeta['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
+                    $validated['custom_fields'] ?? []
+                );
+            }
             $productPayload = [
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -1928,11 +2010,7 @@ class OnboardingController extends Controller
                     ? (bool) $validated['is_taxable']
                     : app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => true,
-                'meta' => [
-                    'default_stock' => $validated['default_stock'],
-                    'stock_alert' => $validated['stock_alert'],
-                    'custom_product_type_label' => $customProductTypeLabel,
-                ],
+                'meta' => $productMeta,
             ];
 
             $product = Product::create($productPayload + [
@@ -2126,6 +2204,10 @@ class OnboardingController extends Controller
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
 
+            if ($isFullWorkspaceCreate) {
+                app(ProductAttributeAssigner::class)->syncTerms($product, $validated['attribute_terms'] ?? []);
+            }
+
             $product->refresh();
             $product->load(['variants.options.variationType']);
             StockMovementRecorder::syncAfterVariantRebuild(
@@ -2139,22 +2221,6 @@ class OnboardingController extends Controller
             return (int) $product->id;
         });
 
-        if ($isCatalogQuickAdd) {
-            $createdProduct = Product::query()->find($newProductId);
-            app(SecurityLogRecorder::class)->record(
-                $request,
-                'product_created',
-                store: $store,
-                metadata: ['product_id' => $newProductId, 'product_name' => $createdProduct?->name]
-            );
-
-            return redirect()
-                ->route('products.edit', ['product' => $newProductId])
-                ->with('success', "Product '{$validated['name']}' was created. Use this full editor to add option groups, variant photos, and additional details when you are ready.")
-                ->with('success_title', 'Product created')
-                ->with('success_meta', $store->name);
-        }
-
         $createdProduct = Product::query()->find($newProductId);
         app(SecurityLogRecorder::class)->record(
             $request,
@@ -2162,6 +2228,22 @@ class OnboardingController extends Controller
             store: $store,
             metadata: ['product_id' => $newProductId, 'product_name' => $createdProduct?->name]
         );
+
+        if ($isFullWorkspaceCreate) {
+            return redirect()
+                ->route('products.show', ['product' => $newProductId])
+                ->with('success', "Product '{$validated['name']}' was created.")
+                ->with('success_title', 'Product created')
+                ->with('success_meta', $store->name);
+        }
+
+        if ($isCatalogQuickAdd) {
+            return redirect()
+                ->route('products.edit', ['product' => $newProductId])
+                ->with('success', "Product '{$validated['name']}' was created. Use this full editor to add option groups, variant photos, and additional details when you are ready.")
+                ->with('success_title', 'Product created')
+                ->with('success_meta', $store->name);
+        }
 
         return redirect()
             ->route('products')

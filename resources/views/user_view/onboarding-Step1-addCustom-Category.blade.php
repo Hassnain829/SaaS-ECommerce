@@ -8,10 +8,11 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="user-typography min-h-screen bg-transparent font-sans text-[#0F172A] antialiased" style="font-family: 'Inter', system-ui, sans-serif;">
-    <div class="flex min-h-screen items-center justify-center bg-slate-700/80 px-5 py-7 backdrop-blur-sm">
-        <div class="w-full max-w-4xl overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-2xl">
-            <div class="border-b border-[#F1F5F9] px-6 pb-4 pt-6">
-                <div class="flex items-start justify-between gap-4">
+    <div class="ui-modal-shell flex">
+        <div class="ui-modal-panel ui-modal-panel--2xl">
+            <div class="ui-modal-header !items-start border-b border-[#F1F5F9] !px-6 !pb-4 !pt-6">
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-start justify-between gap-4">
                     <div>
                         <h2 class="text-[26px] font-medium leading-tight text-[#0F172A] font-poppins">Browse All Categories</h2>
                         <p class="mt-2 text-sm text-[#94A3B8]">Select the categories that best describe your business to tailor your dashboard.</p>
@@ -21,7 +22,7 @@
                             <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                         </svg>
                     </a>
-                </div>
+                    </div>
 
                 <div class="relative mt-4">
                     <svg class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -33,6 +34,7 @@
                         placeholder="Search categories..."
                         class="h-11 w-full rounded-[10px] border border-[#CBD5E1] bg-white pl-11 pr-4 text-sm text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#0052CC] focus:ring-2 focus:ring-[#0052CC]/15"
                     >
+                </div>
                 </div>
             </div>
 

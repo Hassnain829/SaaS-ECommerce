@@ -551,17 +551,6 @@
                 <div id="bulk-form-tag-inputs"></div>
                 <div id="bulk-form-product-id-inputs"></div>
             </form>
-
-            <div id="bulk-confirm-shell" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 px-4 py-8" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
-                <div class="w-full max-w-md rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-xl">
-                    <h3 id="bulk-confirm-title" class="text-lg font-semibold text-[#0F172A]">Confirm bulk action</h3>
-                    <p id="bulk-confirm-body" class="mt-2 text-sm leading-relaxed text-[#475569]"></p>
-                    <div class="mt-6 flex flex-wrap justify-end gap-2">
-                        <button type="button" id="bulk-confirm-cancel" class="rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Cancel</button>
-                        <button type="button" id="bulk-confirm-ok" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Confirm</button>
-                    </div>
-                </div>
-            </div>
         @endif
 
         <style>
@@ -774,6 +763,19 @@
         'catalogAttributes' => $catalogAttributes ?? collect(),
     ])
 
+    @if ($canManageBrands)
+        <div id="bulk-confirm-shell" class="ui-modal-shell ui-modal-shell--alert hidden" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
+            <div class="ui-modal-panel ui-modal-panel--md p-6">
+                <h3 id="bulk-confirm-title" class="text-lg font-semibold text-[#0F172A]">Confirm bulk action</h3>
+                <p id="bulk-confirm-body" class="mt-2 text-sm leading-relaxed text-[#475569]"></p>
+                <div class="mt-6 flex flex-wrap justify-end gap-2">
+                    <button type="button" id="bulk-confirm-cancel" class="rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Cancel</button>
+                    <button type="button" id="bulk-confirm-ok" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Confirm</button>
+                </div>
+            </div>
+        </div>
+    @endif
+
     @if ($canManageBrands || $canManageTags || $canManageCategories)
         @include('user_view.partials.catalog_tools_modal', [
             'managementBrands' => $managementBrands ?? collect(),
@@ -915,6 +917,7 @@
                 if (!confirmShell) return;
                 confirmShell.classList.add('hidden');
                 confirmShell.classList.remove('flex');
+                document.body.classList.remove('overflow-hidden');
                 confirmAction = null;
             }
 
@@ -927,6 +930,7 @@
                 confirmAction = onConfirm;
                 confirmShell.classList.remove('hidden');
                 confirmShell.classList.add('flex');
+                document.body.classList.add('overflow-hidden');
             }
 
             confirmCancel?.addEventListener('click', closeConfirm);
@@ -935,6 +939,16 @@
                 closeConfirm();
                 if (typeof fn === 'function') {
                     fn();
+                }
+            });
+            confirmShell?.addEventListener('click', (event) => {
+                if (event.target === confirmShell) {
+                    closeConfirm();
+                }
+            });
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && confirmShell && !confirmShell.classList.contains('hidden')) {
+                    closeConfirm();
                 }
             });
 

@@ -4,10 +4,8 @@
         : $memberRoleOptions;
 @endphp
 
-<div id="teamRoleOverlay" class="hidden fixed inset-0 z-40 bg-[#0F172A]/40 backdrop-blur-sm"></div>
-
-<div id="teamRoleModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 scale-95 transition-all duration-200">
-    <div class="w-full max-w-lg rounded-[28px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)] pointer-events-auto">
+<div id="teamRoleModal" class="ui-modal-shell ui-modal-shell--nested hidden">
+    <div class="ui-modal-panel ui-modal-panel--lg pointer-events-auto opacity-0 scale-95 transition-all duration-200" data-team-role-panel>
         <div class="flex items-start justify-between gap-4 border-b border-[#E9EEF5] px-6 py-5">
             <div>
                 <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#64748B]">Role Update</p>
@@ -29,7 +27,7 @@
             <input type="hidden" name="member_name" value="{{ old('member_name') }}" data-role-member-name-input>
             <input type="hidden" name="member_email" value="{{ old('member_email') }}" data-role-member-email-input>
 
-            <div class="space-y-6 px-6 py-6">
+            <div class="ui-modal-body space-y-6 !px-6 !py-6">
                 <div class="rounded-[24px] bg-[#F8FAFC] px-5 py-4">
                     <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Selected Member</p>
                     <p class="mt-2 text-lg font-semibold text-[#0F172A]" data-role-member-name>{{ old('member_name', 'Selected member') }}</p>
@@ -57,8 +55,8 @@
                 </div>
             </div>
 
-            <div class="flex flex-col gap-3 border-t border-[#E9EEF5] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-                <p class="text-xs leading-5 text-[#64748B]">This updates only the active store's <code class="font-semibold text-[#0F172A]">store_user.role</code> value for the selected member. It does not affect their global user account or access in other stores.</p>
+            <div class="ui-modal-footer !justify-between">
+                <p class="text-xs leading-5 text-[#64748B]">This updates only the active store membership for the selected person. It does not change their account in other stores.</p>
                 <div class="flex items-center gap-3">
                     <button type="button" data-close-team-role class="rounded-2xl px-4 py-3 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Cancel</button>
                     <button type="submit" class="rounded-2xl bg-[#0F172A] px-5 py-3 text-sm font-bold text-white hover:bg-[#1E293B]">Apply Role</button>

@@ -26,8 +26,8 @@
     ] : null;
 @endphp
 
-<div id="editStoreModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#0F172A]/60 px-4 py-6 backdrop-blur-[2px]" data-auto-open="{{ old('_open_edit_store_modal') && old('_edit_store_id') ? 'true' : 'false' }}">
-    <div class="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-2xl">
+<div id="editStoreModal" class="ui-modal-shell hidden" data-auto-open="{{ old('_open_edit_store_modal') && old('_edit_store_id') ? 'true' : 'false' }}">
+    <div class="ui-modal-panel ui-modal-panel--2xl">
         <div class="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4 sm:px-6">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Store Actions</p>
@@ -40,7 +40,7 @@
             </button>
         </div>
 
-        <div class="overflow-y-auto px-5 py-6 sm:px-6">
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-6">
             @if ($editStoreHasErrors && old('_open_edit_store_modal'))
                 <div class="mb-6 rounded-lg border border-[#F4B8BF] bg-[#FFF1F2] px-4 py-3 text-sm text-[#B42318]">
                     <ul class="ml-5 list-disc">
@@ -164,8 +164,8 @@
     </div>
 </div>
 
-<div id="deleteStoreWarningModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-[#0F172A]/70 px-4 py-6 backdrop-blur-[3px]">
-    <div class="w-full max-w-lg overflow-hidden rounded-3xl border border-[#FECACA] bg-white shadow-2xl">
+<div id="deleteStoreWarningModal" class="ui-modal-shell ui-modal-shell--alert hidden">
+    <div class="ui-modal-panel ui-modal-panel--md border-[#FECACA]">
         <div class="bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.18),_transparent_60%)] px-6 pb-4 pt-6">
             <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFF1F2] text-[#DC2626] shadow-sm">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">

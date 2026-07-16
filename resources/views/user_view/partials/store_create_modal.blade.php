@@ -20,10 +20,10 @@
 
 <div
     id="createStoreModal"
-    class="fixed inset-0 z-50 hidden items-center justify-center bg-[#0F172A]/60 px-4 py-6 backdrop-blur-[2px]"
+    class="ui-modal-shell hidden"
     data-auto-open="{{ $storeModalHasErrors ? 'true' : 'false' }}"
 >
-    <div class="relative flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#E2E8F0] bg-[#F5F7F8] shadow-2xl">
+    <div class="ui-modal-panel ui-modal-panel--3xl bg-[#F5F7F8]">
         <div class="flex items-center justify-between border-b border-[#E2E8F0] bg-white px-5 py-4 sm:px-6">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Store Setup</p>
@@ -41,7 +41,7 @@
             </button>
         </div>
 
-        <div class="overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
             <div class="mb-8">
                 <div class="mb-2 flex items-center justify-between">
                     <span class="text-sm font-inter font-medium uppercase tracking-wider text-[#64748B]">Step 1 of 3</span>
@@ -227,8 +227,8 @@
             </div>
         </div>
 
-        <div id="modalCustomCategoryOverlay" class="absolute inset-0 z-10 hidden items-center justify-center bg-[#0F172A]/60 px-4 py-6 backdrop-blur-sm">
-            <div class="w-full max-w-3xl rounded-2xl border border-[#E2E8F0] bg-white p-8 shadow-2xl">
+        <div id="modalCustomCategoryOverlay" class="absolute inset-0 z-10 hidden min-h-0 items-center justify-center bg-[rgb(15_23_42_/_0.65)] px-4 py-4 backdrop-blur-[3px]">
+            <div class="ui-modal-panel ui-modal-panel--2xl !max-h-full !overflow-y-auto p-6 sm:p-8">
                 <div class="mb-6 flex items-start justify-between gap-4">
                     <div>
                         <h3 class="font-poppins text-[26px] font-medium leading-tight text-[#0F172A]">Browse All Categories</h3>

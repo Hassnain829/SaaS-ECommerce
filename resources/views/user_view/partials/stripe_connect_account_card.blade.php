@@ -10,19 +10,19 @@
             || ! empty($requirementsDue)
         );
     $statusLabel = 'Not connected';
-    $statusClass = 'bg-[#F1F5F9] text-[#475569]';
+    $statusClass = ($consoleStyle ?? false) ? 'payments-pill payments-pill-muted' : 'shrink-0 rounded-full bg-[#F1F5F9] text-[#475569] px-3 py-1 text-xs font-bold uppercase tracking-[.6px]';
     if ($accountReady) {
         $statusLabel = 'Connected';
-        $statusClass = 'bg-[#DCFCE7] text-[#166534]';
+        $statusClass = ($consoleStyle ?? false) ? 'payments-pill payments-pill-success' : 'shrink-0 rounded-full bg-[#DCFCE7] text-[#166534] px-3 py-1 text-xs font-bold uppercase tracking-[.6px]';
     } elseif ($needsAction) {
         $statusLabel = 'Action required';
-        $statusClass = 'bg-[#FEF3C7] text-[#92400E]';
+        $statusClass = ($consoleStyle ?? false) ? 'payments-pill payments-pill-warning' : 'shrink-0 rounded-full bg-[#FEF3C7] text-[#92400E] px-3 py-1 text-xs font-bold uppercase tracking-[.6px]';
     } elseif ($account && ! $accountDisabled) {
         $statusLabel = 'Setup in progress';
-        $statusClass = 'bg-[#FEF3C7] text-[#92400E]';
+        $statusClass = ($consoleStyle ?? false) ? 'payments-pill payments-pill-warning' : 'shrink-0 rounded-full bg-[#FEF3C7] text-[#92400E] px-3 py-1 text-xs font-bold uppercase tracking-[.6px]';
     } elseif ($accountDisabled) {
         $statusLabel = 'Disabled';
-        $statusClass = 'bg-[#FEE2E2] text-[#991B1B]';
+        $statusClass = ($consoleStyle ?? false) ? 'payments-pill payments-pill-muted' : 'shrink-0 rounded-full bg-[#FEE2E2] text-[#991B1B] px-3 py-1 text-xs font-bold uppercase tracking-[.6px]';
     }
 
     $isLive = ($mode ?? 'test') === 'live';
@@ -33,18 +33,30 @@
     $continueButtonLabel = $isLive ? 'Continue live onboarding' : 'Continue test onboarding';
     $refreshButtonLabel = $isLive ? 'Refresh live status' : 'Refresh test status';
     $reconnectButtonLabel = $isLive ? 'Reconnect Stripe live account' : 'Reconnect Stripe test account';
+    $useConsole = $consoleStyle ?? false;
 @endphp
 
-<article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-    <div class="flex items-start justify-between gap-3">
+<article @class([
+    'rounded-2xl border border-[#CBD5E1] bg-white p-5' => ! $useConsole,
+])>
+    <div class="payments-stripe-card-head">
         <div>
-            <h4 class="text-lg font-poppins font-semibold text-[#0F172A]">{{ $title }}</h4>
-            <p class="mt-2 text-sm leading-6 text-[#64748B]">{{ $description }}</p>
+            <h4 @class([
+                'payments-stripe-card-title' => $useConsole,
+                'text-lg font-poppins font-semibold text-[#0F172A]' => ! $useConsole,
+            ])>{{ $title }}</h4>
+            @unless($useConsole)
+                <p class="mt-2 text-sm leading-6 text-[#64748B]">{{ $description }}</p>
+            @endunless
         </div>
-        <span class="shrink-0 rounded-full {{ $statusClass }} px-3 py-1 text-xs font-bold uppercase tracking-[.6px]">{{ $statusLabel }}</span>
+        <span class="{{ $statusClass }}">{{ $statusLabel }}</span>
     </div>
 
-    <ul class="mt-3 space-y-1 text-xs text-[#475569]">
+    @if($useConsole)
+        <p class="mb-3 text-sm leading-6 text-[#64748B]">{{ $description }}</p>
+    @endif
+
+    <ul class="mt-1 space-y-1 text-xs text-[#475569]">
         <li>You will connect through Stripe hosted onboarding.</li>
         <li>No Stripe secret keys are entered here.</li>
     </ul>
@@ -61,21 +73,21 @@
         </div>
     @elseif($account)
         <div class="mt-4 grid gap-3 text-sm md:grid-cols-2">
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Account ID</p>
-                <p class="mt-1 font-semibold text-[#0F172A]">{{ $account->maskedProviderAccountId() ?? 'Pending' }}</p>
+            <div @class(['payments-stripe-stat' => $useConsole, 'rounded-xl bg-[#F8FAFC] px-4 py-3' => ! $useConsole])>
+                <p @class(['payments-stripe-stat-label' => $useConsole, 'text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]' => ! $useConsole])>Account ID</p>
+                <p @class(['payments-stripe-stat-value' => $useConsole, 'mt-1 font-semibold text-[#0F172A]' => ! $useConsole])>{{ $account->maskedProviderAccountId() ?? 'Pending' }}</p>
             </div>
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Charges</p>
-                <p class="mt-1 font-semibold text-[#0F172A]">{{ $account->charges_enabled ? 'Enabled' : 'Not ready' }}</p>
+            <div @class(['payments-stripe-stat' => $useConsole, 'rounded-xl bg-[#F8FAFC] px-4 py-3' => ! $useConsole])>
+                <p @class(['payments-stripe-stat-label' => $useConsole, 'text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]' => ! $useConsole])>Charges</p>
+                <p @class(['payments-stripe-stat-value' => $useConsole, 'mt-1 font-semibold text-[#0F172A]' => ! $useConsole])>{{ $account->charges_enabled ? 'Enabled' : 'Not ready' }}</p>
             </div>
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Payouts</p>
-                <p class="mt-1 font-semibold text-[#0F172A]">{{ $account->payouts_enabled ? 'Enabled' : 'Not ready' }}</p>
+            <div @class(['payments-stripe-stat' => $useConsole, 'rounded-xl bg-[#F8FAFC] px-4 py-3' => ! $useConsole])>
+                <p @class(['payments-stripe-stat-label' => $useConsole, 'text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]' => ! $useConsole])>Payouts</p>
+                <p @class(['payments-stripe-stat-value' => $useConsole, 'mt-1 font-semibold text-[#0F172A]' => ! $useConsole])>{{ $account->payouts_enabled ? 'Enabled' : 'Not ready' }}</p>
             </div>
-            <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]">Last checked</p>
-                <p class="mt-1 font-semibold text-[#0F172A]">{{ $account->last_verified_at?->diffForHumans() ?? 'Not checked yet' }}</p>
+            <div @class(['payments-stripe-stat' => $useConsole, 'rounded-xl bg-[#F8FAFC] px-4 py-3' => ! $useConsole])>
+                <p @class(['payments-stripe-stat-label' => $useConsole, 'text-xs font-bold uppercase tracking-[1px] text-[#94A3B8]' => ! $useConsole])>Last checked</p>
+                <p @class(['payments-stripe-stat-value' => $useConsole, 'mt-1 font-semibold text-[#0F172A]' => ! $useConsole])>{{ $account->last_verified_at?->diffForHumans() ?? 'Not checked yet' }}</p>
             </div>
         </div>
 
@@ -101,7 +113,10 @@
                 @if($modeConfig['connect_configured'] ?? false)
                     <form method="POST" action="{{ $connectRoute }}">
                         @csrf
-                        <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">
+                        <button @class([
+                            'payments-btn payments-btn-primary' => $useConsole,
+                            'h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]' => ! $useConsole,
+                        ])>
                             {{ $accountDisabled ? $reconnectButtonLabel : $connectButtonLabel }}
                         </button>
                     </form>
@@ -109,20 +124,32 @@
             @elseif($accountReady)
                 <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}">
                     @csrf
-                    <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">{{ $refreshButtonLabel }}</button>
+                    <button @class([
+                        'payments-btn payments-btn-secondary' => $useConsole,
+                        'h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]' => ! $useConsole,
+                    ])>{{ $refreshButtonLabel }}</button>
                 </form>
                 <form method="POST" action="{{ route('settings.payments.stripe.connect.disconnect', $account) }}" onsubmit="return confirm('Disable this Stripe {{ $isLive ? 'live' : 'test' }} account for this store? Existing orders stay unchanged.');">
                     @csrf
-                    <button class="h-10 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 text-sm font-semibold text-[#991B1B] hover:bg-[#FEE2E2]">Disconnect</button>
+                    <button @class([
+                        'payments-btn payments-btn-danger' => $useConsole,
+                        'h-10 rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-4 text-sm font-semibold text-[#991B1B] hover:bg-[#FEE2E2]' => ! $useConsole,
+                    ])>Disconnect</button>
                 </form>
             @else
                 <form method="POST" action="{{ route('settings.payments.stripe.connect.refresh', $account) }}">
                     @csrf
-                    <button class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">{{ $continueButtonLabel }}</button>
+                    <button @class([
+                        'payments-btn payments-btn-primary' => $useConsole,
+                        'h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]' => ! $useConsole,
+                    ])>{{ $continueButtonLabel }}</button>
                 </form>
                 <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}">
                     @csrf
-                    <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">{{ $refreshButtonLabel }}</button>
+                    <button @class([
+                        'payments-btn payments-btn-secondary' => $useConsole,
+                        'h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]' => ! $useConsole,
+                    ])>{{ $refreshButtonLabel }}</button>
                 </form>
             @endif
         </div>

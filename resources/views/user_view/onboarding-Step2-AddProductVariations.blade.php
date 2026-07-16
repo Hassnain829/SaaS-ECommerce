@@ -415,8 +415,8 @@
         </main>
     </div>
 
-    <div id="variationModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-[#0F172A]/60 p-4 backdrop-blur-[2px]">
-        <div class="w-full max-w-[512px] overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-2xl">
+    <div id="variationModal" class="ui-modal-shell hidden">
+        <div class="ui-modal-panel ui-modal-panel--md">
             <div class="flex items-center justify-between border-b border-[#F1F5F9] px-6 py-4">
                 <div>
                     <h3 id="variationModalTitle" class="text-lg font-semibold text-[#0F172A]">Add Variation Type</h3>

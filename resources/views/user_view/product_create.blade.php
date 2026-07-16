@@ -20,29 +20,30 @@
                             <h1 class="mt-1 text-2xl font-semibold leading-tight text-[#0F172A] font-[Poppins] sm:text-3xl break-words">Add product</h1>
                             <p class="mt-1 text-sm text-[#64748B]">Store: <span class="font-medium text-[#334155]">{{ $selectedStore?->name }}</span></p>
                             <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748B]">
-                                Full-width catalog editor: enter basics here, then use <span class="font-medium text-[#334155]">Save and continue in full editor</span> in the sidebar to open the same workspace layout for variants, option groups, and the rest of your catalog fields.
+                                Full-width catalog editor: media, pricing, organization, additional details, option groups, and sellable combinations. Use <span class="font-medium text-[#334155]">Save product</span> when you are ready.
                             </p>
                         </div>
                     </div>
                 </div>
             </header>
 
+            <script>
+                window.__workspaceEditInitialPayload = @json($createProductPayload);
+            </script>
+
             <div id="catalog-editor-workspace-layout" class="lg:grid lg:grid-cols-12 lg:items-start lg:gap-10">
                 <div class="min-w-0 space-y-8 lg:col-span-8">
-                    <div id="createProductWorkspace" class="w-full" data-surface="page">
-                        <div class="relative flex w-full min-h-0 max-w-none flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-                            <div class="overflow-y-auto border-t border-slate-100/90 bg-slate-50/20 px-6 py-6 sm:px-8 sm:py-8">
-                                @include('user_view.partials.product_create_form', [
-                                    'productModalSelectedStore' => $selectedStore,
-                                    'catalogBrands' => $catalogBrands ?? collect(),
-                                    'catalogTags' => $catalogTags ?? collect(),
-                                    'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
-                                    'taxSetting' => $taxSetting ?? null,
-                                    'productCreateCancelUrl' => route('products'),
-                                ])
-                            </div>
-                        </div>
-                    </div>
+                    @include('user_view.partials.product_edit_modal', [
+                        'productEditSurface' => 'page',
+                        'productEditPageNative' => true,
+                        'productCreateMode' => true,
+                        'selectedStore' => $selectedStore,
+                        'catalogBrands' => $catalogBrands,
+                        'catalogTags' => $catalogTags,
+                        'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
+                        'catalogAttributes' => $catalogAttributes,
+                        'workspaceReturnProductId' => null,
+                    ])
                 </div>
                 <aside class="mt-10 space-y-6 lg:col-span-4 lg:mt-0">
                     <div class="lg:sticky lg:top-6 space-y-6">
@@ -53,16 +54,16 @@
                             <p class="mt-0.5 text-sm font-medium text-[#334155]">{{ $selectedStore?->name }}</p>
                             <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Inventory summary</p>
                             <p class="mt-1 text-2xl font-semibold tabular-nums text-[#94A3B8]">—</p>
-                            <p class="mt-0.5 text-xs text-[#64748B]">Stock on hand is set in the form; one default variant row is created when you save.</p>
+                            <p class="mt-0.5 text-xs text-[#64748B]">Set stock on the inventory rows below. Option groups create combination rows automatically.</p>
                             <p class="mt-1 text-xs text-[#64748B]">Not saved yet</p>
                             <div class="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4">
-                                <button type="submit" form="product-create-form" class="inline-flex w-full items-center justify-center rounded-xl bg-[#0052CC] px-4 py-3 text-sm font-bold text-white shadow-md shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">Save and continue in full editor</button>
+                                <button type="submit" form="editProductForm" class="inline-flex w-full items-center justify-center rounded-xl bg-[#0052CC] px-4 py-3 text-sm font-bold text-white shadow-md shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">Save product</button>
                                 <a href="{{ route('products') }}" class="inline-flex w-full items-center justify-center rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm font-semibold text-[#475569] transition hover:bg-white">Cancel without saving</a>
                                 <a href="{{ route('products') }}" class="inline-flex w-full items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-[#0052CC] hover:underline">Back to product list</a>
                             </div>
                         </div>
                         <div class="rounded-2xl border border-[#E0E7FF] bg-[#F8FAFF] p-4 text-xs leading-relaxed text-[#475569]">
-                            <span class="font-semibold text-[#0F172A]">Additional details</span> are editable extra product information your team wants to track, such as supplier, material, origin, ingredients, care notes, warranty, or internal references. <span class="font-semibold text-[#0F172A]">Advanced imported data</span> on the workspace is read-only spreadsheet fields preserved because they were not mapped during import—use <span class="font-semibold text-[#0F172A]">Make editable</span> there when you want a copy in additional details.
+                            <span class="font-semibold text-[#0F172A]">Additional details</span> are editable extra product information your team wants to track, such as supplier, material, origin, ingredients, care notes, warranty, or internal references. After you save, the product workspace is where you review the full listing.
                         </div>
                     </div>
                 </aside>

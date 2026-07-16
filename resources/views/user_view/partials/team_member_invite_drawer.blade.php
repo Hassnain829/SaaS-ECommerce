@@ -4,9 +4,9 @@
         : $memberRoleOptions;
 @endphp
 
-<div id="teamInviteOverlay" class="hidden fixed inset-0 z-40 bg-[#0F172A]/40 backdrop-blur-sm"></div>
+<div id="teamInviteOverlay" class="ui-modal-overlay hidden"></div>
 
-<aside id="teamInviteDrawer" class="fixed inset-y-0 right-0 z-50 w-full max-w-xl translate-x-full bg-white shadow-[0_20px_50px_rgba(15,23,42,0.16)] transition-transform duration-300">
+<aside id="teamInviteDrawer" class="ui-drawer-panel ui-drawer-panel--lg translate-x-full">
     <div class="flex h-full flex-col">
         <div class="flex items-start justify-between gap-4 border-b border-[#E9EEF5] px-6 py-5">
             <div>

@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\ProductEditPayload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -45,6 +46,27 @@ class ProductWorkspaceSignoffTest extends TestCase
             ->assertSee('id="editProductForm"', false)
             ->assertSee('id="catalog-editor-workspace-layout"', false)
             ->assertDontSee('Editing from product workspace', false);
+    }
+
+    public function test_catalog_edit_popup_collapses_advanced_fields_and_links_to_full_workspace(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Popup Edit Store');
+        $product = $this->makeProduct($store, 'Popup Editable');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products'))
+            ->assertOk()
+            ->assertSee('id="editAdvancedFieldsToggle"', false)
+            ->assertSee('id="editAdvancedFieldsPanel" class="hidden', false)
+            ->assertSee('Show all fields', false)
+            ->assertSee('Open full edit workspace', false);
+
+        $this->assertSame(
+            route('products.edit', $product),
+            ProductEditPayload::forProduct($product)['edit_workspace_url']
+        );
     }
 
     public function test_staff_cannot_open_dedicated_edit_page(): void

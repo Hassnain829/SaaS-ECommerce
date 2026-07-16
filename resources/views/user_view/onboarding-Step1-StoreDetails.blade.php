@@ -240,7 +240,7 @@
         </main>
     </div>
 
-    <div id="customCategoryModal" class="fixed inset-0 z-50 hidden">
+    <div id="customCategoryModal" class="ui-modal-shell ui-modal-shell--clear ui-modal-shell--bleed hidden">
         <iframe
             id="customCategoryModalFrame"
             src="{{ route('AddCustomCategoryOverlay', ['reset' => 1]) }}"
@@ -310,7 +310,6 @@
                     return;
                 }
                 customCategoryModal.classList.remove('hidden');
-                customCategoryModal.classList.add('flex');
             };
 
             const hideCustomCategoryModal = () => {
@@ -318,7 +317,6 @@
                     return;
                 }
                 customCategoryModal.classList.add('hidden');
-                customCategoryModal.classList.remove('flex');
             };
 
             if (openCustomCategoryModal) {
