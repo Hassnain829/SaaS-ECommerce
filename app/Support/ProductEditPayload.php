@@ -77,7 +77,7 @@ final class ProductEditPayload
             'categories:id,name,store_id',
             'variationTypes.options:id,variation_type_id,value,sort_order',
             'variants.options:id,variation_type_id,value',
-            'variants.linkedCatalogImage:id,product_id,product_variant_id,image_path,status,sort_order,is_primary',
+            'variants.linkedCatalogImage:id,product_id,image_path,status,sort_order,is_primary',
             'images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
             'productAttributes.terms:id,attribute_id,name',
         ]);
@@ -154,11 +154,18 @@ final class ProductEditPayload
                 ->values()
                 ->all(),
             'catalog_images' => $catalogImagesForPicker,
-            'variation_types' => $product->variationTypes->map(fn ($variationType) => [
-                'name' => $variationType->name,
-                'type' => $variationType->type,
-                'options' => $variationType->options->sortBy('sort_order')->pluck('value')->values()->all(),
-            ])->values()->all(),
+            'variation_types' => $product->variationTypes
+                ->map(fn ($variationType) => [
+                    'name' => $variationType->name,
+                    'type' => $variationType->type,
+                    'options' => $variationType->options->sortBy('sort_order')->pluck('value')->values()->all(),
+                ])
+                // Incomplete option groups (name without values) break simple-product editing.
+                ->filter(fn (array $variationType) => trim((string) ($variationType['name'] ?? '')) !== ''
+                    && is_array($variationType['options'] ?? null)
+                    && count($variationType['options']) > 0)
+                ->values()
+                ->all(),
             'variants' => $product->variants->map(function ($variant) use ($product) {
                 $optionMap = [];
                 foreach ($product->variationTypes as $variationIndex => $variationType) {
@@ -181,7 +188,9 @@ final class ProductEditPayload
                     'compare_at_price' => $variant->compare_at_price !== null ? (string) $variant->compare_at_price : '',
                     'stock' => (string) $variant->stock,
                     'stock_alert' => (int) $variant->stock_alert,
-                    'product_image_id' => $variant->linkedCatalogImage?->id,
+                    'product_image_id' => $variant->product_image_id
+                        ? (int) $variant->product_image_id
+                        : null,
                     'custom_fields' => self::editorRowsFromMeta(is_array($variant->meta) ? $variant->meta : []),
                 ];
             })->values()->all(),
@@ -298,17 +307,22 @@ final class ProductEditPayload
                     continue;
                 }
                 $options = $variationRow['options'] ?? [];
+                $mappedOptions = is_array($options)
+                    ? array_values(array_filter(
+                        array_map(static fn ($v): string => trim((string) $v), $options),
+                        static fn (string $v): bool => $v !== ''
+                    ))
+                    : [];
+                if (trim((string) ($variationRow['name'] ?? '')) === '' || $mappedOptions === []) {
+                    continue;
+                }
                 $mapped[] = [
                     'name' => (string) ($variationRow['name'] ?? ''),
                     'type' => (string) ($variationRow['type'] ?? 'select'),
-                    'options' => is_array($options)
-                        ? array_values(array_map(static fn ($v): string => (string) $v, $options))
-                        : [],
+                    'options' => $mappedOptions,
                 ];
             }
-            if ($mapped !== []) {
-                $base['variation_types'] = $mapped;
-            }
+            $base['variation_types'] = $mapped;
         }
 
         if (isset($old['custom_fields']) && is_array($old['custom_fields'])) {

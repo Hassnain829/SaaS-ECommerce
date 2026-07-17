@@ -3,13 +3,8 @@
 @section('title', 'FedEx Validation Workspace | BaaS Core')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[color:var(--color-border)] bg-white px-4 md:px-8">
-        <div>
-            <h1 class="font-heading text-lg font-semibold text-[color:var(--color-ink)] md:text-xl">FedEx approval tools</h1>
-            <p class="hidden text-xs text-[color:var(--color-ink-muted)] sm:block">Certification checklist for {{ $account->display_name }}</p>
-        </div>
-        <x-ui.button variant="secondary" :href="route('shippingAutomation', ['tab' => 'advanced'])">Back to Delivery</x-ui.button>
-    </header>
+    <x-ui.merchant-topbar title="FedEx approval tools" lead="Validation scenarios and evidence for carrier approval.">
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

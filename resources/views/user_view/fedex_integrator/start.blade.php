@@ -3,13 +3,11 @@
 @section('title', 'Connect FedEx | BaaS Core')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[color:var(--color-border)] bg-white/95 px-4 backdrop-blur md:px-8">
-        <div>
-            <h1 class="font-heading text-lg font-semibold text-[color:var(--color-ink)] md:text-xl">Connect FedEx</h1>
-            <p class="hidden text-xs text-[color:var(--color-ink-muted)] sm:block">Connect your merchant-owned FedEx account for this store.</p>
-        </div>
-        <x-ui.button variant="secondary" :href="route('shippingAutomation', ['tab' => 'advanced'])">Back to Delivery</x-ui.button>
-    </header>
+    <x-ui.merchant-topbar title="Connect FedEx" lead="Connect a merchant-owned FedEx account for this store.">
+        <x-slot:actions>
+            <a href="{{ route('shippingAutomation', ['tab' => 'advanced']) }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Back</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

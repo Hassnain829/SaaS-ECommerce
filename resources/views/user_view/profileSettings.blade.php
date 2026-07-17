@@ -3,16 +3,11 @@
 @section('title', 'Profile Settings | BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-  <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-    <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-  </button>
-  <div>
-    <h1 class="text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Profile settings</h1>
-    <p class="hidden md:block text-xs text-[#64748B]">Account identity and password</p>
-  </div>
-  <button type="submit" form="profileForm" class="ml-auto h-10 px-5 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Save profile</button>
-</header>
+    <x-ui.merchant-topbar title="Profile settings" lead="Account identity and password.">
+        <x-slot:actions>
+            <button type="submit" form="profileForm" class="inline-flex h-9 items-center rounded-lg bg-[#0052CC] px-3 text-xs font-semibold text-white">Save profile</button>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

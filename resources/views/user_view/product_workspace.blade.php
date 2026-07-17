@@ -43,69 +43,58 @@
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
+@section('topbar')
+    <x-ui.merchant-topbar title="Product workspace" :lead="$product->name">
+        <x-slot:actions>
+            <a href="{{ route('products') }}" class="hidden sm:inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-600 transition hover:bg-stone-50">
+                Catalog
+            </a>
+            @if ($canManageCatalog)
+                <a href="{{ route('products.edit', $product) }}" class="hidden sm:inline-flex h-10 items-center rounded-xl bg-[#0052CC] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#0047B3]">
+                    Edit details
+                </a>
+            @endif
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
+@endsection
+
 @section('content')
-    <div class="ui-page-enter flex-1 overflow-y-auto p-4 lg:p-10">
-        <div class="mx-auto max-w-[1400px] space-y-9 lg:space-y-10">
+    <div class="product-workspace-page -m-4 min-h-full bg-[#F4F1EA] p-4 lg:-m-8 lg:p-10">
+        <div class="w-full space-y-8">
             @include('user_view.partials.flash_success')
 
-            <x-ui.page-header title="{{ $product->name }}" lead="Product workspace — review catalog data, options, inventory, and store details in one place.">
-                <a href="{{ route('products') }}" class="ui-btn ui-btn-ghost">← Catalog</a>
-                <a href="{{ route('products', ['q' => $product->sku ?: $product->name]).'#product-row-'.$product->id }}" class="ui-btn ui-btn-secondary">
-                    Find in table
-                </a>
-                @if ($canManageCatalog)
-                    <x-ui.button :href="route('products.edit', $product)">Edit details</x-ui.button>
-                @endif
-            </x-ui.page-header>
-
-            @if ($canManageCatalog && (! $hasMedia || ! $hasOrganization))
-                @php
-                    $workspaceNext = ! $hasMedia
-                        ? 'Add product photos so the listing looks trustworthy.'
-                        : 'Add a brand, category, or tags so this item is easier to find.';
-                @endphp
-                <x-ui.sticky-next
-                    :message="$workspaceNext"
-                    action-label="Edit details"
-                    :action-href="route('products.edit', $product)"
-                    class="!static rounded-xl border border-[color:var(--color-border)]"
-                />
-            @endif
-
-            <header class="relative overflow-hidden rounded-3xl border border-[color:var(--color-border)] bg-gradient-to-br from-white via-[color:var(--color-surface-muted)] to-[color:var(--color-brand-soft)] p-6 shadow-md ring-1 ring-black/[0.03] sm:p-10" aria-labelledby="product-workspace-overview-heading">
-                <div class="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[color:var(--color-brand)]/[0.07] blur-3xl" aria-hidden="true"></div>
+            <header class="product-workspace-hero relative overflow-hidden rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-[0_4px_20px_rgba(71,85,105,0.06)] sm:p-10" aria-labelledby="product-workspace-overview-heading">
+                <div class="absolute inset-y-0 left-0 w-1.5 bg-[#24389C]" aria-hidden="true"></div>
                 <div class="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                     <div class="min-w-0 flex-1 space-y-4">
                         <div>
-                            <h2 id="product-workspace-overview-heading" class="text-xs font-bold uppercase tracking-[0.14em] text-[color:var(--color-ink-muted)]">Overview</h2>
-                            <h1 class="mt-2 break-words font-heading text-2xl font-semibold leading-tight text-[color:var(--color-ink)] sm:text-4xl sm:leading-tight">{{ $product->name }}</h1>
+                            <div class="mb-4 flex flex-wrap items-center gap-3">
+                                @if ($product->status)
+                                    <span class="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Published</span>
+                                @else
+                                    <span class="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">Draft</span>
+                                @endif
+                                <span class="text-sm text-[#454652]">Visibility follows status when you sell on the storefront.</span>
+                            </div>
+                            <h2 id="product-workspace-overview-heading" class="break-words font-[Poppins] text-2xl font-semibold leading-tight text-[#1A1B22] sm:text-4xl">{{ $product->name }}</h2>
                         </div>
-                        <p class="max-w-3xl text-base leading-relaxed text-[color:var(--color-ink-secondary)]">
-                            One place to review catalog data, inventory, and storefront context for <span class="font-semibold text-[color:var(--color-ink)]">{{ $selectedStore?->name ?? 'this store' }}</span>.
+                        <p class="max-w-3xl text-base leading-relaxed text-[#454652]">
+                            One place to review catalog data, inventory, and storefront context for <span class="font-semibold text-[#1A1B22]">{{ $selectedStore?->name ?? 'this store' }}</span>.
                         </p>
-                        <div class="flex flex-wrap items-center gap-2 text-sm">
-                            @if ($product->status)
-                                <x-ui.badge tone="success">Published</x-ui.badge>
-                            @else
-                                <x-ui.badge>Draft</x-ui.badge>
-                            @endif
-                            <span class="text-[color:var(--color-ink-muted)]">·</span>
-                            <span class="text-[#64748B]">Visibility follows status when you sell on the storefront.</span>
-                        </div>
-                        <dl class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                            <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3">
+                        <dl class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div class="rounded-lg bg-[#F4F2FC] px-4 py-3">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Store SKU</dt>
                                 <dd class="mt-1 font-mono text-sm font-semibold text-[#0F172A]">{{ $product->sku ?: '—' }}</dd>
                             </div>
-                            <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3">
+                            <div class="rounded-lg bg-[#F4F2FC] px-4 py-3">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Product behavior</dt>
                                 <dd class="mt-1 text-sm font-medium text-[#334155]">{{ $productBehavior['label'] ?? Str::title(str_replace(['-', '_'], ' ', $product->product_type)) }}</dd>
                             </div>
-                            <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3">
+                            <div class="rounded-lg bg-[#F4F2FC] px-4 py-3">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Platform tax</dt>
                                 <dd class="mt-1 text-sm font-medium text-[#334155]">{{ $product->is_taxable ? 'Tax applies' : 'Tax off' }}</dd>
                             </div>
-                            <div class="rounded-2xl border border-[#E2E8F0]/80 bg-white/80 px-4 py-3 sm:col-span-2 lg:col-span-1">
+                            <div class="rounded-lg bg-[#F4F2FC] px-4 py-3 sm:col-span-2 lg:col-span-1">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Timeline</dt>
                                 <dd class="mt-1 text-sm text-[#334155]">
                                     Added {{ optional($product->created_at)->format('M j, Y') }}
@@ -119,50 +108,46 @@
                 </div>
             </header>
 
-            <div class="grid gap-10 lg:grid-cols-12 lg:items-start lg:gap-12">
-                <div class="space-y-10 lg:col-span-8">
-                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-7 shadow-sm ring-1 ring-black/[0.02] sm:p-9">
-                        <div class="border-b border-[#F1F5F9] pb-4">
-                            <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">Selling information</p>
-                            <h2 class="mt-1 text-lg font-semibold text-[#0F172A] font-[Poppins]">Media</h2>
-                            <p class="mt-1 text-sm text-[#64748B]">Photos and visuals shoppers see for this product.@if ($canManageCatalog) Add or replace images from <span class="font-medium text-[#334155]">Edit product</span> when you need more coverage.@endif</p>
+            <div class="product-workspace-layout grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+                <div class="product-workspace-contents">
+                    <section class="product-workspace-card product-workspace-media-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Media</h2>
+                                <p class="mt-1 text-sm text-[#64748B]">Photos and visuals shoppers see for this product.</p>
+                            </div>
+                            @if ($canManageCatalog)
+                                <a href="{{ route('products.edit', $product) }}#catalog-edit-section-media" class="text-sm font-semibold text-[#24389C] hover:underline">Manage images</a>
+                            @endif
                         </div>
                         @if (! $hasMedia)
-                            <p class="mt-6 rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-4 text-sm text-[#64748B]">
+                            <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
                                 @if ($canManageCatalog)
-                                    No catalog images yet. Add photos from <span class="font-medium text-[#334155]">Edit product</span> so the listing feels trustworthy.
+                                    <a href="{{ route('products.edit', $product) }}#catalog-edit-section-media" class="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#C5C5D4] bg-[#F4F2FC] text-center text-sm font-medium text-[#757684] transition hover:border-[#24389C] hover:text-[#24389C]">
+                                        <span class="text-2xl leading-none" aria-hidden="true">＋</span>
+                                        <span class="mt-2">Add photo</span>
+                                    </a>
                                 @else
-                                    No catalog images yet. Ask a store owner or manager to add photos when this product is ready for the storefront.
-                                @endif
-                            </p>
-                        @else
-                            <div class="mt-6 flex flex-wrap gap-6">
-                                <div class="shrink-0">
-                                    <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Primary</p>
-                                    @if ($primaryUrl)
-                                        <img src="{{ $primaryUrl }}" alt="" class="h-40 w-40 rounded-2xl border border-[#E2E8F0] object-cover bg-[#F8FAFC] shadow-sm">
-                                    @else
-                                        <div class="flex h-40 w-40 items-center justify-center rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] text-center text-xs text-[#64748B]">
-                                            @php $pi = $product->images->first(); @endphp
-                                            @if ($pi && $pi->isPendingVisual())
-                                                <span>Image loading…</span>
-                                            @elseif ($pi && $pi->isFailed())
-                                                <span>Image unavailable</span>
-                                            @else
-                                                <span>No primary image</span>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </div>
-                                @if ($readyImages->count() > 1)
-                                    <div class="min-w-0 flex-1">
-                                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Gallery</p>
-                                        <div class="flex flex-wrap gap-3">
-                                            @foreach ($readyImages as $img)
-                                                <img src="{{ asset('storage/'.$img->image_path) }}" alt="" class="h-20 w-20 rounded-xl border border-[#E2E8F0] object-cover shadow-sm">
-                                            @endforeach
-                                        </div>
+                                    <div class="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#C5C5D4] bg-[#F4F2FC] px-4 text-center text-sm text-[#757684]">
+                                        No catalog images yet
                                     </div>
+                                @endif
+                            </div>
+                        @else
+                            <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                                @foreach ($readyImages as $img)
+                                    <div class="relative aspect-square overflow-hidden rounded-xl border border-[#E3E1EA] bg-[#F4F2FC]">
+                                        <img src="{{ asset('storage/'.$img->image_path) }}" alt="" class="h-full w-full object-cover">
+                                        @if ($img->is_primary)
+                                            <span class="absolute bottom-2 left-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#24389C] shadow-sm">Primary</span>
+                                        @endif
+                                    </div>
+                                @endforeach
+                                @if ($canManageCatalog)
+                                    <a href="{{ route('products.edit', $product) }}#catalog-edit-section-media" class="flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#C5C5D4] bg-[#F4F2FC] text-center text-sm font-medium text-[#757684] transition hover:border-[#24389C] hover:text-[#24389C]">
+                                        <span class="text-2xl leading-none" aria-hidden="true">＋</span>
+                                        <span class="mt-2">Add photo</span>
+                                    </a>
                                 @endif
                             </div>
                             @if ($product->images->contains(fn ($i) => $i->isPendingVisual() || $i->isFailed()))
@@ -172,7 +157,7 @@
                     </section>
 
                     @if (filled($product->description))
-                        <section class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
+                        <section class="product-workspace-card product-workspace-copy-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                             <div class="border-b border-[#F1F5F9] pb-4">
                                 <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">Selling information</p>
                                 <h2 class="mt-1 text-lg font-semibold text-[#0F172A] font-[Poppins]">Storefront copy</h2>
@@ -182,7 +167,7 @@
                         </section>
                     @endif
 
-                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-7 shadow-sm ring-1 ring-black/[0.02] sm:p-9">
+                    <section class="product-workspace-card product-workspace-specifications-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">Structured catalog facts</p>
                             <h2 class="mt-1 text-lg font-semibold text-[#0F172A] font-[Poppins]">Product specifications</h2>
@@ -218,7 +203,7 @@
                         @endif
                     </section>
 
-                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
+                    <section class="product-workspace-card product-workspace-behavior-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Product behavior</h2>
                             <p class="mt-1 text-sm text-[#64748B]">How this product is sold and fulfilled in your catalog workflow.</p>
@@ -239,7 +224,7 @@
                         </dl>
                     </section>
 
-                    <section class="rounded-3xl border border-[#E2E8F0] bg-gradient-to-b from-white to-[#F8FAFF]/30 p-7 shadow-sm ring-1 ring-[#0052CC]/[0.07] sm:p-9" aria-labelledby="workspace-additional-details-heading">
+                    <section class="product-workspace-card product-workspace-additional-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8" aria-labelledby="workspace-additional-details-heading">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             <h2 id="workspace-additional-details-heading" class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Additional product details</h2>
                             <p class="mt-1 text-sm text-[#64748B]"><span class="font-medium text-[#334155]">Additional details</span> are fields you choose and can edit (supplier, material, origin, care notes, ingredients, internal references). They are not the same as read-only spreadsheet columns: those live under <span class="font-medium text-[#334155]">Advanced imported data</span> in the sidebar when an import left columns unmapped.</p>
@@ -275,7 +260,7 @@
                     </section>
 
                     @if ($optionGroupSummaries !== [])
-                        <section class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm ring-1 ring-black/[0.02] sm:p-8">
+                        <section class="product-workspace-card product-workspace-options-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                             <div class="border-b border-[#F1F5F9] pb-4">
                                 <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Option groups</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">Each group is one set of choices shoppers pick (for example Size, then Color). <span class="font-medium text-[#334155]">Sellable combinations</span> below lists every combination you sell.</p>
@@ -296,7 +281,7 @@
                         </section>
                     @endif
 
-                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-7 shadow-sm ring-1 ring-black/[0.02] sm:p-9">
+                    <section class="product-workspace-card product-workspace-variants-card overflow-hidden rounded-xl border border-[#E3E1EA] bg-white shadow-sm">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             @if ($multiVariant)
                                 <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Sellable combinations and inventory</h2>
@@ -424,7 +409,6 @@
                                             <th class="min-w-[7rem] px-4 py-3.5">Retail price</th>
                                             <th class="min-w-[7rem] px-4 py-3.5">Compare-at</th>
                                             <th class="min-w-[5rem] px-4 py-3.5">Available</th>
-                                            <th class="min-w-[5rem] px-4 py-3.5">Reserved</th>
                                             <th class="min-w-[6rem] px-4 py-3.5">Location</th>
                                             <th class="min-w-[6rem] px-4 py-3.5">Low-stock alert</th>
                                         </tr>
@@ -484,7 +468,6 @@
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-3.5 align-top text-sm font-semibold tabular-nums text-[#0F172A]">{{ number_format($row['stock']) }}</td>
-                                                <td class="px-4 py-3.5 align-top text-sm font-semibold tabular-nums text-[#475569]">{{ number_format($row['reserved'] ?? 0) }}</td>
                                                 <td class="px-4 py-3.5 align-top text-sm text-[#64748B]">{{ $row['location_name'] ?? 'Main location' }}</td>
                                                 <td class="px-4 py-3.5 align-top text-sm tabular-nums text-[#64748B]">{{ $row['stock_alert'] > 0 ? number_format($row['stock_alert']) : '—' }}</td>
                                             </tr>
@@ -495,51 +478,63 @@
                         @endif
                     </section>
 
-                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
-                        <div class="border-b border-[#F1F5F9] pb-4">
-                            <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Pricing &amp; inventory</h2>
-                            <p class="mt-1 text-sm text-[#64748B]">Roll-up totals from inventory locations and the latest stock movements for this product.</p>
-                        </div>
-                        <dl class="mt-6 grid gap-4 sm:grid-cols-2">
-                            <div class="rounded-2xl bg-[#F8FAFC] px-4 py-4 ring-1 ring-[#E2E8F0]/80">
-                                <dt class="text-sm text-[#64748B]">Total available across variants</dt>
-                                <dd class="mt-1 text-2xl font-semibold text-[#0F172A] tabular-nums">{{ number_format($totalStock) }}</dd>
+                    <section class="product-workspace-card product-workspace-inventory-card">
+                        <div class="grid gap-6 lg:grid-cols-3">
+                            <div class="rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
+                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Inventory summary</h2>
+                                <dl class="mt-6 space-y-4">
+                                    <div class="flex items-center justify-between rounded-lg bg-[#F4F2FC] px-4 py-4">
+                                        <dt class="text-sm text-[#64748B]">Total available</dt>
+                                        <dd class="text-xl font-bold tabular-nums text-[#24389C]">{{ number_format($totalStock) }}</dd>
+                                    </div>
+                                    <div class="flex items-center justify-between rounded-lg bg-[#F4F2FC] px-4 py-4">
+                                        <dt class="text-sm text-[#64748B]">Low-stock threshold</dt>
+                                        <dd class="text-xl font-bold tabular-nums {{ $lowStock || $outOfStock ? 'text-red-600' : 'text-[#24389C]' }}">{{ $effectiveLowThreshold > 0 ? number_format($effectiveLowThreshold) : '—' }}</dd>
+                                    </div>
+                                </dl>
+                                @if ($outOfStock)
+                                    <p class="mt-4 text-sm font-semibold text-red-600">This product is out of stock.</p>
+                                @elseif ($lowStock)
+                                    <p class="mt-4 text-sm font-semibold text-amber-700">Total stock is at or below your low-stock alert.</p>
+                                @endif
                             </div>
-                            <div class="rounded-2xl bg-[#F8FAFC] px-4 py-4 ring-1 ring-[#E2E8F0]/80">
-                                <dt class="text-sm text-[#64748B]">Low-stock threshold</dt>
-                                <dd class="mt-1 text-2xl font-semibold text-[#0F172A] tabular-nums">{{ $effectiveLowThreshold > 0 ? number_format($effectiveLowThreshold) : '—' }}</dd>
-                            </div>
-                        </dl>
-                        @if ($outOfStock)
-                            <p class="mt-4 text-sm font-semibold text-red-600">This product is out of stock.</p>
-                        @elseif ($lowStock)
-                            <p class="mt-4 text-sm font-semibold text-amber-700">Total stock is at or below your low-stock alert.</p>
-                        @endif
 
-                        @if ($recentMovements->isNotEmpty())
-                            <h3 class="mt-10 text-xs font-bold uppercase tracking-wide text-[#64748B]">Stock activity</h3>
-                            <ul class="mt-4 space-y-3 text-sm text-[#334155]">
-                                @foreach ($recentMovements as $mv)
-                                    <li class="rounded-xl border border-[#F1F5F9] bg-[#FAFAFA] px-4 py-3">
-                                        <span class="font-medium text-[#0F172A]">{{ $movementLabels[$mv->movement_type] ?? Str::title(str_replace('_', ' ', $mv->movement_type)) }}</span>
-                                        <span class="text-[#64748B]"> · </span>
-                                        <span class="tabular-nums">{{ (int) $mv->previous_stock }} → {{ (int) $mv->new_stock }}</span>
-                                        @if ($mv->location)
-                                            <span class="text-[#94A3B8]"> · {{ $mv->location->name }}</span>
-                                        @endif
-                                        @if ($mv->reason)
-                                            <span class="text-[#94A3B8]"> — {{ Str::limit($mv->reason, 80) }}</span>
-                                        @endif
-                                        <span class="mt-1 block text-xs text-[#94A3B8]">{{ optional($mv->created_at)->format('M j, Y g:i A') }}@if ($mv->performer) · {{ $mv->performer->name }}@endif</span>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
+                            <div class="rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm lg:col-span-2 sm:p-8">
+                                <div class="flex items-center justify-between gap-4">
+                                    <div>
+                                        <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Stock activity</h2>
+                                        <p class="mt-1 text-xs text-[#64748B]">Recent audited stock changes for this product.</p>
+                                    </div>
+                                </div>
+                                @if ($recentMovements->isNotEmpty())
+                                    <ul class="relative mt-6 space-y-0 border-l-2 border-[#E3E1EA] pl-7 text-sm text-[#334155]">
+                                        @foreach ($recentMovements as $mv)
+                                            <li class="relative pb-6 last:pb-0">
+                                                <span class="absolute -left-[2.15rem] top-1 h-3 w-3 rounded-full border-2 border-white bg-[#24389C] ring-1 ring-[#E3E1EA]" aria-hidden="true"></span>
+                                                <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                                    <p class="font-semibold text-[#0F172A]">
+                                                        {{ $movementLabels[$mv->movement_type] ?? Str::title(str_replace('_', ' ', $mv->movement_type)) }}
+                                                        <span class="font-normal tabular-nums text-[#64748B]">· {{ (int) $mv->previous_stock }} → {{ (int) $mv->new_stock }}</span>
+                                                    </p>
+                                                    <span class="shrink-0 text-xs text-[#94A3B8]">{{ optional($mv->created_at)->format('M j, Y g:i A') }}</span>
+                                                </div>
+                                                <p class="mt-1 text-xs text-[#64748B]">@if ($mv->location){{ $mv->location->name }}@endif @if ($mv->reason) — {{ Str::limit($mv->reason, 80) }}@endif</p>
+                                                @if ($mv->performer)
+                                                    <p class="mt-1 text-[11px] font-semibold text-[#24389C]/70">{{ $mv->performer->name }}</p>
+                                                @endif
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                @else
+                                    <p class="mt-6 rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-5 text-sm text-[#64748B]">No stock activity has been recorded yet.</p>
+                                @endif
+                            </div>
+                        </div>
                     </section>
                 </div>
 
-                <aside class="space-y-8 lg:col-span-4 lg:pl-2">
-                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm ring-1 ring-black/[0.02] sm:p-7">
+                <aside class="product-workspace-contents">
+                    <section class="product-workspace-card product-workspace-pricing-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Store pricing</h2>
                             <p class="mt-1 text-xs text-[#64748B]">Base list price in {{ $currency }}.</p>
@@ -570,13 +565,13 @@
                         @endif
                     </section>
 
-                    <section class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-7">
+                    <section class="product-workspace-card product-workspace-organization-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Organization</h2>
                             <p class="mt-1 text-xs text-[#64748B]">Brand, categories, and tags for this store.</p>
                         </div>
-                        <div class="mt-5 space-y-5 text-sm">
-                            <div>
+                        <div class="mt-5 grid gap-5 text-sm sm:grid-cols-2">
+                            <div class="sm:col-span-2">
                                 <p class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Brand</p>
                                 @if ($product->brand && (int) $product->brand->store_id === (int) $selectedStore->id)
                                     <p class="mt-1.5 font-medium text-[#0F172A]">{{ $product->brand->name }}</p>
@@ -620,7 +615,7 @@
                         @endif
                     </section>
 
-                    <details id="workspace-advanced-imported-panel" class="group rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm ring-1 ring-black/[0.02] sm:p-7">
+                    <details id="workspace-advanced-imported-panel" class="product-workspace-card product-workspace-import-card group rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <summary class="cursor-pointer list-none text-base font-semibold text-[#0F172A] font-[Poppins] [&::-webkit-details-marker]:hidden">
                             <span class="inline-flex items-center gap-2">
                                 <svg class="h-4 w-4 shrink-0 text-[#64748B] transition group-open:rotate-90" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6 4l4 4-4 4V4z"/></svg>

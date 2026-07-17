@@ -3,32 +3,11 @@
 @section('title', 'Analytics | BaaS Core')
 
 @section('topbar')
-    <header
-        class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4 shrink-0">
-        <button id="sidebarToggle" onclick="openSidebar()"
-            class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0"
-            aria-label="Open sidebar">
-            <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor" />
-            </svg>
-        </button>
-
-        <div class="flex items-center gap-3 min-w-0">
-            <h1 class="text-xl md:text-[32px] text-[#0F172A] font-poppins">Business Insights</h1>
-            <span class="hidden md:block h-6 w-px bg-[#E2E8F0]"></span>
-            <div class="hidden md:block text-[#64748B] text-sm lg:text-base">Jan 1 - Mar 31, 2024</div>
-        </div>
-
-        <div class="flex items-center gap-3 md:gap-4">
-            <button class="h-10 px-4 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Export PDF</button>
-            <span class="h-6 w-px bg-[#E2E8F0]"></span>
-            <button class="text-[#64748B]" aria-label="Notifications">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M15 17H9V15H15V17ZM17 13H7V11H17V13ZM19 9H5V7H19V9Z" fill="currentColor" />
-                </svg>
-            </button>
-        </div>
-    </header>
+    <x-ui.merchant-topbar title="Business Insights" lead="Store performance, trends, and operational reporting.">
+        <x-slot:actions>
+            <button type="button" class="hidden h-9 items-center rounded-lg bg-[#0052CC] px-3 text-xs font-semibold text-white xl:inline-flex">Export PDF</button>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

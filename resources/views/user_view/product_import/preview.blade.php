@@ -3,14 +3,14 @@
 @section('title', 'Import preview')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('page_title', 'Validation preview')
+@section('page_lead', 'Review detected catalog data before starting the import.')
 
 @section('content')
     <div class="flex-1 overflow-y-auto p-4 lg:p-8">
         <div class="mx-auto max-w-4xl">
             <div class="mb-8">
                 <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Step 3 of 4</p>
-                <h1 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Validation preview</h1>
-                <p class="mt-2 text-sm text-[#64748B]">Review what we found in your file, including categories and brands we will create if they are new, before you start the import.</p>
             </div>
 
             @if ($errors->any())

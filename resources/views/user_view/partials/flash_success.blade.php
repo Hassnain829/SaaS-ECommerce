@@ -28,7 +28,7 @@
 
     <div
         data-success-flash
-        class="pointer-events-none fixed right-4 top-4 z-[100] w-[calc(100%-2rem)] max-w-sm opacity-0 translate-y-[-8px] transition-all duration-300 ease-out sm:right-6 sm:top-5"
+        class="pointer-events-none fixed right-4 top-4 z-[200] w-[calc(100%-2rem)] max-w-sm opacity-0 translate-y-[-8px] transition-all duration-300 ease-out sm:right-6 sm:top-5"
         role="status"
         aria-live="polite"
     >
@@ -73,6 +73,11 @@
             }
 
             flash.dataset.bound = 'true';
+
+            // Escape page/topbar stacking contexts so the toast stays visible above chrome.
+            if (flash.parentElement !== document.body) {
+                document.body.appendChild(flash);
+            }
 
             const closeButton = flash.querySelector('[data-success-flash-close]');
             const hideDelay = 4200;

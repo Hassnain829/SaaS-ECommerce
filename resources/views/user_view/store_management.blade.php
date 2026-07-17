@@ -3,68 +3,18 @@
 @section('title', 'Store Management Hub - BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
-    <!-- Mobile sidebar toggle -->
-    <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-        <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
-            <path d="M0 14V12H20V14H0ZM0 7V5H20V7H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
-        </svg>
-    </button>
-
-    <!-- Search bar -->
-    <div class="relative flex-1 max-w-xs sm:max-w-sm md:max-w-md">
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                <path d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z" fill="currentColor"/>
-            </svg>
-        </span>
-        <input type="text" placeholder="Search orders, products, or reports..." class="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg py-2 pl-10 pr-4 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-    </div>
-
-    <!-- Right icons -->
-    <div class="flex items-center gap-3 shrink-0">
-        <button type="button" class="js-open-create-store-modal hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
-            </svg>
-            <span>Create Store</span>
-        </button>
-
-        <div class="w-px h-6 bg-[#E2E8F0] hidden sm:block"></div>
-
-        <button class="relative p-2 rounded-full hover:bg-gray-100 transition-colors">
-            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                <path d="M0 17V15H2V8C2 6.61667 2.41667 5.3875 3.25 4.3125C4.08333 3.2375 5.16667 2.53333 6.5 2.2V1.5C6.5 1.08333 6.64583 0.729167 6.9375 0.4375C7.22917 0.145833 7.58333 0 8 0C8.41667 0 8.77083 0.145833 9.0625 0.4375C9.35417 0.729167 9.5 1.08333 9.5 1.5V2.2C10.8333 2.53333 11.9167 3.2375 12.75 4.3125C13.5833 5.3875 14 6.61667 14 8V15H16V17H0ZM8 20C7.45 20 6.97917 19.8042 6.5875 19.4125C6.19583 19.0208 6 18.55 6 18H10C10 18.55 9.80417 19.0208 9.4125 19.4125C9.02083 19.8042 8.55 20 8 20Z" fill="#64748B"/>
-            </svg>
-            <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
-        </button>
-
-        <button class="p-2 rounded-full hover:bg-gray-100 transition-colors hidden sm:flex">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20ZM9 17.95C11.2333 17.95 13.125 17.175 14.675 15.625C16.225 14.075 17 12.1833 17 9.95C17 7.71667 16.225 5.825 14.675 4.275C13.125 2.725 11.2333 1.95 9 1.95C6.76667 1.95 4.875 2.725 3.325 4.275C1.775 5.825 1 7.71667 1 9.95C1 12.1833 1.775 14.075 3.325 15.625C4.875 17.175 6.76667 17.95 9 17.95ZM9 15C9.28333 15 9.52083 14.9042 9.7125 14.7125C9.90417 14.5208 10 14.2833 10 14C10 13.7167 9.90417 13.4792 9.7125 13.2875C9.52083 13.0958 9.28333 13 9 13C8.71667 13 8.47917 13.0958 8.2875 13.2875C8.09583 13.4792 8 13.7167 8 14C8 14.2833 8.09583 14.5208 8.2875 14.7125C8.47917 14.9042 8.71667 15 9 15ZM9 11H10V5H8V6H9V11Z" fill="#64748B"/>
-            </svg>
-        </button>
-
-        <!-- Profile avatar placeholder -->
-        <div class="w-9 h-9 rounded-full bg-[#E2E8F0] border border-[#CBD5E1] overflow-hidden shrink-0">
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-                <circle cx="18" cy="13" r="6" fill="#94A3B8"/>
-                <path d="M28 28C28 24 24 22 18 22C12 22 8 24 8 28" fill="#94A3B8"/>
-            </svg>
-        </div>
-    </div>
-</header>
+    <x-ui.merchant-topbar title="Your stores" lead="Each store is its own workspace. Use the sidebar switcher to change the active store.">
+        <x-slot:actions>
+            <button type="button" class="js-open-create-store-modal hidden sm:inline-flex items-center gap-2 rounded-xl bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/></svg>
+                <span>Create Store</span>
+            </button>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
 <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
-    <!-- Hero Header -->
-    <div>
-        <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Your stores</h1>
-        <p class="mt-2 max-w-2xl text-sm text-[#64748B]">Each store is its own workspace. Open a store’s <span class="font-semibold text-[#475569]">catalog</span> to manage products.</p>
-        <p class="mt-2 text-xs text-[#94A3B8]">Use the sidebar <span class="font-medium text-[#64748B]">Current Store</span> switcher anytime to change which store you are working in.</p>
-    </div>
-
     <!-- Tab Navigation -->
     <div class="border-b border-[#C3C6D6]/30 overflow-x-auto">
         <nav class="flex gap-8 min-w-max">

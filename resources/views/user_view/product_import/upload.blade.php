@@ -3,6 +3,8 @@
 @section('title', 'Import products - BaaS Core')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('page_title', 'Bulk product import')
+@section('page_lead', 'Upload a CSV or Excel file and review detected catalog columns.')
 
 @section('content')
     <div class="flex-1 overflow-y-auto p-4 lg:p-8">
@@ -10,8 +12,6 @@
             <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Catalog</p>
-                    <h1 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Bulk product import</h1>
-                    <p class="mt-2 max-w-xl text-sm text-[#64748B]">Upload a CSV or Excel file with a header row. We detect common column names automatically; you will land on a quick preview when we are confident, or on a short mapping step only when your headers need a manual match.</p>
                 </div>
                 <a href="{{ route('products') }}" class="text-sm font-semibold text-[#0052CC] hover:text-[#0047B3]">← Back to products</a>
             </div>

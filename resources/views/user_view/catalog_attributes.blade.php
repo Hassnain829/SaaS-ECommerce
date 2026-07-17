@@ -3,6 +3,8 @@
 @section('title', 'Product specifications')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('page_title', 'Product specifications')
+@section('page_lead', 'Structured product facts shoppers can filter or compare.')
 
 @section('content')
     <div class="flex-1 overflow-y-auto bg-[#F1F5F9]/50 p-4 lg:p-10">
@@ -12,10 +14,6 @@
             <div class="flex flex-col gap-4 border-b border-[#E2E8F0] pb-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <a href="{{ route('products') }}" class="text-sm font-semibold text-[#0052CC] hover:underline">Back to products</a>
-                    <h1 class="mt-3 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Product specifications</h1>
-                    <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748B]">
-                        Specifications are structured product facts shoppers can filter or compare, such as material, capacity, color family, or ingredients.
-                    </p>
                 </div>
             </div>
 

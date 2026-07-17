@@ -3,25 +3,20 @@
 @section('title', 'FedEx Capabilities | BaaS Core')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[#E2E8F0] bg-white px-4 md:px-8">
-        <div>
-            <h1 class="font-poppins text-lg font-semibold text-[#0F172A] md:text-xl">
-                @if ($evidenceMode)
-                    FedEx capability disclosure — evidence capture
-                @else
-                    FedEx capabilities
-                @endif
-            </h1>
-            <p class="hidden text-xs text-[#64748B] sm:block">Supported services and packaging shown with registered FedEx service marks</p>
-        </div>
-        @unless ($evidenceMode)
-            <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation', $account) }}" class="ml-auto inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569]">Back to validation workspace</a>
-        @endunless
-    </header>
+    <x-ui.merchant-topbar
+        :title="$evidenceMode ? 'FedEx capability disclosure' : 'FedEx capabilities'"
+        lead="Supported services and packaging shown with registered FedEx service marks"
+    >
+        <x-slot:actions>
+            @unless ($evidenceMode)
+                <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation', $account) }}" class="ml-auto inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569]">Back to validation workspace</a>
+            @endunless
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
-    <div @class(['mx-auto max-w-[960px] space-y-6', 'p-6' => $evidenceMode])>
+<div @class(['mx-auto max-w-[960px] space-y-6', 'p-6' => $evidenceMode])>
         @if ($evidenceMode)
             <div class="rounded-xl border border-[#CBD5E1] bg-white p-4 text-sm text-[#475569]">
                 <p class="font-semibold text-[#0F172A]">{{ config('app.name') }} — FedEx capability disclosure</p>

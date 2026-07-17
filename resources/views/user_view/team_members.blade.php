@@ -3,23 +3,16 @@
 @section('title', 'Team Members - BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex items-center justify-between gap-3 shrink-0">
-    <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-        <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
-            <path d="M0 14V12H20V14H0ZM0 7V5H20V7H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
-        </svg>
-    </button>
-
-    <div class="relative flex-1 max-w-xs sm:max-w-sm md:max-w-md">
+    <x-ui.merchant-topbar title="Team members" :lead="'Manage people who can operate '.$selectedStore->name.'.'">
+        <x-slot:search>
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
                 <path d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z" fill="currentColor"/>
             </svg>
         </span>
         <input type="text" data-team-search placeholder="Search team members, emails, or roles..." class="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg py-2 pl-10 pr-4 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-    </div>
-
-    <div class="flex items-center gap-3 shrink-0">
+    </x-slot:search>
+        <x-slot:actions>
         @if (in_array($currentUserStoreRole, ['owner', 'manager'], true))
             <button type="button" data-open-team-invite class="hidden sm:inline-flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -28,15 +21,8 @@
                 <span>Invite Member</span>
             </button>
         @endif
-
-        <button class="relative p-2 rounded-full hover:bg-gray-100 transition-colors">
-            <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                <path d="M0 17V15H2V8C2 6.61667 2.41667 5.3875 3.25 4.3125C4.08333 3.2375 5.16667 2.53333 6.5 2.2V1.5C6.5 1.08333 6.64583 0.729167 6.9375 0.4375C7.22917 0.145833 7.58333 0 8 0C8.41667 0 8.77083 0.145833 9.0625 0.4375C9.35417 0.729167 9.5 1.08333 9.5 1.5V2.2C10.8333 2.53333 11.9167 3.2375 12.75 4.3125C13.5833 5.3875 14 6.61667 14 8V15H16V17H0ZM8 20C7.45 20 6.97917 19.8042 6.5875 19.4125C6.19583 19.0208 6 18.55 6 18H10C10 18.55 9.80417 19.0208 9.4125 19.4125C9.02083 19.8042 8.55 20 8 20Z" fill="#64748B"/>
-            </svg>
-            <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
-        </button>
-    </div>
-</header>
+    </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -67,26 +53,10 @@
 <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
     @include('user_view.partials.flash_success')
 
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-[#64748B]">Store Team</p>
-            <h1 class="mt-2 text-3xl font-medium text-[#0F172A] font-poppins">{{ $selectedStore->name }}</h1>
-            <p class="mt-2 max-w-2xl text-sm leading-6 text-[#434654]">Manage the people who can operate inside your active store. This screen already reads from the live `store_user` memberships for the current store.</p>
-        </div>
-
-        <div class="flex items-center gap-3">
-            <div class="rounded-2xl bg-[#F8FAFC] px-4 py-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Your Store Role</p>
-                <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $roleLabels[(string) $currentUserStoreRole] ?? ucfirst((string) $currentUserStoreRole) }}</p>
-            </div>
-            @if ($canInviteMembers)
-                <button type="button" data-open-team-invite class="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-br from-[#003D9B] to-[#0052CC] px-4 py-3 text-sm font-bold text-white shadow-[0_12px_24px_rgba(0,82,204,0.18)] transition hover:translate-y-[-1px]">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
-                    </svg>
-                    <span>Invite Member</span>
-                </button>
-            @endif
+    <div class="flex justify-end">
+        <div class="rounded-2xl bg-[#F8FAFC] px-4 py-3">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Your Store Role</p>
+            <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $roleLabels[(string) $currentUserStoreRole] ?? ucfirst((string) $currentUserStoreRole) }}</p>
         </div>
     </div>
 

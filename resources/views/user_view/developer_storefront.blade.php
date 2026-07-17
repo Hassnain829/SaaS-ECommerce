@@ -3,12 +3,8 @@
 @section('title', 'Developer test storefront | BaaS Core')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-        <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-            <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-        </button>
-        <h1 class="text-lg md:text-xl font-poppins font-semibold">Developer test storefront</h1>
-    </header>
+    <x-ui.merchant-topbar title="Developer test storefront" lead="Local API connection for catalog and order testing.">
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

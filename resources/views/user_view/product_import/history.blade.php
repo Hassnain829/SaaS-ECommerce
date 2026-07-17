@@ -9,14 +9,27 @@
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
+@section('topbar')
+    <x-ui.merchant-topbar title="Import history" lead="Review previous catalog uploads and follow up on imports.">
+        <x-slot:search>
+            <form method="get" action="{{ route('products.import.history') }}" class="flex w-full items-center gap-2">
+                <input type="hidden" name="status" value="{{ $statusFilter }}">
+                <input type="search" name="q" value="{{ $searchQ }}" placeholder="Search files…" class="h-9 min-w-0 flex-1 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm">
+                <button class="inline-flex h-9 shrink-0 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Search</button>
+            </form>
+        </x-slot:search>
+        <x-slot:actions>
+            <a href="{{ route('products.import.create') }}" class="hidden h-9 items-center rounded-lg bg-[#0052CC] px-3 text-xs font-semibold text-white xl:inline-flex">New import</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
+@endsection
+
 @section('content')
     <div class="flex-1 overflow-y-auto p-4 lg:p-8">
         <div class="mx-auto max-w-6xl">
             <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Products</p>
-                    <h1 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Import history</h1>
-                    <p class="mt-2 max-w-2xl text-sm text-[#64748B]">Review past uploads for this store, see what changed in your catalog, and open any import that needs a follow-up.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">
                     <a href="{{ route('products.import.create') }}" class="text-sm font-semibold text-[#0052CC] hover:text-[#0047B3]">New import</a>
@@ -26,11 +39,7 @@
 
             <div class="rounded-3xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-6">
                 <form method="get" action="{{ route('products.import.history') }}" class="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-                    <div class="flex-1 min-w-[200px]">
-                        <label for="import_q" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#64748B]">Search by file name</label>
-                        <input id="import_q" type="search" name="q" value="{{ $searchQ }}" placeholder="e.g. catalog.xlsx"
-                               class="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                    </div>
+                    <input type="hidden" name="q" value="{{ $searchQ }}">
                     <div class="sm:w-48">
                         <label for="import_status" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#64748B]">Status</label>
                         <select id="import_status" name="status" class="w-full rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">

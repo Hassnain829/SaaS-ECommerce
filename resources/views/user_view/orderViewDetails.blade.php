@@ -5,22 +5,11 @@
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 flex h-[4.25rem] shrink-0 items-center justify-between gap-4 border-b border-slate-200/80 bg-white/95 px-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 md:px-8">
-        <div class="flex min-w-0 flex-1 items-center gap-3">
-            <button type="button" id="sidebarToggle" onclick="openSidebar()" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm md:hidden" aria-label="Open sidebar">
-                <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
-                </svg>
-            </button>
-            <div class="min-w-0">
-                <h1 class="truncate font-[Poppins] text-lg font-semibold tracking-tight text-slate-900 md:text-xl">Order {{ strtoupper($order->order_number) }}</h1>
-                <p class="hidden text-xs text-slate-500 sm:block">Order detail, status history, and customer snapshot.</p>
-            </div>
-        </div>
-        <a href="{{ route('orders') }}" class="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-900">
-            <span aria-hidden="true">←</span> Back to orders
-        </a>
-    </header>
+    <x-ui.merchant-topbar title="Order details" :lead="strtoupper($order->order_number)">
+        <x-slot:actions>
+            <a href="{{ route('orders') }}" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Back to orders</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

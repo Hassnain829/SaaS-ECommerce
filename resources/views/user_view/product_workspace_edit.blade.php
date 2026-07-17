@@ -4,35 +4,60 @@
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
+@section('topbar')
+    <x-ui.merchant-topbar title="Edit Product" lead="Update catalog details, variants, and inventory." class="!border-b-0 !shadow-none">
+        <x-slot:actions>
+            <a href="{{ route('products.show', $product) }}" class="hidden sm:inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-600 transition hover:bg-stone-50">
+                Back
+            </a>
+            <button type="submit" form="editProductForm" class="hidden sm:inline-flex h-10 items-center rounded-xl bg-[#24389C] px-4 text-sm font-bold text-white shadow-sm transition hover:opacity-90">
+                Save and exit
+            </button>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
+@endsection
+
 @section('content')
-    <div class="flex-1 overflow-y-auto bg-[#F1F5F9]/50 p-4 lg:p-10">
-        <div class="mx-auto max-w-[1480px] space-y-8">
+    @php
+        $product->loadMissing('variants');
+        $sumStock = (int) $product->variants->sum('stock');
+    @endphp
+
+    <div id="product-edit-workspace" class="product-edit-workspace -m-4 flex min-h-full flex-col lg:-m-8">
+        <div class="product-edit-scroll w-full">
+            <div class="w-full px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
             @include('user_view.partials.flash_success')
 
-            <header class="rounded-2xl border border-[#E2E8F0] bg-white px-5 py-5 shadow-sm ring-1 ring-slate-900/[0.03] sm:px-7 sm:py-6">
-                <div class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-                    <div class="min-w-0 space-y-2">
-                        <a href="{{ route('products.show', $product) }}" class="inline-flex items-center gap-2 text-sm font-semibold text-[#0052CC] hover:underline">
-                            <span aria-hidden="true">←</span> Back to product workspace
-                        </a>
-                        <div>
-                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Edit catalog item</p>
-                            <h1 class="mt-1 text-2xl font-semibold leading-tight text-[#0F172A] font-[Poppins] sm:text-3xl break-words">{{ $product->name }}</h1>
-                            <p class="mt-1 text-sm text-[#64748B]">Store: <span class="font-medium text-[#334155]">{{ $selectedStore?->name }}</span></p>
-                            <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748B]">
-                                Full-width catalog editor: media, pricing, organization, additional details, option groups, and sellable combinations. Use <span class="font-medium text-[#334155]">Save and return to workspace</span> when you are done.
-                            </p>
-                        </div>
-                    </div>
+            <section class="product-edit-hero">
+                <div class="min-w-0">
+                    <p class="product-edit-eyebrow">Catalog <span aria-hidden="true">/</span> {{ $product->name }}</p>
+                    <h2>{{ $product->name }}</h2>
+                    <p class="mt-1 text-sm text-[#454652]">Store: <span class="font-semibold text-[#1A1B22]">{{ $selectedStore?->name }}</span></p>
+                    <p class="mt-1 text-sm italic text-[#454652]">
+                         Use <span class="font-semibold not-italic text-[#3F51B5]">Save and return to workspace</span> when you are done.
+                    </p>
                 </div>
-            </header>
+            </section>
 
             <script>
                 window.__workspaceEditInitialPayload = @json($editProductPayload);
             </script>
 
-            <div id="catalog-editor-workspace-layout" class="lg:grid lg:grid-cols-12 lg:items-start lg:gap-10">
-                <div class="min-w-0 space-y-8 lg:col-span-8">
+            <div id="catalog-editor-workspace-layout" class="mt-6 grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
+                <div class="min-w-0 space-y-4 lg:col-span-8">
+                    <div class="product-edit-section-nav-shell" data-product-edit-nav-shell>
+                        <nav id="catalog-editor-section-nav" class="product-edit-section-nav" aria-label="Jump to editor sections">
+                            <a href="#catalog-edit-section-basics" class="product-edit-section-link is-active" data-product-edit-tab>Basics</a>
+                            <a href="#catalog-edit-section-media" class="product-edit-section-link" data-product-edit-tab>Media</a>
+                            <a href="#catalog-edit-section-pricing" class="product-edit-section-link" data-product-edit-tab>Pricing</a>
+                            <a href="#catalog-edit-section-organization" class="product-edit-section-link" data-product-edit-tab>Organization</a>
+                            <a href="#catalog-edit-section-attributes" class="product-edit-section-link" data-product-edit-tab>Product specifications</a>
+                            <a href="#catalog-edit-section-additional-details" class="product-edit-section-link" data-product-edit-tab>Additional details</a>
+                            <a href="#catalog-edit-section-option-groups" class="product-edit-section-link" data-product-edit-tab>Variants</a>
+                            <a href="#catalog-edit-section-inventory" class="product-edit-section-link" data-product-edit-tab>Inventory</a>
+                        </nav>
+                    </div>
+
                     @include('user_view.partials.product_edit_modal', [
                         'productEditSurface' => 'page',
                         'productEditPageNative' => true,
@@ -44,33 +69,203 @@
                         'workspaceReturnProductId' => $workspaceReturnProductId,
                     ])
                 </div>
-                <aside class="mt-10 space-y-6 lg:col-span-4 lg:mt-0">
-                    <div class="lg:sticky lg:top-6 space-y-6">
-                        <div class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm ring-1 ring-slate-900/[0.04]">
-                            <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">Editor</p>
-                            <p class="mt-2 text-sm font-semibold text-[#0F172A]">{{ $product->status ? 'Published' : 'Draft' }}</p>
-                            <p class="mt-3 text-xs text-[#64748B]">Active store</p>
-                            <p class="mt-0.5 text-sm font-medium text-[#334155]">{{ $selectedStore?->name }}</p>
-                            @php
-                                $product->loadMissing('variants');
-                                $sumStock = (int) $product->variants->sum('stock');
-                            @endphp
-                            <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Inventory summary</p>
-                            <p class="mt-1 text-2xl font-semibold tabular-nums text-[#0F172A]">{{ number_format($sumStock) }}</p>
-                            <p class="mt-0.5 text-xs text-[#64748B]">Total units across all variant rows</p>
-                            <p class="mt-1 text-xs text-[#64748B]">Updated {{ optional($product->updated_at)->diffForHumans() }}</p>
-                            <div class="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4">
-                                <button type="submit" form="editProductForm" class="inline-flex w-full items-center justify-center rounded-xl bg-[#0052CC] px-4 py-3 text-sm font-bold text-white shadow-md shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">Save and return to workspace</button>
-                                <a href="{{ route('products.show', $product) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm font-semibold text-[#475569] transition hover:bg-white">View workspace only</a>
-                                <a href="{{ route('products') }}" class="inline-flex w-full items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-[#0052CC] hover:underline">Back to product list</a>
+
+                <aside class="space-y-6 lg:col-span-4">
+                    <div class="product-edit-rail space-y-6 lg:sticky">
+                        <section class="product-edit-card p-5 sm:p-6">
+                            <p class="product-edit-eyebrow">Editor status</p>
+                            <div class="mt-4 flex items-center gap-2">
+                                <span @class(['h-2 w-2 rounded-full', 'bg-emerald-500' => $product->status, 'bg-amber-500' => ! $product->status])></span>
+                                <p class="text-sm font-bold text-[#1A1B22]">{{ $product->status ? 'Published' : 'Draft' }}</p>
                             </div>
-                        </div>
-                        <div class="rounded-2xl border border-[#E0E7FF] bg-[#F8FAFF] p-4 text-xs leading-relaxed text-[#475569]">
-                            <span class="font-semibold text-[#0F172A]">Additional details</span> are editable extra product information your team wants to track, such as supplier, material, origin, ingredients, care notes, warranty, or internal references. <span class="font-semibold text-[#0F172A]">Advanced imported data</span> on the workspace is read-only spreadsheet fields preserved because they were not mapped during import—use <span class="font-semibold text-[#0F172A]">Make editable</span> there when you want a copy in additional details.
-                        </div>
+                            <div class="mt-2 border-l-2 border-[#C5C5D4]/40 py-1 pl-4">
+                                <p class="text-[10px] font-bold uppercase tracking-wide text-[#454652]">Active store</p>
+                                <p class="text-sm text-[#1A1B22]">{{ $selectedStore?->name }}</p>
+                            </div>
+                            <div class="mt-6 rounded-xl border border-[#3F51B5]/10 bg-[#3F51B5]/5 p-4">
+                                <p class="text-[10px] font-bold uppercase tracking-wide text-[#3F51B5]">Inventory summary</p>
+                                <p class="mt-1 font-[Poppins] text-4xl font-bold leading-none text-[#24389C] tabular-nums sm:text-5xl">{{ number_format($sumStock) }}</p>
+                                <p class="mt-2 text-[11px] text-[#454652]">Total units across all variant rows</p>
+                                <p class="mt-2 text-[9px] font-bold uppercase italic tracking-wide text-[#454652]/70">Updated {{ optional($product->updated_at)->diffForHumans() }}</p>
+                            </div>
+                            <div class="mt-6 space-y-3">
+                                <button type="submit" form="editProductForm" class="product-edit-primary-action w-full">Save and return to workspace</button>
+                                <a href="{{ route('products.show', $product) }}" class="product-edit-secondary-action w-full">View workspace only</a>
+                                <a href="{{ route('products') }}" class="inline-flex w-full items-center justify-center py-2 text-[11px] font-bold uppercase tracking-wide text-[#3F51B5] hover:underline">Back to product list</a>
+                            </div>
+                        </section>
+
+                        <section class="product-edit-card overflow-hidden">
+                            <div class="border-b border-[#C5C5D4]/30 bg-[#F4F2FC] px-5 py-3 sm:px-6">
+                                <p class="product-edit-eyebrow">Additional details</p>
+                            </div>
+                            <div class="space-y-3 p-5 text-xs leading-relaxed text-[#454652] sm:p-6">
+                                <p><span class="font-semibold text-[#1A1B22]">Additional details</span> are editable product information such as supplier, material, origin, care notes, or internal references.</p>
+                                <p><span class="font-semibold text-[#1A1B22]">Advanced imported data</span> remains safely preserved on the product workspace until you make it editable.</p>
+                            </div>
+                        </section>
                     </div>
                 </aside>
             </div>
         </div>
     </div>
+
+    </div>
+
+    <script>
+        (() => {
+            const workspace = document.getElementById('product-edit-workspace');
+            if (!workspace) return;
+
+            const nav = workspace.querySelector('#catalog-editor-section-nav');
+            const navShell = workspace.querySelector('[data-product-edit-nav-shell]');
+            const mainHeader = document.querySelector('body > main > header') || document.querySelector('.merchant-topbar');
+            const tabs = [...workspace.querySelectorAll('[data-product-edit-tab]')];
+            const sections = tabs
+                .map((tab) => document.querySelector(tab.getAttribute('href')))
+                .filter(Boolean);
+            const scrollRoot = workspace.closest('.merchant-app') || document.scrollingElement || document.documentElement;
+            let lockedId = null;
+            let lockTimer = null;
+            let ticking = false;
+
+            const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            const stickyOffset = () => {
+                const navHeight = nav ? nav.getBoundingClientRect().height : 0;
+                return navHeight + 16;
+            };
+
+            const syncNavPlacement = () => {
+                if (!nav || !navShell) return;
+
+                const headerBottom = mainHeader?.getBoundingClientRect().bottom
+                    ?? scrollRoot.getBoundingClientRect().top;
+                const shellTop = navShell.getBoundingClientRect().top;
+                const shouldStick = shellTop <= headerBottom;
+
+                nav.classList.toggle('is-stuck', shouldStick);
+
+                if (shouldStick) {
+                    const shellRect = navShell.getBoundingClientRect();
+                    nav.style.setProperty('--product-edit-nav-top', `${headerBottom - 1}px`);
+                    nav.style.setProperty('--product-edit-nav-left', `${shellRect.left}px`);
+                    nav.style.setProperty('--product-edit-nav-width', `${shellRect.width}px`);
+                } else {
+                    nav.style.removeProperty('--product-edit-nav-top');
+                    nav.style.removeProperty('--product-edit-nav-left');
+                    nav.style.removeProperty('--product-edit-nav-width');
+                }
+            };
+
+            let lastActiveId = null;
+            const selectTab = (id) => {
+                if (id === lastActiveId) return;
+                lastActiveId = id;
+                tabs.forEach((tab) => {
+                    const active = tab.getAttribute('href') === '#' + id;
+                    tab.classList.toggle('is-active', active);
+                    if (active) {
+                        tab.setAttribute('aria-current', 'location');
+                        tab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+                    } else {
+                        tab.removeAttribute('aria-current');
+                    }
+                });
+            };
+
+            const scrollTopOf = (el) => {
+                if (scrollRoot === document.scrollingElement || scrollRoot === document.documentElement || scrollRoot === document.body) {
+                    return el.getBoundingClientRect().top + window.scrollY;
+                }
+                const rootRect = scrollRoot.getBoundingClientRect();
+                return scrollRoot.scrollTop + (el.getBoundingClientRect().top - rootRect.top);
+            };
+
+            const updateActiveFromScroll = () => {
+                if (!sections.length) return;
+                if (lockedId) {
+                    selectTab(lockedId);
+                    return;
+                }
+
+                const isWindowScroll = scrollRoot === document.scrollingElement
+                    || scrollRoot === document.documentElement
+                    || scrollRoot === document.body;
+                const maxScroll = Math.max(
+                    0,
+                    (isWindowScroll ? document.documentElement.scrollHeight : scrollRoot.scrollHeight)
+                    - (isWindowScroll ? window.innerHeight : scrollRoot.clientHeight)
+                );
+                const current = isWindowScroll ? window.scrollY : scrollRoot.scrollTop;
+
+                if (maxScroll > 0 && current >= maxScroll - 2) {
+                    selectTab(sections[sections.length - 1].id);
+                    return;
+                }
+
+                const line = current + stickyOffset();
+                let active = sections[0];
+                for (const section of sections) {
+                    if (scrollTopOf(section) <= line) {
+                        active = section;
+                    } else {
+                        break;
+                    }
+                }
+                selectTab(active.id);
+            };
+
+            const onScroll = () => {
+                if (ticking) return;
+                ticking = true;
+                window.requestAnimationFrame(() => {
+                    syncNavPlacement();
+                    updateActiveFromScroll();
+                    ticking = false;
+                });
+            };
+
+            tabs.forEach((tab) => tab.addEventListener('click', (event) => {
+                const target = document.querySelector(tab.getAttribute('href'));
+                if (!target) return;
+                event.preventDefault();
+
+                lockedId = target.id;
+                selectTab(target.id);
+                if (lockTimer) window.clearTimeout(lockTimer);
+                lockTimer = window.setTimeout(() => {
+                    lockedId = null;
+                    updateActiveFromScroll();
+                }, 700);
+
+                const top = Math.max(0, scrollTopOf(target) - stickyOffset());
+                const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
+                if (scrollRoot === document.scrollingElement || scrollRoot === document.documentElement || scrollRoot === document.body) {
+                    window.scrollTo({ top, behavior });
+                } else {
+                    scrollRoot.scrollTo({ top, behavior });
+                }
+            }));
+
+            const bindScroll = scrollRoot === document.scrollingElement || scrollRoot === document.documentElement || scrollRoot === document.body
+                ? window
+                : scrollRoot;
+            bindScroll.addEventListener('scroll', onScroll, { passive: true });
+            window.addEventListener('resize', onScroll);
+            syncNavPlacement();
+            updateActiveFromScroll();
+
+            if (window.location.hash) {
+                const hashTarget = document.querySelector(window.location.hash);
+                if (hashTarget && sections.includes(hashTarget)) {
+                    selectTab(hashTarget.id);
+                }
+            }
+
+            document.getElementById('workspaceOpenDeleteProduct')?.addEventListener('click', () => {
+                document.getElementById('openDeleteProductWarning')?.click();
+            });
+        })();
+    </script>
 @endsection

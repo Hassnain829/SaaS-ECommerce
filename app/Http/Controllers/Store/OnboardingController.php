@@ -808,7 +808,9 @@ class OnboardingController extends Controller
                 'compare_at_price' => $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null,
                 'stock' => (int) $variant->stock,
                 'stock_alert' => (int) $variant->stock_alert,
-                'product_image_id' => $variant->linkedCatalogImage?->id,
+                'product_image_id' => $variant->product_image_id
+                    ? (int) $variant->product_image_id
+                    : null,
             ];
         })->values()->all();
 
@@ -894,11 +896,20 @@ class OnboardingController extends Controller
     }
 
     /**
+     * Assign catalog images onto variants. One product image may be shared by many variants.
+     *
      * @param  array<int, array{variant: ProductVariant, image_id?: int|null}>  $assignments
      */
     private function syncVariantCatalogImages(Product $product, array $assignments): void
     {
-        ProductImage::query()->where('product_id', $product->id)->update(['product_variant_id' => null]);
+        ProductVariant::query()
+            ->where('product_id', $product->id)
+            ->update(['product_image_id' => null]);
+
+        // Legacy column: clear ownership so shared images are not pinned to a single variant.
+        ProductImage::query()
+            ->where('product_id', $product->id)
+            ->update(['product_variant_id' => null]);
 
         foreach ($assignments as $item) {
             $variant = $item['variant'] ?? null;
@@ -913,7 +924,12 @@ class OnboardingController extends Controller
                 ->first();
 
             if ($image) {
-                $image->update(['product_variant_id' => $variant->id]);
+                // Query builder update (not $variant->update): a prior mass-null can leave the
+                // in-memory model thinking product_image_id is unchanged, so Eloquent would skip.
+                ProductVariant::query()
+                    ->where('product_id', $product->id)
+                    ->whereKey($variant->id)
+                    ->update(['product_image_id' => $image->id]);
             }
         }
     }
@@ -1002,9 +1018,56 @@ class OnboardingController extends Controller
     }
 
     /**
+     * Drop incomplete option groups so simple products are not blocked by orphan variation_types.0.options.
+     *
+     * @param  mixed  $variationTypes
+     * @return array<int, array{name: string, type: string, options: array<int, string>}>
+     */
+    private function sanitizeSubmittedVariationTypes(mixed $variationTypes): array
+    {
+        if (! is_array($variationTypes)) {
+            return [];
+        }
+
+        $sanitized = [];
+        foreach ($variationTypes as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $name = trim((string) ($row['name'] ?? ''));
+            $type = trim((string) ($row['type'] ?? 'select'));
+            $options = $row['options'] ?? [];
+            if ($name === '' || ! is_array($options)) {
+                continue;
+            }
+
+            $cleanOptions = [];
+            foreach ($options as $option) {
+                $value = trim((string) $option);
+                if ($value !== '') {
+                    $cleanOptions[] = $value;
+                }
+            }
+
+            if ($cleanOptions === []) {
+                continue;
+            }
+
+            $sanitized[] = [
+                'name' => $name,
+                'type' => in_array($type, ['select', 'radio', 'checkbox'], true) ? $type : 'select',
+                'options' => array_values($cleanOptions),
+            ];
+        }
+
+        return $sanitized;
+    }
+
+    /**
      * @param  array<int|string, mixed>  $variantRows
      * @param  array<int, array{name:string, type:string, options:array<int, string>}>  $variationTypes
-     * @return array{variants: array<int, array{option_map: array<int, int>, sku: string|null, price: float, compare_at_price: float|null, stock: int, stock_alert: int, product_image_id: int|null}>, errors: array<string, string>}
+     * @return array{variants: array<int, array{option_map: array<int, int>, sku: string|null, price: float, compare_at_price: float|null, stock: int, stock_alert: int, product_image_id: int|null, product_image_upload_index: int|null}>, errors: array<string, string>}
      */
     private function normalizeCustomVariants(
         array $variantRows,
@@ -1104,9 +1167,24 @@ class OnboardingController extends Controller
             }
 
             $productImageId = null;
+            $productImageUploadIndex = null;
             if (isset($row['product_image_id']) && $row['product_image_id'] !== '' && $row['product_image_id'] !== null) {
-                $productImageId = (int) $row['product_image_id'];
-                if ($productImageId < 1) {
+                $submittedImageReference = (string) $row['product_image_id'];
+                if (str_starts_with($submittedImageReference, 'new:')) {
+                    $uploadIndex = substr($submittedImageReference, 4);
+                    if ($uploadIndex === '' || ! ctype_digit($uploadIndex)) {
+                        $errors['variants.'.$rowIndex.'.product_image_id'] = sprintf(
+                            'Variant %d has an invalid newly uploaded image.',
+                            $rowIndex + 1
+                        );
+
+                        continue;
+                    }
+                    $productImageUploadIndex = (int) $uploadIndex;
+                } else {
+                    $productImageId = (int) $submittedImageReference;
+                }
+                if ($productImageId !== null && $productImageId < 1) {
                     $errors['variants.'.$rowIndex.'.product_image_id'] = sprintf(
                         'Variant %d has an invalid catalog image.',
                         $rowIndex + 1
@@ -1130,6 +1208,7 @@ class OnboardingController extends Controller
                 'stock' => isset($row['stock']) && $row['stock'] !== '' ? (int) $row['stock'] : $defaultStock,
                 'stock_alert' => isset($row['stock_alert']) && $row['stock_alert'] !== '' ? (int) $row['stock_alert'] : $defaultStockAlert,
                 'product_image_id' => $productImageId,
+                'product_image_upload_index' => $productImageUploadIndex,
             ];
         }
 
@@ -1274,6 +1353,10 @@ class OnboardingController extends Controller
             ->where('store_id', $currentStore->id)
             ->firstOrFail();
 
+        $request->merge([
+            'variation_types' => $this->sanitizeSubmittedVariationTypes($request->input('variation_types', [])),
+        ]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:4000'],
@@ -1304,7 +1387,7 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
-            'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
+            'variants.*.product_image_id' => ['nullable', 'regex:/^(?:[1-9]\d*|new:\d+)$/'],
             'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
             'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
             'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
@@ -1491,8 +1574,9 @@ class OnboardingController extends Controller
             }
 
             $nextOrder = (int) $product->images()->max('sort_order') + 1;
-            foreach ($request->file('product_images', []) as $imageFile) {
-                ProductImage::query()->create([
+            $uploadedImageIdsByIndex = [];
+            foreach ($request->file('product_images', []) as $uploadIndex => $imageFile) {
+                $uploadedImage = ProductImage::query()->create([
                     'product_id' => $product->id,
                     'image_path' => ProductImageStorage::store($imageFile, $currentStore),
                     'alt_text' => null,
@@ -1501,10 +1585,26 @@ class OnboardingController extends Controller
                     'created_by' => $request->user()?->id,
                     'updated_by' => $request->user()?->id,
                 ]);
+                $uploadedImageIdsByIndex[(int) $uploadIndex] = (int) $uploadedImage->id;
                 $nextOrder++;
             }
 
             $this->normalizePrimaryProductImage($product);
+
+            foreach ($validated['variants'] as $rowIndex => &$variantData) {
+                $uploadIndex = $variantData['product_image_upload_index'] ?? null;
+                if ($uploadIndex === null) {
+                    continue;
+                }
+                if (! array_key_exists((int) $uploadIndex, $uploadedImageIdsByIndex)) {
+                    throw ValidationException::withMessages([
+                        'variants.'.$rowIndex.'.product_image_id' => 'Choose a newly uploaded image that is still attached under Media.',
+                    ]);
+                }
+                $variantData['product_image_id'] = $uploadedImageIdsByIndex[(int) $uploadIndex];
+                unset($variantData['product_image_upload_index']);
+            }
+            unset($variantData);
 
             $imageErrorsUpdate = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
             if ($imageErrorsUpdate !== []) {

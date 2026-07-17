@@ -3,13 +3,11 @@
 @section('title', 'Connect '.$carrierCard['name'].' | BaaS Core')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-        <div>
-            <h1 class="text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Connect {{ $carrierCard['name'] }}</h1>
-            <p class="hidden text-xs text-[#64748B] sm:block">{{ $carrierCard['summary'] }}</p>
-        </div>
-        <a href="{{ route('shipping.carriers.connect.index') }}" class="ml-auto inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569]">Back to carriers</a>
-    </header>
+    <x-ui.merchant-topbar title="{{ $carrierCard['name'] }} connection" lead="Set up this carrier for the active store.">
+        <x-slot:actions>
+            <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Back to carriers</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

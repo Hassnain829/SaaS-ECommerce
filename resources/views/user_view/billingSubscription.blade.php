@@ -5,48 +5,12 @@
 @section('sidebar_brand_subtitle', 'Management Console')
 
 @section('topbar')
-    <header
-        class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-        <button id="sidebarToggle" onclick="openSidebar()"
-            class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0"
-            aria-label="Open sidebar">
-            <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor" />
-            </svg>
-        </button>
-
-        <div class="hidden sm:block relative w-full max-w-xs md:max-w-md">
-            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
-                <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z"
-                        fill="currentColor" />
-                </svg>
-            </span>
-            <input type="text" placeholder="Search billing records..."
-                class="w-full h-10 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg pl-10 pr-3 text-sm text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20" />
-        </div>
-
-        <div class="flex items-center gap-3 ml-auto">
-            <button class="relative p-2 rounded-full text-[#64748B] hover:bg-gray-100" aria-label="Notifications">
-                <svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M0 17V15H2V8C2 6.61667 2.41667 5.3875 3.25 4.3125C4.08333 3.2375 5.16667 2.53333 6.5 2.2V1.5C6.5 1.08333 6.64583 0.729167 6.9375 0.4375C7.22917 0.145833 7.58333 0 8 0C8.41667 0 8.77083 0.145833 9.0625 0.4375C9.35417 0.729167 9.5 1.08333 9.5 1.5V2.2C10.8333 2.53333 11.9167 3.2375 12.75 4.3125C13.5833 5.3875 14 6.61667 14 8V15H16V17H0ZM8 20C7.45 20 6.97917 19.8042 6.5875 19.4125C6.19583 19.0208 6 18.55 6 18H10C10 18.55 9.80417 19.0208 9.4125 19.4125C9.02083 19.8042 8.55 20 8 20Z"
-                        fill="currentColor" />
-                </svg>
-                <span class="absolute top-1.5 right-1.5 h-2 w-2 bg-[#EF4444] rounded-full border-2 border-white"></span>
-            </button>
-        </div>
-    </header>
+    <x-ui.merchant-topbar title="Billing &amp; Subscription" lead="Manage your professional plan, usage, and billing history." />
 @endsection
 
 @section('content')
     <div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
-        <section class="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
-            <div>
-                <h1 class="text-2xl font-poppins text-[#0F172A]">Billing & Subscription</h1>
-                <p class="text-[#64748B] text-sm">Manage your professional plan, usage, and billing history.</p>
-            </div>
+        <section class="flex justify-end">
             <span
                 class="inline-flex h-8 items-center rounded-full bg-[#DCFCE7] px-4 text-xs font-semibold text-[#15803D] self-start">ACTIVE</span>
         </section>

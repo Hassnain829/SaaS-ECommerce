@@ -3,6 +3,8 @@
 @section('title', 'Add product — Product workspace')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('page_title', 'Add product')
+@section('page_lead', 'Create a catalog item with media, pricing, options, variants, and inventory.')
 
 @section('content')
     <div class="flex-1 overflow-y-auto bg-[#F1F5F9]/50 p-4 lg:p-10">
@@ -17,11 +19,7 @@
                         </a>
                         <div>
                             <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Add catalog item</p>
-                            <h1 class="mt-1 text-2xl font-semibold leading-tight text-[#0F172A] font-[Poppins] sm:text-3xl break-words">Add product</h1>
                             <p class="mt-1 text-sm text-[#64748B]">Store: <span class="font-medium text-[#334155]">{{ $selectedStore?->name }}</span></p>
-                            <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748B]">
-                                Full-width catalog editor: media, pricing, organization, additional details, option groups, and sellable combinations. Use <span class="font-medium text-[#334155]">Save product</span> when you are ready.
-                            </p>
                         </div>
                     </div>
                 </div>

@@ -3,30 +3,8 @@
 @section('title', 'Notifications | BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4 shrink-0">
-    <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-        <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
-        </svg>
-    </button>
-
-    <div class="flex items-center gap-4 min-w-0">
-        <h1 class="text-2xl font-semibold font-poppins">Notifications</h1>
-        <span class="hidden md:block h-7 w-px bg-[#E2E8F0]"></span>
-        <nav class="hidden md:flex items-center gap-2 text-sm font-semibold text-[#64748B]">
-            <button class="px-4 h-8 rounded-full bg-[#0052CC] text-white">All</button>
-            <button class="px-3 h-8">Orders</button>
-            <button class="px-3 h-8">System</button>
-            <button class="px-3 h-8">Security</button>
-            <button class="px-3 h-8">Inventory</button>
-        </nav>
-    </div>
-
-    <div class="flex items-center gap-4 shrink-0">
-        <div class="hidden lg:flex w-64 h-11 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] items-center px-3 text-sm text-[#64748B]">Search notifications...</div>
-        <button class="text-[#E11D48] text-sm font-inter font-medium">Clear All</button>
-    </div>
-</header>
+    <x-ui.merchant-topbar title="Notifications" lead="Store alerts and account activity.">
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

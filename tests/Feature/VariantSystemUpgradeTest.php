@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
+use App\Models\ProductVariationType;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\ProductEditPayload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -58,6 +60,54 @@ class VariantSystemUpgradeTest extends TestCase
 
         $product->refresh();
         $this->assertSame(4, $product->variants()->count());
+    }
+
+    public function test_orphan_option_group_without_values_does_not_block_simple_product_edit(): void
+    {
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Orphan Opt Store');
+        $product = $this->createSimpleProduct($store);
+
+        ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Size',
+            'type' => 'select',
+        ]);
+
+        $payload = ProductEditPayload::forProduct($product->fresh());
+        $this->assertSame([], $payload['variation_types']);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => $product->name,
+                'description' => 'updated description',
+                'base_price' => 29.99,
+                'sku' => $product->sku,
+                'product_type' => 'physical',
+                'stock_alert' => 10,
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select'],
+                ],
+                'variants' => [
+                    [
+                        'id' => $product->variants()->first()->id,
+                        'sku' => $product->sku,
+                        'price' => 29.99,
+                        'stock' => 5,
+                        'stock_alert' => 10,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('products'))
+            ->assertSessionHasNoErrors();
+
+        $product->refresh();
+        $this->assertSame(0, $product->variationTypes()->count());
+        $this->assertSame(1, $product->variants()->count());
+        $this->assertSame('updated description', $product->description);
     }
 
     public function test_duplicate_option_values_in_one_group_are_rejected(): void
@@ -278,7 +328,200 @@ class VariantSystemUpgradeTest extends TestCase
 
         $image->refresh();
         $variant = ProductVariant::query()->where('sku', 'IMG-1')->firstOrFail();
-        $this->assertSame((int) $variant->id, (int) $image->product_variant_id);
+        $this->assertSame((int) $image->id, (int) $variant->product_image_id);
+        $this->assertSame((int) $image->id, (int) $variant->linkedCatalogImage?->id);
+    }
+
+    public function test_same_catalog_image_can_be_shared_across_multiple_variants(): void
+    {
+        Storage::fake('public');
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Shared Img Store');
+        $product = $this->createSimpleProduct($store);
+
+        $path = UploadedFile::fake()->create('shared.jpg', 10, 'image/jpeg')->store('products/'.$store->id, 'public');
+        $image = ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => $path,
+            'sort_order' => 0,
+            'is_primary' => true,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => $product->name,
+                'description' => 'd',
+                'base_price' => 10,
+                'sku' => $product->sku,
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'existing_image_paths' => [$path],
+                'variation_types' => [
+                    ['name' => 'Color', 'type' => 'select', 'options' => ['red', 'green', 'blue']],
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['large', 'medium', 'small']],
+                ],
+                'variants' => [
+                    ['option_map' => ['0' => 0, '1' => 0], 'sku' => 'SH-RL', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                    ['option_map' => ['0' => 0, '1' => 1], 'sku' => 'SH-RM', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                    ['option_map' => ['0' => 0, '1' => 2], 'sku' => 'SH-RS', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                    ['option_map' => ['0' => 1, '1' => 0], 'sku' => 'SH-GL', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                    ['option_map' => ['0' => 1, '1' => 1], 'sku' => 'SH-GM', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                    ['option_map' => ['0' => 1, '1' => 2], 'sku' => 'SH-GS', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                    ['option_map' => ['0' => 2, '1' => 0], 'sku' => 'SH-BL', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                    ['option_map' => ['0' => 2, '1' => 1], 'sku' => 'SH-BM', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                    ['option_map' => ['0' => 2, '1' => 2], 'sku' => 'SH-BS', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $image->id],
+                ],
+            ])
+            ->assertRedirect(route('products'));
+
+        $linkedCount = ProductVariant::query()
+            ->where('product_id', $product->id)
+            ->where('product_image_id', $image->id)
+            ->count();
+
+        $this->assertSame(9, $linkedCount);
+    }
+
+    public function test_distinct_catalog_images_persist_on_multiple_variants_across_updates(): void
+    {
+        Storage::fake('public');
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Distinct Img Store');
+        $product = $this->createSimpleProduct($store);
+
+        $paths = [];
+        $images = [];
+        foreach (['a.jpg', 'b.jpg', 'c.jpg'] as $i => $name) {
+            $path = UploadedFile::fake()->create($name, 10, 'image/jpeg')->store('products/'.$store->id, 'public');
+            $paths[] = $path;
+            $images[] = ProductImage::query()->create([
+                'product_id' => $product->id,
+                'image_path' => $path,
+                'sort_order' => $i,
+                'is_primary' => $i === 0,
+            ]);
+        }
+
+        $basePayload = [
+            '_open_edit_product_modal' => '1',
+            '_edit_product_id' => (string) $product->id,
+            'name' => $product->name,
+            'description' => 'd',
+            'base_price' => 10,
+            'sku' => $product->sku,
+            'product_type' => 'physical',
+            'stock_alert' => 1,
+            'existing_image_paths' => $paths,
+            'variation_types' => [
+                ['name' => 'Color', 'type' => 'select', 'options' => ['red', 'blue']],
+                ['name' => 'Size', 'type' => 'select', 'options' => ['L', 'M']],
+            ],
+        ];
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $basePayload + [
+                'variants' => [
+                    ['option_map' => ['0' => 0, '1' => 0], 'sku' => 'DI-RL', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $images[0]->id],
+                    ['option_map' => ['0' => 0, '1' => 1], 'sku' => 'DI-RM', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $images[1]->id],
+                    ['option_map' => ['0' => 1, '1' => 0], 'sku' => 'DI-BL', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $images[2]->id],
+                    ['option_map' => ['0' => 1, '1' => 1], 'sku' => 'DI-BM', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => ''],
+                ],
+            ])
+            ->assertRedirect(route('products'));
+
+        $this->assertSame((int) $images[0]->id, (int) ProductVariant::query()->where('sku', 'DI-RL')->value('product_image_id'));
+        $this->assertSame((int) $images[1]->id, (int) ProductVariant::query()->where('sku', 'DI-RM')->value('product_image_id'));
+        $this->assertSame((int) $images[2]->id, (int) ProductVariant::query()->where('sku', 'DI-BL')->value('product_image_id'));
+        $this->assertNull(ProductVariant::query()->where('sku', 'DI-BM')->value('product_image_id'));
+
+        $payload = ProductEditPayload::forProduct($product->fresh());
+        $bySku = collect($payload['variants'])->keyBy('sku');
+        $this->assertSame((int) $images[0]->id, (int) $bySku['DI-RL']['product_image_id']);
+        $this->assertSame((int) $images[1]->id, (int) $bySku['DI-RM']['product_image_id']);
+        $this->assertSame((int) $images[2]->id, (int) $bySku['DI-BL']['product_image_id']);
+        $this->assertNull($bySku['DI-BM']['product_image_id']);
+
+        // Second save only changes one row's photo — others must remain.
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $basePayload + [
+                'variants' => [
+                    ['option_map' => ['0' => 0, '1' => 0], 'sku' => 'DI-RL', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $images[2]->id],
+                    ['option_map' => ['0' => 0, '1' => 1], 'sku' => 'DI-RM', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $images[1]->id],
+                    ['option_map' => ['0' => 1, '1' => 0], 'sku' => 'DI-BL', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $images[2]->id],
+                    ['option_map' => ['0' => 1, '1' => 1], 'sku' => 'DI-BM', 'price' => 10, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => $images[0]->id],
+                ],
+            ])
+            ->assertRedirect(route('products'));
+
+        $this->assertSame((int) $images[2]->id, (int) ProductVariant::query()->where('sku', 'DI-RL')->value('product_image_id'));
+        $this->assertSame((int) $images[1]->id, (int) ProductVariant::query()->where('sku', 'DI-RM')->value('product_image_id'));
+        $this->assertSame((int) $images[2]->id, (int) ProductVariant::query()->where('sku', 'DI-BL')->value('product_image_id'));
+        $this->assertSame((int) $images[0]->id, (int) ProductVariant::query()->where('sku', 'DI-BM')->value('product_image_id'));
+    }
+
+    public function test_newly_uploaded_image_can_be_assigned_to_one_variant_before_save(): void
+    {
+        Storage::fake('public');
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Pending Img Var Store');
+        $product = $this->createSimpleProduct($store);
+        $newImage = UploadedFile::fake()->create('new-variant.jpg', 12, 'image/jpeg');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => $product->name,
+                'description' => 'd',
+                'base_price' => 10,
+                'sku' => $product->sku,
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'product_images' => [$newImage],
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['L', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'option_map' => ['0' => 0],
+                        'sku' => 'IMG-NEW-L',
+                        'price' => 10,
+                        'stock' => 1,
+                        'stock_alert' => 1,
+                        'product_image_id' => 'new:0',
+                    ],
+                    [
+                        'option_map' => ['0' => 1],
+                        'sku' => 'IMG-NEW-M',
+                        'price' => 10,
+                        'stock' => 1,
+                        'stock_alert' => 1,
+                        'product_image_id' => '',
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('products'));
+
+        $assignedVariant = ProductVariant::query()->where('sku', 'IMG-NEW-L')->firstOrFail();
+        $blankVariant = ProductVariant::query()->where('sku', 'IMG-NEW-M')->firstOrFail();
+        $uploadedImage = ProductImage::query()->where('product_id', $product->id)->firstOrFail();
+
+        $this->assertSame((int) $uploadedImage->id, (int) $assignedVariant->product_image_id);
+        $this->assertNull($blankVariant->product_image_id);
+        $this->assertNull($blankVariant->linkedCatalogImage);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSee('No image', false)
+            ->assertDontSee('Main product image', false);
     }
 
     public function test_cross_store_product_update_returns_404(): void

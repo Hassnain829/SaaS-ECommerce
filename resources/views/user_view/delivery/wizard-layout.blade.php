@@ -3,13 +3,11 @@
 @section('title', 'Delivery setup | BaaS Core')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-        <div>
-            <h1 class="text-lg md:text-xl font-poppins font-semibold">Delivery setup</h1>
-            <p class="hidden text-xs text-[#64748B] sm:block">Guided setup for ship-from, delivery areas, and checkout options.</p>
-        </div>
-        <a href="{{ route('shippingAutomation') }}" class="ml-auto inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Back to Delivery</a>
-    </header>
+    <x-ui.merchant-topbar title="Delivery setup" lead="Guided setup for ship-from, delivery areas, and checkout options.">
+        <x-slot:actions>
+            <a href="{{ route('shippingAutomation') }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Back to Delivery</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

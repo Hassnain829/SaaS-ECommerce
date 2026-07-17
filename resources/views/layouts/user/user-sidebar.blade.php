@@ -243,6 +243,8 @@
 <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
     @hasSection('topbar')
         @yield('topbar')
+    @else
+        <x-ui.merchant-topbar />
     @endif
 
     <div class="merchant-app ui-page-enter flex-1 space-y-6 overflow-y-auto p-4 lg:p-8">
@@ -251,86 +253,37 @@
 </main>
 
 <script>
-    function closeAllProfileMenus() {
-      document.querySelectorAll('.profileMenu').forEach(function (menu) {
+    function closeAllMerchantProfileMenus() {
+      document.querySelectorAll('[data-merchant-profile-dropdown]').forEach(function (menu) {
         menu.classList.add('hidden');
       });
+      document.querySelectorAll('[data-merchant-profile-toggle]').forEach(function (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+      });
     }
-    
 
-    function initTopbarProfileMenu(profileSettingsUrl, logoutUrl) {
-      var headers = document.querySelectorAll('main > header');
-      headers.forEach(function (header) {
-        if (header.dataset.noProfileMenu === 'true') {
-          return;
-        }
+    function initMerchantProfileMenus() {
+      document.querySelectorAll('[data-merchant-profile-menu]').forEach(function (wrapper) {
+        if (wrapper.dataset.bound === 'true') return;
+        wrapper.dataset.bound = 'true';
 
-        var avatar = header.querySelector('div.rounded-full.overflow-hidden');
-        if (avatar && avatar.closest('aside')) return;
-        if (avatar && avatar.closest('.profile-menu-wrapper')) return;
-
-        function createProfileWrapper() {
-          var wrapper = document.createElement('div');
-          wrapper.className = 'relative profile-menu-wrapper shrink-0';
-
-          var trigger = document.createElement('button');
-          trigger.type = 'button';
-          trigger.className = 'w-9 h-9 rounded-full bg-stone-200 border border-stone-300 overflow-hidden shrink-0 profileMenuToggle';
-          trigger.setAttribute('aria-haspopup', 'true');
-          trigger.setAttribute('aria-expanded', 'false');
-          trigger.setAttribute('aria-label', 'Open profile menu');
-          trigger.innerHTML =
-            '<svg width=\"36\" height=\"36\" viewBox=\"0 0 36 36\" fill=\"none\">' +
-            '<circle cx=\"18\" cy=\"13\" r=\"6\" fill=\"#94A3B8\"/>' +
-            '<path d=\"M28 28C28 24 24 22 18 22C12 22 8 24 8 28\" fill=\"#94A3B8\"/>' +
-            '</svg>';
-
-          var menu = document.createElement('div');
-          menu.className = 'profileMenu hidden absolute right-0 mt-2 w-44 rounded-xl border border-stone-200 bg-white py-1 shadow-lg shadow-stone-900/15 z-50';
-          menu.innerHTML =
-            '<a href=\"' + profileSettingsUrl + '\" class=\"block px-4 py-2 text-sm text-stone-800 hover:bg-stone-50\">Profile Settings</a>' +
-            '<a href=\"' + logoutUrl + '\" class=\"block px-4 py-2 text-sm text-rose-700 hover:bg-rose-50\">Logout</a>';
-
-          wrapper.appendChild(trigger);
-          wrapper.appendChild(menu);
-          return { wrapper: wrapper, trigger: trigger, menu: menu };
-        }
-
-        var parts = createProfileWrapper();
-        var wrapper = parts.wrapper;
-        var trigger = parts.trigger;
-        var menu = parts.menu;
-
-        if (avatar) {
-          trigger.className = avatar.className + ' profileMenuToggle';
-          trigger.innerHTML = avatar.innerHTML;
-          avatar.replaceWith(wrapper);
-        } else if (header.dataset.profileMenu === 'true') {
-          var rightActions = header.querySelector('.flex.items-center.gap-3.shrink-0, .flex.items-center.gap-4.shrink-0, .flex.items-center.gap-2.shrink-0');
-          if (rightActions) {
-            rightActions.appendChild(wrapper);
-          } else {
-            header.appendChild(wrapper);
-          }
-        } else {
-          return;
-        }
+        var trigger = wrapper.querySelector('[data-merchant-profile-toggle]');
+        var menu = wrapper.querySelector('[data-merchant-profile-dropdown]');
+        if (!trigger || !menu) return;
 
         trigger.addEventListener('click', function (e) {
           e.stopPropagation();
           var isOpen = !menu.classList.contains('hidden');
-          closeAllProfileMenus();
+          closeAllMerchantProfileMenus();
           if (!isOpen) {
             menu.classList.remove('hidden');
             trigger.setAttribute('aria-expanded', 'true');
-          } else {
-            trigger.setAttribute('aria-expanded', 'false');
           }
         });
       });
 
       document.addEventListener('click', function () {
-        closeAllProfileMenus();
+        closeAllMerchantProfileMenus();
       });
     }
 
@@ -361,7 +314,7 @@
     });
 
     document.addEventListener('DOMContentLoaded', function () {
-      initTopbarProfileMenu("{{ route('profileSettings') }}", "{{ route('logout') }}");
+      initMerchantProfileMenus();
 
       var merchantNav = document.getElementById('merchantNav');
       if (merchantNav) {

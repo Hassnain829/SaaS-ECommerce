@@ -34,18 +34,8 @@
 @endphp
 
 @section('topbar')
-    <header class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[color:var(--color-border)] bg-white/95 px-4 backdrop-blur md:px-8">
-        <button id="sidebarToggle" onclick="openSidebar()" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[color:var(--color-border)] bg-white text-[color:var(--color-ink-secondary)] shadow-sm md:hidden" aria-label="Open sidebar">
-            <svg width="18" height="14" viewBox="0 0 20 14" fill="none"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-        </button>
-        <div class="min-w-0">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--color-ink-muted)]">Settings · Delivery</p>
-            <h1 class="truncate font-heading text-lg font-semibold tracking-tight text-[color:var(--color-ink)] md:text-xl">Delivery</h1>
-        </div>
-        <a href="{{ route('settings.taxes.index') }}" class="ui-btn ui-btn-secondary ml-auto hidden sm:inline-flex">
-            Checkout &amp; tax
-        </a>
-    </header>
+    <x-ui.merchant-topbar title="Delivery" lead="Configure delivery areas, options, locations, and providers.">
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')

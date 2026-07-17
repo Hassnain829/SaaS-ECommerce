@@ -16,6 +16,8 @@
 @section('title', 'Import result')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('page_title', 'Import status')
+@section('page_lead', $import->original_filename)
 
 @section('content')
     <div class="flex-1 overflow-y-auto p-4 lg:p-8">
@@ -23,8 +25,6 @@
             <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Step 4 of 4</p>
-                    <h1 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Import status</h1>
-                    <p class="mt-2 text-sm text-[#64748B]">{{ $import->original_filename }}</p>
                 </div>
                 <div class="flex flex-wrap gap-3 text-sm font-semibold">
                     <a href="{{ route('products.import.history') }}" class="text-[#0052CC] hover:text-[#0047B3]">Import history</a>
