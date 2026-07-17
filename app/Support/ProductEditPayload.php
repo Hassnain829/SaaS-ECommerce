@@ -367,7 +367,7 @@ final class ProductEditPayload
                         ? (string) $variantRow['compare_at_price'] : '',
                     'stock' => isset($variantRow['stock']) ? (string) $variantRow['stock'] : '',
                     'stock_alert' => isset($variantRow['stock_alert']) ? (int) $variantRow['stock_alert'] : 0,
-                    'product_image_id' => $this->normalizeProductImageIdForPayload(
+                    'product_image_id' => self::normalizeProductImageIdForPayload(
                         $variantRow['product_image_id'] ?? null
                     ),
                 ];
