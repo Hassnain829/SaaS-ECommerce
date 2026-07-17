@@ -367,8 +367,9 @@ final class ProductEditPayload
                         ? (string) $variantRow['compare_at_price'] : '',
                     'stock' => isset($variantRow['stock']) ? (string) $variantRow['stock'] : '',
                     'stock_alert' => isset($variantRow['stock_alert']) ? (int) $variantRow['stock_alert'] : 0,
-                    'product_image_id' => isset($variantRow['product_image_id']) && $variantRow['product_image_id'] !== '' && $variantRow['product_image_id'] !== null
-                        ? (int) $variantRow['product_image_id'] : null,
+                    'product_image_id' => $this->normalizeProductImageIdForPayload(
+                        $variantRow['product_image_id'] ?? null
+                    ),
                 ];
 
                 if (isset($variantRow['custom_fields']) && is_array($variantRow['custom_fields'])) {
@@ -463,5 +464,30 @@ final class ProductEditPayload
         }
 
         return (string) $value;
+    }
+
+    /**
+     * Keep pending upload refs (new:0) intact for create/edit validation redisplay.
+     */
+    private static function normalizeProductImageIdForPayload(mixed $value): int|string|null
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $raw = is_scalar($value) ? trim((string) $value) : '';
+        if ($raw === '') {
+            return null;
+        }
+
+        if (preg_match('/^new:\d+$/', $raw) === 1) {
+            return $raw;
+        }
+
+        if (ctype_digit($raw) && (int) $raw >= 1) {
+            return (int) $raw;
+        }
+
+        return null;
     }
 }

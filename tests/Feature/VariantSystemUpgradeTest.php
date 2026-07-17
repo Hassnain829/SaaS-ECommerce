@@ -464,6 +464,109 @@ class VariantSystemUpgradeTest extends TestCase
         $this->assertSame((int) $images[0]->id, (int) ProductVariant::query()->where('sku', 'DI-BM')->value('product_image_id'));
     }
 
+    public function test_create_product_can_assign_newly_uploaded_image_to_variants(): void
+    {
+        Storage::fake('public');
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Create Img Store');
+        $imageA = UploadedFile::fake()->create('create-a.jpg', 12, 'image/jpeg');
+        $imageB = UploadedFile::fake()->create('create-b.jpg', 12, 'image/jpeg');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('product.store'), [
+                '_full_workspace_create' => '1',
+                'name' => 'Create Photo Tee',
+                'description' => 'd',
+                'base_price' => 15,
+                'bulk_price' => 15,
+                'bulk_stock' => 4,
+                'sku' => 'CPT-001',
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'inventory_variant_stock_mode' => 'split_total',
+                'product_images' => [$imageA, $imageB],
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['L', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'option_map' => ['0' => 0],
+                        'sku' => 'CPT-L',
+                        'price' => 15,
+                        'stock' => 2,
+                        'stock_alert' => 1,
+                        'product_image_id' => 'new:0',
+                    ],
+                    [
+                        'option_map' => ['0' => 1],
+                        'sku' => 'CPT-M',
+                        'price' => 15,
+                        'stock' => 2,
+                        'stock_alert' => 1,
+                        'product_image_id' => 'new:1',
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $product = Product::query()->where('store_id', $store->id)->where('name', 'Create Photo Tee')->firstOrFail();
+        $this->assertSame(2, $product->images()->count());
+
+        $large = ProductVariant::query()->where('sku', 'CPT-L')->firstOrFail();
+        $medium = ProductVariant::query()->where('sku', 'CPT-M')->firstOrFail();
+        $firstImage = $product->images()->orderBy('sort_order')->orderBy('id')->firstOrFail();
+        $secondImage = $product->images()->orderBy('sort_order')->orderBy('id')->skip(1)->firstOrFail();
+
+        $this->assertSame((int) $firstImage->id, (int) $large->product_image_id);
+        $this->assertSame((int) $secondImage->id, (int) $medium->product_image_id);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertDontSee('No image', false);
+    }
+
+    public function test_create_product_can_share_one_uploaded_image_across_variants(): void
+    {
+        Storage::fake('public');
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Create Share Img Store');
+        $image = UploadedFile::fake()->create('shared-create.jpg', 12, 'image/jpeg');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('product.store'), [
+                '_full_workspace_create' => '1',
+                'name' => 'Shared Create Tee',
+                'description' => 'd',
+                'base_price' => 12,
+                'bulk_price' => 12,
+                'bulk_stock' => 3,
+                'sku' => 'SCT-001',
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'inventory_variant_stock_mode' => 'split_total',
+                'product_images' => [$image],
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['S', 'M', 'L']],
+                ],
+                'variants' => [
+                    ['option_map' => ['0' => 0], 'sku' => 'SCT-S', 'price' => 12, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => 'new:0'],
+                    ['option_map' => ['0' => 1], 'sku' => 'SCT-M', 'price' => 12, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => 'new:0'],
+                    ['option_map' => ['0' => 2], 'sku' => 'SCT-L', 'price' => 12, 'stock' => 1, 'stock_alert' => 1, 'product_image_id' => 'new:0'],
+                ],
+            ])
+            ->assertRedirect(route('products.show', [
+                'product' => Product::query()->where('store_id', $store->id)->where('sku', 'SCT-001')->value('id'),
+            ]));
+
+        $product = Product::query()->where('store_id', $store->id)->where('sku', 'SCT-001')->firstOrFail();
+        $imageId = (int) $product->images()->value('id');
+        $this->assertSame(3, ProductVariant::query()->where('product_id', $product->id)->where('product_image_id', $imageId)->count());
+    }
+
     public function test_newly_uploaded_image_can_be_assigned_to_one_variant_before_save(): void
     {
         Storage::fake('public');

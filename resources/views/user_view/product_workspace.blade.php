@@ -300,110 +300,20 @@
                         </div>
                         @if ($variantSummaries === [])
                             <p class="mt-6 text-sm text-[#64748B]">No sellable rows are linked to this product yet.</p>
-                        @elseif (! $multiVariant)
-                            @php $row = $variantSummaries[0]; @endphp
-                            <div class="mt-6 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-6 sm:p-8">
-                                @if ($row['is_first'])
-                                    <p class="mb-4 inline-flex rounded-md bg-[#EEF4FF] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0052CC]">Default variant</p>
-                                @endif
-                                <div class="mb-4">
-                                    <p class="text-sm font-semibold text-[#0F172A]">{{ $row['label'] }}</p>
-                                    @if (! empty($row['chips']))
-                                        <div class="mt-2 flex flex-wrap gap-1.5">
-                                            @foreach ($row['chips'] as $chip)
-                                                <span class="inline-flex rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1 text-xs font-medium text-[#0F172A] shadow-sm">{{ $chip['group'] }}: {{ $chip['value'] }}</span>
-                                            @endforeach
-                                        </div>
-                                    @endif
-                                </div>
-                                <div class="flex flex-col gap-6 sm:flex-row sm:items-start">
-                                    <div class="shrink-0 text-center sm:text-left">
-                                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Photo for listings</p>
-                                        @if (! empty($row['catalog_image_thumb']))
-                                            <img src="{{ $row['catalog_image_thumb'] }}" alt="" title="{{ ! empty($row['catalog_image_is_product_fallback']) ? 'Catalog image (main product photo)' : 'Variant catalog image' }}" class="mx-auto h-20 w-20 rounded-xl border border-[#E2E8F0] object-cover shadow-sm sm:mx-0">
-                                            <p class="mt-2 text-xs text-[#64748B]">
-                                                @if (! empty($row['catalog_image_is_product_fallback']))
-                                                    Uses your main product image until you assign a variant-specific photo in Edit product.
-                                                @else
-                                                    Variant-specific catalog image.
-                                                @endif
-                                            </p>
-                                        @else
-                                            <div class="mx-auto flex h-20 w-20 flex-col items-center justify-center rounded-xl border border-dashed border-[#CBD5E1] bg-white px-1 text-center text-[10px] font-medium leading-tight text-[#94A3B8] sm:mx-0">No variant image</div>
-                                            <p class="mt-2 max-w-xs text-xs text-[#64748B]">
-                                                @if ($canManageCatalog)
-                                                    Optional: choose a catalog photo for this row in the product editor (upload under Media, then assign variant photo).
-                                                @else
-                                                    Optional: a manager can attach a catalog photo to this row.
-                                                @endif
-                                            </p>
-                                        @endif
-                                    </div>
-                                    <dl class="min-w-0 flex-1 grid gap-4 sm:grid-cols-2">
-                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">SKU</dt>
-                                            <dd class="mt-1 font-mono text-sm font-semibold text-[#0F172A]">{{ $row['sku'] }}</dd>
-                                        </div>
-                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Retail price</dt>
-                                            <dd class="mt-1 text-lg font-semibold tabular-nums text-[#0F172A]">{{ $currency }} {{ number_format((float) $row['price'], 2) }}</dd>
-                                        </div>
-                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Compare-at</dt>
-                                            <dd class="mt-1 text-sm font-semibold tabular-nums text-[#64748B]">
-                                                @if (! empty($row['compare_at_price']))
-                                                    {{ $currency }} {{ number_format((float) $row['compare_at_price'], 2) }}
-                                                @else
-                                                    —
-                                                @endif
-                                            </dd>
-                                        </div>
-                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Available stock</dt>
-                                            <dd class="mt-1 text-lg font-semibold tabular-nums text-[#0F172A]">{{ number_format($row['stock']) }}</dd>
-                                        </div>
-                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Reserved</dt>
-                                            <dd class="mt-1 text-lg font-semibold tabular-nums text-[#0F172A]">{{ number_format($row['reserved'] ?? 0) }}</dd>
-                                        </div>
-                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Committed</dt>
-                                            <dd class="mt-1 text-lg font-semibold tabular-nums text-[#0F172A]">{{ number_format($row['committed'] ?? 0) }}</dd>
-                                        </div>
-                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Location</dt>
-                                            <dd class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $row['location_name'] ?? 'Main location' }}</dd>
-                                        </div>
-                                        <div class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 sm:col-span-2">
-                                            <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Low-stock alert</dt>
-                                            <dd class="mt-1 text-sm font-medium tabular-nums text-[#334155]">{{ $row['stock_alert'] > 0 ? number_format($row['stock_alert']) : 'Not set' }}</dd>
-                                        </div>
-                                    </dl>
-                                    @if (! empty($row['additional_detail_rows']))
-                                        <details class="mt-4 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
-                                            <summary class="cursor-pointer text-sm font-semibold text-[#0052CC] hover:underline">Extra information for this variant</summary>
-                                            <dl class="mt-3 grid gap-2 sm:grid-cols-2">
-                                                @foreach ($row['additional_detail_rows'] as $detailRow)
-                                                    <div class="rounded-lg border border-[#F1F5F9] bg-[#FAFAFA] px-3 py-2">
-                                                        <dt class="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">{{ $detailRow['label'] }}</dt>
-                                                        <dd class="mt-1 text-sm font-medium text-[#0F172A] break-words">{{ $detailRow['value_display'] }}</dd>
-                                                    </div>
-                                                @endforeach
-                                            </dl>
-                                        </details>
-                                    @else
-                                        <p class="mt-4 text-xs text-[#94A3B8]">No variant-specific extra information.</p>
-                                    @endif
-                                </div>
-                            </div>
                         @else
                             <div class="mt-6 overflow-x-auto rounded-2xl border border-[#E2E8F0] shadow-sm">
                                 <table class="w-full min-w-[880px] text-left text-sm" aria-describedby="variant-table-caption">
-                                    <caption id="variant-table-caption" class="sr-only">Sellable combinations: variant photo, shopper choices, optional extra details, SKU, pricing, available stock, reservations, location, and low-stock alert.</caption>
+                                    <caption id="variant-table-caption" class="sr-only">
+                                        @if ($multiVariant)
+                                            Sellable combinations: variant photo, shopper choices, optional extra details, SKU, pricing, available stock, location, and low-stock alert.
+                                        @else
+                                            Default inventory: listing photo, SKU, pricing, available stock, location, and low-stock alert.
+                                        @endif
+                                    </caption>
                                     <thead class="bg-[#F1F5F9] text-xs font-bold uppercase tracking-wide text-[#64748B]">
                                         <tr>
-                                            <th class="px-4 py-3.5">Variant photo</th>
-                                            <th class="px-4 py-3.5">Sellable combination</th>
+                                            <th class="px-4 py-3.5">{{ $multiVariant ? 'Variant photo' : 'Listing photo' }}</th>
+                                            <th class="px-4 py-3.5">{{ $multiVariant ? 'Sellable combination' : 'Inventory row' }}</th>
                                             <th class="min-w-[8rem] px-4 py-3.5">Extra details</th>
                                             <th class="px-4 py-3.5">SKU</th>
                                             <th class="min-w-[7rem] px-4 py-3.5">Retail price</th>

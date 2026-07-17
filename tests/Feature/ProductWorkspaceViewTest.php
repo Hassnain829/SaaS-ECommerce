@@ -111,7 +111,7 @@ class ProductWorkspaceViewTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products.show', $product))
             ->assertOk()
-            ->assertSee('Extra information for this variant', false)
+            ->assertSee('Extra details', false)
             ->assertSee('Bundle', false)
             ->assertSee('3-pack', false);
     }
