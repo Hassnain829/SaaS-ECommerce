@@ -2092,6 +2092,533 @@
         transform: translateX(1.25rem);
     }
 
+    /* —— Checkout & tax console (mock-aligned, dashboard tokens) —— */
+    .tax-console {
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+        width: 100%;
+    }
+
+    .tax-console-summary-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 640px) {
+        .tax-console-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (min-width: 1100px) {
+        .tax-console-summary-grid {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 1.15rem;
+        }
+    }
+
+    .tax-console-stat {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 8rem;
+        border-radius: 0.85rem;
+        border: 1px solid #e3e1ea;
+        background: #ffffff;
+        padding: 1.2rem 1.25rem 1.25rem;
+        box-shadow:
+            0 1px 0 rgb(15 23 42 / 0.02),
+            0 8px 24px -18px rgb(15 23 42 / 0.18);
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+
+    .tax-console-stat:hover {
+        box-shadow:
+            0 1px 0 rgb(15 23 42 / 0.03),
+            0 14px 28px -18px rgb(36 56 156 / 0.28);
+        transform: translateY(-1px);
+    }
+
+    .tax-console-stat-accent {
+        border-top: 3px solid #10b981;
+    }
+
+    .tax-console-stat-muted {
+        background: #f4f2fc;
+    }
+
+    .tax-console-stat-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.75rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #757684;
+    }
+
+    .tax-console-stat-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        flex-shrink: 0;
+        border-radius: 9999px;
+        background: #f4f2fc;
+        color: #24389c;
+    }
+
+    .tax-console-stat-icon svg {
+        display: block;
+    }
+
+    .tax-console-stat-icon-success {
+        background: #ecfdf5;
+        color: #059669;
+    }
+
+    .tax-console-stat-body {
+        margin-top: auto;
+        padding-top: 1rem;
+    }
+
+    .tax-console-stat-value {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: var(--font-heading);
+        font-size: 1.4rem;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        color: #0f172a;
+    }
+
+    .tax-console-stat-value-sm {
+        font-size: 0.98rem;
+        font-weight: 650;
+        line-height: 1.3;
+    }
+
+    .tax-console-stat-meta {
+        margin-top: 0.35rem;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        color: #757684;
+    }
+
+    .tax-console-pulse {
+        display: inline-block;
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 9999px;
+        background: #10b981;
+        box-shadow: 0 0 0 0 rgb(16 185 129 / 0.55);
+        animation: tax-console-pulse 1.8s ease-out infinite;
+    }
+
+    @keyframes tax-console-pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgb(16 185 129 / 0.45);
+        }
+        70% {
+            box-shadow: 0 0 0 0.45rem rgb(16 185 129 / 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+        }
+    }
+
+    .tax-console-layout {
+        display: grid;
+        gap: 1.5rem;
+        align-items: start;
+        width: 100%;
+    }
+
+    @media (min-width: 1024px) {
+        .tax-console-layout {
+            grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+            gap: 1.75rem;
+        }
+    }
+
+    .tax-console-card {
+        overflow: hidden;
+        border-radius: 1rem;
+        border: 1px solid #e3e1ea;
+        background: #ffffff;
+        box-shadow:
+            0 1px 0 rgb(15 23 42 / 0.02),
+            0 10px 28px -20px rgb(15 23 42 / 0.2);
+    }
+
+    .tax-console-card-header {
+        border-bottom: 1px solid #e3e1ea;
+        background: #ffffff;
+        padding: 1.35rem 1.5rem;
+    }
+
+    .tax-console-card-header-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .tax-console-card-title {
+        font-family: var(--font-heading);
+        font-size: 1.2rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: #0f172a;
+    }
+
+    .tax-console-card-lead {
+        margin-top: 0.4rem;
+        max-width: 36rem;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: #64748b;
+    }
+
+    .tax-console-card-body {
+        padding: 1rem 1.5rem 1.5rem;
+    }
+
+    .tax-console-toggle-list {
+        display: grid;
+        gap: 0;
+    }
+
+    .tax-console-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.05rem 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .tax-console-toggle-row:last-child {
+        border-bottom: 0;
+    }
+
+    .tax-console-toggle-copy {
+        max-width: 80%;
+    }
+
+    .tax-console-toggle-copy strong {
+        display: block;
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .tax-console-toggle-copy span {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        color: #64748b;
+    }
+
+    .tax-console .settings-switch input:checked + .settings-switch-track {
+        background: #24389c;
+    }
+
+    .tax-console .settings-switch input:focus-visible + .settings-switch-track {
+        outline-color: #c5c5d4;
+    }
+
+    .tax-console-address-card {
+        position: relative;
+        overflow: hidden;
+        margin-top: 1.35rem;
+        border-radius: 0.9rem;
+        background: linear-gradient(145deg, #364457 0%, #2a3646 100%);
+        padding: 1.25rem 1.35rem;
+        color: #ffffff;
+    }
+
+    .tax-console-address-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgb(255 255 255 / 0.12), transparent 55%);
+        pointer-events: none;
+    }
+
+    .tax-console-address-head {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+    }
+
+    .tax-console-address-icon {
+        display: inline-flex;
+        color: #bac3ff;
+    }
+
+    .tax-console-address-title {
+        position: relative;
+        z-index: 1;
+        font-family: var(--font-heading);
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .tax-console-address-value {
+        position: relative;
+        z-index: 1;
+        margin-top: 0.55rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #dee0ff;
+    }
+
+    .tax-console-address-note {
+        position: relative;
+        z-index: 1;
+        margin-top: 0.55rem;
+        font-size: 0.78rem;
+        line-height: 1.55;
+        color: #c5c5d4;
+    }
+
+    .tax-console-form-footer {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f1f5f9;
+        font-size: 0.75rem;
+        color: #64748b;
+    }
+
+    .tax-console-btn {
+        display: inline-flex;
+        height: 2.45rem;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        border-radius: 0.65rem;
+        padding-inline: 1rem;
+        font-size: 0.84rem;
+        font-weight: 600;
+        transition: background-color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .tax-console-btn-primary {
+        background: #24389c;
+        color: #ffffff;
+    }
+
+    .tax-console-btn-primary:hover {
+        background: #1e2f86;
+        box-shadow: 0 10px 22px -12px rgb(36 56 156 / 0.7);
+        transform: translateY(-1px);
+    }
+
+    .tax-console-rates-body {
+        padding-top: 0;
+        padding-inline: 0;
+        padding-bottom: 0;
+    }
+
+    .tax-console-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 2.75rem 1.5rem;
+        border-top: 1px solid #e3e1ea;
+    }
+
+    .tax-console-empty-icon {
+        display: flex;
+        width: 3.75rem;
+        height: 3.75rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: #f4f2fc;
+        color: #757684;
+        margin-bottom: 0.95rem;
+    }
+
+    .tax-console-empty-title {
+        font-size: 0.98rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+    .tax-console-empty-copy {
+        margin-top: 0.4rem;
+        max-width: 22rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: #64748b;
+    }
+
+    .tax-console-table-wrap {
+        overflow-x: auto;
+        border-top: 1px solid #e3e1ea;
+    }
+
+    .tax-console-table {
+        width: 100%;
+        min-width: 36rem;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.875rem;
+    }
+
+    .tax-console-table thead tr {
+        background: rgb(244 242 252 / 0.65);
+    }
+
+    .tax-console-table th {
+        padding: 0.9rem 1.35rem;
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+
+    .tax-console-table td {
+        padding: 1.05rem 1.35rem;
+        vertical-align: top;
+        border-top: 1px solid #e3e1ea;
+    }
+
+    .tax-console-table tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
+    .tax-console-table tbody tr:hover {
+        background: rgb(36 56 156 / 0.035);
+    }
+
+    .tax-console-row-inactive {
+        opacity: 0.7;
+    }
+
+    .tax-console-rate-name {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .tax-console-rate-bar {
+        display: block;
+        width: 0.2rem;
+        min-height: 2.15rem;
+        border-radius: 9999px;
+        background: #c5c5d4;
+        flex-shrink: 0;
+        margin-top: 0.1rem;
+    }
+
+    .tax-console-rate-bar-active {
+        background: #24389c;
+    }
+
+    .tax-console-rate-bar-muted {
+        background: #c5c5d4;
+    }
+
+    .tax-console-rate-id {
+        margin-top: 0.15rem;
+        font-size: 0.65rem;
+        letter-spacing: 0.02em;
+        color: #64748b;
+    }
+
+    .tax-console-jurisdiction {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 0.4rem;
+        background: #e3e1ea;
+        padding: 0.22rem 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #454652;
+    }
+
+    .tax-console-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        border-radius: 9999px;
+        padding: 0.28rem 0.7rem;
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .tax-console-pill-dot {
+        width: 0.35rem;
+        height: 0.35rem;
+        border-radius: 9999px;
+        background: currentColor;
+    }
+
+    .tax-console-pill-success {
+        background: #d1fae5;
+        color: #047857;
+    }
+
+    .tax-console-pill-muted {
+        background: #f4f2fc;
+        color: #64748b;
+    }
+
+    .tax-console-link {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #24389c;
+    }
+
+    .tax-console-link:hover {
+        text-decoration: underline;
+    }
+
+    .tax-console-mobile-rate {
+        margin: 1rem 1.25rem;
+        border-radius: 0.9rem;
+        border: 1px solid #e3e1ea;
+        background: #f8fafc;
+        padding: 1rem;
+    }
+
+    .tax-console-mobile-rate + .tax-console-mobile-rate {
+        margin-top: 0;
+    }
+
+    .tax-console-rates-body > .space-y-3 {
+        padding: 1rem 0 1.25rem;
+    }
+
+    .tax-console-rates-body > p {
+        margin-inline: 1.5rem;
+        margin-bottom: 1.25rem;
+    }
+
     /* —— Payments console (mock-aligned, modular) —— */
     .payments-console {
         display: flex;
