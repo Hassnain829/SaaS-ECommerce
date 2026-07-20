@@ -1,10 +1,10 @@
 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Fulfillment locations</h2>
+            <h2 class="text-xl font-semibold text-[#0F172A]">Fulfillment locations</h2>
             <p class="mt-1 text-sm text-[#64748B]">Ship-from addresses for carrier rates, labels, and fulfillment. Not the same as your store business address.</p>
         </div>
-        <a href="{{ route('settings.locations.index') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Manage locations</a>
+        <a href="{{ route('settings.locations.index') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Manage locations</a>
     </div>
 
     <div class="mt-5 space-y-3">

@@ -98,7 +98,7 @@
             <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div class="min-w-0 flex-1 space-y-2">
                     <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Order snapshot</p>
-                    <h2 class="font-[Poppins] text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">Order {{ strtoupper($order->order_number) }}</h2>
+                    <h2 class="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">Order {{ strtoupper($order->order_number) }}</h2>
                     <p class="max-w-2xl text-sm leading-relaxed text-slate-600">
                         Placed {{ $order->placed_at ? $order->placed_at->format('F j, Y \a\t g:i A') : 'date not recorded' }}
                         <span class="text-slate-400">·</span>
@@ -143,7 +143,7 @@
                 {{-- Line items --}}
                 <article class="{{ $card }} overflow-hidden">
                     <div class="{{ $cardHeader }}">
-                        <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Order items</h3>
+                        <h3 class="text-lg font-semibold text-slate-900">Order items</h3>
                         <p class="mt-1 text-sm leading-relaxed text-slate-600">What the customer bought—names, options, and prices are frozen from checkout.</p>
                     </div>
                     <div class="space-y-3 p-4 md:p-5">
@@ -201,7 +201,7 @@
                 <article class="{{ $card }} p-5 md:p-6">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Payment summary</h3>
+                            <h3 class="text-lg font-semibold text-slate-900">Payment summary</h3>
                             <p class="mt-1 text-sm text-slate-600">
                                 @if ($gatewayLabel)
                                     {{ $gatewayLabel }}{{ $order->payment_method ? ' · ' . str($order->payment_method)->replace('_', ' ')->title() : '' }}
@@ -262,7 +262,7 @@
 
                 {{-- Payment & source --}}
                 <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Payment and source</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Payment and source</h3>
                     <p class="mt-1 text-sm leading-relaxed text-slate-600">
                         @if ($order->order_source === 'external_checkout')
                             Payment status recorded from external checkout.
@@ -352,7 +352,7 @@
 
                 {{-- Activity --}}
                 <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Order activity</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Order activity</h3>
                     <p class="mt-1 text-sm text-slate-600">A clear history of what changed and when—helpful for support and audits.</p>
 
                     <div class="relative mt-6">
@@ -397,7 +397,7 @@
             <aside class="space-y-6 xl:sticky xl:top-6">
                 <article class="{{ $card }} p-5 md:p-6">
                     <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Operations</p>
-                    <h3 class="mt-1 font-[Poppins] text-lg font-semibold text-slate-900">Order status</h3>
+                    <h3 class="mt-1 text-lg font-semibold text-slate-900">Order status</h3>
                     <p class="mt-1 text-sm text-slate-600">Move this order only through allowed steps for your store.</p>
 
                     @if ($canManageOrders && $availableOrderStatuses->count() > 1)
@@ -430,7 +430,7 @@
                 </article>
 
                 <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Customer</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Customer</h3>
                     <div class="mt-4 flex items-center gap-3">
                         <div class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-800 ring-2 ring-white shadow-sm">
                             {{ strtoupper($customerInitials) ?: 'C' }}
@@ -488,7 +488,7 @@
                     @endphp
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Fulfillment</h3>
+                            <h3 class="text-lg font-semibold text-slate-900">Fulfillment</h3>
                             @if ($isOrderExternallyManaged)
                                 <p class="mt-1 text-sm text-slate-600">Fulfillment managed externally. Updates appear here when the external storefront sends shipment snapshots.</p>
                             @else
@@ -786,7 +786,7 @@
                 </article>
 
                 <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Order notes</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Order notes</h3>
                     <p class="mt-1 text-sm text-slate-600">Internal notes stay in your team—customers do not see them.</p>
 
                     @if ($canManageOrders)
@@ -815,7 +815,7 @@
                 </article>
 
                 <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="font-[Poppins] text-lg font-semibold text-slate-900">Returns and refunds</h3>
+                    <h3 class="text-lg font-semibold text-slate-900">Returns and refunds</h3>
                     <p class="mt-1 text-sm text-slate-600">RMAs and refund history will live here when returns are enabled for your store.</p>
                     <div class="mt-5 flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center">
                         <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">

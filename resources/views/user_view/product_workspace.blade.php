@@ -50,7 +50,7 @@
                 Catalog
             </a>
             @if ($canManageCatalog)
-                <a href="{{ route('products.edit', $product) }}" class="hidden sm:inline-flex h-10 items-center rounded-xl bg-[#0052CC] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#0047B3]">
+                <a href="{{ route('products.edit', $product) }}" class="hidden sm:inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-bold text-white shadow-sm transition hover:bg-brand-hover">
                     Edit details
                 </a>
             @endif
@@ -64,7 +64,7 @@
             @include('user_view.partials.flash_success')
 
             <header class="product-workspace-hero relative overflow-hidden rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-[0_4px_20px_rgba(71,85,105,0.06)] sm:p-10" aria-labelledby="product-workspace-overview-heading">
-                <div class="absolute inset-y-0 left-0 w-1.5 bg-[#24389C]" aria-hidden="true"></div>
+                <div class="absolute inset-y-0 left-0 w-1.5 bg-brand" aria-hidden="true"></div>
                 <div class="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                     <div class="min-w-0 flex-1 space-y-4">
                         <div>
@@ -76,7 +76,7 @@
                                 @endif
                                 <span class="text-sm text-[#454652]">Visibility follows status when you sell on the storefront.</span>
                             </div>
-                            <h2 id="product-workspace-overview-heading" class="break-words font-[Poppins] text-2xl font-semibold leading-tight text-[#1A1B22] sm:text-4xl">{{ $product->name }}</h2>
+                            <h2 id="product-workspace-overview-heading" class="break-words text-2xl font-semibold leading-tight text-[#1A1B22] sm:text-4xl">{{ $product->name }}</h2>
                         </div>
                         <p class="max-w-3xl text-base leading-relaxed text-[#454652]">
                             One place to review catalog data, inventory, and storefront context for <span class="font-semibold text-[#1A1B22]">{{ $selectedStore?->name ?? 'this store' }}</span>.
@@ -113,7 +113,7 @@
                     <section class="product-workspace-card product-workspace-media-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Media</h2>
+                                <h2 class="text-lg font-semibold text-[#0F172A]">Media</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">Photos and visuals shoppers see for this product.</p>
                             </div>
                             @if ($canManageCatalog)
@@ -160,7 +160,7 @@
                         <section class="product-workspace-card product-workspace-copy-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                             <div class="border-b border-[#F1F5F9] pb-4">
                                 <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">Selling information</p>
-                                <h2 class="mt-1 text-lg font-semibold text-[#0F172A] font-[Poppins]">Storefront copy</h2>
+                                <h2 class="mt-1 text-lg font-semibold text-[#0F172A]">Storefront copy</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">Description shown to shoppers where your theme displays it.</p>
                             </div>
                             <div class="mt-6 max-w-none text-sm leading-relaxed text-[#334155] whitespace-pre-wrap">{{ $product->description }}</div>
@@ -170,7 +170,7 @@
                     <section class="product-workspace-card product-workspace-specifications-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[#94A3B8]">Structured catalog facts</p>
-                            <h2 class="mt-1 text-lg font-semibold text-[#0F172A] font-[Poppins]">Product specifications</h2>
+                            <h2 class="mt-1 text-lg font-semibold text-[#0F172A]">Product specifications</h2>
                             <p class="mt-1 text-sm text-[#64748B]">Reusable product facts for filtering and comparison. Shopper choices such as size or color combinations still live under option groups.</p>
                         </div>
                         @if ($hasAttributes)
@@ -205,7 +205,7 @@
 
                     <section class="product-workspace-card product-workspace-behavior-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
-                            <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Product behavior</h2>
+                            <h2 class="text-lg font-semibold text-[#0F172A]">Product behavior</h2>
                             <p class="mt-1 text-sm text-[#64748B]">How this product is sold and fulfilled in your catalog workflow.</p>
                         </div>
                         <dl class="mt-6 grid gap-4 sm:grid-cols-3">
@@ -226,7 +226,7 @@
 
                     <section class="product-workspace-card product-workspace-additional-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8" aria-labelledby="workspace-additional-details-heading">
                         <div class="border-b border-[#F1F5F9] pb-4">
-                            <h2 id="workspace-additional-details-heading" class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Additional product details</h2>
+                            <h2 id="workspace-additional-details-heading" class="text-lg font-semibold text-[#0F172A]">Additional product details</h2>
                             <p class="mt-1 text-sm text-[#64748B]"><span class="font-medium text-[#334155]">Additional details</span> are fields you choose and can edit (supplier, material, origin, care notes, ingredients, internal references). They are not the same as read-only spreadsheet columns: those live under <span class="font-medium text-[#334155]">Advanced imported data</span> in the sidebar when an import left columns unmapped.</p>
                         </div>
                         @if ($hasCustom)
@@ -262,7 +262,7 @@
                     @if ($optionGroupSummaries !== [])
                         <section class="product-workspace-card product-workspace-options-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                             <div class="border-b border-[#F1F5F9] pb-4">
-                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Option groups</h2>
+                                <h2 class="text-lg font-semibold text-[#0F172A]">Option groups</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">Each group is one set of choices shoppers pick (for example Size, then Color). <span class="font-medium text-[#334155]">Sellable combinations</span> below lists every combination you sell.</p>
                             </div>
                             <ul class="mt-6 grid gap-4 sm:grid-cols-2">
@@ -284,10 +284,10 @@
                     <section class="product-workspace-card product-workspace-variants-card overflow-hidden rounded-xl border border-[#E3E1EA] bg-white shadow-sm">
                         <div class="border-b border-[#F1F5F9] pb-4">
                             @if ($multiVariant)
-                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Sellable combinations and inventory</h2>
+                                <h2 class="text-lg font-semibold text-[#0F172A]">Sellable combinations and inventory</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">Each row is one variant (a combination of your option groups) with its own SKU, price, compare-at, available stock, optional photo, and optional extra details. Totals in <span class="font-medium text-[#334155]">Pricing &amp; inventory</span> roll up from inventory locations.</p>
                             @else
-                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Default inventory</h2>
+                                <h2 class="text-lg font-semibold text-[#0F172A]">Default inventory</h2>
                                 <p class="mt-1 text-sm text-[#64748B]">
                                     This product has one inventory row. Available stock comes from its inventory location.
                                     @if ($canManageCatalog)
@@ -391,7 +391,7 @@
                     <section class="product-workspace-card product-workspace-inventory-card">
                         <div class="grid gap-6 lg:grid-cols-3">
                             <div class="rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
-                                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Inventory summary</h2>
+                                <h2 class="text-lg font-semibold text-[#0F172A]">Inventory summary</h2>
                                 <dl class="mt-6 space-y-4">
                                     <div class="flex items-center justify-between rounded-lg bg-[#F4F2FC] px-4 py-4">
                                         <dt class="text-sm text-[#64748B]">Total available</dt>
@@ -412,7 +412,7 @@
                             <div class="rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm lg:col-span-2 sm:p-8">
                                 <div class="flex items-center justify-between gap-4">
                                     <div>
-                                        <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Stock activity</h2>
+                                        <h2 class="text-lg font-semibold text-[#0F172A]">Stock activity</h2>
                                         <p class="mt-1 text-xs text-[#64748B]">Recent audited stock changes for this product.</p>
                                     </div>
                                 </div>
@@ -420,7 +420,7 @@
                                     <ul class="relative mt-6 space-y-0 border-l-2 border-[#E3E1EA] pl-7 text-sm text-[#334155]">
                                         @foreach ($recentMovements as $mv)
                                             <li class="relative pb-6 last:pb-0">
-                                                <span class="absolute -left-[2.15rem] top-1 h-3 w-3 rounded-full border-2 border-white bg-[#24389C] ring-1 ring-[#E3E1EA]" aria-hidden="true"></span>
+                                                <span class="absolute -left-[2.15rem] top-1 h-3 w-3 rounded-full border-2 border-white bg-brand ring-1 ring-[#E3E1EA]" aria-hidden="true"></span>
                                                 <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                                                     <p class="font-semibold text-[#0F172A]">
                                                         {{ $movementLabels[$mv->movement_type] ?? Str::title(str_replace('_', ' ', $mv->movement_type)) }}
@@ -446,7 +446,7 @@
                 <aside class="product-workspace-contents">
                     <section class="product-workspace-card product-workspace-pricing-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
-                            <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Store pricing</h2>
+                            <h2 class="text-lg font-semibold text-[#0F172A]">Store pricing</h2>
                             <p class="mt-1 text-xs text-[#64748B]">Base list price in {{ $currency }}.</p>
                         </div>
                         <dl class="mt-5 space-y-4 text-sm">
@@ -477,7 +477,7 @@
 
                     <section class="product-workspace-card product-workspace-organization-card rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
                         <div class="border-b border-[#F1F5F9] pb-4">
-                            <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Organization</h2>
+                            <h2 class="text-lg font-semibold text-[#0F172A]">Organization</h2>
                             <p class="mt-1 text-xs text-[#64748B]">Brand, categories, and tags for this store.</p>
                         </div>
                         <div class="mt-5 grid gap-5 text-sm sm:grid-cols-2">
@@ -526,7 +526,7 @@
                     </section>
 
                     <details id="workspace-advanced-imported-panel" class="product-workspace-card product-workspace-import-card group rounded-xl border border-[#E3E1EA] bg-white p-6 shadow-sm sm:p-8">
-                        <summary class="cursor-pointer list-none text-base font-semibold text-[#0F172A] font-[Poppins] [&::-webkit-details-marker]:hidden">
+                        <summary class="cursor-pointer list-none text-base font-semibold text-[#0F172A] [&::-webkit-details-marker]:hidden">
                             <span class="inline-flex items-center gap-2">
                                 <svg class="h-4 w-4 shrink-0 text-[#64748B] transition group-open:rotate-90" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M6 4l4 4-4 4V4z"/></svg>
                                 Advanced imported data

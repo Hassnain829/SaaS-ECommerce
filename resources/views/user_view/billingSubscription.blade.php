@@ -1,4 +1,4 @@
-﻿@extends('layouts.user.user-sidebar')
+@extends('layouts.user.user-sidebar')
 
 @section('title', 'Billing & Subscription | BaaS Core')
 @section('sidebar_brand_title', 'BaaS Platform')
@@ -27,14 +27,14 @@
                                 <path d="M12 9V13M10 11H14" stroke="#0052CC" stroke-width="1.8" stroke-linecap="round" />
                             </svg>
                         </div>
-                        <h3 class="text-2xl font-poppins">Professional</h3>
+                        <h3 class="text-2xl">Professional</h3>
                         <p class="text-xs text-[#64748B]">Billed monthly</p>
                     </div>
                     <div class="p-5 flex flex-col gap-5">
                         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                             <div>
                                 <p class="text-xs uppercase tracking-[1.2px] font-bold text-[#0052CC]">Current Plan</p>
-                                <h2 class="text-2xl font-poppins mt-1">Professional Plan</h2>
+                                <h2 class="text-2xl mt-1">Professional Plan</h2>
                                 <p class="text-[#475569] text-sm mt-1">Next billing cycle: Oct 12, 2023</p>
                             </div>
                             <div class="text-left md:text-right">
@@ -43,7 +43,7 @@
                             </div>
                         </div>
                         <div class="flex gap-3">
-                            <button class="h-10 px-6 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Change
+                            <button class="h-10 px-6 rounded-lg bg-brand text-white text-sm font-semibold">Change
                                 Plan</button>
                             <button
                                 class="h-10 px-6 rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] text-[#475569] text-sm font-semibold">Cancel</button>
@@ -59,28 +59,28 @@
                             d="M2 10C2 5.58172 5.58172 2 10 2H14V4H10C6.68629 4 4 6.68629 4 10C4 13.3137 6.68629 16 10 16H14C16.2091 16 18 14.2091 18 12V11H10V9H18V10V12C18 15.3137 15.3137 18 12 18H10C5.58172 18 2 14.4183 2 10Z"
                             fill="#0052CC" />
                     </svg>
-                    <h3 class="text-lg font-poppins uppercase font-bold">Usage Summary</h3>
+                    <h3 class="text-lg uppercase font-bold">Usage Summary</h3>
                 </div>
                 <div class="space-y-4">
                     <div>
                         <div class="flex justify-between text-sm mb-2"><span class="text-[#64748B]">API Calls</span><span
                                 class="font-semibold text-[#0F172A]">75k / 100k</span></div>
                         <div class="h-2 rounded-full bg-[#E2E8F0]">
-                            <div class="h-2 w-3/4 rounded-full bg-[#0052CC]"></div>
+                            <div class="h-2 w-3/4 rounded-full bg-brand"></div>
                         </div>
                     </div>
                     <div>
                         <div class="flex justify-between text-sm mb-2"><span class="text-[#64748B]">Storage</span><span
                                 class="font-semibold">4.2 GB / 10 GB</span></div>
                         <div class="h-2 rounded-full bg-[#E2E8F0]">
-                            <div class="h-2 w-[42%] rounded-full bg-[#0052CC]"></div>
+                            <div class="h-2 w-[42%] rounded-full bg-brand"></div>
                         </div>
                     </div>
                     <div>
                         <div class="flex justify-between text-sm mb-2"><span class="text-[#64748B]">Active Nodes</span><span
                                 class="font-semibold">8 / 15</span></div>
                         <div class="h-2 rounded-full bg-[#E2E8F0]">
-                            <div class="h-2 w-[53%] rounded-full bg-[#0052CC]"></div>
+                            <div class="h-2 w-[53%] rounded-full bg-brand"></div>
                         </div>
                     </div>
                 </div>
@@ -90,7 +90,7 @@
         <section class="grid grid-cols-1 xl:grid-cols-12 gap-5">
             <div class="xl:col-span-6 bg-white border border-[#CBD5E1] rounded-xl p-5 shadow-sm">
                 <div class="flex items-center justify-between mb-5">
-                    <h3 class="text-lg font-poppins uppercase font-bold">Payment Methods</h3>
+                    <h3 class="text-lg uppercase font-bold">Payment Methods</h3>
                     <button class="text-[#0052CC] font-semibold text-sm">Add New</button>
                 </div>
                 <div class="space-y-3">
@@ -129,7 +129,7 @@
 
             <div class="xl:col-span-6 bg-white border border-[#CBD5E1] rounded-xl p-5 shadow-sm">
                 <div class="flex items-center justify-between mb-5">
-                    <h3 class="text-lg font-poppins uppercase font-bold">Billing Details</h3>
+                    <h3 class="text-lg uppercase font-bold">Billing Details</h3>
                     <button class="text-[#0052CC] font-semibold text-sm">Edit</button>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -152,7 +152,7 @@
 
         <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden shadow-sm">
             <div class="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-                <h3 class="text-lg font-poppins uppercase font-bold">Recent Invoices</h3>
+                <h3 class="text-lg uppercase font-bold">Recent Invoices</h3>
                 <button class="text-[#94A3B8] text-sm font-semibold flex items-center gap-1">View all <span
                         aria-hidden="true">></span></button>
             </div>

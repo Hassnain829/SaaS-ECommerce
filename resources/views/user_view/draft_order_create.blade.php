@@ -41,7 +41,7 @@
 
         <div class="space-y-4">
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Customer</h2>
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label class="block md:col-span-2">
                         <span class="text-xs font-semibold text-[#64748B]">Existing customer</span>
@@ -68,7 +68,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Products</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Products</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Add one or more variants. Stock shown is guidance — inventory is checked when you create the order.</p>
 
                 @if($variants->isEmpty())
@@ -86,7 +86,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Shipping address</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Shipping address</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Address, city, and country are required before creating the order.</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label class="block">
@@ -153,7 +153,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <label for="draft-notes" class="text-lg font-poppins font-semibold text-[#0F172A]">Notes</label>
+                <label for="draft-notes" class="text-lg font-semibold text-[#0F172A]">Notes</label>
                 <textarea id="draft-notes" name="notes" rows="4" class="mt-3 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Internal order note">{{ old('notes') }}</textarea>
             </section>
         </div>
@@ -182,7 +182,7 @@
             ])
 
             <section class="hidden xl:block rounded-2xl border border-[#CBD5E1] bg-white p-5 space-y-3">
-                <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-[#0052CC] text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
+                <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-brand text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
                     Save draft
                 </button>
                 <p class="text-xs text-[#64748B]">Payment collection is not available here yet. Creating the order does not charge a card.</p>
@@ -190,7 +190,7 @@
         </aside>
 
         <div class="fixed inset-x-0 bottom-0 z-20 border-t border-[#E2E8F0] bg-white/95 p-4 backdrop-blur xl:hidden">
-            <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-[#0052CC] text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
+            <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-brand text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
                 Save draft
             </button>
         </div>

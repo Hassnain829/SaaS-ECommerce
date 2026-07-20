@@ -23,15 +23,15 @@
         <div class="flex shrink-0 items-start justify-between gap-3 border-b border-[#E2E8F0] bg-white px-4 py-3 sm:px-5">
             <div class="min-w-0">
                 @if ($embedCatalogHubs)
-                    <h2 class="text-sm font-semibold tracking-tight text-[#0F766E] font-[Poppins]">Your catalog structure</h2>
+                    <h2 class="text-sm font-semibold tracking-tight text-[#0F766E]">Your catalog structure</h2>
                     <p class="mt-0.5 text-[11px] text-[#64748B]">Groups products for browsing—subcategories nest under a parent.</p>
                 @else
-                    <h2 class="text-base font-semibold tracking-tight text-[#0F172A] font-[Poppins]">Categories</h2>
+                    <h2 class="text-base font-semibold tracking-tight text-[#0F172A]">Categories</h2>
                     <p class="mt-0.5 text-xs text-[#64748B]">Browse groups like Clothing, Electronics, or Accessories.</p>
                 @endif
             </div>
             <div class="flex shrink-0 items-center gap-2">
-                <button type="button" id="category-hub-open-add" class="inline-flex items-center gap-1.5 rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0047B3] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/35">
+                <button type="button" id="category-hub-open-add" class="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-[#0052CC]/35">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="currentColor"/></svg>
                     Add category
                 </button>
@@ -103,7 +103,7 @@
                             <td colspan="4" class="px-2 py-10 text-center sm:px-4">
                                 <p class="text-sm font-medium text-[#475569]">No categories yet</p>
                                 <p class="mt-1 text-xs text-[#94A3B8]">Create groups to organize products in filters.</p>
-                                <button type="button" id="category-hub-empty-add" class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#0052CC] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#0047B3]">Add category</button>
+                                <button type="button" id="category-hub-empty-add" class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-hover">Add category</button>
                             </td>
                         </tr>
                     @endforelse
@@ -160,7 +160,7 @@
                             </div>
                         </details>
                         <div class="flex justify-end pt-1">
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0047B3] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/35">Save category</button>
+                            <button type="submit" class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-[#0052CC]/35">Save category</button>
                         </div>
                     </form>
                 </div>
@@ -173,7 +173,7 @@
     <button type="button" class="ui-modal-backdrop" data-category-edit-backdrop aria-label="Close"></button>
     <div class="ui-modal-panel ui-modal-panel--lg">
         <div class="flex items-center justify-between border-b border-[#E2E8F0] px-4 py-2.5">
-            <h2 class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Edit <span id="categoryEditTitleName" class="text-[#475569]">{{ $reopenEdit ? $editingCategory->name : '…' }}</span></h2>
+            <h2 class="text-sm font-semibold text-[#0F172A]">Edit <span id="categoryEditTitleName" class="text-[#475569]">{{ $reopenEdit ? $editingCategory->name : '…' }}</span></h2>
             <button type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#D9E2EC] text-[#64748B]" data-category-edit-close aria-label="Close">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             </button>
@@ -229,7 +229,7 @@
                     </div>
                 </details>
                 <p id="category_edit_product_count_wrap" class="hidden text-[11px] text-[#64748B]">Used on <span id="category_edit_product_count" class="font-semibold text-[#0F172A]"></span> product(s).</p>
-                <button type="submit" class="w-full rounded-lg bg-[#0052CC] py-2 text-[11px] font-bold text-white hover:bg-[#0047B3]">Save changes</button>
+                <button type="submit" class="w-full rounded-lg bg-brand py-2 text-[11px] font-bold text-white hover:bg-brand-hover">Save changes</button>
             </form>
         </div>
     </div>
@@ -238,7 +238,7 @@
 <div id="categoryDeleteWarningModal" class="ui-modal-shell ui-modal-shell--alert hidden">
     <div class="ui-modal-panel ui-modal-panel--sm border-[#FECACA]">
         <div class="px-4 pb-3 pt-4">
-            <h3 class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Remove <span id="deleteCategoryName" class="text-[#475569]"></span>?</h3>
+            <h3 class="text-sm font-semibold text-[#0F172A]">Remove <span id="deleteCategoryName" class="text-[#475569]"></span>?</h3>
             <p class="mt-1.5 text-xs text-[#64748B]">You can only delete a category after it is removed from all products.</p>
         </div>
         <div class="px-4 pb-4 pt-0">

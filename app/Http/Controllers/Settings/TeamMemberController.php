@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Models\Role;
+use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\SecurityLogRecorder;
@@ -30,11 +31,20 @@ class TeamMemberController extends Controller
             ->orderBy('users.name')
             ->get();
 
+        $recentTeamActivity = SecurityLog::query()
+            ->with(['user:id,name', 'targetUser:id,name'])
+            ->where('store_id', $currentStore->id)
+            ->whereIn('event_type', ['team_member_invited', 'role_changed', 'team_member_removed'])
+            ->orderByDesc('created_at')
+            ->limit(4)
+            ->get();
+
         return view('user_view.team_members', [
             'selectedStore' => $currentStore,
             'members' => $members,
             'currentUserStoreRole' => $request->user()->roleInStore($currentStore),
             'memberRoleOptions' => Store::memberRoles(),
+            'recentTeamActivity' => $recentTeamActivity,
         ]);
     }
 

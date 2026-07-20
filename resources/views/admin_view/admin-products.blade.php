@@ -53,7 +53,7 @@
     <div class="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
         <!-- Page title & subtitle -->
         <div>
-            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30] font-['Inter'] font-poppins">Global Product Inventory</h1>
+            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30] font-['Inter']">Global Product Inventory</h1>
             <p class="text-sm md:text-base text-[#434654] mt-1">Aggregate view of SKU performance and stock health across all tenants</p>
         </div>
 
@@ -303,7 +303,7 @@
             <!-- Category Distribution card -->
             <div class="bg-white rounded-2xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-4 md:p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xs md:text-sm font-medium text-[#0B1C30] font-poppins">Category Distribution</h3>
+                    <h3 class="text-xs md:text-sm font-medium text-[#0B1C30]">Category Distribution</h3>
                     <svg width="10" height="3" viewBox="0 0 10 3" fill="none"><path d="M1.16667 2.33333C0.845833 2.33333 0.571181 2.2191 0.342708 1.99063C0.114236 1.76215 0 1.4875 0 1.16667C0 0.845833 0.114236 0.571181 0.342708 0.342708C0.571181 0.114236 0.845833 0 1.16667 0C1.4875 0 1.76215 0.114236 1.99063 0.342708C2.2191 0.571181 2.33333 0.845833 2.33333 1.16667C2.33333 1.4875 2.2191 1.76215 1.99063 1.99063C1.76215 2.2191 1.4875 2.33333 1.16667 2.33333ZM4.66667 2.33333C4.34583 2.33333 4.07118 2.2191 3.84271 1.99063C3.61424 1.76215 3.5 1.4875 3.5 1.16667C3.5 0.845833 3.61424 0.571181 3.84271 0.342708C4.07118 0.114236 4.34583 0 4.66667 0C4.9875 0 5.26215 0.114236 5.49062 0.342708C5.7191 0.571181 5.83333 0.845833 5.83333 1.16667C5.83333 1.4875 5.7191 1.76215 5.49062 1.99063C5.26215 2.2191 4.9875 2.33333 4.66667 2.33333ZM8.16667 2.33333C7.84583 2.33333 7.57118 2.2191 7.34271 1.99063C7.11424 1.76215 7 1.4875 7 1.16667C7 0.845833 7.11424 0.571181 7.34271 0.342708C7.57118 0.114236 7.84583 0 8.16667 0C8.4875 0 8.76215 0.114236 8.99063 0.342708C9.2191 0.571181 9.33333 0.845833 9.33333 1.16667C9.33333 1.4875 9.2191 1.76215 8.99063 1.99063C8.76215 2.2191 8.4875 2.33333 8.16667 2.33333Z" fill="#434654"/></svg>
                 </div>
                 <div class="relative flex justify-center mb-4">
@@ -355,7 +355,7 @@
 
             <!-- Recently Added Products -->
             <div class="bg-white rounded-2xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-4 md:p-6">
-                <h3 class="text-xs md:text-sm font-medium text-[#0B1C30] mb-4 font-poppins">Recently Added<br>Products</h3>
+                <h3 class="text-xs md:text-sm font-medium text-[#0B1C30] mb-4">Recently Added<br>Products</h3>
                 <div class="space-y-3 md:space-y-4">
                     <div class="flex items-center gap-3">
                         <div class="w-8 md:w-10 h-8 md:h-10 bg-[#E5EEFF] rounded-lg shrink-0"></div>

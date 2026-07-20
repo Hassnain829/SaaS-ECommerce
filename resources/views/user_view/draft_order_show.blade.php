@@ -7,7 +7,7 @@
         <x-slot:actions>
             <span class="hidden rounded-full bg-[#E0E7FF] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#3730A3] md:inline-flex">{{ ucfirst($draftOrder->status) }}</span>
             @if($draftOrder->convertedOrder)
-                <a href="{{ route('orderViewDetails', $draftOrder->convertedOrder) }}" class="inline-flex h-10 items-center rounded-xl bg-[#0052CC] px-4 text-sm font-semibold text-white">View order</a>
+                <a href="{{ route('orderViewDetails', $draftOrder->convertedOrder) }}" class="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white">View order</a>
             @endif
             <a href="{{ route('orders') }}" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-800">Back</a>
         </x-slot:actions>
@@ -86,7 +86,7 @@
 
         <div class="space-y-4">
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Customer</h2>
                 <div class="mt-4 rounded-xl bg-[#F8FAFC] p-4 text-sm text-[#334155]">
                     <p class="font-semibold text-[#0F172A]">{{ $draftOrder->customer?->full_name ?? $draftOrder->customer?->email ?? 'No customer selected' }}</p>
                     <p class="mt-1 text-[#64748B]">{{ $draftOrder->customer?->email ?? 'Add a customer before creating the order.' }}</p>
@@ -98,7 +98,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Products</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Products</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Stock shown is guidance — inventory is checked when you create the order.</p>
 
                 @include('user_view.partials.draft_order_line_items', [
@@ -126,7 +126,7 @@
             @endif
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Shipping address</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Shipping address</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Address, city, and country are required before creating the order.</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     @foreach([
@@ -203,7 +203,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <label for="draft-notes-edit" class="text-lg font-poppins font-semibold text-[#0F172A]">Notes</label>
+                <label for="draft-notes-edit" class="text-lg font-semibold text-[#0F172A]">Notes</label>
                 <textarea id="draft-notes-edit" name="notes" rows="4" class="mt-3 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" @readonly(! $isEditable)>{{ old('notes', $draftOrder->notes) }}</textarea>
             </section>
         </div>

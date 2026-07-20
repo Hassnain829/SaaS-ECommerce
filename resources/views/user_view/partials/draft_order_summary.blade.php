@@ -15,7 +15,7 @@
 @endphp
 
 <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5" data-order-summary>
-    <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order summary</h3>
+    <h3 class="text-lg font-semibold text-[#0F172A]">Order summary</h3>
     @if ($isEstimate)
         <p class="mt-1 text-xs text-[#64748B]">Estimated preview before save. Totals are confirmed when you save the draft.</p>
     @endif

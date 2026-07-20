@@ -19,7 +19,7 @@
             </form>
         </x-slot:search>
         <x-slot:actions>
-            <a href="{{ route('products.import.create') }}" class="hidden h-9 items-center rounded-lg bg-[#0052CC] px-3 text-xs font-semibold text-white xl:inline-flex">New import</a>
+            <a href="{{ route('products.import.create') }}" class="hidden h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white xl:inline-flex">New import</a>
         </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection
@@ -75,7 +75,7 @@
                     <div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-6 py-12 text-center">
                         <p class="text-sm font-semibold text-[#334155]">No imports yet</p>
                         <p class="mt-2 text-sm text-[#64748B]">When you import a spreadsheet, it will show up here so you can review results anytime.</p>
-                        <a href="{{ route('products.import.create') }}" class="mt-6 inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Import products</a>
+                        <a href="{{ route('products.import.create') }}" class="mt-6 inline-flex items-center justify-center rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">Import products</a>
                     </div>
                 @else
                     <div class="overflow-x-auto rounded-2xl border border-[#E2E8F0]">

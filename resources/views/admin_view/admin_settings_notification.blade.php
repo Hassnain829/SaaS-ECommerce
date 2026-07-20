@@ -41,7 +41,7 @@
 @section('content')
 <div class="font-inter max-w-9xl mx-auto space-y-6">
     <div>
-        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30] font-poppins">System Notifications</h1>
+        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30]">System Notifications</h1>
         <p class="text-[19px] text-[#434654] mt-2 max-w-4xl">Manage your global platform configurations and communication preferences.</p>
     </div>
 
@@ -60,7 +60,7 @@
                 <svg width="24" height="18" viewBox="0 0 20 16" fill="none">
                     <path d="M2 16C1.45 16 0.979167 15.8042 0.5875 15.4125C0.195833 15.0208 0 14.55 0 14V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H18C18.55 0 19.0208 0.195833 19.4125 0.5875C19.8042 0.979167 20 1.45 20 2V14C20 14.55 19.8042 15.0208 19.4125 15.4125C19.0208 15.8042 18.55 16 18 16H2ZM10 9L2 4V14H18V4L10 9ZM10 7L18 2H2L10 7ZM2 4V2V4V14V4Z" fill="#003D9B"/>
                 </svg>
-                <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">Global Email Settings</h2>
+                <h2 class="text-lg font-medium text-[#0B1C30]">Global Email Settings</h2>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-[#E7EBF4]">
@@ -75,7 +75,7 @@
             </div>
 
             <div class="pt-6">
-                <h3 class="text-lg font-medium text-[#0B1C30] mb-4 font-poppins">SMTP Configuration</h3>
+                <h3 class="text-lg font-medium text-[#0B1C30] mb-4">SMTP Configuration</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm md:text-[13px] text-[#434654] mb-2">SMTP Host</label>
@@ -110,7 +110,7 @@
 
         <div class="xl:col-span-4 bg-white rounded-2xl border border-[#E7EBF4] p-6 md:p-8">
             <div class="flex items-center justify-between mb-6">
-                <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">Alert Triggers</h2>
+                <h2 class="text-lg font-medium text-[#0B1C30]">Alert Triggers</h2>
                 <span class="px-3 py-1 bg-[#DAE2FF] text-[#001848] text-xs font-bold uppercase rounded-lg">LIVE</span>
             </div>
 
@@ -176,7 +176,7 @@
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path d="M0 20V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H18C18.55 0 19.0208 0.195833 19.4125 0.5875C19.8042 0.979167 20 1.45 20 2V14C20 14.55 19.8042 15.0208 19.4125 15.4125C19.0208 15.8042 18.55 16 18 16H4L0 20ZM3.15 14H18V2H2V15.125L3.15 14ZM2 14V2V14Z" fill="#003D9B"/>
                 </svg>
-                <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">SMS Gateway</h2>
+                <h2 class="text-lg font-medium text-[#0B1C30]">SMS Gateway</h2>
             </div>
 
             <div class="space-y-4">
@@ -206,7 +206,7 @@
                 <svg width="20" height="19" viewBox="0 0 20 19" fill="none">
                     <path d="M5 19C3.61667 19 2.4375 18.5125 1.4625 17.5375C0.4875 16.5625 0 15.3833 0 14C0 12.7833 0.379167 11.7208 1.1375 10.8125C1.89583 9.90417 2.85 9.33333 4 9.1V11.175C3.41667 11.375 2.9375 11.7333 2.5625 12.25C2.1875 12.7667 2 13.35 2 14C2 14.8333 2.29167 15.5417 2.875 16.125C3.45833 16.7083 4.16667 17 5 17C5.83333 17 6.54167 16.7083 7.125 16.125C7.70833 15.5417 8 14.8333 8 14V13H13.875C14.0083 12.85 14.1708 12.7292 14.3625 12.6375C14.5542 12.5458 14.7667 12.5 15 12.5C15.4167 12.5 15.7708 12.6458 16.0625 12.9375C16.3542 13.2292 16.5 13.5833 16.5 14C16.5 14.4167 16.3542 14.7708 16.0625 15.0625C15.7708 15.3542 15.4167 15.5 15 15.5C14.7667 15.5 14.5542 15.4542 14.3625 15.3625C14.1708 15.2708 14.0083 15.15 13.875 15H9.9C9.66667 16.15 9.09583 17.1042 8.1875 17.8625C7.27917 18.6208 6.21667 19 5 19Z" fill="#003D9B"/>
                 </svg>
-                <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">Webhooks</h2>
+                <h2 class="text-lg font-medium text-[#0B1C30]">Webhooks</h2>
             </div>
 
             <div class="space-y-4">

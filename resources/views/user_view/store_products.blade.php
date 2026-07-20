@@ -6,7 +6,7 @@
     <x-ui.merchant-topbar title="Store products" :lead="$store->name">
         <x-slot:actions>
             <a href="{{ route('store-management') }}" class="hidden h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 lg:inline-flex">Back to stores</a>
-            <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="hidden sm:inline-flex items-center gap-2 rounded-xl bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">
+            <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="hidden sm:inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/></svg>
                 <span>Add Product</span>
             </a>
@@ -31,7 +31,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="text-3xl font-black font-poppins text-[#0B1C30]">{{ $store->name }}</h2>
+                    <h2 class="text-3xl font-black text-[#0B1C30]">{{ $store->name }}</h2>
                     <div class="flex items-center gap-3 mt-2">
                         <span class="px-3 py-1 bg-[#DCE9FF] text-[#434654] text-xs font-bold uppercase rounded-full">{{ ucfirst($store->category ?? 'General') }}</span>
                         @if ($store->onboarding_completed)
@@ -48,7 +48,7 @@
                     </div>
                 </div>
             </div>
-            <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="flex sm:hidden items-center gap-2 bg-[#0052CC] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#0047B3] transition-colors">
+            <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="flex sm:hidden items-center gap-2 bg-brand text-white font-bold px-4 py-2 rounded-lg hover:bg-brand-hover transition-colors">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
                 </svg>
@@ -77,7 +77,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-6">
         <div class="flex items-center justify-between mb-6">
             <h2 class="text-xl font-bold text-[#0B1C30]">Products</h2>
-            <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="hidden sm:inline-flex items-center gap-2 bg-[#0052CC] text-white font-bold px-4 py-2 rounded-lg hover:bg-[#0047B3] transition-colors">
+            <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="hidden sm:inline-flex items-center gap-2 bg-brand text-white font-bold px-4 py-2 rounded-lg hover:bg-brand-hover transition-colors">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
                 </svg>
@@ -132,7 +132,7 @@
                 </div>
                 <h3 class="text-lg font-bold text-[#0B1C30] mb-2">No Products Yet</h3>
                 <p class="text-[#434654] mb-6">Add your first product to expand your store catalog</p>
-                <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="inline-flex items-center gap-2 bg-[#0052CC] text-white font-bold px-6 py-3 rounded-lg hover:bg-[#0047B3] transition-colors">
+                <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="inline-flex items-center gap-2 bg-brand text-white font-bold px-6 py-3 rounded-lg hover:bg-brand-hover transition-colors">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                         <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
                     </svg>

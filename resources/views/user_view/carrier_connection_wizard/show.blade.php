@@ -35,12 +35,12 @@
                     @continue(! in_array($stepKey, ['origin', 'ownership', 'fedex_details', 'test'], true))
                     @continue($stepKey === 'fedex_details' && $carrier !== 'fedex')
                     @continue($stepKey === 'ownership' && in_array($carrier, ['manual', 'fedex'], true))
-                    <span class="rounded-full {{ $step === $stepKey ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#64748B]' }} px-3 py-1 text-xs font-bold">{{ $stepLabel }}</span>
+                    <span class="rounded-full {{ $step === $stepKey ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#64748B]' }} px-3 py-1 text-xs font-bold">{{ $stepLabel }}</span>
                 @endforeach
             </div>
 
             @if ($step === 'origin')
-                <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 2 — Choose ship-from location</h2>
+                <h2 class="mt-5 text-xl font-semibold text-[#0F172A]">Step 2 — Choose ship-from location</h2>
                 <p class="mt-2 text-sm leading-6 text-[#64748B]">This is where orders ship from. Carrier rates and labels use this fulfillment location — not your store business address.</p>
 
                 @if ($originOptions->isEmpty())
@@ -69,11 +69,11 @@
                                 </label>
                             @endforeach
                         </div>
-                        <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Continue</button>
+                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Continue</button>
                     </form>
                 @endif
             @elseif ($step === 'ownership')
-                <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 3 — Choose account setup type</h2>
+                <h2 class="mt-5 text-xl font-semibold text-[#0F172A]">Step 3 — Choose account setup type</h2>
                 <form method="POST" action="{{ route('shipping.carriers.connect.ownership', $carrier) }}" class="mt-5 space-y-4">
                     @csrf
                     <input type="hidden" name="origin_location_id" value="{{ $originLocationId }}">
@@ -110,10 +110,10 @@
                             </label>
                         @endforeach
                     </div>
-                    <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save and continue</button>
+                    <button class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Save and continue</button>
                 </form>
             @elseif ($step === 'fedex_details')
-                <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 3 — Enter FedEx credentials</h2>
+                <h2 class="mt-5 text-xl font-semibold text-[#0F172A]">Step 3 — Enter FedEx credentials</h2>
                 <p class="mt-2 text-sm leading-6 text-[#64748B]">Use the API key and secret from your own FedEx Developer project. This platform stores them encrypted and uses them only for your store’s FedEx connection.</p>
                 <div class="mt-4 space-y-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                     <p><span class="font-semibold text-[#0F172A]">Billing:</span> FedEx billing stays between you and FedEx. This platform does not pay FedEx charges or buy labels for you.</p>
@@ -140,10 +140,10 @@
                         </select>
                         <span class="text-xs text-[#64748B]">Use the environment that matches your FedEx Developer project. Production connection does not enable labels or checkout live rates.</span>
                     </label>
-                    <div class="sm:col-span-2"><button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Save FedEx credentials</button></div>
+                    <div class="sm:col-span-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Save FedEx credentials</button></div>
                 </form>
             @elseif ($step === 'test' && $account)
-                <h2 class="mt-5 text-xl font-poppins font-semibold text-[#0F172A]">Step 4 — Connection readiness</h2>
+                <h2 class="mt-5 text-xl font-semibold text-[#0F172A]">Step 4 — Connection readiness</h2>
                 @if ($presenter)
                     <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 text-sm text-[#475569]">
                         <p><span class="font-semibold text-[#0F172A]">Ownership:</span> {{ $presenter->ownershipLabel() }}</p>
@@ -167,7 +167,7 @@
                     <form method="POST" action="{{ route('shipping.carriers.connect.test', $carrier) }}" class="mt-4">
                         @csrf
                         <input type="hidden" name="carrier_account_id" value="{{ $account->id }}">
-                        <button class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Run connection check</button>
+                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Run connection check</button>
                     </form>
                 @endif
                 <a href="{{ route('shippingAutomation') }}" class="mt-4 inline-flex text-sm font-semibold text-[#1D4ED8]">Return to Shipping &amp; Delivery</a>

@@ -31,7 +31,7 @@
                 <div class="h-16 w-16 rounded-2xl bg-[#EFF6FF] text-[#1D4ED8] grid place-items-center text-xl font-bold shrink-0">{{ strtoupper($initials) ?: 'C' }}</div>
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                        <h2 class="truncate text-2xl md:text-3xl font-poppins font-semibold text-[#0F172A]">{{ $customer->full_name ?: $customer->email }}</h2>
+                        <h2 class="truncate text-2xl md:text-3xl font-semibold text-[#0F172A]">{{ $customer->full_name ?: $customer->email }}</h2>
                         @if($customer->status === 'blocked')
                             <span class="rounded-full bg-[#FEF2F2] px-2 py-1 text-[10px] font-bold uppercase tracking-[.6px] text-[#BA1A1A]">Blocked</span>
                         @elseif($customer->status === 'active')
@@ -68,7 +68,7 @@
                     <form action="{{ route('customers.tags.store', $customer) }}" method="POST" class="flex gap-2">
                         @csrf
                         <input name="name" class="h-10 min-w-0 flex-1 rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Add tag">
-                        <button class="h-10 rounded-lg bg-[#0052CC] px-3 text-sm font-semibold text-white">Add</button>
+                        <button class="h-10 rounded-lg bg-brand px-3 text-sm font-semibold text-white">Add</button>
                     </form>
                     <form action="{{ route('customers.marketing.update', $customer) }}" method="POST" class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm">
                         @csrf
@@ -108,7 +108,7 @@
         <div class="space-y-4">
             <article class="rounded-2xl border border-[#CBD5E1] bg-white overflow-hidden">
                 <div class="border-b border-[#E2E8F0] px-5 py-4">
-                    <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order history</h3>
+                    <h3 class="text-lg font-semibold text-[#0F172A]">Order history</h3>
                     <p class="text-sm text-[#64748B]">Real orders linked to this customer.</p>
                 </div>
                 <div class="overflow-x-auto">
@@ -142,7 +142,7 @@
             </article>
 
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Addresses</h3>
+                <h3 class="text-lg font-semibold text-[#0F172A]">Addresses</h3>
                 <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <div class="rounded-xl bg-[#F8FAFC] p-4 text-sm">
                         <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Default shipping</p>
@@ -220,7 +220,7 @@
                             <input name="country" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="Country">
                         </div>
                         <label class="mt-3 flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="is_default" value="1"> Make default for this address type</label>
-                        <button class="mt-3 h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white">Add address</button>
+                        <button class="mt-3 h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Add address</button>
                     </form>
                 @endif
             </article>
@@ -228,7 +228,7 @@
 
         <aside class="space-y-4">
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer status</h3>
+                <h3 class="text-lg font-semibold text-[#0F172A]">Customer status</h3>
                 @if($canManageCustomers)
                     <form action="{{ route('customers.status.update', $customer) }}" method="POST" class="mt-4 space-y-3">
                         @csrf
@@ -238,7 +238,7 @@
                             <option value="blocked" @selected($customer->status === 'blocked')>Blocked</option>
                         </select>
                         <textarea name="blocked_reason" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Reason if blocked">{{ $customer->blocked_reason }}</textarea>
-                        <button class="w-full h-10 rounded-lg bg-[#0052CC] text-sm font-semibold text-white">Save status</button>
+                        <button class="w-full h-10 rounded-lg bg-brand text-sm font-semibold text-white">Save status</button>
                     </form>
                 @else
                     <p class="mt-3 text-sm text-[#64748B]">You can view this customer, but your store role cannot change status.</p>
@@ -246,12 +246,12 @@
             </article>
 
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer notes</h3>
+                <h3 class="text-lg font-semibold text-[#0F172A]">Customer notes</h3>
                 @if($canManageCustomers)
                     <form action="{{ route('customers.notes.store', $customer) }}" method="POST" class="mt-4 space-y-3">
                         @csrf
                         <textarea name="body" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Add a note"></textarea>
-                        <button class="w-full h-10 rounded-lg bg-[#0052CC] text-sm font-semibold text-white">Add note</button>
+                        <button class="w-full h-10 rounded-lg bg-brand text-sm font-semibold text-white">Add note</button>
                     </form>
                 @endif
 
@@ -268,7 +268,7 @@
             </article>
 
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Marketing consent</h3>
+                <h3 class="text-lg font-semibold text-[#0F172A]">Marketing consent</h3>
                 <p class="mt-3 text-sm text-[#475569]">{{ $customer->marketing_consent || $customer->accepts_marketing ? 'Customer has accepted marketing messages.' : 'Customer has not accepted marketing messages.' }}</p>
                 @if($customer->marketing_consent_at)
                     <p class="mt-1 text-xs text-[#94A3B8]">Recorded {{ $customer->marketing_consent_at->format('M d, Y') }} from {{ $customer->marketing_consent_source ?: 'dashboard' }}.</p>

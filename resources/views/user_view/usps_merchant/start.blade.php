@@ -31,7 +31,7 @@
             <ol class="mt-4 space-y-3">
                 @foreach ($requirements as $index => $requirement)
                     <li class="flex gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
-                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0052CC] text-xs font-bold text-white">{{ $index + 1 }}</span>
+                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-bold text-white">{{ $index + 1 }}</span>
                         <div>
                             <p class="font-semibold text-[#0F172A]">{{ $requirement['label'] }}</p>
                             <p class="mt-1 text-sm text-[#64748B]">{{ $requirement['description'] }}</p>
@@ -70,7 +70,7 @@
                             <a href="{{ route('settings.locations.index') }}" class="font-semibold underline">Manage locations</a>
                         </p>
                     @endif
-                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white" @disabled($locations->every(fn ($entry) => ! ($entry['readiness']->ready ?? false)))>Continue to USPS account details</button>
+                    <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white" @disabled($locations->every(fn ($entry) => ! ($entry['readiness']->ready ?? false)))>Continue to USPS account details</button>
                 </form>
             @endif
         </section>

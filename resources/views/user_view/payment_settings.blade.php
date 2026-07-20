@@ -3,7 +3,7 @@
 @section('title', 'Payments & Channels | BaaS Core')
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Payments &amp; Channels" lead="Configure transaction processing and external sales channels.">
+    <x-ui.merchant-topbar title="Payments & Checkout" lead="Configure transaction processing and external sales channels.">
         <x-slot:actions>
         <a href="{{ route('settings.taxes.index') }}" class="payments-btn payments-btn-primary shrink-0">Checkout &amp; tax</a>
     </x-slot:actions>

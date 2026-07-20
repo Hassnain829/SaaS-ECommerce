@@ -222,16 +222,16 @@
     }
 
     .settings-hub-kicker {
-        font-size: 0.68rem;
-        font-weight: 700;
-        letter-spacing: 0.12em;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
         color: rgb(100 116 139);
     }
 
     .settings-hub-title {
         margin-top: 0.25rem;
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.5rem;
         font-weight: 600;
         color: rgb(15 23 42);
@@ -302,7 +302,7 @@
     }
 
     .settings-panel-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.05rem;
         font-weight: 600;
         color: rgb(15 23 42);
@@ -386,7 +386,7 @@
 
     .settings-page-aside-title {
         font-size: 0.72rem;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.1em;
         text-transform: uppercase;
         color: rgb(100 116 139);
@@ -455,7 +455,7 @@
     }
 
     .settings-choice-card-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1rem;
         font-weight: 600;
         color: rgb(15 23 42);
@@ -482,7 +482,7 @@
         border-radius: 9999px;
         padding: 0.2rem 0.55rem;
         font-size: 0.68rem;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.04em;
         text-transform: uppercase;
     }
@@ -515,12 +515,12 @@
     }
 
     .settings-btn-primary {
-        background: rgb(79 70 229);
+        background: var(--color-brand);
         color: white;
     }
 
     .settings-btn-primary:hover {
-        background: rgb(67 56 202);
+        background: var(--color-brand-hover);
     }
 
     .settings-btn-secondary {
@@ -620,7 +620,7 @@
     }
 
     .settings-switch input:checked + .settings-switch-track {
-        background: rgb(79 70 229);
+        background: var(--color-brand);
     }
 
     .settings-switch input:checked + .settings-switch-track::after {
@@ -658,7 +658,7 @@
     .settings-table thead {
         background: rgb(248 250 252);
         font-size: 0.72rem;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.06em;
         text-transform: uppercase;
         color: rgb(100 116 139);
@@ -730,8 +730,8 @@
     }
 
     .settings-checklist-label {
-        font-size: 0.68rem;
-        font-weight: 700;
+        font-size: 0.6875rem;
+        font-weight: 600;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: rgb(100 116 139);
@@ -764,8 +764,12 @@
     }
 
     .settings-checklist-action-primary {
-        background: rgb(0 82 204);
+        background: var(--color-brand);
         color: white;
+    }
+
+    .settings-checklist-action-primary:hover {
+        background: var(--color-brand-hover);
     }
 
     .settings-checklist-action-secondary {
@@ -789,7 +793,7 @@
         justify-content: space-between;
         gap: 0.75rem;
         padding: 1rem 1.25rem;
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 0.95rem;
         font-weight: 600;
         color: rgb(51 65 85);
@@ -1130,7 +1134,7 @@
     }
 
     .merchant-app :where(h1, h2, h3, h4, h5, h6) {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-weight: 600;
         color: #0c0a09;
         letter-spacing: -0.02em;
@@ -1382,7 +1386,7 @@
     h4,
     h5,
     h6 {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-weight: 600;
     }
 
@@ -1402,7 +1406,7 @@
     }
 
     .user-typography :where(h1, h2, h3, h4, h5, h6) {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-weight: 600;
         color: #0f172a;
     }
@@ -1594,7 +1598,7 @@
     }
 
     .ui-page-header-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.25rem;
         font-weight: 600;
         color: var(--color-ink);
@@ -1696,7 +1700,7 @@
 
     .delivery-console-crumb {
         font-size: 0.72rem;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.06em;
         text-transform: uppercase;
         color: var(--color-ink-muted);
@@ -1704,7 +1708,7 @@
 
     .delivery-console-title {
         margin-top: 0.3rem;
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: clamp(1.65rem, 1.4rem + 0.9vw, 2rem);
         font-weight: 700;
         letter-spacing: -0.03em;
@@ -1905,7 +1909,7 @@
     }
 
     .delivery-section-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.15rem;
         font-weight: 700;
         letter-spacing: -0.02em;
@@ -2092,6 +2096,617 @@
         transform: translateX(1.25rem);
     }
 
+    /* —— Team members console (mock-aligned, dashboard tokens) —— */
+    .team-console {
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+        width: 100%;
+        padding-block: 0.25rem 1rem;
+    }
+
+    .team-console-metrics {
+        display: grid;
+        gap: 1rem;
+        align-items: stretch;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid #e3e1ea;
+        grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 768px) {
+        .team-console-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (min-width: 1100px) {
+        .team-console-metrics {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(16rem, 1.2fr);
+            align-items: stretch;
+        }
+    }
+
+    .team-console-metric {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        height: 100%;
+        min-height: 6.5rem;
+        padding: 1rem 1.15rem;
+        border-radius: 0.9rem;
+        border: 1px solid #e3e1ea;
+        background: #ffffff;
+        box-shadow: 0 1px 0 rgb(15 23 42 / 0.02);
+    }
+
+    .team-console-metric-icon {
+        display: inline-flex;
+        width: 3rem;
+        height: 3rem;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem;
+        background: rgb(79 70 229 / 0.1);
+        color: var(--color-brand);
+    }
+
+    .team-console-metric-label {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #78716c;
+    }
+
+    .team-console-metric-value {
+        margin-top: 0.2rem;
+        font-family: var(--font-sans);
+        font-size: 1.25rem;
+        font-weight: 600;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
+        font-variant-numeric: tabular-nums;
+        color: #1c1917;
+    }
+
+    .team-console-metric-inline {
+        margin-left: 0.35rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #78716c;
+    }
+
+    .team-console-metric-meta {
+        margin-top: 0.2rem;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        color: #78716c;
+    }
+
+    .team-console-activity {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 6.5rem;
+        border-radius: 0.9rem;
+        border: 1px solid #e3e1ea;
+        background: #f4f2fc;
+        padding: 1rem 1.15rem;
+    }
+
+    .team-console-activity-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #78716c;
+    }
+
+    .team-console-activity-head a {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: normal;
+        text-transform: none;
+        color: var(--color-brand);
+    }
+
+    .team-console-activity-head a:hover {
+        color: var(--color-brand-hover);
+        text-decoration: none;
+    }
+
+    .team-console-activity-empty {
+        margin-top: auto;
+        margin-bottom: auto;
+        font-size: 0.8125rem;
+        line-height: 1.45;
+        color: #78716c;
+    }
+
+    .team-console-activity-list {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: auto;
+    }
+
+    .team-console-activity-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+    }
+
+    .team-console-activity-dot {
+        width: 0.4rem;
+        height: 0.4rem;
+        margin-top: 0.4rem;
+        border-radius: 9999px;
+        background: #d6d3d1;
+        flex-shrink: 0;
+    }
+
+    .team-console-activity-dot-active {
+        background: var(--color-brand);
+    }
+
+    .team-console-activity-list p {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: #1c1917;
+    }
+
+    .team-console-activity-list time {
+        display: block;
+        margin-top: 0.1rem;
+        font-size: 0.6875rem;
+        color: #78716c;
+    }
+
+    .team-console-layout {
+        display: grid;
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    @media (min-width: 1100px) {
+        .team-console-layout {
+            grid-template-columns: minmax(0, 1.7fr) minmax(18rem, 0.9fr);
+            gap: 1.5rem;
+        }
+    }
+
+    .team-console-card {
+        overflow: hidden;
+        border-radius: 1rem;
+        border: 1px solid #e3e1ea;
+        background: #ffffff;
+        box-shadow:
+            0 1px 0 rgb(15 23 42 / 0.02),
+            0 10px 28px -20px rgb(15 23 42 / 0.18);
+    }
+
+    .team-console-card-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.35rem 1.5rem;
+        border-bottom: 1px solid #e3e1ea;
+    }
+
+    .team-console-card-title {
+        font-family: var(--font-sans);
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1c1917;
+    }
+
+    .team-console-card-lead {
+        margin-top: 0.3rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: #78716c;
+    }
+
+    .team-console-card-tools {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.65rem;
+    }
+
+    .team-console-tool-chip {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 9999px;
+        background: var(--color-brand-soft);
+        padding: 0.35rem 0.75rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--color-brand-ink);
+    }
+
+    .team-console-staff-note {
+        max-width: 16rem;
+        border-radius: 0.75rem;
+        background: #fffbeb;
+        padding: 0.65rem 0.8rem;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        color: #b45309;
+    }
+
+    .team-console-table-wrap {
+        overflow-x: auto;
+    }
+
+    .team-console-table {
+        width: 100%;
+        min-width: 40rem;
+        border-collapse: collapse;
+        text-align: left;
+        font-size: 0.875rem;
+    }
+
+    .team-console-table thead tr {
+        background: rgb(250 250 249 / 0.9);
+    }
+
+    .team-console-table th {
+        padding: 0.9rem 1.35rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #78716c;
+    }
+
+    .team-console-table td {
+        padding: 1.1rem 1.35rem;
+        vertical-align: middle;
+        border-top: 1px solid #e7e5e4;
+    }
+
+    .team-console-table tbody tr {
+        transition: background-color 0.15s ease;
+    }
+
+    .team-console-table tbody tr:hover {
+        background: rgb(79 70 229 / 0.035);
+    }
+
+    .team-console-member {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+    }
+
+    .team-console-avatar {
+        display: inline-flex;
+        width: 2.5rem;
+        height: 2.5rem;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem;
+        background: var(--color-brand-soft);
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--color-brand-ink);
+    }
+
+    .team-console-member-name {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: #1c1917;
+    }
+
+    .team-console-you {
+        margin-left: 0.4rem;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 9999px;
+        background: #f5f5f4;
+        padding: 0.12rem 0.45rem;
+        font-size: 0.625rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #57534e;
+        vertical-align: middle;
+    }
+
+    .team-console-member-email {
+        margin-top: 0.15rem;
+        font-size: 0.8125rem;
+        color: #78716c;
+    }
+
+    .team-console-role-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 9999px;
+        padding: 0.28rem 0.7rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .team-console-date {
+        font-size: 0.8125rem;
+        color: #78716c;
+        white-space: nowrap;
+    }
+
+    .team-console-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+
+    .team-console-btn {
+        display: inline-flex;
+        height: 2.25rem;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        border-radius: 0.75rem;
+        padding-inline: 0.9rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .team-console-btn-primary {
+        background: var(--color-brand);
+        color: #ffffff;
+    }
+
+    .team-console-btn-primary:hover {
+        background: var(--color-brand-hover);
+        box-shadow: 0 8px 18px -12px rgb(79 70 229 / 0.7);
+    }
+
+    .team-console-btn-ghost {
+        border: 1px solid #d6d3d1;
+        background: #ffffff;
+        color: #57534e;
+    }
+
+    .team-console-btn-ghost:hover {
+        border-color: var(--color-brand);
+        color: var(--color-brand);
+        background: #ffffff;
+    }
+
+    .team-console-btn-dark {
+        background: var(--color-brand);
+        color: #ffffff;
+    }
+
+    .team-console-btn-dark:hover {
+        background: var(--color-brand-hover);
+    }
+
+    .team-console-btn-danger {
+        border: 1px solid #fecaca;
+        background: #ffffff;
+        color: #b42318;
+    }
+
+    .team-console-btn-danger:hover {
+        background: #fff5f5;
+    }
+
+    .team-console-empty,
+    .team-console-expand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 3rem 1.5rem;
+    }
+
+    .team-console-expand {
+        border-top: 1px solid #e3e1ea;
+        opacity: 0.72;
+    }
+
+    .team-console-empty-icon,
+    .team-console-expand-icon {
+        display: flex;
+        width: 4.5rem;
+        height: 4.5rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 1rem;
+        background: #f4f2fc;
+        color: #757684;
+        margin-bottom: 1rem;
+    }
+
+    .team-console-empty h3,
+    .team-console-expand h4 {
+        font-family: var(--font-sans);
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1c1917;
+    }
+
+    .team-console-empty p,
+    .team-console-expand p {
+        margin-top: 0.45rem;
+        max-width: 24rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: #78716c;
+    }
+
+    .team-console-mobile-list {
+        display: grid;
+        gap: 0.85rem;
+        padding: 1rem 1.15rem 1.25rem;
+    }
+
+    .team-console-mobile-card {
+        border-radius: 0.9rem;
+        border: 1px solid #e3e1ea;
+        background: #f8fafc;
+        padding: 1rem;
+    }
+
+    .team-console-aside {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .team-console-role-guide {
+        padding: 1.5rem;
+    }
+
+    .team-console-aside-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .team-console-aside-icon {
+        display: inline-flex;
+        width: 2.5rem;
+        height: 2.5rem;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem;
+        background: var(--color-brand-soft);
+        color: var(--color-brand);
+    }
+
+    .team-console-role-list {
+        display: grid;
+        gap: 0.9rem;
+    }
+
+    .team-console-role-card {
+        border-radius: 0.75rem;
+        border: 1px solid #e7e5e4;
+        background: #ffffff;
+        padding: 1rem;
+        box-shadow: 0 1px 0 rgb(28 25 23 / 0.02);
+    }
+
+    .team-console-role-card-primary {
+        border: 0;
+        border-left: 4px solid var(--color-brand);
+        background: var(--color-brand-soft);
+        box-shadow: none;
+    }
+
+    .team-console-role-card h3 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #1c1917;
+    }
+
+    .team-console-role-card p {
+        margin-top: 0.45rem;
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        color: #78716c;
+    }
+
+    .team-console-guide-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 0.35rem;
+        padding: 0.15rem 0.45rem;
+        font-size: 0.625rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .team-console-status {
+        position: relative;
+        overflow: hidden;
+        border-radius: 1rem;
+        background: #1c1917;
+        padding: 1.5rem;
+        color: #ffffff;
+        box-shadow: 0 18px 40px -24px rgb(28 25 23 / 0.55);
+    }
+
+    .team-console-status h2 {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.25rem;
+        font-family: var(--font-sans);
+        font-size: 1rem;
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .team-console-status h2 svg {
+        color: #c7d2fe;
+    }
+
+    .team-console-status ul {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .team-console-status li {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        color: rgb(255 255 255 / 0.82);
+    }
+
+    .team-console-status li svg {
+        flex-shrink: 0;
+        margin-top: 0.1rem;
+        color: #c7d2fe;
+    }
+
+    .team-console-status-tip {
+        margin-top: 1.5rem;
+        padding-top: 1.15rem;
+        border-top: 1px solid rgb(255 255 255 / 0.12);
+    }
+
+    .team-console-status-tip-label {
+        margin-bottom: 0.35rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #c7d2fe;
+    }
+
+    .team-console-status-tip p:last-child {
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        color: rgb(255 255 255 / 0.62);
+    }
+
     /* —— Checkout & tax console (mock-aligned, dashboard tokens) —— */
     .tax-console {
         display: flex;
@@ -2154,9 +2769,9 @@
         align-items: flex-start;
         justify-content: space-between;
         gap: 0.75rem;
-        font-size: 0.68rem;
-        font-weight: 700;
-        letter-spacing: 0.1em;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
         color: #757684;
     }
@@ -2191,7 +2806,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.4rem;
         font-weight: 700;
         line-height: 1.2;
@@ -2273,7 +2888,7 @@
     }
 
     .tax-console-card-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.2rem;
         font-weight: 600;
         letter-spacing: -0.01em;
@@ -2330,7 +2945,7 @@
     }
 
     .tax-console .settings-switch input:checked + .settings-switch-track {
-        background: #24389c;
+        background: var(--color-brand);
     }
 
     .tax-console .settings-switch input:focus-visible + .settings-switch-track {
@@ -2371,7 +2986,7 @@
     .tax-console-address-title {
         position: relative;
         z-index: 1;
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.05rem;
         font-weight: 600;
         color: #ffffff;
@@ -2422,13 +3037,13 @@
     }
 
     .tax-console-btn-primary {
-        background: #24389c;
+        background: var(--color-brand);
         color: #ffffff;
     }
 
     .tax-console-btn-primary:hover {
-        background: #1e2f86;
-        box-shadow: 0 10px 22px -12px rgb(36 56 156 / 0.7);
+        background: var(--color-brand-hover);
+        box-shadow: 0 10px 22px -12px rgb(79 70 229 / 0.7);
         transform: translateY(-1px);
     }
 
@@ -2493,7 +3108,7 @@
     .tax-console-table th {
         padding: 0.9rem 1.35rem;
         font-size: 0.68rem;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: #64748b;
@@ -2566,7 +3181,7 @@
         border-radius: 9999px;
         padding: 0.28rem 0.7rem;
         font-size: 0.65rem;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.05em;
         text-transform: uppercase;
     }
@@ -2631,7 +3246,7 @@
     }
 
     .payments-console-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: clamp(1.65rem, 1.4rem + 0.9vw, 2rem);
         font-weight: 700;
         letter-spacing: -0.03em;
@@ -2661,7 +3276,7 @@
     }
 
     .payments-section-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.15rem;
         font-weight: 700;
         color: var(--color-ink);
@@ -2731,7 +3346,7 @@
     }
 
     .payments-mode-card-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.05rem;
         font-weight: 700;
         color: var(--color-ink);
@@ -2815,12 +3430,12 @@
 
     .payments-btn-primary {
         border: 0;
-        background: #24389c;
+        background: var(--color-brand);
         color: #fff;
     }
 
     .payments-btn-primary:hover {
-        background: #1e307f;
+        background: var(--color-brand-hover);
     }
 
     .payments-btn-secondary {
@@ -2835,8 +3450,8 @@
 
     .payments-btn-current {
         border: 1px solid #c7d2fe;
-        background: #eef2ff;
-        color: #24389c;
+        background: var(--color-brand-soft);
+        color: var(--color-brand-ink);
         cursor: default;
     }
 
@@ -2962,7 +3577,7 @@
     }
 
     .payments-stripe-stat-label {
-        font-size: 0.62rem;
+        font-size: 0.6875rem;
         font-weight: 800;
         letter-spacing: 0.06em;
         text-transform: uppercase;
@@ -2985,7 +3600,7 @@
     }
 
     .payments-security-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.05rem;
         font-weight: 700;
     }
@@ -3097,7 +3712,7 @@
     }
 
     .payments-hero-title {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: clamp(1.35rem, 1.1rem + 0.8vw, 1.75rem);
         font-weight: 700;
     }
@@ -3135,7 +3750,7 @@
 
     .payments-hero-btn-primary {
         background: #fff;
-        color: #24389c;
+        color: var(--color-brand);
     }
 
     .payments-hero-btn-secondary {
@@ -3350,7 +3965,7 @@
 
     .product-edit-hero h2 {
         overflow-wrap: anywhere;
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: clamp(1.5rem, 3vw, 2rem);
         font-weight: 600;
         line-height: 1.3;
@@ -3360,7 +3975,7 @@
     .product-edit-eyebrow {
         font-size: 0.6875rem;
         font-weight: 800;
-        letter-spacing: 0.14em;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
         color: var(--product-edit-muted);
     }
@@ -3485,7 +4100,7 @@
     }
 
     .product-edit-workspace .product-edit-form-card > div:first-child h3 {
-        font-family: var(--font-heading);
+        font-family: var(--font-sans);
         font-size: 1.25rem;
         font-weight: 600;
         color: var(--product-edit-ink);
@@ -3494,7 +4109,7 @@
     .product-edit-workspace .product-edit-form-card label {
         font-family: var(--font-sans);
         font-size: 0.6875rem;
-        font-weight: 700;
+        font-weight: 600;
         letter-spacing: 0.06em;
         text-transform: uppercase;
         color: var(--product-edit-muted);

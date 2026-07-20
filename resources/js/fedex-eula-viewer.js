@@ -21,6 +21,33 @@ function createPageShell(pageNumber, totalPages) {
     return { shell, canvas };
 }
 
+/**
+ * Size the scroll viewport so roughly one full document page is visible at a time.
+ */
+function sizeViewportToFirstPage(scrollRoot, container) {
+    if (! scrollRoot || ! container || scrollRoot.classList.contains('fedex-eula-printing')) {
+        return;
+    }
+
+    const firstPage = container.querySelector('.fedex-eula-page');
+    if (! firstPage) {
+        return;
+    }
+
+    const styles = window.getComputedStyle(scrollRoot);
+    const padY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
+    const pageHeight = Math.ceil(firstPage.getBoundingClientRect().height);
+    if (pageHeight < 1) {
+        return;
+    }
+
+    // One full page (+ padding). Cap to available window so accept controls remain reachable.
+    const target = Math.ceil(pageHeight + padY);
+    const available = Math.max(640, Math.floor(window.innerHeight - 140));
+    scrollRoot.style.height = `${Math.min(target, available)}px`;
+    scrollRoot.style.maxHeight = 'none';
+}
+
 async function renderPage(pdf, pageNumber, canvas, scale = 1.35) {
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale });
@@ -153,6 +180,11 @@ async function initFedExEulaViewer(root) {
             const { shell, canvas } = createPageShell(pageNumber, totalPages);
             container.appendChild(shell);
             await renderPage(pdf, pageNumber, canvas);
+
+            if (pageNumber === 1) {
+                sizeViewportToFirstPage(scrollRoot, container);
+            }
+
             dispatchState(viewerId, {
                 loading: pageNumber < totalPages,
                 pagesRendered: pageNumber,
@@ -160,6 +192,11 @@ async function initFedExEulaViewer(root) {
                 pageCountMismatch: false,
             });
         }
+
+        sizeViewportToFirstPage(scrollRoot, container);
+
+        const onResize = () => sizeViewportToFirstPage(scrollRoot, container);
+        window.addEventListener('resize', onResize, { passive: true });
 
         if (loadingEl) {
             loadingEl.classList.add('hidden');
@@ -252,6 +289,7 @@ function prepareFedExEulaPrint() {
     document.querySelectorAll('[data-fedex-eula-config]').forEach((root) => {
         root.classList.add('fedex-eula-printing');
         root.style.maxHeight = 'none';
+        root.style.minHeight = '0';
         root.style.overflow = 'visible';
         root.style.height = 'auto';
     });
@@ -261,8 +299,12 @@ function resetFedExEulaPrint() {
     document.querySelectorAll('[data-fedex-eula-config]').forEach((root) => {
         root.classList.remove('fedex-eula-printing');
         root.style.maxHeight = '';
+        root.style.minHeight = '';
         root.style.overflow = '';
         root.style.height = '';
+
+        const container = root.querySelector('[data-fedex-eula-pages]');
+        sizeViewportToFirstPage(root, container);
     });
 }
 

@@ -29,7 +29,7 @@
             <p class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#64748B]">
                 Only account numbers are stored here, encrypted at rest, and shown masked in the UI. Postage is always charged to your EPA — never to BmyBrand.
             </p>
-            <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Continue to Label Provider authorization</button>
+            <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Continue to Label Provider authorization</button>
         </form>
     @endif
 </section>

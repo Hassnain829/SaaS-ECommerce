@@ -23,13 +23,13 @@
     <div class="@if ($embedCatalogHubs) relative flex max-h-full min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm @else ui-modal-panel ui-modal-panel--xl @endif">
         <div class="flex shrink-0 items-start justify-between gap-3 border-b border-[#E2E8F0] bg-white px-4 py-3.5 sm:px-5">
             <div class="min-w-0">
-                <h2 class="text-base font-semibold tracking-tight text-[#0F172A] font-[Poppins]">Brands</h2>
+                <h2 class="text-base font-semibold tracking-tight text-[#0F172A]">Brands</h2>
                 @unless ($embedCatalogHubs)
                     <p class="mt-0.5 text-xs text-[#64748B]">Manage brand records for this store.</p>
                 @endunless
             </div>
             <div class="flex shrink-0 items-center gap-2">
-                <button type="button" id="brand-hub-open-add" class="inline-flex items-center gap-1.5 rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0047B3] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/35">
+                <button type="button" id="brand-hub-open-add" class="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-[#0052CC]/35">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="currentColor"/></svg>
                     Add brand
                 </button>
@@ -95,7 +95,7 @@
                             <td colspan="4" class="px-2 py-10 text-center sm:px-4">
                                 <p class="text-sm font-medium text-[#475569]">No brands yet</p>
                                 <p class="mt-1 text-xs text-[#94A3B8]">Create a brand to assign to products.</p>
-                                <button type="button" id="brand-hub-empty-add" class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#0052CC] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#0047B3]">Add brand</button>
+                                <button type="button" id="brand-hub-empty-add" class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-hover">Add brand</button>
                             </td>
                         </tr>
                     @endforelse
@@ -170,7 +170,7 @@
                             </div>
                         </details>
                         <div class="flex justify-end pt-1">
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0047B3] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/35">Save brand</button>
+                            <button type="submit" class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-[#0052CC]/35">Save brand</button>
                         </div>
                     </form>
                 </div>
@@ -183,7 +183,7 @@
     <button type="button" class="ui-modal-backdrop" data-brand-edit-backdrop aria-label="Close"></button>
     <div class="ui-modal-panel ui-modal-panel--md">
         <div class="flex items-start justify-between gap-2 border-b border-[#E2E8F0] bg-white px-3 py-2.5 sm:px-4">
-            <h2 class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Edit <span id="brandEditTitleName" class="text-[#475569]">{{ $reopenEdit ? $editingBrand->name : '…' }}</span></h2>
+            <h2 class="text-sm font-semibold text-[#0F172A]">Edit <span id="brandEditTitleName" class="text-[#475569]">{{ $reopenEdit ? $editingBrand->name : '…' }}</span></h2>
             <button type="button" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#D9E2EC] bg-white text-[#64748B] hover:border-[#0052CC] hover:text-[#0052CC]" data-brand-edit-close aria-label="Close">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 3L13 13M13 3L3 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             </button>
@@ -258,7 +258,7 @@
                 </details>
                 <div class="flex flex-col-reverse gap-2 border-t border-[#F1F5F9] pt-3 sm:flex-row sm:justify-end">
                     <button type="button" class="rounded-md border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]" data-brand-edit-close>Cancel</button>
-                    <button type="submit" class="rounded-md bg-[#0052CC] px-4 py-2 text-xs font-bold text-white hover:bg-[#0047B3]">Save</button>
+                    <button type="submit" class="rounded-md bg-brand px-4 py-2 text-xs font-bold text-white hover:bg-brand-hover">Save</button>
                 </div>
             </form>
         </div>
@@ -268,7 +268,7 @@
 <div id="brandDeleteWarningModal" class="ui-modal-shell ui-modal-shell--alert hidden">
     <div class="ui-modal-panel ui-modal-panel--sm border-[#FECACA]">
         <div class="px-4 pb-3 pt-4">
-            <h3 class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Delete <span id="deleteBrandName" class="text-[#475569]"></span>?</h3>
+            <h3 class="text-sm font-semibold text-[#0F172A]">Delete <span id="deleteBrandName" class="text-[#475569]"></span>?</h3>
             <p class="mt-1.5 text-xs text-[#64748B]">Detach from products first if assigned.</p>
         </div>
         <div class="px-4 pb-4 pt-0">

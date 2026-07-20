@@ -27,7 +27,7 @@
         <div class="flex items-center justify-between border-b border-[#E2E8F0] bg-white px-5 py-4 sm:px-6">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Store Setup</p>
-                <h2 class="mt-1 text-2xl font-medium text-[#0F172A] font-[Poppins]">Create a New Store</h2>
+                <h2 class="mt-1 text-2xl font-medium text-[#0F172A]">Create a New Store</h2>
             </div>
             <button
                 type="button"
@@ -48,7 +48,7 @@
                     <span class="text-xs text-[#64748B]">Setup Progress: 33% Complete</span>
                 </div>
                 <div class="h-2 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                    <div class="h-2 w-1/3 rounded-full bg-[#0052CC]"></div>
+                    <div class="h-2 w-1/3 rounded-full bg-brand"></div>
                 </div>
                 <div class="mt-1 flex justify-end">
                     <span class="text-xs font-inter font-medium text-[#0052CC]">Next: Add First Product</span>
@@ -57,7 +57,7 @@
 
             <div class="rounded-xl border border-[#E2E8F0] bg-white p-6 md:p-8">
                 <div class="mb-8">
-                    <h3 class="text-3xl font-medium text-[#0F172A] font-[Poppins]">Let's set up your store</h3>
+                    <h3 class="text-3xl font-medium text-[#0F172A]">Let's set up your store</h3>
                     <p class="mt-1 text-base text-[#64748B]">Fill in the essential details to create your digital storefront.</p>
                 </div>
 
@@ -78,7 +78,7 @@
 
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div>
-                            <label for="modal_store_name" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Store Name</label>
+                            <label for="modal_store_name" class="mb-2 block text-sm font-medium text-[#334155]">Store Name</label>
                             <input
                                 id="modal_store_name"
                                 name="name"
@@ -89,7 +89,7 @@
                             >
                         </div>
                         <div>
-                            <label for="modal_primary_market" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Primary market</label>
+                            <label for="modal_primary_market" class="mb-2 block text-sm font-medium text-[#334155]">Primary market</label>
                             <select
                                 id="modal_primary_market"
                                 name="primary_market"
@@ -104,7 +104,7 @@
                     </div>
 
                     <div>
-                        <label class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Store Logo</label>
+                        <label class="mb-2 block text-sm font-medium text-[#334155]">Store Logo</label>
                         <div class="flex flex-col items-center gap-4 rounded-xl border-2 border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-8">
                             <div class="rounded-full bg-white p-3 shadow-sm">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -118,13 +118,13 @@
                                 <p class="text-sm font-bold text-[#0F172A]">Upload Store Logo</p>
                                 <p class="mt-1 text-xs text-[#64748B]">PNG, JPG or SVG. Max 2MB.</p>
                             </div>
-                            <label for="modal_store_logo" class="inline-flex h-9 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg bg-[#0052CC] px-4 text-xs font-bold text-white shadow-md transition hover:bg-[#0042a3]">Browse Files</label>
+                            <label for="modal_store_logo" class="inline-flex h-9 cursor-pointer items-center justify-center whitespace-nowrap rounded-lg bg-brand px-4 text-xs font-bold text-white shadow-md transition hover:bg-brand-hover">Browse Files</label>
                             <input id="modal_store_logo" name="store_logo" type="file" accept=".jpg,.jpeg,.png,.svg" class="hidden">
                         </div>
                     </div>
 
                     <div>
-                        <label for="modal_address" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Business Address</label>
+                        <label for="modal_address" class="mb-2 block text-sm font-medium text-[#334155]">Business Address</label>
                         <textarea
                             id="modal_address"
                             name="address"
@@ -136,7 +136,7 @@
 
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div>
-                            <label for="modal_currency" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Default store currency</label>
+                            <label for="modal_currency" class="mb-2 block text-sm font-medium text-[#334155]">Default store currency</label>
                             <select id="modal_currency" name="currency" class="w-full appearance-none rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                                 @foreach ($currencies as $currency)
                                     <option value="{{ $currency }}" @selected(old('currency', 'USD') === $currency)>{{ $currency }}</option>
@@ -145,7 +145,7 @@
                             <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.</p>
                         </div>
                         <div>
-                            <label for="modal_timezone" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Default store timezone</label>
+                            <label for="modal_timezone" class="mb-2 block text-sm font-medium text-[#334155]">Default store timezone</label>
                             <select id="modal_timezone" name="timezone" class="w-full appearance-none rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                                 @foreach ($timezones as $timezone)
                                     <option value="{{ $timezone }}" @selected(old('timezone', 'UTC') === $timezone)>{{ $timezone }}</option>
@@ -171,37 +171,37 @@
                                 <svg width="24" height="24" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                                     <path d="M3 20C2.45 20 1.97917 19.8042 1.5875 19.4125C1.19583 19.0208 1 18.55 1 18V6.725C0.7 6.54167 0.458333 6.30417 0.275 6.0125C0.0916667 5.72083 0 5.38333 0 5V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H18C18.55 0 19.0208 0.195833 19.4125 0.5875C19.8042 0.979167 20 1.45 20 2V5C20 5.38333 19.9083 5.72083 19.725 6.0125C19.5417 6.30417 19.3 6.54167 19 6.725V18C19 18.55 18.8042 19.0208 18.4125 19.4125C18.0208 19.8042 17.55 20 17 20H3ZM3 7V18H17V7H3ZM2 5H18V2H2V5ZM7 12H13V10H7V12Z" fill="#0052CC"/>
                                 </svg>
-                                <span class="text-center text-xs font-[Poppins] text-[#0F172A]">Physical Goods</span>
+                                <span class="text-center text-xs text-[#0F172A]">Physical Goods</span>
                             </div>
                             <div class="{{ $baseTileClass }}" data-category="digital" data-model="Digital Products">
                                 <svg width="24" height="24" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                                     <path d="M8 12L3 7L4.4 5.55L7 8.15V0H9V8.15L11.6 5.55L13 7L8 12ZM2 16C1.45 16 0.979167 15.8042 0.5875 15.4125C0.195833 15.0208 0 14.55 0 14V11H2V14H14V11H16V14C16 14.55 15.8042 15.0208 15.4125 15.4125C15.0208 15.8042 14.55 16 14 16H2Z" fill="#64748B"/>
                                 </svg>
-                                <span class="text-center text-xs font-[Poppins] text-[#0F172A]">Digital Products</span>
+                                <span class="text-center text-xs text-[#0F172A]">Digital Products</span>
                             </div>
                             <div class="{{ $baseTileClass }}" data-category="service" data-model="Services">
                                 <svg width="24" height="24" viewBox="0 0 23 20" fill="none" aria-hidden="true">
                                     <path d="M10.885 18C10.9517 18 11.0183 17.9833 11.085 17.95C11.1517 17.9167 11.2017 17.8833 11.235 17.85L19.435 9.65C19.635 9.45 19.7808 9.225 19.8725 8.975C19.9642 8.725 20.01 8.475 20.01 8.225C20.01 7.95833 19.9642 7.70417 19.8725 7.4625C19.7808 7.22083 19.635 7.00833 19.435 6.825L15.185 2.575C15.0017 2.375 14.7892 2.22917 14.5475 2.1375C14.3058 2.04583 14.0517 2 13.785 2C13.535 2 13.285 2.04583 13.035 2.1375C12.785 2.22917 12.56 2.375 12.36 2.575L12.085 2.85L13.935 4.725C14.185 4.95833 14.3683 5.225 14.485 5.525C14.6017 5.825 14.66 6.14167 14.66 6.475C14.66 7.175 14.4225 7.7625 13.9475 8.2375C13.4725 8.7125 12.885 8.95 12.185 8.95C11.8517 8.95 11.5308 8.89167 11.2225 8.775C10.9142 8.65833 10.6433 8.48333 10.41 8.25L8.535 6.4L4.16 10.775C4.11 10.825 4.0725 10.8792 4.0475 10.9375C4.0225 10.9958 4.01 11.0583 4.01 11.125C4.01 11.2583 4.06 11.3792 4.16 11.4875C4.26 11.5958 4.37667 11.65 4.51 11.65C4.57667 11.65 4.64333 11.6333 4.71 11.6C4.77667 11.5667 4.82667 11.5333 4.86 11.5L8.26 8.1L9.66 9.5L6.285 12.9C6.235 12.95 6.1975 13.0042 6.1725 13.0625C6.1475 13.1208 6.135 13.1833 6.135 13.25C6.135 13.3833 6.185 13.5 6.285 13.6C6.385 13.7 6.50167 13.75 6.635 13.75C6.70167 13.75 6.76833 13.7333 6.835 13.7C6.90167 13.6667 6.95167 13.6333 6.985 13.6L10.385 10.225L11.785 11.625L8.41 15.025C8.36 15.0583 8.3225 15.1083 8.2975 15.175C8.2725 15.2417 8.26 15.3083 8.26 15.375C8.26 15.5083 8.31 15.625 8.41 15.725C8.51 15.825 8.62667 15.875 8.76 15.875C8.82667 15.875 8.88917 15.8625 8.9475 15.8375C9.00583 15.8125 9.06 15.775 9.11 15.725L12.51 12.35L13.91 13.75L10.51 17.15C10.46 17.2 10.4225 17.2542 10.3975 17.3125C10.3725 17.3708 10.36 17.4333 10.36 17.5C10.36 17.6333 10.4142 17.75 10.5225 17.85C10.6308 17.95 10.7517 18 10.885 18Z" fill="#64748B"/>
                                 </svg>
-                                <span class="text-center text-xs font-[Poppins] text-[#0F172A]">Services</span>
+                                <span class="text-center text-xs text-[#0F172A]">Services</span>
                             </div>
                             <div class="{{ $baseTileClass }}" data-category="subscription" data-model="Subscriptions">
                                 <svg width="24" height="24" viewBox="0 0 21 22" fill="none" aria-hidden="true">
                                     <path d="M2 20C1.45 20 0.979167 19.8042 0.5875 19.4125C0.195833 19.0208 0 18.55 0 18V4C0 3.45 0.195833 2.97917 0.5875 2.5875C0.979167 2.19583 1.45 2 2 2H3V0H5V2H13V0H15V2H16C16.55 2 17.0208 2.19583 17.4125 2.5875C17.8042 2.97917 18 3.45 18 4V10H16V8H2V18H9V20H2ZM16 22C14.7833 22 13.7208 21.6208 12.8125 20.8625C11.9042 20.1042 11.3333 19.15 11.1 18H12.65C12.8667 18.7333 13.2792 19.3333 13.8875 19.8C14.4958 20.2667 15.2 20.5 16 20.5C16.9667 20.5 17.7917 20.1583 18.475 19.475C19.1583 18.7917 19.5 17.9667 19.5 17C19.5 16.0333 19.1583 15.2083 18.475 14.525C17.7917 13.8417 16.9667 13.5 16 13.5C15.5167 13.5 15.0667 13.5875 14.65 13.7625C14.2333 13.9375 13.8667 14.1833 13.55 14.5H15V16H11V12H12.5V13.425C12.95 12.9917 13.475 12.6458 14.075 12.3875C14.675 12.1292 15.3167 12 16 12C17.3833 12 18.5625 12.4875 19.5375 13.4625C20.5125 14.4375 21 15.6167 21 17C21 18.3833 20.5125 19.5625 19.5375 20.5375C18.5625 21.5125 17.3833 22 16 22Z" fill="#64748B"/>
                                 </svg>
-                                <span class="text-center text-xs font-[Poppins] text-[#0F172A]">Subscriptions</span>
+                                <span class="text-center text-xs text-[#0F172A]">Subscriptions</span>
                             </div>
                             <div class="{{ $baseTileClass }}" data-category="virtual" data-model="Memberships">
                                 <svg width="24" height="24" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                                     <path d="M2 11V13H18V11H2ZM2 0H18C18.55 0 19.0208 0.195833 19.4125 0.5875C19.8042 0.979167 20 1.45 20 2V13C20 13.55 19.8042 14.0208 19.4125 14.4125C19.0208 14.8042 18.55 15 18 15H14V20L10 18L6 20V15H2C1.45 15 0.979167 14.8042 0.5875 14.4125C0.195833 14.0208 0 13.55 0 13V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0Z" fill="#64748B"/>
                                 </svg>
-                                <span class="text-center text-xs font-[Poppins] text-[#0F172A]">Memberships</span>
+                                <span class="text-center text-xs text-[#0F172A]">Memberships</span>
                             </div>
                             <button id="openModalCustomCategoryModal" type="button" class="modal-category-tile rounded-xl border-2 border-dashed border-[#CBD5E1] bg-white p-4 flex flex-col items-center justify-center gap-2 transition hover:border-[#94A3B8]" data-category="custom" data-model="custom">
                                 <svg width="24" height="24" viewBox="0 0 25 25" fill="none" aria-hidden="true">
                                     <path d="M11.25 18.75H13.75V13.75H18.75V11.25H13.75V6.25H11.25V11.25H6.25V13.75H11.25V18.75ZM12.5 25C10.7708 25 9.14583 24.6719 7.625 24.0156C6.10417 23.3594 4.78125 22.4688 3.65625 21.3438C2.53125 20.2188 1.64062 18.8958 0.984375 17.375C0.328125 15.8542 0 14.2292 0 12.5C0 10.7708 0.328125 9.14583 0.984375 7.625C1.64062 6.10417 2.53125 4.78125 3.65625 3.65625C4.78125 2.53125 6.10417 1.64062 7.625 0.984375C9.14583 0.328125 10.7708 0 12.5 0C14.2292 0 15.8542 0.328125 17.375 0.984375C18.8958 1.64062 20.2188 2.53125 21.3438 3.65625C22.4688 4.78125 23.3594 6.10417 24.0156 7.625C24.6719 9.14583 25 10.7708 25 12.5C25 14.2292 24.6719 15.8542 24.0156 17.375C23.3594 18.8958 22.4688 20.2188 21.3438 21.3438C20.2188 22.4688 18.8958 23.3594 17.375 24.0156C15.8542 24.6719 14.2292 25 12.5 25Z" fill="#94A3B8"/>
                                 </svg>
-                                <span id="modalCustomCategoryLabel" class="text-center text-xs font-[Poppins] text-[#475569]">{{ $customCategoryOld !== '' ? $customCategoryOld : 'Other / Custom' }}</span>
+                                <span id="modalCustomCategoryLabel" class="text-center text-xs text-[#475569]">{{ $customCategoryOld !== '' ? $customCategoryOld : 'Other / Custom' }}</span>
                             </button>
                         </div>
 
@@ -216,7 +216,7 @@
 
                     <div class="flex flex-col gap-3 border-t border-[#E2E8F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
                         <button type="button" id="dismissCreateStoreModal" class="text-left text-sm font-semibold text-[#64748B] transition hover:text-[#334155]">Cancel</button>
-                        <button type="submit" class="inline-flex min-w-[170px] items-center justify-center gap-2 rounded-lg bg-[#0052CC] px-6 py-3 font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">
+                        <button type="submit" class="inline-flex min-w-[170px] items-center justify-center gap-2 rounded-lg bg-brand px-6 py-3 font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover">
                             <span>Create Store</span>
                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                                 <path d="M10.1458 7.5H0V5.83333H10.1458L5.47917 1.16667L6.66667 0L13.3333 6.66667L6.66667 13.3333L5.47917 12.1667L10.1458 7.5Z" fill="white"/>
@@ -231,7 +231,7 @@
             <div class="ui-modal-panel ui-modal-panel--2xl !max-h-full !overflow-y-auto p-6 sm:p-8">
                 <div class="mb-6 flex items-start justify-between gap-4">
                     <div>
-                        <h3 class="font-poppins text-[26px] font-medium leading-tight text-[#0F172A]">Browse All Categories</h3>
+                        <h3 class="text-[26px] font-medium leading-tight text-[#0F172A]">Browse All Categories</h3>
                         <p class="mt-2 text-sm text-[#94A3B8]">Select the category that best describes your business, or create a custom one.</p>
                     </div>
                     <button type="button" id="closeModalCustomCategoryModal" class="text-[#94A3B8] transition hover:text-[#64748B]" aria-label="Close custom category modal">
@@ -278,7 +278,7 @@
                         </div>
                         <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
                             <input id="modalCustomCategoryTextInput" type="text" placeholder="Create custom category..." class="h-11 min-w-0 flex-1 rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[#0052CC] focus:ring-2 focus:ring-[#0052CC]/15">
-                            <button id="addModalCustomCategoryBtn" type="button" class="inline-flex h-12 min-w-20 items-center justify-center whitespace-nowrap rounded-xl bg-[#0052CC] px-[18px] text-sm font-bold leading-none text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042A3]">+ Add</button>
+                            <button id="addModalCustomCategoryBtn" type="button" class="inline-flex h-12 min-w-20 items-center justify-center whitespace-nowrap rounded-xl bg-brand px-[18px] text-sm font-bold leading-none text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover">+ Add</button>
                         </div>
                     </div>
                 </div>
@@ -287,7 +287,7 @@
                     <button type="button" id="cancelModalCustomCategorySelection" class="text-left text-sm font-inter font-medium text-[#94A3B8] transition hover:text-[#64748B]">Cancel and close</button>
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-[22px]">
                         <span id="modalSelectedCountText" class="text-sm text-[#94A3B8]">0 category selected</span>
-                        <button type="button" id="confirmModalCustomCategorySelection" class="inline-flex h-[46px] min-w-[170px] items-center justify-center whitespace-nowrap rounded-xl bg-[#0052CC] px-6 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042A3]">Confirm Selection</button>
+                        <button type="button" id="confirmModalCustomCategorySelection" class="inline-flex h-[46px] min-w-[170px] items-center justify-center whitespace-nowrap rounded-xl bg-brand px-6 text-sm font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover">Confirm Selection</button>
                     </div>
                 </div>
             </div>
@@ -362,7 +362,7 @@
         const setActiveTile = (active) => {
             categoryTiles.forEach((tile) => {
                 const selected = tile.dataset.category === active;
-                tile.classList.toggle('bg-[#0052CC]/5', selected);
+                tile.classList.toggle('bg-brand/5', selected);
                 tile.classList.toggle('border-2', selected);
                 tile.classList.toggle('border-[#0052CC]', selected);
                 tile.classList.toggle('bg-white', !selected);

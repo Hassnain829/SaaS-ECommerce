@@ -31,7 +31,7 @@
         <div class="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4 sm:px-6">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Store Actions</p>
-                <h2 class="mt-1 text-2xl font-medium text-[#0F172A] font-[Poppins]">Edit Store</h2>
+                <h2 class="mt-1 text-2xl font-medium text-[#0F172A]">Edit Store</h2>
             </div>
             <button type="button" id="closeEditStoreModal" class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] text-[#64748B] transition hover:text-[#334155]" aria-label="Close edit modal">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -60,11 +60,11 @@
 
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div>
-                        <label for="edit_store_name" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Store Name</label>
+                        <label for="edit_store_name" class="mb-2 block text-sm font-medium text-[#334155]">Store Name</label>
                         <input id="edit_store_name" name="name" type="text" value="{{ old('name', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:border-[#0052CC] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                     </div>
                     <div>
-                        <label for="edit_primary_market" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Primary market</label>
+                        <label for="edit_primary_market" class="mb-2 block text-sm font-medium text-[#334155]">Primary market</label>
                         <select id="edit_primary_market" name="primary_market" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                             @foreach (['Global Market', 'North America', 'Europe', 'Middle East', 'South Asia'] as $market)
                                 <option value="{{ $market }}">{{ $market }}</option>
@@ -76,7 +76,7 @@
 
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div>
-                        <label for="edit_currency" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Default store currency</label>
+                        <label for="edit_currency" class="mb-2 block text-sm font-medium text-[#334155]">Default store currency</label>
                         <select id="edit_currency" name="currency" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                             @foreach (['USD', 'EUR', 'GBP', 'PKR', 'AED'] as $currency)
                                 <option value="{{ $currency }}">{{ $currency }}</option>
@@ -85,7 +85,7 @@
                         <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.</p>
                     </div>
                     <div>
-                        <label for="edit_timezone" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Default store timezone</label>
+                        <label for="edit_timezone" class="mb-2 block text-sm font-medium text-[#334155]">Default store timezone</label>
                         <select id="edit_timezone" name="timezone" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                             @foreach (['UTC', 'Asia/Karachi', 'America/New_York', 'Europe/London', 'Asia/Dubai'] as $timezone)
                                 <option value="{{ $timezone }}">{{ $timezone }}</option>
@@ -96,7 +96,7 @@
                 </div>
 
                 <div>
-                    <label for="edit_address" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Business Address</label>
+                    <label for="edit_address" class="mb-2 block text-sm font-medium text-[#334155]">Business Address</label>
                     <textarea id="edit_address" name="address" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ old('address', '') }}</textarea>
                 </div>
 
@@ -107,7 +107,7 @@
                             <img id="edit-store-current-logo-img" src="" alt="" class="max-h-full max-w-full object-contain p-1">
                         </div>
                     </div>
-                    <label for="edit_store_logo" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Replace Logo</label>
+                    <label for="edit_store_logo" class="mb-2 block text-sm font-medium text-[#334155]">Replace Logo</label>
                     <input id="edit_store_logo" name="store_logo" type="file" accept=".jpg,.jpeg,.png,.svg" class="w-full rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                 </div>
 
@@ -133,11 +133,11 @@
 
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <div>
-                            <label for="edit_custom_category" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Custom Category</label>
+                            <label for="edit_custom_category" class="mb-2 block text-sm font-medium text-[#334155]">Custom Category</label>
                             <input id="edit_custom_category" name="custom_category" type="text" value="{{ old('custom_category', '') }}" placeholder="Optional custom label" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A] focus:border-[#0052CC] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Business Model Tags</label>
+                            <label class="mb-2 block text-sm font-medium text-[#334155]">Business Model Tags</label>
                             <div class="grid grid-cols-2 gap-2 text-sm text-[#475569]">
                                 @foreach (['Physical Goods', 'Digital Products', 'Services', 'Subscriptions', 'Memberships'] as $model)
                                     <label class="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
@@ -156,7 +156,7 @@
                     </button>
                     <div class="flex flex-col gap-3 sm:flex-row">
                         <button type="button" id="dismissEditStoreModal" class="rounded-lg border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]">Cancel</button>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">Save Changes</button>
+                        <button type="submit" class="rounded-lg bg-brand px-6 py-3 text-sm font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover">Save Changes</button>
                     </div>
                 </div>
             </form>
@@ -172,7 +172,7 @@
                     <path d="M12 9V13M12 17H12.01M10.29 3.85999L1.81999 18C1.6442 18.3045 1.5512 18.6496 1.55029 19.0012C1.54939 19.3528 1.64063 19.6984 1.81485 20.0037C1.98907 20.3089 2.24014 20.5632 2.5431 20.7413C2.84606 20.9194 3.19024 21.0151 3.54199 21.02H20.458C20.8097 21.0151 21.1539 20.9194 21.4569 20.7413C21.7598 20.5632 22.0109 20.3089 22.1851 20.0037C22.3593 19.6984 22.4506 19.3528 22.4497 19.0012C22.4488 18.6496 22.3558 18.3045 22.18 18L13.71 3.85999C13.5294 3.56428 13.2758 3.31986 12.9735 3.15044C12.6711 2.98102 12.3303 2.89233 11.9837 2.89282C11.6371 2.8933 11.2965 2.98295 10.9946 3.15322C10.6928 3.32349 10.4398 3.56863 10.26 3.86499L10.29 3.85999Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
-            <h3 class="mt-5 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Delete this store?</h3>
+            <h3 class="mt-5 text-2xl font-semibold text-[#0F172A]">Delete this store?</h3>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">This action will permanently remove the store, its products, categories, and related onboarding data.</p>
         </div>
 

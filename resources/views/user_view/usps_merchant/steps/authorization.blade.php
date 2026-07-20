@@ -12,7 +12,7 @@
                 Use the secure USPS authorization flow below. This is the only way to complete Label Provider authorization in BmyBrand.
             </p>
             @if ($canManageShipping ?? false)
-                <a href="{{ route('settings.shipping.usps-merchant.oauth.start', $account) }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">
+                <a href="{{ route('settings.shipping.usps-merchant.oauth.start', $account) }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">
                     Authorize with USPS
                 </a>
             @endif

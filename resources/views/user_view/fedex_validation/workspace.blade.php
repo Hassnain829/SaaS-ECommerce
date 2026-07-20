@@ -53,7 +53,7 @@
                 <div class="flex flex-wrap gap-2">
                     <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation.export.diagnostic', $account) }}" class="inline-flex items-center rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Export diagnostic bundle</a>
                     @if ($ready)
-                        <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation.export.final', $account) }}" class="inline-flex items-center rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Export final FedEx package</a>
+                        <a href="{{ route('settings.shipping.carrier-accounts.fedex.validation.export.final', $account) }}" class="inline-flex items-center rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Export final FedEx package</a>
                     @else
                         <span class="inline-flex items-center rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-500" title="Final export stays disabled until preflight passes.">Final export blocked</span>
                     @endif
@@ -92,7 +92,7 @@
 
             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.final-preflight', $account) }}" class="mt-4">
                 @csrf
-                <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Run Final Submission Preflight</button>
+                <button type="submit" class="h-10 rounded-lg bg-brand px-4 text-sm font-bold text-white">Run Final Submission Preflight</button>
             </form>
 
             @if ($finalPreflight['ready'] ?? false)
@@ -128,7 +128,7 @@
                             <span class="font-semibold text-[#475569]">{{ $label }}</span>
                             <input type="file" name="screenshot" accept=".pdf,.png,.jpg,.jpeg" required class="block w-full text-sm">
                         </label>
-                        <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Upload</button>
+                        <button type="submit" class="h-10 rounded-lg bg-brand px-4 text-sm font-bold text-white">Upload</button>
                     </form>
                 @endforeach
             </div>
@@ -154,7 +154,7 @@
             </div>
             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.eula-review', $account) }}" class="mt-4">
                 @csrf
-                <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Review and accept Hosted EULA</button>
+                <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Review and accept Hosted EULA</button>
             </form>
             @if ($hostedEulaStatus['upload_allowed'] ?? false)
                 <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.eula-evidence.upload', $account) }}" enctype="multipart/form-data" class="mt-4 grid gap-3 md:grid-cols-2">
@@ -167,7 +167,7 @@
                         <span class="font-semibold text-[#475569]">Acceptance confirmation screenshot</span>
                         <input type="file" name="acceptance_confirmation" accept="application/pdf,image/png,image/jpeg" required class="mt-1 block w-full text-sm">
                     </label>
-                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white md:col-span-2 md:w-fit">Upload EULA Evidence</button>
+                    <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white md:col-span-2 md:w-fit">Upload EULA Evidence</button>
                 </form>
             @else
                 <p class="mt-3 text-xs text-[#64748B]">Accept the current official hosted EULA before uploading screenshot evidence.</p>
@@ -192,7 +192,7 @@
             <p class="mt-3 text-xs text-[#64748B]">Uses stored sandbox platform and child credentials. A fresh OAuth transaction is generated for each required authorization check.</p>
             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.authorization', $account) }}" class="mt-4" onsubmit="this.querySelector('button[type=submit]').disabled=true">
                 @csrf
-                <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Parent + Child Authorization</button>
+                <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Parent + Child Authorization</button>
             </form>
         </section>
 
@@ -226,7 +226,7 @@
             @else
                 <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.sweden-passthrough', $account) }}" class="mt-4" onsubmit="this.querySelector('button[type=submit]').disabled=true">
                     @csrf
-                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Sweden MFA Passthrough</button>
+                    <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Sweden MFA Passthrough</button>
                 </form>
             @endunless
             @if ($swedenScreenshotsUploadAllowed ?? false)
@@ -243,7 +243,7 @@
                             <span class="font-semibold text-[#475569]">Direct child authorization screenshot</span>
                             <input type="file" name="child_authorization_screenshot" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-sm">
                         </label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white md:col-span-2 md:w-fit">Upload Sweden Screenshots</button>
+                        <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white md:col-span-2 md:w-fit">Upload Sweden Screenshots</button>
                     </form>
                 </div>
             @endif
@@ -266,7 +266,7 @@
                     <span class="font-semibold text-[#475569]">PDF file</span>
                     <input type="file" name="document" accept="application/pdf" required class="block w-full text-sm">
                 </label>
-                <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white md:col-span-3 md:w-fit">Upload document</button>
+                <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white md:col-span-3 md:w-fit">Upload document</button>
             </form>
         </section>
 
@@ -283,7 +283,7 @@
                 </div>
                 <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.mfa.registration-address', $account) }}" class="mt-4">
                     @csrf
-                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Run Registration Address Validation</button>
+                    <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Run Registration Address Validation</button>
                 </form>
             </article>
             <article class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
@@ -317,7 +317,7 @@
                             <input type="text" name="invoice_amount" value="{{ old('invoice_amount', $mfaInvoicePrefill['amount'] ?? '') }}" required maxlength="32" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
                         </label>
                         <div class="sm:col-span-2">
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Run invoice validation</button>
+                            <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Run invoice validation</button>
                         </div>
                     </form>
                 @endunless
@@ -354,7 +354,7 @@
                     @else
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.mfa.pin.generate', [$account, $pinCard['method']]) }}" class="mt-4">
                             @csrf
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Send {{ strtolower($pinCard['title']) }}</button>
+                            <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Send {{ strtolower($pinCard['title']) }}</button>
                         </form>
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.mfa.pin.validate', [$account, $pinCard['method']]) }}" class="mt-3 flex flex-wrap items-end gap-3">
                             @csrf
@@ -387,7 +387,7 @@
                         </div>
                         <form method="POST" action="{{ route($card['route'], $account) }}" class="mt-3">
                             @csrf
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Run {{ $card['label'] }}</button>
+                            <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white">Run {{ $card['label'] }}</button>
                         </form>
                     </article>
                 @endforeach
@@ -461,7 +461,7 @@
 
             <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.comprehensive-rate', $account) }}" class="mt-4" onsubmit="this.querySelector('button[type=submit]').disabled=true">
                 @csrf
-                <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Comprehensive Rate Quote</button>
+                <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">Run Comprehensive Rate Quote</button>
             </form>
 
             @if (! empty($comprehensiveRate['canonical_event']))
@@ -474,7 +474,7 @@
                             <span class="font-semibold text-[#475569]">Screenshot file</span>
                             <input type="file" name="screenshot" accept="application/pdf,image/png,image/jpeg" required class="block w-full text-sm">
                         </label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Upload Rate Screenshot</button>
+                        <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Upload Rate Screenshot</button>
                     </form>
                 </div>
             @endif
@@ -538,12 +538,12 @@
                                         <input type="checkbox" name="confirm_freight_creation" value="1" required class="mt-0.5 rounded border-[#CBD5E1]">
                                         <span>I understand this creates one sandbox Freight shipment when local preflight passes.</span>
                                     </label>
-                                    <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Run IntegratorUS08 Freight LTL</button>
+                                    <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white">Run IntegratorUS08 Freight LTL</button>
                                 </form>
                             @else
                                 <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.ship', [$account, 'testCaseKey' => $testCaseKey]) }}" class="mt-3" onsubmit="this.querySelector('button[type=submit]').disabled=true">
                                     @csrf
-                                    <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Generate Fresh {{ $testCaseKey }} Label{{ $meta['expected_packages'] > 1 ? 's' : '' }}</button>
+                                    <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white">Generate Fresh {{ $testCaseKey }} Label{{ $meta['expected_packages'] > 1 ? 's' : '' }}</button>
                                 </form>
                             @endif
 
@@ -623,7 +623,7 @@
                             <input type="checkbox" name="confirm_us09_upload" value="1" required class="mt-0.5">
                             <span>I understand this uploads a sandbox letterhead image.</span>
                         </label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['letterhead'] ?? false))>Upload letterhead</button>
+                        <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['letterhead'] ?? false))>Upload letterhead</button>
                     </form>
                 </li>
                 <li>
@@ -635,7 +635,7 @@
                             <input type="checkbox" name="confirm_us09_upload" value="1" required class="mt-0.5">
                             <span>I understand this uploads a sandbox signature image.</span>
                         </label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['signature'] ?? false))>Upload signature</button>
+                        <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['signature'] ?? false))>Upload signature</button>
                     </form>
                 </li>
                 <li>
@@ -647,7 +647,7 @@
                             <input type="checkbox" name="confirm_us09_ship" value="1" required class="mt-0.5">
                             <span>I understand this creates a sandbox international ETD shipment.</span>
                         </label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['image_ship_ready'] ?? false))>Create IntegratorUS09 Image Shipment</button>
+                        <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['image_ship_ready'] ?? false))>Create IntegratorUS09 Image Shipment</button>
                     </form>
                 </li>
             </ol>
@@ -681,7 +681,7 @@
                             <input type="checkbox" name="confirm_us09_upload" value="1" required class="mt-0.5">
                             <span>I understand this uploads a sandbox commercial invoice document.</span>
                         </label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['document'] ?? false))>Upload commercial invoice</button>
+                        <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['assets']['document'] ?? false))>Upload commercial invoice</button>
                     </form>
                 </li>
                 <li>
@@ -693,7 +693,7 @@
                             <input type="checkbox" name="confirm_us09_ship" value="1" required class="mt-0.5">
                             <span>I understand this creates a sandbox international ETD shipment.</span>
                         </label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['document_ship_ready'] ?? false))>Create IntegratorUS09 Document Shipment</button>
+                        <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white" @disabled(! ($us09Status['document_ship_ready'] ?? false))>Create IntegratorUS09 Document Shipment</button>
                     </form>
                 </li>
             </ol>
@@ -813,7 +813,7 @@
                         <input type="checkbox" name="confirm_us10_consolidation" value="1" required class="mt-0.5 rounded border-[#CBD5E1]" @disabled(! ($us10Status['ready_to_run'] ?? false))>
                         <span>I understand this creates a sandbox Consolidation / IPD workflow.</span>
                     </label>
-                    <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60" @disabled(! ($us10Status['ready_to_run'] ?? false))>Run IntegratorUS10 Consolidation Chain</button>
+                    <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60" @disabled(! ($us10Status['ready_to_run'] ?? false))>Run IntegratorUS10 Consolidation Chain</button>
                 </form>
 
                 @if (! empty($us10Status['child_label_artifacts']) || ! empty($us10Status['cci_artifact']))
@@ -897,7 +897,7 @@
 
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.run.global-ship', [$account, 'region' => 'CA', 'caseKey' => $testCaseKey]) }}" class="mt-3" onsubmit="this.querySelector('button[type=submit]').disabled=true">
                             @csrf
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-3 py-1.5 text-xs font-bold text-white">Run {{ $testCaseKey }}</button>
+                            <button type="submit" class="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white">Run {{ $testCaseKey }}</button>
                         </form>
 
                         <p class="mt-2 text-xs text-[#64748B]">{{ $shipStatus['printing_instructions'] ?? 'Print the downloaded label before scanning.' }}</p>
@@ -966,7 +966,7 @@
                                 <input type="text" name="tracking_number" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3" placeholder="Enter sandbox tracking number">
                             @endif
                         </label>
-                        <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white md:self-end">Run tracking</button>
+                        <button type="submit" class="h-10 rounded-lg bg-brand px-4 text-sm font-bold text-white md:self-end">Run tracking</button>
                     </form>
                     <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.validation.tracking-screenshot.upload', $account) }}" enctype="multipart/form-data" class="mt-4 flex flex-wrap items-end gap-3">
                         @csrf
@@ -989,7 +989,7 @@
                         <span class="font-semibold text-[#475569]">Tracking number to cancel</span>
                         <input type="text" name="tracking_number" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 md:w-80">
                     </label>
-                    <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Run cancellation</button>
+                    <button type="submit" class="h-10 rounded-lg bg-brand px-4 text-sm font-bold text-white">Run cancellation</button>
                 </form>
             </section>
         @endif
@@ -1006,7 +1006,7 @@
                             <span class="font-semibold text-[#475569]">Tracking number</span>
                             <input type="text" name="tracking_number" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 md:w-80">
                         </label>
-                        <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Run Trade Documents upload</button>
+                        <button type="submit" class="h-10 rounded-lg bg-brand px-4 text-sm font-bold text-white">Run Trade Documents upload</button>
                     </form>
                 @endif
             </section>

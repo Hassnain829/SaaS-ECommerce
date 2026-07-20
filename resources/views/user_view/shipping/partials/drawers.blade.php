@@ -48,7 +48,7 @@
             </details>
 
             <div class="mt-auto border-t border-[#F1F5F9] pt-4">
-                <button type="submit" class="h-10 w-full rounded-lg bg-[#0052CC] text-sm font-bold text-white shipping-submit-btn">Save delivery area</button>
+                <button type="submit" class="h-10 w-full rounded-lg bg-brand text-sm font-bold text-white shipping-submit-btn">Save delivery area</button>
             </div>
         </form>
     </div>
@@ -144,7 +144,7 @@
                 </details>
             </div>
             <div class="mt-6 border-t border-[#F1F5F9] pt-4">
-                <button type="submit" class="h-10 w-full rounded-lg bg-[#0052CC] text-sm font-bold text-white shipping-submit-btn">Save delivery option</button>
+                <button type="submit" class="h-10 w-full rounded-lg bg-brand text-sm font-bold text-white shipping-submit-btn">Save delivery option</button>
             </div>
         </form>
     </div>

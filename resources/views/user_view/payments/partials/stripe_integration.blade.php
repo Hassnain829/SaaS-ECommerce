@@ -67,10 +67,10 @@
         <div class="payments-stripe-accounts">
             <div
                 :class="{
-                    'payments-stripe-card': true,
-                    'is-focused': stripePanel === 'test',
-                    'is-dimmed': stripePanel === 'live'
-                }"
+ 'payments-stripe-card': true,
+ 'is-focused': stripePanel === 'test',
+ 'is-dimmed': stripePanel === 'live'
+ }"
             >
                 @include('user_view.partials.stripe_connect_account_card', [
                     'title' => 'Stripe test account',
@@ -87,10 +87,10 @@
 
             <div
                 :class="{
-                    'payments-stripe-card': true,
-                    'is-focused': stripePanel === 'live',
-                    'is-dimmed': stripePanel === 'test'
-                }"
+ 'payments-stripe-card': true,
+ 'is-focused': stripePanel === 'live',
+ 'is-dimmed': stripePanel === 'test'
+ }"
             >
                 @include('user_view.partials.stripe_connect_account_card', [
                     'title' => 'Stripe live account',

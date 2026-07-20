@@ -10,7 +10,7 @@
             <a href="{{ route('products.show', $product) }}" class="hidden sm:inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-600 transition hover:bg-stone-50">
                 Back
             </a>
-            <button type="submit" form="editProductForm" class="hidden sm:inline-flex h-10 items-center rounded-xl bg-[#24389C] px-4 text-sm font-bold text-white shadow-sm transition hover:opacity-90">
+            <button type="submit" form="editProductForm" class="hidden sm:inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-bold text-white shadow-sm transition hover:opacity-90">
                 Save and exit
             </button>
         </x-slot:actions>
@@ -84,7 +84,7 @@
                             </div>
                             <div class="mt-6 rounded-xl border border-[#3F51B5]/10 bg-[#3F51B5]/5 p-4">
                                 <p class="text-[10px] font-bold uppercase tracking-wide text-[#3F51B5]">Inventory summary</p>
-                                <p class="mt-1 font-[Poppins] text-4xl font-bold leading-none text-[#24389C] tabular-nums sm:text-5xl">{{ number_format($sumStock) }}</p>
+                                <p class="mt-1 text-4xl font-bold leading-none text-[#24389C] tabular-nums sm:text-5xl">{{ number_format($sumStock) }}</p>
                                 <p class="mt-2 text-[11px] text-[#454652]">Total units across all variant rows</p>
                                 <p class="mt-2 text-[9px] font-bold uppercase italic tracking-wide text-[#454652]/70">Updated {{ optional($product->updated_at)->diffForHumans() }}</p>
                             </div>

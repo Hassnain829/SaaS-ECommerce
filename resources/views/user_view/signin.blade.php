@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="UTF-8">
@@ -14,7 +14,7 @@
         <div class="w-full md:w-1/2 bg-white px-6 py-8 md:px-12 lg:px-16 xl:px-20 flex flex-col justify-center items-center">
             <div class="w-full max-w-[448px]">
                 <div class="flex items-center gap-3 mb-8 md:mb-10">
-                    <div class="bg-[#0052CC] p-2.5 rounded-lg flex items-center justify-center">
+                    <div class="bg-brand p-2.5 rounded-lg flex items-center justify-center">
                         <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M11 13L9 11L11 9L13 11L11 13V13M8.875 7.125L6.375 4.625L11 0L15.625 4.625L13.125 7.125L11 5L8.875 7.125V7.125M4.625 15.625L0 11L4.625 6.375L7.125 8.875L5 11L7.125 13.125L4.625 15.625V15.625M17.375 15.625L14.875 13.125L17 11L14.875 8.875L17.375 6.375L22 11L17.375 15.625V15.625M11 22L6.375 17.375L8.875 14.875L11 17L13.125 14.875L15.625 17.375L11 22V22" fill="white"/>
                         </svg>
@@ -26,7 +26,7 @@
                 </div>
 
                 <div class="mb-8">
-                    <h1 class="text-[#0F172A] text-3xl font-poppins font-medium leading-9">Welcome back</h1>
+                    <h1 class="text-[#0F172A] text-3xl font-medium leading-9">Welcome back</h1>
                     <p class="text-[#64748B] text-base leading-6 mt-1">Enter your credentials to access your marketplace dashboard.</p>
                 </div>
 
@@ -70,7 +70,7 @@
                         <label for="keep-signed" class="text-sm text-[#475569]">Keep me signed in</label>
                     </div>
 
-                    <button type="submit" class="w-full bg-[#0052CC] text-white font-bold py-4 px-4 rounded-xl text-base shadow-[0_10px_15px_-3px_rgba(0,82,204,0.20),0_4px_6px_-4px_rgba(0,82,204,0.20)] hover:bg-[#0042a3] transition-colors">Sign In</button>
+                    <button type="submit" class="w-full bg-brand text-white font-bold py-4 px-4 rounded-xl text-base shadow-[0_10px_15px_-3px_rgba(0,82,204,0.20),0_4px_6px_-4px_rgba(0,82,204,0.20)] hover:bg-brand-hover transition-colors">Sign In</button>
 
                     <div class="flex justify-center items-center gap-1 pt-6 border-t border-[#F1F5F9]">
                         <span class="text-sm text-[#64748B]">Don't have an account?</span>
@@ -82,16 +82,16 @@
 
         <div class="hidden md:flex w-full md:w-1/2 bg-[#F4F7FA] relative items-center justify-center p-6 md:p-10 lg:p-16 overflow-hidden">
             <div class="absolute inset-0 opacity-40" style="background: radial-gradient(ellipse 70.71% 70.71% at 50% 50%, #0052CC 1%, rgba(0,82,204,0) 70%);"></div>
-            <div class="absolute w-[500px] h-[500px] -top-20 right-10 bg-[#0052CC]/5 rounded-full blur-3xl"></div>
-            <div class="absolute w-[400px] h-[400px] -bottom-20 -left-20 bg-[#0052CC]/5 rounded-full blur-3xl"></div>
+            <div class="absolute w-[500px] h-[500px] -top-20 right-10 bg-brand/5 rounded-full blur-3xl"></div>
+            <div class="absolute w-[400px] h-[400px] -bottom-20 -left-20 bg-brand/5 rounded-full blur-3xl"></div>
 
             <div class="relative z-10 max-w-[672px] flex flex-col items-center text-center gap-8">
                 <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-[#0052CC]/10 rounded-full px-4 py-2 shadow-sm">
-                    <span class="w-2 h-2 bg-[#0052CC] rounded-full"></span>
+                    <span class="w-2 h-2 bg-brand rounded-full"></span>
                     <span class="text-[#0052CC] text-xs font-bold uppercase tracking-[0.3px]">Scalable Infrastructure</span>
                 </div>
 
-                <h2 class="text-4xl md:text-5xl font-bold font-poppins leading-tight text-[#0F172A]">
+                <h2 class="text-4xl md:text-5xl font-bold leading-tight text-[#0F172A]">
                     Powering the next<br>generation of <span class="text-[#0052CC]">multi-tenant</span><br><span class="text-[#0052CC]">marketplaces</span>.
                 </h2>
 

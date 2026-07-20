@@ -16,7 +16,7 @@
             </label>
             <div class="flex flex-wrap gap-3">
                 <button type="submit" class="rounded-lg border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#475569]">Update ship-from</button>
-                <a href="{{ route('settings.shipping.usps-merchant.wizard', ['carrierAccount' => $account, 'step' => 'identifiers']) }}" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Continue</a>
+                <a href="{{ route('settings.shipping.usps-merchant.wizard', ['carrierAccount' => $account, 'step' => 'identifiers']) }}" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Continue</a>
             </div>
         </form>
     @endif

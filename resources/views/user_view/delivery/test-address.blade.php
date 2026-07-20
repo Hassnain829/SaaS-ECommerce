@@ -32,7 +32,7 @@
                     <input name="order_subtotal" type="number" min="0" step="0.01" value="{{ $input['order_subtotal'] ?? '' }}" placeholder="50.00" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
                 </label>
                 <div class="sm:col-span-2">
-                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-5 text-sm font-bold text-white">Test address</button>
+                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Test address</button>
                 </div>
             </form>
         </section>

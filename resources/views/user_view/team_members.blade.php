@@ -5,18 +5,18 @@
 @section('topbar')
     <x-ui.merchant-topbar title="Team members" :lead="'Manage people who can operate '.$selectedStore->name.'.'">
         <x-slot:search>
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]">
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
                 <path d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z" fill="currentColor"/>
             </svg>
         </span>
-        <input type="text" data-team-search placeholder="Search team members, emails, or roles..." class="w-full bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg py-2 pl-10 pr-4 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+        <input type="text" data-team-search placeholder="Search team members, emails, or roles..." class="w-full rounded-lg border border-stone-200 bg-stone-50 py-2 pl-10 pr-4 text-sm text-stone-900 placeholder:text-stone-500 focus:border-brand/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20">
     </x-slot:search>
         <x-slot:actions>
         @if (in_array($currentUserStoreRole, ['owner', 'manager'], true))
-            <button type="button" data-open-team-invite class="hidden sm:inline-flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
+            <button type="button" data-open-team-invite class="hidden sm:inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
                 <span>Invite Member</span>
             </button>
@@ -28,15 +28,36 @@
 @section('content')
 @php
     $members = $members ?? collect();
+    $recentTeamActivity = $recentTeamActivity ?? collect();
     $roleLabels = [
         'owner' => 'Owner',
         'manager' => 'Manager',
         'staff' => 'Staff',
     ];
     $roleBadgeClasses = [
-        'owner' => 'bg-[#E8F0FF] text-[#003D9B]',
+        'owner' => 'bg-brand/10 text-brand-ink',
         'manager' => 'bg-[#EEF8F3] text-[#006A4E]',
-        'staff' => 'bg-[#F3F4F6] text-[#475569]',
+        'staff' => 'bg-[#F4F2FC] text-[#454652]',
+    ];
+    $roleGuideMeta = [
+        'owner' => [
+            'badge' => 'Primary',
+            'badge_class' => 'bg-brand text-white',
+            'card_class' => 'team-console-role-card team-console-role-card-primary',
+            'description' => 'Full platform control, including billing access, API management, and destructive actions.',
+        ],
+        'manager' => [
+            'badge' => 'Standard',
+            'badge_class' => 'bg-[#E3E1EA] text-[#454652]',
+            'card_class' => 'team-console-role-card',
+            'description' => 'Can manage catalog, inventory, and day-to-day store operations without billing access.',
+        ],
+        'staff' => [
+            'badge' => 'Limited',
+            'badge_class' => 'bg-[#E3E1EA] text-[#454652]',
+            'card_class' => 'team-console-role-card',
+            'description' => 'Read-first access with limited management permissions for specific departments.',
+        ],
     ];
     $roleDescriptions = [
         'owner' => 'Full store control, billing access, and destructive actions.',
@@ -48,77 +69,216 @@
     $ownersCount = $members->where('pivot.role', 'owner')->count();
     $managersCount = $members->where('pivot.role', 'manager')->count();
     $staffCount = $members->where('pivot.role', 'staff')->count();
+    $leadershipCount = $ownersCount + $managersCount;
+
+    $formatActivity = static function ($log): array {
+        $actor = $log->user?->name ?? 'A teammate';
+        $target = $log->targetUser?->name;
+        $meta = is_array($log->metadata) ? $log->metadata : [];
+
+        $message = match ($log->event_type) {
+            'team_member_invited' => ($target ?: 'New member').' invited as '.ucfirst((string) ($meta['role'] ?? 'member')),
+            'role_changed' => ($target ?: $actor).' updated to Role: '.ucfirst((string) ($meta['new_role'] ?? 'member')),
+            'team_member_removed' => ($target ?: 'A member').' removed from this store',
+            default => 'Team membership updated',
+        };
+
+        return [
+            'message' => $message,
+            'when' => optional($log->created_at)?->diffForHumans() ?? 'Recently',
+        ];
+    };
 @endphp
 
-<div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
+<div class="settings-workspace-fluid team-console">
     @include('user_view.partials.flash_success')
 
-    <div class="flex justify-end">
-        <div class="rounded-2xl bg-[#F8FAFC] px-4 py-3">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Your Store Role</p>
-            <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $roleLabels[(string) $currentUserStoreRole] ?? ucfirst((string) $currentUserStoreRole) }}</p>
+    <div class="team-console-metrics">
+        <div class="team-console-metric">
+            <div class="team-console-metric-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="team-console-metric-label">Total Members</p>
+                <p class="team-console-metric-value">{{ $members->count() }}</p>
+                <p class="team-console-metric-meta">{{ $ownersCount }} {{ \Illuminate\Support\Str::plural('owner', $ownersCount) }}</p>
+            </div>
         </div>
-    </div>
 
-    <div class="grid grid-cols-1 gap-5 xl:grid-cols-4">
-        <div class="rounded-3xl bg-white p-5 shadow-sm">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Total Members</p>
-            <p class="mt-3 text-3xl font-semibold text-[#0F172A] font-poppins">{{ $members->count() }}</p>
-            <p class="mt-2 text-sm text-[#64748B]">Loaded from the active store membership table.</p>
+        <div class="team-console-metric">
+            <div class="team-console-metric-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                    <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="team-console-metric-label">Leadership</p>
+                <p class="team-console-metric-value">
+                    {{ $leadershipCount }}
+                    <span class="team-console-metric-inline">{{ $ownersCount }} owner{{ $ownersCount === 1 ? '' : 's' }}, {{ $managersCount }} manager{{ $managersCount === 1 ? '' : 's' }}</span>
+                </p>
+            </div>
         </div>
-        <div class="rounded-3xl bg-white p-5 shadow-sm">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Leadership</p>
-            <p class="mt-3 text-3xl font-semibold text-[#0F172A] font-poppins">{{ $ownersCount + $managersCount }}</p>
-            <p class="mt-2 text-sm text-[#64748B]">{{ $ownersCount }} owners and {{ $managersCount }} managers.</p>
-        </div>
-        <div class="rounded-3xl bg-white p-5 shadow-sm">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Staff Seats</p>
-            <p class="mt-3 text-3xl font-semibold text-[#0F172A] font-poppins">{{ $staffCount }}</p>
-            <p class="mt-2 text-sm text-[#64748B]">Operational teammates with restricted permissions.</p>
-        </div>
-        <div class="rounded-3xl bg-[#EEF4FF] p-5 shadow-sm">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Day 5 Scope</p>
-            <p class="mt-3 text-base font-semibold text-[#0F172A]">Team management is live</p>
-            <p class="mt-2 text-sm leading-6 text-[#434654]">Add member, change role, and remove member now work against the active store. Advanced collaboration features stay deferred for later.</p>
-        </div>
-    </div>
 
-    <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.9fr)]">
-        <section class="rounded-[28px] bg-white p-6 shadow-sm">
-            <div class="flex flex-col gap-3 border-b border-[#E9EEF5] pb-5 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h2 class="text-xl font-semibold text-[#0F172A] font-poppins">Team Directory</h2>
-                    <p class="mt-1 text-sm text-[#64748B]">This directory shows the live membership list for your current active store.</p>
-                </div>
-                @if (! $canInviteMembers)
-                    <div class="rounded-2xl bg-[#FFF8E7] px-4 py-3 text-sm text-[#8A5A00]">
-                        Staff accounts can review access, but only owners and managers can invite teammates.
-                    </div>
+        <div class="team-console-metric">
+            <div class="team-console-metric-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                    <path d="M20 7h-5V4c0-1.1-.9-2-2-2h-2c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM9 12c.83 0 1.5.67 1.5 1.5S9.83 15 9 15s-1.5-.67-1.5-1.5S8.17 12 9 12zm3 6H6v-.75c0-1 2-1.5 3-1.5s3 .5 3 1.5V18zm1-9h-2V4h2v5zm5 7.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm2.5 2.5h-5v-.75c0-1 2-1.5 2.5-1.5s2.5.5 2.5 1.5V18z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="team-console-metric-label">Staff Seats</p>
+                <p class="team-console-metric-value">{{ $staffCount }}</p>
+                <p class="team-console-metric-meta">{{ $staffCount }} operational teammate{{ $staffCount === 1 ? '' : 's' }}</p>
+            </div>
+        </div>
+
+        <div class="team-console-activity">
+            <div class="team-console-activity-head">
+                <span>Recent Activity</span>
+                @if (Route::has('security'))
+                    <a href="{{ route('security') }}">View Logs</a>
                 @endif
+            </div>
+            @if ($recentTeamActivity->isEmpty())
+                <p class="team-console-activity-empty">No recent team changes yet. Invites and role updates will appear here.</p>
+            @else
+                <ul class="team-console-activity-list">
+                    @foreach ($recentTeamActivity as $index => $log)
+                        @php $activity = $formatActivity($log); @endphp
+                        <li>
+                            <span @class(['team-console-activity-dot', 'team-console-activity-dot-active' => $index === 0]) aria-hidden="true"></span>
+                            <div>
+                                <p>{{ $activity['message'] }}</p>
+                                <time>{{ $activity['when'] }}</time>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+    </div>
+
+    <div class="team-console-layout">
+        <section class="team-console-card team-console-directory">
+            <div class="team-console-card-header">
+                <div>
+                    <h2 class="team-console-card-title">Team Directory</h2>
+                    <p class="team-console-card-lead">Live membership list for your current active store.</p>
+                </div>
+                <div class="team-console-card-tools">
+                    @if (! $canInviteMembers)
+                        <div class="team-console-staff-note">
+                            Staff accounts can review access, but only owners and managers can invite teammates.
+                        </div>
+                    @endif
+                    <span class="team-console-tool-chip" title="Your store role">
+                        {{ $roleLabels[(string) $currentUserStoreRole] ?? ucfirst((string) $currentUserStoreRole) }}
+                    </span>
+                </div>
             </div>
 
             @if ($members->isEmpty())
-                <div class="py-16">
-                    <div class="mx-auto max-w-md rounded-[28px] bg-[#F8FAFC] px-8 py-10 text-center">
-                        <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#E8F0FF] text-[#003D9B]">
-                            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                                <path d="M14 14C12.1667 14 10.5972 13.3472 9.29167 12.0417C7.98611 10.7361 7.33333 9.16667 7.33333 7.33333C7.33333 5.5 7.98611 3.93056 9.29167 2.625C10.5972 1.31944 12.1667 0.666667 14 0.666667C15.8333 0.666667 17.4028 1.31944 18.7083 2.625C20.0139 3.93056 20.6667 5.5 20.6667 7.33333C20.6667 9.16667 20.0139 10.7361 18.7083 12.0417C17.4028 13.3472 15.8333 14 14 14ZM2 27.3333V23.6C2 22.6556 2.24444 21.7889 2.73333 21C3.22222 20.2111 3.87222 19.6111 4.68333 19.2C6.41667 18.3333 8.17778 17.6833 9.96667 17.25C11.7556 16.8167 13.5667 16.6 15.4 16.6C17.2333 16.6 19.0444 16.8167 20.8333 17.25C22.6222 17.6833 24.3833 18.3333 26.1167 19.2C26.9278 19.6111 27.5778 20.2111 28.0667 21C28.5556 21.7889 28.8 22.6556 28.8 23.6V27.3333H2Z" fill="currentColor"/>
-                            </svg>
-                        </div>
-                        <h3 class="mt-6 text-xl font-semibold text-[#0F172A] font-poppins">No teammates added yet</h3>
-                        <p class="mt-3 text-sm leading-6 text-[#64748B]">This store does not have any additional team members yet. Invite someone when you are ready to share access.</p>
-                        @if ($canInviteMembers)
-                            <button type="button" data-open-team-invite class="mt-6 inline-flex items-center gap-2 rounded-2xl bg-[#0052CC] px-5 py-3 text-sm font-bold text-white hover:bg-[#0047B3]">
-                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                    <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
-                                </svg>
-                                <span>Invite Your First Member</span>
-                            </button>
-                        @endif
+                <div class="team-console-empty">
+                    <div class="team-console-empty-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="40" height="40">
+                            <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                        </svg>
                     </div>
+                    <h3>No teammates added yet</h3>
+                    <p>This store does not have any additional team members yet. Invite someone when you are ready to share access.</p>
+                    @if ($canInviteMembers)
+                        <button type="button" data-open-team-invite class="team-console-btn team-console-btn-primary mt-5">
+                            Invite Your First Member
+                        </button>
+                    @endif
                 </div>
             @else
-                <div class="mt-6 space-y-4" data-team-directory>
+                <div class="team-console-table-wrap hidden md:block">
+                    <table class="team-console-table">
+                        <thead>
+                            <tr>
+                                <th>Member</th>
+                                <th>Role</th>
+                                <th>Join Date</th>
+                                <th class="text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody data-team-directory>
+                            @foreach ($members as $member)
+                                @php
+                                    $memberPayload = [
+                                        'id' => $member->id,
+                                        'name' => $member->name,
+                                        'email' => $member->email,
+                                        'role' => $member->pivot->role,
+                                        'global_role' => $member->role?->name ?? 'user',
+                                        'joined_at' => optional($member->pivot->created_at)->format('M d, Y') ?: 'Recently added',
+                                        'description' => $roleDescriptions[$member->pivot->role] ?? 'Store-level access is available for this teammate.',
+                                    ];
+                                    $initials = collect(explode(' ', $member->name))->filter()->take(2)->map(fn ($part) => strtoupper(substr($part, 0, 1)))->implode('');
+                                    $canEditThisMember = $currentUserStoreRole === 'owner'
+                                        || ($currentUserStoreRole === 'manager' && $member->pivot->role !== 'owner');
+                                    $canRemoveThisMember = ($currentUserStoreRole === 'owner' && in_array($member->pivot->role, ['manager', 'staff'], true))
+                                        || ($currentUserStoreRole === 'manager' && $member->pivot->role === 'staff');
+                                @endphp
+                                <tr data-member-row>
+                                    <td>
+                                        <div class="team-console-member">
+                                            <div class="team-console-avatar">{{ $initials !== '' ? $initials : 'TM' }}</div>
+                                            <div>
+                                                <p class="team-console-member-name">
+                                                    {{ $member->name }}
+                                                    @if ((int) $member->id === (int) request()->user()->id)
+                                                        <span class="team-console-you">You</span>
+                                                    @endif
+                                                </p>
+                                                <p class="team-console-member-email">{{ $member->email }}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="team-console-role-pill {{ $roleBadgeClasses[$member->pivot->role] ?? 'bg-[#F4F2FC] text-[#454652]' }}">
+                                            {{ $roleLabels[$member->pivot->role] ?? ucfirst($member->pivot->role) }}
+                                        </span>
+                                    </td>
+                                    <td class="team-console-date">
+                                        {{ optional($member->pivot->created_at)->format('M j, Y') ?? 'Recently added' }}
+                                    </td>
+                                    <td>
+                                        <div class="team-console-actions">
+                                            <button type="button" data-open-team-access data-member='@json($memberPayload)' class="team-console-btn team-console-btn-ghost">
+                                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
+                                                    <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+                                                </svg>
+                                                Access
+                                            </button>
+                                            @if ($canChangeRoles && $canEditThisMember)
+                                                <button type="button" data-open-team-role data-member='@json($memberPayload)' class="team-console-btn team-console-btn-dark">
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15" aria-hidden="true">
+                                                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                                    </svg>
+                                                    Change Role
+                                                </button>
+                                            @endif
+                                            @if ($canRemoveThisMember)
+                                                <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" onsubmit="return confirm('Remove {{ addslashes($member->name) }} from {{ addslashes($selectedStore->name) }}?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="team-console-btn team-console-btn-danger">Remove</button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="team-console-mobile-list md:hidden" data-team-directory-mobile>
                     @foreach ($members as $member)
                         @php
                             $memberPayload = [
@@ -136,110 +296,115 @@
                             $canRemoveThisMember = ($currentUserStoreRole === 'owner' && in_array($member->pivot->role, ['manager', 'staff'], true))
                                 || ($currentUserStoreRole === 'manager' && $member->pivot->role === 'staff');
                         @endphp
-                        <article data-member-row class="rounded-[24px] bg-[#F8FAFC] px-5 py-5 transition hover:bg-[#F1F6FB]">
-                            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                                <div class="flex items-start gap-4">
-                                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E8F0FF] text-sm font-bold text-[#003D9B]">
-                                        {{ $initials !== '' ? $initials : 'TM' }}
-                                    </div>
-                                    <div class="min-w-0">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <h3 class="text-base font-semibold text-[#0F172A]">{{ $member->name }}</h3>
-                                            <span class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] {{ $roleBadgeClasses[$member->pivot->role] ?? 'bg-[#F1F5F9] text-[#475569]' }}">
-                                                {{ $roleLabels[$member->pivot->role] ?? ucfirst($member->pivot->role) }}
-                                            </span>
-                                            @if ((int) $member->id === (int) request()->user()->id)
-                                                <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#64748B]">You</span>
-                                            @endif
-                                        </div>
-                                        <p class="mt-1 text-sm text-[#475569]">{{ $member->email }}</p>
-                                        <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-[#64748B]">
-                                            <span>Global role: {{ ucfirst($member->role?->name ?? 'user') }}</span>
-                                            <span>Joined store: {{ optional($member->pivot->created_at)->format('M d, Y') ?? 'Recently added' }}</span>
-                                        </div>
+                        <article data-member-row class="team-console-mobile-card">
+                            <div class="team-console-member">
+                                <div class="team-console-avatar">{{ $initials !== '' ? $initials : 'TM' }}</div>
+                                <div>
+                                    <p class="team-console-member-name">
+                                        {{ $member->name }}
+                                        @if ((int) $member->id === (int) request()->user()->id)
+                                            <span class="team-console-you">You</span>
+                                        @endif
+                                    </p>
+                                    <p class="team-console-member-email">{{ $member->email }}</p>
+                                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                                        <span class="team-console-role-pill {{ $roleBadgeClasses[$member->pivot->role] ?? 'bg-[#F4F2FC] text-[#454652]' }}">
+                                            {{ $roleLabels[$member->pivot->role] ?? ucfirst($member->pivot->role) }}
+                                        </span>
+                                        <span class="text-xs text-stone-500">{{ optional($member->pivot->created_at)->format('M j, Y') ?? 'Recently added' }}</span>
                                     </div>
                                 </div>
-
-                                <div class="flex flex-wrap items-center gap-2 lg:justify-end">
-                                    <button type="button" data-open-team-access data-member='@json($memberPayload)' class="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-[#0F172A] hover:bg-[#EEF4FF]">
-                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                            <path d="M8 14.6667C6.15556 14.2 4.63333 13.1417 3.43333 11.4917C2.23333 9.84167 1.63333 8.01111 1.63333 6V1.16667L8 0L14.3667 1.16667V6C14.3667 8.01111 13.7667 9.84167 12.5667 11.4917C11.3667 13.1417 9.84444 14.2 8 14.6667ZM8 12.9967C9.28889 12.5967 10.3667 11.8083 11.2333 10.6317C12.1 9.455 12.6067 8.14167 12.7533 6.69167H8V1.7L3.2 3.5V6C3.2 6.14667 3.2 6.26667 3.2 6.36C3.2 6.45333 3.21333 6.57333 3.24 6.72H8V12.9967Z" fill="currentColor"/>
-                                        </svg>
-                                        <span>Access</span>
-                                    </button>
-                                    @if ($canChangeRoles && $canEditThisMember)
-                                        <button
-                                            type="button"
-                                            data-open-team-role
-                                            data-member='@json($memberPayload)'
-                                            class="inline-flex items-center gap-2 rounded-xl bg-[#0F172A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1E293B]"
-                                        >
-                                            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                                                <path d="M2 13.25H3.1875L10.95 5.4875L9.7625 4.3L2 12.0625V13.25ZM0.75 14.5V11.5375L10.95 1.35625C11.1042 1.21458 11.2743 1.10521 11.4604 1.02812C11.6465 0.951042 11.8424 0.9125 12.0479 0.9125C12.2535 0.9125 12.4526 0.951042 12.6452 1.02812C12.8378 1.10521 13.0047 1.22083 13.1458 1.375L14.2083 2.45625C14.3625 2.59792 14.4747 2.76484 14.545 2.95699C14.6153 3.14913 14.6504 3.34132 14.6504 3.53356C14.6504 3.73895 14.6153 3.9349 14.545 4.12141C14.4747 4.30792 14.3625 4.47812 14.2083 4.63125L4.025 14.5H0.75Z" fill="currentColor"/>
-                                            </svg>
-                                            <span>Change Role</span>
-                                        </button>
-                                    @endif
-                                    @if ($canRemoveThisMember)
-                                        <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" onsubmit="return confirm('Remove {{ addslashes($member->name) }} from {{ addslashes($selectedStore->name) }}?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="inline-flex items-center gap-2 rounded-xl border border-[#FECACA] bg-white px-4 py-2 text-sm font-semibold text-[#B42318] hover:bg-[#FFF5F5]">
-                                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                                    <path d="M4.08333 12.25C3.7625 12.25 3.48785 12.1358 3.25938 11.9073C3.0309 11.6788 2.91667 11.4042 2.91667 11.0833V3.5H2.33333V2.33333H5.25V1.75H8.75V2.33333H11.6667V3.5H11.0833V11.0833C11.0833 11.4042 10.9691 11.6788 10.7406 11.9073C10.5122 12.1358 10.2375 12.25 9.91667 12.25H4.08333ZM9.91667 3.5H4.08333V11.0833H9.91667V3.5ZM5.25 9.91667H6.41667V4.66667H5.25V9.91667ZM7.58333 9.91667H8.75V4.66667H7.58333V9.91667Z" fill="currentColor"/>
-                                                </svg>
-                                                <span>Remove</span>
-                                            </button>
-                                        </form>
-                                    @endif
-                                </div>
+                            </div>
+                            <div class="team-console-actions mt-4">
+                                <button type="button" data-open-team-access data-member='@json($memberPayload)' class="team-console-btn team-console-btn-ghost">Access</button>
+                                @if ($canChangeRoles && $canEditThisMember)
+                                    <button type="button" data-open-team-role data-member='@json($memberPayload)' class="team-console-btn team-console-btn-dark">Change Role</button>
+                                @endif
+                                @if ($canRemoveThisMember)
+                                    <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" onsubmit="return confirm('Remove {{ addslashes($member->name) }} from {{ addslashes($selectedStore->name) }}?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="team-console-btn team-console-btn-danger">Remove</button>
+                                    </form>
+                                @endif
                             </div>
                         </article>
                     @endforeach
                 </div>
+
+                @if ($canInviteMembers && $members->count() < 3)
+                    <div class="team-console-expand">
+                        <div class="team-console-expand-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
+                                <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                            </svg>
+                        </div>
+                        <h4>Expand your team</h4>
+                        <p>Invite managers and staff to help scale your operations across multiple regions.</p>
+                    </div>
+                @endif
             @endif
         </section>
 
-        <aside class="space-y-5">
-            <section class="rounded-[28px] bg-white p-6 shadow-sm">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E8F0FF] text-[#003D9B]">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                            <path d="M10 18.3333C7.94444 17.8111 6.24722 16.6306 4.90833 14.7917C3.56944 12.9528 2.9 10.9111 2.9 8.66667V2.83333L10 1.66667L17.1 2.83333V8.66667C17.1 10.9111 16.4306 12.9528 15.0917 14.7917C13.7528 16.6306 12.0556 17.8111 10 18.3333ZM10 16.4583C11.4389 16.0139 12.6403 15.1361 13.6042 13.825C14.5681 12.5139 15.1306 11.05 15.2917 9.43333H10V3.86667L4.65 5.48333V8.66667C4.65 8.82778 4.65 8.96111 4.65 9.06667C4.65 9.17222 4.66481 9.30556 4.69444 9.46667H10V16.4583Z" fill="currentColor"/>
+        <aside class="team-console-aside">
+            <section class="team-console-card team-console-role-guide">
+                <div class="team-console-aside-head">
+                    <div class="team-console-aside-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                            <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
                         </svg>
                     </div>
                     <div>
-                        <h2 class="text-lg font-semibold text-[#0F172A] font-poppins">Role Guide</h2>
-                        <p class="text-sm text-[#64748B]">Quick reference for how each store-level role behaves in the active store.</p>
+                        <h2 class="team-console-card-title">Role Guide</h2>
+                        <p class="team-console-card-lead">Quick reference for platform roles.</p>
                     </div>
                 </div>
 
-                <div class="mt-6 space-y-4">
+                <div class="team-console-role-list">
                     @foreach ($memberRoleOptions as $roleOption)
-                        <div class="rounded-2xl bg-[#F8FAFC] px-4 py-4">
+                        @php $guide = $roleGuideMeta[$roleOption] ?? null; @endphp
+                        <div class="{{ $guide['card_class'] ?? 'team-console-role-card' }}">
                             <div class="flex items-center justify-between gap-3">
-                                <h3 class="text-sm font-semibold text-[#0F172A]">{{ $roleLabels[$roleOption] ?? ucfirst($roleOption) }}</h3>
-                                <span class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] {{ $roleBadgeClasses[$roleOption] ?? 'bg-[#F1F5F9] text-[#475569]' }}">
-                                    {{ $roleLabels[$roleOption] ?? ucfirst($roleOption) }}
+                                <h3>{{ $roleLabels[$roleOption] ?? ucfirst($roleOption) }}</h3>
+                                <span class="{{ $guide['badge_class'] ?? 'bg-[#E3E1EA] text-[#454652]' }} team-console-guide-badge">
+                                    {{ $guide['badge'] ?? ($roleLabels[$roleOption] ?? ucfirst($roleOption)) }}
                                 </span>
                             </div>
-                            <p class="mt-2 text-sm leading-6 text-[#64748B]">{{ $roleDescriptions[$roleOption] ?? 'Store-scoped access profile.' }}</p>
+                            <p>{{ $guide['description'] ?? ($roleDescriptions[$roleOption] ?? 'Store-scoped access profile.') }}</p>
                         </div>
                     @endforeach
                 </div>
             </section>
 
-            <section class="rounded-[28px] bg-[#0F172A] p-6 text-white shadow-sm">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">Status</p>
-                <h2 class="mt-3 text-xl font-semibold font-poppins">Team Members</h2>
-                <ul class="mt-4 space-y-3 text-sm text-white/80">
-                    <li>Team list is powered by the active store membership data.</li>
-                    <li>Owners and managers can add teammates from the invite drawer.</li>
-                    <li>Store roles can be updated safely with last-owner protection.</li>
-                    <li>Remove-member actions revoke store access without deleting the account.</li>
-                    <li>Access details stay read-only for fast review and onboarding.</li>
-                    <li>Advanced invite delivery and audit history remain deferred for a later sprint.</li>
+            <section class="team-console-status">
+                <h2>
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                    Status Overview
+                </h2>
+                <ul>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        <span>Team list is powered by the active store membership data.</span>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        <span>Owners and managers can add teammates from the invite drawer.</span>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        <span>Store roles can be updated safely with last-owner protection.</span>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        <span>Remove-member actions revoke access without deleting the global account.</span>
+                    </li>
                 </ul>
+                <div class="team-console-status-tip">
+                    <p class="team-console-status-tip-label">Pro Tip</p>
+                    <p>Advanced invite delivery and audit history remain deferred for a later sprint.</p>
+                </div>
             </section>
         </aside>
     </div>
@@ -346,7 +511,7 @@
 
             return (itemsByRole[role] || ['Store-level access details are not available for this role yet.'])
                 .map(function (item) {
-                    return '<li class="flex items-start gap-2"><span class="mt-1 h-1.5 w-1.5 rounded-full bg-[#0052CC]"></span><span>' + item + '</span></li>';
+                    return '<li class="flex items-start gap-2"><span class="mt-1 h-1.5 w-1.5 rounded-full bg-brand"></span><span>' + item + '</span></li>';
                 })
                 .join('');
         }

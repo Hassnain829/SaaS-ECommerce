@@ -5,7 +5,7 @@
 @section('topbar')
     <x-ui.merchant-topbar title="Profile settings" lead="Account identity and password.">
         <x-slot:actions>
-            <button type="submit" form="profileForm" class="inline-flex h-9 items-center rounded-lg bg-[#0052CC] px-3 text-xs font-semibold text-white">Save profile</button>
+            <button type="submit" form="profileForm" class="inline-flex h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white">Save profile</button>
         </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection
@@ -35,7 +35,7 @@
       </div>
 
       <div class="flex-1 min-w-0">
-        <h2 class="text-3xl md:text-4xl font-poppins text-[#0F172A]">{{ $profileUser->name }}</h2>
+        <h2 class="text-3xl md:text-4xl text-[#0F172A]">{{ $profileUser->name }}</h2>
         <p class="text-[#64748B] text-base">{{ $profileUser->email }}</p>
         <div class="mt-4 flex flex-wrap gap-3">
           <span class="inline-flex items-center gap-2 rounded-full bg-[#D1FAE5] px-3 py-1 text-sm font-semibold text-[#047857]"><span class="h-2 w-2 rounded-full bg-[#10B981]"></span>{{ $profileUser->is_active === false ? 'Deactivated' : 'Active account' }}</span>
@@ -51,7 +51,7 @@
     <div class="space-y-6">
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="p-6 border-b border-[#E2E8F0]">
-          <h3 class="text-2xl font-poppins text-[#0F172A]">Personal information</h3>
+          <h3 class="text-2xl text-[#0F172A]">Personal information</h3>
           <p class="text-sm text-[#64748B]">Keep your merchant account contact details current.</p>
         </div>
         <form id="profileForm" method="POST" action="{{ route('profile.update') }}" enctype="multipart/form-data" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -74,14 +74,14 @@
             <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp" class="block w-full text-sm text-[#475569] file:mr-4 file:h-11 file:rounded-lg file:border-0 file:bg-[#EFF6FF] file:px-4 file:font-semibold file:text-[#0052CC]">
           </label>
           <div class="md:col-span-2 flex justify-end">
-            <button type="submit" class="h-10 px-5 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Save profile</button>
+            <button type="submit" class="h-10 px-5 rounded-lg bg-brand text-white text-sm font-semibold">Save profile</button>
           </div>
         </form>
       </section>
 
       <section id="password" class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="p-6 border-b border-[#E2E8F0]">
-          <h3 class="text-2xl font-poppins text-[#0F172A]">Password</h3>
+          <h3 class="text-2xl text-[#0F172A]">Password</h3>
           <p class="text-sm text-[#64748B]">Use a strong password that is not shared with supplier portals or marketplaces.</p>
         </div>
         <form method="POST" action="{{ route('profile.password.update') }}" class="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -109,7 +109,7 @@
     <aside class="space-y-6">
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="p-6 border-b border-[#E2E8F0] bg-[#F8FAFC]">
-          <h3 class="text-xl font-poppins text-[#0F172A]">Store access</h3>
+          <h3 class="text-xl text-[#0F172A]">Store access</h3>
         </div>
         <div class="p-6 space-y-3">
           @forelse ($memberStores as $store)
@@ -125,7 +125,7 @@
 
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="p-6 border-b border-[#E2E8F0]">
-          <h3 class="text-xl font-poppins text-[#0F172A]">Account checks</h3>
+          <h3 class="text-xl text-[#0F172A]">Account checks</h3>
         </div>
         <div class="p-6 space-y-4 text-sm">
           <div>
@@ -136,7 +136,7 @@
             <p class="font-semibold text-[#0F172A]">Last sign-in</p>
             <p class="text-[#64748B]">{{ $profileUser->last_login_at?->diffForHumans() ?? 'Not recorded yet' }}</p>
           </div>
-          <a href="{{ route('security') }}" class="inline-flex h-10 px-4 rounded-lg bg-[#0052CC] text-white font-semibold items-center justify-center">Open security</a>
+          <a href="{{ route('security') }}" class="inline-flex h-10 px-4 rounded-lg bg-brand text-white font-semibold items-center justify-center">Open security</a>
         </div>
       </section>
     </aside>

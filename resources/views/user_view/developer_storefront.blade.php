@@ -17,7 +17,7 @@
 
         <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Connect a React dev app</h2>
+                <h2 class="text-xl font-semibold text-[#0F172A]">Connect a React dev app</h2>
                 <p class="text-sm text-[#64748B] mt-1">
                     Use this flow to verify catalog data and external checkout sync against your live store data. Intended for developers and staging; treat the token like a password.
                 </p>
@@ -94,7 +94,7 @@
                     @if (auth()->user()->hasStorePermission($selectedStore, \App\Support\StorePermission::DEVELOPER_API_MANAGE))
                         <form method="post" action="{{ route('developer-storefront.token.generate') }}">
                             @csrf
-                            <button type="submit" class="h-10 px-5 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">
+                            <button type="submit" class="h-10 px-5 rounded-lg bg-brand text-white text-sm font-semibold">
                                 {{ $tokenConfigured ? 'Regenerate token' : 'Generate token' }}
                             </button>
                         </form>

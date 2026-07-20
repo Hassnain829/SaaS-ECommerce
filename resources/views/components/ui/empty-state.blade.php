@@ -6,7 +6,7 @@
 ])
 
 <div {{ $attributes->class(['ui-empty-state']) }}>
-    <h3 class="font-heading text-base font-semibold text-[color:var(--color-ink)]">{{ $title }}</h3>
+    <h3 class="font-sans text-base font-semibold text-[color:var(--color-ink)]">{{ $title }}</h3>
     @if ($lead)
         <p class="mx-auto mt-2 max-w-md text-sm text-[color:var(--color-ink-muted)]">{{ $lead }}</p>
     @endif

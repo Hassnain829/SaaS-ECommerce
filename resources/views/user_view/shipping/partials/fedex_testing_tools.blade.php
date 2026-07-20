@@ -166,7 +166,7 @@
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-address', $account) }}" class="shipping-submit-form">
                             @csrf
                             <input type="hidden" name="use_baseline" value="1">
-                            <button type="submit" class="w-full rounded-lg bg-[#0052CC] px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn">
+                            <button type="submit" class="w-full rounded-lg bg-brand px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn">
                                 <span class="block">Address check</span>
                                 <span class="mt-0.5 block text-xs font-normal text-blue-100">US validation account · New York NY</span>
                             </button>
@@ -175,7 +175,7 @@
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-service-availability', $account) }}" class="shipping-submit-form">
                             @csrf
                             <input type="hidden" name="use_baseline" value="1">
-                            <button type="submit" class="w-full rounded-lg bg-[#0052CC] px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>
+                            <button type="submit" class="w-full rounded-lg bg-brand px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>
                                 <span class="block">Service availability</span>
                                 <span class="mt-0.5 block text-xs font-normal text-blue-100">US02 route · Collierville TN</span>
                             </button>
@@ -184,7 +184,7 @@
                         <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test-rate-quote', $account) }}" class="shipping-submit-form">
                             @csrf
                             <input type="hidden" name="use_baseline" value="1">
-                            <button type="submit" class="w-full rounded-lg bg-[#0052CC] px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>
+                            <button type="submit" class="w-full rounded-lg bg-brand px-4 py-2.5 text-left text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>
                                 <span class="block">Comprehensive rate quote</span>
                                 <span class="mt-0.5 block text-xs font-normal text-blue-100">US02 sample rate quote</span>
                             </button>
@@ -231,7 +231,7 @@
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Country</span><input name="country_code" required value="US" maxlength="2" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm uppercase"></label>
                         </div>
                         <label class="inline-flex items-center gap-2 text-xs text-[#475569]"><input type="checkbox" name="residential" value="1" class="rounded border-[#CBD5E1]"> Residential address</label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn">Run address check</button>
+                        <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shipping-submit-btn">Run address check</button>
                     </form>
                 </details>
 
@@ -257,7 +257,7 @@
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Destination city</span><input name="destination_city" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Dallas"></label>
                         </div>
                         <p class="text-xs text-[#64748B]">US and Canada destinations require country, postal code, state/province, and city.</p>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Check service availability</button>
+                        <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Check service availability</button>
                     </form>
                 </details>
 
@@ -307,7 +307,7 @@
                         </div>
                         <p class="text-xs text-[#64748B]">US and Canada destinations require country, postal code, state/province, and city.</p>
                         <label class="inline-flex items-center gap-2 text-xs text-[#475569]"><input type="checkbox" name="residential" value="1" class="rounded border-[#CBD5E1]"> Residential destination</label>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Get FedEx test quote</button>
+                        <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Get FedEx test quote</button>
                     </form>
                 </details>
             </div>

@@ -47,7 +47,7 @@
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="max-w-3xl">
                     <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Inventory settings</p>
-                    <h2 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Inventory locations</h2>
+                    <h2 class="mt-1 text-2xl font-semibold text-[#0F172A]">Inventory locations</h2>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations are places where you store or fulfill inventory, such as a warehouse, shop, stock room, restaurant branch, or third-party storage.</p>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations control where stock is stored. Markets and currencies control where and how you sell. Market-specific selling settings will be added later.</p>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Use service areas to control which destinations this location can fulfill. This routing is based on configured service areas, stock availability, and your priority settings.</p>
@@ -146,7 +146,7 @@
                                 </div>
                             </details>
                         </div>
-                        <button type="submit" class="mt-4 inline-flex rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Add location</button>
+                        <button type="submit" class="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Add location</button>
                     </form>
                 @else
                     <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
@@ -158,7 +158,7 @@
 
         <section class="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
             <div class="border-b border-[#F1F5F9] px-5 py-4">
-                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Current locations</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Current locations</h2>
                 <p class="mt-1 text-sm text-[#64748B]">One active default location is used when imports, quick add, product edits, and storefront orders need a stock location.</p>
             </div>
 
@@ -312,7 +312,7 @@
                                                         </div>
                                                     </details>
                                                     <div class="sm:col-span-2">
-                                                        <button class="rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-bold text-white">Save location</button>
+                                                        <button class="rounded-lg bg-brand px-3 py-2 text-xs font-bold text-white">Save location</button>
                                                     </div>
                                                 </form>
                                             </details>

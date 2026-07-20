@@ -23,7 +23,7 @@
     @endphp
 
     <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
-        <h2 class="text-2xl font-poppins font-semibold text-[#0F172A]">Where do you deliver?</h2>
+        <h2 class="text-2xl font-semibold text-[#0F172A]">Where do you deliver?</h2>
         <p class="mt-2 text-sm text-[#64748B]">Each delivery area covers one country. Add states or ZIP/postal rules when you need tighter coverage.</p>
 
         @if ($legacyZones->isNotEmpty())
@@ -73,7 +73,7 @@
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#F1F5F9] pt-4">
                 <a href="{{ route('settings.delivery.setup.ship-from') }}" class="text-sm font-semibold text-[#64748B]">Back</a>
-                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-5 text-sm font-bold text-white">Save and continue</button>
+                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Save and continue</button>
             </div>
         </form>
     </section>

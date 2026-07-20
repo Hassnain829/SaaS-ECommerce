@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-sidebar')
+@extends('layouts.admin.admin-sidebar')
 
 @section('title', 'Admin Dashboard')
 
@@ -20,7 +20,7 @@
     </div>
 
     <div class="flex items-center gap-3 shrink-0">
-        <button class="hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
+        <button class="hidden sm:flex items-center gap-2 bg-brand text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-brand-hover transition-colors">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
             </svg>
@@ -55,12 +55,12 @@
 @section('content')
 <div class="font-inter flex flex-col md:flex-row md:justify-between md:items-center gap-3">
     <div>
-        <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Platform Command Center</h1>
+        <h1 class="text-2xl font-medium text-[#0F172A]">Platform Command Center</h1>
         <p class="text-sm text-[#64748B]">Real-time aggregate data across all clusters.</p>
     </div>
     <div class="bg-white border border-[#E2E8F0] rounded-lg p-1 flex gap-1" role="tablist" aria-label="Time period">
         <button type="button" class="period-btn px-4 py-1.5 text-sm font-medium text-[#64748B] rounded-md hover:bg-gray-100">Last 24h</button>
-        <button type="button" class="period-btn px-4 py-1.5 text-sm font-medium bg-[#0052CC] text-white rounded-md" aria-selected="true">7 Days</button>
+        <button type="button" class="period-btn px-4 py-1.5 text-sm font-medium bg-brand text-white rounded-md" aria-selected="true">7 Days</button>
         <button type="button" class="period-btn px-4 py-1.5 text-sm font-medium text-[#64748B] rounded-md hover:bg-gray-100">30 Days</button>
     </div>
 </div>
@@ -69,7 +69,7 @@
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
         <div class="flex justify-between items-start">
-            <div class="w-10 h-10 bg-[#0052CC]/10 rounded-lg flex items-center justify-center">
+            <div class="w-10 h-10 bg-brand/10 rounded-lg flex items-center justify-center">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 8V2H20V8H12ZM2 12V2H10V12H2ZM12 20V10H20V20H12ZM2 20V14H10V20H2Z" fill="#0052CC"/></svg>
             </div>
             <span class="bg-green-50 text-green-600 text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1">
@@ -79,7 +79,7 @@
         </div>
         <div class="mt-3">
             <div class="text-sm text-[#64748B]">Platform Revenue</div>
-            <div class="text-2xl font-medium text-[#0F172A] font-poppins">$2.4M</div>
+            <div class="text-2xl font-medium text-[#0F172A]">$2.4M</div>
         </div>
     </div>
 
@@ -95,7 +95,7 @@
         </div>
         <div class="mt-3">
             <div class="text-sm text-[#64748B]">Total Active Stores</div>
-            <div class="text-2xl font-medium text-[#0F172A] font-poppins">12,842</div>
+            <div class="text-2xl font-medium text-[#0F172A]">12,842</div>
         </div>
     </div>
 
@@ -108,7 +108,7 @@
         </div>
         <div class="mt-3">
             <div class="text-sm text-[#64748B]">Active Subscriptions</div>
-            <div class="text-2xl font-medium text-[#0F172A] font-poppins">4,520</div>
+            <div class="text-2xl font-medium text-[#0F172A]">4,520</div>
         </div>
     </div>
 
@@ -124,7 +124,7 @@
         </div>
         <div class="mt-3">
             <div class="text-sm text-[#64748B]">Global Order Volume</div>
-            <div class="text-2xl font-medium text-[#0F172A] font-poppins">1.8M</div>
+            <div class="text-2xl font-medium text-[#0F172A]">1.8M</div>
         </div>
     </div>
 </div>
@@ -135,7 +135,7 @@
     <div class="lg:col-span-2 bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
         <div class="px-6 py-4 border-b border-[#F1F5F9] flex justify-between items-center">
             <div>
-                <h3 class="text-lg font-medium text-[#0F172A] font-poppins">Top Performing Tenants</h3>
+                <h3 class="text-lg font-medium text-[#0F172A]">Top Performing Tenants</h3>
                 <p class="text-xs text-[#64748B]">Based on revenue performance</p>
             </div>
             <a href="#" class="text-sm font-semibold text-[#0052CC]">View Analytics</a>
@@ -197,7 +197,7 @@
     <div class="lg:col-span-1 flex flex-col gap-6">
         <!-- Category Distribution -->
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-6">
-            <h3 class="text-lg font-medium text-[#0F172A] font-poppins">Category Distribution</h3>
+            <h3 class="text-lg font-medium text-[#0F172A]">Category Distribution</h3>
             <div class="mt-4 flex flex-col items-center gap-4">
                 <div class="relative flex items-center justify-center">
                     <div class="relative h-40 w-40">
@@ -208,7 +208,7 @@
                         </svg>
                     </div>
                     <div class="absolute flex flex-col items-center justify-center">
-                        <div class="text-2xl font-bold text-slate-900 font-poppins">12k+</div>
+                        <div class="text-2xl font-bold text-slate-900">12k+</div>
                         <div class="text-xs uppercase text-slate-500">Total</div>
                     </div>
                 </div>
@@ -241,7 +241,7 @@
         <!-- Recent Activity -->
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-6">
             <div class="mb-4">
-                <h3 class="text-lg font-medium text-[#0F172A] font-poppins">Recent Activity</h3>
+                <h3 class="text-lg font-medium text-[#0F172A]">Recent Activity</h3>
                 <p class="text-xs text-[#64748B]">Latest system events</p>
             </div>
             <div class="space-y-3 max-h-64 overflow-hidden relative">

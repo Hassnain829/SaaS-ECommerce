@@ -19,7 +19,7 @@
             <!-- header with title and close icon -->
             <div class="flex justify-between items-center px-6 py-4 border-b border-[#F1F5F9]">
                 <div>
-                    <h3 class="text-lg font-poppins font-medium text-[#0F172A]">{{ $editingVariation ? 'Edit Variation Type' : 'Add Variation Type' }}</h3>
+                    <h3 class="text-lg font-medium text-[#0F172A]">{{ $editingVariation ? 'Edit Variation Type' : 'Add Variation Type' }}</h3>
                     <p class="text-xs text-[#64748B] mt-0.5">Define how customers will differentiate your items</p>
                 </div>
                 <a href="{{ route('onboarding-Step2-AddProductVariations') }}" target="_top" class="text-[#94A3B8] hover:text-[#64748B]">
@@ -115,7 +115,7 @@
             <!-- footer: cancel + add variation button -->
             <div class="bg-[#F8FAFC] border-t border-[#F1F5F9] px-6 py-4 flex justify-end items-center gap-3">
                 <a href="{{ route('onboarding-Step2-AddProductVariations') }}" target="_top" class="px-4 py-2 text-sm font-semibold text-[#475569] hover:text-[#1E293B]">Cancel</a>
-                <button type="submit" class="bg-[#0052CC] text-white text-sm font-bold px-5 py-2 rounded-lg shadow-md shadow-[#0052CC]/20 flex items-center gap-2 hover:bg-[#0042a3] transition">
+                <button type="submit" class="bg-brand text-white text-sm font-bold px-5 py-2 rounded-lg shadow-md shadow-brand/20 flex items-center gap-2 hover:bg-brand-hover transition">
                     <span>{{ $editingVariation ? 'Update Variation' : 'Add Variation' }}</span>
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 5.33333H0V4H4V0H5.33333V4H9.33333V5.33333H5.33333V9.33333H4V5.33333Z" fill="white"/>

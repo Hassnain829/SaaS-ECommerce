@@ -60,11 +60,11 @@
                 <div class="min-w-0">
                     @if ($productEditSurface === 'page')
                         <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Catalog · Edit workspace</p>
-                        <h2 class="mt-1 text-xl font-semibold text-[#0F172A] font-[Poppins] sm:text-2xl">Edit product</h2>
+                        <h2 class="mt-1 text-xl font-semibold text-[#0F172A] sm:text-2xl">Edit product</h2>
                         <p class="mt-1 text-xs text-[#64748B]">Save applies changes to this product in your active store. Cancel returns without saving.</p>
                     @else
                         <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Product Actions</p>
-                        <h2 class="mt-1 text-2xl font-medium text-[#0F172A] font-[Poppins]">Edit Product</h2>
+                        <h2 class="mt-1 text-2xl font-medium text-[#0F172A]">Edit Product</h2>
                     @endif
                 </div>
                 @if ($productEditSurface === 'page' && ! empty($workspaceReturnProductId))
@@ -131,21 +131,21 @@
 
                 <div class="{{ $editSectionClass }}" @if ($productEditSurface === 'page' && $productEditPageNative) id="catalog-edit-section-basics" @endif>
                     <div @class(['mb-6 border-b border-slate-100 pb-4' => $productEditSurface === 'page' && $productEditPageNative, 'mb-6' => ! ($productEditSurface === 'page' && $productEditPageNative)])>
-                        <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl">{{ ($productEditSurface === 'page' && $productEditPageNative) ? 'Product basics' : 'Product details' }}</h3>
+                        <h3 class="text-lg font-semibold text-[#0F172A] sm:text-xl">{{ ($productEditSurface === 'page' && $productEditPageNative) ? 'Product basics' : 'Product details' }}</h3>
                         @if ($productEditSurface === 'page' && $productEditPageNative)
                             <p class="mt-1 text-xs text-[#64748B]">Name, type, identifiers, and pricing defaults for your active store.</p>
                         @endif
                     </div>
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Active Store</label>
+                            <label class="mb-2 block text-sm font-medium text-[#334155]">Active Store</label>
                             <div class="rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#0F172A]">
                                 {{ $selectedStore?->name ?? $currentStore?->name ?? 'No active store selected' }}
                             </div>
                             <p class="mt-2 text-xs text-[#64748B]">{{ $productCreateMode ? 'This product will be created in your currently active store. Use the sidebar switcher if you need a different store.' : 'This product can only be edited inside your current active store.' }}</p>
                         </div>
                         <div>
-                            <label for="edit_product_type_select" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">How is this product sold?</label>
+                            <label for="edit_product_type_select" class="mb-2 block text-sm font-medium text-[#334155]">How is this product sold?</label>
                             <select id="edit_product_type_select" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                                 @foreach (['physical', 'digital', 'service', 'subscription', 'virtual'] as $type)
                                     <option value="{{ $type }}">{{ ucfirst($type) }}</option>
@@ -177,24 +177,24 @@
                     @endif
                     <div class="mt-4 grid grid-cols-1 gap-6">
                         <div>
-                            <label for="edit_product_image" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">{{ ($productEditSurface === 'page' && $productEditPageNative) ? 'Product images' : 'Product Images' }}</label>
+                            <label for="edit_product_image" class="mb-2 block text-sm font-medium text-[#334155]">{{ ($productEditSurface === 'page' && $productEditPageNative) ? 'Product images' : 'Product Images' }}</label>
                             <input id="edit_product_image" name="product_images[]" type="file" accept=".jpg,.jpeg,.png,.webp" multiple class="w-full rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                             <div id="editExistingImageInputs"></div>
                             <div id="editProductImagePreview" class="mt-3 flex flex-wrap gap-2"></div>
                         </div>
                         <div>
-                            <label for="edit_product_name" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Product Name</label>
+                            <label for="edit_product_name" class="mb-2 block text-sm font-medium text-[#334155]">Product Name</label>
                             <input id="edit_product_name" name="name" type="text" value="{{ old('name', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]">
                         </div>
                         <div>
-                            <label for="edit_product_description" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Description</label>
+                            <label for="edit_product_description" class="mb-2 block text-sm font-medium text-[#334155]">Description</label>
                             <textarea id="edit_product_description" name="description" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]">{{ old('description', '') }}</textarea>
                         </div>
                     </div>
                     <div id="catalog-edit-section-pricing" @class(['mt-6 scroll-mt-28 grid grid-cols-1 gap-6 md:grid-cols-3' => $productEditSurface === 'page' && $productEditPageNative, 'mt-6 grid grid-cols-1 gap-6 md:grid-cols-3' => ! ($productEditSurface === 'page' && $productEditPageNative)])>
-                        <div><label for="edit_product_sku" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Base SKU</label><input id="edit_product_sku" name="sku" type="text" value="{{ old('sku', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
-                        <div><label for="edit_product_price" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Base Price</label><input id="edit_product_price" name="base_price" type="number" min="0" step="0.01" value="{{ old('base_price', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"><p class="mt-1 text-xs text-[#64748B]">Default price for this product. Variant rows can override it when you sell combinations.</p></div>
-                        <div><label for="edit_product_stock_alert" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Stock Alert</label><input id="edit_product_stock_alert" name="stock_alert" type="number" min="0" step="1" value="{{ old('stock_alert', '0') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
+                        <div><label for="edit_product_sku" class="mb-2 block text-sm font-medium text-[#334155]">Base SKU</label><input id="edit_product_sku" name="sku" type="text" value="{{ old('sku', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
+                        <div><label for="edit_product_price" class="mb-2 block text-sm font-medium text-[#334155]">Base Price</label><input id="edit_product_price" name="base_price" type="number" min="0" step="0.01" value="{{ old('base_price', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"><p class="mt-1 text-xs text-[#64748B]">Default price for this product. Variant rows can override it when you sell combinations.</p></div>
+                        <div><label for="edit_product_stock_alert" class="mb-2 block text-sm font-medium text-[#334155]">Stock Alert</label><input id="edit_product_stock_alert" name="stock_alert" type="number" min="0" step="1" value="{{ old('stock_alert', '0') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]"></div>
                         <div class="md:col-span-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                             <input type="hidden" name="is_taxable" value="0">
                             <label class="flex items-start gap-3 text-sm font-semibold text-[#0F172A]">
@@ -213,7 +213,7 @@
                         @endif
                         @if ($catalogTaxonomyCategories->isNotEmpty())
                             <div class="md:col-span-3 rounded-xl border border-[#CCFBF1]/80 bg-[#F0FDFA]/40 p-4">
-                                <label for="edit_product_category_ids" class="mb-2 block text-sm font-semibold text-[#0F766E] font-[Poppins]">Catalog categories</label>
+                                <label for="edit_product_category_ids" class="mb-2 block text-sm font-semibold text-[#0F766E]">Catalog categories</label>
                                 <select id="edit_product_category_ids" name="category_ids[]" multiple size="5" class="w-full rounded-lg border border-[#99F6E4]/60 bg-white px-3 py-2 text-sm text-[#0F172A]">
                                     @foreach ($catalogTaxonomyCategories as $catOption)
                                         <option value="{{ $catOption->id }}" @selected(collect(old('category_ids', []))->contains($catOption->id))>{{ $catOption->name }}</option>
@@ -223,7 +223,7 @@
                             </div>
                         @endif
                         <div class="md:col-span-3">
-                            <label for="edit_product_brand_id" class="mb-2 block text-sm font-medium text-[#64748B] font-[Poppins]">Brand <span class="font-normal text-[#94A3B8]">(optional)</span></label>
+                            <label for="edit_product_brand_id" class="mb-2 block text-sm font-medium text-[#64748B]">Brand <span class="font-normal text-[#94A3B8]">(optional)</span></label>
                             <select id="edit_product_brand_id" name="brand_id" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                                 <option value="">No brand</option>
                                 @foreach ($catalogBrands as $brandOption)
@@ -234,7 +234,7 @@
                         </div>
                         @if ($catalogTags->isNotEmpty())
                             <div class="md:col-span-3">
-                                <label for="edit_product_tag_ids" class="mb-2 block text-sm font-medium text-[#64748B] font-[Poppins]">Tags <span class="font-normal text-[#94A3B8]">(optional)</span></label>
+                                <label for="edit_product_tag_ids" class="mb-2 block text-sm font-medium text-[#64748B]">Tags <span class="font-normal text-[#94A3B8]">(optional)</span></label>
                                 <select id="edit_product_tag_ids" name="tag_ids[]" multiple size="4" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
                                     @foreach ($catalogTags as $tagOption)
                                         <option value="{{ $tagOption->id }}" @selected(collect(old('tag_ids', []))->contains($tagOption->id))>{{ $tagOption->name }}</option>
@@ -269,7 +269,7 @@
                                 <a
                                     id="editFullWorkspaceLink"
                                     href="#"
-                                    class="inline-flex items-center gap-2 rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0042a3]"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover"
                                 >
                                     Open full edit workspace
                                     <span aria-hidden="true">↗</span>
@@ -282,7 +282,7 @@
 
                 <div class="{{ $editSectionClass }}" @if ($productEditSurface === 'page' && $productEditPageNative) id="catalog-edit-section-attributes" @endif>
                     <div @class(['mb-4 border-b border-slate-100 pb-4' => $productEditSurface === 'page' && $productEditPageNative, 'mb-4' => ! ($productEditSurface === 'page' && $productEditPageNative)])>
-                        <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl scroll-mt-28">Product specifications</h3>
+                        <h3 class="text-lg font-semibold text-[#0F172A] sm:text-xl scroll-mt-28">Product specifications</h3>
                         <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Specifications are reusable product facts shoppers can filter or compare, such as material, capacity, color family, ingredients, or compatibility. Product options still live under <span class="font-medium text-[#334155]">Option groups</span>.</p>
                     </div>
                     <div id="editProductAttributesBody" class="space-y-4"></div>
@@ -291,7 +291,7 @@
                 <div class="{{ $editSectionClass }}" @if ($productEditSurface === 'page' && $productEditPageNative) id="catalog-edit-section-additional-details" @endif>
                     <input type="hidden" name="_custom_fields_editor" value="1">
                     <div @class(['mb-4 border-b border-slate-100 pb-4' => $productEditSurface === 'page' && $productEditPageNative, 'mb-4' => ! ($productEditSurface === 'page' && $productEditPageNative)])>
-                        <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl scroll-mt-28">Additional details</h3>
+                        <h3 class="text-lg font-semibold text-[#0F172A] sm:text-xl scroll-mt-28">Additional details</h3>
                         <p class="mt-2 text-sm leading-relaxed text-[#64748B]"><span class="font-medium text-[#334155]">Additional details</span> are extra fields you choose and can edit anytime (supplier, material, origin, care notes, ingredients, internal references, and similar). They show under <span class="font-medium text-[#334155]">Additional product details</span> on the product workspace—separate from read-only columns kept from imports. Field names may use letters, numbers, dots, dashes, and underscores.</p>
                     </div>
                     <div id="editAdditionalDetailsBody" class="space-y-3"></div>
@@ -301,7 +301,7 @@
                 <div class="{{ $editSectionClass }}" @if ($productEditSurface === 'page' && $productEditPageNative) id="catalog-edit-section-option-groups" @endif>
                     <div class="mb-6 flex items-center justify-between gap-3">
                         <div>
-                            <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl scroll-mt-28">Option groups</h3>
+                            <h3 class="text-lg font-semibold text-[#0F172A] sm:text-xl scroll-mt-28">Option groups</h3>
                             <p class="mt-1 text-xs text-[#64748B]">Each group (for example Size or Color) lists the values shoppers can pick.</p>
                         </div>
                         <button id="editOpenVariationModal" type="button" class="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#D4E3FF] bg-[#EEF4FF] px-4 py-2 text-sm font-semibold text-[#0052CC] transition hover:bg-[#E4EEFF]">Add option group</button>
@@ -314,7 +314,7 @@
                 <div class="{{ $editSectionClass }}" @if ($productEditSurface === 'page' && $productEditPageNative) id="catalog-edit-section-inventory" @endif>
                     <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                         <div>
-                            <h3 id="editInventorySectionTitle" class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl scroll-mt-28">Inventory</h3>
+                            <h3 id="editInventorySectionTitle" class="text-lg font-semibold text-[#0F172A] sm:text-xl scroll-mt-28">Inventory</h3>
                             <p id="editInventorySectionLead" class="mt-1 text-xs text-[#64748B]">Stock for this product. Base price above is the default selling price.</p>
                         </div>
                         <div id="editTotalStockSummary" class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-right shadow-sm">
@@ -330,7 +330,7 @@
                             <p class="font-semibold text-amber-900">Stock needs to be placed on the new variants</p>
                             <p id="editStockCarryNoticeText" class="mt-1 text-amber-900/90"></p>
                             <div class="mt-3 flex flex-wrap gap-2">
-                                <button type="button" id="editStockCarrySplitBtn" class="inline-flex h-9 items-center rounded-lg bg-[#0052CC] px-3 text-xs font-semibold text-white hover:bg-[#0047B3]">Split equally across variants</button>
+                                <button type="button" id="editStockCarrySplitBtn" class="inline-flex h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-hover">Split equally across variants</button>
                                 <button type="button" id="editStockCarryDismissBtn" class="inline-flex h-9 items-center rounded-lg border border-amber-200 bg-white px-3 text-xs font-semibold text-amber-900 hover:bg-amber-50">I’ll edit each variant</button>
                             </div>
                         </div>
@@ -343,7 +343,7 @@
                                 <label for="editBulkStock" class="mb-1 block text-xs font-semibold text-[#64748B]">Same stock on each variant</label>
                                 <input id="editBulkStock" type="number" min="0" step="1" class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A]" placeholder="e.g. 10">
                             </div>
-                            <button id="editApplyBulkValues" type="button" class="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">Apply to all variants</button>
+                            <button id="editApplyBulkValues" type="button" class="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover">Apply to all variants</button>
                         </div>
                         <div id="editDistributeStockPanel" class="grid grid-cols-1 gap-3 border-t border-[#E2E8F0] pt-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                             <div>
@@ -364,7 +364,7 @@
                 <div id="editVariantPreviewSection" class="{{ $editSectionClass }}">
                     <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
                         <div>
-                            <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl">Variant combinations preview</h3>
+                            <h3 class="text-lg font-semibold text-[#0F172A] sm:text-xl">Variant combinations preview</h3>
                             <p class="mt-1 text-xs text-[#64748B]">Quick read-only check of SKUs, prices, and stock before you save.</p>
                         </div>
                         <span id="editPreviewCount" class="text-sm text-[#94A3B8]">0 rows</span>
@@ -391,7 +391,7 @@
                             @else
                                 <button type="button" id="dismissEditProductModal" class="rounded-lg border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]">Cancel</button>
                             @endif
-                            <button type="submit" class="rounded-lg bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">{{ $productCreateMode ? 'Save product' : ($productEditSurface === 'page' ? 'Save and return to workspace' : 'Save Changes') }}</button>
+                            <button type="submit" class="rounded-lg bg-brand px-6 py-3 text-sm font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover">{{ $productCreateMode ? 'Save product' : ($productEditSurface === 'page' ? 'Save and return to workspace' : 'Save Changes') }}</button>
                         </div>
                     </div>
                 @else
@@ -431,7 +431,7 @@
         </div>
         <div class="ui-modal-footer">
             <button type="button" id="cancelEditVariationModal" class="px-4 py-2 text-sm font-semibold text-[#475569]">Cancel</button>
-            <button type="button" id="submitEditVariationModal" class="rounded-lg bg-[#0052CC] px-5 py-2 text-sm font-bold text-white">Save Variation</button>
+            <button type="button" id="submitEditVariationModal" class="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white">Save Variation</button>
         </div>
     </div>
 </div>
@@ -440,7 +440,7 @@
     <div class="ui-modal-panel ui-modal-panel--md border-[#FECACA]">
         <div class="bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.18),_transparent_60%)] px-6 pb-4 pt-6">
             <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFF1F2] text-[#DC2626] shadow-sm">!</div>
-            <h3 class="mt-5 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Delete this product?</h3>
+            <h3 class="mt-5 text-2xl font-semibold text-[#0F172A]">Delete this product?</h3>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">This action permanently removes the product, its variants, and uploaded images.</p>
         </div>
         <div class="px-6 pb-6 pt-2">

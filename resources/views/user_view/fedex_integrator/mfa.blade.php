@@ -17,7 +17,7 @@
                         <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">PIN validation endpoint is not configured yet. Set <code>FEDEX_MFA_PIN_VALIDATION_PATH</code> from the FedEx Developer Portal before submitting a code.</p>
                     @endunless
                     <input name="pin" required class="h-10 w-full max-w-xs rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="6-digit PIN">
-                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Verify PIN</button>
+                    <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Verify PIN</button>
                 </form>
             @elseif ($session->status === \App\Models\CarrierAccountRegistrationSession::STATUS_INVOICE_PENDING)
                 <form method="POST" action="{{ route('settings.shipping.fedex-integrator.verify-invoice', $session) }}" class="mt-4 grid gap-3 sm:grid-cols-2">
@@ -29,7 +29,7 @@
                     <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Invoice date</span><input name="invoice_date" type="date" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
                     <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Currency</span><input name="invoice_currency" value="USD" maxlength="3" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm uppercase"></label>
                     <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Amount</span><input name="invoice_amount" required class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
-                    <div class="sm:col-span-2"><button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Verify invoice</button></div>
+                    <div class="sm:col-span-2"><button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Verify invoice</button></div>
                 </form>
             @else
                 <p class="mt-2 text-sm text-[#64748B]">FedEx requires additional verification before child credentials can be issued. Choose a method:</p>
@@ -50,7 +50,7 @@
                             <label class="flex items-center gap-2 text-sm"><input type="radio" name="mfa_method" value="{{ $value }}" required> {{ $label }}</label>
                         @endforeach
                     @endforelse
-                    <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Continue</button>
+                    <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Continue</button>
                 </form>
             @endif
             @if ($session->fedex_transaction_id)

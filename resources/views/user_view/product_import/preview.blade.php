@@ -119,7 +119,7 @@
             <div class="mt-8 flex flex-wrap items-center gap-4">
                 <form method="post" action="{{ route('products.import.confirm', ['productImportId' => $import->id]) }}">
                     @csrf
-                    <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">
+                    <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">
                         Confirm &amp; run import
                     </button>
                 </form>

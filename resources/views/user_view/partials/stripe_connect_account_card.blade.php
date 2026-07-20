@@ -43,7 +43,7 @@
         <div>
             <h4 @class([
                 'payments-stripe-card-title' => $useConsole,
-                'text-lg font-poppins font-semibold text-[#0F172A]' => ! $useConsole,
+                'text-lg font-semibold text-[#0F172A]' => ! $useConsole,
             ])>{{ $title }}</h4>
             @unless($useConsole)
                 <p class="mt-2 text-sm leading-6 text-[#64748B]">{{ $description }}</p>
@@ -115,7 +115,7 @@
                         @csrf
                         <button @class([
                             'payments-btn payments-btn-primary' => $useConsole,
-                            'h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]' => ! $useConsole,
+                            'h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover' => ! $useConsole,
                         ])>
                             {{ $accountDisabled ? $reconnectButtonLabel : $connectButtonLabel }}
                         </button>
@@ -141,7 +141,7 @@
                     @csrf
                     <button @class([
                         'payments-btn payments-btn-primary' => $useConsole,
-                        'h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]' => ! $useConsole,
+                        'h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover' => ! $useConsole,
                     ])>{{ $continueButtonLabel }}</button>
                 </form>
                 <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}">

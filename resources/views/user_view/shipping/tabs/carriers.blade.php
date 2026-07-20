@@ -20,11 +20,11 @@
     <div>
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-                <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">FedEx Merchant Account</h2>
+                <h2 class="text-xl font-semibold text-[#0F172A]">FedEx Merchant Account</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Connect your merchant-owned FedEx account through the platform integrator registration flow.</p>
             </div>
             @if (($fedExEnabled ?? false) && ($canManageShipping ?? false) && ($fedExAccounts ?? collect())->isEmpty())
-                <a href="{{ route(($fedExConfig->modelAEnabled() ?? false) ? 'settings.shipping.fedex-integrator.start' : 'shipping.carriers.connect.show', ($fedExConfig->modelAEnabled() ?? false) ? [] : 'fedex') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect FedEx account</a>
+                <a href="{{ route(($fedExConfig->modelAEnabled() ?? false) ? 'settings.shipping.fedex-integrator.start' : 'shipping.carriers.connect.show', ($fedExConfig->modelAEnabled() ?? false) ? [] : 'fedex') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Connect FedEx account</a>
             @endif
         </div>
 
@@ -51,11 +51,11 @@
     <div>
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-                <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">USPS Merchant Account</h2>
+                <h2 class="text-xl font-semibold text-[#0F172A]">USPS Merchant Account</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Connect your merchant-owned USPS business account. Postage stays on your USPS payment account — BmyBrand does not pay for your labels.</p>
             </div>
             @if (($uspsMerchantConnectionEnabled ?? false) && ($canManageShipping ?? false) && $uspsMerchantAccounts->isEmpty())
-                <a href="{{ route('settings.shipping.usps-merchant.start') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect USPS account</a>
+                <a href="{{ route('settings.shipping.usps-merchant.start') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Connect USPS account</a>
             @endif
         </div>
 
@@ -71,7 +71,7 @@
                 <p class="font-semibold text-[#0F172A]">Connect your USPS business account</p>
                 <p class="mx-auto mt-2 max-w-lg text-sm text-[#64748B]">Authorize BmyBrand as your Label Provider in the USPS Business Portal. You never paste API keys or passwords here.</p>
                 @if ($canManageShipping ?? false)
-                    <a href="{{ route('settings.shipping.usps-merchant.start') }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Connect USPS account</a>
+                    <a href="{{ route('settings.shipping.usps-merchant.start') }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Connect USPS account</a>
                 @endif
             </div>
         @else
@@ -86,7 +86,7 @@
     {{-- USPS Sandbox Diagnostics --}}
     @if (($uspsEnabled ?? false) && ($uspsPlatformConfigured ?? false))
         <details class="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5 shadow-sm">
-            <summary class="cursor-pointer text-xl font-poppins font-semibold text-[#0F172A]">USPS sandbox diagnostics</summary>
+            <summary class="cursor-pointer text-xl font-semibold text-[#0F172A]">USPS sandbox diagnostics</summary>
             <p class="mt-2 text-sm text-[#64748B]">Internal platform testing only. Does not buy labels, charge postage, or change checkout totals.</p>
 
             @if ($canManageShipping ?? false)
@@ -134,7 +134,7 @@
                             <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">W (in)</span><input name="width" type="number" step="0.01" min="0.01" value="6" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
                             <label class="space-y-1 block"><span class="text-xs font-semibold text-[#64748B]">H (in)</span><input name="height" type="number" step="0.01" min="0.01" value="2" required class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"></label>
                         </div>
-                        <button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Get USPS test quote</button>
+                        <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shipping-submit-btn" @disabled(! ($hasCarrierReadyOrigin ?? false))>Get USPS test quote</button>
                     </form>
                 </div>
             @endif
@@ -145,7 +145,7 @@
     <div class="rounded-2xl border border-[#E2E8F0] bg-[#FFFBEB]/30 p-5 shadow-sm">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Manual / Local Delivery</h2>
+                <h2 class="text-xl font-semibold text-[#0F172A]">Manual / Local Delivery</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Use your own courier, local driver, store pickup, or manual tracking workflow — not a live carrier API.</p>
             </div>
             @if ($canManageShipping ?? false)

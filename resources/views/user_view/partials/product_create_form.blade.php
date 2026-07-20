@@ -52,13 +52,13 @@
 
     <div class="{{ $createSectionClass }}" id="catalog-create-section-basics">
         <div class="mb-6 border-b border-slate-100 pb-4">
-            <h3 class="text-lg font-semibold text-[#0F172A] font-[Poppins] sm:text-xl">Product basics</h3>
+            <h3 class="text-lg font-semibold text-[#0F172A] sm:text-xl">Product basics</h3>
             <p class="mt-1 text-xs text-[#64748B]">Name, type, identifiers, and pricing defaults for your active store.</p>
         </div>
 
         <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div>
-                <label class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Active Store</label>
+                <label class="mb-2 block text-sm font-medium text-[#334155]">Active Store</label>
                 <div class="rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#0F172A]">
                     {{ $productModalSelectedStore?->name ?? 'No active store selected' }}
                 </div>
@@ -66,7 +66,7 @@
             </div>
 
             <div>
-                <label for="product-type" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">How is this product sold?</label>
+                <label for="product-type" class="mb-2 block text-sm font-medium text-[#334155]">How is this product sold?</label>
                 <input type="hidden" id="product-type-value" name="product_type" value="{{ $selectedProductType }}">
                 <div class="relative">
                     <select id="product-type" name="product_type_selector" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
@@ -100,35 +100,35 @@
 
         <div class="mt-4 grid grid-cols-1 gap-6">
             <div>
-                <label for="product-image" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Product images</label>
+                <label for="product-image" class="mb-2 block text-sm font-medium text-[#334155]">Product images</label>
                 <input id="product-image" name="product_images[]" type="file" accept=".jpg,.jpeg,.png,.webp" multiple class="w-full rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
                 <div id="product-image-preview" class="mt-3 flex flex-wrap gap-2"></div>
             </div>
             <div>
-                <label for="product-name" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Product Name</label>
+                <label for="product-name" class="mb-2 block text-sm font-medium text-[#334155]">Product Name</label>
                 <input id="product-name" name="name" type="text" value="{{ $productFormData['name'] ?? '' }}" placeholder="e.g. Premium Cotton T-Shirt" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
             </div>
             <div>
-                <label for="product-description" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Description</label>
+                <label for="product-description" class="mb-2 block text-sm font-medium text-[#334155]">Description</label>
                 <textarea id="product-description" name="description" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]" placeholder="Optional short description">{{ $productFormData['description'] ?? '' }}</textarea>
             </div>
         </div>
 
         <div id="catalog-create-section-pricing" class="mt-6 scroll-mt-28 grid grid-cols-1 gap-6 md:grid-cols-3">
             <div>
-                <label for="product-sku" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Base SKU</label>
+                <label for="product-sku" class="mb-2 block text-sm font-medium text-[#334155]">Base SKU</label>
                 <input id="product-sku" name="sku" type="text" value="{{ $productFormData['sku'] ?? '' }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
             </div>
             <div>
-                <label for="bulk-price" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Base Price</label>
+                <label for="bulk-price" class="mb-2 block text-sm font-medium text-[#334155]">Base Price</label>
                 <input id="bulk-price" type="number" min="0" step="0.01" value="{{ $productFormData['bulk_price'] ?? '' }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
             </div>
             <div>
-                <label for="product-stock-alert" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Stock Alert</label>
+                <label for="product-stock-alert" class="mb-2 block text-sm font-medium text-[#334155]">Stock Alert</label>
                 <input id="product-stock-alert" name="stock_alert" type="number" min="0" step="1" value="{{ $productFormData['stock_alert'] ?? 5 }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
             </div>
             <div class="md:col-span-3">
-                <label for="bulk-stock" class="mb-2 block text-sm font-medium text-[#334155] font-[Poppins]">Stock on hand</label>
+                <label for="bulk-stock" class="mb-2 block text-sm font-medium text-[#334155]">Stock on hand</label>
                 <input id="bulk-stock" type="number" min="0" step="1" value="{{ $productFormData['bulk_stock'] ?? '' }}" class="w-full max-w-md rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                 <p class="mt-1.5 text-xs text-[#64748B]">Applies to your single default inventory row until you add option groups in the full editor.</p>
             </div>
@@ -146,7 +146,7 @@
 
             @if ($catalogTaxonomyCategories->isNotEmpty())
                 <div class="mt-4 rounded-xl border border-[#CCFBF1]/80 bg-[#F0FDFA]/40 p-4">
-                    <label for="product-category-ids" class="mb-2 block text-sm font-semibold text-[#0F766E] font-[Poppins]">Catalog categories</label>
+                    <label for="product-category-ids" class="mb-2 block text-sm font-semibold text-[#0F766E]">Catalog categories</label>
                     <select id="product-category-ids" name="category_ids[]" multiple size="5" class="w-full rounded-lg border border-[#99F6E4]/60 bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0D9488]/25">
                         @foreach ($catalogTaxonomyCategories as $catOption)
                             <option value="{{ $catOption->id }}" @selected(collect(old('category_ids', $productFormData['category_ids'] ?? []))->contains($catOption->id))>{{ $catOption->name }}</option>
@@ -158,7 +158,7 @@
 
             @if ($catalogBrands->isNotEmpty())
                 <div class="mt-4">
-                    <label for="product-brand-id" class="mb-2 block text-sm font-medium text-[#64748B] font-[Poppins]">Brand <span class="font-normal text-[#94A3B8]">(optional)</span></label>
+                    <label for="product-brand-id" class="mb-2 block text-sm font-medium text-[#64748B]">Brand <span class="font-normal text-[#94A3B8]">(optional)</span></label>
                     <select id="product-brand-id" name="brand_id" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                         <option value="">No brand</option>
                         @foreach ($catalogBrands as $brandOption)
@@ -171,7 +171,7 @@
 
             @if ($catalogTags->isNotEmpty())
                 <div class="mt-4">
-                    <label for="product-tag-ids" class="mb-2 block text-sm font-medium text-[#64748B] font-[Poppins]">Tags <span class="font-normal text-[#94A3B8]">(optional)</span></label>
+                    <label for="product-tag-ids" class="mb-2 block text-sm font-medium text-[#64748B]">Tags <span class="font-normal text-[#94A3B8]">(optional)</span></label>
                     <select id="product-tag-ids" name="tag_ids[]" multiple size="4" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]">
                         @foreach ($catalogTags as $tagOption)
                             <option value="{{ $tagOption->id }}" @selected(collect(old('tag_ids', $productFormData['tag_ids'] ?? []))->contains($tagOption->id))>{{ $tagOption->name }}</option>

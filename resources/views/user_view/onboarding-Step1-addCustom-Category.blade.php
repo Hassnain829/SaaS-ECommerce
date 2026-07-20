@@ -14,7 +14,7 @@
                 <div class="min-w-0 flex-1">
                     <div class="flex items-start justify-between gap-4">
                     <div>
-                        <h2 class="text-[26px] font-medium leading-tight text-[#0F172A] font-poppins">Browse All Categories</h2>
+                        <h2 class="text-[26px] font-medium leading-tight text-[#0F172A]">Browse All Categories</h2>
                         <p class="mt-2 text-sm text-[#94A3B8]">Select the categories that best describe your business to tailor your dashboard.</p>
                     </div>
                     <a href="{{ route('onboarding-StoreDetails-1') }}" target="_top" class="text-[#94A3B8] transition hover:text-[#64748B]" aria-label="Close overlay">
@@ -90,7 +90,7 @@
                         </div>
 
                         <div class="category-card relative flex min-h-[70px] items-start gap-3 rounded-xl bg-[#F8FAFC] px-4 py-3.5" data-category="physical" data-model="Home">
-                            <span class="selection-badge absolute right-3 top-3 inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#0052CC] text-[10px] font-bold leading-none text-white" style="display:none;">
+                            <span class="selection-badge absolute right-3 top-3 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[10px] font-bold leading-none text-white" style="display:none;">
                                 <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                                     <path d="M3 8L6.2 11.2L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
@@ -181,7 +181,7 @@
                     <h3 class="mb-4 px-1 text-xs font-semibold uppercase tracking-[0.06em] text-[#94A3B8]">Custom</h3>
                     <div class="grid gap-4 md:grid-cols-2">
                         <div id="customCategoryCard" class="category-card relative flex min-h-[70px] items-start gap-3 rounded-xl bg-[#F8FAFC] px-4 py-3.5" data-category="custom" data-model="">
-                            <span class="selection-badge absolute right-3 top-3 inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#0052CC] text-[10px] font-bold leading-none text-white" style="display:none;">
+                            <span class="selection-badge absolute right-3 top-3 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[10px] font-bold leading-none text-white" style="display:none;">
                                 <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                                     <path d="M3 8L6.2 11.2L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
@@ -212,7 +212,7 @@
                             placeholder="Create custom category..."
                             class="h-11 min-w-0 flex-1 rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[#0052CC] focus:ring-2 focus:ring-[#0052CC]/15 lg:max-w-[230px]"
                         >
-                        <button id="addCustomCategoryBtn" type="button" class="inline-flex h-12 min-w-20 items-center justify-center whitespace-nowrap rounded-xl bg-[#0052CC] px-[18px] text-sm font-bold leading-none text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042A3]">
+                        <button id="addCustomCategoryBtn" type="button" class="inline-flex h-12 min-w-20 items-center justify-center whitespace-nowrap rounded-xl bg-brand px-[18px] text-sm font-bold leading-none text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover">
                             + Add
                         </button>
                     </div>
@@ -225,7 +225,7 @@
                     <a href="{{ route('onboarding-StoreDetails-1') }}" target="_top" class="text-sm font-inter font-medium text-[#94A3B8] transition hover:text-[#64748B]">Cancel and close</a>
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-[22px]">
                         <span id="selectedCountText" class="text-sm text-[#94A3B8]">0 category selected</span>
-                        <button type="submit" class="inline-flex h-[46px] min-w-[170px] items-center justify-center whitespace-nowrap rounded-xl bg-[#0052CC] px-6 text-sm font-bold text-white shadow-lg shadow-[#0052CC]/20 transition hover:bg-[#0042A3]">
+                        <button type="submit" class="inline-flex h-[46px] min-w-[170px] items-center justify-center whitespace-nowrap rounded-xl bg-brand px-6 text-sm font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover">
                             Confirm Selection
                         </button>
                     </div>
@@ -253,7 +253,7 @@
                 let badge = card.querySelector('.selection-badge');
                 if (!badge) {
                     badge = document.createElement('span');
-                    badge.className = 'selection-badge absolute right-3 top-3 inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#0052CC] text-[10px] font-bold leading-none text-white';
+                    badge.className = 'selection-badge absolute right-3 top-3 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[10px] font-bold leading-none text-white';
                     badge.style.display = 'none';
                     badge.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8L6.2 11.2L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
                     card.appendChild(badge);

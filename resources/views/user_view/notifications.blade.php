@@ -1,4 +1,4 @@
-﻿@extends('layouts.user.user-sidebar')
+@extends('layouts.user.user-sidebar')
 
 @section('title', 'Notifications | BaaS Core')
 
@@ -84,8 +84,8 @@
 
             <section class="space-y-4">
                 <p class="text-[11px] tracking-[1.3px] uppercase font-bold text-[#94A3B8]">Channels</p>
-                <div class="flex justify-between items-center"><div><p class="text-sm font-semibold">Email Notifications</p><p class="text-xs text-[#64748B]">Receive daily summaries</p></div><button class="w-9 h-5 rounded-full bg-[#0052CC] relative"><span class="absolute right-0.5 top-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
-                <div class="flex justify-between items-center"><div><p class="text-sm font-semibold">Browser Push Alerts</p><p class="text-xs text-[#64748B]">Real-time desktop alerts</p></div><button class="w-9 h-5 rounded-full bg-[#0052CC] relative"><span class="absolute right-0.5 top-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+                <div class="flex justify-between items-center"><div><p class="text-sm font-semibold">Email Notifications</p><p class="text-xs text-[#64748B]">Receive daily summaries</p></div><button class="w-9 h-5 rounded-full bg-brand relative"><span class="absolute right-0.5 top-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
+                <div class="flex justify-between items-center"><div><p class="text-sm font-semibold">Browser Push Alerts</p><p class="text-xs text-[#64748B]">Real-time desktop alerts</p></div><button class="w-9 h-5 rounded-full bg-brand relative"><span class="absolute right-0.5 top-0.5 w-4 h-4 rounded-full bg-white"></span></button></div>
             </section>
 
             <section class="space-y-4">
@@ -99,9 +99,9 @@
                 </div>
             </section>
 
-            <div class="rounded-xl bg-[#0052CC]/5 border border-[#0052CC]/10 p-4">
+            <div class="rounded-xl bg-brand/5 border border-[#0052CC]/10 p-4">
                 <p class="text-xs font-bold text-[#0052CC]">Pro Tip</p>
-                <p class="text-sm text-[#0052CC]/80 leading-relaxed mt-1">Filter notifications by tenant store by using the search bar with <span class="bg-[#0052CC]/10 rounded px-1 font-mono">@storename</span></p>
+                <p class="text-sm text-[#0052CC]/80 leading-relaxed mt-1">Filter notifications by tenant store by using the search bar with <span class="bg-brand/10 rounded px-1 font-mono">@storename</span></p>
             </div>
         </div>
     </aside>

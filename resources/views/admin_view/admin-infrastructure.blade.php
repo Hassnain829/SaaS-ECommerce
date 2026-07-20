@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-sidebar')
+@extends('layouts.admin.admin-sidebar')
 
 @section('title', 'Integrations & Partner Management')
 
@@ -57,7 +57,7 @@
     <!-- Page Header with title, subtitle and action button -->
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-            <h1 class="text-2xl md:text-3xl lg:text-4xl font-medium text-[#0B1C30] font-poppins">Integrations & Partner Management</h1>
+            <h1 class="text-2xl md:text-3xl lg:text-4xl font-medium text-[#0B1C30]">Integrations & Partner Management</h1>
             <p class="text-sm md:text-base text-[#434654] mt-2 max-w-2xl">
                 Orchestrate your e-commerce ecosystem. Seamlessly connect logistics providers, payment gateways, and secondary services to power your global storefront.
             </p>
@@ -82,7 +82,7 @@
                     <span class="w-2 h-2 bg-[#004E33] rounded-full"></span>
                     <span class="text-[#005236] text-xs font-bold uppercase tracking-wider">AI Optimized</span>
                 </div>
-                <h3 class="text-xl md:text-2xl font-medium text-[#0B1C30] mb-2 font-poppins">Enable Automated Routing</h3>
+                <h3 class="text-xl md:text-2xl font-medium text-[#0B1C30] mb-2">Enable Automated Routing</h3>
                 <p class="text-sm text-[#434654] max-w-lg">
                     Automatically assign orders to the most cost-effective courier based on weight, destination, and real-time carrier health.
                 </p>
@@ -97,7 +97,7 @@
         </div>
 
         <!-- Quick Stats Card (1 column) -->
-        <div class="bg-[#0052CC] rounded-2xl p-6 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] flex flex-col justify-between">
+        <div class="bg-brand rounded-2xl p-6 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] flex flex-col justify-between">
             <div class="flex justify-end">
                 <svg width="24" height="30" viewBox="0 0 24 30" fill="none">
                     <g opacity="0.4">
@@ -125,7 +125,7 @@
                 <svg width="22" height="16" viewBox="0 0 22 16" fill="none">
                     <path d="M5 16C4.16667 16 3.45833 15.7083 2.875 15.125C2.29167 14.5417 2 13.8333 2 13H0V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16V4H19L22 8V13H20C20 13.8333 19.7083 14.5417 19.125 15.125C18.5417 15.7083 17.8333 16 17 16C16.1667 16 15.4583 15.7083 14.875 15.125C14.2917 14.5417 14 13.8333 14 13H8C8 13.8333 7.70833 14.5417 7.125 15.125C6.54167 15.7083 5.83333 16 5 16ZM5 14C5.28333 14 5.52083 13.9042 5.7125 13.7125C5.90417 13.5208 6 13.2833 6 13C6 12.7167 5.90417 12.4792 5.7125 12.2875C5.52083 12.0958 5.28333 12 5 12C4.71667 12 4.47917 12.0958 4.2875 12.2875C4.09583 12.4792 4 12.7167 4 13C4 13.2833 4.09583 13.5208 4.2875 13.7125C4.47917 13.9042 4.71667 14 5 14ZM2 11H2.8C3.08333 10.7 3.40833 10.4583 3.775 10.275C4.14167 10.0917 4.55 10 5 10C5.45 10 5.85833 10.0917 6.225 10.275C6.59167 10.4583 6.91667 10.7 7.2 11H14V2H2V11ZM17 14C17.2833 14 17.5208 13.9042 17.7125 13.7125C17.9042 13.5208 18 13.2833 18 13C18 12.7167 17.9042 12.4792 17.7125 12.2875C17.5208 12.0958 17.2833 12 17 12C16.7167 12 16.4792 12.0958 16.2875 12.2875C16.0958 12.4792 16 12.7167 16 13C16 13.2833 16.0958 13.5208 16.2875 13.7125C16.4792 13.9042 16.7167 14 17 14ZM16 9H20.25L18 6H16V9Z" fill="#003D9B"/>
                 </svg>
-                <h2 class="text-xl font-medium text-[#0B1C30] font-poppins">Courier Services</h2>
+                <h2 class="text-xl font-medium text-[#0B1C30]">Courier Services</h2>
             </div>
             <a href="{{ route('admin-infrastructure-add-logistic') }}" class="text-[#003D9B] text-sm font-semibold hover:underline">View All Logistics</a>
         </div>
@@ -143,7 +143,7 @@
                     <span class="px-3 py-1 bg-[#4EDEA3]/20 text-[#004E33] text-[10px] font-bold uppercase rounded-full">Connected</span>
                 </div>
                 <div class="mt-4">
-                    <h3 class="text-lg font-medium text-[#0B1C30] font-poppins">UPS</h3>
+                    <h3 class="text-lg font-medium text-[#0B1C30]">UPS</h3>
                     <p class="text-xs text-[#434654]">United Parcel Service</p>
                 </div>
                 <div class="mt-4">
@@ -176,7 +176,7 @@
                     <span class="px-3 py-1 bg-[#4EDEA3]/20 text-[#004E33] text-[10px] font-bold uppercase rounded-full">Connected</span>
                 </div>
                 <div class="mt-4">
-                    <h3 class="text-lg font-medium text-[#0B1C30] font-poppins">FedEx</h3>
+                    <h3 class="text-lg font-medium text-[#0B1C30]">FedEx</h3>
                     <p class="text-xs text-[#434654]">Federal Express</p>
                 </div>
                 <div class="mt-4">
@@ -209,7 +209,7 @@
                     <span class="px-3 py-1 bg-[#E5EEFF] text-[#434654] text-[10px] font-bold uppercase rounded-full">Not Connected</span>
                 </div>
                 <div class="mt-4">
-                    <h3 class="text-lg font-medium text-[#0B1C30] font-poppins">DHL Express</h3>
+                    <h3 class="text-lg font-medium text-[#0B1C30]">DHL Express</h3>
                     <p class="text-xs text-[#434654]">International Logistics</p>
                 </div>
                 <div class="mt-4">
@@ -235,7 +235,7 @@
                     <span class="px-3 py-1 bg-[#4EDEA3]/20 text-[#004E33] text-[10px] font-bold uppercase rounded-full">Connected</span>
                 </div>
                 <div class="mt-4">
-                    <h3 class="text-lg font-medium text-[#0B1C30] font-poppins">Canada Post</h3>
+                    <h3 class="text-lg font-medium text-[#0B1C30]">Canada Post</h3>
                     <p class="text-xs text-[#434654]">Domestic Services</p>
                 </div>
                 <div class="mt-4">
@@ -265,7 +265,7 @@
             <svg width="22" height="16" viewBox="0 0 22 16" fill="none">
                 <path d="M13 9C12.1667 9 11.4583 8.70833 10.875 8.125C10.2917 7.54167 10 6.83333 10 6C10 5.16667 10.2917 4.45833 10.875 3.875C11.4583 3.29167 12.1667 3 13 3C13.8333 3 14.5417 3.29167 15.125 3.875C15.7083 4.45833 16 5.16667 16 6C16 6.83333 15.7083 7.54167 15.125 8.125C14.5417 8.70833 13.8333 9 13 9ZM6 12C5.45 12 4.97917 11.8042 4.5875 11.4125C4.19583 11.0208 4 10.55 4 10V2C4 1.45 4.19583 0.979167 4.5875 0.5875C4.97917 0.195833 5.45 0 6 0H20C20.55 0 21.0208 0.195833 21.4125 0.5875C21.8042 0.979167 22 1.45 22 2V10C22 10.55 21.8042 11.0208 21.4125 11.4125C21.0208 11.8042 20.55 12 20 12H6ZM8 10H18C18 9.45 18.1958 8.97917 18.5875 8.5875C18.9792 8.19583 19.45 8 20 8V4C19.45 4 18.9792 3.80417 18.5875 3.4125C18.1958 3.02083 18 2.55 18 2H8C8 2.55 7.80417 3.02083 7.4125 3.4125C7.02083 3.80417 6.55 4 6 4V8C6.55 8 7.02083 8.19583 7.4125 8.5875C7.80417 8.97917 8 9.45 8 10ZM19 16H2C1.45 16 0.979167 15.8042 0.5875 15.4125C0.195833 15.0208 0 14.55 0 14V3H2V14H19V16ZM6 10V2V10Z" fill="#003D9B"/>
             </svg>
-            <h2 class="text-xl font-medium text-[#0B1C30] font-poppins">Payment Gateways</h2>
+            <h2 class="text-xl font-medium text-[#0B1C30]">Payment Gateways</h2>
         </div>
 
         <!-- Payment cards grid -->
@@ -280,7 +280,7 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="text-xl font-medium text-[#0B1C30] font-poppins">Stripe</h3>
+                            <h3 class="text-xl font-medium text-[#0B1C30]">Stripe</h3>
                             <p class="text-sm text-[#434654]">Primary Processor</p>
                         </div>
                     </div>
@@ -312,7 +312,7 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="text-xl font-medium text-[#0B1C30] font-poppins">PayPal</h3>
+                            <h3 class="text-xl font-medium text-[#0B1C30]">PayPal</h3>
                             <p class="text-sm text-[#434654]">Wallet & Direct</p>
                         </div>
                     </div>
@@ -344,7 +344,7 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="text-xl font-medium text-[#0B1C30] font-poppins">Authorize.net</h3>
+                            <h3 class="text-xl font-medium text-[#0B1C30]">Authorize.net</h3>
                             <p class="text-sm text-[#434654]">Legacy Processor</p>
                         </div>
                     </div>
@@ -368,7 +368,7 @@
     <div class="bg-[#EFF4FF] rounded-3xl p-6 md:p-8 border border-[#C3C6D6]/10">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
-                <h2 class="text-xl md:text-2xl font-medium text-[#0B1C30] font-poppins">Marketplace Integrations</h2>
+                <h2 class="text-xl md:text-2xl font-medium text-[#0B1C30]">Marketplace Integrations</h2>
                 <p class="text-sm text-[#434654]">Explore 200+ native connectors for your e-commerce stack.</p>
             </div>
             <!-- Filter input -->
@@ -448,7 +448,7 @@
             <a href="#" class="hover:underline">API Status</a>
             <a href="#" class="hover:underline">Security</a>
         </div>
-        <div>Â© 2024 Admin BaaS. All partner trademarks are property of their respective owners.</div>
+        <div>© 2024 Admin BaaS. All partner trademarks are property of their respective owners.</div>
     </div>
 </div>
 @endsection

@@ -23,7 +23,7 @@
             @endif
 
             <p class="mt-4 text-sm text-emerald-900">Rates, labels, tracking, pickup, and checkout live rates remain disabled until each capability is separately validated.</p>
-            <a href="{{ route('shippingAutomation', ['tab' => 'carriers']) }}" class="mt-5 inline-flex rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Back to Shipping &amp; Delivery</a>
+            <a href="{{ route('shippingAutomation', ['tab' => 'carriers']) }}" class="mt-5 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Back to Shipping &amp; Delivery</a>
         </section>
     </div>
 @endsection

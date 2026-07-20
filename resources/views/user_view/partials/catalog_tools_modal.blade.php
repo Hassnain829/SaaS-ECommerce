@@ -76,7 +76,7 @@
     <div class="ui-modal-panel ui-modal-panel--2xl">
         <div class="flex shrink-0 items-start justify-between gap-3 border-b border-[#E2E8F0] bg-white px-4 py-3 sm:px-5">
             <div class="min-w-0">
-                <h2 class="text-base font-semibold tracking-tight text-[#0F172A] font-[Poppins]">Catalog tools</h2>
+                <h2 class="text-base font-semibold tracking-tight text-[#0F172A]">Catalog tools</h2>
                 <p class="mt-0.5 max-w-md text-[11px] leading-snug text-[#64748B]"><span class="font-medium text-[#0F766E]">Categories</span> organize the storefront catalog; brand and tags are optional.</p>
             </div>
             <button type="button" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#64748B] transition hover:border-[#0052CC] hover:text-[#0052CC]" data-catalog-tools-close aria-label="Close">

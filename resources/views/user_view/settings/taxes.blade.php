@@ -472,7 +472,7 @@
                 </div>
                 <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                     <a href="{{ route('settings.taxes.index') }}" class="inline-flex h-10 items-center justify-center rounded-lg border border-[#E3E1EA] px-4 text-sm font-semibold text-[#475569]">Cancel</a>
-                    <button type="submit" class="inline-flex h-10 items-center justify-center rounded-lg bg-[#24389C] px-5 text-sm font-semibold text-white">Save rate</button>
+                    <button type="submit" class="inline-flex h-10 items-center justify-center rounded-lg bg-brand px-5 text-sm font-semibold text-white">Save rate</button>
                 </div>
             </form>
         </dialog>
@@ -513,7 +513,7 @@
                         </div>
                         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                             <a href="{{ route('settings.taxes.index') }}" class="inline-flex h-10 items-center justify-center rounded-lg border border-[#E3E1EA] px-4 text-sm font-semibold text-[#475569]">Cancel</a>
-                            <button type="submit" class="inline-flex h-10 items-center justify-center rounded-lg bg-[#24389C] px-5 text-sm font-semibold text-white">Save rate</button>
+                            <button type="submit" class="inline-flex h-10 items-center justify-center rounded-lg bg-brand px-5 text-sm font-semibold text-white">Save rate</button>
                         </div>
                     </form>
                     <form method="POST" action="{{ route('settings.taxes.rates.destroy', $rate) }}" class="mt-4 border-t border-[#E3E1EA] px-5 pb-5 pt-4 sm:px-6" onsubmit="return confirm('Remove this tax rate? Existing checkout snapshots are not changed.');">

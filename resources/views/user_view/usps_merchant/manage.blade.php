@@ -139,7 +139,7 @@
                         @elseif ($merchantShipSuiteVerifyAvailable ?? false)
                             <form method="POST" action="{{ route('settings.shipping.usps-merchant.verify-ship-suite', $account) }}">
                                 @csrf
-                                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Verify postage account</button>
+                                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Verify postage account</button>
                             </form>
                         @else
                             <span class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#64748B]">Verify postage account — available after USPS Shipping Suite approval</span>

@@ -90,7 +90,7 @@
                         }
                     @endphp
                     <details id="import-mapping-section-{{ $section['id'] }}" class="group mb-4 rounded-2xl border border-[#E2E8F0] bg-[#FAFAFA]/80 open:bg-white" @if ($shouldOpen) open @endif>
-                        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left font-[Poppins] text-base font-semibold text-[#0F172A] hover:bg-white [&::-webkit-details-marker]:hidden">
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-base font-semibold text-[#0F172A] hover:bg-white [&::-webkit-details-marker]:hidden">
                             <span>{{ $section['title'] }}</span>
                             <span class="text-xs font-normal text-[#94A3B8] group-open:rotate-180 transition-transform" aria-hidden="true">▼</span>
                         </summary>
@@ -128,14 +128,14 @@
                 @endforeach
 
                 <details id="import-mapping-section-additional_details" class="group mt-8 border-t border-[#E2E8F0] pt-8">
-                    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-[#E2E8F0] bg-[#FAFAFA]/80 px-4 py-3 text-left font-[Poppins] text-base font-semibold text-[#0F172A] hover:bg-white [&::-webkit-details-marker]:hidden">
+                    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-[#E2E8F0] bg-[#FAFAFA]/80 px-4 py-3 text-left text-base font-semibold text-[#0F172A] hover:bg-white [&::-webkit-details-marker]:hidden">
                         <span>Additional details</span>
                         <span class="text-xs font-normal text-[#94A3B8] group-open:rotate-180 transition-transform" aria-hidden="true">▼</span>
                     </summary>
                     <div class="mt-4 px-1 pb-2">
                     <div class="flex flex-wrap items-end justify-between gap-4">
                         <div>
-                            <p class="text-sm font-semibold text-[#0F172A] font-[Poppins]">Map optional editable fields</p>
+                            <p class="text-sm font-semibold text-[#0F172A]">Map optional editable fields</p>
                             <p class="mt-2 text-sm text-[#64748B]">Optional: map extra columns into <span class="font-medium text-[#334155]">editable additional details</span> on the product or variant, or into a <span class="font-medium text-[#334155]">product specification</span> for structured filtering. Use short names: letters, numbers, underscores, dots, or dashes (1–128 characters). Names cannot match a built-in catalog field such as <span class="font-mono text-xs">sku</span>.</p>
                             <p class="mt-2 text-xs text-[#64748B]">Columns you do not map here still appear later under <span class="font-medium text-[#334155]">Advanced imported data</span> as read-only reference.</p>
                         </div>
@@ -217,7 +217,7 @@
                 </template>
 
                 <div class="mt-8 flex flex-wrap gap-3">
-                    <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">
+                    <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">
                         Build preview
                     </button>
                     <a href="{{ route('products') }}" class="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] px-6 py-3 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Cancel</a>

@@ -28,7 +28,7 @@
                 <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Postal code</span><input name="postal_code" required value="{{ old('postal_code', $prefill['postal_code'] ?? '') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
                 <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Country</span><input name="country_code" required maxlength="2" value="{{ old('country_code', $prefill['country_code'] ?? 'US') }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm uppercase"></label>
                 <label class="sm:col-span-2 inline-flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="residential" value="1" class="rounded border-[#CBD5E1]"> Residential address</label>
-                <div class="sm:col-span-2"><button type="submit" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Submit to FedEx registration</button></div>
+                <div class="sm:col-span-2"><button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Submit to FedEx registration</button></div>
             </form>
         </section>
     </div>

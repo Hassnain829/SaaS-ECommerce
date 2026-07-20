@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-Sidebar')
+@extends('layouts.admin.admin-Sidebar')
 
 @section('title', 'Add Logistics Integration')
 
@@ -68,8 +68,8 @@
 
     <!-- Header with title and Add New Integration button -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Connect New Integration</h1>
-        <button class="inline-flex items-center gap-2 px-4 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-[#0047B3] transition">
+        <h1 class="text-2xl font-medium text-[#0F172A]">Connect New Integration</h1>
+        <button class="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-brand-hover transition">
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                 <path d="M4.5 6H0V4.5H4.5V0H6V4.5H10.5V6H6V10.5H4.5V6Z" fill="white"/>
             </svg>
@@ -92,7 +92,7 @@
 
             <!-- Filter pills -->
             <div class="flex flex-wrap gap-2">
-                <button class="px-4 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg">All</button>
+                <button class="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg">All</button>
                 <button class="px-4 py-2 bg-white border border-[#E2E8F0] text-[#475569] text-sm font-medium rounded-lg flex items-center gap-2 hover:bg-gray-50">
                     <svg width="17" height="12" viewBox="0 0 17 12" fill="none">
                         <path d="M3.75 12C3.125 12 2.59375 11.7812 2.15625 11.3438C1.71875 10.9062 1.5 10.375 1.5 9.75H0V1.5C0 1.0875 0.146875 0.734375 0.440625 0.440625C0.734375 0.146875 1.0875 0 1.5 0H12V3H14.25L16.5 6V9.75H15C15 10.375 14.7812 10.9062 14.3438 11.3438C13.9062 11.7812 13.375 12 12.75 12C12.125 12 11.5938 11.7812 11.1562 11.3438C10.7188 10.9062 10.5 10.375 10.5 9.75H6C6 10.375 5.78125 10.9062 5.34375 11.3438C4.90625 11.7812 4.375 12 3.75 12ZM3.75 10.5C3.9625 10.5 4.14063 10.4281 4.28438 10.2844C4.42813 10.1406 4.5 9.9625 4.5 9.75C4.5 9.5375 4.42813 9.35937 4.28438 9.21562C4.14063 9.07187 3.9625 9 3.75 9C3.5375 9 3.35938 9.07187 3.21563 9.21562C3.07188 9.35937 3 9.5375 3 9.75C3 9.9625 3.07188 10.1406 3.21563 10.2844C3.35938 10.4281 3.5375 10.5 3.75 10.5ZM1.5 8.25H2.1C2.3125 8.025 2.55625 7.84375 2.83125 7.70625C3.10625 7.56875 3.4125 7.5 3.75 7.5C4.0875 7.5 4.39375 7.56875 4.66875 7.70625C4.94375 7.84375 5.1875 8.025 5.4 8.25H10.5V1.5H1.5V1.5V1.5V8.25V8.25ZM12.75 10.5C12.9625 10.5 13.1406 10.4281 13.2844 10.2844C13.4281 10.1406 13.5 9.9625 13.5 9.75C13.5 9.5375 13.4281 9.35937 13.2844 9.21562C13.1406 9.07187 12.9625 9 12.75 9C12.5375 9 12.3594 9.07187 12.2156 9.21562C12.0719 9.35937 12 9.5375 12 9.75C12 9.9625 12.0719 10.1406 12.2156 10.2844C12.3594 10.4281 12.5375 10.5 12.75 10.5ZM12 6.75H15.1875L13.5 4.5H12V6.75Z" fill="#475569"/>
@@ -124,7 +124,7 @@
     <!-- Couriers & Logistics Section -->
     <div>
         <div class="flex items-center gap-4 mb-4">
-            <h2 class="text-sm font-medium uppercase tracking-wider text-[#94A3B8] font-poppins">Couriers & Logistics</h2>
+            <h2 class="text-sm font-medium uppercase tracking-wider text-[#94A3B8]">Couriers & Logistics</h2>
             <div class="flex-1 h-px bg-[#E2E8F0]"></div>
         </div>
 
@@ -138,9 +138,9 @@
                     </div>
                     <span class="px-2 py-1 bg-[#F0FDF4] text-[#16A34A] text-[10px] font-bold uppercase rounded-full">Certified</span>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">UPS</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">UPS</h3>
                 <p class="text-sm text-[#64748B] mt-1 leading-relaxed">Enterprise-grade shipping, tracking, and logistics fulfillment solutions for scale.</p>
-                <button class="w-full mt-4 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg">Select</button>
+                <button class="w-full mt-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg">Select</button>
             </div>
 
             <!-- FedEx Card -->
@@ -150,9 +150,9 @@
                         <div class="w-10 h-10 bg-[#E5EEFF] rounded flex items-center justify-center text-xs font-bold text-[#003D9B]">FedEx</div>
                     </div>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">FedEx</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">FedEx</h3>
                 <p class="text-sm text-[#64748B] mt-1 leading-relaxed">International freight and courier services with integrated real-time tracking.</p>
-                <button class="w-full mt-4 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg">Select</button>
+                <button class="w-full mt-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg">Select</button>
             </div>
 
             <!-- DHL Express Card -->
@@ -162,9 +162,9 @@
                         <div class="w-10 h-10 bg-[#E5EEFF] rounded flex items-center justify-center text-xs font-bold text-[#003D9B]">DHL</div>
                     </div>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">DHL Express</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">DHL Express</h3>
                 <p class="text-sm text-[#64748B] mt-1 leading-relaxed">Specialized international logistics and express mail for global commerce.</p>
-                <button class="w-full mt-4 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg">Select</button>
+                <button class="w-full mt-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg">Select</button>
             </div>
 
             <!-- Custom Logistic Partner (dashed) -->
@@ -182,7 +182,7 @@
     <!-- Payment Gateways Section -->
     <div>
         <div class="flex items-center gap-4 mb-4">
-            <h2 class="text-sm font-medium uppercase tracking-wider text-[#94A3B8] font-poppins">Payment Gateways</h2>
+            <h2 class="text-sm font-medium uppercase tracking-wider text-[#94A3B8]">Payment Gateways</h2>
             <div class="flex-1 h-px bg-[#E2E8F0]"></div>
         </div>
 
@@ -195,9 +195,9 @@
                     </div>
                     <span class="px-2 py-1 bg-[#EFF6FF] text-[#0052CC] text-[10px] font-bold uppercase rounded-full">Popular</span>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">Stripe</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">Stripe</h3>
                 <p class="text-sm text-[#64748B] mt-1 leading-relaxed">Modern payment infrastructure for internet businesses.</p>
-                <button class="w-full mt-4 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg">Select</button>
+                <button class="w-full mt-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg">Select</button>
             </div>
 
             <!-- PayPal Card -->
@@ -207,9 +207,9 @@
                         <div class="w-10 h-10 bg-[#E5EEFF] rounded flex items-center justify-center text-xs font-bold text-[#003D9B]">PayPal</div>
                     </div>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">PayPal</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">PayPal</h3>
                 <p class="text-sm text-[#64748B] mt-1 leading-relaxed">Secure global payment processing for merchants.</p>
-                <button class="w-full mt-4 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg">Select</button>
+                <button class="w-full mt-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg">Select</button>
             </div>
 
             <!-- Adyen Card -->
@@ -219,9 +219,9 @@
                         <div class="w-10 h-10 bg-[#E5EEFF] rounded flex items-center justify-center text-xs font-bold text-[#003D9B]">Adyen</div>
                     </div>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">Adyen</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">Adyen</h3>
                 <p class="text-sm text-[#64748B] mt-1 leading-relaxed">Unified commerce platform combining payments and data.</p>
-                <button class="w-full mt-4 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg">Select</button>
+                <button class="w-full mt-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg">Select</button>
             </div>
 
             <!-- Available via request (disabled style) -->
@@ -238,15 +238,15 @@
 
     <!-- Custom Implementation Needed -->
     <div class="bg-white/50 border-2 border-dashed border-[#E2E8F0] rounded-2xl p-8 text-center">
-        <div class="w-12 h-12 bg-[#0052CC]/5 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div class="w-12 h-12 bg-brand/5 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg width="20" height="13" viewBox="0 0 20 13" fill="none">
                 <path d="M15 13V10H12V8H15V5H17V8H20V10H17V13H15ZM9 10H5C3.61667 10 2.4375 9.5125 1.4625 8.5375C0.4875 7.5625 0 6.38333 0 5C0 3.61667 0.4875 2.4375 1.4625 1.4625C2.4375 0.4875 3.61667 0 5 0H9V2H5C4.16667 2 3.45833 2.29167 2.875 2.875C2.29167 3.45833 2 4.16667 2 5C2 5.83333 2.29167 6.54167 2.875 7.125C3.45833 7.70833 4.16667 8 5 8H9V10ZM6 6V4H14V6H6ZM20 5H18C18 4.16667 17.7083 3.45833 17.125 2.875C16.5417 2.29167 15.8333 2 15 2H11V0H15C16.3833 0 17.5625 0.4875 18.5375 1.4625C19.5125 2.4375 20 3.61667 20 5Z" fill="#0052CC"/>
             </svg>
         </div>
-        <h3 class="text-lg font-medium text-[#0F172A] mb-1 font-poppins">Custom Implementation Needed?</h3>
+        <h3 class="text-lg font-medium text-[#0F172A] mb-1">Custom Implementation Needed?</h3>
         <p class="text-sm text-[#64748B] max-w-lg mx-auto">Can't find your specific partner? Manually configure a webhook or API integration for any third-party service.</p>
         <div class="flex flex-wrap justify-center gap-4 mt-6">
-            <button class="px-6 py-2 bg-[#0052CC] text-white text-sm font-semibold rounded-lg shadow-sm">+ Add New Integration</button>
+            <button class="px-6 py-2 bg-brand text-white text-sm font-semibold rounded-lg shadow-sm">+ Add New Integration</button>
             <button class="px-6 py-2 bg-white border border-[#E2E8F0] text-[#334155] text-sm font-semibold rounded-lg">Developer Documentation</button>
         </div>
     </div>

@@ -14,7 +14,7 @@
         </x-slot:search>
         <x-slot:actions>
             @if($canManageOrders)
-                <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-lg bg-[#0052CC] px-3 text-xs font-semibold text-white xl:inline-flex">Create order</a>
+                <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white xl:inline-flex">Create order</a>
             @endif
         </x-slot:actions>
     </x-ui.merchant-topbar>
@@ -49,11 +49,11 @@
         @endif
 
         <div class="flex flex-wrap gap-2 text-sm font-semibold">
-            <a href="{{ route('customers') }}" class="h-9 px-4 rounded-full inline-flex items-center {{ $currentStatus === 'all' && $search === '' && $currentTagId === 0 ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
+            <a href="{{ route('customers') }}" class="h-9 px-4 rounded-full inline-flex items-center {{ $currentStatus === 'all' && $search === '' && $currentTagId === 0 ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
                 All customers ({{ $statusCounts['all'] ?? 0 }})
             </a>
             @foreach(['active' => 'Active', 'guest' => 'Guest', 'blocked' => 'Blocked'] as $value => $label)
-                <a href="{{ route('customers', ['status' => $value]) }}" class="h-9 px-4 rounded-full inline-flex items-center {{ $currentStatus === $value ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
+                <a href="{{ route('customers', ['status' => $value]) }}" class="h-9 px-4 rounded-full inline-flex items-center {{ $currentStatus === $value ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
                     {{ $label }} ({{ $statusCounts[$value] ?? 0 }})
                 </a>
             @endforeach

@@ -1,7 +1,7 @@
     <section id="stripe-provider-card" class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6 space-y-5">
         <div>
             <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Payment provider</p>
-            <h3 class="mt-1 text-xl font-poppins font-semibold text-[#0F172A]">Stripe</h3>
+            <h3 class="mt-1 text-xl font-semibold text-[#0F172A]">Stripe</h3>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">
                 Connect separate Stripe test and live accounts for platform checkout. Stripe handles secure onboarding. You do not need to paste secret keys.
             </p>
@@ -21,7 +21,7 @@
                         <input type="radio" name="platform_payment_mode" value="live" @checked(($platformPaymentMode ?? 'test') === 'live') class="mt-1" @disabled(! ($liveConnectReady ?? false))>
                         <span><span class="font-semibold text-[#0F172A]">Live mode</span><span class="mt-0.5 block text-xs text-[#64748B]">Requires an active Stripe live connected account.</span></span>
                     </label>
-                    <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">Save payment mode</button>
+                    <button type="submit" class="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover">Save payment mode</button>
                 </form>
             @else
                 <p class="mt-3 text-sm text-[#475569]">Current mode: {{ ($platformPaymentMode ?? 'test') === 'live' ? 'Live mode' : 'Test mode' }}</p>
@@ -54,7 +54,7 @@
 
     @if($canManagePayments)
         <details id="developer-diagnostics" class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-            <summary class="cursor-pointer text-lg font-poppins font-semibold text-[#0F172A]">Developer diagnostics</summary>
+            <summary class="cursor-pointer text-lg font-semibold text-[#0F172A]">Developer diagnostics</summary>
             <div class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                 @foreach(['test' => 'Test', 'live' => 'Live'] as $modeKey => $modeLabel)
                     <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">

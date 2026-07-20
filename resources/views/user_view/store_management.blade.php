@@ -5,7 +5,7 @@
 @section('topbar')
     <x-ui.merchant-topbar title="Your stores" lead="Each store is its own workspace. Use the sidebar switcher to change the active store.">
         <x-slot:actions>
-            <button type="button" class="js-open-create-store-modal hidden sm:inline-flex items-center gap-2 rounded-xl bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">
+            <button type="button" class="js-open-create-store-modal hidden sm:inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/></svg>
                 <span>Create Store</span>
             </button>
@@ -107,7 +107,7 @@
 
                 <!-- Actions -->
                 <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
-                    <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex-1 min-w-[8rem] rounded-lg bg-[#0052CC] py-2.5 text-center text-sm font-bold text-white transition hover:bg-[#0042a3]">Open catalog</a>
+                    <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex-1 min-w-[8rem] rounded-lg bg-brand py-2.5 text-center text-sm font-bold text-white transition hover:bg-brand-hover">Open catalog</a>
                     <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" title="Add product" class="inline-flex items-center justify-center rounded-lg border border-[#E2E8F0] p-2.5 hover:bg-gray-50 sm:shrink-0">
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             <path d="M8 16H10V10H16V8H10V2H8V8H2V10H8V16Z" fill="#434654"/>
@@ -133,9 +133,9 @@
                         <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#003D9B"/>
                     </svg>
                 </div>
-                <h3 class="text-lg font-bold font-poppins text-[#0B1C30] mb-2">No Stores Yet</h3>
+                <h3 class="text-lg font-bold text-[#0B1C30] mb-2">No Stores Yet</h3>
                 <p class="text-[#434654] mb-6">Create your first store to get started</p>
-                <button type="button" class="js-open-create-store-modal inline-flex items-center gap-2 bg-[#0052CC] text-white font-bold px-6 py-3 rounded-lg hover:bg-[#0042a3] transition">
+                <button type="button" class="js-open-create-store-modal inline-flex items-center gap-2 bg-brand text-white font-bold px-6 py-3 rounded-lg hover:bg-brand-hover transition">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                         <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
                     </svg>
@@ -152,7 +152,7 @@
                         <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#434654"/>
                     </svg>
                 </div>
-                <h3 class="text-base font-bold font-poppins text-[#0B1C30] mt-4">Add Another Store</h3>
+                <h3 class="text-base font-bold text-[#0B1C30] mt-4">Add Another Store</h3>
                 <p class="text-xs text-[#434654] mt-1">Scale your business ecosystem</p>
             </button>
         @endif
@@ -164,7 +164,7 @@
         <div class="lg:col-span-2 space-y-5">
             <div class="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
                 <p class="text-xs font-semibold uppercase tracking-wider text-[#64748B]">Workspace summary</p>
-                <p class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ $stores->count() }} {{ Str::plural('store', $stores->count()) }}</p>
+                <p class="mt-2 text-2xl font-medium text-[#0F172A]">{{ $stores->count() }} {{ Str::plural('store', $stores->count()) }}</p>
                 <div class="mt-4 flex flex-wrap gap-4 text-sm">
                     <div>
                         <span class="text-[#64748B]">Products (all stores)</span>
@@ -179,9 +179,9 @@
             </div>
 
             <!-- Upgrade Banner -->
-            <div class="bg-[#0052CC]/5 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-transparent">
+            <div class="bg-brand/5 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-transparent">
                 <div class="flex items-start gap-3">
-                    <div class="w-10 h-10 bg-[#0052CC]/10 rounded-full flex items-center justify-center">
+                    <div class="w-10 h-10 bg-brand/10 rounded-full flex items-center justify-center">
                         <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
                             <path d="M3.6 7.99556L5.55 8.82056C5.78333 8.3539 6.025 7.9039 6.275 7.47056C6.525 7.03723 6.8 6.6039 7.1 6.17056L5.7 5.89556L3.6 7.99556ZM7.15 10.0706L10 12.8956C10.7 12.6289 11.45 12.2206 12.25 11.6706C13.05 11.1206 13.8 10.4956 14.5 9.79556C15.6667 8.6289 16.5792 7.33306 17.2375 5.90806C17.8958 4.48306 18.1833 3.17056 18.1 1.97056C16.9 1.88723 15.5833 2.17473 14.15 2.83306C12.7167 3.4914 11.4167 4.4039 10.25 5.57056C9.55 6.27056 8.925 7.02056 8.375 7.82056C7.825 8.62056 7.41667 9.37056 7.15 10.0706ZM11.6 8.44556C11.2167 8.06223 11.025 7.5914 11.025 7.03306C11.025 6.47473 11.2167 6.0039 11.6 5.62056C11.9833 5.23723 12.4583 5.04556 13.025 5.04556C13.5917 5.04556 14.0667 5.23723 14.45 5.62056C14.8333 6.0039 15.025 6.47473 15.025 7.03306C15.025 7.5914 14.8333 8.06223 14.45 8.44556C14.0667 8.8289 13.5917 9.02056 13.025 9.02056C12.4583 9.02056 11.9833 8.8289 11.6 8.44556ZM12.075 16.4706L14.175 14.3706L13.9 12.9706C13.4667 13.2706 13.0333 13.5414 12.6 13.7831C12.1667 14.0247 11.7167 14.2622 11.25 14.4956L12.075 16.4706ZM19.9 0.145565C20.2167 2.16223 20.0208 4.12473 19.3125 6.03306C18.6042 7.9414 17.3833 9.76223 15.65 11.4956L16.15 13.9706C16.2167 14.3039 16.2 14.6289 16.1 14.9456C16 15.2622 15.8333 15.5372 15.6 15.7706L11.4 19.9706L9.3 15.0456L5.025 10.7706L0.1 8.67056L4.275 4.47056C4.50833 4.23723 4.7875 4.07056 5.1125 3.97056C5.4375 3.87056 5.76667 3.8539 6.1 3.92056L8.575 4.42056C10.3083 2.68723 12.125 1.46223 14.025 0.745565C15.925 0.0288979 17.8833 -0.171102 19.9 0.145565ZM1.875 13.9456C2.45833 13.3622 3.17083 13.0664 4.0125 13.0581C4.85417 13.0497 5.56667 13.3372 6.15 13.9206C6.73333 14.5039 7.02083 15.2164 7.0125 16.0581C7.00417 16.8997 6.70833 17.6122 6.125 18.1956C5.70833 18.6122 5.0125 18.9706 4.0375 19.2706C3.0625 19.5706 1.71667 19.8372 0 20.0706C0.233333 18.3539 0.5 17.0081 0.8 16.0331C1.1 15.0581 1.45833 14.3622 1.875 13.9456ZM3.3 15.3456C3.13333 15.5122 2.96667 15.8164 2.8 16.2581C2.63333 16.6997 2.51667 17.1456 2.45 17.5956C2.9 17.5289 3.34583 17.4164 3.7875 17.2581C4.22917 17.0997 4.53333 16.9372 4.7 16.7706C4.9 16.5706 5.00833 16.3289 5.025 16.0456C5.04167 15.7622 4.95 15.5206 4.75 15.3206C4.55 15.1206 4.30833 15.0247 4.025 15.0331C3.74167 15.0414 3.5 15.1456 3.3 15.3456Z" fill="#003D9B"/>
                         </svg>
@@ -191,7 +191,7 @@
                         <p class="text-xs text-[#434654]">Unlock advanced automation and priority support for your stores.</p>
                     </div>
                 </div>
-                <button class="px-6 py-2 bg-[#0052CC] text-white text-xs font-bold rounded-lg whitespace-nowrap">View Upgrade Options</button>
+                <button class="px-6 py-2 bg-brand text-white text-xs font-bold rounded-lg whitespace-nowrap">View Upgrade Options</button>
             </div>
         </div>
 
@@ -231,7 +231,7 @@
                 </div>
                 <!-- New Domain Linked -->
                 <div class="flex items-start gap-3">
-                    <div class="w-8 h-8 bg-[#0052CC]/20 rounded-full flex items-center justify-center">
+                    <div class="w-8 h-8 bg-brand/20 rounded-full flex items-center justify-center">
                         <svg width="11" height="12" viewBox="0 0 11 12" fill="none">
                             <path d="M2.625 1.75C2.38194 1.75 2.17535 1.83507 2.00521 2.00521C1.83507 2.17535 1.75 2.38194 1.75 2.625C1.75 2.86806 1.83507 3.07465 2.00521 3.24479C2.17535 3.41493 2.38194 3.5 2.625 3.5C2.86806 3.5 3.07465 3.41493 3.24479 3.24479C3.41493 3.07465 3.5 2.86806 3.5 2.625C3.5 2.38194 3.41493 2.17535 3.24479 2.00521C3.07465 1.83507 2.86806 1.75 2.625 1.75ZM2.625 7.58333C2.38194 7.58333 2.17535 7.6684 2.00521 7.83854C1.83507 8.00868 1.75 8.21528 1.75 8.45833C1.75 8.70139 1.83507 8.90799 2.00521 9.07812C2.17535 9.24826 2.38194 9.33333 2.625 9.33333C2.86806 9.33333 3.07465 9.24826 3.24479 9.07812C3.41493 8.90799 3.5 8.70139 3.5 8.45833C3.5 8.21528 3.41493 8.00868 3.24479 7.83854C3.07465 7.6684 2.86806 7.58333 2.625 7.58333ZM0.583333 0H9.91667C10.0819 0 10.2205 0.0559028 10.3323 0.167708C10.4441 0.279514 10.5 0.418056 10.5 0.583333V4.66667C10.5 4.83194 10.4441 4.97049 10.3323 5.08229C10.2205 5.1941 10.0819 5.25 9.91667 5.25H0.583333C0.418056 5.25 0.279514 5.1941 0.167708 5.08229C0.0559028 4.97049 0 4.83194 0 4.66667V0.583333C0 0.418056 0.0559028 0.279514 0.167708 0.167708C0.279514 0.0559028 0.418056 0 0.583333 0ZM1.16667 1.16667V4.08333H9.33333V1.16667H1.16667ZM0.583333 5.83333H9.91667C10.0819 5.83333 10.2205 5.88924 10.3323 6.00104C10.4441 6.11285 10.5 6.25139 10.5 6.41667V10.5C10.5 10.6653 10.4441 10.8038 10.3323 10.9156C10.2205 11.0274 10.0819 11.0833 9.91667 11.0833H0.583333C0.418056 11.0833 0.279514 11.0274 0.167708 10.9156C0.0559028 10.8038 0 10.6653 0 10.5V6.41667C0 6.25139 0.0559028 6.11285 0.167708 6.00104C0.279514 5.88924 0.418056 5.83333 0.583333 5.83333ZM1.16667 7V9.91667H9.33333V7H1.16667Z" fill="#003D9B"/>
                         </svg>

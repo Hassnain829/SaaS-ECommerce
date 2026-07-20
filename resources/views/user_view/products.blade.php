@@ -102,7 +102,7 @@
             </form>
         </x-slot:search>
         <x-slot:actions>
-            <a href="{{ route('products.create') }}" class="hidden sm:inline-flex items-center gap-2 rounded-xl bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#0047B3]">
+            <a href="{{ route('products.create') }}" class="hidden sm:inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-brand-hover">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
                 </svg>
@@ -204,7 +204,7 @@
                     </div>
                 </details>
             @endif
-            <a href="{{ route('products.create') }}" class="sm:hidden inline-flex items-center justify-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2.5 rounded-lg">
+            <a href="{{ route('products.create') }}" class="sm:hidden inline-flex items-center justify-center gap-2 bg-brand text-white text-sm font-bold px-4 py-2.5 rounded-lg">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
                 </svg>
@@ -216,22 +216,22 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
             <div class="text-sm text-[#64748B]">Products in view</div>
-            <div class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ number_format($stats['total_products']) }}</div>
+            <div class="mt-2 text-2xl font-medium text-[#0F172A]">{{ number_format($stats['total_products']) }}</div>
             <div class="mt-1 text-xs text-[#64748B]">{{ $activeBrandFilter || $activeTagFilter || $activeTaxonomyCategoryFilter || $activeAttributeTermFilter || ($filters['product_type'] ?? '') !== '' ? 'Matches current filters' : 'In this store' }}</div>
         </div>
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
             <div class="text-sm text-[#64748B]">Out of Stock</div>
-            <div class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ number_format($stats['out_of_stock']) }}</div>
+            <div class="mt-2 text-2xl font-medium text-[#0F172A]">{{ number_format($stats['out_of_stock']) }}</div>
             <div class="mt-1 text-xs text-red-500 font-bold">Needs attention</div>
         </div>
         <div class="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm">
             <div class="text-sm text-[#64748B]">Low Stock</div>
-            <div class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ number_format($stats['low_stock']) }}</div>
+            <div class="mt-2 text-2xl font-medium text-[#0F172A]">{{ number_format($stats['low_stock']) }}</div>
             <div class="mt-1 text-xs text-orange-500 font-bold">Ordering recommended</div>
         </div>
         <div class="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <div class="text-sm text-[#64748B]">Brands</div>
-            <div class="mt-2 text-2xl font-medium text-[#0F172A] font-poppins">{{ number_format($brandCount) }}</div>
+            <div class="mt-2 text-2xl font-medium text-[#0F172A]">{{ number_format($brandCount) }}</div>
             @if ($canManageBrands || $canManageTags || $canManageCategories)
                 <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="mt-3 w-full rounded-lg border border-[#E2E8F0] py-2 text-xs font-semibold text-[#0052CC] transition hover:bg-[#F8FAFC] sm:hidden">Catalog tools</button>
             @else
@@ -255,7 +255,7 @@
                     <div class="flex flex-col gap-1">
                         <span class="text-[10px] font-bold uppercase tracking-wider text-[#0F766E]"> Category</span>
                         <div class="relative">
-                            <select name="category" onchange="this.form.submit()" aria-label="Filter by catalog category" class="appearance-none bg-[#0052CC] text-white text-sm font-semibold px-4 py-2 pr-9 rounded-xl shadow-sm min-w-[11rem]">
+                            <select name="category" onchange="this.form.submit()" aria-label="Filter by catalog category" class="appearance-none bg-brand text-white text-sm font-semibold px-4 py-2 pr-9 rounded-xl shadow-sm min-w-[11rem]">
                                 <option value="">All categories</option>
                                 @foreach ($catalogTaxonomyCategories ?? [] as $taxCat)
                                     <option value="{{ $taxCat->id }}" @selected((string) ($filters['category'] ?? '') === (string) $taxCat->id)>{{ $taxCat->name }}</option>
@@ -392,7 +392,7 @@
                                 <input id="cf_value" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A]" placeholder="cotton">
                             </div>
 
-                            <button type="submit" class="h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white hover:bg-[#0047B3]">Apply filters</button>
+                            <button type="submit" class="h-10 rounded-lg bg-brand px-4 text-sm font-bold text-white hover:bg-brand-hover">Apply filters</button>
                         </form>
 
                         @if ($canManageBrands)
@@ -495,7 +495,7 @@
                                 <option value="draft">Draft</option>
                             </select>
                         </div>
-                        <button type="button" id="bulk-apply-btn" class="inline-flex items-center gap-2 rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3] disabled:cursor-not-allowed disabled:opacity-60">
+                        <button type="button" id="bulk-apply-btn" class="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60">
                             <span id="bulk-apply-spinner" class="hidden h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true"></span>
                             <span>Apply</span>
                         </button>
@@ -708,7 +708,7 @@
 
                 @foreach ($products->getUrlRange(max(1, $products->currentPage() - 1), min($products->lastPage(), $products->currentPage() + 1)) as $page => $url)
                     @if ($page === $products->currentPage())
-                        <span class="w-8 h-8 flex items-center justify-center text-sm font-bold bg-[#0052CC] text-white rounded-lg">{{ $page }}</span>
+                        <span class="w-8 h-8 flex items-center justify-center text-sm font-bold bg-brand text-white rounded-lg">{{ $page }}</span>
                     @else
                         <a href="{{ $url }}" class="w-8 h-8 flex items-center justify-center text-sm font-inter font-medium text-[#475569] border border-[#E2E8F0] rounded-lg hover:bg-gray-50">{{ $page }}</a>
                     @endif
@@ -737,7 +737,7 @@
                 <p id="bulk-confirm-body" class="mt-2 text-sm leading-relaxed text-[#475569]"></p>
                 <div class="mt-6 flex flex-wrap justify-end gap-2">
                     <button type="button" id="bulk-confirm-cancel" class="rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Cancel</button>
-                    <button type="button" id="bulk-confirm-ok" class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Confirm</button>
+                    <button type="button" id="bulk-confirm-ok" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">Confirm</button>
                 </div>
             </div>
         </div>

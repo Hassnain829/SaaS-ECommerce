@@ -55,7 +55,7 @@
                             <p class="mt-0.5 text-xs text-[#64748B]">Set stock on the inventory rows below. Option groups create combination rows automatically.</p>
                             <p class="mt-1 text-xs text-[#64748B]">Not saved yet</p>
                             <div class="mt-5 flex flex-col gap-2 border-t border-slate-100 pt-4">
-                                <button type="submit" form="editProductForm" class="inline-flex w-full items-center justify-center rounded-xl bg-[#0052CC] px-4 py-3 text-sm font-bold text-white shadow-md shadow-[#0052CC]/20 transition hover:bg-[#0042a3]">Save product</button>
+                                <button type="submit" form="editProductForm" class="inline-flex w-full items-center justify-center rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-md shadow-brand/20 transition hover:bg-brand-hover">Save product</button>
                                 <a href="{{ route('products') }}" class="inline-flex w-full items-center justify-center rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm font-semibold text-[#475569] transition hover:bg-white">Cancel without saving</a>
                                 <a href="{{ route('products') }}" class="inline-flex w-full items-center justify-center rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-[#0052CC] hover:underline">Back to product list</a>
                             </div>

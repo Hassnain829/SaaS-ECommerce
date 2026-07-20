@@ -35,11 +35,11 @@
         <div class="flex flex-wrap gap-2">
             @if ($canManageShipping ?? false)
                 @if ($account->usps_authorization_status === \App\Models\CarrierAccount::USPS_AUTH_VERIFYING)
-                    <a href="{{ route('settings.shipping.usps-merchant.manage', $account) }}" class="inline-flex h-9 items-center rounded-lg bg-[#0052CC] px-3 text-sm font-bold text-white">Manage connection</a>
+                    <a href="{{ route('settings.shipping.usps-merchant.manage', $account) }}" class="inline-flex h-9 items-center rounded-lg bg-brand px-3 text-sm font-bold text-white">Manage connection</a>
                 @elseif ($account->usps_authorization_status === \App\Models\CarrierAccount::USPS_AUTH_AWAITING_AUTHORIZATION)
-                    <a href="{{ route('settings.shipping.usps-merchant.wizard', ['carrierAccount' => $account, 'step' => 'authorization']) }}" class="inline-flex h-9 items-center rounded-lg bg-[#0052CC] px-3 text-sm font-bold text-white">Continue setup</a>
+                    <a href="{{ route('settings.shipping.usps-merchant.wizard', ['carrierAccount' => $account, 'step' => 'authorization']) }}" class="inline-flex h-9 items-center rounded-lg bg-brand px-3 text-sm font-bold text-white">Continue setup</a>
                 @else
-                    <a href="{{ route('settings.shipping.usps-merchant.manage', $account) }}" class="inline-flex h-9 items-center rounded-lg bg-[#0052CC] px-3 text-sm font-bold text-white">Manage connection</a>
+                    <a href="{{ route('settings.shipping.usps-merchant.manage', $account) }}" class="inline-flex h-9 items-center rounded-lg bg-brand px-3 text-sm font-bold text-white">Manage connection</a>
                 @endif
             @endif
         </div>

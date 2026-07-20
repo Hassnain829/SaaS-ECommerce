@@ -19,7 +19,7 @@
         @endif
 
         <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm">
-            <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Choose a carrier</h2>
+            <h2 class="text-xl font-semibold text-[#0F172A]">Choose a carrier</h2>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">FedEx uses integrator provider registration for merchant-owned accounts. USPS merchant connection uses Label Provider authorization in the USPS Business Portal. Manual/local delivery is for couriers and store pickup without a live carrier API.</p>
 
             <div class="mt-5 grid gap-4 md:grid-cols-2">
@@ -46,7 +46,7 @@
                                     $connectRouteName = $card['connect_route'] ?? 'shipping.carriers.connect.show';
                                     $connectRouteParams = $connectRouteName === 'shipping.carriers.connect.show' ? $card['code'] : [];
                                 @endphp
-                                <a href="{{ route($connectRouteName, $connectRouteParams) }}" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">{{ $card['action'] }}</a>
+                                <a href="{{ route($connectRouteName, $connectRouteParams) }}" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">{{ $card['action'] }}</a>
                             @else
                                 <span class="text-sm font-semibold text-[#64748B]">{{ $card['action'] }}</span>
                             @endif

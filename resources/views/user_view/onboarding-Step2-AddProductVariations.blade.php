@@ -35,7 +35,7 @@
                 </nav>
                 <div class="flex items-center gap-3 sm:gap-4">
                     <button form="product-onboarding-form" type="submit"
-                        class="hidden sm:inline-flex bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">Save
+                        class="hidden sm:inline-flex bg-brand text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">Save
                         & Continue</button>
                     <div class="w-10 h-10 rounded-full border border-[#E2E8F0] overflow-hidden bg-[#E2E8F0]"></div>
                 </div>
@@ -59,7 +59,7 @@
                     <span class="text-xs text-[#64748B]">Setup Progress: 55% Complete</span>
                 </div>
                 <div class="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
-                    <div class="h-2 w-[55%] bg-[#0052CC] rounded-full"></div>
+                    <div class="h-2 w-[55%] bg-brand rounded-full"></div>
                 </div>
                 <div class="flex justify-end mt-1">
                     <span class="text-xs text-[#0052CC] font-inter font-medium">Next: Launch</span>
@@ -75,10 +75,10 @@
                     @endif
                     <div class="min-w-0">
                     @if ($store->products->count() > 0)
-                        <h1 class="text-3xl font-medium text-[#0F172A] font-[Poppins]">Add Product to {{ $store->name }}</h1>
+                        <h1 class="text-3xl font-medium text-[#0F172A]">Add Product to {{ $store->name }}</h1>
                         <p class="text-base text-[#64748B] mt-1">Expand your store catalog. Define product basics, add variation types, then add variant rows by selecting options.</p>
                     @else
-                        <h1 class="text-3xl font-medium text-[#0F172A] font-[Poppins]">Add Product</h1>
+                        <h1 class="text-3xl font-medium text-[#0F172A]">Add Product</h1>
                         <p class="text-base text-[#64748B] mt-1">Define product basics, add variation types, then add
                             variant rows by selecting options.</p>
                     @endif
@@ -176,12 +176,12 @@
 
                 <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
                     <div class="flex items-center gap-2 mb-6">
-                        <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Basic Information</h2>
+                        <h2 class="text-xl font-medium text-[#0F172A]">Basic Information</h2>
                     </div>
 
                     <div class="grid grid-cols-1 gap-6 mb-6 md:grid-cols-2">
                         <div>
-                            <label for="step2-product-type" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Product Type</label>
+                            <label for="step2-product-type" class="block text-sm font-medium text-[#334155] mb-2">Product Type</label>
                             <div class="relative">
                                 <select id="step2-product-type"
                                     class="w-full appearance-none px-4 py-3 pr-10 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
@@ -201,7 +201,7 @@
                             </div>
                         </div>
                         <div>
-                            <label for="name" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Product
+                            <label for="name" class="block text-sm font-medium text-[#334155] mb-2">Product
                                 Name</label>
                             <input id="name" name="name" type="text" placeholder="e.g. Premium Cotton T-Shirt"
                                 value="{{ $step2Data['name'] ?? '' }}"
@@ -211,14 +211,14 @@
 
                     <div>
                         <label for="description"
-                            class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Description</label>
+                            class="block text-sm font-medium text-[#334155] mb-2">Description</label>
                         <textarea id="description" name="description" rows="3"
                             placeholder="Describe your product's key features and benefits..."
                             class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ $step2Data['description'] ?? '' }}</textarea>
                     </div>
 
                     <div class="mt-4">
-                        <label for="sku" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Base SKU
+                        <label for="sku" class="block text-sm font-medium text-[#334155] mb-2">Base SKU
                             (optional)</label>
                         <input id="sku" name="sku" type="text" value="{{ $step2Data['sku'] ?? '' }}"
                             class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
@@ -244,7 +244,7 @@
                         $onboardingProductCategories = $productCategories ?? collect();
                     @endphp
                     <div class="mt-4">
-                        <label for="onboarding-brand-id" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Brand (optional)</label>
+                        <label for="onboarding-brand-id" class="block text-sm font-medium text-[#334155] mb-2">Brand (optional)</label>
                         <select id="onboarding-brand-id" name="brand_id"
                             class="w-full px-4 py-3 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20 bg-white">
                             <option value="">No brand</option>
@@ -257,7 +257,7 @@
 
                     @if ($onboardingTags->isNotEmpty())
                         <div class="mt-4">
-                            <label for="onboarding-tag-ids" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Tags (optional)</label>
+                            <label for="onboarding-tag-ids" class="block text-sm font-medium text-[#334155] mb-2">Tags (optional)</label>
                             <select id="onboarding-tag-ids" name="tag_ids[]" multiple size="4"
                                 class="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] bg-white focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                                 @foreach ($onboardingTags as $tg)
@@ -270,7 +270,7 @@
 
                     @if ($onboardingProductCategories->isNotEmpty())
                         <div class="mt-4">
-                            <label for="onboarding-category-ids" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Categories</label>
+                            <label for="onboarding-category-ids" class="block text-sm font-medium text-[#334155] mb-2">Categories</label>
                             <select id="onboarding-category-ids" name="category_ids[]" multiple size="4"
                                 class="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-sm text-[#0F172A] bg-white focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                                 @foreach ($onboardingProductCategories as $pc)
@@ -282,7 +282,7 @@
                     @endif
 
                     <div class="mt-4">
-                        <label for="step2-product-image" class="block text-sm font-medium text-[#334155] mb-2 font-poppins">Product Images</label>
+                        <label for="step2-product-image" class="block text-sm font-medium text-[#334155] mb-2">Product Images</label>
                         <input id="step2-product-image" name="product_images[]" type="file" accept=".jpg,.jpeg,.png,.webp" multiple
                             class="w-full px-4 py-3 border border-dashed border-[#CBD5E1] rounded-lg text-sm text-[#475569] bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                         <p class="mt-2 text-xs text-[#64748B]">You can upload multiple images. They will be stored in your project storage.</p>
@@ -292,7 +292,7 @@
 
                 <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Product Variations</h2>
+                        <h2 class="text-xl font-medium text-[#0F172A]">Product Variations</h2>
                         <button id="openVariationModal" type="button"
                             class="flex items-center gap-2 text-[#0052CC] text-sm font-medium">Add Variation
                             Type</button>
@@ -307,7 +307,7 @@
                         @foreach ($variationTypes as $index => $variationType)
                             <div class="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5">
                                 <div class="flex items-center justify-between mb-3">
-                                    <span class="text-base text-[#0F172A] font-poppins">Variation {{ $index + 1 }}:
+                                    <span class="text-base text-[#0F172A]">Variation {{ $index + 1 }}:
                                         {{ $variationType['name'] ?? 'Variation' }}</span>
                                     <span
                                         class="text-xs text-[#94A3B8] uppercase">{{ $variationType['type'] ?? 'select' }}</span>
@@ -331,7 +331,7 @@
 
                 <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
                     <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants</h2>
+                        <h2 class="text-xl font-medium text-[#0F172A]">Variants</h2>
                         <span class="text-sm font-medium text-[#64748B]">Rows are created automatically from variation options</span>
                     </div>
 
@@ -357,7 +357,7 @@
                                     class="w-full border border-[#E2E8F0] rounded-lg px-3 py-2 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                             </div>
                             <button id="apply-bulk-values" type="button"
-                                class="px-3 py-2 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">Apply</button>
+                                class="px-3 py-2 rounded-lg bg-brand text-white text-sm font-semibold">Apply</button>
                         </div>
                     </div>
 
@@ -368,7 +368,7 @@
 
                 <div class="bg-white rounded-xl shadow-sm border border-[#E2E8F0] p-8 mb-6">
                     <div class="flex flex-wrap justify-between items-center mb-6">
-                        <h2 class="text-xl font-medium text-[#0F172A] font-[Poppins]">Variants Matrix Preview</h2>
+                        <h2 class="text-xl font-medium text-[#0F172A]">Variants Matrix Preview</h2>
                         <span id="preview-count" class="text-sm text-[#94A3B8]">{{ count($previewRows) }} variant
                             row(s)</span>
                     </div>
@@ -407,7 +407,7 @@
                         <a href="{{ route('onboarding_StoreReady') }}" class="text-[#475569] font-bold px-6 py-2">Skip
                             for Now</a>
                         <button type="submit"
-                            class="bg-[#0052CC] text-white font-bold px-8 py-3 rounded-lg shadow-lg shadow-[#0052CC]/20">Save
+                            class="bg-brand text-white font-bold px-8 py-3 rounded-lg shadow-lg shadow-brand/20">Save
                             & Continue</button>
                     </div>
                 </div>
@@ -447,7 +447,7 @@
 
             <div class="flex items-center justify-end gap-3 border-t border-[#F1F5F9] bg-[#F8FAFC] px-6 py-4">
                 <button type="button" id="cancelVariationModal" class="px-4 py-2 text-sm font-semibold text-[#475569] hover:text-[#1E293B]">Cancel</button>
-                <button type="button" id="submitVariationModal" class="flex items-center gap-2 rounded-lg bg-[#0052CC] px-5 py-2 text-sm font-bold text-white shadow-md shadow-[#0052CC]/20 transition hover:bg-[#0047B3]">
+                <button type="button" id="submitVariationModal" class="flex items-center gap-2 rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white shadow-md shadow-brand/20 transition hover:bg-brand-hover">
                     <span id="submitVariationModalLabel">Add Variation</span>
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                         <path d="M4 5.33333H0V4H4V0H5.33333V4H9.33333V5.33333H5.33333V9.33333H4V5.33333Z" fill="white"/>
@@ -844,7 +844,7 @@
                         <div class="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5">
                             <div class="flex items-center justify-between mb-3 gap-3">
                                 <div>
-                                    <span class="text-base text-[#0F172A] font-poppins">Variation ${variationIndex + 1}: ${escapeHtml(variationType.name || 'Variation')}</span>
+                                    <span class="text-base text-[#0F172A]">Variation ${variationIndex + 1}: ${escapeHtml(variationType.name || 'Variation')}</span>
                                     <div class="mt-1 text-xs text-[#94A3B8] uppercase">${escapeHtml(variationType.type || 'select')}</div>
                                 </div>
                                 <div class="flex items-center gap-3">

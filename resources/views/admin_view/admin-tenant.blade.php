@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-sidebar')
+@extends('layouts.admin.admin-sidebar')
 
 @section('title', 'Managed Stores')
 
@@ -24,7 +24,7 @@
     <!-- action buttons -->
     <div class="flex items-center gap-3 shrink-0">
         <!-- Create New Store button -->
-        <button class="hidden sm:flex items-center gap-2 bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-[#0047B3] transition-colors">
+        <button class="hidden sm:flex items-center gap-2 bg-brand text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:bg-brand-hover transition-colors">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
             </svg>
@@ -69,7 +69,7 @@
 
 <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
     <div>
-        <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">Managed Stores</h1>
+        <h1 class="text-2xl font-medium text-[#0F172A]">Managed Stores</h1>
         <p class="text-sm text-[#64748B]">You currently have access to 142 active multi-tenant instances.</p>
     </div>
     <!-- view toggle (grid/list) -->
@@ -90,7 +90,7 @@
     <!-- quick filters -->
     <div class="flex flex-wrap items-center gap-2">
         <span class="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">Quick Filters:</span>
-        <button class="px-3 py-1.5 text-xs font-semibold rounded-full bg-[#0052CC]/10 text-[#0052CC] border border-[#0052CC]/20">All Stores</button>
+        <button class="px-3 py-1.5 text-xs font-semibold rounded-full bg-brand/10 text-[#0052CC] border border-[#0052CC]/20">All Stores</button>
         <button class="px-3 py-1.5 text-xs font-semibold rounded-full bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">Fashion (24)</button>
         <button class="px-3 py-1.5 text-xs font-semibold rounded-full bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">Digital Goods (18)</button>
         <button class="px-3 py-1.5 text-xs font-semibold rounded-full bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">Services (12)</button>
@@ -111,7 +111,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Fashion</span>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">Velvet & Vine</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">Velvet & Vine</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none">
                         <use href="#link-icon" />
@@ -151,7 +151,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Digital Goods</span>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 leading-tight font-poppins">Pixel Perfect<br>Assets</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3 leading-tight">Pixel Perfect<br>Assets</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none"><use href="#link-icon" /></svg>
                     <span>pixel-perfect.baas-core.com</span>
@@ -175,7 +175,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Food & Drink</span>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">Crave & Co</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">Crave & Co</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none"><use href="#link-icon" /></svg>
                     <span>crave-co.baas-core.com</span>
@@ -199,7 +199,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Fitness</span>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 font-poppins">Apex Activewear</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3">Apex Activewear</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none"><use href="#link-icon" /></svg>
                     <span>apex-active.baas-core.com</span>
@@ -223,7 +223,7 @@
                     </div>
                     <span class="text-[10px] font-bold uppercase px-2 py-1 bg-[#F1F5F9] rounded text-[#64748B]">Education</span>
                 </div>
-                <h3 class="text-lg font-medium text-[#0F172A] mt-3 leading-tight font-poppins">The Knowledge<br>Hub</h3>
+                <h3 class="text-lg font-medium text-[#0F172A] mt-3 leading-tight">The Knowledge<br>Hub</h3>
                 <div class="flex items-center gap-1 text-xs text-[#94A3B8] mt-0.5">
                     <svg width="12" height="6" viewBox="0 0 12 6" fill="none"><use href="#link-icon" /></svg>
                     <span>k-hub.baas-core.com</span>
@@ -243,7 +243,7 @@
                     <path d="M6 8H0V6H6V0H8V6H14V8H8V14H6V8Z" fill="#94A3B8"/>
                 </svg>
             </div>
-            <h4 class="text-base font-medium text-[#0F172A] font-poppins">Provision New Tenant</h4>
+            <h4 class="text-base font-medium text-[#0F172A]">Provision New Tenant</h4>
             <p class="text-xs text-[#94A3B8] mt-1 max-w-[180px]">Spin up a new dedicated store instance in seconds.</p>
         </div>
     </div>
@@ -257,7 +257,7 @@
                     <path d="M5 10L0 5L5 0L6.16667 1.16667L2.33333 5L6.16667 8.83333L5 10Z" fill="currentColor"/>
                 </svg>
             </button>
-            <button class="w-9 h-9 flex items-center justify-center rounded-lg bg-[#0052CC] text-white font-bold">1</button>
+            <button class="w-9 h-9 flex items-center justify-center rounded-lg bg-brand text-white font-bold">1</button>
             <button class="w-9 h-9 flex items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] hover:bg-[#F8FAFC]">2</button>
             <button class="w-9 h-9 flex items-center justify-center rounded-lg border border-[#E2E8F0] bg-white text-[#0F172A] hover:bg-[#F8FAFC]">3</button>
             <span class="text-[#94A3B8]">...</span>

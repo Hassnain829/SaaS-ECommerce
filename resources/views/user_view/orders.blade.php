@@ -13,7 +13,7 @@
         </x-slot:search>
         @if($canManageOrders)
             <x-slot:actions>
-                <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-lg bg-[#0052CC] px-3 text-xs font-semibold text-white hover:bg-[#0047B3] xl:inline-flex">Create order</a>
+                <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-hover xl:inline-flex">Create order</a>
             </x-slot:actions>
         @endif
     </x-ui.merchant-topbar>
@@ -40,11 +40,11 @@
         @endif
 
         <div class="flex flex-wrap gap-2 text-sm font-semibold">
-            <a href="{{ route('orders', ['status' => 'all']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'all' ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
+            <a href="{{ route('orders', ['status' => 'all']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'all' ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
                 All ({{ $statusCounts['all'] ?? 0 }})
             </a>
             @foreach($orderStatuses as $status)
-                <a href="{{ route('orders', ['status' => $status]) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === $status ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
+                <a href="{{ route('orders', ['status' => $status]) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === $status ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
                     {{ \App\Support\OrderLifecycle::orderStatusLabel($status) }} ({{ $statusCounts[$status] ?? 0 }})
                 </a>
             @endforeach
@@ -55,7 +55,7 @@
         <div class="border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 md:px-6">
             <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Draft orders</h2>
+                    <h2 class="text-lg font-semibold text-[#0F172A]">Draft orders</h2>
                     <p class="text-sm text-[#64748B]">Manual orders that have not become confirmed orders yet.</p>
                 </div>
                 @if($canManageOrders)
@@ -131,7 +131,7 @@
 
     <section class="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden">
         <div class="border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 md:px-6">
-            <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Final orders</h2>
+            <h2 class="text-lg font-semibold text-[#0F172A]">Final orders</h2>
             <p class="text-sm text-[#64748B]">Confirmed customer orders stay separate from drafts.</p>
         </div>
         <div class="overflow-x-auto">

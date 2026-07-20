@@ -6,7 +6,7 @@
     @endphp
 
     <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
-        <h2 class="text-2xl font-poppins font-semibold text-[#0F172A]">Review your delivery setup</h2>
+        <h2 class="text-2xl font-semibold text-[#0F172A]">Review your delivery setup</h2>
         <p class="mt-2 text-sm text-[#64748B]">This summary reflects saved delivery settings. Tax is configured separately under Checkout &amp; tax.</p>
 
         <div class="mt-6 space-y-4">
@@ -65,7 +65,7 @@
             <a href="{{ route('settings.delivery.test-address') }}" class="text-sm font-semibold text-[#1D4ED8]">Test a customer address</a>
             <form method="POST" action="{{ route('settings.delivery.setup.finish') }}">
                 @csrf
-                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-5 text-sm font-bold text-white">Finish delivery setup</button>
+                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Finish delivery setup</button>
             </form>
         </div>
     </section>
