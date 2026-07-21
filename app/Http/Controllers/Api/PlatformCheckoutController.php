@@ -156,6 +156,7 @@ class PlatformCheckoutController extends Controller
         $validator = Validator::make($request->all(), [
             'source_channel' => ['nullable', 'string', 'max:64'],
             'currency_code' => ['nullable', 'string', 'max:8'],
+            'coupon_code' => ['nullable', 'string', 'max:100'],
             'shipping_total' => ['nullable', 'numeric', 'min:0'],
             'shipping_method_id' => ['nullable', 'integer'],
             'pickup_location_id' => ['nullable', 'integer'],
@@ -316,6 +317,7 @@ class PlatformCheckoutController extends Controller
                 ] : null,
                 'tax_total' => number_format((float) $checkout->tax_total, 2, '.', ''),
                 'discount_total' => number_format((float) $checkout->discount_total, 2, '.', ''),
+                'coupon' => data_get($checkout->metadata, 'coupon_snapshot'),
                 'grand_total' => number_format((float) $checkout->grand_total, 2, '.', ''),
                 'converted_order_id' => $checkout->converted_order_id,
                 'converted_order_number' => $checkout->convertedOrder?->order_number,

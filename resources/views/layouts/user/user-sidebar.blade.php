@@ -74,7 +74,7 @@
     @php
         $navSelling = request()->routeIs('products', 'products.' . 'create', 'orders', 'orderViewDetails', 'customers');
         $navActivity = request()->routeIs('team-members.index', 'analytics', 'notifications');
-        $navSettings = request()->routeIs('billingSubscription', 'generalSettings', 'settings.payments.*', 'settings.locations.*', 'settings.taxes.*', 'shippingAutomation', 'settings.shipping.*', 'developer-storefront.*', 'security');
+        $navSettings = request()->routeIs('billingSubscription', 'generalSettings', 'settings.payments.*', 'settings.locations.*', 'settings.taxes.*', 'settings.coupons.*', 'shippingAutomation', 'settings.shipping.*', 'developer-storefront.*', 'security');
     @endphp
 
     <nav id="merchantNav" class="sidebar-nav-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2.5 pb-3 pt-1">
@@ -182,6 +182,12 @@
                         <path d="M3 15V5C3 3.9 3.9 3 5 3H15C16.1 3 17 3.9 17 5V15C17 16.1 16.1 17 15 17H5C3.9 17 3 16.1 3 15ZM5 7H15V5H5V7ZM5 10H11V8H5V10ZM5 13H9V11H5V13Z" fill="currentColor"/>
                     </svg>
                     <span>Checkout &amp; tax</span>
+                </a>
+                <a href="{{ route('settings.coupons.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.coupons.*')])>
+                    <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M11.7 2H5C3.9 2 3 2.9 3 4V10.7C3 11.2 3.2 11.7 3.6 12.1L9.5 18L18 9.5L12.1 3.6C12 3.5 11.8 3.3 11.7 2ZM6.5 7C5.7 7 5 6.3 5 5.5S5.7 4 6.5 4 8 4.7 8 5.5 7.3 7 6.5 7ZM8 13.5L6.5 12 12 6.5 13.5 8 8 13.5Z" fill="currentColor"/>
+                    </svg>
+                    <span>Discounts</span>
                 </a>
                 <a href="{{ route('shippingAutomation') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('shippingAutomation', 'settings.shipping.*')])>
                     <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">

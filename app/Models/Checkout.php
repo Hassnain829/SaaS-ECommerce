@@ -116,6 +116,11 @@ class Checkout extends Model
         return $this->hasMany(CheckoutTaxLine::class);
     }
 
+    public function couponRedemption(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CouponRedemption::class);
+    }
+
     public function convertedOrder(): BelongsTo
     {
         return $this->belongsTo(Order::class, 'converted_order_id');

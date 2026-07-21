@@ -15,6 +15,7 @@ use App\Http\Controllers\Commerce\OrderController;
 use App\Http\Controllers\Commerce\ShipmentController;
 use App\Http\Controllers\Settings\DeliverySetupWizardController;
 use App\Http\Controllers\Settings\DeveloperStorefrontSettingsController;
+use App\Http\Controllers\Settings\CouponController;
 use App\Http\Controllers\Settings\LocationController;
 use App\Http\Controllers\Settings\PaymentSettingsController;
 use App\Http\Controllers\Settings\ShippingSettingsController;
@@ -244,6 +245,18 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::delete('/settings/taxes/rates/{taxRate}', [TaxSettingsController::class, 'destroyRate'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.taxes.rates.destroy');
+    Route::get('/settings/coupons', [CouponController::class, 'index'])
+        ->middleware('store.permission:settings.view')
+        ->name('settings.coupons.index');
+    Route::post('/settings/coupons', [CouponController::class, 'store'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.coupons.store');
+    Route::patch('/settings/coupons/{coupon}', [CouponController::class, 'update'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.coupons.update');
+    Route::delete('/settings/coupons/{coupon}', [CouponController::class, 'destroy'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.coupons.destroy');
     Route::get('/settings/payments', [PaymentSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('settings.payments.index');

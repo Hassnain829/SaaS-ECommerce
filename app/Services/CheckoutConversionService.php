@@ -12,6 +12,7 @@ use App\Models\PaymentCapture;
 use App\Models\PaymentIntent as LocalPaymentIntent;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Coupons\CouponService;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\OrderLifecycle;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class CheckoutConversionService
         private readonly CheckoutEventRecorder $checkoutEventRecorder,
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
+        private readonly CouponService $couponService,
     ) {}
 
     public function handleSucceededPayment(PaymentWebhookResult $result): ?Order
@@ -149,6 +151,7 @@ class CheckoutConversionService
                         'shipping' => $checkout->shipping_snapshot,
                         'fulfillment_routing' => $routingSnapshot,
                         'tax_snapshot' => data_get($checkout->metadata, 'tax_snapshot'),
+                        'coupon_snapshot' => data_get($checkout->metadata, 'coupon_snapshot'),
                         'platform_checkout' => [
                             'checkout_id' => $checkout->id,
                             'checkout_number' => $checkout->checkout_number,
@@ -204,6 +207,7 @@ class CheckoutConversionService
                         'meta' => [
                             'source' => self::SOURCE,
                             'checkout_item_id' => $item->id,
+                            'coupon' => data_get($item->metadata, 'coupon'),
                         ],
                     ]);
                 }
@@ -222,6 +226,8 @@ class CheckoutConversionService
                         'calculated_at' => $taxLine->calculated_at,
                     ]);
                 }
+
+                $this->couponService->redeem($checkout, $order);
 
                 $reservations = InventoryReservation::query()
                     ->where('store_id', $checkout->store_id)
@@ -407,6 +413,8 @@ class CheckoutConversionService
                     'reference_code' => $checkout->checkout_number,
                 ]);
             }
+
+            $this->couponService->release($checkout);
 
             $checkout->forceFill(['status' => Checkout::STATUS_FAILED])->save();
             $this->checkoutEventRecorder->record(

@@ -97,6 +97,7 @@ export default function App() {
   const [externalShippingAmount, setExternalShippingAmount] = useState('0');
   const [externalTaxAmount, setExternalTaxAmount] = useState('0');
   const [externalDiscountAmount, setExternalDiscountAmount] = useState('0');
+  const [platformCouponCode, setPlatformCouponCode] = useState('');
   const [externalCarrierName, setExternalCarrierName] = useState('');
   const [externalFulfillmentStatus, setExternalFulfillmentStatus] = useState('');
   const [externalTrackingNumber, setExternalTrackingNumber] = useState('');
@@ -445,6 +446,7 @@ export default function App() {
   const platformPayload = () => ({
     source_channel: 'dev_storefront',
     currency_code: catalog?.store?.currency || 'USD',
+    coupon_code: platformCouponCode.trim() || null,
     shipping_total: 0,
     customer: {
       full_name: customerName.trim(),
@@ -1226,6 +1228,25 @@ export default function App() {
               </label>
             </div>
             </div>
+
+            {checkoutMode === 'platform' && (
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+                <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.85rem', color: '#334155' }}>B. Coupon code (optional)</h4>
+                <p style={{ margin: '0 0 0.65rem', color: '#64748b', fontSize: '0.76rem', lineHeight: 1.5 }}>
+                  Enter a coupon created in Dashboard → Settings → Discounts. The platform validates and calculates the discount.
+                </p>
+                <label style={{ fontSize: '0.8rem' }}>
+                  Coupon code
+                  <input
+                    value={platformCouponCode}
+                    onChange={(e) => { setPlatformCouponCode(e.target.value.toUpperCase()); resetPlatformCheckout(); }}
+                    placeholder="WELCOME10"
+                    maxLength={100}
+                    style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                  />
+                </label>
+              </div>
+            )}
 
             {checkoutMode === 'external' && (
               <>
