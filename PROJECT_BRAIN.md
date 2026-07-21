@@ -151,13 +151,13 @@ ALWAYS:
 
 Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integrator connectivity and validation tooling are implemented; **production carrier approvals and live carrier operation remain pending.**
 
-Current approved focus: Phase 9 Integration Foundation. Phase 5R-2, Phase 5R-3, and Phase 7 remain pending and are not considered complete.
+Current approved focus: Phase 9 Integration Foundation. Phase 5R-3 and Phase 7 remain pending and are not considered complete.
 
 ### Phase 5R (calculation and tax)
 
 - **5R-0 (completed 2026-06-24):** Current calculation audit — `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`
 - **5R-1 (complete 2026-06-25):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator`, platform checkout tax, shipping recalculation, PaymentIntent synchronization, conversion invariant, order tax snapshots, product taxable defaults, draft/manual calculated tax, and external preservation — final report: `docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`
-- **5R-2 (pending):** Coupons
+- **5R-2 (complete 2026-07-22):** Store-scoped coupons (fixed/percentage, min/max, dates, usage limits, product/category eligibility), checkout apply/remove + mid-checkout item/address revalidation, draft-order apply + convert redeem, external opt-in platform coupons, abandoned-checkout reservation release — covered by `tests/Feature/Phase5R2CouponTest.php`
 - **5R-3 (pending):** Checkout/order totals hardening
 
 ### Implemented foundations
@@ -170,6 +170,7 @@ Current approved focus: Phase 9 Integration Foundation. Phase 5R-2, Phase 5R-3, 
 - Checkout delivery methods
 - Stripe platform checkout and Stripe Connect foundation
 - External checkout synchronization (developer storefront prototype)
+- Coupons and discount rules (Phase 5R-2)
 - Security logs and user sessions
 - FedEx Model A connectivity and validation workspace
 - USPS public API foundation
@@ -177,7 +178,6 @@ Current approved focus: Phase 9 Integration Foundation. Phase 5R-2, Phase 5R-3, 
 
 ### Partial or pending
 
-- Coupons (**5R-1 tax foundation complete; 5R-2 pending**)
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier rates/labels/tracking

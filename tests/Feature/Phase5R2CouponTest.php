@@ -55,6 +55,36 @@ class Phase5R2CouponTest extends TestCase
                     raw: ['id' => 'pi_coupon_'.$checkout->id, 'status' => 'requires_payment_method'],
                 );
             }
+
+            public function updatePaymentIntentAmount(
+                string $providerIntentId,
+                int $amountMinor,
+                string $currencyCode,
+                array $options = [],
+            ): \App\Data\Payments\PaymentIntentUpdateResult {
+                return new \App\Data\Payments\PaymentIntentUpdateResult(
+                    providerIntentId: $providerIntentId,
+                    amountMinor: $amountMinor,
+                    currencyCode: strtoupper($currencyCode),
+                    status: 'requires_payment_method',
+                    clientSecret: $providerIntentId.'_secret_test',
+                    raw: ['id' => $providerIntentId, 'amount' => $amountMinor, 'currency' => strtolower($currencyCode)],
+                    mode: 'test',
+                );
+            }
+
+            public function cancelPaymentIntent(string $providerIntentId, array $options = []): PaymentWebhookResult
+            {
+                return new PaymentWebhookResult(
+                    eventType: 'payment_intent.canceled',
+                    providerIntentId: $providerIntentId,
+                    status: 'canceled',
+                    amount: null,
+                    currencyCode: 'USD',
+                    raw: ['id' => $providerIntentId, 'status' => 'canceled'],
+                    mode: 'test',
+                );
+            }
         });
     }
 
@@ -291,6 +321,358 @@ class Phase5R2CouponTest extends TestCase
         $coupon->update(['value' => 19, 'code' => 'CHANGED']);
         $this->assertSame('ORDER5', data_get($order->fresh()->meta, 'coupon_snapshot.code'));
         $this->assertSame('5.00', (string) $order->fresh()->discount);
+    }
+
+    public function test_deleted_coupon_code_can_be_recreated_and_is_no_longer_usable(): void
+    {
+        [$store, $token, $owner] = $this->tokenedStore('Coupon Recreate Store');
+        [, $variant] = $this->product($store, price: 20);
+        $coupon = $this->coupon($store, ['code' => 'COMEBACK', 'type' => 'fixed', 'value' => 5]);
+
+        $this->actingAsStore($owner, $store)
+            ->delete(route('settings.coupons.destroy', $coupon))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSoftDeleted('coupons', ['id' => $coupon->id]);
+        $this->assertNotSame('COMEBACK', $coupon->fresh()->code);
+        $this->assertStringContainsString('__DEL_', $coupon->fresh()->code);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, ['coupon_code' => 'COMEBACK']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('coupon_code');
+
+        $this->actingAsStore($owner, $store)
+            ->post(route('settings.coupons.store'), $this->couponPayload([
+                'code' => 'COMEBACK',
+                'type' => 'fixed',
+                'value' => 4,
+            ]))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, Coupon::query()->forStore($store->id)->where('code', 'COMEBACK')->count());
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'coupon_code' => 'COMEBACK',
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('checkout.discount_total', '4.00')
+            ->assertJsonPath('checkout.coupon.code', 'COMEBACK');
+    }
+
+    public function test_failed_payment_releases_coupon_reservation_so_usage_limit_reopens(): void
+    {
+        [$store, $token] = $this->tokenedStore('Coupon Release Store');
+        [, $variant] = $this->product($store, price: 20, stock: 10);
+        $this->coupon($store, [
+            'code' => 'ONCEONLY',
+            'type' => 'fixed',
+            'value' => 5,
+            'total_usage_limit' => 1,
+        ]);
+
+        $response = $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'coupon_code' => 'ONCEONLY',
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ]))
+            ->assertCreated();
+
+        $checkout = Checkout::query()->findOrFail($response->json('checkout.id'));
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'checkout_id' => $checkout->id,
+            'status' => CouponRedemption::STATUS_RESERVED,
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'coupon_code' => 'ONCEONLY',
+                'customer' => ['email' => 'blocked.buyer@example.test'],
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('coupon_code');
+
+        app(CheckoutConversionService::class)->handleFailedPayment(new PaymentWebhookResult(
+            eventType: 'payment_intent.payment_failed',
+            providerIntentId: 'pi_coupon_'.$checkout->id,
+            status: 'failed',
+            amount: 15.00,
+            currencyCode: 'USD',
+            raw: [
+                'id' => 'evt_coupon_failed',
+                'type' => 'payment_intent.payment_failed',
+                'object' => ['id' => 'pi_coupon_'.$checkout->id, 'amount' => 1500, 'currency' => 'usd'],
+            ],
+        ));
+
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'checkout_id' => $checkout->id,
+            'status' => CouponRedemption::STATUS_RELEASED,
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'coupon_code' => 'ONCEONLY',
+                'customer' => ['email' => 'retry.buyer@example.test'],
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('checkout.discount_total', '5.00');
+    }
+
+    public function test_mid_checkout_apply_and_remove_coupon_recalculates_totals(): void
+    {
+        [$store, $token] = $this->tokenedStore('Coupon Mid Checkout Store');
+        [, $variant] = $this->product($store, price: 20);
+        $this->enableTenPercentTax($store);
+        $this->coupon($store, ['code' => 'MID10', 'type' => 'percentage', 'value' => 10]);
+
+        $created = $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('checkout.discount_total', '0.00')
+            ->assertJsonPath('checkout.tax_total', '2.00')
+            ->assertJsonPath('checkout.grand_total', '22.00');
+
+        $checkoutId = $created->json('checkout.id');
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkoutId.'/coupon', ['coupon_code' => 'mid10'])
+            ->assertOk()
+            ->assertJsonPath('checkout.discount_total', '2.00')
+            ->assertJsonPath('checkout.tax_total', '1.80')
+            ->assertJsonPath('checkout.grand_total', '19.80')
+            ->assertJsonPath('checkout.coupon.code', 'MID10');
+
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'checkout_id' => $checkoutId,
+            'status' => CouponRedemption::STATUS_RESERVED,
+            'code_snapshot' => 'MID10',
+        ]);
+
+        $this->withToken($token)
+            ->deleteJson('/api/v1/checkout/'.$checkoutId.'/coupon')
+            ->assertOk()
+            ->assertJsonPath('checkout.discount_total', '0.00')
+            ->assertJsonPath('checkout.tax_total', '2.00')
+            ->assertJsonPath('checkout.grand_total', '22.00')
+            ->assertJsonPath('checkout.coupon', null);
+
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'checkout_id' => $checkoutId,
+            'status' => CouponRedemption::STATUS_RELEASED,
+        ]);
+    }
+
+    public function test_expired_checkout_command_releases_reserved_coupon(): void
+    {
+        [$store, $token] = $this->tokenedStore('Coupon Expire Store');
+        [, $variant] = $this->product($store, price: 20, stock: 10);
+        $this->coupon($store, [
+            'code' => 'EXPIRE1',
+            'type' => 'fixed',
+            'value' => 5,
+            'total_usage_limit' => 1,
+        ]);
+
+        $response = $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'coupon_code' => 'EXPIRE1',
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ]))
+            ->assertCreated();
+
+        $checkout = Checkout::query()->findOrFail($response->json('checkout.id'));
+        $checkout->forceFill(['expires_at' => now('UTC')->subMinute()])->save();
+
+        $this->artisan('checkouts:expire-abandoned')->assertSuccessful();
+
+        $this->assertSame(Checkout::STATUS_CANCELLED, $checkout->fresh()->status);
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'checkout_id' => $checkout->id,
+            'status' => CouponRedemption::STATUS_RELEASED,
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'coupon_code' => 'EXPIRE1',
+                'customer' => ['email' => 'after.expire@example.test'],
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('checkout.discount_total', '5.00');
+    }
+
+    public function test_external_order_can_opt_into_platform_coupon_calculation(): void
+    {
+        [$store, $token] = $this->tokenedStore('Coupon External Store');
+        [, $variant] = $this->product($store, price: 40);
+        $this->coupon($store, ['code' => 'EXT25', 'type' => 'percentage', 'value' => 25]);
+
+        $response = $this->withToken($token)
+            ->postJson('/api/v1/external/orders', [
+                'external_order_id' => 'ext-coupon-1',
+                'external_order_number' => 'EXT-COUPON-1',
+                'payment_status' => 'paid',
+                'currency_code' => 'USD',
+                'discount_calculation' => 'platform',
+                'coupon_code' => 'ext25',
+                'shipping_total' => 0,
+                'tax_total' => 0,
+                'customer' => [
+                    'full_name' => 'External Buyer',
+                    'email' => 'external.coupon@example.test',
+                ],
+                'shipping_address' => [
+                    'name' => 'External Buyer',
+                    'address_line1' => '1 External Way',
+                    'city' => 'Austin',
+                    'state' => 'TX',
+                    'postal_code' => '73301',
+                    'country' => 'US',
+                ],
+                'items' => [
+                    ['variant_id' => $variant->id, 'quantity' => 1],
+                ],
+            ])
+            ->assertCreated();
+
+        $orderId = $response->json('order.id');
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'discount' => 10.00,
+            'grand_total' => 30.00,
+        ]);
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'order_id' => $orderId,
+            'checkout_id' => null,
+            'status' => CouponRedemption::STATUS_REDEEMED,
+            'code_snapshot' => 'EXT25',
+            'discount_amount' => 10.00,
+        ]);
+        $this->assertSame('EXT25', data_get(
+            \App\Models\Order::query()->findOrFail($orderId)->meta,
+            'coupon_snapshot.code'
+        ));
+    }
+
+    public function test_mid_checkout_item_update_recalculates_coupon_and_may_clear_it(): void
+    {
+        [$store, $token] = $this->tokenedStore('Coupon Items Update Store');
+        [, $variant] = $this->product($store, price: 20, stock: 20);
+        $this->coupon($store, [
+            'code' => 'MIN50',
+            'type' => 'fixed',
+            'value' => 5,
+            'minimum_order_amount' => 50,
+        ]);
+
+        $created = $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'coupon_code' => 'MIN50',
+                'items' => [['variant_id' => $variant->id, 'quantity' => 3]],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('checkout.discount_total', '5.00');
+
+        $checkoutId = $created->json('checkout.id');
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkoutId.'/items', [
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('checkout.discount_total', '0.00')
+            ->assertJsonPath('checkout.coupon', null);
+
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'checkout_id' => $checkoutId,
+            'status' => CouponRedemption::STATUS_RELEASED,
+        ]);
+    }
+
+    public function test_shipping_address_update_revalidates_coupon(): void
+    {
+        [$store, $token] = $this->tokenedStore('Coupon Address Store');
+        [, $variant] = $this->product($store, price: 20);
+        $this->enableTenPercentTax($store);
+        $this->coupon($store, ['code' => 'ADDR10', 'type' => 'percentage', 'value' => 10]);
+
+        $created = $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->checkoutPayload($variant, [
+                'coupon_code' => 'ADDR10',
+                'items' => [['variant_id' => $variant->id, 'quantity' => 1]],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('checkout.discount_total', '2.00');
+
+        $checkoutId = $created->json('checkout.id');
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkoutId.'/shipping-address', [
+                'shipping_address' => [
+                    'name' => 'Moved Buyer',
+                    'address_line1' => '999 New St',
+                    'city' => 'Austin',
+                    'state' => 'TX',
+                    'postal_code' => '73301',
+                    'country' => 'US',
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('checkout.discount_total', '2.00')
+            ->assertJsonPath('checkout.coupon.code', 'ADDR10');
+    }
+
+    public function test_draft_order_applies_coupon_code_and_redeems_on_convert(): void
+    {
+        [$store, , $owner] = $this->tokenedStore('Coupon Draft Store');
+        [, $variant] = $this->product($store, price: 40, stock: 10);
+        $this->coupon($store, ['code' => 'DRAFT25', 'type' => 'percentage', 'value' => 25]);
+
+        $response = $this->actingAsStore($owner, $store)
+            ->post(route('draft-orders.store'), [
+                'customer_name' => 'Draft Buyer',
+                'customer_email' => 'draft.coupon@example.test',
+                'shipping_name' => 'Draft Buyer',
+                'shipping_address_line1' => '10 Draft Road',
+                'shipping_city' => 'Austin',
+                'shipping_state' => 'TX',
+                'shipping_postal_code' => '73301',
+                'shipping_country' => 'US',
+                'billing_same_as_shipping' => '1',
+                'coupon_code' => 'DRAFT25',
+                'discount_total' => '0.00',
+                'shipping_total' => '0.00',
+                'tax_total' => '0.00',
+                'tax_mode' => 'manual',
+                'items' => [
+                    ['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => '40'],
+                ],
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+
+        $draft = \App\Models\DraftOrder::query()->where('store_id', $store->id)->latest('id')->firstOrFail();
+        $this->assertSame('10.00', (string) $draft->discount_total);
+        $this->assertSame('DRAFT25', data_get($draft->metadata, 'coupon_snapshot.code'));
+
+        $order = app(\App\Services\ManualOrderConversionService::class)->convert($draft, $store, $owner);
+        $this->assertSame('10.00', (string) $order->discount);
+        $this->assertSame('DRAFT25', data_get($order->meta, 'coupon_snapshot.code'));
+        $this->assertDatabaseHas('coupon_redemptions', [
+            'order_id' => $order->id,
+            'status' => CouponRedemption::STATUS_REDEEMED,
+            'code_snapshot' => 'DRAFT25',
+        ]);
     }
 
     private function tokenedStore(string $name): array

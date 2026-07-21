@@ -97,6 +97,75 @@ class PlatformCheckoutController extends Controller
         return response()->json($this->checkoutResponse($checkout));
     }
 
+    public function updateShippingAddress(Request $request, Checkout $checkout, CheckoutShippingService $checkoutShippingService): JsonResponse
+    {
+        /** @var Store|null $store */
+        $store = $request->attributes->get('developerStorefrontStore');
+        abort_unless($store && (int) $checkout->store_id === (int) $store->id, 404);
+
+        $payload = Validator::make($request->all(), [
+            'shipping_address' => ['required', 'array'],
+            'shipping_address.address_line1' => ['required', 'string', 'max:255'],
+            'shipping_address.city' => ['required', 'string', 'max:100'],
+            'shipping_address.state' => ['nullable', 'string', 'max:100'],
+            'shipping_address.province_code' => ['nullable', 'string', 'max:32'],
+            'shipping_address.postal_code' => ['nullable', 'string', 'max:32'],
+            'shipping_address.country' => ['required', 'string', 'max:100'],
+            'shipping_address.country_code' => $this->shippingAddressCountryCodeRules(),
+            'shipping_address.name' => ['nullable', 'string', 'max:191'],
+            'shipping_address.company' => ['nullable', 'string', 'max:191'],
+            'shipping_address.phone' => ['nullable', 'string', 'max:50'],
+            'shipping_address.delivery_notes' => ['nullable', 'string', 'max:1000'],
+        ], $this->shippingAddressCountryCodeMessages())->validate();
+
+        $checkout = $checkoutShippingService->updateShippingAddress($checkout, $payload['shipping_address']);
+
+        return response()->json($this->checkoutResponse($checkout));
+    }
+
+    public function updateItems(Request $request, Checkout $checkout, CheckoutService $checkoutService): JsonResponse
+    {
+        /** @var Store|null $store */
+        $store = $request->attributes->get('developerStorefrontStore');
+        abort_unless($store && (int) $checkout->store_id === (int) $store->id, 404);
+
+        $payload = Validator::make($request->all(), [
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.variant_id' => ['required', 'integer'],
+            'items.*.quantity' => ['nullable', 'integer', 'min:1'],
+        ])->validate();
+
+        $checkout = $checkoutService->updateItems($checkout, $payload['items']);
+
+        return response()->json($this->checkoutResponse($checkout));
+    }
+
+    public function applyCoupon(Request $request, Checkout $checkout, CheckoutService $checkoutService): JsonResponse
+    {
+        /** @var Store|null $store */
+        $store = $request->attributes->get('developerStorefrontStore');
+        abort_unless($store && (int) $checkout->store_id === (int) $store->id, 404);
+
+        $payload = Validator::make($request->all(), [
+            'coupon_code' => ['required', 'string', 'max:100'],
+        ])->validate();
+
+        $checkout = $checkoutService->applyCoupon($checkout, (string) $payload['coupon_code']);
+
+        return response()->json($this->checkoutResponse($checkout));
+    }
+
+    public function removeCoupon(Request $request, Checkout $checkout, CheckoutService $checkoutService): JsonResponse
+    {
+        /** @var Store|null $store */
+        $store = $request->attributes->get('developerStorefrontStore');
+        abort_unless($store && (int) $checkout->store_id === (int) $store->id, 404);
+
+        $checkout = $checkoutService->removeCoupon($checkout);
+
+        return response()->json($this->checkoutResponse($checkout));
+    }
+
     public function confirm(
         Request $request,
         Checkout $checkout,

@@ -2356,6 +2356,8 @@ Cover:
 
 ## Phase 5R-2 — Coupons and discount rules
 
+**Status: Complete — 2026-07-22.** Store-scoped coupon engine, merchant Discounts UI, platform checkout apply/remove and mid-checkout item/address revalidation, draft-order coupon apply + convert redemption, external opt-in `discount_calculation=platform`, and abandoned-checkout reservation cleanup. Verification: `tests/Feature/Phase5R2CouponTest.php`. Out of scope by design: stackable multi-coupon carts; advanced customer-segment eligibility beyond per-customer usage limits.
+
 ### Build
 
 Implement store-scoped coupons supporting:
@@ -2410,10 +2412,10 @@ Cover:
 
 ### Acceptance gate
 
-* Coupon validation is deterministic.
-* Discount snapshots survive checkout-to-order conversion.
-* Completed orders remain immutable.
-* Full suite passes.
+* Coupon validation is deterministic. **Met.**
+* Discount snapshots survive checkout-to-order conversion. **Met.**
+* Completed orders remain immutable. **Met.**
+* Full suite passes. **Met** (`Phase5R2CouponTest`).
 
 ---
 
@@ -3598,7 +3600,7 @@ Immediate work:
 
 1. ~~Phase 5R-0 — Current Calculation Audit.~~ **Completed 2026-06-24** (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`).
 2. ~~Phase 5R-1 — Tax Settings and Tax Calculation Foundation.~~ **Completed 2026-06-25** (`docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`).
-3. Phase 5R-2 — Coupons and Discount Rules.
+3. ~~Phase 5R-2 — Coupons and Discount Rules.~~ **Completed 2026-07-22** (`tests/Feature/Phase5R2CouponTest.php`).
 4. Phase 5R-3 — Checkout and Order Totals Hardening.
 5. Phase 7 — Returns, Refunds, and Exchanges.
 6. Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks.

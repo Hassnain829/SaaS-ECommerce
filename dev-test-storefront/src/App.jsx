@@ -98,6 +98,7 @@ export default function App() {
   const [externalTaxAmount, setExternalTaxAmount] = useState('0');
   const [externalDiscountAmount, setExternalDiscountAmount] = useState('0');
   const [platformCouponCode, setPlatformCouponCode] = useState('');
+  const [externalUsePlatformCoupon, setExternalUsePlatformCoupon] = useState(false);
   const [externalCarrierName, setExternalCarrierName] = useState('');
   const [externalFulfillmentStatus, setExternalFulfillmentStatus] = useState('');
   const [externalTrackingNumber, setExternalTrackingNumber] = useState('');
@@ -333,13 +334,15 @@ export default function App() {
       currency_code: catalog?.store?.currency || 'USD',
       shipping_total: shippingAmount,
       tax_total: taxAmount,
-      discount_total: discountAmount,
+      discount_total: externalUsePlatformCoupon ? undefined : discountAmount,
+      discount_calculation: externalUsePlatformCoupon ? 'platform' : 'external',
+      coupon_code: externalUsePlatformCoupon ? (platformCouponCode.trim() || null) : null,
       totals: {
         subtotal: subtotalAmount,
         shipping: shippingAmount,
         tax: taxAmount,
-        discount: discountAmount,
-        grand_total: grandTotal,
+        discount: externalUsePlatformCoupon ? undefined : discountAmount,
+        grand_total: externalUsePlatformCoupon ? undefined : grandTotal,
       },
       customer: {
         full_name: customerName.trim(),
@@ -1239,12 +1242,85 @@ export default function App() {
                   Coupon code
                   <input
                     value={platformCouponCode}
-                    onChange={(e) => { setPlatformCouponCode(e.target.value.toUpperCase()); resetPlatformCheckout(); }}
+                    onChange={(e) => setPlatformCouponCode(e.target.value.toUpperCase())}
                     placeholder="WELCOME10"
                     maxLength={100}
                     style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                   />
                 </label>
+                {platformCheckoutDraft?.id ? (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.65rem', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      disabled={loading || !platformCouponCode.trim()}
+                      onClick={async () => {
+                        setError('');
+                        setLoading(true);
+                        try {
+                          const res = await fetch(`${checkoutBase}/${platformCheckoutDraft.id}/coupon`, {
+                            method: 'POST',
+                            headers: {
+                              Accept: 'application/json',
+                              'Content-Type': 'application/json',
+                              ...authHeaders(),
+                            },
+                            body: JSON.stringify({ coupon_code: platformCouponCode.trim() }),
+                          });
+                          const raw = await res.text();
+                          const data = raw ? JSON.parse(raw) : {};
+                          if (!res.ok) {
+                            throw new Error(data.message || data.errors?.coupon_code?.[0] || `Coupon apply failed (${res.status})`);
+                          }
+                          setPlatformCheckoutDraft(data.checkout);
+                          setPlatformPayment(data.payment || null);
+                        } catch (err) {
+                          setError(err.message || String(err));
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      style={{ padding: '0.4rem 0.75rem', borderRadius: 6, border: '1px solid #4f46e5', background: '#4f46e5', color: '#fff', fontSize: '0.8rem' }}
+                    >
+                      Apply to checkout
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loading || !platformCheckoutDraft?.coupon}
+                      onClick={async () => {
+                        setError('');
+                        setLoading(true);
+                        try {
+                          const res = await fetch(`${checkoutBase}/${platformCheckoutDraft.id}/coupon`, {
+                            method: 'DELETE',
+                            headers: {
+                              Accept: 'application/json',
+                              ...authHeaders(),
+                            },
+                          });
+                          const raw = await res.text();
+                          const data = raw ? JSON.parse(raw) : {};
+                          if (!res.ok) {
+                            throw new Error(data.message || `Coupon remove failed (${res.status})`);
+                          }
+                          setPlatformCouponCode('');
+                          setPlatformCheckoutDraft(data.checkout);
+                          setPlatformPayment(data.payment || null);
+                        } catch (err) {
+                          setError(err.message || String(err));
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      style={{ padding: '0.4rem 0.75rem', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontSize: '0.8rem' }}
+                    >
+                      Remove coupon
+                    </button>
+                  </div>
+                ) : (
+                  <p style={{ margin: '0.5rem 0 0', color: '#64748b', fontSize: '0.76rem' }}>
+                    Or include the code when creating checkout. After a draft exists, use Apply / Remove above.
+                  </p>
+                )}
               </div>
             )}
 
@@ -1314,11 +1390,38 @@ export default function App() {
                       min="0"
                       step="0.01"
                       inputMode="decimal"
+                      disabled={externalUsePlatformCoupon}
                       value={externalDiscountAmount}
                       onChange={(e) => setExternalDiscountAmount(e.target.value)}
                       style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
                     />
                   </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: '0.75rem', fontSize: '0.8rem', color: '#334155' }}>
+                    <input
+                      type="checkbox"
+                      checked={externalUsePlatformCoupon}
+                      onChange={(e) => setExternalUsePlatformCoupon(e.target.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span>
+                      Use platform coupon calculation
+                      <span style={{ display: 'block', color: '#64748b', fontSize: '0.74rem', marginTop: 2 }}>
+                        Opt-in only. Sends <code>discount_calculation=platform</code> with a Dashboard coupon code.
+                      </span>
+                    </span>
+                  </label>
+                  {externalUsePlatformCoupon && (
+                    <label style={{ fontSize: '0.8rem', display: 'block', marginTop: '0.5rem' }}>
+                      Platform coupon code
+                      <input
+                        value={platformCouponCode}
+                        onChange={(e) => setPlatformCouponCode(e.target.value.toUpperCase())}
+                        placeholder="WELCOME10"
+                        maxLength={100}
+                        style={{ display: 'block', width: '100%', marginTop: 4, padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #cbd5e1' }}
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>

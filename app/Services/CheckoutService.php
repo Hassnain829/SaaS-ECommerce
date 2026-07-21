@@ -15,6 +15,7 @@ use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Payments\PaymentProviderManager;
+use App\Services\Shipping\CheckoutShippingService;
 use App\Services\Shipping\DeliveryOptionService;
 use App\Support\CheckoutMode;
 use App\Support\Money\CurrencyPrecision;
@@ -37,6 +38,7 @@ class CheckoutService
         private readonly FulfillmentOriginRouter $originRouter,
         private readonly CheckoutTotalsService $checkoutTotalsService,
         private readonly CouponService $couponService,
+        private readonly CheckoutShippingService $checkoutShippingService,
     ) {}
 
     /**
@@ -356,6 +358,449 @@ class CheckoutService
         });
     }
 
+    public function applyCoupon(Checkout $checkout, string $code): Checkout
+    {
+        return DB::transaction(function () use ($checkout, $code): Checkout {
+            $checkout = $this->lockMutableCheckout($checkout);
+            $this->couponService->release($checkout);
+
+            $couponDiscount = $this->couponService->calculate(
+                $checkout->store,
+                $checkout->customer,
+                (string) $checkout->currency_code,
+                $this->preparedItemsFromCheckout($checkout),
+                $code,
+            );
+
+            $this->recalculateCheckoutWithCoupon($checkout, $couponDiscount);
+            $this->couponService->reserve($checkout, $checkout->customer, $couponDiscount);
+            $this->eventRecorder->record(
+                $checkout,
+                'coupon.applied',
+                'Coupon applied',
+                'Coupon '.$couponDiscount->coupon->code.' was applied to this checkout.',
+                [
+                    'coupon_id' => $couponDiscount->coupon->id,
+                    'code' => $couponDiscount->coupon->code,
+                    'discount_total' => $couponDiscount->discountTotal,
+                ],
+            );
+            $this->checkoutShippingService->syncPaymentIntent($checkout, 'coupon');
+
+            return $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount', 'taxLines']);
+        });
+    }
+
+    public function removeCoupon(Checkout $checkout): Checkout
+    {
+        return DB::transaction(function () use ($checkout): Checkout {
+            $checkout = $this->lockMutableCheckout($checkout);
+            $previousCode = data_get($checkout->metadata, 'coupon_snapshot.code');
+            $this->couponService->release($checkout);
+            $this->recalculateCheckoutWithCoupon($checkout, null);
+
+            if (filled($previousCode)) {
+                $this->eventRecorder->record(
+                    $checkout,
+                    'coupon.removed',
+                    'Coupon removed',
+                    'Coupon '.$previousCode.' was removed from this checkout.',
+                    ['code' => $previousCode],
+                );
+            }
+
+            $this->checkoutShippingService->syncPaymentIntent($checkout, 'coupon');
+
+            return $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount', 'taxLines']);
+        });
+    }
+
+    /**
+     * @param  list<array{variant_id: int, quantity?: int}>  $rows
+     */
+    public function updateItems(Checkout $checkout, array $rows): Checkout
+    {
+        return DB::transaction(function () use ($checkout, $rows): Checkout {
+            $checkout = $this->lockMutableCheckout($checkout);
+            $store = $checkout->store;
+            $prepared = $this->prepareItems($store, $rows);
+            $previousCouponCode = data_get($checkout->metadata, 'coupon_snapshot.code');
+
+            $this->couponService->release($checkout);
+            $this->releaseCheckoutReservations($checkout);
+
+            $couponDiscount = null;
+            $couponCleared = false;
+            if (filled($previousCouponCode)) {
+                try {
+                    $couponDiscount = $this->couponService->calculate(
+                        $store,
+                        $checkout->customer,
+                        (string) $checkout->currency_code,
+                        $prepared,
+                        (string) $previousCouponCode,
+                    );
+                } catch (ValidationException $exception) {
+                    $couponCleared = true;
+                    $couponDiscount = null;
+                }
+            }
+
+            $taxSetting = TaxSetting::query()
+                ->where('store_id', $store->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $taxSetting) {
+                throw ValidationException::withMessages([
+                    'checkout' => 'Tax settings are not available for this store right now. Please try again later or contact support.',
+                ]);
+            }
+
+            $shippingAddress = $this->shippingAddressFromCheckout($checkout);
+            $totalsResult = $this->checkoutTotalsService->calculate(
+                $store,
+                $taxSetting,
+                (string) $checkout->currency_code,
+                $prepared,
+                (string) $checkout->shipping_total,
+                $shippingAddress,
+                couponDiscount: $couponDiscount,
+            );
+
+            $checkout->items()->delete();
+
+            $origin = $checkout->fulfillmentOriginLocation
+                ?: \App\Models\Location::query()->whereKey($checkout->fulfillment_origin_location_id)->first();
+
+            $reservationCount = 0;
+            foreach ($prepared as $item) {
+                /** @var ProductVariant $variant */
+                $variant = $item['variant'];
+                $inventoryItem = $this->syncService->ensureInventoryItemForVariant($variant);
+                $reservation = $this->reservationService->reserve(
+                    $inventoryItem,
+                    (int) $item['quantity'],
+                    'checkout',
+                    (string) $checkout->id,
+                    $origin,
+                    $checkout->expires_at,
+                    [
+                        'source' => self::SOURCE,
+                        'reference_type' => 'checkout',
+                        'reference_id' => $checkout->id,
+                        'reference_code' => $checkout->checkout_number,
+                        'checkout_reference' => $checkout->checkout_number,
+                        'validation_key' => 'items',
+                        'metadata' => [
+                            'checkout_number' => $checkout->checkout_number,
+                            'variant_id' => $variant->id,
+                        ],
+                    ],
+                );
+                $reservationCount++;
+
+                $product = $variant->product;
+                $primaryImage = $product?->primaryImage();
+                $lineKey = CheckoutTotalsService::lineKeyForVariant((int) $variant->id);
+                $itemTotals = $totalsResult->itemTotalsFor($lineKey);
+                if (! $itemTotals) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Checkout totals could not be mapped to a catalog line.',
+                    ]);
+                }
+
+                $checkout->items()->create([
+                    'product_id' => $product?->id,
+                    'product_variant_id' => $variant->id,
+                    'product_name' => $product?->name ?? 'Catalog item',
+                    'variant_label' => $item['variant_label'],
+                    'sku_snapshot' => $variant->sku,
+                    'product_slug_snapshot' => $product?->slug,
+                    'brand_name_snapshot' => $product?->brand?->name,
+                    'product_image_snapshot' => $primaryImage?->image_path,
+                    'product_type_snapshot' => $product?->product_type,
+                    'variant_details' => $item['variant_details'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $this->money($variant->price),
+                    'subtotal' => $this->money($itemTotals->subtotal),
+                    'discount_amount' => $this->money($itemTotals->discountAmount),
+                    'tax_amount' => $this->money($itemTotals->taxAmount),
+                    'total' => $this->money($itemTotals->total),
+                    'metadata' => [
+                        'reservation_id' => $reservation->id,
+                        'tax' => [
+                            'is_taxable' => $itemTotals->isTaxable,
+                            'prices_include_tax' => $totalsResult->pricesIncludeTax,
+                            'settings_version' => $taxSetting->settings_version,
+                        ],
+                        'coupon' => $couponDiscount ? [
+                            'code' => $couponDiscount->coupon->code,
+                            'discount_amount' => $itemTotals->discountAmount,
+                        ] : null,
+                    ],
+                ]);
+            }
+
+            $this->checkoutTotalsService->replaceTaxLines($checkout, $totalsResult);
+
+            $metadata = $checkout->metadata ?? [];
+            $metadata['tax_snapshot'] = $totalsResult->taxSnapshot;
+            $metadata['coupon_snapshot'] = $couponDiscount?->snapshot;
+
+            $checkout->forceFill([
+                'subtotal' => $this->money($totalsResult->subtotal),
+                'discount_total' => $this->money($totalsResult->discountTotal),
+                'shipping_total' => $this->money($totalsResult->shippingTotal),
+                'tax_total' => $this->money($totalsResult->taxTotal),
+                'grand_total' => $this->money($totalsResult->grandTotal),
+                'metadata' => $metadata,
+            ])->save();
+
+            if ($couponDiscount) {
+                $this->couponService->reserve($checkout, $checkout->customer, $couponDiscount);
+            }
+
+            $this->eventRecorder->record(
+                $checkout,
+                'checkout.items_updated',
+                'Cart updated',
+                'Checkout line items were updated and totals were recalculated.',
+                ['reservation_count' => $reservationCount, 'item_count' => count($prepared)],
+            );
+
+            if ($couponCleared && filled($previousCouponCode)) {
+                $this->eventRecorder->record(
+                    $checkout,
+                    'coupon.removed',
+                    'Coupon removed',
+                    'Coupon '.$previousCouponCode.' no longer applied after the cart changed.',
+                    ['code' => $previousCouponCode, 'reason' => 'cart_changed'],
+                );
+            }
+
+            $this->checkoutShippingService->syncPaymentIntent($checkout, 'items');
+
+            return $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount', 'taxLines']);
+        });
+    }
+
+    /**
+     * Re-run coupon math for an existing checkout cart, or clear it when no longer valid.
+     *
+     * @return array{0: ?\App\Data\Coupons\CouponDiscountResult, 1: bool}
+     */
+    public function resolveCouponDiscountForCheckout(Checkout $checkout): array
+    {
+        $code = data_get($checkout->metadata, 'coupon_snapshot.code');
+        if (! filled($code) || ! $checkout->customer) {
+            return [null, false];
+        }
+
+        try {
+            $result = $this->couponService->calculate(
+                $checkout->store,
+                $checkout->customer,
+                (string) $checkout->currency_code,
+                $this->preparedItemsFromCheckout($checkout),
+                (string) $code,
+            );
+
+            return [$result, false];
+        } catch (ValidationException) {
+            $this->couponService->release($checkout);
+
+            return [null, true];
+        }
+    }
+
+    private function releaseCheckoutReservations(Checkout $checkout): void
+    {
+        $reservations = \App\Models\InventoryReservation::query()
+            ->where('store_id', $checkout->store_id)
+            ->where('reference_type', 'checkout')
+            ->where('reference_id', (string) $checkout->id)
+            ->whereIn('status', [
+                \App\Models\InventoryReservation::STATUS_ACTIVE,
+                \App\Models\InventoryReservation::STATUS_COMMITTED,
+            ])
+            ->get();
+
+        foreach ($reservations as $reservation) {
+            $this->reservationService->release($reservation, [
+                'source' => self::SOURCE,
+                'reference_type' => 'checkout',
+                'reference_id' => $checkout->id,
+                'reference_code' => $checkout->checkout_number,
+            ]);
+        }
+    }
+
+    private function lockMutableCheckout(Checkout $checkout): Checkout
+    {
+        $locked = Checkout::query()
+            ->with([
+                'store',
+                'customer',
+                'addresses',
+                'items.variant.product.categories:id',
+                'paymentProviderAccount',
+                'paymentIntents',
+            ])
+            ->whereKey($checkout->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        if ($locked->status !== Checkout::STATUS_PAYMENT_PENDING || $locked->converted_order_id) {
+            throw ValidationException::withMessages([
+                'checkout' => 'This checkout can only be changed before payment is completed.',
+            ]);
+        }
+
+        if (! $locked->customer) {
+            throw ValidationException::withMessages([
+                'checkout' => 'This checkout is missing customer data needed for coupons.',
+            ]);
+        }
+
+        return $locked;
+    }
+
+    /**
+     * @return list<array{variant: ProductVariant, quantity: int}>
+     */
+    private function preparedItemsFromCheckout(Checkout $checkout): array
+    {
+        $items = [];
+
+        foreach ($checkout->items as $item) {
+            $variant = $item->variant;
+            if (! $variant || ! $variant->product) {
+                throw ValidationException::withMessages([
+                    'items' => 'A checkout item is missing catalog data needed for coupon calculation.',
+                ]);
+            }
+
+            $items[] = [
+                'variant' => $variant,
+                'quantity' => (int) $item->quantity,
+            ];
+        }
+
+        return $items;
+    }
+
+    private function recalculateCheckoutWithCoupon(Checkout $checkout, ?\App\Data\Coupons\CouponDiscountResult $couponDiscount): void
+    {
+        $taxSetting = TaxSetting::query()
+            ->where('store_id', $checkout->store_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $taxSetting) {
+            throw ValidationException::withMessages([
+                'checkout' => 'Tax settings are not available for this store right now. Please try again later or contact support.',
+            ]);
+        }
+
+        $shippingAddress = $this->shippingAddressFromCheckout($checkout);
+        $totalsResult = $this->checkoutTotalsService->calculate(
+            $checkout->store,
+            $taxSetting,
+            (string) $checkout->currency_code,
+            $this->preparedItemsFromCheckout($checkout),
+            (string) $checkout->shipping_total,
+            $shippingAddress,
+            couponDiscount: $couponDiscount,
+        );
+
+        foreach ($checkout->items as $item) {
+            $lineKey = CheckoutTotalsService::lineKeyForVariant((int) $item->product_variant_id);
+            $itemTotals = $totalsResult->itemTotalsFor($lineKey);
+            if (! $itemTotals) {
+                throw ValidationException::withMessages([
+                    'items' => 'Checkout totals could not be mapped to a catalog line.',
+                ]);
+            }
+
+            $metadata = $item->metadata ?? [];
+            $metadata['tax'] = [
+                'is_taxable' => $itemTotals->isTaxable,
+                'prices_include_tax' => $totalsResult->pricesIncludeTax,
+                'settings_version' => $taxSetting->settings_version,
+            ];
+            $metadata['coupon'] = $couponDiscount ? [
+                'code' => $couponDiscount->coupon->code,
+                'discount_amount' => $itemTotals->discountAmount,
+            ] : null;
+
+            $item->forceFill([
+                'subtotal' => $this->money($itemTotals->subtotal),
+                'discount_amount' => $this->money($itemTotals->discountAmount),
+                'tax_amount' => $this->money($itemTotals->taxAmount),
+                'total' => $this->money($itemTotals->total),
+                'metadata' => $metadata,
+            ])->save();
+        }
+
+        $this->checkoutTotalsService->replaceTaxLines($checkout, $totalsResult);
+
+        $metadata = $checkout->metadata ?? [];
+        $metadata['tax_snapshot'] = $totalsResult->taxSnapshot;
+        $metadata['coupon_snapshot'] = $couponDiscount?->snapshot;
+
+        $checkout->forceFill([
+            'subtotal' => $this->money($totalsResult->subtotal),
+            'discount_total' => $this->money($totalsResult->discountTotal),
+            'shipping_total' => $this->money($totalsResult->shippingTotal),
+            'tax_total' => $this->money($totalsResult->taxTotal),
+            'grand_total' => $this->money($totalsResult->grandTotal),
+            'metadata' => $metadata,
+        ])->save();
+
+        $this->eventRecorder->record(
+            $checkout,
+            'checkout.totals_recalculated',
+            'Checkout total updated',
+            'Taxes and totals were recalculated after the coupon changed.',
+            [
+                'subtotal' => $this->money($totalsResult->subtotal),
+                'discount_total' => $this->money($totalsResult->discountTotal),
+                'shipping_total' => $this->money($totalsResult->shippingTotal),
+                'tax_total' => $this->money($totalsResult->taxTotal),
+                'grand_total' => $this->money($totalsResult->grandTotal),
+                'settings_version' => $taxSetting->settings_version,
+            ]
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function shippingAddressFromCheckout(Checkout $checkout): array
+    {
+        $address = $checkout->addresses->firstWhere('type', 'shipping');
+        if (! $address) {
+            return [];
+        }
+
+        return [
+            'name' => $address->name,
+            'email' => $address->email,
+            'company' => $address->company,
+            'address_line1' => $address->address_line1,
+            'address_line2' => $address->address_line2,
+            'city' => $address->city,
+            'state' => $address->state,
+            'province_code' => $address->province_code,
+            'postal_code' => $address->postal_code,
+            'country' => $address->country,
+            'country_code' => $address->country_code,
+            'phone' => $address->phone,
+            'delivery_notes' => $address->delivery_notes,
+        ];
+    }
+
     /**
      * @param  array<string, mixed>  $customerData
      */
@@ -422,7 +867,7 @@ class CheckoutService
 
         /** @var Collection<int, ProductVariant> $variants */
         $variants = ProductVariant::query()
-            ->with(['product.brand', 'product.images', 'options.variationType'])
+            ->with(['product.brand', 'product.images', 'product.categories:id', 'options.variationType'])
             ->where('store_id', $store->id)
             ->whereIn('id', $variantIds)
             ->get()

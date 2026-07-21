@@ -222,7 +222,15 @@
                         </div>
                         @if ((float) $order->discount > 0)
                             <div class="flex justify-between gap-4 px-4 py-3 text-sm text-emerald-800">
-                                <span>Discount</span>
+                                <span>
+                                    Discount
+                                    @php
+                                        $orderCouponCode = data_get($order->meta, 'coupon_snapshot.code');
+                                    @endphp
+                                    @if (filled($orderCouponCode))
+                                        <span class="mt-0.5 block text-xs font-normal text-emerald-700/80">{{ $orderCouponCode }}</span>
+                                    @endif
+                                </span>
                                 <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatDiscountWithCode($order->discount, $currency) }}</span>
                             </div>
                         @endif

@@ -68,7 +68,9 @@ class CouponController extends Controller
     {
         $request->merge(['code' => Coupon::normalizeCode((string) $request->input('code'))]);
 
-        $uniqueCode = Rule::unique('coupons', 'code')->where(fn ($query) => $query->where('store_id', $store->id));
+        $uniqueCode = Rule::unique('coupons', 'code')->where(
+            fn ($query) => $query->where('store_id', $store->id)->whereNull('deleted_at')
+        );
         if ($coupon) {
             $uniqueCode->ignore($coupon->id);
         }

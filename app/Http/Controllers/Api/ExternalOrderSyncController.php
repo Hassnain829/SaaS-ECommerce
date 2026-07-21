@@ -139,6 +139,8 @@ class ExternalOrderSyncController extends Controller
             'tax_total' => ['nullable', 'numeric', 'min:0'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
             'discounts' => ['nullable', 'array'],
+            'discount_calculation' => ['nullable', 'string', Rule::in(['external', 'platform'])],
+            'coupon_code' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'customer' => ['required', 'array'],
             'customer.email' => ['required', 'email', 'max:255'],

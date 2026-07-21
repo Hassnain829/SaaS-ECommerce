@@ -54,8 +54,17 @@ class CouponService
         $this->ensureStoreOwns($store, $coupon);
 
         DB::transaction(function () use ($store, $coupon, $actor, $request): void {
+            // Soft-deleted rows still occupy the (store_id, code) unique index.
+            // Free the merchant-facing code so the same code can be recreated later.
+            $originalCode = $coupon->code;
+            $coupon->forceFill([
+                'code' => $this->retiredCode($coupon),
+                'is_active' => false,
+            ])->save();
             $coupon->delete();
-            $this->recordChange($request, 'coupon.deleted', $store, $actor, $coupon);
+            $this->recordChange($request, 'coupon.deleted', $store, $actor, $coupon, [
+                'retired_from_code' => $originalCode,
+            ]);
         });
     }
 
@@ -174,7 +183,7 @@ class CouponService
             throw new \InvalidArgumentException('Coupon reservation does not belong to this checkout store.');
         }
 
-        return CouponRedemption::query()->firstOrCreate(
+        return CouponRedemption::query()->updateOrCreate(
             ['checkout_id' => $checkout->id],
             [
                 'store_id' => $checkout->store_id,
@@ -183,6 +192,35 @@ class CouponService
                 'code_snapshot' => $result->coupon->code,
                 'discount_amount' => $result->discountTotal,
                 'status' => CouponRedemption::STATUS_RESERVED,
+                'order_id' => null,
+                'redeemed_at' => null,
+            ],
+        );
+    }
+
+    /**
+     * Record a redeemed coupon usage for an external order that opted into platform calculation.
+     */
+    public function recordRedeemedForOrder(
+        Order $order,
+        Customer $customer,
+        CouponDiscountResult $result,
+    ): CouponRedemption {
+        if ((int) $order->store_id !== (int) $result->coupon->store_id || (int) $customer->store_id !== (int) $order->store_id) {
+            throw new \InvalidArgumentException('Coupon redemption does not belong to this order store.');
+        }
+
+        return CouponRedemption::query()->updateOrCreate(
+            ['order_id' => $order->id],
+            [
+                'store_id' => $order->store_id,
+                'coupon_id' => $result->coupon->id,
+                'checkout_id' => null,
+                'customer_id' => $customer->id,
+                'code_snapshot' => $result->coupon->code,
+                'discount_amount' => $result->discountTotal,
+                'status' => CouponRedemption::STATUS_REDEEMED,
+                'redeemed_at' => now('UTC'),
             ],
         );
     }
@@ -316,9 +354,19 @@ class CouponService
             return false;
         }
 
-        $categoryIds = $product->categories()->pluck('categories.id')->map(fn ($id): int => (int) $id)->all();
+        $categoryIds = $product->relationLoaded('categories')
+            ? $product->categories->pluck('id')->map(fn ($id): int => (int) $id)->all()
+            : $product->categories()->pluck('categories.id')->map(fn ($id): int => (int) $id)->all();
 
         return array_intersect($categoryIds, array_map('intval', $restrictedCategoryIds)) !== [];
+    }
+
+    private function retiredCode(Coupon $coupon): string
+    {
+        $suffix = '__DEL_'.$coupon->id;
+        $maxBaseLength = max(1, 100 - strlen($suffix));
+
+        return substr($coupon->code, 0, $maxBaseLength).$suffix;
     }
 
     /**
@@ -382,14 +430,23 @@ class CouponService
         throw ValidationException::withMessages(['coupon_code' => $message]);
     }
 
-    private function recordChange(?Request $request, string $event, Store $store, User $actor, Coupon $coupon): void
-    {
+    /**
+     * @param  array<string, mixed>  $extra
+     */
+    private function recordChange(
+        ?Request $request,
+        string $event,
+        Store $store,
+        User $actor,
+        Coupon $coupon,
+        array $extra = [],
+    ): void {
         app(SecurityLogRecorder::class)->record(
             $request,
             $event,
             store: $store,
             user: $actor,
-            metadata: ['coupon_id' => $coupon->id, 'code' => $coupon->code],
+            metadata: array_merge(['coupon_id' => $coupon->id, 'code' => $coupon->code], $extra),
         );
     }
 }

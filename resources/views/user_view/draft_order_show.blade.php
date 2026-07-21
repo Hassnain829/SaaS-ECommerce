@@ -213,6 +213,7 @@
                 'currency' => $currency,
                 'subtotal' => $displaySubtotal,
                 'discount' => old('discount_total', $draftOrder->discount_total),
+                'couponCode' => old('coupon_code', data_get($draftOrder->metadata, 'coupon_snapshot.code', '')),
                 'shipping' => old('shipping_total', $draftOrder->shipping_total),
                 'tax' => $draftOrder->tax_total,
                 'total' => $draftOrder->total,

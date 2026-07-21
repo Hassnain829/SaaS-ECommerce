@@ -163,6 +163,7 @@
                 'currency' => $currency,
                 'subtotal' => '0.00',
                 'discount' => old('discount_total', '0.00'),
+                'couponCode' => old('coupon_code', ''),
                 'shipping' => old('shipping_total', '0.00'),
                 'tax' => '0.00',
                 'total' => '0.00',

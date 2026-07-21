@@ -57,11 +57,21 @@
     </div>
 
     <div class="mt-4 space-y-3">
+        <div class="space-y-1">
+            <label for="draft-coupon-code" class="block text-xs font-semibold text-[#64748B]">Coupon code (optional)</label>
+            <input id="draft-coupon-code" name="coupon_code" value="{{ old('coupon_code', $couponCode ?? '') }}" type="text" maxlength="100" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase {{ $errors->has('coupon_code') ? 'border-[#F87171]' : '' }}" placeholder="WELCOME10" @readonly(! ($isEditable ?? true)) @error('coupon_code') aria-invalid="true" aria-describedby="draft-coupon-error" @enderror>
+            @error('coupon_code')
+                <p id="draft-coupon-error" class="text-xs text-[#B91C1C]">{{ $message }}</p>
+            @enderror
+            <p class="text-xs text-[#94A3B8]">When set, the discount amount is calculated from this store coupon.</p>
+        </div>
+        <div class="space-y-1">
         <label for="draft-discount-total" class="block text-xs font-semibold text-[#64748B]">Discount amount</label>
-        <input id="draft-discount-total" name="discount_total" value="{{ old('discount_total', $discount) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm tabular-nums {{ $errors->has('discount_total') ? 'border-[#F87171]' : '' }}" data-discount-input data-tax-driving-input @readonly(! ($isEditable ?? true)) @error('discount_total') aria-invalid="true" aria-describedby="draft-discount-error" @enderror>
+        <input id="draft-discount-total" name="discount_total" value="{{ old('discount_total', $discount) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm tabular-nums {{ $errors->has('discount_total') ? 'border-[#F87171]' : '' }}" data-discount-input data-tax-driving-input @readonly(! ($isEditable ?? true) || filled(old('coupon_code', $couponCode ?? ''))) @error('discount_total') aria-invalid="true" aria-describedby="draft-discount-error" @enderror>
         @error('discount_total')
             <p id="draft-discount-error" class="text-xs text-[#B91C1C]">{{ $message }}</p>
         @enderror
+        </div>
 
         <label for="draft-shipping-total" class="block text-xs font-semibold text-[#64748B]">Shipping amount</label>
         <input id="draft-shipping-total" name="shipping_total" value="{{ old('shipping_total', $shipping) }}" type="number" min="0" step="0.01" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm tabular-nums {{ $errors->has('shipping_total') ? 'border-[#F87171]' : '' }}" data-shipping-input data-tax-driving-input @readonly(! ($isEditable ?? true)) @error('shipping_total') aria-invalid="true" aria-describedby="draft-shipping-error" @enderror>

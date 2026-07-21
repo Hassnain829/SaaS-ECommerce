@@ -52,6 +52,7 @@ class ExternalOrderSyncService
         private readonly CustomerMetricsService $customerMetricsService,
         private readonly ChannelOwnershipService $channelOwnership,
         private readonly FulfillmentOriginRouter $originRouter,
+        private readonly \App\Services\Coupons\CouponService $couponService,
     ) {}
 
     /**
@@ -75,7 +76,8 @@ class ExternalOrderSyncService
         return DB::transaction(function () use ($store, $payload, $requestHash, $rawPaymentStatus): array {
             $customer = $this->upsertCustomer($store, $payload['customer']);
             $items = $this->prepareItems($store, $payload['items']);
-            $totals = $this->totals($items, $payload);
+            $platformCoupon = $this->resolvePlatformCoupon($store, $customer, $items, $payload);
+            $totals = $this->totals($items, $payload, $platformCoupon);
             $paymentStatus = self::PAYMENT_STATUS_MAP[$rawPaymentStatus];
             $orderStatus = in_array($paymentStatus, [OrderLifecycle::PAYMENT_PAID, OrderLifecycle::PAYMENT_AUTHORIZED], true)
                 ? OrderLifecycle::ORDER_CONFIRMED
@@ -130,6 +132,7 @@ class ExternalOrderSyncService
                     'shipping' => $shippingSnapshot !== [] ? $shippingSnapshot : null,
                     'fulfillment' => $fulfillmentSnapshot !== [] ? $fulfillmentSnapshot : null,
                     'fulfillment_routing' => $routingSnapshot,
+                    'coupon_snapshot' => $platformCoupon?->snapshot,
                     'channel_ownership' => [
                         'checkout_owner' => $ownershipSnapshot['checkout_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
                         'payment_owner' => $ownershipSnapshot['payment_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
@@ -144,6 +147,7 @@ class ExternalOrderSyncService
                         'external_order_id' => $payload['external_order_id'] ?? null,
                         'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
                         'discounts' => $payload['discounts'] ?? [],
+                        'discount_calculation' => $platformCoupon ? 'platform' : 'external',
                     ],
                 ], fn ($value): bool => $value !== null),
             ]);
@@ -201,6 +205,12 @@ class ExternalOrderSyncService
                 $product = $variant->product;
                 $primaryImage = $product?->primaryImage();
 
+                $lineKey = 'variant:'.$variant->id;
+                $lineDiscount = $platformCoupon
+                    ? (float) ($platformCoupon->itemDiscounts[$lineKey] ?? 0)
+                    : 0.0;
+                $lineTotal = max(0, (float) $item['subtotal'] - $lineDiscount);
+
                 $order->items()->create([
                     'product_id' => $product?->id,
                     'product_variant_id' => $variant->id,
@@ -212,18 +222,26 @@ class ExternalOrderSyncService
                     'product_type_snapshot' => $product?->product_type,
                     'variant_label' => $item['variant_label'],
                     'variant_details' => $item['variant_details'],
-                    'meta' => [
+                    'meta' => array_filter([
                         'external_line_id' => $item['external_line_id'],
                         'source' => self::SOURCE,
-                    ],
+                        'coupon' => $platformCoupon ? [
+                            'code' => $platformCoupon->coupon->code,
+                            'discount_amount' => number_format($lineDiscount, 2, '.', ''),
+                        ] : null,
+                    ], fn ($value): bool => $value !== null),
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'subtotal' => $item['subtotal'],
-                    'discount_amount' => 0,
+                    'discount_amount' => $lineDiscount,
                     'tax_amount' => 0,
-                    'total' => $item['subtotal'],
+                    'total' => $lineTotal,
                     'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
                 ]);
+            }
+
+            if ($platformCoupon) {
+                $this->couponService->recordRedeemedForOrder($order, $customer, $platformCoupon);
             }
 
             $this->eventRecorder->record(
@@ -421,7 +439,7 @@ class ExternalOrderSyncService
 
         /** @var Collection<int, ProductVariant> $variants */
         $variants = ProductVariant::query()
-            ->with(['product.brand', 'product.images', 'options.variationType'])
+            ->with(['product.brand', 'product.images', 'product.categories:id', 'options.variationType'])
             ->where('store_id', $store->id)
             ->whereIn('id', $variantIds)
             ->get()
@@ -470,16 +488,18 @@ class ExternalOrderSyncService
      * @param  array<string, mixed>  $payload
      * @return array{subtotal: float, shipping: float, tax: float, discount: float, grand_total: float}
      */
-    private function totals(array $items, array $payload): array
+    private function totals(array $items, array $payload, ?\App\Data\Coupons\CouponDiscountResult $platformCoupon = null): array
     {
         $totalsBlock = is_array($payload['totals'] ?? null) ? $payload['totals'] : [];
         $subtotal = $this->money($totalsBlock['subtotal'] ?? array_sum(array_map(fn (array $item): float => (float) $item['subtotal'], $items)));
         $shipping = $this->money($totalsBlock['shipping'] ?? $payload['shipping_total'] ?? 0);
         $tax = $this->money($totalsBlock['tax'] ?? $payload['tax_total'] ?? 0);
-        $discount = $this->money($totalsBlock['discount'] ?? $payload['discount_total'] ?? 0);
+        $discount = $platformCoupon
+            ? $this->money($platformCoupon->discountTotal)
+            : $this->money($totalsBlock['discount'] ?? $payload['discount_total'] ?? 0);
         $grandTotal = $this->money($totalsBlock['total'] ?? $totalsBlock['grand_total'] ?? null);
 
-        if ($grandTotal === 0.0 && ! isset($totalsBlock['total'], $totalsBlock['grand_total'])) {
+        if ($platformCoupon || ($grandTotal === 0.0 && ! isset($totalsBlock['total'], $totalsBlock['grand_total']))) {
             $grandTotal = $this->money(max(0, $subtotal + $shipping + $tax - $discount));
         }
 
@@ -490,6 +510,33 @@ class ExternalOrderSyncService
             'discount' => $discount,
             'grand_total' => $grandTotal,
         ];
+    }
+
+    /**
+     * @param  list<array{variant: ProductVariant, quantity: int}>  $items
+     * @param  array<string, mixed>  $payload
+     */
+    private function resolvePlatformCoupon(
+        Store $store,
+        Customer $customer,
+        array $items,
+        array $payload,
+    ): ?\App\Data\Coupons\CouponDiscountResult {
+        $mode = strtolower(trim((string) ($payload['discount_calculation'] ?? 'external')));
+        if ($mode !== 'platform') {
+            return null;
+        }
+
+        $code = trim((string) ($payload['coupon_code'] ?? ''));
+        if ($code === '') {
+            throw ValidationException::withMessages([
+                'coupon_code' => 'Provide a coupon code when discount_calculation is platform.',
+            ]);
+        }
+
+        $currencyCode = strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD'));
+
+        return $this->couponService->calculate($store, $customer, $currencyCode, $items, $code);
     }
 
     /**

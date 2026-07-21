@@ -7,6 +7,8 @@ use App\Models\DraftOrder;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Checkout\CheckoutTotalsService;
+use App\Services\Coupons\CouponService;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Support\OrderLifecycle;
@@ -21,6 +23,7 @@ class ManualOrderConversionService
         private readonly OrderEventRecorder $eventRecorder,
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
+        private readonly CouponService $couponService,
     ) {}
 
     public function convert(DraftOrder $draft, Store $store, User $actor): Order
@@ -35,7 +38,7 @@ class ManualOrderConversionService
             ]);
         }
 
-        $draft->loadMissing(['customer.addresses', 'items.variant.product.images', 'taxLines']);
+        $draft->loadMissing(['customer.addresses', 'items.variant.product.images', 'items.variant.product.categories:id', 'taxLines']);
 
         if (! $draft->customer) {
             throw ValidationException::withMessages([
@@ -97,6 +100,29 @@ class ManualOrderConversionService
 
             if ($isCalculatedTax && isset($draftMetadata['tax_snapshot'])) {
                 $orderMeta['tax_snapshot'] = $draftMetadata['tax_snapshot'];
+            }
+
+            $couponDiscount = null;
+            $couponCode = trim((string) data_get($draftMetadata, 'coupon_snapshot.code', ''));
+            if ($couponCode !== '' && $draft->customer) {
+                $prepared = [];
+                foreach ($draft->items as $draftItem) {
+                    if (! $draftItem->variant) {
+                        continue;
+                    }
+                    $prepared[] = [
+                        'variant' => $draftItem->variant,
+                        'quantity' => (int) $draftItem->quantity,
+                    ];
+                }
+                $couponDiscount = $this->couponService->calculate(
+                    $store,
+                    $draft->customer,
+                    (string) $draft->currency,
+                    $prepared,
+                    $couponCode,
+                );
+                $orderMeta['coupon_snapshot'] = $couponDiscount->snapshot;
             }
 
             $order = Order::query()->create([
@@ -179,6 +205,11 @@ class ManualOrderConversionService
                 ]);
                 $reservations[] = $reservation->fresh();
 
+                $lineKey = CheckoutTotalsService::lineKeyForVariant((int) $item->product_variant_id);
+                $lineDiscount = $couponDiscount
+                    ? (float) ($couponDiscount->itemDiscounts[$lineKey] ?? 0)
+                    : 0.0;
+
                 $order->items()->create([
                     'product_id' => $item->product_id,
                     'product_variant_id' => $item->product_variant_id,
@@ -192,10 +223,21 @@ class ManualOrderConversionService
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
                     'subtotal' => $item->line_total,
+                    'discount_amount' => $lineDiscount,
                     'tax_amount' => $isCalculatedTax ? $item->tax_amount : 0,
-                    'total' => $this->orderItemTotal($item, $isCalculatedTax),
+                    'total' => max(0, (float) $this->orderItemTotal($item, $isCalculatedTax) - $lineDiscount),
                     'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                    'meta' => $couponDiscount ? [
+                        'coupon' => [
+                            'code' => $couponDiscount->coupon->code,
+                            'discount_amount' => number_format($lineDiscount, 2, '.', ''),
+                        ],
+                    ] : null,
                 ]);
+            }
+
+            if ($couponDiscount && $draft->customer) {
+                $this->couponService->recordRedeemedForOrder($order, $draft->customer, $couponDiscount);
             }
 
             if ($isCalculatedTax) {

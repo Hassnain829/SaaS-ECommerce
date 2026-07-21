@@ -7,12 +7,17 @@ use App\Models\DraftOrder;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Coupons\CouponService;
 use App\Support\ProductVariantLabel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class DraftOrderService
 {
+    public function __construct(
+        private readonly CouponService $couponService,
+    ) {}
+
     public function create(Store $store, User $actor, array $data, string $taxSource = DraftOrder::TAX_SOURCE_MANUAL): DraftOrder
     {
         return DB::transaction(function () use ($store, $actor, $data, $taxSource): DraftOrder {
@@ -40,6 +45,7 @@ class DraftOrderService
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
+            $this->applyCouponCode($draft, $store, $customer, $data);
             $this->recalculate($draft);
 
             return $draft->load(['customer', 'items.variant.product']);
@@ -84,6 +90,12 @@ class DraftOrderService
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
+            $this->applyCouponCode(
+                $draft,
+                Store::query()->findOrFail($draft->store_id),
+                $draft->customer,
+                $data,
+            );
 
             return $draft->fresh(['customer', 'items.variant.product', 'taxLines']);
         });
@@ -98,7 +110,7 @@ class DraftOrderService
         }
 
         return DB::transaction(function () use ($draft, $data): DraftOrder {
-            $draft->loadMissing(['items', 'taxLines']);
+            $draft->loadMissing(['items', 'taxLines', 'customer']);
             $wasCalculated = $draft->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
             $metadata = $this->manualTaxMetadata($this->addressMetadata($data));
 
@@ -111,6 +123,12 @@ class DraftOrderService
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
+            $this->applyCouponCode(
+                $draft,
+                Store::query()->findOrFail($draft->store_id),
+                $draft->customer,
+                $data,
+            );
 
             if ($wasCalculated) {
                 $this->clearCalculatedTax($draft);
@@ -131,7 +149,7 @@ class DraftOrderService
         }
 
         return DB::transaction(function () use ($draft, $data): DraftOrder {
-            $draft->loadMissing(['items']);
+            $draft->loadMissing(['items', 'customer']);
             $wasCalculated = $draft->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
             $metadata = $this->manualTaxMetadata($this->addressMetadata($data));
 
@@ -144,6 +162,12 @@ class DraftOrderService
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
+            $this->applyCouponCode(
+                $draft,
+                Store::query()->findOrFail($draft->store_id),
+                $draft->customer,
+                $data,
+            );
 
             if ($wasCalculated) {
                 $this->clearCalculatedTax($draft);
@@ -238,6 +262,60 @@ class DraftOrderService
 
             $draft->items()->create($item);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function applyCouponCode(DraftOrder $draft, Store $store, ?Customer $customer, array $data): void
+    {
+        $code = trim((string) ($data['coupon_code'] ?? ''));
+        $metadata = is_array($draft->metadata) ? $draft->metadata : [];
+
+        if ($code === '') {
+            unset($metadata['coupon_snapshot']);
+            $draft->forceFill(['metadata' => $metadata])->save();
+
+            return;
+        }
+
+        if (! $customer) {
+            throw ValidationException::withMessages([
+                'coupon_code' => 'Select or enter a customer before applying a coupon.',
+            ]);
+        }
+
+        $draft->loadMissing(['items.variant.product.categories:id']);
+        $prepared = [];
+        foreach ($draft->items as $item) {
+            if (! $item->variant) {
+                continue;
+            }
+            $prepared[] = [
+                'variant' => $item->variant,
+                'quantity' => (int) $item->quantity,
+            ];
+        }
+
+        if ($prepared === []) {
+            throw ValidationException::withMessages([
+                'coupon_code' => 'Add products before applying a coupon.',
+            ]);
+        }
+
+        $result = $this->couponService->calculate(
+            $store,
+            $customer,
+            (string) $draft->currency,
+            $prepared,
+            $code,
+        );
+
+        $metadata['coupon_snapshot'] = $result->snapshot;
+        $draft->forceFill([
+            'discount_total' => $this->money($result->discountTotal),
+            'metadata' => $metadata,
+        ])->save();
     }
 
     private function recalculate(DraftOrder $draft): void

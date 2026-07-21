@@ -45,7 +45,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('store_id')->constrained()->cascadeOnDelete();
             $table->foreignId('coupon_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('checkout_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('checkout_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('order_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('customer_id')->nullable()->constrained()->nullOnDelete();
             $table->string('code_snapshot', 100);
@@ -55,6 +55,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique('checkout_id', 'coupon_redemptions_checkout_unique');
+            $table->unique('order_id', 'coupon_redemptions_order_unique');
             $table->index(['store_id', 'coupon_id', 'status'], 'coupon_redemptions_usage_index');
             $table->index(['coupon_id', 'customer_id', 'status'], 'coupon_redemptions_customer_index');
         });
