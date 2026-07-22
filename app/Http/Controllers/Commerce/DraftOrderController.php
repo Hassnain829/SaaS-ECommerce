@@ -31,6 +31,10 @@ class DraftOrderController extends Controller
             'customers' => $this->customers($store),
             'variants' => $this->variants($store),
             'taxSetting' => $store->taxSetting,
+            'currency' => $store->currency ?: 'USD',
+            'defaultTaxMode' => ($store->taxSetting?->enabled ?? false)
+                ? DraftOrder::TAX_SOURCE_CALCULATED
+                : DraftOrder::TAX_SOURCE_MANUAL,
         ]);
     }
 

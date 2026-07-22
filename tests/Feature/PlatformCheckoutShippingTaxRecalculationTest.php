@@ -75,7 +75,7 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
                     providerIntentId: $id,
                     clientSecret: $id.'_secret_test',
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
+                    amount: (string) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: ['id' => $id, 'status' => 'requires_payment_method'],
                 );

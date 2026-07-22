@@ -19,7 +19,9 @@ Use this before tagging a release or merging to production branches.
 - [ ] `php artisan test` passes locally (same PHP extensions as CI: `dom`, `mbstring`, `xml`, `xmlwriter`, plus `pdo_sqlite` for the default test suite).
 - [ ] Phase 5R checkout/tax regression filters pass (`ProductTaxableFlagTest`, `DraftTax`, `Phase5ExternalCheckoutSyncTest`, `PlatformCheckoutTaxTest`, `CheckoutPaymentInvariantTest`, `Phase4DraftOrderTest`, `Phase6CheckoutDeliveryMethodsTest`).
 - [ ] Phase 5R-1 tax foundation is complete and documented (`docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`).
-- [ ] Phase 5R-2 coupons regression passes (`php artisan test --filter=Phase5R2CouponTest`); next tax/checkout phase is Phase 5R-3 totals hardening.
+- [ ] Phase 5R-2 coupons regression passes (`php artisan test --filter=Phase5R2CouponTest`).
+- [ ] Phase 5R-3 totals hardening regression passes (`php artisan test --filter=Phase5R3TotalsHardeningTest`); completion report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`.
+- [ ] Phase 5R tax migration round-trip passes (`php artisan test --filter=Phase5RTaxMigrationRoundTripTest`).
 
 ## Builds
 

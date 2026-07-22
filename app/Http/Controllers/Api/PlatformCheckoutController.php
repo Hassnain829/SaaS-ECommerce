@@ -224,7 +224,7 @@ class PlatformCheckoutController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'source_channel' => ['nullable', 'string', 'max:64'],
-            'currency_code' => ['nullable', 'string', 'max:8'],
+            'currency_code' => ['nullable', 'string', 'size:3', 'regex:/^[A-Za-z]{3}$/'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'shipping_total' => ['nullable', 'numeric', 'min:0'],
             'shipping_method_id' => ['nullable', 'integer'],

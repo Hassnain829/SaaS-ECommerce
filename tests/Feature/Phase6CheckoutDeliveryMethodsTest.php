@@ -52,7 +52,7 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
                     providerIntentId: $id,
                     clientSecret: $id.'_secret_test',
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
+                    amount: (string) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: ['id' => $id, 'status' => 'requires_payment_method'],
                 );
@@ -64,7 +64,7 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
                     eventType: 'payment_intent.succeeded',
                     providerIntentId: $providerIntentId,
                     status: 'succeeded',
-                    amount: 30.50,
+                    amount: '30.50',
                     currencyCode: 'USD',
                     raw: [
                         'id' => 'client_confirm_'.$providerIntentId,

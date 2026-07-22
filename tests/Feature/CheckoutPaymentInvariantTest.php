@@ -26,6 +26,7 @@ use App\Models\User;
 use App\Services\CheckoutConversionService;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
+use App\Support\Money\CurrencyPrecision;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -55,7 +56,7 @@ class CheckoutPaymentInvariantTest extends TestCase
                     providerIntentId: 'pi_invariant_'.$checkout->id,
                     clientSecret: 'pi_invariant_'.$checkout->id.'_secret_test',
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
+                    amount: (string) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: ['id' => 'pi_invariant_'.$checkout->id, 'status' => 'requires_payment_method'],
                 );
@@ -256,7 +257,7 @@ class CheckoutPaymentInvariantTest extends TestCase
             eventType: 'payment_intent.succeeded',
             providerIntentId: (string) $checkout->stripe_payment_intent_id,
             status: 'succeeded',
-            amount: $currency === 'JPY' ? (float) $amountMinor : $amountMinor / 100,
+            amount: CurrencyPrecision::fromMinorUnits($amountMinor, $currency),
             currencyCode: $currency,
             raw: [
                 'id' => 'evt_'.Str::random(12),

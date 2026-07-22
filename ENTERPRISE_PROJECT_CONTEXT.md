@@ -150,7 +150,7 @@ Important existing models:
 ### Partial areas
 
 - RBAC/permissions granularity beyond store roles
-- Tax foundation complete; coupons pending (**Phase 5R-1 complete with product taxable defaults, draft/manual calculated tax, external preservation, checkout tax snapshots, and order tax snapshots**)
+- Tax, coupons, and totals hardening complete (**Phase 5R-0 through 5R-3**; report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`)
 - Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier operation (rates, labels, tracking in production)
@@ -1081,11 +1081,12 @@ Current next practical direction:
 
 CLEAN-1 through CLEAN-3 add export-safe archives, cleanup, carrier code organization, and runtime retention. **CLEAN-3A** adds testing-only destructive root guards and marked sandboxes so automated tests cannot delete real worktree storage. **CLEAN-4** performs controlled internal extractions (FedEx test presenter, registration payload builder, import row mapper, onboarding routes) with characterization tests and no merchant or carrier behavior changes. See `docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md` and `docs/architecture/REFACTORING_BOUNDARIES.md`.
 
-### Phase 5R — Calculation audit and tax foundation (2026-06-24)
+### Phase 5R — Calculation audit, tax, coupons, and totals hardening (complete 2026-07-23)
 
 - **5R-0 (completed):** Current calculation audit — platform, external, and draft/manual totals paths documented; duplicate grand-total and `amountMinor()` implementations identified. Report: `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
 - **5R-1 (complete 2026-06-25):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator`, platform checkout create tax, shipping recalculation, PaymentIntent synchronization, conversion invariant, order tax snapshots, product taxable defaults, draft/manual calculated tax, and external checkout preservation are implemented. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`; final report: `docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`.
-- **5R-2 / 5R-3 (pending):** Coupons; checkout/order totals hardening.
+- **5R-2 (complete 2026-07-22):** Store-scoped coupons and discount rules — `tests/Feature/Phase5R2CouponTest.php`.
+- **5R-3 (complete 2026-07-23):** Checkout/order totals hardening — `FinancialTotalsInvariantService`, decimal-safe conversion/PI/external coupon lines, mismatch audit outside rolled-back TX. Report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`.
 - **Carrier production work remains frozen** pending approvals. **Model A** remains primary courier architecture.
 
 

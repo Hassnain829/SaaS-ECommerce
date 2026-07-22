@@ -14,6 +14,7 @@ class CheckoutPaymentAmountMismatchException extends RuntimeException
         public readonly string $expectedCurrency,
         public readonly ?string $providerCurrency,
         public readonly string $providerIntentId,
+        public readonly ?int $localPaymentIntentAmountAsMinor = null,
     ) {
         parent::__construct('Checkout payment amount or currency did not match the stored checkout total.');
     }
@@ -28,6 +29,7 @@ class CheckoutPaymentAmountMismatchException extends RuntimeException
             'expected_minor' => $this->expectedMinor,
             'provider_actual_minor' => $this->providerActualMinor,
             'local_payment_intent_minor' => $this->localPaymentIntentMinor,
+            'local_payment_intent_amount_as_minor' => $this->localPaymentIntentAmountAsMinor,
             'expected_currency' => $this->expectedCurrency,
             'provider_currency' => $this->providerCurrency,
             'provider_intent_id' => $this->providerIntentId,

@@ -190,7 +190,7 @@ Run full suite: `php artisan test` (expect ~1191+ passing).
 | `docs/architecture/` | `REFACTORING_BOUNDARIES`, `CARRIER_CODE_STRUCTURE` | **Yes — structure reference** |
 | `docs/ux/` | Delivery UX batches, acceptance reports | Active UX reference |
 | `docs/cleanup/` | CLEAN-1 through CLEAN-4 reports | Hygiene history |
-| `docs/implementation/` | Slice/batch implementation reports | Historical |
+| `docs/implementation/` | Slice/batch implementation reports (includes Phase 5R-3 totals hardening) | Historical |
 | `docs/audit/` | QA gap/risk/command outputs | Audit snapshots |
 | `docs/fedex/` | FedEx integrator docs, baselines | Carrier reference |
 | `docs/operations/` | Local setup, retention, release checklist | Ops reference |

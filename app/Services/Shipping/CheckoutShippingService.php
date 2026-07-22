@@ -12,6 +12,7 @@ use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
 use App\Models\TaxSetting;
 use App\Services\Checkout\CheckoutTotalsService;
+use App\Services\Checkout\FinancialTotalsInvariantService;
 use App\Services\CheckoutEventRecorder;
 use App\Services\Coupons\CouponService;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
@@ -19,6 +20,7 @@ use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Payments\PaymentProviderManager;
 use App\Support\Money\CurrencyPrecision;
+use App\Support\Money\DecimalString;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -45,6 +47,7 @@ class CheckoutShippingService
         private readonly InventoryReservationService $reservationService,
         private readonly CheckoutTotalsService $checkoutTotalsService,
         private readonly CouponService $couponService,
+        private readonly FinancialTotalsInvariantService $financialTotalsInvariantService,
     ) {}
 
     /**
@@ -59,7 +62,7 @@ class CheckoutShippingService
         return collect($this->deliveryOptionService->optionsFor(
             $checkout->store,
             $destination,
-            (float) $checkout->subtotal,
+            (string) $checkout->subtotal,
             (string) $checkout->currency_code,
         ))
             ->map(fn (array $option): ?array => $this->withFulfillmentRouting($checkout, $option, $destination))
@@ -87,11 +90,13 @@ class CheckoutShippingService
             }
 
             $destination = $this->effectiveShippingAddress($checkout, $address);
+
+            $currencyCode = (string) $checkout->currency_code;
             $option = $this->deliveryOptionService->optionForMethodId(
                 $checkout->store,
                 $shippingMethodId,
                 $destination,
-                (float) $checkout->subtotal,
+                (string) $checkout->subtotal,
                 (string) $checkout->currency_code,
             );
 
@@ -139,28 +144,13 @@ class CheckoutShippingService
             $checkout->loadMissing(['items.variant.product.categories:id', 'customer', 'store']);
             $previousCouponCode = data_get($checkout->metadata, 'coupon_snapshot.code');
             [$couponDiscount, $couponCleared] = $this->resolveCouponDiscount($checkout);
+            $this->applyCouponDiscountsToCheckoutItems($checkout, $couponDiscount, $currencyCode);
 
-            $preparedItems = [];
-            foreach ($checkout->items as $checkoutItem) {
-                if (! $checkoutItem->variant) {
-                    throw ValidationException::withMessages([
-                        'items' => 'A checkout item is missing catalog data needed for totals.',
-                    ]);
-                }
-                $preparedItems[] = [
-                    'variant' => $checkoutItem->variant,
-                    'quantity' => (int) $checkoutItem->quantity,
-                ];
-            }
-
-            $totalsResult = $this->checkoutTotalsService->calculate(
-                $checkout->store,
+            $totalsResult = $this->checkoutTotalsService->calculateForCheckout(
+                $checkout->load('items'),
                 $taxSetting,
-                (string) $checkout->currency_code,
-                $preparedItems,
                 (string) $option['amount'],
                 $destination,
-                couponDiscount: $couponDiscount,
             );
             $this->applyItemTotals($checkout, $totalsResult, $taxSetting, $couponDiscount);
             $this->checkoutTotalsService->replaceTaxLines($checkout, $totalsResult);
@@ -173,15 +163,15 @@ class CheckoutShippingService
 
             $checkout->forceFill([
                 'shipping_method_id' => $option['shipping_method_id'],
-                'subtotal' => $this->money($totalsResult->subtotal),
-                'discount_total' => $this->money($totalsResult->discountTotal),
-                'shipping_total' => $this->money($totalsResult->shippingTotal),
+                'subtotal' => $this->money($totalsResult->subtotal, $currencyCode),
+                'discount_total' => $this->money($totalsResult->discountTotal, $currencyCode),
+                'shipping_total' => $this->money($totalsResult->shippingTotal, $currencyCode),
                 'shipping_snapshot' => $snapshot,
                 'fulfillment_origin_location_id' => $routingResult->originLocation->id,
                 'pickup_location_id' => $routingResult->pickupLocation?->id,
                 'fulfillment_routing_snapshot' => $routingSnapshot,
-                'tax_total' => $this->money($totalsResult->taxTotal),
-                'grand_total' => $this->money($totalsResult->grandTotal),
+                'tax_total' => $this->money($totalsResult->taxTotal, $currencyCode),
+                'grand_total' => $this->money($totalsResult->grandTotal, $currencyCode),
                 'metadata' => $metadata,
             ])->save();
 
@@ -206,7 +196,7 @@ class CheckoutShippingService
                 'Customer selected '.$option['name'].' for this checkout.',
                 [
                     'shipping_method_id' => $option['shipping_method_id'],
-                    'shipping_total' => $this->money($totalsResult->shippingTotal),
+                    'shipping_total' => $this->money($totalsResult->shippingTotal, $currencyCode),
                     'currency_code' => $checkout->currency_code,
                 ]
             );
@@ -217,10 +207,10 @@ class CheckoutShippingService
                 'Checkout total updated',
                 'Taxes and totals were recalculated after the delivery details changed.',
                 [
-                    'subtotal' => $this->money($totalsResult->subtotal),
-                    'shipping_total' => $this->money($totalsResult->shippingTotal),
-                    'tax_total' => $this->money($totalsResult->taxTotal),
-                    'grand_total' => $this->money($totalsResult->grandTotal),
+                    'subtotal' => $this->money($totalsResult->subtotal, $currencyCode),
+                    'shipping_total' => $this->money($totalsResult->shippingTotal, $currencyCode),
+                    'tax_total' => $this->money($totalsResult->taxTotal, $currencyCode),
+                    'grand_total' => $this->money($totalsResult->grandTotal, $currencyCode),
                     'settings_version' => $taxSetting->settings_version,
                 ]
             );
@@ -235,6 +225,8 @@ class CheckoutShippingService
                 );
             }
 
+            $checkout->load(['items', 'taxLines']);
+            $this->financialTotalsInvariantService->assertCheckoutConsistent($checkout);
             $this->refreshPaymentIntent($checkout);
 
             return $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount', 'fulfillmentOriginLocation', 'pickupLocation', 'taxLines']);
@@ -261,6 +253,7 @@ class CheckoutShippingService
                 ]);
             }
 
+            $currencyCode = (string) $checkout->currency_code;
             $destination = $this->effectiveShippingAddress($checkout, $address);
             $this->persistShippingAddress($checkout, $destination, true);
 
@@ -277,28 +270,13 @@ class CheckoutShippingService
 
             $previousCouponCode = data_get($checkout->metadata, 'coupon_snapshot.code');
             [$couponDiscount, $couponCleared] = $this->resolveCouponDiscount($checkout);
+            $this->applyCouponDiscountsToCheckoutItems($checkout, $couponDiscount, $currencyCode);
 
-            $preparedItems = [];
-            foreach ($checkout->items as $checkoutItem) {
-                if (! $checkoutItem->variant) {
-                    throw ValidationException::withMessages([
-                        'items' => 'A checkout item is missing catalog data needed for totals.',
-                    ]);
-                }
-                $preparedItems[] = [
-                    'variant' => $checkoutItem->variant,
-                    'quantity' => (int) $checkoutItem->quantity,
-                ];
-            }
-
-            $totalsResult = $this->checkoutTotalsService->calculate(
-                $checkout->store,
+            $totalsResult = $this->checkoutTotalsService->calculateForCheckout(
+                $checkout->load('items'),
                 $taxSetting,
-                (string) $checkout->currency_code,
-                $preparedItems,
                 (string) $checkout->shipping_total,
                 $destination,
-                couponDiscount: $couponDiscount,
             );
             $this->applyItemTotals($checkout, $totalsResult, $taxSetting, $couponDiscount);
             $this->checkoutTotalsService->replaceTaxLines($checkout, $totalsResult);
@@ -308,11 +286,11 @@ class CheckoutShippingService
             $metadata['coupon_snapshot'] = $couponDiscount?->snapshot;
 
             $checkout->forceFill([
-                'subtotal' => $this->money($totalsResult->subtotal),
-                'discount_total' => $this->money($totalsResult->discountTotal),
-                'shipping_total' => $this->money($totalsResult->shippingTotal),
-                'tax_total' => $this->money($totalsResult->taxTotal),
-                'grand_total' => $this->money($totalsResult->grandTotal),
+                'subtotal' => $this->money($totalsResult->subtotal, $currencyCode),
+                'discount_total' => $this->money($totalsResult->discountTotal, $currencyCode),
+                'shipping_total' => $this->money($totalsResult->shippingTotal, $currencyCode),
+                'tax_total' => $this->money($totalsResult->taxTotal, $currencyCode),
+                'grand_total' => $this->money($totalsResult->grandTotal, $currencyCode),
                 'metadata' => $metadata,
             ])->save();
 
@@ -336,11 +314,13 @@ class CheckoutShippingService
                 'Shipping address updated',
                 'Shipping address was updated and totals were recalculated.',
                 [
-                    'tax_total' => $this->money($totalsResult->taxTotal),
-                    'grand_total' => $this->money($totalsResult->grandTotal),
+                    'tax_total' => $this->money($totalsResult->taxTotal, $currencyCode),
+                    'grand_total' => $this->money($totalsResult->grandTotal, $currencyCode),
                 ],
             );
 
+            $checkout->load(['items', 'taxLines']);
+            $this->financialTotalsInvariantService->assertCheckoutConsistent($checkout);
             $this->refreshPaymentIntent($checkout, 'address');
 
             return $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount', 'taxLines']);
@@ -499,7 +479,7 @@ class CheckoutShippingService
 
         $expectedMinor = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, (string) $checkout->currency_code);
         $expectedCurrency = strtoupper((string) $checkout->currency_code);
-        $expectedAmount = (float) CurrencyPrecision::fromMinorUnits($expectedMinor, $expectedCurrency);
+        $expectedAmount = CurrencyPrecision::fromMinorUnits($expectedMinor, $expectedCurrency);
         $latestIntent = $checkout->paymentIntents()
             ->whereNull('order_id')
             ->latest('id')
@@ -775,9 +755,20 @@ class CheckoutShippingService
         );
     }
 
-    private function money(mixed $value): float
+    private function money(mixed $value, string $currencyCode): string
     {
-        return round(max(0, (float) $value), 2);
+        if ($value === null || trim((string) $value) === '') {
+            return CurrencyPrecision::roundMajor('0', $currencyCode);
+        }
+
+        $rounded = CurrencyPrecision::roundMajor(
+            DecimalString::normalizeNonNegative((string) $value),
+            $currencyCode,
+        );
+
+        return bccomp($rounded, '0', 6) < 0
+            ? CurrencyPrecision::roundMajor('0', $currencyCode)
+            : $rounded;
     }
 
     /**
@@ -878,12 +869,49 @@ class CheckoutShippingService
         }
     }
 
+    private function applyCouponDiscountsToCheckoutItems(
+        Checkout $checkout,
+        ?\App\Data\Coupons\CouponDiscountResult $couponDiscount,
+        string $currencyCode,
+    ): void {
+        $zero = CurrencyPrecision::roundMajor('0', $currencyCode);
+
+        foreach ($checkout->items as $item) {
+            $lineKey = CheckoutTotalsService::lineKeyForVariant((int) $item->product_variant_id);
+            $lineDiscount = $couponDiscount
+                ? CurrencyPrecision::roundMajor(
+                    DecimalString::normalizeNonNegative((string) ($couponDiscount->itemDiscounts[$lineKey] ?? '0')),
+                    $currencyCode,
+                )
+                : $zero;
+
+            $metadata = is_array($item->metadata) ? $item->metadata : [];
+            if ($couponDiscount) {
+                $metadata['coupon'] = [
+                    'code' => $couponDiscount->coupon->code,
+                    'discount_amount' => $lineDiscount,
+                ];
+            } else {
+                unset($metadata['coupon']);
+            }
+
+            $item->forceFill([
+                'discount_amount' => $lineDiscount,
+                'metadata' => $metadata,
+            ])->save();
+        }
+
+        $checkout->unsetRelation('items');
+        $checkout->load('items');
+    }
+
     private function applyItemTotals(
         Checkout $checkout,
         \App\Data\Checkout\CheckoutTotalsResult $totalsResult,
         TaxSetting $taxSetting,
         ?\App\Data\Coupons\CouponDiscountResult $couponDiscount = null,
     ): void {
+        $currencyCode = (string) $checkout->currency_code;
         foreach ($checkout->items as $item) {
             $lineKey = CheckoutTotalsService::lineKeyForVariant((int) $item->product_variant_id);
             $itemTotals = $totalsResult->itemTotalsFor($lineKey);
@@ -906,10 +934,10 @@ class CheckoutShippingService
             ] : null;
 
             $item->forceFill([
-                'subtotal' => $this->money($itemTotals->subtotal),
-                'discount_amount' => $this->money($itemTotals->discountAmount),
-                'tax_amount' => $this->money($itemTotals->taxAmount),
-                'total' => $this->money($itemTotals->total),
+                'subtotal' => $this->money($itemTotals->subtotal, $currencyCode),
+                'discount_amount' => $this->money($itemTotals->discountAmount, $currencyCode),
+                'tax_amount' => $this->money($itemTotals->taxAmount, $currencyCode),
+                'total' => $this->money($itemTotals->total, $currencyCode),
                 'metadata' => $metadata,
             ])->save();
         }

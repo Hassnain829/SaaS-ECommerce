@@ -63,7 +63,7 @@ class PlatformCheckoutTaxTest extends TestCase
                     providerIntentId: 'pi_test_tax_'.$checkout->id,
                     clientSecret: 'pi_test_tax_'.$checkout->id.'_secret_test',
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
+                    amount: (string) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: [
                         'id' => 'pi_test_tax_'.$checkout->id,

@@ -50,7 +50,7 @@ class Phase5R2CouponTest extends TestCase
                     providerIntentId: 'pi_coupon_'.$checkout->id,
                     clientSecret: 'pi_coupon_'.$checkout->id.'_secret_test',
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
+                    amount: (string) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: ['id' => 'pi_coupon_'.$checkout->id, 'status' => 'requires_payment_method'],
                 );
@@ -298,7 +298,7 @@ class Phase5R2CouponTest extends TestCase
             eventType: 'payment_intent.succeeded',
             providerIntentId: 'pi_coupon_'.$checkout->id,
             status: 'succeeded',
-            amount: 15.00,
+            amount: '15.00',
             currencyCode: 'USD',
             raw: [
                 'id' => 'evt_coupon_order',
@@ -401,7 +401,7 @@ class Phase5R2CouponTest extends TestCase
             eventType: 'payment_intent.payment_failed',
             providerIntentId: 'pi_coupon_'.$checkout->id,
             status: 'failed',
-            amount: 15.00,
+            amount: '15.00',
             currencyCode: 'USD',
             raw: [
                 'id' => 'evt_coupon_failed',

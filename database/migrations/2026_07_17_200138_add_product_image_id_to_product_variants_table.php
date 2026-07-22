@@ -40,11 +40,28 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasColumn('product_variants', 'product_image_id')) {
+            return;
+        }
+
         Schema::table('product_variants', function (Blueprint $table) {
-            if (Schema::hasColumn('product_variants', 'product_image_id')) {
-                $table->dropForeign(['product_image_id']);
-                $table->dropColumn('product_image_id');
-            }
+            $table->dropForeign(['product_image_id']);
+        });
+
+        // SQLite cannot drop a column that still participates in a non-FK index.
+        $indexName = 'product_variants_product_id_product_image_id_index';
+        $indexes = collect(Schema::getIndexes('product_variants'))
+            ->pluck('name')
+            ->all();
+
+        if (in_array($indexName, $indexes, true)) {
+            Schema::table('product_variants', function (Blueprint $table) use ($indexName) {
+                $table->dropIndex($indexName);
+            });
+        }
+
+        Schema::table('product_variants', function (Blueprint $table) {
+            $table->dropColumn('product_image_id');
         });
     }
 };

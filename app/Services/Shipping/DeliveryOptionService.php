@@ -5,6 +5,8 @@ namespace App\Services\Shipping;
 use App\Models\CarrierAccount;
 use App\Models\ShippingMethod;
 use App\Models\Store;
+use App\Support\Money\CurrencyPrecision;
+use App\Support\Money\DecimalString;
 
 class DeliveryOptionService
 {
@@ -16,7 +18,7 @@ class DeliveryOptionService
      * @param  array<string, mixed>  $destination
      * @return list<array<string, mixed>>
      */
-    public function optionsFor(Store $store, array $destination, float $subtotal, string $currencyCode): array
+    public function optionsFor(Store $store, array $destination, string $subtotal, string $currencyCode): array
     {
         $zones = $this->zoneMatcher->matchingZones($store, $destination);
 
@@ -29,6 +31,8 @@ class DeliveryOptionService
             ->flip()
             ->all();
 
+        $subtotal = $this->money($subtotal, $currencyCode);
+
         return ShippingMethod::query()
             ->with(['shippingZone', 'carrierAccount.carrier'])
             ->where('store_id', $store->id)
@@ -39,17 +43,23 @@ class DeliveryOptionService
             ->map(fn (ShippingMethod $method): ?array => $this->optionForMethod($method, $destination, $subtotal, $currencyCode))
             ->filter()
             ->sort(function (array $a, array $b) use ($zoneRanks): int {
-                return [
-                    (int) ($zoneRanks[$a['shipping_zone_id']] ?? 999999),
-                    (int) $a['sort_order'],
-                    (float) $a['amount'],
-                    (string) $a['name'],
-                ] <=> [
-                    (int) ($zoneRanks[$b['shipping_zone_id']] ?? 999999),
-                    (int) $b['sort_order'],
-                    (float) $b['amount'],
-                    (string) $b['name'],
-                ];
+                $zoneCompare = ((int) ($zoneRanks[$a['shipping_zone_id']] ?? 999999))
+                    <=> ((int) ($zoneRanks[$b['shipping_zone_id']] ?? 999999));
+                if ($zoneCompare !== 0) {
+                    return $zoneCompare;
+                }
+
+                $sortCompare = ((int) $a['sort_order']) <=> ((int) $b['sort_order']);
+                if ($sortCompare !== 0) {
+                    return $sortCompare;
+                }
+
+                $amountCompare = bccomp((string) $a['amount'], (string) $b['amount'], 6);
+                if ($amountCompare !== 0) {
+                    return $amountCompare;
+                }
+
+                return strcmp((string) $a['name'], (string) $b['name']);
             })
             ->values()
             ->all();
@@ -58,7 +68,7 @@ class DeliveryOptionService
     /**
      * @param  array<string, mixed>  $destination
      */
-    public function optionForMethodId(Store $store, int $methodId, array $destination, float $subtotal, string $currencyCode): ?array
+    public function optionForMethodId(Store $store, int $methodId, array $destination, string $subtotal, string $currencyCode): ?array
     {
         $method = ShippingMethod::query()
             ->with(['shippingZone', 'carrierAccount.carrier'])
@@ -70,17 +80,19 @@ class DeliveryOptionService
             return null;
         }
 
-        return $this->optionForMethod($method, $destination, $subtotal, $currencyCode);
+        return $this->optionForMethod($method, $destination, $this->money($subtotal, $currencyCode), $currencyCode);
     }
 
     /**
      * @param  array<string, mixed>  $destination
      * @return array<string, mixed>|null
      */
-    public function optionForMethod(ShippingMethod $method, array $destination, float $subtotal, string $currencyCode): ?array
+    public function optionForMethod(ShippingMethod $method, array $destination, string $subtotal, string $currencyCode): ?array
     {
         $method->loadMissing(['shippingZone', 'carrierAccount.carrier']);
         $zone = $method->shippingZone;
+        $currencyCode = strtoupper($currencyCode);
+        $subtotal = $this->money($subtotal, $currencyCode);
 
         if (! $method->is_active || ! $method->enabled_for_checkout || ! $zone) {
             return null;
@@ -90,7 +102,7 @@ class DeliveryOptionService
             return null;
         }
 
-        if (! $this->orderAmountAllowed($method, $subtotal)) {
+        if (! $this->orderAmountAllowed($method, $subtotal, $currencyCode)) {
             return null;
         }
 
@@ -98,13 +110,12 @@ class DeliveryOptionService
             return null;
         }
 
-        $amount = $this->amountFor($method, $subtotal);
+        $amount = $this->amountFor($method, $subtotal, $currencyCode);
         if ($amount === null) {
             return null;
         }
 
-        $amount = $this->money($amount);
-        $currencyCode = strtoupper($currencyCode);
+        $amount = $this->money($amount, $currencyCode);
 
         return [
             'id' => $method->id,
@@ -113,7 +124,7 @@ class DeliveryOptionService
             'description' => $method->description,
             'delivery_speed_label' => $method->delivery_speed_label,
             'amount' => $amount,
-            'amount_formatted' => number_format($amount, 2, '.', ''),
+            'amount_formatted' => $amount,
             'currency_code' => $currencyCode,
             'estimated_min_days' => $method->estimated_min_days,
             'estimated_max_days' => $method->estimated_max_days,
@@ -128,13 +139,19 @@ class DeliveryOptionService
         ];
     }
 
-    private function orderAmountAllowed(ShippingMethod $method, float $subtotal): bool
+    private function orderAmountAllowed(ShippingMethod $method, string $subtotal, string $currencyCode): bool
     {
-        if ($method->min_order_amount !== null && $subtotal < (float) $method->min_order_amount) {
+        if ($method->min_order_amount !== null
+            && bccomp($subtotal, $this->money($method->min_order_amount, $currencyCode), 6) < 0
+        ) {
             return false;
         }
 
-        if ($method->max_order_amount !== null && (float) $method->max_order_amount > 0 && $subtotal > (float) $method->max_order_amount) {
+        if (
+            $method->max_order_amount !== null
+            && bccomp($this->money($method->max_order_amount, $currencyCode), '0', 6) > 0
+            && bccomp($subtotal, $this->money($method->max_order_amount, $currencyCode), 6) > 0
+        ) {
             return false;
         }
 
@@ -169,18 +186,22 @@ class DeliveryOptionService
         return $country !== '' && $countries->contains($country);
     }
 
-    private function amountFor(ShippingMethod $method, float $subtotal): ?float
+    private function amountFor(ShippingMethod $method, string $subtotal, string $currencyCode): ?string
     {
         $freeOverAmount = $method->free_over_amount;
-        if ($freeOverAmount !== null && (float) $freeOverAmount > 0 && $subtotal >= (float) $freeOverAmount) {
-            return 0.0;
+        if (
+            $freeOverAmount !== null
+            && bccomp($this->money($freeOverAmount, $currencyCode), '0', 6) > 0
+            && bccomp($subtotal, $this->money($freeOverAmount, $currencyCode), 6) >= 0
+        ) {
+            return $this->zero($currencyCode);
         }
 
         return match ($method->rate_type) {
-            ShippingMethod::RATE_FREE => 0.0,
-            ShippingMethod::RATE_FLAT, ShippingMethod::RATE_MANUAL => (float) ($method->flat_rate ?? 0),
-            ShippingMethod::RATE_CARRIER_CALCULATED_LATER => (float) ($method->flat_rate ?? 0) > 0
-                ? (float) $method->flat_rate
+            ShippingMethod::RATE_FREE => $this->zero($currencyCode),
+            ShippingMethod::RATE_FLAT, ShippingMethod::RATE_MANUAL => $this->money($method->flat_rate ?? 0, $currencyCode),
+            ShippingMethod::RATE_CARRIER_CALCULATED_LATER => bccomp($this->money($method->flat_rate ?? 0, $currencyCode), '0', 6) > 0
+                ? $this->money($method->flat_rate, $currencyCode)
                 : null,
             default => null,
         };
@@ -189,7 +210,7 @@ class DeliveryOptionService
     /**
      * @return array<string, mixed>
      */
-    private function snapshot(ShippingMethod $method, float $amount, string $currencyCode): array
+    private function snapshot(ShippingMethod $method, string $amount, string $currencyCode): array
     {
         $zone = $method->shippingZone;
         $account = $method->carrierAccount;
@@ -213,9 +234,21 @@ class DeliveryOptionService
         ];
     }
 
-    private function money(mixed $value): float
+    private function money(mixed $value, string $currencyCode): string
     {
-        return round(max(0, (float) $value), 2);
+        if ($value === null || trim((string) $value) === '') {
+            return $this->zero($currencyCode);
+        }
+
+        return CurrencyPrecision::roundMajor(
+            DecimalString::normalizeNonNegative((string) $value),
+            $currencyCode,
+        );
+    }
+
+    private function zero(string $currencyCode): string
+    {
+        return CurrencyPrecision::roundMajor('0', $currencyCode);
     }
 
     private function countryCode(mixed $country): string

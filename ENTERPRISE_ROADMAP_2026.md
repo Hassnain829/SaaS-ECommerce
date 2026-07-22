@@ -2421,6 +2421,8 @@ Cover:
 
 ## Phase 5R-3 — Checkout and order totals hardening
 
+**Status: Complete — 2026-07-23.** Decimal-string / BCMath / `CurrencyPrecision` hardening for platform checkout invariants, PaymentIntent sync, draft coupon-before-tax, external total preservation, and platform-coupon line discount allocation. Report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`. Verification: `tests/Feature/Phase5R3TotalsHardeningTest.php`, `tests/Feature/Phase5RTaxMigrationRoundTripTest.php`. **Phase 5R (5R-0 through 5R-3) is complete.**
+
 ### Goal
 
 Create one deterministic financial order:
@@ -2459,12 +2461,12 @@ Create one deterministic financial order:
 
 ### Acceptance gate
 
-* Platform checkout totals are server-authoritative.
-* Stripe amount and checkout amount match.
-* Order snapshots match the final checkout.
-* External checkout contracts remain unchanged.
-* Full suite passes.
-* Phase 5R is marked complete before Phase 7 begins.
+* Platform checkout totals are server-authoritative. **Met.**
+* Stripe amount and checkout amount match. **Met.**
+* Order snapshots match the final checkout. **Met.**
+* External checkout contracts remain unchanged. **Met** (explicit totals preserved; platform-coupon line path decimal-exact).
+* Full suite passes. **Met for 5R-3 scope** (`Phase5R3TotalsHardeningTest`; three FedEx failures proven pre-existing on `6bfa366`).
+* Phase 5R is marked complete before Phase 7 begins. **Met.**
 
 ---
 
@@ -3000,15 +3002,15 @@ For every phase:
 
 # IMMEDIATE NEXT IMPLEMENTATION
 
-Start with:
+**Phase 5R (5R-0 through 5R-3) is complete.** Next carrier-independent workstreams:
 
-**Phase 5R-0 — Current Calculation Audit**
+**Phase 7 — Returns, Refunds, and Exchanges**
 
-Then implement:
+and/or the already-reprioritized
 
-**Phase 5R-1 — Tax Settings and Tax Calculation Foundation**
+**Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks**
 
-Do not start coupons until the tax foundation and authoritative totals path are verified.
+Do not reopen Phase 5R-3 float/totals scope unless a production defect requires it.
 
 
 # PHASE 7 — Returns, Refunds, Exchanges
@@ -3601,7 +3603,7 @@ Immediate work:
 1. ~~Phase 5R-0 — Current Calculation Audit.~~ **Completed 2026-06-24** (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`).
 2. ~~Phase 5R-1 — Tax Settings and Tax Calculation Foundation.~~ **Completed 2026-06-25** (`docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`).
 3. ~~Phase 5R-2 — Coupons and Discount Rules.~~ **Completed 2026-07-22** (`tests/Feature/Phase5R2CouponTest.php`).
-4. Phase 5R-3 — Checkout and Order Totals Hardening.
+4. ~~Phase 5R-3 — Checkout and Order Totals Hardening.~~ **Completed 2026-07-23** (`docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`).
 5. Phase 7 — Returns, Refunds, and Exchanges.
 6. Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks.
 7. Phase 11 — Notifications.
