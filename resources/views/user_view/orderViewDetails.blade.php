@@ -5,12 +5,32 @@
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Order details" :lead="strtoupper($order->order_number)">
+    <x-ui.merchant-topbar title="Order Details" :lead="strtoupper($order->order_number)">
         <x-slot:actions>
             <a href="{{ route('orders') }}" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Back to orders</a>
         </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection
+
+@push('styles')
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet">
+    <style>
+        .order-page .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+        .order-status-pill {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: capitalize;
+            display: inline-flex;
+            align-items: center;
+        }
+    </style>
+@endpush
 
 @section('content')
     @php
@@ -35,12 +55,18 @@
         $canManageOrders = auth()->user()?->canManageOrders($selectedStore) ?? false;
         $noteEvents = $order->events->where('event_type', \App\Support\OrderLifecycle::EVENT_ORDER_NOTE_ADDED);
         $sourceLabels = [
+            'external_checkout' => 'External',
+            'platform_checkout' => 'Platform',
+            'developer_storefront' => 'Storefront',
+            'manual' => 'Manual',
+        ];
+        $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual');
+        $sourceLabelLong = [
             'external_checkout' => 'External checkout',
             'platform_checkout' => 'Platform checkout',
             'developer_storefront' => 'Developer Storefront',
             'manual' => 'Manual order',
-        ];
-        $sourceLabel = $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual order');
+        ][$order->order_source] ?? $sourceLabel;
         $gatewayLabel = $order->payment_gateway ? str($order->payment_gateway)->replace('_', ' ')->title() : null;
         $platformCheckoutNumber = data_get($order->meta, 'platform_checkout.checkout_number');
         $paymentConnectionLabel = data_get($order->meta, 'platform_checkout.connection_label');
@@ -70,13 +96,20 @@
             || filled($externalShippedAt)
             || filled($externalDeliveredAt)
             || $externalShipmentsMeta !== [];
-
-        $card = 'rounded-2xl border border-slate-200/90 bg-white shadow-sm ring-1 ring-slate-900/[0.03]';
-        $cardHeader = 'border-b border-slate-100 px-5 py-4 md:px-6';
-        $metaTile = 'rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3';
+        $remainingFulfillmentQuantities = $remainingFulfillmentQuantities ?? [];
+        $remainingTotal = collect($remainingFulfillmentQuantities)->sum();
+        $orderStatusLabel = \App\Support\OrderLifecycle::orderStatusLabel($order->status);
+        $paymentStatusLabel = \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status);
+        $fulfillmentStatusLabel = $isOrderExternallyManaged
+            ? 'Externally managed'
+            : \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status);
+        $paymentPaid = in_array($order->payment_status, [
+            \App\Support\OrderLifecycle::PAYMENT_PAID,
+            \App\Support\OrderLifecycle::PAYMENT_AUTHORIZED,
+        ], true);
     @endphp
 
-    <div class="mx-auto max-w-[1480px] space-y-6 pb-10 pt-2 md:space-y-8 md:pt-4">
+    <div class="order-page mx-auto w-full max-w-[1440px] space-y-8 pb-10">
         @include('user_view.partials.flash_success')
 
         @if ($errors->any())
@@ -85,161 +118,148 @@
             </div>
         @endif
 
-        <nav class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500" aria-label="Breadcrumb">
-            <a href="{{ route('dashboard') }}" class="font-medium transition hover:text-indigo-700">Dashboard</a>
-            <span class="text-slate-300" aria-hidden="true">/</span>
-            <a href="{{ route('orders') }}" class="font-medium transition hover:text-indigo-700">Orders</a>
-            <span class="text-slate-300" aria-hidden="true">/</span>
-            <span class="font-semibold text-slate-800">{{ strtoupper($order->order_number) }}</span>
-        </nav>
-
-        {{-- Hero snapshot --}}
-        <section class="{{ $card }} overflow-hidden p-5 md:p-7">
-            <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                <div class="min-w-0 flex-1 space-y-2">
-                    <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Order snapshot</p>
-                    <h2 class="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">Order {{ strtoupper($order->order_number) }}</h2>
-                    <p class="max-w-2xl text-sm leading-relaxed text-slate-600">
-                        Placed {{ $order->placed_at ? $order->placed_at->format('F j, Y \a\t g:i A') : 'date not recorded' }}
-                        <span class="text-slate-400">·</span>
-                        <span class="font-medium text-slate-800">{{ $customerName }}</span>
-                    </p>
-                </div>
-                <div class="flex flex-wrap gap-2 lg:max-w-md lg:justify-end">
-                    <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">
-                        Order: {{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}
-                    </span>
-                    <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
-                        Payment: {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
-                    </span>
-                    <span class="inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide {{ $isOrderExternallyManaged ? 'bg-sky-100 text-sky-800' : \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
-                        Fulfillment: {{ $isOrderExternallyManaged ? 'Externally managed' : \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
-                    </span>
+        {{-- Page header --}}
+        <section class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+                <nav class="mb-2 text-sm text-slate-500" aria-label="Breadcrumb">
+                    <a href="{{ route('orders') }}" class="hover:text-brand">Orders</a>
+                    <span> / Order History</span>
+                </nav>
+                <div class="flex flex-wrap items-center gap-3 md:gap-4">
+                    <h2 class="font-heading text-2xl font-semibold tracking-tight text-stone-900 md:text-[32px] md:leading-tight">
+                        Order #{{ strtoupper($order->order_number) }}
+                    </h2>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="order-status-pill bg-brand-soft text-brand-ink">{{ $orderStatusLabel }}</span>
+                        <span @class([
+                            'order-status-pill',
+                            'bg-green-100 text-green-700' => $paymentPaid,
+                            'bg-amber-100 text-amber-800' => ! $paymentPaid,
+                        ])>{{ $paymentStatusLabel }}</span>
+                    </div>
                 </div>
             </div>
-
-            <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-                <div class="{{ $metaTile }}">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
-                    <p class="mt-1.5 text-xl font-semibold tabular-nums text-slate-900">{{ $order->item_count ?: $order->items->count() }}</p>
-                </div>
-                <div class="{{ $metaTile }}">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</p>
-                    <p class="mt-1.5 text-xl font-semibold tabular-nums text-slate-900">{{ $order->total_quantity ?: $order->items->sum('quantity') }}</p>
-                </div>
-                <div class="{{ $metaTile }} min-w-0">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Source</p>
-                    <p class="mt-1.5 truncate text-lg font-semibold text-slate-900" title="{{ $sourceLabel }}">{{ $sourceLabel }}</p>
-                </div>
-                <div class="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/90 to-white px-4 py-3 ring-1 ring-indigo-100/80">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-indigo-800/80">Total</p>
-                    <p class="mt-1.5 text-xl font-bold tabular-nums text-indigo-700 md:text-2xl">{{ MoneyDisplay::formatWithCode($displayTotal, $currency) }}</p>
-                </div>
+            <div class="flex flex-wrap gap-3">
+                <button type="button" onclick="window.print()" class="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50">
+                    <span class="material-symbols-outlined text-[18px]">print</span>
+                    Print
+                </button>
+                <a href="#returns-refunds" class="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50">
+                    <span class="material-symbols-outlined text-[18px]">history</span>
+                    Refund
+                </a>
+                <a href="#status-manager" class="inline-flex h-10 items-center rounded-xl bg-brand px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">
+                    Manage
+                </a>
             </div>
         </section>
 
-        <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start xl:gap-8">
-            <div class="min-w-0 space-y-6">
-                {{-- Line items --}}
-                <article class="{{ $card }} overflow-hidden">
-                    <div class="{{ $cardHeader }}">
-                        <h3 class="text-lg font-semibold text-slate-900">Order items</h3>
-                        <p class="mt-1 text-sm leading-relaxed text-slate-600">What the customer bought—names, options, and prices are frozen from checkout.</p>
+        {{-- Metrics --}}
+        <section class="grid grid-cols-1 gap-6 md:grid-cols-4">
+            <div class="merchant-card flex flex-col p-6">
+                <span class="mb-1 text-sm text-slate-500">Items</span>
+                <span class="font-heading text-xl font-bold">{{ $order->item_count ?: $order->items->count() }}</span>
+            </div>
+            <div class="merchant-card flex flex-col p-6">
+                <span class="mb-1 text-sm text-slate-500">Total</span>
+                <span class="font-heading text-xl font-bold tabular-nums">{{ MoneyDisplay::formatWithCode($displayTotal, $currency) }}</span>
+            </div>
+            <div class="merchant-card flex flex-col p-6">
+                <span class="mb-1 text-sm text-slate-500">Source</span>
+                <span class="font-heading text-xl font-bold" title="{{ $sourceLabelLong }}">{{ $sourceLabel }}</span>
+            </div>
+            <div class="merchant-card flex flex-col p-6">
+                <span class="mb-1 text-sm text-slate-500">Fulfillment Status</span>
+                <span @class([
+                    'order-status-pill mt-2 w-fit',
+                    'bg-sky-100 text-sky-800' => $isOrderExternallyManaged,
+                    'bg-danger-soft text-danger' => ! $isOrderExternallyManaged && $order->fulfillment_status === \App\Support\OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                    'bg-amber-100 text-amber-800' => ! $isOrderExternallyManaged && $order->fulfillment_status === \App\Support\OrderLifecycle::FULFILLMENT_PARTIAL,
+                    'bg-green-100 text-green-700' => ! $isOrderExternallyManaged && $order->fulfillment_status === \App\Support\OrderLifecycle::FULFILLMENT_FULFILLED,
+                    'bg-slate-100 text-slate-700' => ! $isOrderExternallyManaged
+                        && ! in_array($order->fulfillment_status, [
+                            \App\Support\OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                            \App\Support\OrderLifecycle::FULFILLMENT_PARTIAL,
+                            \App\Support\OrderLifecycle::FULFILLMENT_FULFILLED,
+                        ], true),
+                ])>{{ $fulfillmentStatusLabel }}</span>
+            </div>
+        </section>
+
+        <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
+            {{-- Left column --}}
+            <div class="space-y-8 lg:col-span-8">
+                {{-- Order items --}}
+                <div class="merchant-card overflow-hidden">
+                    <div class="flex items-center justify-between border-b border-stone-200 px-6 py-4">
+                        <h3 class="font-heading text-xl font-semibold">Order Items</h3>
                     </div>
-                    <div class="space-y-3 p-4 md:p-5">
+                    <div class="space-y-6 p-6">
                         @forelse ($order->items as $item)
                             @php
                                 $imagePath = $item->product_image_snapshot ?: $item->product?->images?->first()?->image_path;
                             @endphp
-                            <div class="flex flex-col gap-4 rounded-xl border border-slate-100 bg-slate-50/40 p-4 transition hover:border-slate-200 hover:bg-white hover:shadow-sm sm:flex-row sm:items-start sm:justify-between sm:p-5">
-                                <div class="flex min-w-0 flex-1 items-start gap-4">
-                                    @if ($imagePath)
-                                        <img src="{{ \Illuminate\Support\Facades\Storage::url($imagePath) }}" class="h-20 w-20 shrink-0 rounded-xl border border-slate-200/80 object-cover shadow-sm" alt="{{ $item->product_name }}">
-                                    @else
-                                        <div class="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-dashed border-slate-200 bg-white text-slate-400" aria-hidden="true">
-                                            <svg class="h-9 w-9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true">
-                                                <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 20h16a2 2 0 002-2V8a2 2 0 00-2-2h-3.17a2 2 0 01-1.41-.59l-1.83-1.83A2 2 0 0010.17 4H4a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"/>
-                                            </svg>
-                                        </div>
-                                    @endif
-                                    <div class="min-w-0 flex-1">
-                                        <h4 class="text-base font-semibold leading-snug text-slate-900 md:text-lg">{{ $item->product_name }}</h4>
-                                        <p class="mt-1 text-sm text-slate-600">{{ $item->variant_label ?: 'Default option' }}</p>
-                                        <div class="mt-3 flex flex-wrap gap-2">
-                                            @if ($item->sku_snapshot)
-                                                <span class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">SKU {{ $item->sku_snapshot }}</span>
-                                            @endif
-                                            @if ($item->brand_name_snapshot)
-                                                <span class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">{{ $item->brand_name_snapshot }}</span>
-                                            @endif
-                                            @if ($item->product_type_snapshot)
-                                                <span class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">{{ ucfirst($item->product_type_snapshot) }}</span>
-                                            @endif
-                                        </div>
+                            <div class="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
+                                @if ($imagePath)
+                                    <div class="h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg bg-stone-100">
+                                        <img src="{{ \Illuminate\Support\Facades\Storage::url($imagePath) }}" class="h-full w-full object-cover" alt="{{ $item->product_name }}">
                                     </div>
-                                </div>
-                                <div class="shrink-0 border-t border-slate-100 pt-3 text-left sm:border-0 sm:pt-0 sm:text-right">
-                                    <p class="text-sm text-slate-500">Qty {{ $item->quantity }} × {{ MoneyDisplay::formatWithCode($item->unit_price, $currency) }}</p>
-                                    @if ((float) $item->tax_amount > 0)
-                                        <p class="mt-1 text-xs text-slate-500">Subtotal {{ MoneyDisplay::formatWithCode($item->subtotal, $currency) }} · Tax {{ MoneyDisplay::formatWithCode($item->tax_amount, $currency) }}</p>
-                                    @else
-                                        <p class="mt-1 text-xs text-slate-500">Subtotal {{ MoneyDisplay::formatWithCode($item->subtotal, $currency) }}</p>
+                                @else
+                                    <div class="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-lg bg-stone-100 text-slate-400">
+                                        <span class="material-symbols-outlined text-3xl">inventory_2</span>
+                                    </div>
+                                @endif
+                                <div class="min-w-0 flex-1">
+                                    <h4 class="text-lg font-semibold text-stone-900">{{ $item->product_name }}</h4>
+                                    <p class="text-sm text-slate-500">Variant: {{ $item->variant_label ?: 'Default option' }}</p>
+                                    @if ($item->sku_snapshot)
+                                        <p class="text-sm text-slate-500">SKU {{ $item->sku_snapshot }}</p>
                                     @endif
-                                    <p class="mt-1 text-lg font-bold tabular-nums text-slate-900 md:text-xl">{{ MoneyDisplay::formatWithCode($item->total, $currency) }}</p>
+                                </div>
+                                <div class="text-left sm:text-right">
+                                    <p class="text-lg font-bold">{{ MoneyDisplay::formatWithCode($item->unit_price, $currency) }} x {{ $item->quantity }}</p>
+                                    <p class="text-brand text-sm font-semibold">{{ MoneyDisplay::formatWithCode($item->total, $currency) }}</p>
                                 </div>
                             </div>
                         @empty
-                            <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-12 text-center">
-                                <p class="text-sm font-medium text-slate-700">No line items on this order</p>
-                                <p class="mt-1 text-sm text-slate-500">If something looks wrong, check the original channel or contact support.</p>
+                            <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-12 text-center text-sm text-slate-600">
+                                No line items on this order
                             </div>
                         @endforelse
                     </div>
-                </article>
+                </div>
 
                 {{-- Payment summary --}}
-                <article class="{{ $card }} p-5 md:p-6">
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                            <h3 class="text-lg font-semibold text-slate-900">Payment summary</h3>
-                            <p class="mt-1 text-sm text-slate-600">
-                                @if ($gatewayLabel)
-                                    {{ $gatewayLabel }}{{ $order->payment_method ? ' · ' . str($order->payment_method)->replace('_', ' ')->title() : '' }}
-                                @else
-                                    {{ $order->payment_method ? str($order->payment_method)->replace('_', ' ')->title() : 'Payment method not recorded' }}
-                                @endif
-                            </p>
-                        </div>
-                        <span class="inline-flex w-fit items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
-                            {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
-                        </span>
+                <div class="merchant-card">
+                    <div class="flex items-center justify-between border-b border-stone-200 px-6 py-4">
+                        <h3 class="font-heading text-xl font-semibold">Payment Summary</h3>
+                        @isset($taxDisplay)
+                            <a href="#order-tax-breakdown" class="text-brand text-sm font-semibold hover:underline">View Breakdown</a>
+                        @endisset
                     </div>
-
-                    <div class="mt-6 divide-y divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/50">
-                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
-                            <span>Subtotal</span>
-                            <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatWithCode($order->subtotal, $currency) }}</span>
+                    <div class="space-y-3 p-6">
+                        <div class="flex justify-between text-base">
+                            <span class="text-slate-600">Subtotal</span>
+                            <span class="tabular-nums">{{ MoneyDisplay::formatWithCode($order->subtotal, $currency) }}</span>
                         </div>
                         @if ((float) $order->discount > 0)
-                            <div class="flex justify-between gap-4 px-4 py-3 text-sm text-emerald-800">
+                            <div class="flex justify-between text-base text-emerald-800">
                                 <span>
                                     Discount
-                                    @php
-                                        $orderCouponCode = data_get($order->meta, 'coupon_snapshot.code');
-                                    @endphp
+                                    @php $orderCouponCode = data_get($order->meta, 'coupon_snapshot.code'); @endphp
                                     @if (filled($orderCouponCode))
                                         <span class="mt-0.5 block text-xs font-normal text-emerald-700/80">{{ $orderCouponCode }}</span>
                                     @endif
                                 </span>
-                                <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatDiscountWithCode($order->discount, $currency) }}</span>
+                                <span class="tabular-nums font-semibold">{{ MoneyDisplay::formatDiscountWithCode($order->discount, $currency) }}</span>
                             </div>
                         @endif
-                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
-                            <span>Shipping</span>
-                            <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatWithCode($order->shipping, $currency) }}</span>
+                        <div class="flex justify-between text-base">
+                            <span class="text-slate-600">Shipping</span>
+                            <span class="tabular-nums">{{ MoneyDisplay::formatWithCode($order->shipping, $currency) }}</span>
                         </div>
-                        <div class="flex justify-between gap-4 px-4 py-3 text-sm text-slate-700">
-                            <span>
+                        <div class="flex justify-between text-base">
+                            <span class="text-slate-600">
                                 Tax
                                 @isset($taxDisplay)
                                     @if ($taxDisplay['compact_summary'] ?? null)
@@ -247,297 +267,294 @@
                                     @endif
                                 @endisset
                             </span>
-                            <span class="font-semibold tabular-nums">{{ MoneyDisplay::formatWithCode($order->tax, $currency) }}</span>
+                            <span class="tabular-nums">{{ MoneyDisplay::formatWithCode($order->tax, $currency) }}</span>
                         </div>
-                    </div>
-
-                    <div class="mt-6 flex flex-wrap items-end justify-between gap-4 rounded-xl bg-indigo-50/70 px-4 py-4 ring-1 ring-indigo-100/80 md:px-5">
-                        <span class="text-base font-semibold text-slate-900">Total</span>
-                        <span class="text-2xl font-bold tabular-nums text-indigo-800 md:text-3xl">{{ MoneyDisplay::formatWithCode($displayTotal, $currency) }}</span>
-                    </div>
-
-                    @isset($taxDisplay)
-                        <div class="mt-6">
-                            @include('user_view.partials.tax_detail_disclosure', [
-                                'taxDisplay' => $taxDisplay,
-                                'currency' => $currency,
-                                'disclosureId' => 'order-tax-breakdown',
-                                'title' => 'Tax details',
-                            ])
+                        <div class="my-2 h-px bg-stone-200"></div>
+                        <div class="flex justify-between font-heading text-xl font-bold">
+                            <span>Total</span>
+                            <span class="text-brand tabular-nums">{{ MoneyDisplay::formatWithCode($displayTotal, $currency) }}</span>
                         </div>
-                    @endisset
-                </article>
 
-                {{-- Payment & source --}}
-                <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="text-lg font-semibold text-slate-900">Payment and source</h3>
-                    <p class="mt-1 text-sm leading-relaxed text-slate-600">
-                        @if ($order->order_source === 'external_checkout')
-                            Payment status recorded from external checkout.
-                        @elseif ($order->order_source === 'platform_checkout')
-                            Payment was confirmed through platform checkout.
-                        @else
-                            Source and payment details captured for this order.
-                        @endif
-                    </p>
+                        @isset($taxDisplay)
+                            <div class="pt-4">
+                                @include('user_view.partials.tax_detail_disclosure', [
+                                    'taxDisplay' => $taxDisplay,
+                                    'currency' => $currency,
+                                    'disclosureId' => 'order-tax-breakdown',
+                                    'title' => 'Tax details',
+                                ])
+                            </div>
+                        @endisset
 
-                    <div class="mt-6 grid gap-3 text-sm sm:grid-cols-2">
-                        <div class="{{ $metaTile }}">
-                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Source</p>
-                            <p class="mt-1.5 font-semibold text-slate-900">{{ $sourceLabel }}</p>
-                        </div>
-                        <div class="{{ $metaTile }}">
-                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Channel</p>
-                            <p class="mt-1.5 font-semibold text-slate-900">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
-                        </div>
-                        @if ($order->external_order_number)
-                            <div class="{{ $metaTile }}">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">External order</p>
-                                <p class="mt-1.5 font-semibold text-slate-900">{{ $order->external_order_number }}</p>
-                            </div>
-                        @endif
-                        @if ($order->external_checkout_reference)
-                            <div class="{{ $metaTile }}">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Checkout reference</p>
-                                <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $order->external_checkout_reference }}</p>
-                            </div>
-                        @endif
-                        @if ($platformCheckoutNumber)
-                            <div class="{{ $metaTile }}">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Checkout</p>
-                                <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $platformCheckoutNumber }}</p>
-                            </div>
-                        @endif
-                        @if ($paymentConnectionLabel)
-                            <div class="{{ $metaTile }}">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Stripe connection</p>
-                                <p class="mt-1.5 font-semibold text-slate-900">{{ $paymentConnectionLabel }}</p>
-                            </div>
-                        @endif
-                        @if ($gatewayLabel)
-                            <div class="{{ $metaTile }}">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gateway</p>
-                                <p class="mt-1.5 font-semibold text-slate-900">{{ $gatewayLabel }}</p>
-                            </div>
-                        @endif
-                        @if ($order->payment_method)
-                            <div class="{{ $metaTile }}">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Method</p>
-                                <p class="mt-1.5 font-semibold text-slate-900">{{ str($order->payment_method)->replace('_', ' ')->title() }}</p>
-                            </div>
-                        @endif
-                        @if ($order->payment_reference)
-                            <div class="{{ $metaTile }} sm:col-span-2">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment reference</p>
-                                <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $order->payment_reference }}</p>
-                            </div>
-                        @endif
-                        @if ($connectedAccountId)
-                            <div class="{{ $metaTile }} sm:col-span-2">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Connected account</p>
-                                <p class="mt-1.5 break-all font-semibold text-slate-900">{{ $connectedAccountId }}</p>
-                            </div>
-                        @endif
-                        @if ($selectedDeliveryMethod)
-                            <div class="{{ $metaTile }} sm:col-span-2">
-                                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Delivery method</p>
-                                <p class="mt-1.5 font-semibold text-slate-900">{{ $selectedDeliveryMethod }}</p>
-                                @if ($selectedDeliverySpeed || $selectedCarrierName || $estimatedMinDays !== null || $estimatedMaxDays !== null)
-                                    <p class="mt-1 text-xs text-slate-500">
-                                        {{ collect([
-                                            $selectedDeliverySpeed,
-                                            $selectedCarrierName,
-                                            $estimatedMinDays !== null && $estimatedMaxDays !== null
-                                                ? $estimatedMinDays . '-' . $estimatedMaxDays . ' days'
-                                                : null,
-                                        ])->filter()->implode(' | ') }}
-                                    </p>
-                                @endif
-                            </div>
+                        @if ($gatewayLabel || $order->payment_method || $order->payment_reference || $platformCheckoutNumber || $paymentConnectionLabel || $connectedAccountId || $order->external_order_number || $order->external_checkout_reference || $selectedDeliveryMethod)
+                            <details class="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                                <summary class="cursor-pointer text-sm font-semibold text-slate-700">Payment and source details</summary>
+                                <div class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                                    <div>
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Source</p>
+                                        <p class="mt-1 font-semibold">{{ $sourceLabelLong }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Channel</p>
+                                        <p class="mt-1 font-semibold">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
+                                    </div>
+                                    @if ($order->external_order_number)
+                                        <div>
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">External order</p>
+                                            <p class="mt-1 font-semibold">{{ $order->external_order_number }}</p>
+                                        </div>
+                                    @endif
+                                    @if ($order->external_checkout_reference)
+                                        <div>
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Checkout reference</p>
+                                            <p class="mt-1 break-all font-semibold">{{ $order->external_checkout_reference }}</p>
+                                        </div>
+                                    @endif
+                                    @if ($platformCheckoutNumber)
+                                        <div>
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Checkout</p>
+                                            <p class="mt-1 break-all font-semibold">{{ $platformCheckoutNumber }}</p>
+                                        </div>
+                                    @endif
+                                    @if ($paymentConnectionLabel)
+                                        <div>
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Stripe connection</p>
+                                            <p class="mt-1 font-semibold">{{ $paymentConnectionLabel }}</p>
+                                        </div>
+                                    @endif
+                                    @if ($gatewayLabel)
+                                        <div>
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gateway</p>
+                                            <p class="mt-1 font-semibold">{{ $gatewayLabel }}</p>
+                                        </div>
+                                    @endif
+                                    @if ($order->payment_method)
+                                        <div>
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Method</p>
+                                            <p class="mt-1 font-semibold">{{ str($order->payment_method)->replace('_', ' ')->title() }}</p>
+                                        </div>
+                                    @endif
+                                    @if ($order->payment_reference)
+                                        <div class="sm:col-span-2">
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment reference</p>
+                                            <p class="mt-1 break-all font-semibold">{{ $order->payment_reference }}</p>
+                                        </div>
+                                    @endif
+                                    @if ($connectedAccountId)
+                                        <div class="sm:col-span-2">
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Connected account</p>
+                                            <p class="mt-1 break-all font-semibold">{{ $connectedAccountId }}</p>
+                                        </div>
+                                    @endif
+                                    @if ($selectedDeliveryMethod)
+                                        <div class="sm:col-span-2">
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Delivery method</p>
+                                            <p class="mt-1 font-semibold">{{ $selectedDeliveryMethod }}</p>
+                                            @if ($selectedDeliverySpeed || $selectedCarrierName || $estimatedMinDays !== null || $estimatedMaxDays !== null)
+                                                <p class="mt-1 text-xs text-slate-500">
+                                                    {{ collect([
+                                                        $selectedDeliverySpeed,
+                                                        $selectedCarrierName,
+                                                        $estimatedMinDays !== null && $estimatedMaxDays !== null
+                                                            ? $estimatedMinDays.'-'.$estimatedMaxDays.' days'
+                                                            : null,
+                                                    ])->filter()->implode(' | ') }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            </details>
                         @endif
                     </div>
-                </article>
+                </div>
 
                 {{-- Activity --}}
-                <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="text-lg font-semibold text-slate-900">Order activity</h3>
-                    <p class="mt-1 text-sm text-slate-600">A clear history of what changed and when—helpful for support and audits.</p>
-
-                    <div class="relative mt-6">
+                <div class="merchant-card">
+                    <div class="border-b border-stone-200 px-6 py-4">
+                        <h3 class="font-heading text-xl font-semibold">Order Activity</h3>
+                    </div>
+                    <div class="relative p-6">
                         @if ($order->events->count() > 1)
-                            <div class="absolute bottom-8 left-[15px] top-8 w-px bg-slate-200" aria-hidden="true"></div>
+                            <div class="absolute bottom-10 left-9 top-10 w-px bg-slate-200" aria-hidden="true"></div>
                         @endif
-
-                        <div class="space-y-6">
+                        <div class="space-y-8">
                             @forelse ($order->events as $event)
-                                <div class="relative flex gap-4 pl-1">
-                                    <span class="relative z-10 mt-1.5 h-3 w-3 shrink-0 rounded-full border-[3px] border-white bg-indigo-600 shadow-[0_0_0_1px_rgba(148,163,184,0.5)]" aria-hidden="true"></span>
-                                    <div class="min-w-0 flex-1 pb-1">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <p class="font-semibold text-slate-900">{{ $event->title }}</p>
-                                            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                                {{ \App\Support\OrderLifecycle::eventTypeLabel($event->event_type) }}
-                                            </span>
+                                <div class="relative flex gap-6">
+                                    <div class="z-10 flex h-6 w-6 items-center justify-center rounded-full bg-brand ring-4 ring-white">
+                                        <span class="material-symbols-outlined text-[14px] text-white">done</span>
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex flex-wrap items-start justify-between gap-2">
+                                            <p class="font-semibold text-stone-900">{{ $event->title }}</p>
+                                            <span class="text-sm text-slate-500">{{ $event->created_at?->format('M j, g:i A') ?? 'Time not recorded' }}</span>
                                         </div>
                                         @if ($event->description)
-                                            <p class="mt-1.5 text-sm leading-relaxed text-slate-600">{{ $event->description }}</p>
+                                            <p class="mt-1 text-sm text-slate-500">{{ $event->description }}</p>
                                         @endif
-                                        <p class="mt-2 text-xs text-slate-400">
-                                            {{ $event->actor?->name ?? 'System' }} · {{ $event->created_at?->format('M j, Y g:i A') ?? 'Time not recorded' }}
+                                        <p class="mt-1 text-xs text-slate-400">
+                                            {{ \App\Support\OrderLifecycle::eventTypeLabel($event->event_type) }}
+                                            · {{ $event->actor?->name ?? 'System' }}
                                         </p>
                                     </div>
                                 </div>
                             @empty
-                                <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-5 py-10 text-center">
-                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">
-                                        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </div>
-                                    <p class="mx-auto mt-4 max-w-md text-sm leading-relaxed text-slate-600">No order activity has been recorded yet. Future status changes and important actions will appear here.</p>
+                                <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-5 py-10 text-center text-sm text-slate-600">
+                                    No order activity has been recorded yet. Future status changes and important actions will appear here.
                                 </div>
                             @endforelse
                         </div>
                     </div>
-                </article>
+                </div>
             </div>
 
-            <aside class="space-y-6 xl:sticky xl:top-6">
-                <article class="{{ $card }} p-5 md:p-6">
-                    <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">Operations</p>
-                    <h3 class="mt-1 text-lg font-semibold text-slate-900">Order status</h3>
-                    <p class="mt-1 text-sm text-slate-600">Move this order only through allowed steps for your store.</p>
-
-                    @if ($canManageOrders && $availableOrderStatuses->count() > 1)
-                        <form action="{{ route('orders.updateStatus', $order->id) }}" method="POST" class="mt-5 space-y-4">
-                            @csrf
-                            @method('PATCH')
-                            <div>
-                                <label for="status" class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Next state</label>
-                                <select name="status" id="status" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-                                    @foreach ($availableOrderStatuses as $status)
-                                        <option value="{{ $status }}" @selected($order->status === $status)>
-                                            {{ \App\Support\OrderLifecycle::orderStatusLabel($status) }}
-                                        </option>
-                                    @endforeach
-                                </select>
+            {{-- Right column --}}
+            <div class="space-y-8 lg:col-span-4">
+                {{-- Status manager --}}
+                <div id="status-manager" class="merchant-card scroll-mt-24 p-6">
+                    <h3 class="mb-4 font-heading text-xl font-semibold">Status Manager</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-slate-700">Current State</label>
+                            <div class="flex items-center gap-2 rounded-lg border border-stone-200 bg-brand-soft p-3">
+                                <span class="material-symbols-outlined text-brand">check_circle</span>
+                                <span class="font-semibold">{{ $orderStatusLabel }}</span>
                             </div>
-                            <button type="submit" class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700">
-                                Save status
-                            </button>
-                        </form>
-                    @elseif ($canManageOrders)
-                        <div class="mt-5 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                            No further status changes are available for this order.
                         </div>
-                    @else
-                        <div class="mt-5 rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
-                            You can view this order, but your store role cannot change its status.
-                        </div>
-                    @endif
-                </article>
 
-                <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="text-lg font-semibold text-slate-900">Customer</h3>
-                    <div class="mt-4 flex items-center gap-3">
-                        <div class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-800 ring-2 ring-white shadow-sm">
-                            {{ strtoupper($customerInitials) ?: 'C' }}
-                        </div>
-                        <div class="min-w-0">
-                            <p class="truncate font-semibold text-slate-900">{{ $customerName }}</p>
-                            <p class="truncate text-sm text-slate-600">{{ $order->customer_email ?? 'Email not recorded' }}</p>
-                        </div>
+                        @if ($canManageOrders && $availableOrderStatuses->count() > 1)
+                            <span class="material-symbols-outlined flex justify-center text-slate-400">arrow_downward</span>
+                            <form action="{{ route('orders.updateStatus', $order->id) }}" method="POST" class="space-y-4">
+                                @csrf
+                                @method('PATCH')
+                                <div>
+                                    <label for="status" class="mb-2 block text-sm font-semibold text-slate-700">Move to Next State</label>
+                                    <select name="status" id="status" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                                        @foreach ($availableOrderStatuses as $status)
+                                            <option value="{{ $status }}" @selected($order->status === $status)>
+                                                {{ \App\Support\OrderLifecycle::orderStatusLabel($status) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button type="submit" class="w-full rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-hover">
+                                    Save status
+                                </button>
+                            </form>
+                        @elseif ($canManageOrders)
+                            <div class="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                No further status changes are available for this order.
+                            </div>
+                        @else
+                            <div class="rounded-lg border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+                                You can view this order, but your store role cannot change its status.
+                            </div>
+                        @endif
                     </div>
+                </div>
 
-                    <dl class="mt-6 space-y-5 text-sm">
-                        <div>
-                            <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Phone</dt>
-                            <dd class="mt-1.5 text-slate-800">{{ $order->customer_phone ?? $shipping?->phone ?? 'Not recorded' }}</dd>
+                {{-- Customer --}}
+                <div class="merchant-card overflow-hidden">
+                    <div class="p-6">
+                        <h3 class="mb-6 font-heading text-xl font-semibold">Customer Profile</h3>
+                        <div class="mb-6 flex items-center gap-4">
+                            <div class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-soft font-heading text-xl font-bold text-brand">
+                                {{ strtoupper($customerInitials) ?: 'C' }}
+                            </div>
+                            <div class="min-w-0">
+                                <h4 class="truncate text-lg font-bold">{{ $customerName }}</h4>
+                                <p class="truncate text-sm text-slate-500">{{ $order->customer_email ?? 'Email not recorded' }}</p>
+                            </div>
                         </div>
-                        <div>
-                            <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Shipping address</dt>
-                            <dd class="mt-1.5 text-slate-800">
+                        <div class="space-y-6">
+                            <div>
+                                <h5 class="mb-3 text-[12px] font-bold uppercase tracking-[0.05em] text-slate-400">Shipping Address</h5>
                                 @if ($shipping)
-                                    {{ $shipping->address_line1 }}@if ($shipping->address_line2), {{ $shipping->address_line2 }}@endif<br>
-                                    {{ $shipping->city }}, {{ $shipping->state }} {{ $shipping->postal_code }}<br>
-                                    {{ $shipping->country }}
+                                    <p class="text-base leading-relaxed">
+                                        {{ $shipping->address_line1 }}@if ($shipping->address_line2)<br>{{ $shipping->address_line2 }}@endif<br>
+                                        {{ $shipping->city }}, {{ $shipping->state }} {{ $shipping->postal_code }}<br>
+                                        {{ $shipping->country }}
+                                    </p>
                                 @else
-                                    <span class="text-slate-500">Not recorded</span>
+                                    <p class="text-sm italic text-slate-500">Not recorded</p>
                                 @endif
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Billing address</dt>
-                            <dd class="mt-1.5 text-slate-800">
+                            </div>
+                            <div>
+                                <h5 class="mb-3 text-[12px] font-bold uppercase tracking-[0.05em] text-slate-400">Billing Address</h5>
                                 @if ($billing)
-                                    {{ $billing->address_line1 }}@if ($billing->address_line2), {{ $billing->address_line2 }}@endif<br>
-                                    {{ $billing->city }}, {{ $billing->state }} {{ $billing->postal_code }}<br>
-                                    {{ $billing->country }}
+                                    <p class="text-base leading-relaxed">
+                                        {{ $billing->address_line1 }}@if ($billing->address_line2)<br>{{ $billing->address_line2 }}@endif<br>
+                                        {{ $billing->city }}, {{ $billing->state }} {{ $billing->postal_code }}<br>
+                                        {{ $billing->country }}
+                                    </p>
                                 @elseif ($order->billing_same_as_shipping && $shipping)
-                                    <span class="text-slate-600">Same as shipping address</span>
+                                    <p class="text-sm italic text-slate-500">Same as shipping address</p>
                                 @else
-                                    <span class="text-slate-500">Not recorded</span>
+                                    <p class="text-sm italic text-slate-500">Not recorded</p>
                                 @endif
-                            </dd>
+                            </div>
+                            <div>
+                                <h5 class="mb-3 text-[12px] font-bold uppercase tracking-[0.05em] text-slate-400">Phone</h5>
+                                <p class="text-sm text-slate-700">{{ $order->customer_phone ?? $shipping?->phone ?? 'Not recorded' }}</p>
+                            </div>
                         </div>
-                    </dl>
+                        @if ($order->customer_id)
+                            <a href="{{ route('customersProfile', $order->customer_id) }}" class="text-brand mt-6 inline-flex text-sm font-bold hover:underline">
+                                View customer
+                            </a>
+                        @endif
+                    </div>
+                </div>
 
-                    @if ($order->customer_id)
-                        <a href="{{ route('customersProfile', $order->customer_id) }}" class="mt-6 flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/60 hover:text-indigo-900">
-                            View customer
-                        </a>
-                    @endif
-                </article>
-
-                <article class="{{ $card }} p-5 md:p-6">
-                    @php
-                        $remainingFulfillmentQuantities = $remainingFulfillmentQuantities ?? [];
-                        $remainingTotal = collect($remainingFulfillmentQuantities)->sum();
-                    @endphp
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h3 class="text-lg font-semibold text-slate-900">Fulfillment</h3>
-                            @if ($isOrderExternallyManaged)
-                                <p class="mt-1 text-sm text-slate-600">Fulfillment managed externally. Updates appear here when the external storefront sends shipment snapshots.</p>
-                            @else
-                                <p class="mt-1 text-sm text-slate-600">Create shipments, add tracking, and keep fulfillment status accurate.</p>
-                            @endif
-                        </div>
-                        <span class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide {{ $isOrderExternallyManaged ? 'bg-sky-100 text-sky-800' : \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
-                            {{ $isOrderExternallyManaged ? 'Externally managed' : \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
-                        </span>
+                {{-- Fulfillment --}}
+                <div class="merchant-card p-6">
+                    <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+                        <h3 class="font-heading text-xl font-semibold">Fulfillment</h3>
+                        <span @class([
+                            'order-status-pill',
+                            'bg-sky-100 text-sky-800' => $isOrderExternallyManaged,
+                            'bg-danger-soft text-danger' => ! $isOrderExternallyManaged && $order->fulfillment_status === \App\Support\OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                            'bg-amber-100 text-amber-800' => ! $isOrderExternallyManaged && $order->fulfillment_status === \App\Support\OrderLifecycle::FULFILLMENT_PARTIAL,
+                            'bg-green-100 text-green-700' => ! $isOrderExternallyManaged && $order->fulfillment_status === \App\Support\OrderLifecycle::FULFILLMENT_FULFILLED,
+                            'bg-slate-100 text-slate-700' => ! $isOrderExternallyManaged
+                                && ! in_array($order->fulfillment_status, [
+                                    \App\Support\OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                                    \App\Support\OrderLifecycle::FULFILLMENT_PARTIAL,
+                                    \App\Support\OrderLifecycle::FULFILLMENT_FULFILLED,
+                                ], true),
+                        ])>{{ $fulfillmentStatusLabel }}</span>
                     </div>
 
                     @if ($isOrderExternallyManaged)
-                        <div class="mt-5 rounded-xl border border-sky-100 bg-sky-50/80 p-4">
+                        <div class="mb-4 rounded-xl border border-sky-100 bg-sky-50/80 p-4">
                             <p class="text-xs font-bold uppercase tracking-wide text-sky-800/80">Fulfillment managed externally</p>
                             @if ($hasExternalFulfillmentDetails)
-                                <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                                <dl class="mt-3 grid gap-3 text-sm">
                                     @if ($externalCarrierName)
                                         <div>
                                             <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Carrier</dt>
-                                            <dd class="mt-1 font-semibold text-slate-900">{{ $externalCarrierName }}</dd>
+                                            <dd class="mt-1 font-semibold">{{ $externalCarrierName }}</dd>
                                         </div>
                                     @endif
                                     @if ($externalFulfillmentStatus)
                                         <div>
                                             <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">External status</dt>
-                                            <dd class="mt-1 font-semibold text-slate-900">{{ str($externalFulfillmentStatus)->replace('_', ' ')->title() }}</dd>
+                                            <dd class="mt-1 font-semibold">{{ str($externalFulfillmentStatus)->replace('_', ' ')->title() }}</dd>
                                         </div>
                                     @endif
                                     @if ($externalTrackingNumber)
-                                        <div class="sm:col-span-2">
+                                        <div>
                                             <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking number</dt>
-                                            <dd class="mt-1 break-all font-semibold text-slate-900">{{ $externalTrackingNumber }}</dd>
+                                            <dd class="mt-1 break-all font-semibold">{{ $externalTrackingNumber }}</dd>
                                         </div>
                                     @endif
                                     @if ($externalTrackingUrl)
-                                        <div class="sm:col-span-2">
+                                        <div>
                                             <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking link</dt>
-                                            <dd class="mt-1"><a href="{{ $externalTrackingUrl }}" target="_blank" rel="noopener" class="font-semibold text-indigo-700 hover:underline">Open tracking</a></dd>
+                                            <dd class="mt-1"><a href="{{ $externalTrackingUrl }}" target="_blank" rel="noopener" class="text-brand font-semibold hover:underline">Open tracking</a></dd>
                                         </div>
                                     @elseif (! $externalTrackingNumber)
-                                        <div class="sm:col-span-2">
+                                        <div>
                                             <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking</dt>
                                             <dd class="mt-1 text-sm text-slate-600">No tracking update received yet.</dd>
                                         </div>
@@ -545,13 +562,13 @@
                                     @if ($externalShippedAt)
                                         <div>
                                             <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Shipped at</dt>
-                                            <dd class="mt-1 font-semibold text-slate-900">{{ $externalShippedAt }}</dd>
+                                            <dd class="mt-1 font-semibold">{{ $externalShippedAt }}</dd>
                                         </div>
                                     @endif
                                     @if ($externalDeliveredAt)
                                         <div>
                                             <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Delivered at</dt>
-                                            <dd class="mt-1 font-semibold text-slate-900">{{ $externalDeliveredAt }}</dd>
+                                            <dd class="mt-1 font-semibold">{{ $externalDeliveredAt }}</dd>
                                         </div>
                                     @endif
                                 </dl>
@@ -564,28 +581,28 @@
                     @endif
 
                     @if ($isOrderExternallyManaged)
-                        <details class="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
+                        <details class="mb-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
                             <summary class="cursor-pointer text-xs font-bold uppercase tracking-wide text-slate-500">Internal fulfillment quantities (advanced)</summary>
                             <div class="mt-3 space-y-2">
                                 @foreach ($order->items as $item)
                                     @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
                                     <div class="flex items-center justify-between gap-3 text-sm">
                                         <span class="min-w-0 truncate text-slate-700">{{ $item->product_name }}</span>
-                                        <span class="font-semibold tabular-nums text-slate-900">{{ $remaining }} / {{ $item->quantity }}</span>
+                                        <span class="font-semibold tabular-nums">{{ $remaining }} / {{ $item->quantity }}</span>
                                     </div>
                                 @endforeach
                             </div>
                             <p class="mt-3 text-xs leading-relaxed text-slate-500">These counts reflect dashboard-managed shipments only. External storefront fulfillment is shown above.</p>
                         </details>
                     @else
-                        <div class="mt-5 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+                        <div class="mb-4 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
                             <p class="text-xs font-bold uppercase tracking-wide text-slate-400">Remaining to fulfill</p>
                             <div class="mt-3 space-y-2">
                                 @foreach ($order->items as $item)
                                     @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
                                     <div class="flex items-center justify-between gap-3 text-sm">
                                         <span class="min-w-0 truncate text-slate-700">{{ $item->product_name }}</span>
-                                        <span class="font-semibold tabular-nums text-slate-900">{{ $remaining }} / {{ $item->quantity }}</span>
+                                        <span class="font-semibold tabular-nums">{{ $remaining }} / {{ $item->quantity }}</span>
                                     </div>
                                 @endforeach
                             </div>
@@ -593,9 +610,8 @@
                     @endif
 
                     @if ($canManageOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
-                        <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="mt-5 space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+                        <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="space-y-4">
                             @csrf
-                            <p class="font-semibold text-slate-900">Create shipment</p>
                             @if ($routedOriginLocationId || $pickupLocationName)
                                 <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs leading-relaxed text-indigo-900">
                                     Fulfillment origin selected by service area routing{{ $routedOriginLocationId ? ': '.($fulfillmentLocations->firstWhere('id', $routedOriginLocationId)?->name ?? data_get($fulfillmentRouting, 'origin_name', 'Selected location')) : '' }}.
@@ -605,36 +621,33 @@
                                     You can override the ship-from location before creating the shipment.
                                 </div>
                             @endif
-                            <div class="grid gap-3">
-                                <label class="space-y-1">
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ship from</span>
-                                    <select name="origin_location_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                        <option value="">No location selected</option>
-                                        @foreach ($fulfillmentLocations as $location)
-                                            <option value="{{ $location->id }}" @selected((string) old('origin_location_id', $routedOriginLocationId ?: '') === (string) $location->id)>{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
-                                        @endforeach
-                                    </select>
-                                </label>
-                                <label class="space-y-1">
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Carrier account</span>
-                                    <select name="carrier_account_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                        <option value="">No carrier selected</option>
-                                        @foreach ($carrierAccounts as $account)
-                                            <option value="{{ $account->id }}">{{ $account->display_name }}</option>
-                                        @endforeach
-                                    </select>
-                                </label>
-                                <label class="space-y-1">
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Delivery method</span>
-                                    <select name="shipping_method_id" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                        <option value="">No delivery method selected</option>
-                                        @foreach ($shippingMethods as $method)
-                                            <option value="{{ $method->id }}">{{ $method->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </label>
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-slate-700">Ship from</label>
+                                <select name="origin_location_id" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                                    <option value="">No location selected</option>
+                                    @foreach ($fulfillmentLocations as $location)
+                                        <option value="{{ $location->id }}" @selected((string) old('origin_location_id', $routedOriginLocationId ?: '') === (string) $location->id)>{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
+                                    @endforeach
+                                </select>
                             </div>
-
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-slate-700">Carrier</label>
+                                <select name="carrier_account_id" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                                    <option value="">No carrier selected</option>
+                                    @foreach ($carrierAccounts as $account)
+                                        <option value="{{ $account->id }}">{{ $account->display_name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-slate-700">Delivery method</label>
+                                <select name="shipping_method_id" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                                    <option value="">No delivery method selected</option>
+                                    @foreach ($shippingMethods as $method)
+                                        <option value="{{ $method->id }}">{{ $method->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
                             <div class="space-y-2">
                                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
                                 @foreach ($order->items as $item)
@@ -650,43 +663,42 @@
                                     @endif
                                 @endforeach
                             </div>
-
-                            <div class="grid gap-3">
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-slate-700">Tracking Number</label>
+                                <input name="tracking_number" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" placeholder="Enter tracking #">
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-slate-700">Tracking link</label>
+                                <input name="tracking_url" type="url" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" placeholder="https://">
+                            </div>
+                            <div class="grid grid-cols-3 gap-2">
                                 <label class="space-y-1">
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking number</span>
-                                    <input name="tracking_number" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Packages</span>
+                                    <input name="package_count" type="number" min="1" value="1" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                 </label>
                                 <label class="space-y-1">
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tracking link</span>
-                                    <input name="tracking_url" type="url" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="https://">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Weight</span>
+                                    <input name="package_weight" type="number" min="0" step="0.001" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                 </label>
-                                <div class="grid grid-cols-3 gap-2">
-                                    <label class="space-y-1">
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Packages</span>
-                                        <input name="package_count" type="number" min="1" value="1" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                    </label>
-                                    <label class="space-y-1">
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Weight</span>
-                                        <input name="package_weight" type="number" min="0" step="0.001" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                    </label>
-                                    <label class="space-y-1">
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</span>
-                                        <input name="shipping_cost" type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                                    </label>
-                                </div>
                                 <label class="space-y-1">
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Internal note</span>
-                                    <textarea name="note" rows="2" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional"></textarea>
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</span>
+                                    <input name="shipping_cost" type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
                                 </label>
                             </div>
-                            <button class="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700">Create shipment</button>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Internal note</span>
+                                <textarea name="note" rows="2" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional"></textarea>
+                            </label>
+                            <button type="submit" class="w-full rounded-xl border-2 border-brand py-3 text-sm font-bold text-brand transition hover:bg-brand-soft">
+                                Create shipment
+                            </button>
                         </form>
                     @elseif ($canManageOrders && $remainingTotal === 0 && ! $isOrderExternallyManaged)
-                        <div class="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                        <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                             All items on this order are fulfilled.
                         </div>
                     @elseif ($isOrderExternallyManaged && $canManageOrders && $remainingTotal > 0)
-                        <details class="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
+                        <details class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
                             <summary class="cursor-pointer text-sm font-semibold text-slate-700">Advanced: create internal shipment override</summary>
                             <p class="mt-2 text-xs leading-relaxed text-slate-500">Only use this if you need to record fulfillment inside the dashboard in addition to external updates.</p>
                             <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white p-4">
@@ -753,7 +765,7 @@
                                     <div class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                                         <p class="font-semibold text-slate-900">{{ $shipment->tracking_number ?: 'Tracking link' }}</p>
                                         @if ($shipment->tracking_url)
-                                            <a href="{{ $shipment->tracking_url }}" target="_blank" rel="noopener" class="mt-1 inline-flex text-indigo-700 hover:underline">Open tracking</a>
+                                            <a href="{{ $shipment->tracking_url }}" target="_blank" rel="noopener" class="text-brand mt-1 inline-flex hover:underline">Open tracking</a>
                                         @endif
                                     </div>
                                 @endif
@@ -768,7 +780,7 @@
                                     </form>
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         @if (in_array($shipment->status, [\App\Models\Shipment::STATUS_PENDING, \App\Models\Shipment::STATUS_LABEL_CREATED], true))
-                                            <form method="POST" action="{{ route('shipments.mark-shipped', $shipment) }}">@csrf<button class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white">Mark shipped</button></form>
+                                            <form method="POST" action="{{ route('shipments.mark-shipped', $shipment) }}">@csrf<button class="rounded-lg bg-brand px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-hover">Mark shipped</button></form>
                                             <form method="POST" action="{{ route('shipments.cancel', $shipment) }}">@csrf<button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Cancel</button></form>
                                         @endif
                                         @if (in_array($shipment->status, [\App\Models\Shipment::STATUS_SHIPPED, \App\Models\Shipment::STATUS_IN_TRANSIT], true))
@@ -781,28 +793,30 @@
                                 @endif
                             </div>
                         @empty
-                            <div class="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center">
-                                <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">
-                                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                                        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </div>
-                                <p class="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-slate-600">No shipments have been created yet.</p>
+                            <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-600">
+                                No shipments have been created yet.
                             </div>
                         @endforelse
                     </div>
-                </article>
+                </div>
 
-                <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="text-lg font-semibold text-slate-900">Order notes</h3>
-                    <p class="mt-1 text-sm text-slate-600">Internal notes stay in your team—customers do not see them.</p>
+                {{-- Internal notes --}}
+                <div class="merchant-card p-6">
+                    <div class="mb-4 flex items-center justify-between">
+                        <h3 class="font-heading text-xl font-semibold">Internal Notes</h3>
+                        <span class="material-symbols-outlined text-slate-400">lock</span>
+                    </div>
 
                     @if ($canManageOrders)
-                        <form action="{{ route('orders.notes.store', $order) }}" method="POST" class="mt-5 space-y-3">
+                        <form action="{{ route('orders.notes.store', $order) }}" method="POST">
                             @csrf
                             <label for="order-note-body" class="sr-only">Note for your team</label>
-                            <textarea id="order-note-body" name="body" rows="3" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="e.g. Customer asked for gift receipt"></textarea>
-                            <button type="submit" class="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700">Add note</button>
+                            <textarea id="order-note-body" name="body" class="h-32 w-full resize-none rounded-xl border border-stone-200 bg-white p-4 text-sm text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" placeholder="Add a note for the team..."></textarea>
+                            <div class="mt-4 flex justify-end">
+                                <button type="submit" class="text-brand rounded-lg px-4 py-2 text-sm font-bold transition hover:bg-brand-soft">
+                                    Add Note
+                                </button>
+                            </div>
                         </form>
                     @endif
 
@@ -815,26 +829,22 @@
                         @empty
                             @if ($order->notes)
                                 <p class="whitespace-pre-line text-sm leading-relaxed text-slate-800">{{ $order->notes }}</p>
-                            @else
+                            @elseif (! $canManageOrders)
                                 <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-sm text-slate-500">No notes yet.</div>
                             @endif
                         @endforelse
                     </div>
-                </article>
+                </div>
 
-                <article class="{{ $card }} p-5 md:p-6">
-                    <h3 class="text-lg font-semibold text-slate-900">Returns and refunds</h3>
+                {{-- Returns --}}
+                <div id="returns-refunds" class="merchant-card scroll-mt-24 p-6">
+                    <h3 class="font-heading text-xl font-semibold">Returns and refunds</h3>
                     <p class="mt-1 text-sm text-slate-600">RMAs and refund history will live here when returns are enabled for your store.</p>
-                    <div class="mt-5 flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm ring-1 ring-slate-100" aria-hidden="true">
-                            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                                <path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </div>
-                        <p class="mx-auto mt-4 max-w-sm text-sm leading-relaxed text-slate-600">No returns or refunds are recorded yet. Returns and refunds will be added in a later commerce phase.</p>
+                    <div class="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-10 text-center text-sm text-slate-600">
+                        No returns or refunds are recorded yet. Returns and refunds will be added in a later commerce phase.
                     </div>
-                </article>
-            </aside>
+                </div>
+            </div>
         </div>
     </div>
 @endsection
