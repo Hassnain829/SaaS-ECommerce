@@ -11,6 +11,7 @@ use App\Services\Checkout\CheckoutTotalsService;
 use App\Services\Coupons\CouponService;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\Money\DecimalString;
 use App\Support\OrderLifecycle;
@@ -26,6 +27,7 @@ class ManualOrderConversionService
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
         private readonly CouponService $couponService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     public function convert(DraftOrder $draft, Store $store, User $actor): Order
@@ -318,6 +320,8 @@ class ManualOrderConversionService
             );
 
             $this->customerMetricsService->recalculate($draft->customer);
+
+            $this->commerceNotifications->orderCreated($order, $actor);
 
             return $order->load(['items', 'addresses', 'customer', 'events']);
         });

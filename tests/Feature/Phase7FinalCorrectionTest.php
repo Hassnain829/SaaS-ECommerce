@@ -62,7 +62,9 @@ class Phase7FinalCorrectionTest extends TestCase
             ->assertSessionHasErrors('payment');
 
         $refund = Refund::query()->where('order_id', $order->id)->firstOrFail();
-        $this->assertSame(RefundLifecycle::STATUS_FAILED, $refund->status);
+        $this->assertSame(RefundLifecycle::STATUS_PROCESSING, $refund->status);
+        $this->assertTrue((bool) data_get($refund->meta, 'reconciliation_required'));
+        $this->assertTrue((bool) data_get($refund->meta, 'provider_mismatch'));
         $this->assertNotSame('live', $refund->mode);
         $this->assertNotSame('acct_other', $refund->provider_account_id);
         $this->assertSame('0.00', number_format((float) ($order->fresh()->refunded_total ?: 0), 2, '.', ''));
@@ -516,6 +518,736 @@ class Phase7FinalCorrectionTest extends TestCase
         $this->assertSame(0, StockMovement::query()->where('movement_type', StockMovement::TYPE_RETURN_RESTOCK)->count());
     }
 
+    public function test_succeeded_mismatch_keeps_allocation_and_blocks_over_refund(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '100.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true,
+            providerAccountId: 'acct_original'
+        );
+
+        $this->bindProvider(fn () => new PaymentRefundResult(
+            providerRefundId: 're_mismatch',
+            status: 'succeeded',
+            amount: '100.00',
+            amountMinor: 10000,
+            currencyCode: 'USD',
+            mode: 'live',
+            providerAccountId: 'acct_other',
+        ));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '100.00',
+                'idempotency_key' => 'mismatch-alloc',
+            ])
+            ->assertSessionHasErrors('payment');
+
+        $refund = Refund::query()->where('order_id', $order->id)->firstOrFail();
+        $this->assertSame(RefundLifecycle::STATUS_PROCESSING, $refund->status);
+        $this->assertTrue((bool) data_get($refund->meta, 'reconciliation_required'));
+        $this->assertSame(10000, (int) $refund->amount_minor);
+        $this->assertSame('0.00', number_format((float) ($order->fresh()->refunded_total ?: 0), 2, '.', ''));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '10.00',
+                'idempotency_key' => 'second-should-block',
+            ])
+            ->assertSessionHasErrors('amount');
+
+        $this->assertSame(1, Refund::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_failed_refund_retry_cannot_exceed_remaining_capture(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '100.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true
+        );
+
+        $this->bindProvider(fn () => new PaymentRefundResult(
+            providerRefundId: 're_fail_70',
+            status: 'failed',
+            amount: '70.00',
+            amountMinor: 7000,
+            currencyCode: 'USD',
+            mode: 'test',
+            failureMessage: 'Provider declined refund',
+        ));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '70.00',
+                'idempotency_key' => 'fail-70',
+            ])
+            ->assertSessionHasErrors('payment');
+
+        $failed = Refund::query()->where('idempotency_key', 'fail-70')->firstOrFail();
+        $this->assertSame(RefundLifecycle::STATUS_FAILED, $failed->status);
+
+        $this->bindProvider(fn () => new PaymentRefundResult(
+            providerRefundId: 're_ok_40',
+            status: 'succeeded',
+            amount: '40.00',
+            amountMinor: 4000,
+            currencyCode: 'USD',
+            mode: 'test',
+        ));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '40.00',
+                'idempotency_key' => 'ok-40',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, Refund::query()->where('idempotency_key', 'ok-40')->value('status'));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.recheck', [$order, $failed]))
+            ->assertSessionHasErrors('amount');
+
+        $this->assertSame(RefundLifecycle::STATUS_FAILED, $failed->fresh()->status);
+        $this->assertSame('40.00', number_format((float) ($order->fresh()->refunded_total ?: 0), 2, '.', ''));
+        $this->assertSame(2, Refund::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_pending_provider_refund_rechecks_through_existing_refund_action(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '55.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true
+        );
+
+        $phase = 0;
+        $this->bindProvider(function () use (&$phase) {
+            $phase++;
+            if ($phase === 1) {
+                return new PaymentRefundResult(
+                    providerRefundId: 're_pending_55',
+                    status: 'pending',
+                    amount: '55.00',
+                    amountMinor: 5500,
+                    currencyCode: 'USD',
+                    mode: 'test',
+                );
+            }
+
+            return new PaymentRefundResult(
+                providerRefundId: 're_pending_55',
+                status: 'succeeded',
+                amount: '55.00',
+                amountMinor: 5500,
+                currencyCode: 'USD',
+                mode: 'test',
+            );
+        });
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '55.00',
+                'idempotency_key' => 'pend-recheck',
+            ])
+            ->assertRedirect();
+
+        $refund = Refund::query()->where('idempotency_key', 'pend-recheck')->firstOrFail();
+        $this->assertSame(RefundLifecycle::STATUS_PROCESSING, $refund->status);
+        $this->assertSame('0.00', number_format((float) ($order->fresh()->refunded_total ?: 0), 2, '.', ''));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSee('Recheck refund');
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.recheck', [$order, $refund]))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, $refund->fresh()->status);
+        $this->assertSame('55.00', number_format((float) ($order->fresh()->refunded_total ?: 0), 2, '.', ''));
+        $this->assertSame(1, Refund::query()->where('order_id', $order->id)->count());
+        $this->assertSame(2, $phase);
+    }
+
+    public function test_processing_cheaper_exchange_resumes_with_succeeded_deterministic_refund(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00', quantity: 1);
+        $this->location($store);
+        [, $cheap] = $this->product($store, 'Cheap Resume', 'CHP-R', 10);
+        app(InventorySyncService::class)->ensureDefaultLevelForVariant($cheap->fresh(), 5);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $cheap->id,
+                'idempotency_key' => 'cheap-resume',
+            ])->assertRedirect();
+
+        $exchange = Exchange::query()->where('idempotency_key', 'cheap-resume')->firstOrFail();
+        $reservationId = $exchange->items()->where('direction', 'inbound')->value('inventory_reservation_id');
+
+        $refund = Refund::query()->create([
+            'store_id' => $store->id,
+            'order_id' => $order->id,
+            'refund_number' => 'RFN-EX-RESUME',
+            'status' => RefundLifecycle::STATUS_SUCCEEDED,
+            'method' => RefundLifecycle::METHOD_EXTERNAL,
+            'amount' => '30.00',
+            'amount_minor' => 3000,
+            'currency_code' => 'USD',
+            'idempotency_key' => 'exchange_refund_'.$exchange->id,
+            'processed_at' => now(),
+        ]);
+
+        $exchange->update([
+            'status' => ExchangeLifecycle::STATUS_PROCESSING,
+            'meta' => [
+                'completion_previous_status' => ExchangeLifecycle::STATUS_RESERVED,
+            ],
+        ]);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('exchanges.complete', $exchange))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(ExchangeLifecycle::STATUS_COMPLETED, $exchange->fresh()->status);
+        $this->assertSame((int) $refund->id, (int) $exchange->fresh()->refund_id);
+        $this->assertSame(
+            InventoryReservation::STATUS_COMMITTED,
+            InventoryReservation::query()->whereKey($reservationId)->value('status')
+        );
+        $this->assertSame(1, Refund::query()->where('idempotency_key', 'exchange_refund_'.$exchange->id)->count());
+    }
+
+    public function test_exchange_finalization_failure_then_retry_commits_once_and_one_refund(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00', quantity: 1);
+        $this->location($store);
+        [, $cheap] = $this->product($store, 'Cheap Retry', 'CHP-T', 10);
+        app(InventorySyncService::class)->ensureDefaultLevelForVariant($cheap->fresh(), 5);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $cheap->id,
+                'idempotency_key' => 'cheap-finalize-retry',
+            ])->assertRedirect();
+
+        $exchange = Exchange::query()->where('idempotency_key', 'cheap-finalize-retry')->firstOrFail();
+        $reservationId = (int) $exchange->items()->where('direction', 'inbound')->value('inventory_reservation_id');
+
+        $failedOnce = false;
+        InventoryReservation::updating(function (InventoryReservation $model) use (&$failedOnce): void {
+            if ($failedOnce) {
+                return;
+            }
+            if ($model->isDirty('status') && $model->status === InventoryReservation::STATUS_COMMITTED) {
+                $failedOnce = true;
+                throw new \RuntimeException('finalize crash');
+            }
+        });
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('exchanges.complete', $exchange))
+            ->assertSessionHasErrors('status');
+
+        $this->assertTrue($failedOnce);
+        $this->assertSame(ExchangeLifecycle::STATUS_PROCESSING, $exchange->fresh()->status);
+        $this->assertSame(
+            InventoryReservation::STATUS_ACTIVE,
+            InventoryReservation::query()->whereKey($reservationId)->value('status')
+        );
+
+        $refunds = Refund::query()->where('idempotency_key', 'exchange_refund_'.$exchange->id)->get();
+        $this->assertCount(1, $refunds);
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, $refunds->first()->status);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('exchanges.complete', $exchange->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(ExchangeLifecycle::STATUS_COMPLETED, $exchange->fresh()->status);
+        $this->assertSame(
+            InventoryReservation::STATUS_COMMITTED,
+            InventoryReservation::query()->whereKey($reservationId)->value('status')
+        );
+        $this->assertSame(1, Refund::query()->where('idempotency_key', 'exchange_refund_'.$exchange->id)->count());
+    }
+
+    public function test_processing_exchange_shows_resume_completion_and_completes_via_controller(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00', quantity: 1);
+        $this->location($store);
+        [, $cheap] = $this->product($store, 'Cheap UI', 'CHP-UI', 10);
+        app(InventorySyncService::class)->ensureDefaultLevelForVariant($cheap->fresh(), 5);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $cheap->id,
+                'idempotency_key' => 'cheap-ui-resume',
+            ])->assertRedirect();
+
+        $exchange = Exchange::query()->where('idempotency_key', 'cheap-ui-resume')->firstOrFail();
+
+        Refund::query()->create([
+            'store_id' => $store->id,
+            'order_id' => $order->id,
+            'refund_number' => 'RFN-UI-RESUME',
+            'status' => RefundLifecycle::STATUS_SUCCEEDED,
+            'method' => RefundLifecycle::METHOD_EXTERNAL,
+            'amount' => '30.00',
+            'amount_minor' => 3000,
+            'currency_code' => 'USD',
+            'idempotency_key' => 'exchange_refund_'.$exchange->id,
+            'processed_at' => now(),
+        ]);
+
+        $exchange->update([
+            'status' => ExchangeLifecycle::STATUS_PROCESSING,
+            'meta' => ['completion_previous_status' => ExchangeLifecycle::STATUS_RESERVED],
+        ]);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSee('Resume completion')
+            ->assertDontSee(route('exchanges.cancel', $exchange), false);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('exchanges.complete', $exchange->fresh()))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(ExchangeLifecycle::STATUS_COMPLETED, $exchange->fresh()->status);
+    }
+
+    public function test_terminal_failed_provider_refund_creates_new_deterministic_retry_key(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '50.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true
+        );
+
+        $seenKeys = [];
+        $creates = 0;
+        $retrieves = 0;
+        $this->bindProvider(function ($paymentIntent, $amountMinor, $currencyCode, $options = []) use (&$seenKeys, &$creates, &$retrieves) {
+            if (! empty($options['retrieve'])) {
+                $retrieves++;
+
+                return new PaymentRefundResult(
+                    providerRefundId: (string) ($options['provider_refund_id'] ?? 're_old_failed'),
+                    status: 'failed',
+                    amount: '50.00',
+                    amountMinor: 5000,
+                    currencyCode: 'USD',
+                    mode: 'test',
+                    failureMessage: 'still failed',
+                );
+            }
+
+            $creates++;
+            $seenKeys[] = $options['idempotency_key'] ?? null;
+
+            if ($creates === 1) {
+                return new PaymentRefundResult(
+                    providerRefundId: 're_old_failed',
+                    status: 'failed',
+                    amount: '50.00',
+                    amountMinor: 5000,
+                    currencyCode: 'USD',
+                    mode: 'test',
+                    failureMessage: 'Provider declined refund',
+                );
+            }
+
+            return new PaymentRefundResult(
+                providerRefundId: 're_retry_ok',
+                status: 'succeeded',
+                amount: '50.00',
+                amountMinor: 5000,
+                currencyCode: 'USD',
+                mode: 'test',
+            );
+        });
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '50.00',
+                'idempotency_key' => 'terminal-retry-key',
+            ])
+            ->assertSessionHasErrors('payment');
+
+        $refund = Refund::query()->where('idempotency_key', 'terminal-retry-key')->firstOrFail();
+        $this->assertSame(RefundLifecycle::STATUS_FAILED, $refund->status);
+        $this->assertSame('re_old_failed', $refund->provider_refund_id);
+        $baseKey = (string) $refund->provider_idempotency_key;
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.recheck', [$order, $refund]))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $refund = $refund->fresh();
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, $refund->status);
+        $expectedRetryKey = 'refund_'.$refund->id.':retry:1';
+        $this->assertSame($expectedRetryKey, $refund->provider_idempotency_key);
+        $this->assertLessThanOrEqual(120, strlen((string) $refund->provider_idempotency_key));
+        $this->assertSame(1, (int) data_get($refund->meta, 'provider_retry_attempt'));
+        $this->assertSame('re_old_failed', data_get($refund->meta, 'previous_provider_refund_id'));
+        $this->assertSame($baseKey, data_get($refund->meta, 'previous_provider_idempotency_key'));
+        $this->assertSame($baseKey, data_get($refund->meta, 'provider_idempotency_base'));
+        $this->assertSame(2, $creates);
+        $this->assertSame(0, $retrieves);
+        $this->assertSame([$baseKey, $expectedRetryKey], $seenKeys);
+        $this->assertSame(1, Refund::query()->where('idempotency_key', 'terminal-retry-key')->count());
+    }
+
+    public function test_uncertain_network_retry_reuses_same_provider_idempotency_key(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '40.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true
+        );
+
+        $seenKeys = [];
+        $calls = 0;
+        $this->bindProvider(function ($paymentIntent, $amountMinor, $currencyCode, $options = []) use (&$seenKeys, &$calls) {
+            $calls++;
+            $seenKeys[] = $options['idempotency_key'] ?? null;
+            if ($calls === 1) {
+                throw new \RuntimeException('network blip');
+            }
+
+            return new PaymentRefundResult(
+                providerRefundId: 're_net_ok',
+                status: 'succeeded',
+                amount: '40.00',
+                amountMinor: 4000,
+                currencyCode: 'USD',
+                mode: 'test',
+            );
+        });
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), ['idempotency_key' => 'uncertain-key'])
+            ->assertSessionHasErrors('payment');
+
+        $refund = Refund::query()->where('idempotency_key', 'uncertain-key')->firstOrFail();
+        $this->assertSame(RefundLifecycle::STATUS_PROCESSING, $refund->status);
+        $this->assertTrue((bool) data_get($refund->meta, 'provider_uncertain'));
+        $firstKey = (string) $refund->provider_idempotency_key;
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.recheck', [$order, $refund]))
+            ->assertRedirect();
+
+        $this->assertSame([$firstKey, $firstKey], $seenKeys);
+        $this->assertSame($firstKey, $refund->fresh()->provider_idempotency_key);
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, $refund->fresh()->status);
+        $this->assertSame(1, Refund::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_late_pending_response_cannot_downgrade_succeeded_refund(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '35.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true
+        );
+
+        $this->bindProvider(fn () => new PaymentRefundResult(
+            providerRefundId: 're_done',
+            status: 'succeeded',
+            amount: '35.00',
+            amountMinor: 3500,
+            currencyCode: 'USD',
+            mode: 'test',
+        ));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '35.00',
+                'idempotency_key' => 'late-pending',
+            ])
+            ->assertRedirect();
+
+        $refund = Refund::query()->where('idempotency_key', 'late-pending')->firstOrFail();
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, $refund->status);
+        $providerId = $refund->provider_refund_id;
+        $mode = $refund->mode;
+        $account = $refund->provider_account_id;
+        $refundedTotal = number_format((float) ($order->fresh()->refunded_total ?: 0), 2, '.', '');
+
+        $paymentIntent = PaymentIntent::query()->where('order_id', $order->id)->firstOrFail();
+        $service = app(RefundService::class);
+        $method = new \ReflectionMethod(RefundService::class, 'handleProviderResult');
+        $method->setAccessible(true);
+        $result = $method->invoke(
+            $service,
+            $order->fresh(),
+            $refund->fresh(),
+            new PaymentRefundResult(
+                providerRefundId: 're_late_pending',
+                status: 'pending',
+                amount: '35.00',
+                amountMinor: 3500,
+                currencyCode: 'USD',
+                mode: 'live',
+                providerAccountId: 'acct_other',
+            ),
+            $paymentIntent,
+            $owner,
+            null
+        );
+
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, $result->status);
+        $this->assertSame($providerId, $result->provider_refund_id);
+        $this->assertSame($mode, $result->mode);
+        $this->assertSame($account, $result->provider_account_id);
+        $this->assertSame($refundedTotal, number_format((float) ($order->fresh()->refunded_total ?: 0), 2, '.', ''));
+        $this->assertSame(1, Refund::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_two_completion_calls_create_one_exchange_refund_and_commit_once(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00', quantity: 1);
+        $this->location($store);
+        [, $cheap] = $this->product($store, 'Cheap Once', 'CHP-ONCE', 10);
+        app(InventorySyncService::class)->ensureDefaultLevelForVariant($cheap->fresh(), 5);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $cheap->id,
+                'idempotency_key' => 'cheap-once',
+            ])->assertRedirect();
+
+        $exchange = Exchange::query()->where('idempotency_key', 'cheap-once')->firstOrFail();
+        $reservationId = (int) $exchange->items()->where('direction', 'inbound')->value('inventory_reservation_id');
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('exchanges.complete', $exchange))
+            ->assertRedirect();
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('exchanges.complete', $exchange->fresh()))
+            ->assertRedirect();
+
+        $this->assertSame(ExchangeLifecycle::STATUS_COMPLETED, $exchange->fresh()->status);
+        $this->assertSame(1, Refund::query()->where('idempotency_key', 'exchange_refund_'.$exchange->id)->count());
+        $this->assertSame(
+            InventoryReservation::STATUS_COMMITTED,
+            InventoryReservation::query()->whereKey($reservationId)->value('status')
+        );
+    }
+
+    public function test_cross_store_refund_recheck_remains_404(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '25.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true
+        );
+        [$owner2, $store2, $order2] = $this->seedPaidOrder(
+            grandTotal: '25.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true
+        );
+
+        $this->bindProvider(fn () => new PaymentRefundResult(
+            providerRefundId: 're_hold',
+            status: 'pending',
+            amount: '25.00',
+            amountMinor: 2500,
+            currencyCode: 'USD',
+            mode: 'test',
+        ));
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '25.00',
+                'idempotency_key' => 'cross-store-recheck',
+            ])
+            ->assertRedirect();
+
+        $refund = Refund::query()->where('idempotency_key', 'cross-store-recheck')->firstOrFail();
+
+        $this->actingAs($owner2)->withSession(['current_store_id' => $store2->id])
+            ->post(route('orders.refunds.recheck', [$order2, $refund]))
+            ->assertNotFound();
+
+        $this->actingAs($owner2)->withSession(['current_store_id' => $store2->id])
+            ->post(route('orders.refunds.recheck', [$order, $refund]))
+            ->assertNotFound();
+    }
+
+    public function test_terminal_retry_succeeds_with_120_char_merchant_idempotency_key(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '45.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true
+        );
+
+        $merchantKey = str_repeat('k', 120);
+        $this->assertSame(120, strlen($merchantKey));
+
+        $creates = 0;
+        $seenKeys = [];
+        $this->bindProvider(function ($paymentIntent, $amountMinor, $currencyCode, $options = []) use (&$creates, &$seenKeys) {
+            if (! empty($options['retrieve'])) {
+                return new PaymentRefundResult(
+                    providerRefundId: 're_long_failed',
+                    status: 'failed',
+                    amount: '45.00',
+                    amountMinor: 4500,
+                    currencyCode: 'USD',
+                    mode: 'test',
+                    failureMessage: 'still failed',
+                );
+            }
+
+            $creates++;
+            $seenKeys[] = $options['idempotency_key'] ?? null;
+
+            if ($creates === 1) {
+                return new PaymentRefundResult(
+                    providerRefundId: 're_long_failed',
+                    status: 'failed',
+                    amount: '45.00',
+                    amountMinor: 4500,
+                    currencyCode: 'USD',
+                    mode: 'test',
+                    failureMessage: 'Provider declined refund',
+                );
+            }
+
+            return new PaymentRefundResult(
+                providerRefundId: 're_long_ok',
+                status: 'succeeded',
+                amount: '45.00',
+                amountMinor: 4500,
+                currencyCode: 'USD',
+                mode: 'test',
+            );
+        });
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '45.00',
+                'idempotency_key' => $merchantKey,
+            ])
+            ->assertSessionHasErrors('payment');
+
+        $refund = Refund::query()->where('idempotency_key', $merchantKey)->firstOrFail();
+        $this->assertSame(RefundLifecycle::STATUS_FAILED, $refund->status);
+        $this->assertSame($merchantKey, $refund->provider_idempotency_key);
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.recheck', [$order, $refund]))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $refund = $refund->fresh();
+        $retryKey = (string) $refund->provider_idempotency_key;
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, $refund->status);
+        $this->assertSame('refund_'.$refund->id.':retry:1', $retryKey);
+        $this->assertLessThanOrEqual(120, strlen($retryKey));
+        $this->assertSame($merchantKey, data_get($refund->meta, 'provider_idempotency_base'));
+        $this->assertSame($merchantKey, data_get($refund->meta, 'previous_provider_idempotency_key'));
+        $this->assertSame(1, Refund::query()->where('idempotency_key', $merchantKey)->count());
+        $this->assertSame([$merchantKey, $retryKey], $seenKeys);
+    }
+
+    public function test_verified_success_clears_mismatch_and_uncertain_reconciliation_flags(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(
+            grandTotal: '60.00',
+            orderSource: 'platform_checkout',
+            withPaymentIntent: true,
+            providerAccountId: 'acct_original'
+        );
+
+        $phase = 0;
+        $this->bindProvider(function () use (&$phase) {
+            $phase++;
+            if ($phase === 1) {
+                return new PaymentRefundResult(
+                    providerRefundId: 're_mismatch_then_ok',
+                    status: 'succeeded',
+                    amount: '60.00',
+                    amountMinor: 6000,
+                    currencyCode: 'USD',
+                    mode: 'live',
+                    providerAccountId: 'acct_other',
+                );
+            }
+
+            return new PaymentRefundResult(
+                providerRefundId: 're_mismatch_then_ok',
+                status: 'succeeded',
+                amount: '60.00',
+                amountMinor: 6000,
+                currencyCode: 'USD',
+                mode: 'test',
+                providerAccountId: 'acct_original',
+            );
+        });
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), [
+                'amount' => '60.00',
+                'idempotency_key' => 'clear-flags-key',
+            ])
+            ->assertSessionHasErrors('payment');
+
+        $refund = Refund::query()->where('idempotency_key', 'clear-flags-key')->firstOrFail();
+        $this->assertSame(RefundLifecycle::STATUS_PROCESSING, $refund->status);
+        $this->assertTrue((bool) data_get($refund->meta, 'provider_mismatch'));
+        $this->assertTrue((bool) data_get($refund->meta, 'reconciliation_required'));
+        $this->assertNotNull(data_get($refund->meta, 'sanitized_error'));
+
+        // Overlay uncertain flag as if a later network recheck left both active.
+        $refund->forceFill([
+            'meta' => array_merge($refund->meta ?? [], [
+                'provider_uncertain' => true,
+                'provider_error' => 'temporary outage',
+            ]),
+        ])->save();
+
+        $this->actingAs($owner)->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.recheck', [$order, $refund->fresh()]))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $refund = $refund->fresh();
+        $this->assertSame(RefundLifecycle::STATUS_SUCCEEDED, $refund->status);
+        $this->assertFalse((bool) data_get($refund->meta, 'provider_uncertain'));
+        $this->assertFalse((bool) data_get($refund->meta, 'provider_mismatch'));
+        $this->assertFalse((bool) data_get($refund->meta, 'reconciliation_required'));
+        $this->assertNull(data_get($refund->meta, 'sanitized_error'));
+        $this->assertNull(data_get($refund->meta, 'provider_error'));
+        $this->assertSame('re_mismatch_then_ok', $refund->provider_refund_id);
+        $this->assertNotNull(data_get($refund->meta, 'provider_result'));
+        $this->assertSame(1, Refund::query()->where('idempotency_key', 'clear-flags-key')->count());
+    }
+
     private function bindProvider(callable $resultFactory): void
     {
         $this->app->bind(\App\Services\Payments\StripePlatformPaymentProvider::class, function () use ($resultFactory) {
@@ -545,7 +1277,10 @@ class Phase7FinalCorrectionTest extends TestCase
 
                 public function retrieveRefund(string $providerRefundId, PaymentIntent $paymentIntent, array $options = []): PaymentRefundResult
                 {
-                    throw new \RuntimeException('unused');
+                    return ($this->resultFactory)($paymentIntent, 0, 'USD', array_merge($options, [
+                        'retrieve' => true,
+                        'provider_refund_id' => $providerRefundId,
+                    ]));
                 }
 
                 public function verifyWebhook(string $payload, string $signature, string $mode = 'test'): PaymentWebhookResult

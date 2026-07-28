@@ -1227,11 +1227,6 @@ class DashboardController extends Controller
         return view('user_view.analytics');
     }
 
-    public function notifications()
-    {
-        return view('user_view.notifications');
-    }
-
     public function billingSubscription()
     {
         return view('user_view.billingSubscription');

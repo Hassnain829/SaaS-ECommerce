@@ -7,12 +7,16 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderReturn;
 use App\Models\ProductVariant;
+use App\Models\Refund;
 use App\Models\User;
+use Throwable;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\ExchangeLifecycle;
 use App\Support\Money\CurrencyPrecision;
+use App\Support\NotificationEvent;
 use App\Support\RefundLifecycle;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -29,6 +33,7 @@ class ExchangeService
         private readonly InventorySyncService $inventorySyncService,
         private readonly ChannelOwnershipService $channelOwnershipService,
         private readonly RefundService $refundService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     /**
@@ -262,6 +267,13 @@ class ExchangeService
                 ]
             );
 
+            $this->commerceNotifications->exchangeEvent(
+                $exchange,
+                NotificationEvent::EXCHANGE_CREATED,
+                'Exchange created',
+                $actor
+            );
+
             return $exchange->fresh(['items']);
         });
     }
@@ -361,11 +373,11 @@ class ExchangeService
             $exchange = Exchange::query()
                 ->whereKey($exchange->id)
                 ->lockForUpdate()
-                ->with(['items.reservation', 'order.store'])
+                ->with(['items.reservation', 'order.store', 'refund'])
                 ->firstOrFail();
 
             if ($exchange->status === ExchangeLifecycle::STATUS_COMPLETED) {
-                return ['exchange' => $exchange, 'previous_status' => null, 'already_done' => true];
+                return ['exchange' => $exchange, 'already_done' => true];
             }
 
             if ($exchange->status === ExchangeLifecycle::STATUS_CANCELLED) {
@@ -374,40 +386,43 @@ class ExchangeService
                 ]);
             }
 
-            if ($exchange->status === ExchangeLifecycle::STATUS_PROCESSING) {
-                throw ValidationException::withMessages([
-                    'status' => 'This exchange is already being completed.',
-                ]);
-            }
-
-            if (! in_array($exchange->status, [ExchangeLifecycle::STATUS_REQUESTED, ExchangeLifecycle::STATUS_RESERVED], true)) {
-                throw ValidationException::withMessages([
-                    'status' => 'This exchange cannot be completed in its current status.',
-                ]);
-            }
-
             $currency = (string) $exchange->currency_code;
             $scale = CurrencyPrecision::scale($currency);
             $priceDifference = CurrencyPrecision::roundMajor((string) $exchange->price_difference, $currency);
+            $resuming = $exchange->status === ExchangeLifecycle::STATUS_PROCESSING;
 
-            if (bccomp($priceDifference, '0', $scale) > 0) {
-                if (bccomp((string) $exchange->collected_amount, (string) $exchange->balance_due, $scale) < 0) {
+            if (! $resuming) {
+                if (! in_array($exchange->status, [ExchangeLifecycle::STATUS_REQUESTED, ExchangeLifecycle::STATUS_RESERVED], true)) {
                     throw ValidationException::withMessages([
-                        'balance_due' => 'Collect the upgrade balance before completing this exchange.',
+                        'status' => 'This exchange cannot be completed in its current status.',
                     ]);
                 }
+
+                if (bccomp($priceDifference, '0', $scale) > 0) {
+                    if (bccomp((string) $exchange->collected_amount, (string) $exchange->balance_due, $scale) < 0) {
+                        throw ValidationException::withMessages([
+                            'balance_due' => 'Collect the upgrade balance before completing this exchange.',
+                        ]);
+                    }
+                }
+
+                $previousStatus = (string) $exchange->status;
+                $exchange->forceFill([
+                    'status' => ExchangeLifecycle::STATUS_PROCESSING,
+                    'notes' => $this->blankToNull($payload['notes'] ?? $exchange->notes),
+                    'meta' => array_merge($exchange->meta ?? [], [
+                        'completion_previous_status' => $previousStatus,
+                    ]),
+                ])->save();
+            } else {
+                $previousStatus = (string) data_get($exchange->meta, 'completion_previous_status', ExchangeLifecycle::STATUS_RESERVED);
             }
 
-            $previousStatus = (string) $exchange->status;
-            $exchange->forceFill([
-                'status' => ExchangeLifecycle::STATUS_PROCESSING,
-                'notes' => $this->blankToNull($payload['notes'] ?? $exchange->notes),
-            ])->save();
-
             return [
-                'exchange' => $exchange->fresh(['items.reservation', 'order.store']),
+                'exchange' => $exchange->fresh(['items.reservation', 'order.store', 'refund']),
                 'previous_status' => $previousStatus,
                 'already_done' => false,
+                'resuming' => $resuming,
                 'price_difference' => $priceDifference,
                 'currency' => $currency,
                 'scale' => $scale,
@@ -425,99 +440,128 @@ class ExchangeService
         $scale = $claim['scale'];
         $refund = null;
 
-        if (bccomp($priceDifference, '0', $scale) < 0) {
-            $refundAmount = CurrencyPrecision::roundMajor(bcmul($priceDifference, '-1', 8), $currency);
+        try {
+            if (bccomp($priceDifference, '0', $scale) < 0) {
+                $refundKey = 'exchange_refund_'.$exchange->id;
+                $existingRefund = Refund::query()
+                    ->where('store_id', $exchange->store_id)
+                    ->where('idempotency_key', $refundKey)
+                    ->first();
 
-            try {
-                $refund = $this->refundService->refundOrder($exchange->order, [
-                    'amount' => $refundAmount,
-                    'reason' => 'Exchange price difference',
-                    'notes' => 'Auto refund for exchange '.$exchange->exchange_number,
-                    'processed_externally' => true,
-                    'idempotency_key' => 'exchange_refund_'.$exchange->id,
-                ], $actor, $request);
-            } catch (ValidationException $e) {
-                $this->restoreExchangeStatus($exchange, $previousStatus);
-                throw $e;
-            }
-
-            if ($refund->status !== RefundLifecycle::STATUS_SUCCEEDED) {
-                $this->restoreExchangeStatus($exchange, $previousStatus);
-                throw ValidationException::withMessages([
-                    'refund' => 'The exchange price-difference refund must succeed before completion.',
-                ]);
-            }
-        }
-
-        return DB::transaction(function () use ($exchange, $payload, $actor, $request, $refund, $previousStatus): Exchange {
-            $exchange = Exchange::query()
-                ->whereKey($exchange->id)
-                ->lockForUpdate()
-                ->with(['items.reservation', 'order.store'])
-                ->firstOrFail();
-
-            if ($exchange->status === ExchangeLifecycle::STATUS_CANCELLED) {
-                throw ValidationException::withMessages([
-                    'status' => 'This exchange was cancelled before completion could finish.',
-                ]);
-            }
-
-            if ($exchange->status === ExchangeLifecycle::STATUS_COMPLETED) {
-                return $exchange->load(['items', 'refund']);
-            }
-
-            if ($exchange->status !== ExchangeLifecycle::STATUS_PROCESSING) {
-                $exchange->forceFill(['status' => ExchangeLifecycle::STATUS_PROCESSING])->save();
-            }
-
-            foreach ($exchange->items as $item) {
-                if ($item->direction !== ExchangeLifecycle::DIRECTION_INBOUND || ! $item->inventory_reservation_id) {
-                    continue;
+                if ($existingRefund && $existingRefund->status === RefundLifecycle::STATUS_SUCCEEDED) {
+                    $refund = $existingRefund;
+                } elseif ($existingRefund) {
+                    $refund = $this->refundService->recheckOrRetryRefund($existingRefund, $actor, $request);
+                } else {
+                    $refundAmount = CurrencyPrecision::roundMajor(bcmul($priceDifference, '-1', 8), $currency);
+                    $refund = $this->refundService->refundOrder($exchange->order, [
+                        'amount' => $refundAmount,
+                        'reason' => 'Exchange price difference',
+                        'notes' => 'Auto refund for exchange '.$exchange->exchange_number,
+                        'processed_externally' => true,
+                        'idempotency_key' => $refundKey,
+                    ], $actor, $request);
                 }
 
-                $reservation = $item->reservation;
-                if ($reservation) {
-                    $this->inventoryReservationService->commit($reservation, [
-                        'commit_reason' => 'Exchange '.$exchange->exchange_number.' completed',
+                if ($refund->status !== RefundLifecycle::STATUS_SUCCEEDED) {
+                    throw ValidationException::withMessages([
+                        'refund' => 'The exchange price-difference refund must succeed before completion. Use Recheck on the refund, then complete again.',
                     ]);
                 }
             }
 
-            $exchange->forceFill([
-                'status' => ExchangeLifecycle::STATUS_COMPLETED,
-                'refund_id' => $refund?->id ?? $exchange->refund_id,
-                'completed_by' => $actor?->id,
-                'completed_at' => now(),
-                'notes' => $this->blankToNull($payload['notes'] ?? $exchange->notes),
-            ])->save();
+            return DB::transaction(function () use ($exchange, $payload, $actor, $request, $refund): Exchange {
+                $exchange = Exchange::query()
+                    ->whereKey($exchange->id)
+                    ->lockForUpdate()
+                    ->with(['items.reservation', 'order.store'])
+                    ->firstOrFail();
 
-            $this->orderEventRecorder->record(
-                $exchange->order,
-                ExchangeLifecycle::EVENT_EXCHANGE_COMPLETED,
-                'Exchange completed',
-                'Exchange '.$exchange->exchange_number.' was completed.',
-                [
-                    'exchange_id' => $exchange->id,
-                    'refund_id' => $refund?->id,
-                    'price_difference' => $exchange->price_difference,
-                    'previous_status' => $previousStatus,
-                ],
-                $actor
-            );
+                if ($exchange->status === ExchangeLifecycle::STATUS_CANCELLED) {
+                    throw ValidationException::withMessages([
+                        'status' => 'This exchange was cancelled before completion could finish.',
+                    ]);
+                }
 
-            $this->securityLogRecorder->record(
-                $request,
-                'exchange.completed',
-                store: $exchange->order->store,
-                user: $actor,
-                metadata: [
-                    'order_id' => $exchange->order_id,
-                    'exchange_id' => $exchange->id,
-                ]
-            );
+                if ($exchange->status === ExchangeLifecycle::STATUS_COMPLETED) {
+                    return $exchange->load(['items', 'refund']);
+                }
 
-            return $exchange->fresh(['items', 'refund']);
-        });
+                if ($exchange->status !== ExchangeLifecycle::STATUS_PROCESSING) {
+                    $exchange->forceFill(['status' => ExchangeLifecycle::STATUS_PROCESSING])->save();
+                }
+
+                foreach ($exchange->items as $item) {
+                    if ($item->direction !== ExchangeLifecycle::DIRECTION_INBOUND || ! $item->inventory_reservation_id) {
+                        continue;
+                    }
+
+                    $reservation = $item->reservation;
+                    if ($reservation) {
+                        $this->inventoryReservationService->commit($reservation, [
+                            'commit_reason' => 'Exchange '.$exchange->exchange_number.' completed',
+                        ]);
+                    }
+                }
+
+                $exchange->forceFill([
+                    'status' => ExchangeLifecycle::STATUS_COMPLETED,
+                    'refund_id' => $refund?->id ?? $exchange->refund_id,
+                    'completed_by' => $actor?->id,
+                    'completed_at' => now(),
+                    'notes' => $this->blankToNull($payload['notes'] ?? $exchange->notes),
+                ])->save();
+
+                $this->orderEventRecorder->record(
+                    $exchange->order,
+                    ExchangeLifecycle::EVENT_EXCHANGE_COMPLETED,
+                    'Exchange completed',
+                    'Exchange '.$exchange->exchange_number.' was completed.',
+                    [
+                        'exchange_id' => $exchange->id,
+                        'refund_id' => $refund?->id,
+                        'price_difference' => $exchange->price_difference,
+                    ],
+                    $actor
+                );
+
+                $this->securityLogRecorder->record(
+                    $request,
+                    'exchange.completed',
+                    store: $exchange->order->store,
+                    user: $actor,
+                    metadata: [
+                        'order_id' => $exchange->order_id,
+                        'exchange_id' => $exchange->id,
+                    ]
+                );
+
+                $this->commerceNotifications->exchangeEvent(
+                    $exchange,
+                    NotificationEvent::EXCHANGE_COMPLETED,
+                    'Exchange completed',
+                    $actor
+                );
+
+                return $exchange->fresh(['items', 'refund']);
+            });
+        } catch (ValidationException $e) {
+            $hasPersistedRefund = Refund::query()
+                ->where('store_id', $exchange->store_id)
+                ->where('idempotency_key', 'exchange_refund_'.$exchange->id)
+                ->exists();
+
+            // Roll back only when no cheaper-exchange refund was persisted yet.
+            // Once a refund exists, stay processing so Complete can resume safely.
+            if (empty($claim['resuming']) && ! $hasPersistedRefund) {
+                $this->restoreExchangeStatus($exchange, $previousStatus);
+            }
+            throw $e;
+        } catch (Throwable $e) {
+            throw ValidationException::withMessages([
+                'status' => 'Exchange completion was interrupted. Try Complete again to finish safely.',
+            ]);
+        }
     }
 
     public function cancel(Exchange $exchange, ?User $actor = null, ?Request $request = null): Exchange

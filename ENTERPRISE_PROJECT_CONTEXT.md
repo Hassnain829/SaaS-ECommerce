@@ -146,6 +146,7 @@ Important existing models:
 - FedEx Model A connectivity, registration, MFA evidence, and validation workspace
 - USPS public API foundation
 - CLEAN-1 through CLEAN-4 repository hygiene, carrier organization, retention, and controlled refactoring
+- Notifications and communication (Phase 11 — **Complete 2026-07-29**; in-app center, preferences, merchant/customer email, commit-isolated dispatch, retryable delivery, interrupted-worker recovery; report: `docs/phases/PHASE_11_NOTIFICATIONS_REPORT.md`. Repository full suite still has five known unrelated Phase 5/6 failures — Phase 11 does not claim suite-green.)
 
 ### Partial areas
 
@@ -155,7 +156,6 @@ Important existing models:
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier operation (rates, labels, tracking in production)
 - API keys/scopes, webhooks, and event outbox
-- Notifications
 - SaaS billing and subscriptions
 - Markets and B2B
 - Observability

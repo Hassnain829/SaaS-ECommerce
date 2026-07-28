@@ -160,7 +160,7 @@ class Phase7CorrectionTest extends TestCase
             ->assertSessionHasErrors('payment');
 
         $this->assertSame(1, Refund::query()->where('order_id', $order->id)->count());
-        $this->assertSame(RefundLifecycle::STATUS_FAILED, Refund::query()->first()->status);
+        $this->assertSame(RefundLifecycle::STATUS_PROCESSING, Refund::query()->first()->status);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])

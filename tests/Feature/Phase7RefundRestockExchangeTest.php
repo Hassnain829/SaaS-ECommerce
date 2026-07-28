@@ -230,7 +230,7 @@ class Phase7RefundRestockExchangeTest extends TestCase
 
         $this->assertSame(OrderLifecycle::ORDER_COMPLETED, $order->fresh()->status);
         $this->assertSame('0.00', number_format((float) ($order->fresh()->refunded_total ?: 0), 2, '.', ''));
-        $this->assertSame(RefundLifecycle::STATUS_FAILED, Refund::query()->where('order_id', $order->id)->value('status'));
+        $this->assertSame(RefundLifecycle::STATUS_PROCESSING, Refund::query()->where('order_id', $order->id)->value('status'));
     }
 
     public function test_receive_with_restock_creates_return_restock_movement_once(): void

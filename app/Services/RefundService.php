@@ -10,6 +10,7 @@ use App\Models\PaymentIntent;
 use App\Models\Refund;
 use App\Models\User;
 use App\Services\Channels\ChannelOwnershipService;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Services\Payments\PaymentProviderManager;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\Money\DecimalString;
@@ -30,6 +31,7 @@ class RefundService
         private readonly PaymentProviderManager $paymentProviderManager,
         private readonly ChannelOwnershipService $channelOwnershipService,
         private readonly CustomerMetricsService $customerMetricsService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     /**
@@ -342,6 +344,27 @@ class RefundService
         ];
     }
 
+    /**
+     * Merchant action: recheck a pending/processing provider refund or safely retry a failed one.
+     */
+    public function recheckOrRetryRefund(Refund $refund, ?User $actor = null, ?Request $request = null): Refund
+    {
+        $refund->loadMissing(['order.store', 'paymentIntent.paymentProviderAccount', 'items', 'adjustments']);
+
+        abort_unless(
+            $refund->order && (int) $refund->store_id === (int) $refund->order->store_id,
+            404
+        );
+
+        if ($refund->method !== RefundLifecycle::METHOD_PROVIDER) {
+            throw ValidationException::withMessages([
+                'payment' => 'Only provider refunds can be rechecked here.',
+            ]);
+        }
+
+        return $this->resumeExistingRefund($refund, $actor, $request);
+    }
+
     private function resumeExistingRefund(Refund $refund, ?User $actor, ?Request $request): Refund
     {
         $refund->loadMissing(['items', 'adjustments', 'order.store', 'order.customer', 'paymentIntent.paymentProviderAccount']);
@@ -350,13 +373,11 @@ class RefundService
             return $refund;
         }
 
-        if (in_array($refund->status, [RefundLifecycle::STATUS_PENDING, RefundLifecycle::STATUS_PROCESSING], true)
-            && $refund->method === RefundLifecycle::METHOD_PROVIDER) {
-            return $this->recheckOrRetryProviderRefund($refund, $actor, $request);
-        }
-
-        if ($refund->status === RefundLifecycle::STATUS_FAILED
-            && $refund->method === RefundLifecycle::METHOD_PROVIDER) {
+        if (in_array($refund->status, [
+            RefundLifecycle::STATUS_PENDING,
+            RefundLifecycle::STATUS_PROCESSING,
+            RefundLifecycle::STATUS_FAILED,
+        ], true) && $refund->method === RefundLifecycle::METHOD_PROVIDER) {
             return $this->recheckOrRetryProviderRefund($refund, $actor, $request);
         }
 
@@ -365,15 +386,95 @@ class RefundService
 
     private function recheckOrRetryProviderRefund(Refund $refund, ?User $actor, ?Request $request): Refund
     {
-        $order = $refund->order;
-        $routing = $this->resolveRefundRouting($order);
-        $paymentIntent = $refund->paymentIntent ?: $routing['payment_intent'];
+        $prepared = DB::transaction(function () use ($refund): array {
+            // Always lock Order first, then Refund, to match creation/finalization.
+            $order = Order::query()
+                ->whereKey($refund->order_id)
+                ->lockForUpdate()
+                ->with(['store', 'paymentIntents.paymentProviderAccount', 'paymentIntents.captures', 'refunds'])
+                ->firstOrFail();
 
-        if (! $paymentIntent) {
-            throw ValidationException::withMessages([
-                'payment' => 'This refund cannot be retried without the original payment.',
-            ]);
+            $refund = Refund::query()
+                ->whereKey($refund->id)
+                ->where('order_id', $order->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($refund->status === RefundLifecycle::STATUS_SUCCEEDED) {
+                return ['refund' => $refund, 'order' => $order, 'payment_intent' => $refund->paymentIntent, 'skip' => true, 'force_create' => false];
+            }
+
+            $routing = $this->resolveRefundRouting($order);
+            $paymentIntent = $refund->paymentIntent ?: $routing['payment_intent'];
+            if (! $paymentIntent) {
+                throw ValidationException::withMessages([
+                    'payment' => 'This refund cannot be retried without the original payment.',
+                ]);
+            }
+
+            $currency = strtoupper((string) ($refund->currency_code ?: $order->currency_code ?: 'USD'));
+            $forceCreate = false;
+
+            if ($refund->status === RefundLifecycle::STATUS_FAILED) {
+                // Failed does not reserve allocation — re-reserve only if still available.
+                $available = $this->remainingRefundableMinor($order, $currency);
+                if ((int) $refund->amount_minor > $available) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'This refund can no longer be retried because intervening refunds used the remaining captured amount.',
+                    ]);
+                }
+
+                $baseKey = $this->providerIdempotencyBaseKey($refund);
+                $attempt = (int) data_get($refund->meta, 'provider_retry_attempt', 0) + 1;
+                // Short deterministic key — merchant keys may already be 120 chars.
+                $newKey = $this->providerRetryIdempotencyKey((int) $refund->id, $attempt);
+
+                $refund->forceFill([
+                    'status' => RefundLifecycle::STATUS_PROCESSING,
+                    'failed_at' => null,
+                    'provider_refund_id' => null,
+                    'provider_status' => null,
+                    'provider_idempotency_key' => $newKey,
+                    'meta' => array_merge($refund->meta ?? [], [
+                        'provider_idempotency_base' => $baseKey,
+                        'provider_retry_attempt' => $attempt,
+                        'previous_provider_refund_id' => $refund->provider_refund_id,
+                        'previous_provider_status' => $refund->provider_status,
+                        'previous_provider_idempotency_key' => $refund->provider_idempotency_key,
+                        'retry_reserved_at' => now()->toIso8601String(),
+                        'provider_uncertain' => false,
+                        'provider_mismatch' => false,
+                        'reconciliation_required' => false,
+                    ]),
+                ])->save();
+
+                $forceCreate = true;
+            } elseif ($refund->status === RefundLifecycle::STATUS_PENDING) {
+                $refund->forceFill([
+                    'status' => RefundLifecycle::STATUS_PROCESSING,
+                ])->save();
+            }
+
+            return [
+                'refund' => $refund->fresh(['items', 'adjustments']),
+                'order' => $order,
+                'payment_intent' => $paymentIntent->loadMissing('paymentProviderAccount'),
+                'skip' => false,
+                'force_create' => $forceCreate,
+            ];
+        });
+
+        if (! empty($prepared['skip'])) {
+            return $prepared['refund']->load(['items', 'adjustments']);
         }
+
+        /** @var Refund $refund */
+        $refund = $prepared['refund'];
+        /** @var Order $order */
+        $order = $prepared['order'];
+        /** @var PaymentIntent $paymentIntent */
+        $paymentIntent = $prepared['payment_intent'];
+        $forceCreate = ! empty($prepared['force_create']);
 
         $provider = $this->paymentProviderManager->driver($refund->provider ?: 'stripe');
         $options = [
@@ -383,7 +484,9 @@ class RefundService
         ];
 
         try {
-            if (filled($refund->provider_refund_id)) {
+            // Terminal failed retries always create a new provider attempt.
+            // Pending/processing/uncertain/mismatch with a provider ID retrieve & reconcile.
+            if (! $forceCreate && filled($refund->provider_refund_id)) {
                 $result = $provider->retrieveRefund((string) $refund->provider_refund_id, $paymentIntent, $options);
             } else {
                 $result = $provider->createRefund(
@@ -394,16 +497,50 @@ class RefundService
                 );
             }
         } catch (Throwable $e) {
-            $this->markRefundFailed($order, $refund, $actor, $e->getMessage(), [
-                'provider_error' => $e->getMessage(),
-            ]);
+            // Unknown/network outcome: keep processing, retain allocation, reuse current attempt key.
+            $this->markRefundProcessingUncertain($order, $refund, $actor, $e->getMessage());
 
             throw ValidationException::withMessages([
-                'payment' => 'The refund could not be processed: '.$e->getMessage(),
+                'payment' => 'The refund is still processing with the provider. Use Recheck after a moment.',
             ]);
         }
 
         return $this->handleProviderResult($order, $refund, $result, $paymentIntent, $actor, $request);
+    }
+
+    private function providerIdempotencyBaseKey(Refund $refund): string
+    {
+        $fromMeta = $this->blankToNull(data_get($refund->meta, 'provider_idempotency_base'));
+        if ($fromMeta) {
+            return $fromMeta;
+        }
+
+        $current = (string) ($refund->provider_idempotency_key ?: '');
+
+        // Ignore short refund_{id}:retry:{n} keys — those are attempts, not bases.
+        if ($current !== '' && preg_match('/^refund_\d+:retry:\d+$/', $current) !== 1) {
+            if (preg_match('/^(.*):retry:\d+$/', $current, $matches) === 1) {
+                return $matches[1];
+            }
+
+            return $current;
+        }
+
+        if (filled($refund->idempotency_key)) {
+            return (string) $refund->idempotency_key;
+        }
+
+        return 'refund_'.$refund->id;
+    }
+
+    private function providerRetryIdempotencyKey(int $refundId, int $attempt): string
+    {
+        $key = 'refund_'.$refundId.':retry:'.$attempt;
+        if (strlen($key) > 120) {
+            return substr($key, 0, 120);
+        }
+
+        return $key;
     }
 
     /**
@@ -441,12 +578,10 @@ class RefundService
                 ]
             );
         } catch (Throwable $e) {
-            $this->markRefundFailed($order, $refund, $actor, $e->getMessage(), [
-                'provider_error' => $e->getMessage(),
-            ]);
+            $this->markRefundProcessingUncertain($order, $refund, $actor, $e->getMessage());
 
             throw ValidationException::withMessages([
-                'payment' => 'The refund could not be processed: '.$e->getMessage(),
+                'payment' => 'The refund is still processing with the provider. Use Recheck after a moment.',
             ]);
         }
 
@@ -465,59 +600,100 @@ class RefundService
         ?Request $request,
         ?array $breakdown = null,
     ): Refund {
-        // Persist identity/status only. Mode and account are written after verification.
-        $refund->forceFill([
-            'provider_refund_id' => filled($result->providerRefundId)
-                ? $result->providerRefundId
-                : $refund->provider_refund_id,
-            'provider_status' => $result->status,
-            'meta' => array_merge($refund->meta ?? [], [
-                'provider_result' => $this->sanitizeProviderMeta($result->raw),
-            ]),
-        ])->save();
+        $outcome = DB::transaction(function () use ($order, $refund, $result, $paymentIntent, $actor, $request, $breakdown): array {
+            $order = Order::query()
+                ->whereKey($order->id)
+                ->lockForUpdate()
+                ->with(['items', 'store', 'customer', 'paymentIntents.paymentProviderAccount', 'paymentIntents.captures', 'refunds'])
+                ->firstOrFail();
 
-        if ($result->failed()) {
-            $this->markRefundFailed(
-                $order,
-                $refund,
-                $actor,
-                $result->failureMessage ?: 'Provider refund failed.',
-                [
-                    'provider_refund_id' => $result->providerRefundId,
-                    'provider_result' => $this->sanitizeProviderMeta($result->raw),
-                    'failure_code' => $result->failureCode,
-                ]
-            );
+            $refund = Refund::query()
+                ->whereKey($refund->id)
+                ->where('order_id', $order->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-            throw ValidationException::withMessages([
-                'payment' => $result->failureMessage ?: 'The payment provider could not process this refund.',
-            ]);
-        }
+            // Never downgrade or overwrite a succeeded refund with a late provider response.
+            if ($refund->status === RefundLifecycle::STATUS_SUCCEEDED) {
+                return ['type' => 'succeeded', 'refund' => $refund->load(['items', 'adjustments'])];
+            }
 
-        if ($result->isPending() || ! $result->succeeded()) {
+            // Persist identity/status only. Mode and account are written after verification.
             $refund->forceFill([
-                'status' => RefundLifecycle::STATUS_PROCESSING,
+                'provider_refund_id' => filled($result->providerRefundId)
+                    ? $result->providerRefundId
+                    : $refund->provider_refund_id,
+                'provider_status' => $result->status,
+                'meta' => array_merge($refund->meta ?? [], [
+                    'provider_result' => $this->sanitizeProviderMeta($result->raw),
+                ]),
             ])->save();
 
-            return $refund->fresh(['items', 'adjustments']);
-        }
+            if ($result->failed()) {
+                $this->markRefundFailedLocked(
+                    $order,
+                    $refund,
+                    $actor,
+                    $result->failureMessage ?: 'Provider refund failed.',
+                    [
+                        'provider_refund_id' => $result->providerRefundId,
+                        'provider_result' => $this->sanitizeProviderMeta($result->raw),
+                        'failure_code' => $result->failureCode,
+                    ]
+                );
 
-        try {
-            $this->assertProviderResultMatchesRefund($refund, $result, $paymentIntent);
-        } catch (ValidationException $e) {
-            $this->recordProviderMismatch($order, $refund, $actor, $e->errors(), $result);
+                return [
+                    'type' => 'failed',
+                    'message' => $result->failureMessage ?: 'The payment provider could not process this refund.',
+                ];
+            }
 
-            throw $e;
-        }
+            if ($result->isPending() || ! $result->succeeded()) {
+                $refund->forceFill([
+                    'status' => RefundLifecycle::STATUS_PROCESSING,
+                ])->save();
 
-        $refund->forceFill([
-            'mode' => $result->mode ?? $refund->mode,
-            'provider_account_id' => $result->providerAccountId ?? $refund->provider_account_id,
-        ])->save();
+                return ['type' => 'pending', 'refund' => $refund->fresh(['items', 'adjustments'])];
+            }
 
-        $breakdown ??= $this->breakdownFromRefundRecord($refund);
+            try {
+                $this->assertProviderResultMatchesRefund($refund, $result, $paymentIntent);
+            } catch (ValidationException $e) {
+                $this->recordProviderMismatchLocked($order, $refund, $actor, $e->errors(), $result);
 
-        return $this->finalizeSucceededRefund($order, $refund, $breakdown, $actor, $request);
+                return ['type' => 'mismatch', 'errors' => $e->errors()];
+            }
+
+            $refund->forceFill([
+                'mode' => $result->mode ?? $refund->mode,
+                'provider_account_id' => $result->providerAccountId ?? $refund->provider_account_id,
+                'meta' => array_merge($refund->meta ?? [], [
+                    'provider_uncertain' => false,
+                    'provider_mismatch' => false,
+                    'reconciliation_required' => false,
+                    'sanitized_error' => null,
+                    'provider_error' => null,
+                ]),
+            ])->save();
+
+            $breakdown ??= $this->breakdownFromRefundRecord($refund);
+
+            return [
+                'type' => 'ok',
+                'refund' => $this->finalizeSucceededRefund($order, $refund, $breakdown, $actor, $request),
+            ];
+        });
+
+        return match ($outcome['type']) {
+            'succeeded', 'pending', 'ok' => $outcome['refund'],
+            'failed' => throw ValidationException::withMessages([
+                'payment' => $outcome['message'],
+            ]),
+            'mismatch' => throw ValidationException::withMessages($outcome['errors']),
+            default => throw ValidationException::withMessages([
+                'payment' => 'Unable to process the provider refund response.',
+            ]),
+        };
     }
 
     private function assertProviderResultMatchesRefund(
@@ -587,37 +763,64 @@ class RefundService
         array $errors,
         PaymentRefundResult $result,
     ): void {
+        DB::transaction(function () use ($order, $refund, $actor, $errors, $result): void {
+            $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $refund = Refund::query()
+                ->whereKey($refund->id)
+                ->where('order_id', $order->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $this->recordProviderMismatchLocked($order, $refund, $actor, $errors, $result);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $errors
+     */
+    private function recordProviderMismatchLocked(
+        Order $order,
+        Refund $refund,
+        ?User $actor,
+        array $errors,
+        PaymentRefundResult $result,
+    ): void {
+        if ($refund->status === RefundLifecycle::STATUS_SUCCEEDED) {
+            return;
+        }
+
         $message = collect($errors)->flatten()->filter()->first() ?: 'Provider refund verification failed.';
 
-        DB::transaction(function () use ($order, $refund, $actor, $message, $result): void {
-            $refund = Refund::query()->whereKey($refund->id)->lockForUpdate()->firstOrFail();
-            if ($refund->status === RefundLifecycle::STATUS_SUCCEEDED) {
-                return;
-            }
+        // Keep allocation reserved: provider may already have returned money.
+        $refund->forceFill([
+            'status' => RefundLifecycle::STATUS_PROCESSING,
+            'failed_at' => null,
+            'provider_refund_id' => filled($result->providerRefundId)
+                ? $result->providerRefundId
+                : $refund->provider_refund_id,
+            'provider_status' => $result->status,
+            'meta' => array_merge($refund->meta ?? [], [
+                'provider_mismatch' => true,
+                'reconciliation_required' => true,
+                'provider_status' => $result->status,
+                'provider_refund_id' => $result->providerRefundId,
+                'sanitized_error' => $message,
+                'provider_result' => $this->sanitizeProviderMeta($result->raw),
+            ]),
+        ])->save();
 
-            $refund->forceFill([
-                'status' => RefundLifecycle::STATUS_FAILED,
-                'failed_at' => now(),
-                'meta' => array_merge($refund->meta ?? [], [
-                    'provider_mismatch' => true,
-                    'provider_status' => $result->status,
-                    'provider_refund_id' => $result->providerRefundId,
-                    'sanitized_error' => $message,
-                ]),
-            ])->save();
-
-            $this->orderEventRecorder->record(
-                $order,
-                RefundLifecycle::EVENT_REFUND_MISMATCH,
-                'Refund provider mismatch',
-                'Refund '.$refund->refund_number.' could not be finalized because the provider response did not match the original payment.',
-                [
-                    'refund_id' => $refund->id,
-                    'error' => $message,
-                ],
-                $actor
-            );
-        });
+        $this->orderEventRecorder->record(
+            $order,
+            RefundLifecycle::EVENT_REFUND_MISMATCH,
+            'Refund provider mismatch',
+            'Refund '.$refund->refund_number.' needs reconciliation because the provider response did not match the original payment.',
+            [
+                'refund_id' => $refund->id,
+                'error' => $message,
+                'reconciliation_required' => true,
+            ],
+            $actor
+        );
     }
 
     /**
@@ -1169,6 +1372,14 @@ class RefundService
         $refund->forceFill([
             'status' => RefundLifecycle::STATUS_SUCCEEDED,
             'processed_at' => now(),
+            'failed_at' => null,
+            'meta' => array_merge($refund->meta ?? [], [
+                'provider_uncertain' => false,
+                'provider_mismatch' => false,
+                'reconciliation_required' => false,
+                'sanitized_error' => null,
+                'provider_error' => null,
+            ]),
         ])->save();
 
         if ($previousPayment !== $paymentStatus) {
@@ -1220,6 +1431,8 @@ class RefundService
                 $this->customerMetricsService->recalculate($order->customer);
             }
         }
+
+        $this->commerceNotifications->refundFinished($refund->fresh(), false, $actor);
     }
 
     /**
@@ -1227,27 +1440,84 @@ class RefundService
      */
     private function markRefundFailed(Order $order, Refund $refund, ?User $actor, string $message, array $meta = []): void
     {
-        DB::transaction(function () use ($order, $refund, $actor, $meta): void {
-            $refund = Refund::query()->whereKey($refund->id)->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($order, $refund, $actor, $message, $meta): void {
+            $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $refund = Refund::query()
+                ->whereKey($refund->id)
+                ->where('order_id', $order->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $this->markRefundFailedLocked($order, $refund, $actor, $message, $meta);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function markRefundFailedLocked(Order $order, Refund $refund, ?User $actor, string $message, array $meta = []): void
+    {
+        if ($refund->status === RefundLifecycle::STATUS_SUCCEEDED) {
+            return;
+        }
+
+        $refund->forceFill([
+            'status' => RefundLifecycle::STATUS_FAILED,
+            'provider_refund_id' => $meta['provider_refund_id'] ?? $refund->provider_refund_id,
+            'failed_at' => now(),
+            'meta' => array_merge($refund->meta ?? [], $meta, [
+                'provider_error' => $message,
+                'reconciliation_required' => false,
+            ]),
+        ])->save();
+
+        $this->orderEventRecorder->record(
+            $order,
+            RefundLifecycle::EVENT_REFUND_FAILED,
+            'Refund failed',
+            'Refund '.$refund->refund_number.' failed before money was returned.',
+            [
+                'refund_id' => $refund->id,
+                'error' => $meta['provider_error'] ?? ($meta['failure_code'] ?? $message),
+            ],
+            $actor
+        );
+
+        $this->commerceNotifications->refundFinished($refund->fresh(), true, $actor);
+    }
+
+    private function markRefundProcessingUncertain(Order $order, Refund $refund, ?User $actor, string $message): void
+    {
+        DB::transaction(function () use ($order, $refund, $actor, $message): void {
+            $order = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $refund = Refund::query()
+                ->whereKey($refund->id)
+                ->where('order_id', $order->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             if ($refund->status === RefundLifecycle::STATUS_SUCCEEDED) {
                 return;
             }
 
+            // Keep the current provider_idempotency_key so network retries reuse the same attempt.
             $refund->forceFill([
-                'status' => RefundLifecycle::STATUS_FAILED,
-                'provider_refund_id' => $meta['provider_refund_id'] ?? $refund->provider_refund_id,
-                'failed_at' => now(),
-                'meta' => array_merge($refund->meta ?? [], $meta),
+                'status' => RefundLifecycle::STATUS_PROCESSING,
+                'failed_at' => null,
+                'meta' => array_merge($refund->meta ?? [], [
+                    'provider_uncertain' => true,
+                    'sanitized_error' => $message,
+                ]),
             ])->save();
 
             $this->orderEventRecorder->record(
                 $order,
-                RefundLifecycle::EVENT_REFUND_FAILED,
-                'Refund failed',
-                'Refund '.$refund->refund_number.' failed before money was returned.',
+                RefundLifecycle::EVENT_REFUND_REQUESTED,
+                'Refund processing',
+                'Refund '.$refund->refund_number.' is waiting on the payment provider. Recheck to finish it.',
                 [
                     'refund_id' => $refund->id,
-                    'error' => $meta['provider_error'] ?? ($meta['failure_code'] ?? null),
+                    'error' => $message,
                 ],
                 $actor
             );

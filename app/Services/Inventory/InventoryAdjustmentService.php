@@ -8,12 +8,16 @@ use App\Models\Location;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Services\Notifications\LowStockNotifier;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class InventoryAdjustmentService
 {
-    public function __construct(private readonly InventorySyncService $syncService) {}
+    public function __construct(
+        private readonly InventorySyncService $syncService,
+        private readonly LowStockNotifier $lowStockNotifier,
+    ) {}
 
     public function setVariantAvailable(
         ProductVariant $variant,
@@ -94,6 +98,11 @@ class InventoryAdjustmentService
             );
 
             $this->syncVariantCacheFromItem($item);
+
+            $item->loadMissing('variant');
+            if ($item->variant) {
+                $this->lowStockNotifier->checkVariant($item->variant->fresh());
+            }
 
             return $level;
         });

@@ -13,6 +13,8 @@ use App\Models\User;
 use App\Services\OrderEventRecorder;
 use App\Services\SecurityLogRecorder;
 use App\Services\ShipmentNumberGenerator;
+use App\Services\Notifications\CommerceNotificationEmitter;
+use App\Support\NotificationEvent;
 use App\Support\OrderLifecycle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +27,7 @@ class ShipmentService
         private readonly FulfillmentStatusService $fulfillmentStatusService,
         private readonly OrderEventRecorder $orderEventRecorder,
         private readonly SecurityLogRecorder $securityLogRecorder,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     /**
@@ -184,6 +187,15 @@ class ShipmentService
                 metadata: ['shipment_id' => $shipment->id, 'shipment_number' => $shipment->shipment_number]
             );
 
+            if ($previousTracking !== $shipment->tracking_number) {
+                $this->commerceNotifications->shipmentEvent(
+                    $shipment,
+                    NotificationEvent::SHIPMENT_TRACKING_UPDATED,
+                    'Tracking updated',
+                    $actor
+                );
+            }
+
             return $shipment->refresh();
         });
     }
@@ -260,6 +272,22 @@ class ShipmentService
                     'new_status' => $status,
                 ]
             );
+
+            if ($status === Shipment::STATUS_SHIPPED) {
+                $this->commerceNotifications->shipmentEvent(
+                    $shipment,
+                    NotificationEvent::SHIPMENT_SHIPPED,
+                    'Shipment shipped',
+                    $actor
+                );
+            } elseif ($status === Shipment::STATUS_DELIVERED) {
+                $this->commerceNotifications->shipmentEvent(
+                    $shipment,
+                    NotificationEvent::SHIPMENT_DELIVERED,
+                    'Shipment delivered',
+                    $actor
+                );
+            }
 
             return $shipment->refresh();
         });

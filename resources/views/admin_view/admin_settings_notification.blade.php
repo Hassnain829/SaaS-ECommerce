@@ -45,6 +45,11 @@
         <p class="text-[19px] text-[#434654] mt-2 max-w-4xl">Manage your global platform configurations and communication preferences.</p>
     </div>
 
+    <div class="rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+        Merchant store alerts now use the live Notifications center in each store (in-app + email via the app mail configuration).
+        This admin page remains a platform operations preview — SMTP and third-party channel settings here are not persisted yet.
+    </div>
+
     <div class="border-b border-[#C3C6D6]/35 overflow-x-auto">
         <nav class="flex gap-10 min-w-max">
             <a href="{{ route('admin-settings') }}" class="pb-4 border-b-2 border-transparent text-[#434654] font-medium text-base">General Platform Info</a>

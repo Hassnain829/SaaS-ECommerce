@@ -11,6 +11,7 @@ use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\Money\DecimalString;
 use App\Support\OrderLifecycle;
@@ -55,6 +56,7 @@ class ExternalOrderSyncService
         private readonly ChannelOwnershipService $channelOwnership,
         private readonly FulfillmentOriginRouter $originRouter,
         private readonly \App\Services\Coupons\CouponService $couponService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     /**
@@ -340,6 +342,8 @@ class ExternalOrderSyncService
             }
 
             $this->customerMetricsService->recalculate($customer);
+
+            $this->commerceNotifications->orderCreated($order);
 
             return [
                 'order' => $order->load(['items', 'addresses', 'customer', 'events']),

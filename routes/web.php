@@ -26,6 +26,7 @@ use App\Http\Controllers\Settings\TaxSettingsController;
 use App\Http\Controllers\Settings\TeamMemberController;
 use App\Http\Controllers\Store\CurrentStoreController;
 use App\Http\Controllers\Store\DashboardController;
+use App\Http\Controllers\Store\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 //
@@ -148,6 +149,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/orders/{order}/refunds', [RefundController::class, 'store'])
         ->middleware('store.permission:orders.manage')
         ->name('orders.refunds.store');
+    Route::post('/orders/{order}/refunds/{refund}/recheck', [RefundController::class, 'recheck'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.refunds.recheck');
     Route::post('/orders/{order}/exchanges', [ExchangeController::class, 'store'])
         ->middleware('store.permission:orders.manage')
         ->name('orders.exchanges.store');
@@ -246,7 +250,12 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         ->name('team-members.destroy');
 
     Route::get('/analytics', [DashboardController::class, 'analytics'])->name('analytics');
-    Route::get('/notifications', [DashboardController::class, 'notifications'])->name('notifications');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications');
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.mark-all-read');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+    Route::post('/notifications/{notification}/retry', [NotificationController::class, 'retry'])->name('notifications.retry');
+    Route::post('/notifications/{notification}/retry-customer', [NotificationController::class, 'retryCustomer'])->name('notifications.retry-customer');
+    Route::put('/notifications/preferences', [NotificationController::class, 'updatePreferences'])->name('notifications.preferences.update');
 
     Route::get('/BillingSubscription', [DashboardController::class, 'billingSubscription'])
         ->middleware('store.permission:billing.view')

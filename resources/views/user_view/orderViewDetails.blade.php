@@ -885,7 +885,13 @@
                                         </div>
                                         <label class="flex items-center gap-2">
                                             <span class="text-xs text-slate-500">Qty</span>
-                                            <input type="number" min="0" max="{{ $remainingQty }}" name="items[{{ $item->id }}]" value="{{ old('items.'.$item->id, 0) }}" class="w-20 rounded-lg border border-stone-200 px-2 py-1.5 text-sm">
+                                            @php
+                                                $oldReturnQty = old('items.'.$item->id, 0);
+                                                if (is_array($oldReturnQty)) {
+                                                    $oldReturnQty = $oldReturnQty['quantity'] ?? 0;
+                                                }
+                                            @endphp
+                                            <input type="number" min="0" max="{{ $remainingQty }}" name="items[{{ $item->id }}]" value="{{ $oldReturnQty }}" class="w-20 rounded-lg border border-stone-200 px-2 py-1.5 text-sm">
                                         </label>
                                     </div>
                                 @endforeach
@@ -942,7 +948,13 @@
                                                 <p class="font-medium text-slate-900">{{ $item->product_name }}</p>
                                                 <p class="text-xs text-slate-500">{{ $refundableQty }} refundable</p>
                                             </div>
-                                            <input type="number" min="0" max="{{ $refundableQty }}" name="items[{{ $item->id }}]" value="{{ old('items.'.$item->id, 0) }}" class="w-20 rounded-lg border border-stone-200 px-2 py-1.5 text-sm">
+                                            @php
+                                                $oldRefundQty = old('items.'.$item->id, 0);
+                                                if (is_array($oldRefundQty)) {
+                                                    $oldRefundQty = $oldRefundQty['quantity'] ?? 0;
+                                                }
+                                            @endphp
+                                            <input type="number" min="0" max="{{ $refundableQty }}" name="items[{{ $item->id }}]" value="{{ $oldRefundQty }}" class="w-20 rounded-lg border border-stone-200 px-2 py-1.5 text-sm">
                                         </div>
                                     @endif
                                 @endforeach
@@ -1104,6 +1116,22 @@
                                         · {{ $refund->reason }}
                                     @endif
                                 </p>
+                                @if (
+                                    $canManageOrders
+                                    && $refund->method === \App\Support\RefundLifecycle::METHOD_PROVIDER
+                                    && in_array($refund->status, [
+                                        \App\Support\RefundLifecycle::STATUS_PENDING,
+                                        \App\Support\RefundLifecycle::STATUS_PROCESSING,
+                                        \App\Support\RefundLifecycle::STATUS_FAILED,
+                                    ], true)
+                                )
+                                    <form method="POST" action="{{ route('orders.refunds.recheck', [$order, $refund]) }}" class="mt-3">
+                                        @csrf
+                                        <button type="submit" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50">
+                                            {{ $refund->status === \App\Support\RefundLifecycle::STATUS_FAILED ? 'Retry refund' : 'Recheck refund' }}
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         @empty
                             <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-600">No refunds recorded yet.</div>
@@ -1148,13 +1176,17 @@
                                         </form>
                                     @endif
                                 @endif
-                                @if ($canManageOrders && in_array($exchange->status, ['requested', 'reserved'], true))
+                                @if ($canManageOrders && in_array($exchange->status, ['requested', 'reserved', 'processing'], true))
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         <form method="POST" action="{{ route('exchanges.complete', $exchange) }}">
                                             @csrf
-                                            <button type="submit" class="inline-flex h-9 items-center rounded-xl bg-brand px-3 text-xs font-semibold text-white">Complete exchange</button>
+                                            <button type="submit" class="inline-flex h-9 items-center rounded-xl bg-brand px-3 text-xs font-semibold text-white">
+                                                {{ $exchange->status === 'processing' ? 'Resume completion' : 'Complete exchange' }}
+                                            </button>
                                         </form>
-                                        <form method="POST" action="{{ route('exchanges.cancel', $exchange) }}">@csrf<button type="submit" class="inline-flex h-9 items-center rounded-xl border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Cancel</button></form>
+                                        @if ($exchange->status !== 'processing')
+                                            <form method="POST" action="{{ route('exchanges.cancel', $exchange) }}">@csrf<button type="submit" class="inline-flex h-9 items-center rounded-xl border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Cancel</button></form>
+                                        @endif
                                     </div>
                                 @endif
                             </div>

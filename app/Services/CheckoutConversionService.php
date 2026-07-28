@@ -16,6 +16,7 @@ use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Checkout\FinancialTotalsInvariantService;
 use App\Services\Coupons\CouponService;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\Money\DecimalString;
 use App\Support\OrderLifecycle;
@@ -34,6 +35,7 @@ class CheckoutConversionService
         private readonly CustomerMetricsService $customerMetricsService,
         private readonly CouponService $couponService,
         private readonly FinancialTotalsInvariantService $financialTotalsInvariantService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     public function handleSucceededPayment(PaymentWebhookResult $result): ?Order
@@ -352,6 +354,8 @@ class CheckoutConversionService
                     $this->customerMetricsService->recalculate($customer);
                 }
 
+                $this->commerceNotifications->orderCreated($order);
+
                 return $order->load(['items', 'addresses', 'customer', 'events']);
             });
         } catch (CheckoutPaymentAmountMismatchException $exception) {
@@ -444,6 +448,17 @@ class CheckoutConversionService
                     'failure_code' => $result->failureCode,
                 ]
             );
+
+            $checkout->loadMissing('store');
+            if ($checkout->store) {
+                $this->commerceNotifications->paymentFailed(
+                    $checkout->store,
+                    (string) $result->providerIntentId,
+                    $result->failureMessage
+                        ?: 'A checkout payment did not complete. Reserved stock was released.',
+                    (int) $checkout->id
+                );
+            }
         });
     }
 

@@ -10,6 +10,7 @@ use App\Models\ReturnItem;
 use App\Models\ReturnReason;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Services\Returns\ReturnRestockService;
 use App\Support\OrderLifecycle;
 use App\Support\ReturnLifecycle;
@@ -25,6 +26,7 @@ class ReturnService
         private readonly OrderEventRecorder $orderEventRecorder,
         private readonly SecurityLogRecorder $securityLogRecorder,
         private readonly ReturnRestockService $returnRestockService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     /**
@@ -225,6 +227,13 @@ class ReturnService
                     'return_id' => $return->id,
                     'return_number' => $return->return_number,
                 ]
+            );
+
+            $this->commerceNotifications->returnStatus(
+                $return,
+                ReturnLifecycle::EVENT_RETURN_REQUESTED,
+                'Return requested',
+                $actor
             );
 
             return $return->fresh(['items', 'reason']);
@@ -515,6 +524,15 @@ class ReturnService
                     'status' => $locked->status,
                 ]
             );
+
+            if (in_array($eventType, [
+                ReturnLifecycle::EVENT_RETURN_APPROVED,
+                ReturnLifecycle::EVENT_RETURN_REJECTED,
+                ReturnLifecycle::EVENT_RETURN_RECEIVED,
+                ReturnLifecycle::EVENT_RETURN_COMPLETED,
+            ], true)) {
+                $this->commerceNotifications->returnStatus($locked, $eventType, $eventTitle, $actor);
+            }
 
             return $locked->fresh(['items', 'reason']);
         });
