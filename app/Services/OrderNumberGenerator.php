@@ -23,6 +23,21 @@ class OrderNumberGenerator
         return $this->next($store, 'CHK-');
     }
 
+    public function generateReturn(Store $store): string
+    {
+        return $this->next($store, 'RMA-');
+    }
+
+    public function generateRefund(Store $store): string
+    {
+        return $this->next($store, 'RFN-');
+    }
+
+    public function generateExchange(Store $store): string
+    {
+        return $this->next($store, 'EXC-');
+    }
+
     private function next(Store $store, string $prefix): string
     {
         return DB::transaction(function () use ($store, $prefix): string {

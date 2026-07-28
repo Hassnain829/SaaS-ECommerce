@@ -141,6 +141,60 @@
                 </div>
             </article>
 
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white overflow-hidden">
+                <div class="border-b border-[#E2E8F0] px-5 py-4">
+                    <h3 class="text-lg font-semibold text-[#0F172A]">Returns, refunds &amp; exchanges</h3>
+                    <p class="text-sm text-[#64748B]">Recent post-purchase activity for this customer.</p>
+                </div>
+                <div class="space-y-4 p-5 text-sm">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Returns</p>
+                        <ul class="mt-2 space-y-2">
+                            @forelse (($customerReturns ?? collect()) as $return)
+                                <li>
+                                    <a class="font-semibold text-[#0052CC] hover:underline" href="{{ route('orderViewDetails', $return->order_id) }}#returns-refunds">
+                                        {{ $return->return_number }}
+                                    </a>
+                                    <span class="text-[#64748B]"> · {{ \App\Support\ReturnLifecycle::statusLabel($return->status) }} · {{ optional($return->order)->order_number }}</span>
+                                </li>
+                            @empty
+                                <li class="text-[#64748B]">No returns yet.</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Refunds</p>
+                        <ul class="mt-2 space-y-2">
+                            @forelse (($customerRefunds ?? collect()) as $refund)
+                                <li>
+                                    <a class="font-semibold text-[#0052CC] hover:underline" href="{{ route('orderViewDetails', $refund->order_id) }}#returns-refunds">
+                                        {{ $refund->refund_number }}
+                                    </a>
+                                    <span class="text-[#64748B]"> · {{ \App\Support\RefundLifecycle::statusLabel($refund->status) }} · {{ optional($refund->order)->order_number }}</span>
+                                </li>
+                            @empty
+                                <li class="text-[#64748B]">No refunds yet.</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Exchanges</p>
+                        <ul class="mt-2 space-y-2">
+                            @forelse (($customerExchanges ?? collect()) as $exchange)
+                                <li>
+                                    <a class="font-semibold text-[#0052CC] hover:underline" href="{{ route('orderViewDetails', $exchange->order_id) }}#returns-refunds">
+                                        {{ $exchange->exchange_number }}
+                                    </a>
+                                    <span class="text-[#64748B]"> · {{ \App\Support\ExchangeLifecycle::statusLabel($exchange->status) }} · {{ optional($exchange->order)->order_number }}</span>
+                                </li>
+                            @empty
+                                <li class="text-[#64748B]">No exchanges yet.</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                </div>
+            </article>
+
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
                 <h3 class="text-lg font-semibold text-[#0F172A]">Addresses</h3>
                 <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">

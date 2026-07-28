@@ -132,4 +132,19 @@ class Order extends Model
     {
         return $this->hasMany(Shipment::class)->orderBy('created_at')->orderBy('id');
     }
+
+    public function returns(): HasMany
+    {
+        return $this->hasMany(OrderReturn::class)->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class)->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    public function exchanges(): HasMany
+    {
+        return $this->hasMany(Exchange::class)->orderByDesc('created_at')->orderByDesc('id');
+    }
 }

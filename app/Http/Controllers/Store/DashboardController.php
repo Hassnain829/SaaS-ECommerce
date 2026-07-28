@@ -22,6 +22,7 @@ use App\Services\CustomerMetricsService;
 use App\Services\Fulfillment\FulfillmentStatusService;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\OrderEventRecorder;
+use App\Services\ReturnService;
 use App\Services\SecurityLogRecorder;
 use App\Services\UserSessionTracker;
 use App\Support\OrderLifecycle;
@@ -918,9 +919,19 @@ class DashboardController extends Controller
             'shipments.originLocation',
             'shipments.shippedBy',
             'taxLines',
+            'returns.items.orderItem',
+            'returns.reason',
+            'returns.requestedBy',
+            'returns.approvedBy',
+            'returns.receivedBy',
+            'refunds.items',
+            'refunds.adjustments',
+            'exchanges.items',
         ]);
 
         $channelOwnership = app(\App\Services\Channels\ChannelOwnershipService::class);
+        $returnService = app(ReturnService::class);
+        $refundService = app(\App\Services\RefundService::class);
 
         return view('user_view.orderViewDetails', [
             'order' => $order,
@@ -950,6 +961,16 @@ class DashboardController extends Controller
                 ->orderBy('name')
                 ->get(),
             'remainingFulfillmentQuantities' => app(FulfillmentStatusService::class)->remainingQuantities($order),
+            'returnReasons' => $returnService->activeReasonsForStore($selectedStore),
+            'remainingReturnableQuantities' => $returnService->remainingReturnableQuantities($order),
+            'returnableItems' => $returnService->returnableItems($order),
+            'remainingRefundableAmount' => $refundService->remainingRefundableAmount($order),
+            'exchangeVariants' => \App\Models\ProductVariant::query()
+                ->whereHas('product', fn ($q) => $q->where('store_id', $selectedStore->id)->where('status', true))
+                ->with('product:id,name,store_id')
+                ->orderBy('sku')
+                ->limit(200)
+                ->get(),
         ]);
     }
 
@@ -969,6 +990,12 @@ class DashboardController extends Controller
 
         $previousStatus = (string) $order->status;
         $newStatus = (string) $request->status;
+
+        if ($newStatus === OrderLifecycle::ORDER_REFUNDED) {
+            return back()->withErrors([
+                'status' => 'Marking an order refunded from status alone is not available. Use a successful refund when refunds are enabled.',
+            ]);
+        }
 
         if ($previousStatus === $newStatus) {
             return back()->with('success', 'Order status is already '.OrderLifecycle::orderStatusLabel($newStatus).'.');
@@ -992,10 +1019,6 @@ class DashboardController extends Controller
 
             if ($newStatus === OrderLifecycle::ORDER_CANCELLED) {
                 $updates['cancelled_at'] = now();
-            }
-
-            if ($newStatus === OrderLifecycle::ORDER_REFUNDED) {
-                $updates['refunded_at'] = now();
             }
 
             if ($newStatus === OrderLifecycle::ORDER_COMPLETED) {
@@ -1026,11 +1049,6 @@ class DashboardController extends Controller
                     OrderLifecycle::EVENT_ORDER_COMPLETED,
                     'Order completed',
                     'The order was marked completed.',
-                ],
-                OrderLifecycle::ORDER_REFUNDED => [
-                    OrderLifecycle::EVENT_ORDER_REFUNDED,
-                    'Order refunded',
-                    'The order was marked refunded.',
                 ],
             ];
 
@@ -1139,17 +1157,44 @@ class DashboardController extends Controller
             'profileNotes.user',
             'tags',
             'orders' => function ($q) {
-                $q->with('items')
+                $q->with(['items', 'returns', 'refunds', 'exchanges'])
                     ->orderByDesc('placed_at')
                     ->orderByDesc('created_at')
                     ->take(10);
             },
         ]);
 
+        $customerReturns = \App\Models\OrderReturn::query()
+            ->where('store_id', $selectedStore->id)
+            ->where('customer_id', $customer->id)
+            ->with('order:id,order_number')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
+        $customerRefunds = \App\Models\Refund::query()
+            ->where('store_id', $selectedStore->id)
+            ->whereHas('order', fn ($q) => $q->where('customer_id', $customer->id))
+            ->with('order:id,order_number')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
+        $customerExchanges = \App\Models\Exchange::query()
+            ->where('store_id', $selectedStore->id)
+            ->whereHas('order', fn ($q) => $q->where('customer_id', $customer->id))
+            ->with('order:id,order_number')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
         return view('user_view.customersProfileTab', [
             'customer' => $customer,
             'selectedStore' => $selectedStore,
             'canManageCustomers' => $request->user()?->canManageCustomers($selectedStore) ?? false,
+            'customerReturns' => $customerReturns,
+            'customerRefunds' => $customerRefunds,
+            'customerExchanges' => $customerExchanges,
         ]);
     }
 

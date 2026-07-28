@@ -11,7 +11,10 @@ use App\Http\Controllers\Catalog\ProductWorkspaceDataController;
 use App\Http\Controllers\Catalog\TagController;
 use App\Http\Controllers\Commerce\CustomerController;
 use App\Http\Controllers\Commerce\DraftOrderController;
+use App\Http\Controllers\Commerce\ExchangeController;
 use App\Http\Controllers\Commerce\OrderController;
+use App\Http\Controllers\Commerce\RefundController;
+use App\Http\Controllers\Commerce\ReturnController;
 use App\Http\Controllers\Commerce\ShipmentController;
 use App\Http\Controllers\Settings\DeliverySetupWizardController;
 use App\Http\Controllers\Settings\DeveloperStorefrontSettingsController;
@@ -121,6 +124,42 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/orders/{order}/shipments', [ShipmentController::class, 'store'])
         ->middleware('store.permission:orders.manage')
         ->name('orders.shipments.store');
+    Route::post('/orders/{order}/returns', [ReturnController::class, 'store'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.returns.store');
+    Route::post('/returns/{orderReturn}/approve', [ReturnController::class, 'approve'])
+        ->middleware('store.permission:orders.manage')
+        ->name('returns.approve');
+    Route::post('/returns/{orderReturn}/reject', [ReturnController::class, 'reject'])
+        ->middleware('store.permission:orders.manage')
+        ->name('returns.reject');
+    Route::post('/returns/{orderReturn}/receive', [ReturnController::class, 'receive'])
+        ->middleware('store.permission:orders.manage')
+        ->name('returns.receive');
+    Route::post('/returns/{orderReturn}/complete', [ReturnController::class, 'complete'])
+        ->middleware('store.permission:orders.manage')
+        ->name('returns.complete');
+    Route::post('/returns/{orderReturn}/cancel', [ReturnController::class, 'cancel'])
+        ->middleware('store.permission:orders.manage')
+        ->name('returns.cancel');
+    Route::post('/returns/{orderReturn}/restock', [ReturnController::class, 'restock'])
+        ->middleware('store.permission:orders.manage')
+        ->name('returns.restock');
+    Route::post('/orders/{order}/refunds', [RefundController::class, 'store'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.refunds.store');
+    Route::post('/orders/{order}/exchanges', [ExchangeController::class, 'store'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.exchanges.store');
+    Route::post('/exchanges/{exchange}/complete', [ExchangeController::class, 'complete'])
+        ->middleware('store.permission:orders.manage')
+        ->name('exchanges.complete');
+    Route::post('/exchanges/{exchange}/collect', [ExchangeController::class, 'collect'])
+        ->middleware('store.permission:orders.manage')
+        ->name('exchanges.collect');
+    Route::post('/exchanges/{exchange}/cancel', [ExchangeController::class, 'cancel'])
+        ->middleware('store.permission:orders.manage')
+        ->name('exchanges.cancel');
     Route::patch('/shipments/{shipment}/tracking', [ShipmentController::class, 'updateTracking'])
         ->middleware('store.permission:orders.manage')
         ->name('shipments.tracking.update');

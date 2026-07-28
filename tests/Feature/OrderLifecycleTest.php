@@ -48,7 +48,7 @@ class OrderLifecycleTest extends TestCase
         $this->assertTrue(OrderLifecycle::canTransitionOrderStatus('pending', 'confirmed'));
         $this->assertTrue(OrderLifecycle::canTransitionOrderStatus('confirmed', 'processing'));
         $this->assertTrue(OrderLifecycle::canTransitionOrderStatus('processing', 'completed'));
-        $this->assertTrue(OrderLifecycle::canTransitionOrderStatus('completed', 'refunded'));
+        $this->assertFalse(OrderLifecycle::canTransitionOrderStatus('completed', 'refunded'));
 
         $this->assertFalse(OrderLifecycle::canTransitionOrderStatus('pending', 'completed'));
         $this->assertFalse(OrderLifecycle::canTransitionOrderStatus('completed', 'processing'));

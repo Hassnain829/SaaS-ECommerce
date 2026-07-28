@@ -104,8 +104,6 @@ class ExternalOrderSyncController extends Controller
                 'pending',
                 'authorized',
                 'failed',
-                'refunded',
-                'partially_refunded',
                 'cod_pending',
                 'bank_transfer_pending',
             ])],
