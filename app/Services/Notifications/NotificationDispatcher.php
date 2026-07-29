@@ -63,6 +63,11 @@ class NotificationDispatcher
         ?User $actor = null,
         array $channels = [NotificationEvent::CHANNEL_IN_APP, NotificationEvent::CHANNEL_EMAIL],
     ): array {
+        // Fail closed: never associate a foreign or inactive user with this store.
+        if ($user->is_active === false || $store->roleForUser($user) === null) {
+            return [];
+        }
+
         $created = [];
         $recipientKey = 'user:'.$user->id;
 
@@ -148,14 +153,15 @@ class NotificationDispatcher
 
     /**
      * Atomically claim a failed email for retry. Concurrent callers with stale models
-     * cannot both transition the same row.
+     * cannot both transition the same row. Must be scoped to the caller's store.
      */
-    public function retryEmail(StoreNotification|int $notification): bool
+    public function retryEmail(Store $store, StoreNotification|int $notification): bool
     {
         $id = $notification instanceof StoreNotification ? (int) $notification->id : (int) $notification;
 
         $updated = StoreNotification::query()
             ->whereKey($id)
+            ->where('store_id', $store->id)
             ->where('channel', NotificationEvent::CHANNEL_EMAIL)
             ->where('status', NotificationEvent::STATUS_FAILED)
             ->where('attempts', '<', self::MAX_EMAIL_ATTEMPTS)

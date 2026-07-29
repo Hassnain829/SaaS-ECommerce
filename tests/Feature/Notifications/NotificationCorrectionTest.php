@@ -227,8 +227,8 @@ class NotificationCorrectionTest extends TestCase
         $staleA = $failed->fresh();
         $staleB = $failed->fresh();
 
-        $this->assertTrue($dispatcher->retryEmail($staleA));
-        $this->assertFalse($dispatcher->retryEmail($staleB));
+        $this->assertTrue($dispatcher->retryEmail($store, $staleA));
+        $this->assertFalse($dispatcher->retryEmail($store, $staleB));
         Queue::assertPushed(SendNotificationEmailJob::class, 1);
         $this->assertSame(NotificationEvent::STATUS_QUEUED, $failed->fresh()->status);
     }

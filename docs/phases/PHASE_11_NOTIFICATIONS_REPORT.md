@@ -1,8 +1,8 @@
 # Phase 11 — Notifications and Communication
 
-**Status:** Complete (merchant foundation + domain wiring + customer transactional email + isolation/retry/recovery corrections)  
-**Date:** 2026-07-29  
-**Scope:** 11A foundation, 11B merchant email for existing domains, 11C customer transactional emails + commit isolation, retry, and interrupted-worker recovery
+**Status:** Complete — enterprise signed-off (including tenant-recipient service guards)  
+**Date:** 2026-07-30  
+**Scope:** 11A foundation, 11B merchant email for existing domains, 11C customer transactional emails + commit isolation, retry, interrupted-worker recovery, and store-membership enforcement inside notification services
 
 ## Goal
 
@@ -77,15 +77,23 @@ Replace the static notifications mock with a store-scoped, preference-aware, ide
 | Stale `sending` recovery | Pass — attempt ≥ 2 → failed + uncertain message; attempt 1 concurrent → no-op |
 | Sent never downgraded | Pass |
 | Attempts never exceed MAX | Pass |
-| Focused notification tests | Pass — **30** tests in `tests/Feature/Notifications/*` |
+| Focused notification tests | Pass — **35** tests in `tests/Feature/Notifications/*` |
 | Phase 7 suites | Pass — **54** tests |
 | Full repository suite | **Not green** — see honesty note |
 
 ## Honesty note — full suite
 
-As of 2026-07-29, `php artisan test` reports approximately **1497 passed / 2 skipped / 5 failed**.
+As of 2026-07-30, `php artisan test` reports **1502 passed / 2 skipped / 5 failed**.
 
-The five failures are **unrelated** to Phase 11 notifications (Phase 5 order-event copy assertions and Phase 6 FedEx UI wording). This report marks Phase 11 **complete for its scoped acceptance criteria** and does **not** claim repository full-suite green.
+The five failures are **unrelated** to Phase 11 notifications (Phase 5 order-event copy assertions and Phase 6 FedEx UI wording). This report marks Phase 11 **enterprise signed-off for its scoped acceptance criteria** and does **not** claim repository full-suite green.
+
+### Tenant-recipient enforcement (2026-07-30)
+
+- `NotificationDispatcher::notifyUser()` rejects inactive users and non-members (`[]`, no rows/prefs/jobs).
+- `NotificationDispatcher::retryEmail(Store, …)` requires matching `store_id` on the atomic claim.
+- `NotificationPreferenceService::forUser()` throws `AuthorizationException` for foreign/inactive recipients (no preference row).
+- Customer `notifyCustomer()` remains membership-free.
+- Focused coverage: `NotificationTenantRecipientGuardTest`
 
 ## Explicit non-goals (unchanged)
 - Outbound webhook product (Phase 9)
@@ -103,4 +111,4 @@ The five failures are **unrelated** to Phase 11 notifications (Phase 5 order-eve
 - Job: `app/Jobs/SendNotificationEmailJob.php`
 - Controller: `app/Http/Controllers/Store/NotificationController.php`
 - Support catalog: `app/Support/NotificationEvent.php`
-- Tests: `NotificationCenterTest`, `NotificationDomainEmitTest`, `NotificationCorrectionTest`, `NotificationEmailRetryTest` (30 total)
+- Tests: `NotificationCenterTest`, `NotificationDomainEmitTest`, `NotificationCorrectionTest`, `NotificationEmailRetryTest`, `NotificationTenantRecipientGuardTest` (35 total)

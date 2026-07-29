@@ -234,7 +234,11 @@
 
     {{-- Right: settings (20%) --}}
     <aside class="w-full shrink-0 xl:w-[20%] xl:min-w-[220px] xl:max-w-[320px]">
-        @php $prefsLocked = ! empty($settingsSaved); @endphp
+        @php
+            // Preferences load from the database. Keep the panel locked until the merchant
+            // clicks Edit — do not rely on a one-request flash for the locked UI.
+            $prefsLocked = ! $errors->any();
+        @endphp
         <div
             class="notif-prefs-card overflow-hidden rounded-2xl border border-stone-200/90 bg-white shadow-sm shadow-stone-900/[0.03] xl:sticky xl:top-24"
             data-locked="{{ $prefsLocked ? '1' : '0' }}"
@@ -268,7 +272,8 @@
                                     <span class="truncate text-sm font-medium text-stone-700">Desktop</span>
                                 </div>
                                 <label class="settings-switch">
-                                    <input type="checkbox" name="in_app_enabled" value="1" @checked($inAppEnabled) @disabled($prefsLocked)>
+                                    <input type="hidden" name="in_app_enabled" value="0">
+                                    <input type="checkbox" name="in_app_enabled" value="1" @checked((string) old('in_app_enabled', $inAppEnabled ? '1' : '0') === '1') @disabled($prefsLocked)>
                                     <span class="settings-switch-track" aria-hidden="true"></span>
                                 </label>
                             </div>
@@ -278,7 +283,8 @@
                                     <span class="truncate text-sm font-medium text-stone-700">Email alerts</span>
                                 </div>
                                 <label class="settings-switch">
-                                    <input type="checkbox" name="email_enabled" value="1" @checked($emailEnabled) @disabled($prefsLocked)>
+                                    <input type="hidden" name="email_enabled" value="0">
+                                    <input type="checkbox" name="email_enabled" value="1" @checked((string) old('email_enabled', $emailEnabled ? '1' : '0') === '1') @disabled($prefsLocked)>
                                     <span class="settings-switch-track" aria-hidden="true"></span>
                                 </label>
                             </div>
@@ -304,11 +310,12 @@
                                     'cursor-pointer hover:bg-stone-50' => ! $prefsLocked,
                                     'cursor-default' => $prefsLocked,
                                 ])>
+                                    <input type="hidden" name="groups[{{ $groupKey }}]" value="0">
                                     <input
                                         type="checkbox"
                                         name="groups[{{ $groupKey }}]"
                                         value="1"
-                                        @checked(! empty($groupEnabled[$groupKey]))
+                                        @checked((string) old('groups.'.$groupKey, ! empty($groupEnabled[$groupKey]) ? '1' : '0') === '1')
                                         @disabled($prefsLocked)
                                         class="mt-0.5 h-4 w-4 shrink-0 rounded border-stone-300 accent-[#0052CC] focus:ring-[#0052CC]/20"
                                     >
@@ -357,14 +364,20 @@
         card.setAttribute('data-locked', '0');
         editBtn.style.display = 'none';
 
-        form.querySelectorAll('input[name]').forEach((input) => {
-            if (input.name === '_token' || input.name === '_method') return;
+        form.querySelectorAll('input[type="checkbox"][name]').forEach((input) => {
             input.disabled = false;
         });
 
         submitBtn.disabled = false;
         submitBtn.className = 'flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition bg-brand hover:bg-brand-hover active:scale-[0.98]';
-        submitBtn.textContent = 'Save Changes';
+        submitBtn.innerHTML = 'Save Changes';
+    });
+
+    // Disabled fields are omitted from submit — re-enable named checkboxes right before POST.
+    form.addEventListener('submit', () => {
+        form.querySelectorAll('input[type="checkbox"][name]').forEach((input) => {
+            input.disabled = false;
+        });
     });
 })();
 </script>

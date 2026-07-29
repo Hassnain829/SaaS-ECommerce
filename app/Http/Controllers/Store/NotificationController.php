@@ -74,7 +74,6 @@ class NotificationController extends Controller
             'groupEnabled' => $groupEnabled,
             'inAppEnabled' => (bool) $prefs[NotificationEvent::CHANNEL_IN_APP]->is_enabled,
             'emailEnabled' => (bool) $prefs[NotificationEvent::CHANNEL_EMAIL]->is_enabled,
-            'settingsSaved' => $request->session()->get('success') === 'Notification settings saved.',
         ]);
     }
 
@@ -120,7 +119,10 @@ class NotificationController extends Controller
             'event_types' => $eventTypes,
         ], $user);
 
-        return back()->with('success', 'Notification settings saved.');
+        return redirect()
+            ->route('notifications')
+            ->with('success', 'Notification settings saved.')
+            ->with('success_title', 'Preferences updated');
     }
 
     public function retry(Request $request, StoreNotification $notification): RedirectResponse
@@ -135,7 +137,7 @@ class NotificationController extends Controller
             ->whereKey($notification->id)
             ->firstOrFail();
 
-        if (! $this->dispatcher->retryEmail($row)) {
+        if (! $this->dispatcher->retryEmail($store, $row)) {
             return back()->withErrors(['notification' => 'This email cannot be retried.']);
         }
 
@@ -149,7 +151,7 @@ class NotificationController extends Controller
 
         $row = $this->query->findFailedCustomerEmail($store, (int) $notification->id);
 
-        if (! $this->dispatcher->retryEmail($row)) {
+        if (! $this->dispatcher->retryEmail($store, $row)) {
             return back()->withErrors(['notification' => 'This customer email cannot be retried.']);
         }
 

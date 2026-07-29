@@ -6,12 +6,19 @@ use App\Models\NotificationPreference;
 use App\Models\Store;
 use App\Models\User;
 use App\Support\NotificationEvent;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 
 class NotificationPreferenceService
 {
     public function forUser(Store $store, User $user, string $channel): NotificationPreference
     {
+        if ($user->is_active === false || $store->roleForUser($user) === null) {
+            throw new AuthorizationException(
+                'The notification recipient does not belong to this store.'
+            );
+        }
+
         $preference = NotificationPreference::query()->firstOrCreate(
             [
                 'store_id' => $store->id,

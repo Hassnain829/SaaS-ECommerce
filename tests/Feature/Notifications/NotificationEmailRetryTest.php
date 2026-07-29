@@ -116,7 +116,7 @@ class NotificationEmailRetryTest extends TestCase
         \Illuminate\Support\Facades\Queue::fake();
         Mail::fake();
 
-        $this->assertTrue(app(NotificationDispatcher::class)->retryEmail($row->fresh()));
+        $this->assertTrue(app(NotificationDispatcher::class)->retryEmail($store, $row->fresh()));
         $this->assertSame(NotificationEvent::STATUS_QUEUED, $row->fresh()->status);
         $this->assertSame(3, (int) $row->fresh()->attempts);
 
@@ -268,7 +268,7 @@ class NotificationEmailRetryTest extends TestCase
             ->assertSeeText('uncertain after an interrupted worker');
 
         \Illuminate\Support\Facades\Queue::fake();
-        $this->assertTrue(app(NotificationDispatcher::class)->retryEmail($fresh));
+        $this->assertTrue(app(NotificationDispatcher::class)->retryEmail($store, $fresh));
         $this->assertSame(NotificationEvent::STATUS_QUEUED, $row->fresh()->status);
     }
 
