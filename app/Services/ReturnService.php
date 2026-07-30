@@ -137,19 +137,64 @@ class ReturnService
             ->values();
     }
 
+    /**
+     * Authoritative return eligibility for UI visibility and service guards.
+     *
+     * @return array{
+     *     eligible: bool,
+     *     reason: ?string,
+     *     returnable_items: Collection<int, OrderItem>
+     * }
+     */
+    public function eligibilityForReturn(Order $order): array
+    {
+        $returnableItems = $this->returnableItems($order);
+
+        if (in_array($order->status, [OrderLifecycle::ORDER_CANCELLED, OrderLifecycle::ORDER_PENDING], true)) {
+            return [
+                'eligible' => false,
+                'reason' => 'A return cannot be recorded for this order in its current state.',
+                'returnable_items' => $returnableItems,
+            ];
+        }
+
+        if ($returnableItems->isEmpty()) {
+            return [
+                'eligible' => false,
+                'reason' => 'No returnable items are available on this order.',
+                'returnable_items' => $returnableItems,
+            ];
+        }
+
+        return [
+            'eligible' => true,
+            'reason' => null,
+            'returnable_items' => $returnableItems,
+        ];
+    }
+
+    public function canRecordReturn(Order $order): bool
+    {
+        return $this->eligibilityForReturn($order)['eligible'];
+    }
+
     public function assertEligibleForReturn(Order $order): void
     {
+        $eligibility = $this->eligibilityForReturn($order);
+
+        if ($eligibility['eligible']) {
+            return;
+        }
+
         if (in_array($order->status, [OrderLifecycle::ORDER_CANCELLED, OrderLifecycle::ORDER_PENDING], true)) {
             throw ValidationException::withMessages([
                 'order' => 'This order cannot accept a return in its current status.',
             ]);
         }
 
-        if ($this->returnableItems($order)->isEmpty()) {
-            throw ValidationException::withMessages([
-                'items' => 'There are no returnable items left on this order.',
-            ]);
-        }
+        throw ValidationException::withMessages([
+            'items' => 'There are no returnable items left on this order.',
+        ]);
     }
 
     /**

@@ -1248,6 +1248,263 @@ class Phase7FinalCorrectionTest extends TestCase
         $this->assertSame(1, Refund::query()->where('idempotency_key', 'clear-flags-key')->count());
     }
 
+    public function test_cancelled_order_hides_and_rejects_record_return(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00');
+        $order->update(['status' => OrderLifecycle::ORDER_CANCELLED, 'cancelled_at' => now()]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertDontSeeText('Record return')
+            ->assertSeeText('A return cannot be recorded for this order in its current state.');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.returns.store', $order), [
+                'items' => [$item->id => 1],
+                'customer_notes' => 'Customer emailed about a return.',
+            ])
+            ->assertSessionHasErrors('order');
+    }
+
+    public function test_pending_cancelled_and_fully_refunded_orders_hide_and_reject_exchanges(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00');
+        [, $replacement] = $this->product($store, 'Replacement', 'REP', 15);
+
+        foreach ([
+            OrderLifecycle::ORDER_PENDING,
+            OrderLifecycle::ORDER_CANCELLED,
+            OrderLifecycle::ORDER_REFUNDED,
+        ] as $status) {
+            $order->update(['status' => $status]);
+
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $store->id])
+                ->get(route('orderViewDetails', $order))
+                ->assertOk()
+                ->assertDontSeeText('Create exchange')
+                ->assertDontSee('name="order_item_id"', false);
+
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $store->id])
+                ->post(route('orders.exchanges.store', $order), [
+                    'order_item_id' => $item->id,
+                    'quantity' => 1,
+                    'replacement_variant_id' => $replacement->id,
+                    'idempotency_key' => 'ex-status-'.$status,
+                ])
+                ->assertSessionHasErrors('order');
+        }
+    }
+
+    public function test_digital_and_service_items_hide_and_reject_exchanges(): void
+    {
+        foreach (['digital', 'service'] as $productType) {
+            [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '25.00', quantity: 1);
+            $item->update(['product_type_snapshot' => $productType]);
+            [, $replacement] = $this->product($store, 'Physical Replacement '.$productType, 'PR-'.$productType, 20);
+
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $store->id])
+                ->get(route('orderViewDetails', $order))
+                ->assertOk()
+                ->assertDontSee('name="order_item_id"', false);
+
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $store->id])
+                ->post(route('orders.exchanges.store', $order), [
+                    'order_item_id' => $item->id,
+                    'quantity' => 1,
+                    'replacement_variant_id' => $replacement->id,
+                    'idempotency_key' => 'ex-'.$productType,
+                ])
+                ->assertSessionHasErrors();
+        }
+    }
+
+    public function test_completed_physical_order_shows_record_return_and_create_exchange_when_eligible(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00');
+        [, $replacement] = $this->product($store, 'Alt Size', 'ALT-M', 18);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('After-sales service')
+            ->assertSeeText('Record return')
+            ->assertSeeText('Create exchange')
+            ->assertSee('name="order_item_id"', false)
+            ->assertSee('value="'.$item->id.'"', false)
+            ->assertSee('value="'.$replacement->id.'"', false);
+    }
+
+    public function test_return_form_exposes_customer_message_and_persists_customer_notes(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '35.00', quantity: 1);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('Customer’s message')
+            ->assertSee('name="customer_notes"', false);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.returns.store', $order), [
+                'items' => [$item->id => 1],
+                'customer_notes' => 'Customer called: wrong size shipped.',
+                'manual_instructions' => 'Use prepaid label.',
+                'merchant_notes' => 'Approved on phone.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Return recorded.')
+            ->assertSessionHas('success_title', 'Return created');
+
+        $return = OrderReturn::query()->where('order_id', $order->id)->firstOrFail();
+        $this->assertSame('Customer called: wrong size shipped.', $return->customer_notes);
+    }
+
+    public function test_refund_form_explains_money_only_and_cancelled_paid_order_may_still_refund(): void
+    {
+        [$owner, $store, $order] = $this->seedPaidOrder(grandTotal: '55.00');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('Issuing a refund returns money only. It does not return or restock products. If goods are coming back, record and receive the return separately.')
+            ->assertSeeText('Issue refund');
+
+        $order->update(['status' => OrderLifecycle::ORDER_CANCELLED, 'cancelled_at' => now()]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertDontSeeText('Record return')
+            ->assertDontSee('name="order_item_id"', false)
+            ->assertSeeText('Issue refund');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), ['processed_externally' => 1])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(OrderLifecycle::ORDER_CANCELLED, $order->fresh()->status);
+        $this->assertSame(OrderLifecycle::PAYMENT_REFUNDED, $order->fresh()->payment_status);
+    }
+
+    public function test_fully_refunded_physical_order_may_still_record_return_when_quantity_remains(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '45.00', quantity: 1);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.refunds.store', $order), ['processed_externally' => 1])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $order->refresh();
+        $this->assertSame(OrderLifecycle::ORDER_REFUNDED, $order->status);
+        $this->assertSame(OrderLifecycle::PAYMENT_REFUNDED, $order->payment_status);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('Record return')
+            ->assertDontSee('name="order_item_id"', false)
+            ->assertDontSeeText('Issue refund');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.returns.store', $order), [
+                'items' => [$item->id => 1],
+                'customer_notes' => 'Goods coming back after full refund.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Return recorded.');
+
+        $this->assertDatabaseHas('returns', [
+            'order_id' => $order->id,
+            'customer_notes' => 'Goods coming back after full refund.',
+        ]);
+    }
+
+    public function test_exchange_form_lists_only_eligible_physical_items_and_replacement_variants(): void
+    {
+        [$owner, $store, $order, $physicalItem] = $this->seedPaidOrder(grandTotal: '60.00', quantity: 1);
+        [$digitalProduct, $digitalVariant] = $this->product($store, 'Digital Guide', 'DIG', 10);
+        $digitalProduct->update(['product_type' => 'digital']);
+        $order->items()->create([
+            'store_id' => $store->id,
+            'product_id' => $digitalProduct->id,
+            'product_variant_id' => $digitalVariant->id,
+            'product_name' => $digitalProduct->name,
+            'variant_label' => 'Download',
+            'sku_snapshot' => $digitalVariant->sku,
+            'product_type_snapshot' => 'digital',
+            'quantity' => 1,
+            'unit_price' => 10,
+            'subtotal' => 10,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'total' => 10,
+        ]);
+
+        [, $physicalReplacement] = $this->product($store, 'Physical Alt', 'PHYS-ALT', 22);
+        [$inactiveProduct, $inactiveVariant] = $this->product($store, 'Inactive Alt', 'INACT', 12);
+        $inactiveProduct->update(['status' => false]);
+        [$digitalCatalog, $digitalCatalogVariant] = $this->product($store, 'Digital Catalog', 'DIG-CAT', 8);
+        $digitalCatalog->update(['product_type' => 'digital']);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('Create exchange')
+            ->assertSeeText($physicalItem->product_name.' (Size: M)')
+            ->assertDontSeeText($digitalProduct->name.' (Download)')
+            ->assertSeeText('Physical Alt')
+            ->assertDontSeeText('Inactive Alt')
+            ->assertDontSeeText('Digital Catalog');
+    }
+
+    public function test_after_sales_cross_store_return_and_exchange_remain_denied(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '30.00', quantity: 1);
+        [, $replacement] = $this->product($store, 'Other Size', 'OS', 12);
+
+        $owner2 = $this->merchant(fake()->unique()->safeEmail());
+        $store2 = $this->store($owner2, 'Other After Sales Store');
+        $this->attach($store2, $owner2, Store::ROLE_OWNER);
+
+        $this->actingAs($owner2)
+            ->withSession(['current_store_id' => $store2->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertNotFound();
+
+        $this->actingAs($owner2)
+            ->withSession(['current_store_id' => $store2->id])
+            ->post(route('orders.returns.store', $order), ['items' => [$item->id => 1]])
+            ->assertNotFound();
+
+        $this->actingAs($owner2)
+            ->withSession(['current_store_id' => $store2->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $replacement->id,
+            ])
+            ->assertNotFound();
+    }
+
     private function bindProvider(callable $resultFactory): void
     {
         $this->app->bind(\App\Services\Payments\StripePlatformPaymentProvider::class, function () use ($resultFactory) {
@@ -1426,7 +1683,7 @@ class Phase7FinalCorrectionTest extends TestCase
             'store_id' => $store->id,
             'name' => $name,
             'slug' => Str::slug($name).'-'.Str::random(5),
-            'status' => 'active',
+            'status' => true,
             'product_type' => 'physical',
             'has_variants' => false,
         ]);

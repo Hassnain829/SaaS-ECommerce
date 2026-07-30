@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use App\Models\OrderReturn;
 use App\Models\ProductVariant;
 use App\Models\Refund;
+use App\Models\Store;
 use App\Models\User;
 use Throwable;
 use App\Services\Channels\ChannelOwnershipService;
@@ -17,9 +18,12 @@ use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\ExchangeLifecycle;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\NotificationEvent;
+use App\Support\OrderLifecycle;
 use App\Support\RefundLifecycle;
+use App\Support\ReturnLifecycle;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -35,6 +39,146 @@ class ExchangeService
         private readonly RefundService $refundService,
         private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
+
+    /**
+     * Remaining exchangeable quantity per order item id.
+     *
+     * @return array<int, int>
+     */
+    public function remainingExchangeableQuantities(Order $order): array
+    {
+        $order->loadMissing(['items', 'exchanges.items']);
+
+        $remaining = [];
+        foreach ($order->items as $item) {
+            $activeClaimed = $this->activeExchangeQuantity($order, (int) $item->id);
+            $remaining[(int) $item->id] = max(
+                0,
+                (int) $item->quantity - (int) $item->refunded_quantity - $activeClaimed
+            );
+        }
+
+        return $remaining;
+    }
+
+    /**
+     * @return Collection<int, OrderItem>
+     */
+    public function exchangeableItems(Order $order): Collection
+    {
+        $remaining = $this->remainingExchangeableQuantities($order);
+
+        return $order->items
+            ->filter(function (OrderItem $item) use ($remaining): bool {
+                if (($remaining[(int) $item->id] ?? 0) < 1) {
+                    return false;
+                }
+
+                return ReturnLifecycle::isPhysicalProductType($item->product_type_snapshot);
+            })
+            ->values();
+    }
+
+    /**
+     * Active physical replacement variants for the store (UI list).
+     *
+     * @return Collection<int, ProductVariant>
+     */
+    public function replacementVariantsForStore(Store $store, int $limit = 200): Collection
+    {
+        return ProductVariant::query()
+            ->whereHas('product', function ($query) use ($store): void {
+                $query->where('store_id', $store->id)
+                    ->where('status', true)
+                    ->where(function ($inner): void {
+                        $inner->whereNull('product_type')
+                            ->orWhere('product_type', '')
+                            ->orWhereNotIn('product_type', ['digital', 'service', 'subscription']);
+                    });
+            })
+            ->with('product:id,name,store_id,product_type,status')
+            ->orderBy('sku')
+            ->limit($limit)
+            ->get()
+            ->filter(fn (ProductVariant $variant): bool => ReturnLifecycle::isPhysicalProductType($variant->product?->product_type))
+            ->values();
+    }
+
+    /**
+     * Authoritative exchange eligibility for UI visibility and service guards.
+     *
+     * @return array{
+     *     eligible: bool,
+     *     reason: ?string,
+     *     exchangeable_items: Collection<int, OrderItem>,
+     *     replacement_variants: Collection<int, ProductVariant>
+     * }
+     */
+    public function eligibilityForExchange(Order $order, ?Store $store = null, int $replacementLimit = 200): array
+    {
+        $order->loadMissing(['items', 'exchanges.items', 'store']);
+        $store ??= $order->store;
+        $exchangeableItems = $this->exchangeableItems($order);
+        $replacementVariants = $store
+            ? $this->replacementVariantsForStore($store, $replacementLimit)
+            : collect();
+
+        if (in_array($order->status, [
+            OrderLifecycle::ORDER_PENDING,
+            OrderLifecycle::ORDER_CANCELLED,
+            OrderLifecycle::ORDER_REFUNDED,
+        ], true)) {
+            return [
+                'eligible' => false,
+                'reason' => 'This order cannot accept an exchange in its current state.',
+                'exchangeable_items' => $exchangeableItems,
+                'replacement_variants' => $replacementVariants,
+            ];
+        }
+
+        if ($exchangeableItems->isEmpty()) {
+            return [
+                'eligible' => false,
+                'reason' => 'There are no exchangeable items left on this order.',
+                'exchangeable_items' => $exchangeableItems,
+                'replacement_variants' => $replacementVariants,
+            ];
+        }
+
+        if ($replacementVariants->isEmpty()) {
+            return [
+                'eligible' => false,
+                'reason' => 'There are no exchangeable items left on this order.',
+                'exchangeable_items' => $exchangeableItems,
+                'replacement_variants' => $replacementVariants,
+            ];
+        }
+
+        return [
+            'eligible' => true,
+            'reason' => null,
+            'exchangeable_items' => $exchangeableItems,
+            'replacement_variants' => $replacementVariants,
+        ];
+    }
+
+    public function canCreateExchange(Order $order, ?Store $store = null): bool
+    {
+        return $this->eligibilityForExchange($order, $store)['eligible'];
+    }
+
+    public function assertOrderAcceptsExchange(Order $order): void
+    {
+        if (in_array($order->status, [
+            OrderLifecycle::ORDER_PENDING,
+            OrderLifecycle::ORDER_CANCELLED,
+            OrderLifecycle::ORDER_REFUNDED,
+        ], true)) {
+            throw ValidationException::withMessages([
+                'order' => 'This order cannot accept an exchange in its current state.',
+            ]);
+        }
+    }
 
     /**
      * @param  array<string, mixed>  $payload
@@ -69,6 +213,8 @@ class ExchangeService
                 }
             }
 
+            $this->assertOrderAcceptsExchange($order);
+
             $orderItemId = (int) ($payload['order_item_id'] ?? 0);
             $quantity = max(1, (int) ($payload['quantity'] ?? 1));
             $replacementVariantId = (int) ($payload['replacement_variant_id'] ?? 0);
@@ -80,11 +226,19 @@ class ExchangeService
                 ]);
             }
 
+            if (! ReturnLifecycle::isPhysicalProductType($orderItem->product_type_snapshot)) {
+                throw ValidationException::withMessages([
+                    'order_item_id' => 'Only physical products can be exchanged.',
+                ]);
+            }
+
             $activeClaimed = $this->activeExchangeQuantity($order, $orderItemId);
             $available = max(0, (int) $orderItem->quantity - (int) $orderItem->refunded_quantity - $activeClaimed);
             if ($quantity > $available) {
                 throw ValidationException::withMessages([
-                    'quantity' => 'Exchange quantity exceeds what remains on this line.',
+                    'quantity' => $available < 1
+                        ? 'There are no exchangeable items left on this order.'
+                        : 'Exchange quantity exceeds what remains on this line.',
                 ]);
             }
 
@@ -112,6 +266,18 @@ class ExchangeService
             if (! $variant || (int) $variant->product?->store_id !== (int) $order->store_id) {
                 throw ValidationException::withMessages([
                     'replacement_variant_id' => 'Choose a replacement variant from this store.',
+                ]);
+            }
+
+            if (! $variant->product || ! $variant->product->status) {
+                throw ValidationException::withMessages([
+                    'replacement_variant_id' => 'Choose a replacement variant from this store.',
+                ]);
+            }
+
+            if (! ReturnLifecycle::isPhysicalProductType($variant->product->product_type)) {
+                throw ValidationException::withMessages([
+                    'replacement_variant_id' => 'Only physical products can be exchanged.',
                 ]);
             }
 

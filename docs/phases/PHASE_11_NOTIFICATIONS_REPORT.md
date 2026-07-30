@@ -85,7 +85,7 @@ Replace the static notifications mock with a store-scoped, preference-aware, ide
 
 As of 2026-07-30, `php artisan test` reports **1502 passed / 2 skipped / 5 failed**.
 
-The five failures are **unrelated** to Phase 11 notifications (Phase 5 order-event copy assertions and Phase 6 FedEx UI wording). This report marks Phase 11 **enterprise signed-off for its scoped acceptance criteria** and does **not** claim repository full-suite green.
+The five failures are **unrelated** to Phase 11 notifications (Phase 5 order-event copy assertions and Phase 6 FedEx UI wording). This report marks Phase 11 **enterprise signed-off for its scoped acceptance criteria** and does **not** claim repository full-suite green......
 
 ### Tenant-recipient enforcement (2026-07-30)
 

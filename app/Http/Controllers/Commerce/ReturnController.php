@@ -31,8 +31,8 @@ class ReturnController extends Controller
         $returnService->requestReturn($order, $validated, $request->user(), $request);
 
         return back()
-            ->with('success', 'Return requested.')
-            ->with('success_title', 'Return started');
+            ->with('success', 'Return recorded.')
+            ->with('success_title', 'Return created');
     }
 
     public function approve(Request $request, OrderReturn $orderReturn, ReturnService $returnService): RedirectResponse
