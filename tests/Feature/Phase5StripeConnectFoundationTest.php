@@ -210,6 +210,36 @@ class Phase5StripeConnectFoundationTest extends TestCase
         $this->assertSame(1, PaymentProviderAccount::query()->where('store_id', $store->id)->where('connection_type', 'connect')->count());
     }
 
+    public function test_owner_can_continue_stripe_setup_and_is_redirected_to_onboarding(): void
+    {
+        [$store, , $owner] = $this->tokenedStore('Continue Connect Store');
+        $account = $this->connectedAccount($store, [
+            'status' => 'pending',
+            'charges_enabled' => false,
+            'payouts_enabled' => false,
+            'onboarding_completed_at' => null,
+            'requirements_currently_due' => ['individual.verification.document'],
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('settings.payments.stripe.connect.refresh', $account))
+            ->assertRedirect('https://connect.stripe.test/onboarding/'.$account->provider_account_id);
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk()
+            ->assertSeeText('Continue test onboarding')
+            ->content();
+
+        $this->assertStringContainsString(
+            route('settings.payments.stripe.connect.refresh', $account, false),
+            $html
+        );
+        $this->assertStringContainsString('data-turbo="false"', $html);
+    }
+
     public function test_return_route_refreshes_connected_account_status(): void
     {
         [$store, , $owner] = $this->tokenedStore('Connect Return Store');

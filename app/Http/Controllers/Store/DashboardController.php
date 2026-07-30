@@ -9,13 +9,16 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerTag;
 use App\Models\DraftOrder;
+use App\Models\Location;
 use App\Models\Order;
+use App\Models\OrderEvent;
 use App\Models\PaymentProviderAccount;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Models\Tag;
+use App\Models\TaxSetting;
 use App\Models\User;
 use App\Models\UserSession;
 use App\Services\CustomerMetricsService;
@@ -25,6 +28,7 @@ use App\Services\OrderEventRecorder;
 use App\Services\ReturnService;
 use App\Services\SecurityLogRecorder;
 use App\Services\UserSessionTracker;
+use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductEditPayload;
@@ -318,7 +322,7 @@ class DashboardController extends Controller
         $taxSetting = $store->taxSetting()->first();
         $taxRatesCount = $store->taxRates()->where('is_active', true)->count();
         $taxReady = (bool) ($taxSetting?->enabled) && $taxRatesCount > 0;
-        $paymentReady = $store->paymentProviderAccounts()
+        $stripeOrPlatformReady = $store->paymentProviderAccounts()
             ->where('status', 'active')
             ->where(function ($query): void {
                 $query->where('connection_type', PaymentProviderAccount::CONNECTION_PLATFORM)
@@ -328,6 +332,7 @@ class DashboardController extends Controller
                     });
             })
             ->exists();
+        $paymentReady = CheckoutMode::forStore($store) === CheckoutMode::EXTERNAL || $stripeOrPlatformReady;
 
         return [
             'has_store' => true,
@@ -1456,12 +1461,239 @@ class DashboardController extends Controller
 
     public function store_management()
     {
-        $stores = request()->user()->memberStores()
+        $user = request()->user();
+        $stores = $user->memberStores()
             ->orderBy('stores.name')
             ->withCount(['products', 'brands'])
             ->get();
 
-        return view('user_view.store_management', compact('stores'));
+        $storeIds = $stores->pluck('id');
+        $liveStoresCount = $stores->where('onboarding_completed', true)->count();
+        $draftStoresCount = $stores->where('onboarding_completed', false)->count();
+        $totalProducts = (int) $stores->sum(fn (Store $store): int => (int) ($store->products_count ?? 0));
+        $totalBrands = (int) $stores->sum(fn (Store $store): int => (int) ($store->brands_count ?? 0));
+
+        $storeMetrics = $this->storeManagementMetrics($storeIds->all());
+
+        $recentActivity = $storeIds->isEmpty()
+            ? collect()
+            : OrderEvent::query()
+                ->whereIn('store_id', $storeIds)
+                ->with(['store:id,name'])
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->limit(8)
+                ->get(['id', 'store_id', 'order_id', 'event_type', 'title', 'description', 'created_at']);
+
+        $activeStoreId = (int) request()->session()->get('current_store_id');
+        $draftStoreForNextStep = $stores->firstWhere('onboarding_completed', false);
+
+        return view('user_view.store_management', [
+            'stores' => $stores,
+            'storeMetrics' => $storeMetrics,
+            'liveStoresCount' => $liveStoresCount,
+            'draftStoresCount' => $draftStoresCount,
+            'totalProducts' => $totalProducts,
+            'totalBrands' => $totalBrands,
+            'recentActivity' => $recentActivity,
+            'activeStoreId' => $activeStoreId,
+            'draftStoreForNextStep' => $draftStoreForNextStep,
+        ]);
+    }
+
+    /**
+     * Per-store 7-day revenue, order counts, sparkline series, and operational health for hub cards.
+     *
+     * Health is independent of Live/Draft. "Setup needed" stays until catalog + location + tax +
+     * delivery + payments readiness matches the merchant dashboard checklist.
+     *
+     * @param  list<int>  $storeIds
+     * @return array<int, array{
+     *     revenue_7d: float,
+     *     orders_7d: int,
+     *     orders_prev_7d: int,
+     *     orders_change_pct: float|null,
+     *     sparkline: list<float>,
+     *     health: string,
+     *     health_label: string,
+     *     setup_complete: bool,
+     *     setup_ready_count: int,
+     *     setup_total: int
+     * }>
+     */
+    protected function storeManagementMetrics(array $storeIds): array
+    {
+        $setupTotal = 5;
+        $metrics = [];
+        foreach ($storeIds as $storeId) {
+            $metrics[(int) $storeId] = [
+                'revenue_7d' => 0.0,
+                'orders_7d' => 0,
+                'orders_prev_7d' => 0,
+                'orders_change_pct' => null,
+                'sparkline' => array_fill(0, 7, 0.0),
+                'health' => 'setup',
+                'health_label' => 'Setup needed',
+                'setup_complete' => false,
+                'setup_ready_count' => 0,
+                'setup_total' => $setupTotal,
+            ];
+        }
+
+        if ($storeIds === []) {
+            return $metrics;
+        }
+
+        $excludeStatuses = [Order::STATUS_CANCELLED, Order::STATUS_REFUNDED];
+        $since14 = now()->subDays(14)->startOfDay();
+        $since7 = now()->subDays(7)->startOfDay();
+
+        $dayKeys = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $dayKeys[] = now()->subDays($i)->startOfDay()->format('Y-m-d');
+        }
+
+        $orders = Order::query()
+            ->whereIn('store_id', $storeIds)
+            ->whereNotIn('status', $excludeStatuses)
+            ->where(function ($q) use ($since14): void {
+                $q->where(function ($q2) use ($since14): void {
+                    $q2->whereNotNull('placed_at')->where('placed_at', '>=', $since14);
+                })->orWhere(function ($q2) use ($since14): void {
+                    $q2->whereNull('placed_at')->where('created_at', '>=', $since14);
+                });
+            })
+            ->get(['id', 'store_id', 'grand_total', 'placed_at', 'created_at']);
+
+        foreach ($orders as $order) {
+            $storeId = (int) $order->store_id;
+            if (! isset($metrics[$storeId])) {
+                continue;
+            }
+
+            $dt = $order->placed_at ?? $order->created_at;
+            if (! $dt) {
+                continue;
+            }
+
+            $inLast7 = $dt->gte($since7);
+            $amount = (float) $order->grand_total;
+
+            if ($inLast7) {
+                $metrics[$storeId]['revenue_7d'] += $amount;
+                $metrics[$storeId]['orders_7d']++;
+                $key = $dt->clone()->startOfDay()->format('Y-m-d');
+                $idx = array_search($key, $dayKeys, true);
+                if ($idx !== false) {
+                    $metrics[$storeId]['sparkline'][$idx] += $amount;
+                }
+            } else {
+                $metrics[$storeId]['orders_prev_7d']++;
+            }
+        }
+
+        $productCounts = Product::query()
+            ->whereIn('store_id', $storeIds)
+            ->selectRaw('store_id, COUNT(*) as aggregate')
+            ->groupBy('store_id')
+            ->pluck('aggregate', 'store_id');
+
+        $locationReady = Location::query()
+            ->whereIn('store_id', $storeIds)
+            ->where('is_active', true)
+            ->selectRaw('store_id, COUNT(*) as aggregate')
+            ->groupBy('store_id')
+            ->pluck('aggregate', 'store_id');
+
+        $taxEnabled = TaxSetting::query()
+            ->whereIn('store_id', $storeIds)
+            ->where('enabled', true)
+            ->pluck('store_id')
+            ->flip();
+
+        $taxRateCounts = \App\Models\TaxRate::query()
+            ->whereIn('store_id', $storeIds)
+            ->where('is_active', true)
+            ->selectRaw('store_id, COUNT(*) as aggregate')
+            ->groupBy('store_id')
+            ->pluck('aggregate', 'store_id');
+
+        $zoneCounts = \App\Models\ShippingZone::query()
+            ->whereIn('store_id', $storeIds)
+            ->where('is_active', true)
+            ->selectRaw('store_id, COUNT(*) as aggregate')
+            ->groupBy('store_id')
+            ->pluck('aggregate', 'store_id');
+
+        $checkoutMethodCounts = \App\Models\ShippingMethod::query()
+            ->whereIn('store_id', $storeIds)
+            ->where('is_active', true)
+            ->where('enabled_for_checkout', true)
+            ->selectRaw('store_id, COUNT(*) as aggregate')
+            ->groupBy('store_id')
+            ->pluck('aggregate', 'store_id');
+
+        $stripeOrPlatformReady = PaymentProviderAccount::query()
+            ->whereIn('store_id', $storeIds)
+            ->where('status', 'active')
+            ->where(function ($query): void {
+                $query->where('connection_type', PaymentProviderAccount::CONNECTION_PLATFORM)
+                    ->orWhere(function ($connectQuery): void {
+                        $connectQuery->where('connection_type', PaymentProviderAccount::CONNECTION_CONNECT)
+                            ->whereNotNull('provider_account_id');
+                    });
+            })
+            ->pluck('store_id')
+            ->unique()
+            ->flip();
+
+        $externalCheckoutReady = Store::query()
+            ->whereIn('id', $storeIds)
+            ->get(['id', 'settings'])
+            ->filter(fn (Store $store): bool => CheckoutMode::forStore($store) === CheckoutMode::EXTERNAL)
+            ->pluck('id')
+            ->flip();
+
+        foreach ($metrics as $storeId => &$row) {
+            $prev = (int) $row['orders_prev_7d'];
+            $curr = (int) $row['orders_7d'];
+            if ($prev === 0 && $curr === 0) {
+                $row['orders_change_pct'] = null;
+            } elseif ($prev === 0) {
+                $row['orders_change_pct'] = 100.0;
+            } else {
+                $row['orders_change_pct'] = round((($curr - $prev) / $prev) * 100, 1);
+            }
+
+            $paymentsReady = $externalCheckoutReady->has($storeId) || $stripeOrPlatformReady->has($storeId);
+            $readyFlags = [
+                (int) ($productCounts[$storeId] ?? 0) > 0,
+                (int) ($locationReady[$storeId] ?? 0) > 0,
+                $taxEnabled->has($storeId) && (int) ($taxRateCounts[$storeId] ?? 0) > 0,
+                (int) ($zoneCounts[$storeId] ?? 0) > 0 && (int) ($checkoutMethodCounts[$storeId] ?? 0) > 0,
+                $paymentsReady,
+            ];
+            $readyCount = count(array_filter($readyFlags));
+            $setupComplete = $readyCount === $setupTotal;
+
+            $row['setup_ready_count'] = $readyCount;
+            $row['setup_total'] = $setupTotal;
+            $row['setup_complete'] = $setupComplete;
+
+            if (! $setupComplete) {
+                $row['health'] = 'setup';
+                $row['health_label'] = 'Setup needed';
+            } elseif ($curr > 0) {
+                $row['health'] = 'healthy';
+                $row['health_label'] = 'Selling';
+            } else {
+                $row['health'] = 'ready';
+                $row['health_label'] = 'Ready to sell';
+            }
+        }
+        unset($row);
+
+        return $metrics;
     }
 
     public function store_products(Request $request, $storeId)

@@ -3,15 +3,7 @@
 @section('title', 'Taxes — '.config('app.name'))
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Checkout & tax" lead="Configure platform checkout tax separately from delivery.">
-        @if ($canManageTax ?? false)
-            <x-slot:actions>
-                <button type="submit" form="tax-behavior-form" class="tax-console-btn tax-console-btn-primary shrink-0">
-                    Save tax settings
-                </button>
-            </x-slot:actions>
-        @endif
-    </x-ui.merchant-topbar>
+    <x-ui.merchant-topbar title="Checkout & tax" lead="Configure platform checkout tax separately from delivery." />
 @endsection
 
 @section('content')
@@ -200,20 +192,67 @@
 
         <div class="tax-console-layout">
             <div class="tax-console-main">
-                <section id="tax-behavior-settings" class="tax-console-card">
-                    <div class="tax-console-card-header">
+                <section
+                    id="tax-behavior-settings"
+                    class="tax-console-card"
+                    x-data="{ editing: {{ ($errors->hasAny(['enabled', 'prices_include_tax', 'default_product_taxable', 'shipping_taxable', 'calculation_address']) || old('_tax_editing')) ? 'true' : 'false' }} }"
+                >
+                    <div class="tax-console-card-header tax-console-card-header-row">
                         <div>
                             <h2 class="tax-console-card-title">Tax behavior</h2>
                             <p class="tax-console-card-lead">Define how tax applies to transactions. These settings affect new platform checkouts. Historical order snapshots stay unchanged.</p>
                         </div>
+                        @if ($canManageTax)
+                            <button
+                                type="button"
+                                class="tax-console-btn tax-console-btn-secondary shrink-0"
+                                x-show="!editing"
+                                @click="editing = true"
+                            >
+                                Edit
+                            </button>
+                        @endif
                     </div>
 
                     <div class="tax-console-card-body">
                         @if ($canManageTax)
-                            <form id="tax-behavior-form" method="POST" action="{{ route('settings.taxes.update') }}">
+                            <div x-show="!editing" x-cloak class="tax-console-toggle-list">
+                                <div class="tax-console-toggle-row">
+                                    <span class="tax-console-toggle-copy"><strong>Platform tax</strong><span>{{ $taxSetting->enabled ? 'Active' : 'Disabled' }}</span></span>
+                                </div>
+                                <div class="tax-console-toggle-row">
+                                    <span class="tax-console-toggle-copy"><strong>Product prices</strong><span>{{ $taxSetting->prices_include_tax ? 'Tax included' : 'Tax added at checkout' }}</span></span>
+                                </div>
+                                <div class="tax-console-toggle-row">
+                                    <span class="tax-console-toggle-copy"><strong>New products</strong><span>{{ $taxSetting->default_product_taxable ? 'Taxable by default' : 'Not taxable by default' }}</span></span>
+                                </div>
+                                <div class="tax-console-toggle-row">
+                                    <span class="tax-console-toggle-copy"><strong>Shipping</strong><span>{{ $taxSetting->shipping_taxable ? 'Taxable' : 'Not taxable' }}</span></span>
+                                </div>
+                                <div class="tax-console-address-card mt-4">
+                                    <div class="tax-console-address-head">
+                                        <span class="tax-console-address-icon" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/>
+                                            </svg>
+                                        </span>
+                                        <p class="tax-console-address-title">Calculation address</p>
+                                    </div>
+                                    <p class="tax-console-address-value">Customer shipping address</p>
+                                </div>
+                            </div>
+
+                            <form
+                                id="tax-behavior-form"
+                                method="POST"
+                                action="{{ route('settings.taxes.update') }}"
+                                x-show="editing"
+                                x-cloak
+                            >
                                 @csrf
                                 @method('PUT')
                                 <input type="hidden" name="calculation_address" value="shipping">
+                                <input type="hidden" name="_tax_editing" value="1">
 
                                 <div class="tax-console-toggle-list">
                                     <div class="tax-console-toggle-row">
@@ -280,7 +319,10 @@
 
                                 <div class="tax-console-form-footer">
                                     <p>Changes apply to future checkouts only.</p>
-                                    <button type="submit" class="tax-console-btn tax-console-btn-primary">Save tax settings</button>
+                                    <div class="flex flex-wrap gap-2">
+                                        <button type="button" class="tax-console-btn tax-console-btn-secondary" @click="editing = false">Cancel</button>
+                                        <button type="submit" class="tax-console-btn tax-console-btn-primary">Save tax settings</button>
+                                    </div>
                                 </div>
                             </form>
                         @else

@@ -6,9 +6,50 @@
     <header class="payments-section-head">
         <div>
             <h2 class="payments-section-title">How does this store accept payments?</h2>
-            <p class="payments-section-lede">Choose one checkout mode for this store. You can switch later.</p>
+            <p class="payments-section-lede">Choose one checkout mode for this store. You can switch anytime.</p>
         </div>
     </header>
+
+    @if($canManagePayments)
+        <div class="mb-5 flex flex-wrap gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+            <form method="POST" action="{{ route('settings.payments.mode') }}" data-turbo="false">
+                @csrf
+                <input type="hidden" name="checkout_mode" value="{{ CheckoutMode::EXTERNAL }}">
+                <button
+                    type="submit"
+                    @class([
+                        'payments-btn',
+                        'payments-btn-primary' => $checkoutMode === CheckoutMode::EXTERNAL,
+                        'payments-btn-secondary' => $checkoutMode !== CheckoutMode::EXTERNAL,
+                    ])
+                    @disabled($checkoutMode === CheckoutMode::EXTERNAL)
+                >
+                    {{ $checkoutMode === CheckoutMode::EXTERNAL ? 'External checkout (current)' : 'Switch to external checkout' }}
+                </button>
+            </form>
+            @if($connectReady)
+                <form method="POST" action="{{ route('settings.payments.mode') }}" data-turbo="false">
+                    @csrf
+                    <input type="hidden" name="checkout_mode" value="{{ CheckoutMode::PLATFORM }}">
+                    <button
+                        type="submit"
+                        @class([
+                            'payments-btn',
+                            'payments-btn-primary' => $checkoutMode === CheckoutMode::PLATFORM,
+                            'payments-btn-secondary' => $checkoutMode !== CheckoutMode::PLATFORM,
+                        ])
+                        @disabled($checkoutMode === CheckoutMode::PLATFORM)
+                    >
+                        {{ $checkoutMode === CheckoutMode::PLATFORM ? 'Platform checkout (current)' : 'Switch to platform checkout' }}
+                    </button>
+                </form>
+            @else
+                <button type="button" class="payments-btn payments-btn-secondary opacity-60" disabled title="Finish Stripe setup before enabling platform checkout">
+                    Platform checkout (Stripe required)
+                </button>
+            @endif
+        </div>
+    @endif
 
     <div class="payments-mode-grid">
         <article @class([
@@ -29,7 +70,7 @@
                     @if($checkoutMode === CheckoutMode::EXTERNAL)
                         <span class="payments-btn payments-btn-current">Current mode</span>
                     @else
-                        <form method="POST" action="{{ route('settings.payments.mode') }}">
+                        <form method="POST" action="{{ route('settings.payments.mode') }}" data-turbo="false">
                             @csrf
                             <input type="hidden" name="checkout_mode" value="{{ CheckoutMode::EXTERNAL }}">
                             <button type="submit" class="payments-btn payments-btn-secondary">Use external checkout</button>
@@ -71,26 +112,27 @@
                         @if($checkoutMode === CheckoutMode::PLATFORM)
                             <span class="payments-btn payments-btn-current">Current mode</span>
                         @else
-                            <form method="POST" action="{{ route('settings.payments.mode') }}">
+                            <form method="POST" action="{{ route('settings.payments.mode') }}" data-turbo="false">
                                 @csrf
                                 <input type="hidden" name="checkout_mode" value="{{ CheckoutMode::PLATFORM }}">
                                 <button type="submit" class="payments-btn payments-btn-primary">Use platform checkout</button>
                             </form>
                         @endif
-                        <form method="POST" action="{{ route('settings.payments.stripe.status') }}">
+                        <form method="POST" action="{{ route('settings.payments.stripe.status') }}" data-turbo="false">
                             @csrf
                             <button type="submit" class="payments-btn payments-btn-secondary">Refresh status</button>
                         </form>
-                    @elseif($hasConnectAccount && ! $connectDisabled)
-                        <form method="GET" action="{{ route('settings.payments.stripe.refresh') }}">
+                    @elseif($hasConnectAccount && ! $connectDisabled && $connectAccount)
+                        <form method="POST" action="{{ route('settings.payments.stripe.connect.refresh', $connectAccount) }}" data-turbo="false">
+                            @csrf
                             <button type="submit" class="payments-btn payments-btn-primary">Continue Stripe setup</button>
                         </form>
-                        <form method="POST" action="{{ route('settings.payments.stripe.status') }}">
+                        <form method="POST" action="{{ route('settings.payments.stripe.status') }}" data-turbo="false">
                             @csrf
                             <button type="submit" class="payments-btn payments-btn-secondary">Refresh status</button>
                         </form>
                     @else
-                        <form method="POST" action="{{ route('settings.payments.stripe.connect') }}">
+                        <form method="POST" action="{{ route('settings.payments.stripe.connect') }}" data-turbo="false">
                             @csrf
                             <button type="submit" class="payments-btn payments-btn-primary">{{ $connectDisabled ? 'Reconnect Stripe' : 'Connect Stripe' }}</button>
                         </form>

@@ -1340,6 +1340,43 @@ class OnboardingController extends Controller
             ->with('success_meta', 'Changes are now live');
     }
 
+    public function updateStoreLifecycleFromManagement(Request $request, $storeId): RedirectResponse
+    {
+        $store = $request->user()->memberStores()
+            ->where('stores.id', $storeId)
+            ->firstOrFail();
+
+        $this->authorizeStorePermission($request, $store, StorePermission::SETTINGS_MANAGE);
+
+        $validated = $request->validate([
+            'status' => ['required', 'string', 'in:live,draft'],
+        ]);
+
+        $markLive = $validated['status'] === 'live';
+
+        $store->update([
+            'onboarding_completed' => $markLive,
+            'settings' => $this->mergeStoreSettings($store->settings, [
+                'onboarding_step' => $markLive ? 3 : (int) data_get($store->settings, 'onboarding_step', 1),
+            ]),
+        ]);
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            $markLive ? 'store_marked_live' : 'store_moved_to_draft',
+            store: $store,
+            metadata: ['store_id' => $store->id]
+        );
+
+        return redirect()
+            ->route('store-management')
+            ->with('success', $markLive
+                ? "Store '{$store->name}' is now live."
+                : "Store '{$store->name}' moved back to draft.")
+            ->with('success_title', $markLive ? 'Store is live' : 'Store is a draft')
+            ->with('success_meta', 'Store management updated');
+    }
+
     public function destroyStoreFromManagement(Request $request, $storeId): RedirectResponse
     {
         $store = $request->user()->memberStores()

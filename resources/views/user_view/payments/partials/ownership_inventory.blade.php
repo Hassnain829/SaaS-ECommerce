@@ -44,25 +44,58 @@
                 </ul>
 
                 @if($canManagePayments ?? false)
-                    <form method="POST" action="{{ route('settings.payments.external-inventory') }}" class="payments-inventory-panel space-y-3">
-                        @csrf
-                        <p class="text-sm font-semibold text-[#0F172A]">Inventory source for external orders</p>
-                        <label class="flex items-start gap-2 text-sm text-[#334155]">
-                            <input type="radio" name="inventory_owner" value="platform" @checked(($externalInventoryOwner ?? 'platform') === 'platform') class="mt-1">
-                            <span>
-                                <span class="font-semibold text-[#0F172A]">Use dashboard inventory</span>
-                                <span class="mt-0.5 block text-xs text-[#64748B]">External orders reduce dashboard stock when they sync.</span>
+                    <div
+                        class="payments-inventory-panel space-y-3"
+                        x-data="{ editing: {{ ($errors->has('inventory_owner') || old('_inventory_editing')) ? 'true' : 'false' }} }"
+                    >
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="text-sm font-semibold text-[#0F172A]">Inventory source for external orders</p>
+                            <button
+                                type="button"
+                                class="payments-btn payments-btn-secondary"
+                                x-show="!editing"
+                                @click="editing = true"
+                            >
+                                Edit
+                            </button>
+                        </div>
+
+                        <form
+                            method="POST"
+                            action="{{ route('settings.payments.external-inventory') }}"
+                            class="space-y-3"
+                            x-show="editing"
+                            x-cloak
+                        >
+                            @csrf
+                            <input type="hidden" name="_inventory_editing" value="1">
+                            <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                <input type="radio" name="inventory_owner" value="platform" @checked(($externalInventoryOwner ?? 'platform') === 'platform') class="mt-1">
+                                <span>
+                                    <span class="font-semibold text-[#0F172A]">Use dashboard inventory</span>
+                                    <span class="mt-0.5 block text-xs text-[#64748B]">External orders reduce dashboard stock when they sync.</span>
+                                </span>
+                            </label>
+                            <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                <input type="radio" name="inventory_owner" value="external" @checked(($externalInventoryOwner ?? 'platform') === 'external') class="mt-1">
+                                <span>
+                                    <span class="font-semibold text-[#0F172A]">External storefront manages inventory</span>
+                                    <span class="mt-0.5 block text-xs text-[#64748B]">External orders are recorded here, but dashboard stock is not changed.</span>
+                                </span>
+                            </label>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="submit" class="payments-btn payments-btn-primary">Save inventory source</button>
+                                <button type="button" class="payments-btn payments-btn-secondary" @click="editing = false">Cancel</button>
+                            </div>
+                        </form>
+
+                        <p class="text-xs text-[#64748B]" x-show="!editing" x-cloak>
+                            Current:
+                            <span class="font-semibold text-[#0F172A]">
+                                {{ ($externalInventoryOwner ?? 'platform') === 'external' ? 'External storefront manages inventory' : 'Use dashboard inventory' }}
                             </span>
-                        </label>
-                        <label class="flex items-start gap-2 text-sm text-[#334155]">
-                            <input type="radio" name="inventory_owner" value="external" @checked(($externalInventoryOwner ?? 'platform') === 'external') class="mt-1">
-                            <span>
-                                <span class="font-semibold text-[#0F172A]">External storefront manages inventory</span>
-                                <span class="mt-0.5 block text-xs text-[#64748B]">External orders are recorded here, but dashboard stock is not changed.</span>
-                            </span>
-                        </label>
-                        <button type="submit" class="payments-btn payments-btn-primary">Save inventory source</button>
-                    </form>
+                        </p>
+                    </div>
                 @endif
             </article>
 

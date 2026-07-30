@@ -53,7 +53,9 @@ class PaymentSettingsController extends Controller
         return view('user_view.payment_settings', [
             'selectedStore' => $store,
             'accounts' => $accounts,
-            'connectAccount' => $testConnectAccount,
+            'connectAccount' => $platformPaymentMode === PlatformPaymentMode::LIVE
+                ? $liveConnectAccount
+                : $testConnectAccount,
             'platformAccount' => $accounts->firstWhere('connection_type', 'platform'),
             'testConnectAccount' => $testConnectAccount,
             'liveConnectAccount' => $liveConnectAccount,
@@ -324,7 +326,21 @@ class PaymentSettingsController extends Controller
                 ->withErrors(['stripe' => 'Only connected Stripe accounts can continue onboarding.']);
         }
 
-        return redirect()->away($connectService->createAccountOnboardingLink($account));
+        try {
+            $url = $connectService->createAccountOnboardingLink($account);
+        } catch (\RuntimeException $exception) {
+            return redirect()
+                ->route('settings.payments.index')
+                ->withErrors(['stripe' => $exception->getMessage()]);
+        }
+
+        if (! filled($url)) {
+            return redirect()
+                ->route('settings.payments.index')
+                ->withErrors(['stripe' => 'Stripe did not return an onboarding link. Try again or reconnect Stripe.']);
+        }
+
+        return redirect()->away($url);
     }
 
     public function status(
