@@ -12,7 +12,7 @@ class PaymentIntentResult
         public readonly string $providerIntentId,
         public readonly ?string $clientSecret,
         public readonly string $status,
-        public readonly float $amount,
+        public readonly string $amount,
         public readonly string $currencyCode,
         public readonly array $raw = [],
         public readonly ?string $providerAccountId = null,

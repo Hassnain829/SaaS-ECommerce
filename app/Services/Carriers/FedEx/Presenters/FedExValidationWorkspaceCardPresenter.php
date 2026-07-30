@@ -59,7 +59,7 @@ class FedExValidationWorkspaceCardPresenter
             );
         }
 
-        foreach (FedExValidationScenarioCatalog::lockedShipScenarios() as $testCaseKey => $meta) {
+        foreach (FedExValidationScenarioCatalog::requiredLockedShipScenarios() as $testCaseKey => $meta) {
             $scenarioKey = (string) $meta['scenario_key'];
             $eventCheck = $checksByKey->get($scenarioKey.'_event');
             $event = $this->eventFromCheck($store, $account, $eventCheck, $scenarioKey, testCaseKey: $testCaseKey, labelFormat: (string) $meta['label_format']);

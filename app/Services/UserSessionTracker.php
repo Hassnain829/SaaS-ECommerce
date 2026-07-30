@@ -2,13 +2,19 @@
 
 namespace App\Services;
 
+use App\Models\Store;
 use App\Models\UserSession;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class UserSessionTracker
 {
+    public function __construct(
+        private readonly CommerceNotificationEmitter $commerceNotifications,
+    ) {}
+
     public function touch(Request $request): ?UserSession
     {
         $user = $request->user();
@@ -19,6 +25,10 @@ class UserSessionTracker
         }
 
         $description = $this->describeUserAgent((string) $request->userAgent());
+        $hadPriorSessions = UserSession::query()
+            ->where('user_id', $user->id)
+            ->where('session_id', '!=', $sessionId)
+            ->exists();
 
         UserSession::query()
             ->where('user_id', $user->id)
@@ -26,7 +36,7 @@ class UserSessionTracker
             ->whereNull('revoked_at')
             ->update(['is_current' => false]);
 
-        return UserSession::query()->updateOrCreate(
+        $session = UserSession::query()->updateOrCreate(
             [
                 'user_id' => $user->id,
                 'session_id' => $sessionId,
@@ -43,6 +53,35 @@ class UserSessionTracker
                 'is_current' => true,
             ]
         );
+
+        if (
+            $session->wasRecentlyCreated
+            && $hadPriorSessions
+            && Schema::hasTable('notifications')
+        ) {
+            $summary = sprintf(
+                'A new sign-in was detected from %s on %s (%s).',
+                $description['browser'],
+                $description['os'],
+                $request->ip() ?: 'unknown IP'
+            );
+
+            $store = $request->attributes->get('currentStore');
+            if (! $store instanceof Store) {
+                $store = $user->memberStores()->orderBy('stores.id')->first();
+            }
+
+            if ($store instanceof Store) {
+                $this->commerceNotifications->securityNewLogin(
+                    $user,
+                    $store,
+                    $summary,
+                    $session->session_id
+                );
+            }
+        }
+
+        return $session;
     }
 
     public function currentSessionIsRevoked(Request $request): bool

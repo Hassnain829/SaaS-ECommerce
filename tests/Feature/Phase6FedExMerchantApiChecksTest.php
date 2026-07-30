@@ -163,10 +163,11 @@ class Phase6FedExMerchantApiChecksTest extends TestCase
         $this->assertSame(2, $presentation['service_count']);
         $this->assertSame(2, $presentation['package_type_count']);
         $this->assertSame('FEDEX_2_DAY', $presentation['services'][0]['service_type']);
-        $this->assertSame('FedEx 2Day', $presentation['services'][0]['service_name']);
+        $this->assertSame('FedEx 2Day®', $presentation['services'][0]['service_name']);
         $this->assertSame('YOUR_PACKAGING', $presentation['services'][0]['packaging_type']);
         $this->assertSame('Your Packaging', $presentation['services'][0]['packaging_name']);
         $this->assertSame('FEDEX_ENVELOPE', $presentation['package_types'][1]['package_type']);
+        $this->assertSame('FedEx® Envelope', $presentation['services'][1]['packaging_name']);
     }
 
     public function test_service_availability_presenter_deduplicates_package_types(): void

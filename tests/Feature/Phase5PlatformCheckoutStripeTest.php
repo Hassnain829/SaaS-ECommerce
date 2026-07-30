@@ -55,7 +55,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
                     providerIntentId: 'pi_test_checkout_'.$checkout->id,
                     clientSecret: 'pi_test_checkout_'.$checkout->id.'_secret_test',
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
+                    amount: (string) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: [
                         'id' => 'pi_test_checkout_'.$checkout->id,
@@ -70,7 +70,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
                     eventType: 'payment_intent.succeeded',
                     providerIntentId: $providerIntentId,
                     status: 'succeeded',
-                    amount: 24.00,
+                    amount: '24.00',
                     currencyCode: 'USD',
                     raw: [
                         'id' => 'client_confirm_'.$providerIntentId,

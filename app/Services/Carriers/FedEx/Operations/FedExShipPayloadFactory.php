@@ -36,13 +36,43 @@ class FedExShipPayloadFactory
             'serviceType' => (string) ($fixture['service_type'] ?? 'FEDEX_GROUND'),
             'packagingType' => (string) ($fixture['packaging_type'] ?? 'YOUR_PACKAGING'),
             'shipper' => $this->party($fixture['shipper'] ?? []),
-            'recipients' => [$this->party($fixture['recipient'] ?? [], true)],
+            'recipients' => [$this->party(
+                $fixture['recipient'] ?? [],
+                true,
+                (bool) ($fixture['omit_recipient_residential'] ?? false),
+            )],
             'shippingChargesPayment' => $this->buildShippingChargesPayment($fixture, $accountNumber),
             'requestedPackageLineItems' => $this->buildPackageLineItems($fixture['packages'] ?? []),
         ];
 
         if (isset($fixture['total_package_count'])) {
             $requestedShipment['totalPackageCount'] = (int) $fixture['total_package_count'];
+        }
+
+        if (isset($fixture['total_weight'])) {
+            $requestedShipment['totalWeight'] = (float) $fixture['total_weight'];
+        }
+
+        if (filled($fixture['preferred_currency'] ?? null)) {
+            $requestedShipment['preferredCurrency'] = (string) $fixture['preferred_currency'];
+        }
+
+        if (isset($fixture['rate_request_types']) && is_array($fixture['rate_request_types']) && $fixture['rate_request_types'] !== []) {
+            $requestedShipment['rateRequestType'] = array_values(array_map(
+                static fn (mixed $type): string => strtoupper((string) $type),
+                $fixture['rate_request_types'],
+            ));
+        }
+
+        if (isset($fixture['total_declared_value']) && is_array($fixture['total_declared_value'])) {
+            $requestedShipment['totalDeclaredValue'] = [
+                'amount' => (float) ($fixture['total_declared_value']['amount'] ?? 0),
+                'currency' => (string) ($fixture['total_declared_value']['currency'] ?? 'USD'),
+            ];
+        }
+
+        if (array_key_exists('block_insight_visibility', $fixture)) {
+            $requestedShipment['blockInsightVisibility'] = (bool) $fixture['block_insight_visibility'];
         }
 
         if ($shipmentSpecialServices = $this->buildShipmentSpecialServices($fixture, $shipDate)) {
@@ -57,12 +87,28 @@ class FedExShipPayloadFactory
             $requestedShipment['processingOption'] = $mpsControls;
         }
 
+        if ($smartPost = $this->buildSmartPostInfoDetail($fixture)) {
+            $requestedShipment['smartPostInfoDetail'] = $smartPost;
+        }
+
         if ($customs = $this->customsClearanceBuilder->build($fixture, $accountNumber)) {
             $requestedShipment['customsClearanceDetail'] = $customs;
         }
 
+        if ($origin = $this->buildOrigin($fixture)) {
+            $requestedShipment['origin'] = $origin;
+        }
+
+        if ($shippingDocuments = $this->buildShippingDocumentSpecification($fixture)) {
+            $requestedShipment['shippingDocumentSpecification'] = $shippingDocuments;
+        }
+
         if (filled($labelFormat)) {
-            $requestedShipment['labelSpecification'] = $this->buildLabelSpecification($labelFormat, $labelStockType);
+            $labelSpec = $this->buildLabelSpecification($labelFormat, $labelStockType);
+            if (filled($fixture['label_format_type'] ?? null)) {
+                $labelSpec['labelFormatType'] = (string) $fixture['label_format_type'];
+            }
+            $requestedShipment['labelSpecification'] = $labelSpec;
         }
 
         return [
@@ -255,8 +301,9 @@ class FedExShipPayloadFactory
     {
         $paymentType = strtoupper((string) ($fixture['transportation_payment_type'] ?? 'SENDER'));
         $payment = ['paymentType' => $paymentType];
+        $includeSenderPayor = $paymentType === 'SENDER' && (bool) ($fixture['include_transportation_payor'] ?? false);
 
-        if (in_array($paymentType, ['RECIPIENT', 'THIRD_PARTY'], true)) {
+        if (in_array($paymentType, ['RECIPIENT', 'THIRD_PARTY'], true) || $includeSenderPayor) {
             $payorAccount = (string) ($fixture['transportation_payment_account'] ?? $accountNumber);
             $payor = [
                 'responsibleParty' => [
@@ -276,6 +323,108 @@ class FedExShipPayloadFactory
         }
 
         return $payment;
+    }
+
+    /**
+     * @param  array<string, mixed>  $fixture
+     * @return array<string, mixed>|null
+     */
+    private function buildSmartPostInfoDetail(array $fixture): ?array
+    {
+        $detail = $fixture['smart_post_info_detail'] ?? null;
+        if (! is_array($detail) || $detail === []) {
+            return null;
+        }
+
+        $payload = array_filter([
+            'indicia' => filled($detail['indicia'] ?? null) ? (string) $detail['indicia'] : null,
+            'hubId' => array_key_exists('hub_id', $detail) && $detail['hub_id'] !== null && $detail['hub_id'] !== ''
+                ? (string) $detail['hub_id']
+                : null,
+            'ancillaryEndorsement' => filled($detail['ancillary_endorsement'] ?? null)
+                ? (string) $detail['ancillary_endorsement']
+                : null,
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
+
+        return $payload !== [] ? $payload : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $fixture
+     * @return array<string, mixed>|null
+     */
+    private function buildOrigin(array $fixture): ?array
+    {
+        $origin = $fixture['origin'] ?? null;
+        if (! is_array($origin) || $origin === []) {
+            return null;
+        }
+
+        return $this->party($origin);
+    }
+
+    /**
+     * @param  array<string, mixed>  $fixture
+     * @return array<string, mixed>|null
+     */
+    private function buildShippingDocumentSpecification(array $fixture): ?array
+    {
+        $spec = $fixture['shipping_document_specification'] ?? null;
+        if (! is_array($spec) || $spec === []) {
+            return null;
+        }
+
+        // Fixtures may already use Ship API camelCase keys (passthrough) or snake_case.
+        if (isset($spec['shippingDocumentTypes']) || isset($spec['commercialInvoiceDetail'])) {
+            return $spec;
+        }
+
+        $payload = [];
+
+        $types = array_values(array_filter((array) ($spec['shipping_document_types'] ?? [])));
+        if ($types !== []) {
+            $payload['shippingDocumentTypes'] = $types;
+        }
+
+        $ci = $spec['commercial_invoice_detail'] ?? null;
+        if (is_array($ci) && $ci !== []) {
+            $detail = [];
+            $format = $ci['document_format'] ?? null;
+            if (is_array($format)) {
+                $documentFormat = array_filter([
+                    'docType' => $format['doc_type'] ?? null,
+                    'stockType' => $format['stock_type'] ?? null,
+                    'locale' => $format['locale'] ?? null,
+                ], static fn (mixed $value): bool => filled($value));
+                if ($documentFormat !== []) {
+                    $detail['documentFormat'] = $documentFormat;
+                }
+            }
+
+            $usages = [];
+            foreach ((array) ($ci['customer_image_usages'] ?? []) as $usage) {
+                if (! is_array($usage)) {
+                    continue;
+                }
+                $item = array_filter([
+                    'id' => $usage['id'] ?? null,
+                    'type' => $usage['type'] ?? null,
+                    'providedImageType' => $usage['provided_image_type'] ?? $usage['providedImageType'] ?? null,
+                ], static fn (mixed $value): bool => filled($value));
+                if ($item !== []) {
+                    $usages[] = $item;
+                }
+            }
+            if ($usages !== []) {
+                $detail['customerImageUsages'] = $usages;
+            }
+
+            if ($detail !== []) {
+                $payload['commercialInvoiceDetail'] = $detail;
+            }
+        }
+
+        return $payload !== [] ? $payload : null;
     }
 
     /**
@@ -349,7 +498,7 @@ class FedExShipPayloadFactory
      * @param  array<string, mixed>  $party
      * @return array<string, mixed>
      */
-    private function party(array $party, bool $recipient = false): array
+    private function party(array $party, bool $recipient = false, bool $omitResidential = false): array
     {
         $contact = array_filter([
             'personName' => $party['person_name'] ?? null,
@@ -358,19 +507,54 @@ class FedExShipPayloadFactory
             'phoneExtension' => $party['phone_extension'] ?? null,
         ]);
 
+        $residential = null;
+        if ($recipient && ! $omitResidential) {
+            $residential = (bool) ($party['residential'] ?? false);
+        }
+
         $address = array_filter([
             'streetLines' => array_values(array_filter($party['street_lines'] ?? [])),
             'city' => $party['city'] ?? null,
             'stateOrProvinceCode' => $party['state'] ?? null,
             'postalCode' => $party['postal_code'] ?? null,
             'countryCode' => strtoupper((string) ($party['country_code'] ?? 'US')),
-            'residential' => $recipient ? (bool) ($party['residential'] ?? false) : null,
+            'residential' => $residential,
         ], static fn (mixed $value): bool => $value !== null);
 
         return array_filter([
             'contact' => $contact !== [] ? $contact : null,
             'address' => $address,
+            'tins' => $this->buildTins($party['tins'] ?? null),
         ]);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>|null  $tins
+     * @return list<array<string, mixed>>|null
+     */
+    private function buildTins(mixed $tins): ?array
+    {
+        if (! is_array($tins) || $tins === []) {
+            return null;
+        }
+
+        $items = [];
+        foreach ($tins as $tin) {
+            if (! is_array($tin)) {
+                continue;
+            }
+
+            $item = array_filter([
+                'tinType' => $tin['tinType'] ?? $tin['tin_type'] ?? null,
+                'number' => $tin['number'] ?? null,
+            ], static fn (mixed $value): bool => $value !== null && $value !== '');
+
+            if ($item !== []) {
+                $items[] = $item;
+            }
+        }
+
+        return $items !== [] ? $items : null;
     }
 
     /**

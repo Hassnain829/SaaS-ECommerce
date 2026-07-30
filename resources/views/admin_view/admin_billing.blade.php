@@ -58,7 +58,7 @@
     <!-- Page Header -->
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30] font-poppins">Global Billing & Financials</h1>
+            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30]">Global Billing & Financials</h1>
             <p class="text-sm md:text-base text-[#434654] mt-1">Cross-platform revenue health and merchant settlement orchestration.</p>
         </div>
         <!-- Action buttons -->
@@ -151,7 +151,7 @@
         <div class="lg:col-span-2 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-6">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h2 class="text-base font-medium text-[#0B1C30] font-poppins">Revenue Growth</h2>
+                    <h2 class="text-base font-medium text-[#0B1C30]">Revenue Growth</h2>
                     <p class="text-sm text-[#434654]">Last 12 months performance trajectory</p>
                 </div>
                 <div class="flex bg-[#EFF4FF] rounded-lg p-1">
@@ -178,7 +178,7 @@
 
         <!-- Plan Distribution (right 1 column) -->
         <div class="bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-6">
-            <h3 class="text-base font-medium text-[#0B1C30] mb-4 font-poppins">Plan Distribution</h3>
+            <h3 class="text-base font-medium text-[#0B1C30] mb-4">Plan Distribution</h3>
             <!-- Donut chart (simplified with conic-gradient) -->
             <div class="relative w-32 h-32 mx-auto">
                 <div class="w-full h-full rounded-full bg-conic from-[#515F74] via-[#004E33] via-[#003D9B] to-[#515F74]" style="background: conic-gradient(#515F74 0deg 162deg, #004E33 162deg 288deg, #003D9B 288deg 360deg);"></div>
@@ -218,7 +218,7 @@
     <div class="bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
         <div class="px-6 py-4 border-b border-[#C3C6D6]/10 flex justify-between items-center">
             <div>
-                <h3 class="text-base font-medium text-[#0B1C30] font-poppins">Merchant Payout Queue</h3>
+                <h3 class="text-base font-medium text-[#0B1C30]">Merchant Payout Queue</h3>
                 <p class="text-sm text-[#434654]">High-value pending settlements awaiting approval.</p>
             </div>
             <a href="#" class="text-sm font-bold text-[#003D9B] hover:underline">View All Requests</a>
@@ -300,7 +300,7 @@
         <!-- Recent Invoices -->
         <div class="lg:col-span-3 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-6">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-base font-medium text-[#0B1C30] font-poppins">Recent Platform Invoices</h3>
+                <h3 class="text-base font-medium text-[#0B1C30]">Recent Platform Invoices</h3>
                 <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
                     <path d="M7 12V10H11V12H7ZM3 7V5H15V7H3ZM0 2V0H18V2H0Z" fill="#737685"/>
                 </svg>
@@ -366,7 +366,7 @@
         <!-- Billing API Cluster -->
         <div class="lg:col-span-1 bg-white rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-6 relative overflow-hidden">
             <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-[#003D9B] to-[#0052CC]"></div>
-            <h3 class="text-base font-medium text-[#0B1C30] mb-1 font-poppins">Billing API Cluster</h3>
+            <h3 class="text-base font-medium text-[#0B1C30] mb-1">Billing API Cluster</h3>
             <p class="text-xs font-bold uppercase text-[#434654] tracking-wider mb-4">System Health</p>
             <div class="space-y-4">
                 <!-- us-east -->

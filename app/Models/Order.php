@@ -123,8 +123,28 @@ class Order extends Model
         return $this->hasMany(OrderTaxLine::class);
     }
 
+    public function couponRedemption(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CouponRedemption::class);
+    }
+
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class)->orderBy('created_at')->orderBy('id');
+    }
+
+    public function returns(): HasMany
+    {
+        return $this->hasMany(OrderReturn::class)->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class)->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    public function exchanges(): HasMany
+    {
+        return $this->hasMany(Exchange::class)->orderByDesc('created_at')->orderByDesc('id');
     }
 }

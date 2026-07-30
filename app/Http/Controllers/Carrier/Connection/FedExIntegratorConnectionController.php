@@ -12,6 +12,7 @@ use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrat
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceExporter;
+use App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -245,7 +246,7 @@ class FedExIntegratorConnectionController extends Controller
         return redirect()
             ->route('settings.shipping.fedex-integrator.account', $session)
             ->withInput($request->except('_token'))
-            ->withErrors(['registration' => $session->last_error_message ?? 'FedEx registration failed.'])
+            ->withErrors(['registration' => $this->customerFacingFailureMessage($session)])
             ->with('error_title', 'FedEx registration');
     }
 
@@ -316,7 +317,7 @@ class FedExIntegratorConnectionController extends Controller
 
         return redirect()
             ->route('settings.shipping.fedex-integrator.mfa', $session)
-            ->withErrors(['pin' => $session->last_error_message ?? 'PIN verification failed.']);
+            ->withErrors(['pin' => $this->customerFacingFailureMessage($session, 'PIN verification failed.')]);
     }
 
     public function verifyInvoice(
@@ -346,7 +347,7 @@ class FedExIntegratorConnectionController extends Controller
 
         return redirect()
             ->route('settings.shipping.fedex-integrator.mfa', $session)
-            ->withErrors(['invoice_number' => $session->last_error_message ?? 'Invoice verification failed.']);
+            ->withErrors(['invoice_number' => $this->customerFacingFailureMessage($session, 'Invoice verification failed.')]);
     }
 
     public function success(Request $request, CarrierAccountRegistrationSession $session): View
@@ -354,10 +355,18 @@ class FedExIntegratorConnectionController extends Controller
         $this->resolveSessionForStore($request, $session);
         $account = $session->carrierAccount;
 
+        $directChildAuthorization =
+            $session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED
+            && blank($session->mfa_method)
+            && data_get($session->response_summary_json, 'credential_key_detected') === true
+            && data_get($session->response_summary_json, 'credential_secret_detected') === true
+            && data_get($session->response_summary_json, 'mfa_detected') === false;
+
         return view('user_view.fedex_integrator.success', [
             'selectedStore' => $session->store,
             'session' => $session,
             'account' => $account,
+            'directChildAuthorization' => $directChildAuthorization,
             'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
         ]);
     }
@@ -438,7 +447,21 @@ class FedExIntegratorConnectionController extends Controller
 
         return redirect()
             ->route('settings.shipping.fedex-integrator.account', $session)
-            ->withErrors(['registration' => $session->last_error_message ?? 'FedEx verification could not continue. Start a new connection from Shipping & Delivery.'])
+            ->withErrors(['registration' => $this->customerFacingFailureMessage($session)])
             ->with('error_title', 'FedEx verification');
+    }
+
+    private function customerFacingFailureMessage(
+        CarrierAccountRegistrationSession $session,
+        string $fallback = 'FedEx verification could not continue. Start a new connection from Shipping & Delivery.',
+    ): string {
+        if (in_array($session->status, [
+            CarrierAccountRegistrationSession::STATUS_FAILED,
+            CarrierAccountRegistrationSession::STATUS_LOCKED,
+        ], true)) {
+            return FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE;
+        }
+
+        return (string) ($session->last_error_message ?: $fallback);
     }
 }

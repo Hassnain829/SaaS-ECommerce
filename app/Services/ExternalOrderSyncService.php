@@ -11,6 +11,9 @@ use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Notifications\CommerceNotificationEmitter;
+use App\Support\Money\CurrencyPrecision;
+use App\Support\Money\DecimalString;
 use App\Support\OrderLifecycle;
 use App\Support\ProductVariantLabel;
 use Illuminate\Support\Carbon;
@@ -52,6 +55,8 @@ class ExternalOrderSyncService
         private readonly CustomerMetricsService $customerMetricsService,
         private readonly ChannelOwnershipService $channelOwnership,
         private readonly FulfillmentOriginRouter $originRouter,
+        private readonly \App\Services\Coupons\CouponService $couponService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     /**
@@ -73,9 +78,11 @@ class ExternalOrderSyncService
         }
 
         return DB::transaction(function () use ($store, $payload, $requestHash, $rawPaymentStatus): array {
+            $currencyCode = $this->assertExternalCurrencyConsistency($payload, $store);
             $customer = $this->upsertCustomer($store, $payload['customer']);
-            $items = $this->prepareItems($store, $payload['items']);
-            $totals = $this->totals($items, $payload);
+            $items = $this->prepareItems($store, $payload['items'], $currencyCode);
+            $platformCoupon = $this->resolvePlatformCoupon($store, $customer, $items, $payload);
+            $totals = $this->totals($items, $payload, $currencyCode, $platformCoupon);
             $paymentStatus = self::PAYMENT_STATUS_MAP[$rawPaymentStatus];
             $orderStatus = in_array($paymentStatus, [OrderLifecycle::PAYMENT_PAID, OrderLifecycle::PAYMENT_AUTHORIZED], true)
                 ? OrderLifecycle::ORDER_CONFIRMED
@@ -83,7 +90,7 @@ class ExternalOrderSyncService
             $placedAt = filled($payload['placed_at'] ?? null)
                 ? Carbon::parse($payload['placed_at'])
                 : now();
-            $shippingSnapshot = $this->shippingSnapshot($payload, $totals, $store);
+            $shippingSnapshot = $this->shippingSnapshot($payload, $totals, $store, $currencyCode);
             $fulfillmentSnapshot = $this->fulfillmentSnapshot($payload);
             $fulfillmentStatus = $this->mapFulfillmentStatus($fulfillmentSnapshot);
             $ownershipSnapshot = $this->channelOwnership->externalCheckoutConfig($store);
@@ -106,7 +113,7 @@ class ExternalOrderSyncService
                 'fulfillment_status' => $fulfillmentStatus,
                 'order_source' => self::SOURCE,
                 'channel' => self::CHANNEL,
-                'currency_code' => strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD')),
+                'currency_code' => $currencyCode,
                 'exchange_rate' => 1,
                 'item_count' => count($items),
                 'total_quantity' => array_sum(array_map(fn (array $item): int => (int) $item['quantity'], $items)),
@@ -130,6 +137,7 @@ class ExternalOrderSyncService
                     'shipping' => $shippingSnapshot !== [] ? $shippingSnapshot : null,
                     'fulfillment' => $fulfillmentSnapshot !== [] ? $fulfillmentSnapshot : null,
                     'fulfillment_routing' => $routingSnapshot,
+                    'coupon_snapshot' => $platformCoupon?->snapshot,
                     'channel_ownership' => [
                         'checkout_owner' => $ownershipSnapshot['checkout_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
                         'payment_owner' => $ownershipSnapshot['payment_owner'] ?? ChannelOwnershipService::OWNER_EXTERNAL,
@@ -144,6 +152,7 @@ class ExternalOrderSyncService
                         'external_order_id' => $payload['external_order_id'] ?? null,
                         'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
                         'discounts' => $payload['discounts'] ?? [],
+                        'discount_calculation' => $platformCoupon ? 'platform' : 'external',
                     ],
                 ], fn ($value): bool => $value !== null),
             ]);
@@ -201,6 +210,16 @@ class ExternalOrderSyncService
                 $product = $variant->product;
                 $primaryImage = $product?->primaryImage();
 
+                $lineKey = 'variant:'.$variant->id;
+                $lineDiscount = $platformCoupon
+                    ? $this->money($platformCoupon->itemDiscounts[$lineKey] ?? '0', $currencyCode)
+                    : $this->money('0', $currencyCode);
+                $lineTotalRaw = bcsub((string) $item['subtotal'], $lineDiscount, 6);
+                if (bccomp($lineTotalRaw, '0', 6) < 0) {
+                    $lineTotalRaw = '0';
+                }
+                $lineTotal = $this->money($lineTotalRaw, $currencyCode);
+
                 $order->items()->create([
                     'product_id' => $product?->id,
                     'product_variant_id' => $variant->id,
@@ -212,18 +231,27 @@ class ExternalOrderSyncService
                     'product_type_snapshot' => $product?->product_type,
                     'variant_label' => $item['variant_label'],
                     'variant_details' => $item['variant_details'],
-                    'meta' => [
+                    'meta' => array_filter([
                         'external_line_id' => $item['external_line_id'],
                         'source' => self::SOURCE,
-                    ],
+                        'coupon' => $platformCoupon ? [
+                            'code' => $platformCoupon->coupon->code,
+                            'discount_amount' => $lineDiscount,
+                        ] : null,
+                    ], fn ($value): bool => $value !== null),
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'subtotal' => $item['subtotal'],
-                    'discount_amount' => 0,
-                    'tax_amount' => 0,
-                    'total' => $item['subtotal'],
+                    'discount_amount' => $lineDiscount,
+                    'tax_amount' => $this->money('0', $currencyCode),
+                    'total' => $lineTotal,
                     'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
                 ]);
+            }
+
+            if ($platformCoupon) {
+                $this->assertPlatformLineDiscountsMatchHeader($order, $platformCoupon, $currencyCode);
+                $this->couponService->recordRedeemedForOrder($order, $customer, $platformCoupon);
             }
 
             $this->eventRecorder->record(
@@ -314,6 +342,8 @@ class ExternalOrderSyncService
             }
 
             $this->customerMetricsService->recalculate($customer);
+
+            $this->commerceNotifications->orderCreated($order);
 
             return [
                 'order' => $order->load(['items', 'addresses', 'customer', 'events']),
@@ -410,7 +440,7 @@ class ExternalOrderSyncService
      * @param  array<int, array<string, mixed>>  $rows
      * @return list<array<string, mixed>>
      */
-    private function prepareItems(Store $store, array $rows): array
+    private function prepareItems(Store $store, array $rows, string $currencyCode): array
     {
         $variantIds = collect($rows)
             ->pluck('variant_id')
@@ -421,7 +451,7 @@ class ExternalOrderSyncService
 
         /** @var Collection<int, ProductVariant> $variants */
         $variants = ProductVariant::query()
-            ->with(['product.brand', 'product.images', 'options.variationType'])
+            ->with(['product.brand', 'product.images', 'product.categories:id', 'options.variationType'])
             ->where('store_id', $store->id)
             ->whereIn('id', $variantIds)
             ->get()
@@ -438,7 +468,7 @@ class ExternalOrderSyncService
             }
 
             $quantity = max(1, (int) ($row['quantity'] ?? 1));
-            $unitPrice = $this->money($row['unit_price'] ?? $variant->price);
+            $unitPrice = $this->money($row['unit_price'] ?? $variant->price, $currencyCode);
             $variantCount = $variant->product?->variants()->count() ?? 1;
             $variantLabel = ProductVariantLabel::forVariant($variant, 0, $variantCount);
 
@@ -446,7 +476,7 @@ class ExternalOrderSyncService
                 'variant' => $variant,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
-                'subtotal' => $this->money($unitPrice * $quantity),
+                'subtotal' => $this->money(bcmul($unitPrice, (string) $quantity, 6), $currencyCode),
                 'external_line_id' => $row['external_line_id'] ?? null,
                 'variant_label' => $variantLabel,
                 'variant_details' => [
@@ -470,17 +500,35 @@ class ExternalOrderSyncService
      * @param  array<string, mixed>  $payload
      * @return array{subtotal: float, shipping: float, tax: float, discount: float, grand_total: float}
      */
-    private function totals(array $items, array $payload): array
+    private function totals(array $items, array $payload, string $currencyCode, ?\App\Data\Coupons\CouponDiscountResult $platformCoupon = null): array
     {
         $totalsBlock = is_array($payload['totals'] ?? null) ? $payload['totals'] : [];
-        $subtotal = $this->money($totalsBlock['subtotal'] ?? array_sum(array_map(fn (array $item): float => (float) $item['subtotal'], $items)));
-        $shipping = $this->money($totalsBlock['shipping'] ?? $payload['shipping_total'] ?? 0);
-        $tax = $this->money($totalsBlock['tax'] ?? $payload['tax_total'] ?? 0);
-        $discount = $this->money($totalsBlock['discount'] ?? $payload['discount_total'] ?? 0);
-        $grandTotal = $this->money($totalsBlock['total'] ?? $totalsBlock['grand_total'] ?? null);
+        $itemsSubtotal = CurrencyPrecision::roundMajor('0', $currencyCode);
+        foreach ($items as $item) {
+            $itemsSubtotal = CurrencyPrecision::roundMajor(
+                bcadd($itemsSubtotal, (string) $item['subtotal'], 6),
+                $currencyCode,
+            );
+        }
 
-        if ($grandTotal === 0.0 && ! isset($totalsBlock['total'], $totalsBlock['grand_total'])) {
-            $grandTotal = $this->money(max(0, $subtotal + $shipping + $tax - $discount));
+        $subtotal = $this->money($totalsBlock['subtotal'] ?? $itemsSubtotal, $currencyCode);
+        $shipping = $this->money($totalsBlock['shipping'] ?? $payload['shipping_total'] ?? 0, $currencyCode);
+        $tax = $this->money($totalsBlock['tax'] ?? $payload['tax_total'] ?? 0, $currencyCode);
+        $discount = $platformCoupon
+            ? $this->money($platformCoupon->discountTotal, $currencyCode)
+            : $this->money($totalsBlock['discount'] ?? $payload['discount_total'] ?? 0, $currencyCode);
+
+        $hasExplicitGrand = array_key_exists('total', $totalsBlock) || array_key_exists('grand_total', $totalsBlock);
+        $grandTotal = $hasExplicitGrand
+            ? $this->money($totalsBlock['total'] ?? $totalsBlock['grand_total'], $currencyCode)
+            : null;
+
+        if ($platformCoupon || $grandTotal === null) {
+            $raw = bcsub(bcadd(bcadd($subtotal, $shipping, 6), $tax, 6), $discount, 6);
+            if (bccomp($raw, '0', 6) < 0) {
+                $raw = '0';
+            }
+            $grandTotal = $this->money($raw, $currencyCode);
         }
 
         return [
@@ -493,12 +541,45 @@ class ExternalOrderSyncService
     }
 
     /**
+     * @param  list<array{variant: ProductVariant, quantity: int}>  $items
      * @param  array<string, mixed>  $payload
      */
-    private function hasExplicitShippingData(array $payload): bool
+    private function resolvePlatformCoupon(
+        Store $store,
+        Customer $customer,
+        array $items,
+        array $payload,
+    ): ?\App\Data\Coupons\CouponDiscountResult {
+        $mode = strtolower(trim((string) ($payload['discount_calculation'] ?? 'external')));
+        if ($mode !== 'platform') {
+            return null;
+        }
+
+        $code = trim((string) ($payload['coupon_code'] ?? ''));
+        if ($code === '') {
+            throw ValidationException::withMessages([
+                'coupon_code' => 'Provide a coupon code when discount_calculation is platform.',
+            ]);
+        }
+
+        $currencyCode = strtoupper((string) ($payload['currency_code'] ?? $store->currency ?? 'USD'));
+        $storeCurrency = strtoupper((string) ($store->currency ?? 'USD'));
+        if ($currencyCode !== $storeCurrency) {
+            throw ValidationException::withMessages([
+                'discount_calculation' => 'Platform coupon calculation requires the order currency to match the store currency.',
+            ]);
+        }
+
+        return $this->couponService->calculate($store, $customer, $currencyCode, $items, $code);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function hasExplicitShippingData(array $payload, string $orderCurrency): bool
     {
         $shipping = is_array($payload['shipping'] ?? null) ? $payload['shipping'] : [];
-        if ($shipping !== [] && $this->hasShippingObjectData($shipping)) {
+        if ($shipping !== [] && $this->hasShippingObjectData($shipping, $orderCurrency)) {
             return true;
         }
 
@@ -514,7 +595,7 @@ class ExternalOrderSyncService
     /**
      * @param  array<string, mixed>  $shipping
      */
-    private function hasShippingObjectData(array $shipping): bool
+    private function hasShippingObjectData(array $shipping, string $orderCurrency): bool
     {
         foreach (['method_name', 'carrier_name', 'delivery_speed_label'] as $field) {
             if (filled($shipping[$field] ?? null)) {
@@ -522,29 +603,29 @@ class ExternalOrderSyncService
             }
         }
 
-        return isset($shipping['amount']) && $this->money($shipping['amount']) > 0;
+        return isset($shipping['amount']) && bccomp($this->money($shipping['amount'], $orderCurrency), '0', 6) > 0;
     }
 
     /**
      * @param  array<string, mixed>  $payload
-     * @param  array{subtotal: float, shipping: float, tax: float, discount: float, grand_total: float}  $totals
+     * @param  array{subtotal: string, shipping: string, tax: string, discount: string, grand_total: string}  $totals
      * @return array<string, mixed>
      */
-    private function shippingSnapshot(array $payload, array $totals, Store $store): array
+    private function shippingSnapshot(array $payload, array $totals, Store $store, string $orderCurrency): array
     {
-        if (! $this->hasExplicitShippingData($payload)) {
+        if (! $this->hasExplicitShippingData($payload, $orderCurrency)) {
             return [];
         }
 
         $shipping = is_array($payload['shipping'] ?? null) ? $payload['shipping'] : [];
-        $currency = strtoupper((string) ($shipping['currency'] ?? $shipping['currency_code'] ?? $payload['currency_code'] ?? $store->currency ?? 'USD'));
+        $currency = strtoupper((string) ($shipping['currency'] ?? $shipping['currency_code'] ?? $orderCurrency));
 
         $snapshot = [
             'source' => (string) ($shipping['source'] ?? 'external'),
             'method_name' => $shipping['method_name'] ?? $payload['shipping_method_name'] ?? null,
             'carrier_name' => $shipping['carrier_name'] ?? $payload['shipping_carrier_name'] ?? null,
             'delivery_speed_label' => $shipping['delivery_speed_label'] ?? $payload['shipping_delivery_speed_label'] ?? null,
-            'amount' => $this->money($shipping['amount'] ?? $totals['shipping']),
+            'amount' => $this->money($shipping['amount'] ?? $totals['shipping'], $orderCurrency),
             'currency_code' => $currency,
             'external_checkout_reference' => $payload['external_checkout_reference'] ?? null,
             'synced_at' => now()->toISOString(),
@@ -671,12 +752,63 @@ class ExternalOrderSyncService
         return [$parts[0] ?? '', $parts[1] ?? ''];
     }
 
-    private function money(mixed $value): float
+    private function money(mixed $value, string $currencyCode): string
     {
         if ($value === null || trim((string) $value) === '') {
-            return 0.0;
+            return CurrencyPrecision::roundMajor('0', $currencyCode);
         }
 
-        return round(max(0, (float) $value), 2);
+        return CurrencyPrecision::roundMajor(
+            DecimalString::normalizeNonNegative((string) $value),
+            $currencyCode,
+        );
+    }
+
+    private function assertPlatformLineDiscountsMatchHeader(
+        Order $order,
+        \App\Data\Coupons\CouponDiscountResult $platformCoupon,
+        string $currencyCode,
+    ): void {
+        $order->loadMissing('items');
+        $lineSum = CurrencyPrecision::roundMajor('0', $currencyCode);
+        foreach ($order->items as $item) {
+            $lineSum = CurrencyPrecision::roundMajor(
+                bcadd($lineSum, $this->money($item->discount_amount, $currencyCode), 6),
+                $currencyCode,
+            );
+        }
+
+        $headerDiscount = $this->money($platformCoupon->discountTotal, $currencyCode);
+        if (
+            CurrencyPrecision::toMinorUnits($lineSum, $currencyCode)
+            !== CurrencyPrecision::toMinorUnits($headerDiscount, $currencyCode)
+        ) {
+            throw ValidationException::withMessages([
+                'coupon_code' => 'Platform coupon line discounts do not match the order discount total.',
+            ]);
+        }
+    }
+
+    private function assertExternalCurrencyConsistency(array $payload, Store $store): string
+    {
+        $currency = strtoupper(trim((string) ($payload['currency_code'] ?? $store->currency ?? 'USD')));
+        if ($currency === '' || preg_match('/^[A-Z]{3}$/', $currency) !== 1) {
+            throw ValidationException::withMessages([
+                'currency_code' => 'Currency must be a three-letter ISO code.',
+            ]);
+        }
+
+        $shipping = is_array($payload['shipping'] ?? null) ? $payload['shipping'] : [];
+        $shippingCurrency = $shipping['currency'] ?? $shipping['currency_code'] ?? null;
+        if ($shippingCurrency !== null && trim((string) $shippingCurrency) !== '') {
+            $shippingCurrency = strtoupper(trim((string) $shippingCurrency));
+            if ($shippingCurrency !== $currency) {
+                throw ValidationException::withMessages([
+                    'shipping.currency' => 'Shipping currency must match the order currency.',
+                ]);
+            }
+        }
+
+        return $currency;
     }
 }

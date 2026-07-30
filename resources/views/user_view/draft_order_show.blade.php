@@ -3,28 +3,15 @@
 @section('title', $draftOrder->draft_number . ' | BaaS Core')
 
 @section('topbar')
-@php
-    $customerLabel = $draftOrder->customer?->full_name ?? $draftOrder->customer?->email ?? 'No customer';
-    $statusLabel = ucfirst($draftOrder->status);
-@endphp
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4 shrink-0">
-    <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-        <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-    </button>
-    <div class="min-w-0">
-        <div class="flex flex-wrap items-center gap-2">
-            <h1 class="truncate text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Draft {{ $draftOrder->draft_number }}</h1>
-            <span class="inline-flex rounded-full bg-[#E0E7FF] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#3730A3]">{{ $statusLabel }}</span>
-        </div>
-        <p class="hidden md:block truncate text-xs text-[#64748B]">{{ $customerLabel }}</p>
-    </div>
-    <div class="flex shrink-0 items-center gap-2">
-        @if($draftOrder->convertedOrder)
-            <a href="{{ route('orderViewDetails', $draftOrder->convertedOrder) }}" class="h-10 px-4 rounded-lg bg-[#0052CC] text-sm font-semibold text-white inline-flex items-center justify-center">View order</a>
-        @endif
-        <a href="{{ route('orders') }}" class="h-10 px-4 rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A] inline-flex items-center justify-center hover:bg-[#F8FAFC]">Back</a>
-    </div>
-</header>
+    <x-ui.merchant-topbar :title="'Draft '.$draftOrder->draft_number" :lead="$draftOrder->customer?->full_name ?? $draftOrder->customer?->email ?? 'No customer'">
+        <x-slot:actions>
+            <span class="hidden rounded-full bg-[#E0E7FF] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#3730A3] md:inline-flex">{{ ucfirst($draftOrder->status) }}</span>
+            @if($draftOrder->convertedOrder)
+                <a href="{{ route('orderViewDetails', $draftOrder->convertedOrder) }}" class="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white">View order</a>
+            @endif
+            <a href="{{ route('orders') }}" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-800">Back</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -32,6 +19,8 @@
     use App\Support\Draft\DraftOrderFormState;
     use App\Support\MoneyDisplay;
 
+    $customerLabel = $draftOrder->customer?->full_name ?? $draftOrder->customer?->email ?? 'No customer';
+    $statusLabel = ucfirst($draftOrder->status);
     $currency = $draftOrder->currency ?: ($selectedStore->currency ?? 'USD');
     $shipping = $draftOrder->shippingAddress();
     $isEditable = $draftOrder->status === \App\Models\DraftOrder::STATUS_DRAFT;
@@ -97,7 +86,7 @@
 
         <div class="space-y-4">
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Customer</h2>
                 <div class="mt-4 rounded-xl bg-[#F8FAFC] p-4 text-sm text-[#334155]">
                     <p class="font-semibold text-[#0F172A]">{{ $draftOrder->customer?->full_name ?? $draftOrder->customer?->email ?? 'No customer selected' }}</p>
                     <p class="mt-1 text-[#64748B]">{{ $draftOrder->customer?->email ?? 'Add a customer before creating the order.' }}</p>
@@ -109,7 +98,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Products</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Products</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Stock shown is guidance — inventory is checked when you create the order.</p>
 
                 @include('user_view.partials.draft_order_line_items', [
@@ -137,7 +126,7 @@
             @endif
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Shipping address</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Shipping address</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Address, city, and country are required before creating the order.</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     @foreach([
@@ -214,7 +203,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <label for="draft-notes-edit" class="text-lg font-poppins font-semibold text-[#0F172A]">Notes</label>
+                <label for="draft-notes-edit" class="text-lg font-semibold text-[#0F172A]">Notes</label>
                 <textarea id="draft-notes-edit" name="notes" rows="4" class="mt-3 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" @readonly(! $isEditable)>{{ old('notes', $draftOrder->notes) }}</textarea>
             </section>
         </div>
@@ -224,6 +213,7 @@
                 'currency' => $currency,
                 'subtotal' => $displaySubtotal,
                 'discount' => old('discount_total', $draftOrder->discount_total),
+                'couponCode' => old('coupon_code', data_get($draftOrder->metadata, 'coupon_snapshot.code', '')),
                 'shipping' => old('shipping_total', $draftOrder->shipping_total),
                 'tax' => $draftOrder->tax_total,
                 'total' => $draftOrder->total,

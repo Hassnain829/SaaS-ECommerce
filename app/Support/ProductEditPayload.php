@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\Store;
 use Illuminate\Support\Str;
 
 /**
@@ -12,6 +13,60 @@ use Illuminate\Support\Str;
  */
 final class ProductEditPayload
 {
+    /**
+     * Empty create payload so Add product can reuse the full workspace editor.
+     *
+     * @return array<string, mixed>
+     */
+    public static function forCreate(Store $store, ?bool $defaultTaxable = null): array
+    {
+        $taxable = $defaultTaxable;
+        if ($taxable === null) {
+            $taxable = (bool) ($store->taxSetting?->default_product_taxable ?? true);
+        }
+
+        return [
+            'id' => null,
+            'name' => '',
+            'description' => '',
+            'sku' => '',
+            'base_price' => '',
+            'product_type' => 'physical',
+            'custom_product_type' => '',
+            'is_taxable' => $taxable,
+            'brand_id' => null,
+            'tag_ids' => [],
+            'category_ids' => [],
+            'attribute_term_ids' => [],
+            'custom_fields' => [
+                ['key' => '', 'type' => 'text', 'value' => ''],
+            ],
+            'stock_alert' => 5,
+            'image_url' => null,
+            'image_paths' => [],
+            'image_urls' => [],
+            'catalog_images' => [],
+            'variation_types' => [],
+            'variants' => [
+                [
+                    'id' => null,
+                    'option_map' => [],
+                    'sku' => '',
+                    'price' => '',
+                    'compare_at_price' => '',
+                    'stock' => '0',
+                    'stock_alert' => 5,
+                    'product_image_id' => null,
+                    'custom_fields' => [],
+                ],
+            ],
+            'store_url' => route('product.store'),
+            'update_url' => '',
+            'delete_url' => '',
+            'is_create' => true,
+        ];
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -22,7 +77,7 @@ final class ProductEditPayload
             'categories:id,name,store_id',
             'variationTypes.options:id,variation_type_id,value,sort_order',
             'variants.options:id,variation_type_id,value',
-            'variants.linkedCatalogImage:id,product_id,product_variant_id,image_path,status,sort_order,is_primary',
+            'variants.linkedCatalogImage:id,product_id,image_path,status,sort_order,is_primary',
             'images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
             'productAttributes.terms:id,attribute_id,name',
         ]);
@@ -99,11 +154,18 @@ final class ProductEditPayload
                 ->values()
                 ->all(),
             'catalog_images' => $catalogImagesForPicker,
-            'variation_types' => $product->variationTypes->map(fn ($variationType) => [
-                'name' => $variationType->name,
-                'type' => $variationType->type,
-                'options' => $variationType->options->sortBy('sort_order')->pluck('value')->values()->all(),
-            ])->values()->all(),
+            'variation_types' => $product->variationTypes
+                ->map(fn ($variationType) => [
+                    'name' => $variationType->name,
+                    'type' => $variationType->type,
+                    'options' => $variationType->options->sortBy('sort_order')->pluck('value')->values()->all(),
+                ])
+                // Incomplete option groups (name without values) break simple-product editing.
+                ->filter(fn (array $variationType) => trim((string) ($variationType['name'] ?? '')) !== ''
+                    && is_array($variationType['options'] ?? null)
+                    && count($variationType['options']) > 0)
+                ->values()
+                ->all(),
             'variants' => $product->variants->map(function ($variant) use ($product) {
                 $optionMap = [];
                 foreach ($product->variationTypes as $variationIndex => $variationType) {
@@ -126,13 +188,215 @@ final class ProductEditPayload
                     'compare_at_price' => $variant->compare_at_price !== null ? (string) $variant->compare_at_price : '',
                     'stock' => (string) $variant->stock,
                     'stock_alert' => (int) $variant->stock_alert,
-                    'product_image_id' => $variant->linkedCatalogImage?->id,
+                    'product_image_id' => $variant->product_image_id
+                        ? (int) $variant->product_image_id
+                        : null,
                     'custom_fields' => self::editorRowsFromMeta(is_array($variant->meta) ? $variant->meta : []),
                 ];
             })->values()->all(),
             'update_url' => route('product.update', ['productId' => $product->id]),
             'delete_url' => route('product.destroy', ['productId' => $product->id]),
+            'edit_workspace_url' => route('products.edit', ['product' => $product->id]),
+            'is_create' => false,
         ];
+    }
+
+    /**
+     * Rebuild a create payload after validation errors.
+     *
+     * @param  array<string, mixed>  $old
+     * @return array<string, mixed>
+     */
+    public static function withFormOldForCreate(Store $store, array $old, ?bool $defaultTaxable = null): array
+    {
+        $base = self::forCreate($store, $defaultTaxable);
+        if ($old === []) {
+            return $base;
+        }
+
+        // Reuse the same merge rules as edit, against a synthetic product-shaped base.
+        $merged = self::mergeFormOldOntoBase($base, $old);
+        $merged['store_url'] = route('product.store');
+        $merged['update_url'] = '';
+        $merged['delete_url'] = '';
+        $merged['is_create'] = true;
+        $merged['id'] = null;
+
+        return $merged;
+    }
+
+    /**
+     * Merge validated form old input onto the catalog edit payload (dedicated edit page after validation errors).
+     *
+     * @param  array<string, mixed>  $old
+     * @return array<string, mixed>
+     */
+    public static function withFormOld(Product $product, array $old): array
+    {
+        $base = self::forProduct($product);
+        if ($old === []) {
+            return $base;
+        }
+
+        return self::mergeFormOldOntoBase($base, $old);
+    }
+
+    /**
+     * @param  array<string, mixed>  $base
+     * @param  array<string, mixed>  $old
+     * @return array<string, mixed>
+     */
+    private static function mergeFormOldOntoBase(array $base, array $old): array
+    {
+        foreach (['name', 'description', 'sku', 'base_price', 'stock_alert'] as $key) {
+            if (array_key_exists($key, $old)) {
+                $base[$key] = $old[$key];
+            }
+        }
+
+        if (array_key_exists('bulk_price', $old) && (! array_key_exists('base_price', $old) || $old['base_price'] === '' || $old['base_price'] === null)) {
+            $base['base_price'] = $old['bulk_price'];
+        }
+
+        if (array_key_exists('is_taxable', $old)) {
+            $base['is_taxable'] = (bool) $old['is_taxable'];
+        }
+
+        if (array_key_exists('brand_id', $old)) {
+            $brandId = $old['brand_id'];
+            $base['brand_id'] = ($brandId === null || $brandId === '') ? null : (int) $brandId;
+        }
+
+        if (isset($old['tag_ids']) && is_array($old['tag_ids'])) {
+            $base['tag_ids'] = collect($old['tag_ids'])
+                ->map(static fn ($id): int => (int) $id)
+                ->filter(static fn (int $id): bool => $id > 0)
+                ->values()
+                ->all();
+        }
+
+        if (isset($old['category_ids']) && is_array($old['category_ids'])) {
+            $base['category_ids'] = collect($old['category_ids'])
+                ->map(static fn ($id): int => (int) $id)
+                ->filter(static fn (int $id): bool => $id > 0)
+                ->values()
+                ->all();
+        }
+
+        if (isset($old['attribute_terms']) && is_array($old['attribute_terms'])) {
+            $base['attribute_term_ids'] = collect($old['attribute_terms'])
+                ->flatten()
+                ->map(static fn ($id): int => (int) $id)
+                ->filter(static fn (int $id): bool => $id > 0)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        if (array_key_exists('product_type', $old) && is_string($old['product_type'])) {
+            $base['product_type'] = $old['product_type'];
+        }
+        if (array_key_exists('custom_product_type', $old)) {
+            $base['custom_product_type'] = trim((string) $old['custom_product_type']);
+        }
+
+        if (! empty($old['variation_types']) && is_array($old['variation_types'])) {
+            $mapped = [];
+            foreach ($old['variation_types'] as $variationRow) {
+                if (! is_array($variationRow)) {
+                    continue;
+                }
+                $options = $variationRow['options'] ?? [];
+                $mappedOptions = is_array($options)
+                    ? array_values(array_filter(
+                        array_map(static fn ($v): string => trim((string) $v), $options),
+                        static fn (string $v): bool => $v !== ''
+                    ))
+                    : [];
+                if (trim((string) ($variationRow['name'] ?? '')) === '' || $mappedOptions === []) {
+                    continue;
+                }
+                $mapped[] = [
+                    'name' => (string) ($variationRow['name'] ?? ''),
+                    'type' => (string) ($variationRow['type'] ?? 'select'),
+                    'options' => $mappedOptions,
+                ];
+            }
+            $base['variation_types'] = $mapped;
+        }
+
+        if (isset($old['custom_fields']) && is_array($old['custom_fields'])) {
+            $cfRows = [];
+            foreach (array_values($old['custom_fields']) as $cfRow) {
+                if (! is_array($cfRow)) {
+                    continue;
+                }
+                $cfRows[] = [
+                    'key' => (string) ($cfRow['key'] ?? ''),
+                    'type' => in_array((string) ($cfRow['type'] ?? 'text'), ['text', 'number', 'boolean', 'list'], true)
+                        ? (string) $cfRow['type']
+                        : 'text',
+                    'value' => (string) ($cfRow['value'] ?? ''),
+                ];
+            }
+            if ($cfRows !== []) {
+                $base['custom_fields'] = $cfRows;
+            }
+        }
+
+        if (! empty($old['variants']) && is_array($old['variants'])) {
+            $rows = [];
+            foreach (array_values($old['variants']) as $variantRow) {
+                if (! is_array($variantRow)) {
+                    continue;
+                }
+                $optionMap = [];
+                if (! empty($variantRow['option_map']) && is_array($variantRow['option_map'])) {
+                    foreach ($variantRow['option_map'] as $k => $v) {
+                        $optionMap[(int) $k] = is_numeric($v) ? (int) $v : $v;
+                    }
+                }
+                $rows[] = [
+                    'id' => isset($variantRow['id']) && $variantRow['id'] !== '' && $variantRow['id'] !== null
+                        ? (int) $variantRow['id']
+                        : null,
+                    'option_map' => $optionMap,
+                    'sku' => (string) ($variantRow['sku'] ?? ''),
+                    'price' => isset($variantRow['price']) ? (string) $variantRow['price'] : '',
+                    'compare_at_price' => isset($variantRow['compare_at_price']) && $variantRow['compare_at_price'] !== null && $variantRow['compare_at_price'] !== ''
+                        ? (string) $variantRow['compare_at_price'] : '',
+                    'stock' => isset($variantRow['stock']) ? (string) $variantRow['stock'] : '',
+                    'stock_alert' => isset($variantRow['stock_alert']) ? (int) $variantRow['stock_alert'] : 0,
+                    'product_image_id' => self::normalizeProductImageIdForPayload(
+                        $variantRow['product_image_id'] ?? null
+                    ),
+                ];
+
+                if (isset($variantRow['custom_fields']) && is_array($variantRow['custom_fields'])) {
+                    $cfRows = [];
+                    foreach (array_values($variantRow['custom_fields']) as $cfRow) {
+                        if (! is_array($cfRow)) {
+                            continue;
+                        }
+                        $cfRows[] = [
+                            'key' => (string) ($cfRow['key'] ?? ''),
+                            'type' => in_array((string) ($cfRow['type'] ?? 'text'), ['text', 'number', 'boolean', 'list'], true)
+                                ? (string) $cfRow['type']
+                                : 'text',
+                            'value' => (string) ($cfRow['value'] ?? ''),
+                        ];
+                    }
+                    if ($cfRows !== []) {
+                        $rows[count($rows) - 1]['custom_fields'] = $cfRows;
+                    }
+                }
+            }
+            if ($rows !== []) {
+                $base['variants'] = $rows;
+            }
+        }
+
+        return $base;
     }
 
     /**
@@ -203,156 +467,27 @@ final class ProductEditPayload
     }
 
     /**
-     * Merge validated form old input onto the catalog edit payload (dedicated edit page after validation errors).
-     *
-     * @param  array<string, mixed>  $old
-     * @return array<string, mixed>
+     * Keep pending upload refs (new:0) intact for create/edit validation redisplay.
      */
-    public static function withFormOld(Product $product, array $old): array
+    private static function normalizeProductImageIdForPayload(mixed $value): int|string|null
     {
-        $base = self::forProduct($product);
-        if ($old === []) {
-            return $base;
+        if ($value === null || $value === '') {
+            return null;
         }
 
-        foreach (['name', 'description', 'sku', 'base_price', 'stock_alert'] as $key) {
-            if (array_key_exists($key, $old)) {
-                $base[$key] = $old[$key];
-            }
+        $raw = is_scalar($value) ? trim((string) $value) : '';
+        if ($raw === '') {
+            return null;
         }
 
-        if (array_key_exists('is_taxable', $old)) {
-            $base['is_taxable'] = (bool) $old['is_taxable'];
+        if (preg_match('/^new:\d+$/', $raw) === 1) {
+            return $raw;
         }
 
-        if (array_key_exists('brand_id', $old)) {
-            $brandId = $old['brand_id'];
-            $base['brand_id'] = ($brandId === null || $brandId === '') ? null : (int) $brandId;
+        if (ctype_digit($raw) && (int) $raw >= 1) {
+            return (int) $raw;
         }
 
-        if (isset($old['tag_ids']) && is_array($old['tag_ids'])) {
-            $base['tag_ids'] = collect($old['tag_ids'])
-                ->map(static fn ($id): int => (int) $id)
-                ->filter(static fn (int $id): bool => $id > 0)
-                ->values()
-                ->all();
-        }
-
-        if (isset($old['category_ids']) && is_array($old['category_ids'])) {
-            $base['category_ids'] = collect($old['category_ids'])
-                ->map(static fn ($id): int => (int) $id)
-                ->filter(static fn (int $id): bool => $id > 0)
-                ->values()
-                ->all();
-        }
-
-        if (isset($old['attribute_terms']) && is_array($old['attribute_terms'])) {
-            $base['attribute_term_ids'] = collect($old['attribute_terms'])
-                ->flatten()
-                ->map(static fn ($id): int => (int) $id)
-                ->filter(static fn (int $id): bool => $id > 0)
-                ->unique()
-                ->values()
-                ->all();
-        }
-
-        if (array_key_exists('product_type', $old) && is_string($old['product_type'])) {
-            $base['product_type'] = $old['product_type'];
-        }
-        if (array_key_exists('custom_product_type', $old)) {
-            $base['custom_product_type'] = trim((string) $old['custom_product_type']);
-        }
-
-        if (! empty($old['variation_types']) && is_array($old['variation_types'])) {
-            $mapped = [];
-            foreach ($old['variation_types'] as $variationRow) {
-                if (! is_array($variationRow)) {
-                    continue;
-                }
-                $options = $variationRow['options'] ?? [];
-                $mapped[] = [
-                    'name' => (string) ($variationRow['name'] ?? ''),
-                    'type' => (string) ($variationRow['type'] ?? 'select'),
-                    'options' => is_array($options)
-                        ? array_values(array_map(static fn ($v): string => (string) $v, $options))
-                        : [],
-                ];
-            }
-            if ($mapped !== []) {
-                $base['variation_types'] = $mapped;
-            }
-        }
-
-        if (isset($old['custom_fields']) && is_array($old['custom_fields'])) {
-            $cfRows = [];
-            foreach (array_values($old['custom_fields']) as $cfRow) {
-                if (! is_array($cfRow)) {
-                    continue;
-                }
-                $cfRows[] = [
-                    'key' => (string) ($cfRow['key'] ?? ''),
-                    'type' => in_array((string) ($cfRow['type'] ?? 'text'), ['text', 'number', 'boolean', 'list'], true)
-                        ? (string) $cfRow['type']
-                        : 'text',
-                    'value' => (string) ($cfRow['value'] ?? ''),
-                ];
-            }
-            if ($cfRows !== []) {
-                $base['custom_fields'] = $cfRows;
-            }
-        }
-
-        if (! empty($old['variants']) && is_array($old['variants'])) {
-            $rows = [];
-            foreach (array_values($old['variants']) as $variantRow) {
-                if (! is_array($variantRow)) {
-                    continue;
-                }
-                $optionMap = [];
-                if (! empty($variantRow['option_map']) && is_array($variantRow['option_map'])) {
-                    foreach ($variantRow['option_map'] as $k => $v) {
-                        $optionMap[(int) $k] = is_numeric($v) ? (int) $v : $v;
-                    }
-                }
-                $rows[] = [
-                    'id' => isset($variantRow['id']) && $variantRow['id'] !== '' && $variantRow['id'] !== null
-                        ? (int) $variantRow['id']
-                        : null,
-                    'option_map' => $optionMap,
-                    'sku' => (string) ($variantRow['sku'] ?? ''),
-                    'price' => isset($variantRow['price']) ? (string) $variantRow['price'] : '',
-                    'compare_at_price' => isset($variantRow['compare_at_price']) && $variantRow['compare_at_price'] !== null && $variantRow['compare_at_price'] !== ''
-                        ? (string) $variantRow['compare_at_price'] : '',
-                    'stock' => isset($variantRow['stock']) ? (string) $variantRow['stock'] : '',
-                    'stock_alert' => isset($variantRow['stock_alert']) ? (int) $variantRow['stock_alert'] : 0,
-                    'product_image_id' => isset($variantRow['product_image_id']) && $variantRow['product_image_id'] !== '' && $variantRow['product_image_id'] !== null
-                        ? (int) $variantRow['product_image_id'] : null,
-                ];
-
-                if (isset($variantRow['custom_fields']) && is_array($variantRow['custom_fields'])) {
-                    $cfRows = [];
-                    foreach (array_values($variantRow['custom_fields']) as $cfRow) {
-                        if (! is_array($cfRow)) {
-                            continue;
-                        }
-                        $cfRows[] = [
-                            'key' => (string) ($cfRow['key'] ?? ''),
-                            'type' => in_array((string) ($cfRow['type'] ?? 'text'), ['text', 'number', 'boolean', 'list'], true)
-                                ? (string) $cfRow['type']
-                                : 'text',
-                            'value' => (string) ($cfRow['value'] ?? ''),
-                        ];
-                    }
-                    if ($cfRows !== []) {
-                        $rows[count($rows) - 1]['custom_fields'] = $cfRows;
-                    }
-                }
-            }
-            if ($rows !== []) {
-                $base['variants'] = $rows;
-            }
-        }
-
-        return $base;
+        return null;
     }
 }

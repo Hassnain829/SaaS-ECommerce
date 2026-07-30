@@ -47,7 +47,7 @@ final class ProductCatalogImageDownloader
                 continue;
             }
 
-            ProductImage::query()->create([
+            $image = ProductImage::query()->create([
                 'product_id' => $product->id,
                 'product_variant_id' => $variant?->id,
                 'image_path' => $relative,
@@ -63,6 +63,11 @@ final class ProductCatalogImageDownloader
                 'created_by' => $userId,
                 'updated_by' => $userId,
             ]);
+
+            if ($variant) {
+                $variant->update(['product_image_id' => $image->id]);
+            }
+
             $nextOrder++;
             $downloaded++;
         }
@@ -121,6 +126,11 @@ final class ProductCatalogImageDownloader
                 'created_by' => $userId,
                 'updated_by' => $userId,
             ]);
+
+            if ($variant && $first) {
+                $variant->update(['product_image_id' => $row->id]);
+            }
+
             $first = false;
             $nextOrder++;
             $queued++;

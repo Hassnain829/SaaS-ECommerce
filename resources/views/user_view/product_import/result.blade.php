@@ -16,6 +16,8 @@
 @section('title', 'Import result')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('page_title', 'Import status')
+@section('page_lead', $import->original_filename)
 
 @section('content')
     <div class="flex-1 overflow-y-auto p-4 lg:p-8">
@@ -23,8 +25,6 @@
             <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Step 4 of 4</p>
-                    <h1 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Import status</h1>
-                    <p class="mt-2 text-sm text-[#64748B]">{{ $import->original_filename }}</p>
                 </div>
                 <div class="flex flex-wrap gap-3 text-sm font-semibold">
                     <a href="{{ route('products.import.history') }}" class="text-[#0052CC] hover:text-[#0047B3]">Import history</a>
@@ -97,7 +97,7 @@
                                 <div class="mt-3 space-y-2">
                                     @if ($pct !== null)
                                         <div class="h-2.5 w-full overflow-hidden rounded-full bg-[#E2E8F0]">
-                                            <div class="h-full rounded-full bg-[#0052CC] transition-all duration-500" style="width: {{ min(100, max(0, $pct)) }}%"></div>
+                                            <div class="h-full rounded-full bg-brand transition-all duration-500" style="width: {{ min(100, max(0, $pct)) }}%"></div>
                                         </div>
                                         <p class="text-xs text-[#64748B]">
                                             <span class="font-semibold text-[#0F172A]">{{ number_format($pct, 1) }}%</span>
@@ -208,7 +208,7 @@
                     <div class="mt-6 flex flex-wrap gap-3">
                         <a href="{{ route('products.import.history') }}" class="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm hover:bg-[#F8FAFC]">View import history</a>
                         @if ($failed > 0)
-                            <a href="{{ route('products.import.report', ['productImportId' => $import->id]) }}" class="inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Open full report</a>
+                            <a href="{{ route('products.import.report', ['productImportId' => $import->id]) }}" class="inline-flex items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">Open full report</a>
                         @endif
                         @if ($import->canReopenMapping())
                             <form method="post" action="{{ route('products.import.reopen-mapping', ['productImportId' => $import->id]) }}" class="inline-flex">

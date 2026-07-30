@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Store;
 
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
+use App\Models\CarrierAccount;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerTag;
 use App\Models\DraftOrder;
 use App\Models\Order;
+use App\Models\PaymentProviderAccount;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\SecurityLog;
@@ -20,10 +22,12 @@ use App\Services\CustomerMetricsService;
 use App\Services\Fulfillment\FulfillmentStatusService;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\OrderEventRecorder;
+use App\Services\ReturnService;
 use App\Services\SecurityLogRecorder;
 use App\Services\UserSessionTracker;
 use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
+use App\Support\ProductEditPayload;
 use App\Support\ProductTypeBehavior;
 use App\Support\StorePermission;
 use Illuminate\Http\JsonResponse;
@@ -299,6 +303,32 @@ class DashboardController extends Controller
                 DB::raw('SUM(order_items.total) as revenue'),
             ]);
 
+        $activeLocationsCount = $store->locations()->where('is_active', true)->count();
+        $activeDeliveryAreasCount = $store->shippingZones()->where('is_active', true)->count();
+        $checkoutDeliveryOptionsCount = $store->shippingMethods()
+            ->where('is_active', true)
+            ->where('enabled_for_checkout', true)
+            ->count();
+        $connectedProvidersCount = $store->carrierAccounts()
+            ->whereIn('connection_status', [
+                CarrierAccount::CONNECTION_CONNECTED,
+                CarrierAccount::CONNECTION_SANDBOX_PLATFORM_FALLBACK,
+            ])
+            ->count();
+        $taxSetting = $store->taxSetting()->first();
+        $taxRatesCount = $store->taxRates()->where('is_active', true)->count();
+        $taxReady = (bool) ($taxSetting?->enabled) && $taxRatesCount > 0;
+        $paymentReady = $store->paymentProviderAccounts()
+            ->where('status', 'active')
+            ->where(function ($query): void {
+                $query->where('connection_type', PaymentProviderAccount::CONNECTION_PLATFORM)
+                    ->orWhere(function ($connectQuery): void {
+                        $connectQuery->where('connection_type', PaymentProviderAccount::CONNECTION_CONNECT)
+                            ->whereNotNull('provider_account_id');
+                    });
+            })
+            ->exists();
+
         return [
             'has_store' => true,
             'store' => $store,
@@ -312,6 +342,25 @@ class DashboardController extends Controller
             'chart_days' => $chartDays,
             'recent_orders' => $recentOrders,
             'top_products' => $topProducts,
+            'setup_progress' => [
+                'location' => [
+                    'ready' => $activeLocationsCount > 0,
+                    'count' => $activeLocationsCount,
+                ],
+                'tax' => [
+                    'ready' => $taxReady,
+                    'count' => $taxRatesCount,
+                ],
+                'delivery' => [
+                    'ready' => $activeDeliveryAreasCount > 0 && $checkoutDeliveryOptionsCount > 0,
+                    'areas_count' => $activeDeliveryAreasCount,
+                    'options_count' => $checkoutDeliveryOptionsCount,
+                    'providers_count' => $connectedProvidersCount,
+                ],
+                'payments' => [
+                    'ready' => $paymentReady,
+                ],
+            ],
         ];
     }
 
@@ -700,12 +749,28 @@ class DashboardController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
+        $catalogAttributes = $selectedStore->attributes()
+            ->with(['terms' => fn ($query) => $query->orderBy('sort_order')->orderBy('name')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        /** @var array<string, mixed> $old */
+        $old = $request->session()->get('_old_input', []);
+        $createProductPayload = ProductEditPayload::withFormOldForCreate(
+            $selectedStore,
+            $old,
+            (bool) ($selectedStore->taxSetting?->default_product_taxable ?? true)
+        );
+
         return view('user_view.product_create', [
             'selectedStore' => $selectedStore,
             'stores' => $stores,
             'catalogBrands' => $catalogBrands,
             'catalogTags' => $catalogTags,
             'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
+            'catalogAttributes' => $catalogAttributes,
+            'createProductPayload' => $createProductPayload,
             'taxSetting' => $selectedStore->taxSetting,
         ]);
     }
@@ -854,9 +919,19 @@ class DashboardController extends Controller
             'shipments.originLocation',
             'shipments.shippedBy',
             'taxLines',
+            'returns.items.orderItem',
+            'returns.reason',
+            'returns.requestedBy',
+            'returns.approvedBy',
+            'returns.receivedBy',
+            'refunds.items',
+            'refunds.adjustments',
+            'exchanges.items',
         ]);
 
         $channelOwnership = app(\App\Services\Channels\ChannelOwnershipService::class);
+        $returnService = app(ReturnService::class);
+        $refundService = app(\App\Services\RefundService::class);
 
         return view('user_view.orderViewDetails', [
             'order' => $order,
@@ -886,6 +961,16 @@ class DashboardController extends Controller
                 ->orderBy('name')
                 ->get(),
             'remainingFulfillmentQuantities' => app(FulfillmentStatusService::class)->remainingQuantities($order),
+            'returnReasons' => $returnService->activeReasonsForStore($selectedStore),
+            'remainingReturnableQuantities' => $returnService->remainingReturnableQuantities($order),
+            'returnableItems' => $returnService->returnableItems($order),
+            'remainingRefundableAmount' => $refundService->remainingRefundableAmount($order),
+            'exchangeVariants' => \App\Models\ProductVariant::query()
+                ->whereHas('product', fn ($q) => $q->where('store_id', $selectedStore->id)->where('status', true))
+                ->with('product:id,name,store_id')
+                ->orderBy('sku')
+                ->limit(200)
+                ->get(),
         ]);
     }
 
@@ -905,6 +990,12 @@ class DashboardController extends Controller
 
         $previousStatus = (string) $order->status;
         $newStatus = (string) $request->status;
+
+        if ($newStatus === OrderLifecycle::ORDER_REFUNDED) {
+            return back()->withErrors([
+                'status' => 'Marking an order refunded from status alone is not available. Use a successful refund when refunds are enabled.',
+            ]);
+        }
 
         if ($previousStatus === $newStatus) {
             return back()->with('success', 'Order status is already '.OrderLifecycle::orderStatusLabel($newStatus).'.');
@@ -928,10 +1019,6 @@ class DashboardController extends Controller
 
             if ($newStatus === OrderLifecycle::ORDER_CANCELLED) {
                 $updates['cancelled_at'] = now();
-            }
-
-            if ($newStatus === OrderLifecycle::ORDER_REFUNDED) {
-                $updates['refunded_at'] = now();
             }
 
             if ($newStatus === OrderLifecycle::ORDER_COMPLETED) {
@@ -962,11 +1049,6 @@ class DashboardController extends Controller
                     OrderLifecycle::EVENT_ORDER_COMPLETED,
                     'Order completed',
                     'The order was marked completed.',
-                ],
-                OrderLifecycle::ORDER_REFUNDED => [
-                    OrderLifecycle::EVENT_ORDER_REFUNDED,
-                    'Order refunded',
-                    'The order was marked refunded.',
                 ],
             ];
 
@@ -1075,17 +1157,44 @@ class DashboardController extends Controller
             'profileNotes.user',
             'tags',
             'orders' => function ($q) {
-                $q->with('items')
+                $q->with(['items', 'returns', 'refunds', 'exchanges'])
                     ->orderByDesc('placed_at')
                     ->orderByDesc('created_at')
                     ->take(10);
             },
         ]);
 
+        $customerReturns = \App\Models\OrderReturn::query()
+            ->where('store_id', $selectedStore->id)
+            ->where('customer_id', $customer->id)
+            ->with('order:id,order_number')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
+        $customerRefunds = \App\Models\Refund::query()
+            ->where('store_id', $selectedStore->id)
+            ->whereHas('order', fn ($q) => $q->where('customer_id', $customer->id))
+            ->with('order:id,order_number')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
+        $customerExchanges = \App\Models\Exchange::query()
+            ->where('store_id', $selectedStore->id)
+            ->whereHas('order', fn ($q) => $q->where('customer_id', $customer->id))
+            ->with('order:id,order_number')
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
+
         return view('user_view.customersProfileTab', [
             'customer' => $customer,
             'selectedStore' => $selectedStore,
             'canManageCustomers' => $request->user()?->canManageCustomers($selectedStore) ?? false,
+            'customerReturns' => $customerReturns,
+            'customerRefunds' => $customerRefunds,
+            'customerExchanges' => $customerExchanges,
         ]);
     }
 
@@ -1116,11 +1225,6 @@ class DashboardController extends Controller
     public function analytics()
     {
         return view('user_view.analytics');
-    }
-
-    public function notifications()
-    {
-        return view('user_view.notifications');
     }
 
     public function billingSubscription()

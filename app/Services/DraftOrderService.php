@@ -7,16 +7,24 @@ use App\Models\DraftOrder;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Coupons\CouponService;
+use App\Support\Money\CurrencyPrecision;
+use App\Support\Money\DecimalString;
 use App\Support\ProductVariantLabel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class DraftOrderService
 {
+    public function __construct(
+        private readonly CouponService $couponService,
+    ) {}
+
     public function create(Store $store, User $actor, array $data, string $taxSource = DraftOrder::TAX_SOURCE_MANUAL): DraftOrder
     {
         return DB::transaction(function () use ($store, $actor, $data, $taxSource): DraftOrder {
             $customer = $this->resolveCustomer($store, $data);
+            $currency = $this->storeCurrency($store);
 
             $addressMeta = $this->addressMetadata($data);
             $metadata = $taxSource === DraftOrder::TAX_SOURCE_CALCULATED
@@ -28,18 +36,19 @@ class DraftOrderService
                 'customer_id' => $customer?->id,
                 'draft_number' => app(OrderNumberGenerator::class)->generateDraft($store),
                 'status' => DraftOrder::STATUS_DRAFT,
-                'currency' => $store->currency ?: 'USD',
-                'discount_total' => $this->money($data['discount_total'] ?? 0),
+                'currency' => $currency,
+                'discount_total' => $this->money($data['discount_total'] ?? 0, $currency),
                 'tax_total' => $taxSource === DraftOrder::TAX_SOURCE_CALCULATED
-                    ? '0.00'
-                    : $this->money($data['tax_total'] ?? 0),
-                'shipping_total' => $this->money($data['shipping_total'] ?? 0),
+                    ? $this->money(0, $currency)
+                    : $this->money($data['tax_total'] ?? 0, $currency),
+                'shipping_total' => $this->money($data['shipping_total'] ?? 0, $currency),
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $actor->id,
                 'metadata' => $metadata,
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
+            $this->applyCouponCode($draft, $store, $customer, $data);
             $this->recalculate($draft);
 
             return $draft->load(['customer', 'items.variant.product']);
@@ -76,14 +85,22 @@ class DraftOrderService
                 $metadata['tax_snapshot'] = $existingMetadata['tax_snapshot'];
             }
 
+            $currency = $this->draftCurrency($draft);
+
             $draft->update([
-                'discount_total' => $this->money($data['discount_total'] ?? 0),
-                'shipping_total' => $this->money($data['shipping_total'] ?? 0),
+                'discount_total' => $this->money($data['discount_total'] ?? 0, $currency),
+                'shipping_total' => $this->money($data['shipping_total'] ?? 0, $currency),
                 'notes' => $data['notes'] ?? null,
                 'metadata' => $metadata,
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
+            $this->applyCouponCode(
+                $draft,
+                Store::query()->findOrFail($draft->store_id),
+                $draft->customer,
+                $data,
+            );
 
             return $draft->fresh(['customer', 'items.variant.product', 'taxLines']);
         });
@@ -98,19 +115,26 @@ class DraftOrderService
         }
 
         return DB::transaction(function () use ($draft, $data): DraftOrder {
-            $draft->loadMissing(['items', 'taxLines']);
+            $draft->loadMissing(['items', 'taxLines', 'customer']);
             $wasCalculated = $draft->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
             $metadata = $this->manualTaxMetadata($this->addressMetadata($data));
+            $currency = $this->draftCurrency($draft);
 
             $draft->update([
-                'discount_total' => $this->money($data['discount_total'] ?? 0),
-                'tax_total' => $this->money($data['tax_total'] ?? 0),
-                'shipping_total' => $this->money($data['shipping_total'] ?? 0),
+                'discount_total' => $this->money($data['discount_total'] ?? 0, $currency),
+                'tax_total' => $this->money($data['tax_total'] ?? 0, $currency),
+                'shipping_total' => $this->money($data['shipping_total'] ?? 0, $currency),
                 'notes' => $data['notes'] ?? null,
                 'metadata' => $metadata,
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
+            $this->applyCouponCode(
+                $draft,
+                Store::query()->findOrFail($draft->store_id),
+                $draft->customer,
+                $data,
+            );
 
             if ($wasCalculated) {
                 $this->clearCalculatedTax($draft);
@@ -131,19 +155,26 @@ class DraftOrderService
         }
 
         return DB::transaction(function () use ($draft, $data): DraftOrder {
-            $draft->loadMissing(['items']);
+            $draft->loadMissing(['items', 'customer']);
             $wasCalculated = $draft->taxSource() === DraftOrder::TAX_SOURCE_CALCULATED;
             $metadata = $this->manualTaxMetadata($this->addressMetadata($data));
+            $currency = $this->draftCurrency($draft);
 
             $draft->update([
-                'discount_total' => $this->money($data['discount_total'] ?? 0),
-                'tax_total' => $this->money($data['tax_total'] ?? 0),
-                'shipping_total' => $this->money($data['shipping_total'] ?? 0),
+                'discount_total' => $this->money($data['discount_total'] ?? 0, $currency),
+                'tax_total' => $this->money($data['tax_total'] ?? 0, $currency),
+                'shipping_total' => $this->money($data['shipping_total'] ?? 0, $currency),
                 'notes' => $data['notes'] ?? null,
                 'metadata' => $metadata,
             ]);
 
             $this->replaceItems($draft, $data['items'] ?? []);
+            $this->applyCouponCode(
+                $draft,
+                Store::query()->findOrFail($draft->store_id),
+                $draft->customer,
+                $data,
+            );
 
             if ($wasCalculated) {
                 $this->clearCalculatedTax($draft);
@@ -173,6 +204,7 @@ class DraftOrderService
     private function replaceItems(DraftOrder $draft, array $items): void
     {
         $draft->items()->delete();
+        $currency = $this->draftCurrency($draft);
 
         $mergedItems = [];
 
@@ -198,8 +230,8 @@ class DraftOrderService
             $quantity = max(1, (int) ($row['quantity'] ?? 1));
             $rawUnitPrice = $row['unit_price'] ?? null;
             $unitPrice = $rawUnitPrice === null || trim((string) $rawUnitPrice) === ''
-                ? $this->money($variant->price)
-                : $this->money($rawUnitPrice);
+                ? $this->money($variant->price, $currency)
+                : $this->money($rawUnitPrice, $currency);
 
             if (isset($mergedItems[$variant->id])) {
                 $mergedItems[$variant->id]['quantity'] += $quantity;
@@ -216,7 +248,7 @@ class DraftOrderService
                 'sku' => $variant->sku,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
-                'tax_amount' => '0.00',
+                'tax_amount' => $this->money(0, $currency),
                 'metadata' => [
                     'product_type' => $variant->product->product_type,
                     'product_image' => $variant->product->images->sortByDesc('is_primary')->first()?->image_path,
@@ -234,35 +266,99 @@ class DraftOrderService
         }
 
         foreach ($mergedItems as $item) {
-            $item['line_total'] = bcmul((string) $item['unit_price'], (string) $item['quantity'], 2);
+            $item['line_total'] = CurrencyPrecision::roundMajor(
+                bcmul((string) $item['unit_price'], (string) $item['quantity'], 6),
+                $currency,
+            );
 
             $draft->items()->create($item);
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function applyCouponCode(DraftOrder $draft, Store $store, ?Customer $customer, array $data): void
+    {
+        $code = trim((string) ($data['coupon_code'] ?? ''));
+        $metadata = is_array($draft->metadata) ? $draft->metadata : [];
+
+        if ($code === '') {
+            unset($metadata['coupon_snapshot']);
+            $draft->forceFill(['metadata' => $metadata])->save();
+
+            return;
+        }
+
+        if (! $customer) {
+            throw ValidationException::withMessages([
+                'coupon_code' => 'Select or enter a customer before applying a coupon.',
+            ]);
+        }
+
+        $draft->loadMissing(['items.variant.product.categories:id']);
+        $prepared = [];
+        foreach ($draft->items as $item) {
+            if (! $item->variant) {
+                continue;
+            }
+            $prepared[] = [
+                'variant' => $item->variant,
+                'quantity' => (int) $item->quantity,
+            ];
+        }
+
+        if ($prepared === []) {
+            throw ValidationException::withMessages([
+                'coupon_code' => 'Add products before applying a coupon.',
+            ]);
+        }
+
+        $result = $this->couponService->calculate(
+            $store,
+            $customer,
+            (string) $draft->currency,
+            $prepared,
+            $code,
+        );
+
+        $metadata['coupon_snapshot'] = $result->snapshot;
+        $draft->forceFill([
+            'discount_total' => $this->money($result->discountTotal, $this->draftCurrency($draft)),
+            'metadata' => $metadata,
+        ])->save();
+    }
+
     private function recalculate(DraftOrder $draft): void
     {
-        $subtotal = $draft->items()
+        $currency = $this->draftCurrency($draft);
+        $subtotalRaw = $draft->items()
             ->get()
-            ->reduce(fn (string $carry, $item): string => bcadd($carry, (string) $item->line_total, 2), '0');
+            ->reduce(
+                fn (string $carry, $item): string => bcadd($carry, (string) $item->line_total, 6),
+                '0',
+            );
+        $subtotal = CurrencyPrecision::roundMajor($subtotalRaw, $currency);
 
-        $total = bcadd($subtotal, (string) $draft->shipping_total, 2);
-        $total = bcadd($total, (string) $draft->tax_total, 2);
-        $total = bcsub($total, (string) $draft->discount_total, 2);
+        $totalRaw = bcadd($subtotal, (string) $draft->shipping_total, 6);
+        $totalRaw = bcadd($totalRaw, (string) $draft->tax_total, 6);
+        $totalRaw = bcsub($totalRaw, (string) $draft->discount_total, 6);
 
-        if (bccomp($total, '0', 2) < 0) {
-            $total = '0';
+        if (bccomp($totalRaw, '0', 6) < 0) {
+            $totalRaw = '0';
         }
 
         $draft->forceFill([
             'subtotal' => $subtotal,
-            'total' => $total,
+            'total' => CurrencyPrecision::roundMajor($totalRaw, $currency),
         ])->save();
     }
 
     private function clearCalculatedTax(DraftOrder $draft): void
     {
-        $draft->items()->update(['tax_amount' => 0]);
+        $draft->items()->update([
+            'tax_amount' => $this->money(0, $this->draftCurrency($draft)),
+        ]);
         $draft->taxLines()->delete();
     }
 
@@ -356,8 +452,27 @@ class DraftOrderService
         return strtoupper(trim((string) $value));
     }
 
-    private function money(mixed $value): string
+    private function money(mixed $value, string $currencyCode): string
     {
-        return number_format(max(0, (float) $value), 2, '.', '');
+        $currency = strtoupper($currencyCode);
+
+        if ($value === null || trim((string) $value) === '') {
+            return CurrencyPrecision::roundMajor('0', $currency);
+        }
+
+        return CurrencyPrecision::roundMajor(
+            DecimalString::normalizeNonNegative((string) $value),
+            $currency,
+        );
+    }
+
+    private function draftCurrency(DraftOrder $draft): string
+    {
+        return strtoupper((string) ($draft->currency ?: 'USD'));
+    }
+
+    private function storeCurrency(Store $store): string
+    {
+        return strtoupper((string) ($store->currency ?: 'USD'));
     }
 }

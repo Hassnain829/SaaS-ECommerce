@@ -48,6 +48,10 @@ Route::middleware(['dev.storefront.token', 'throttle:api-dev-checkout'])
         Route::get('/{checkout}', [PlatformCheckoutController::class, 'show']);
         Route::post('/{checkout}/delivery-options', [PlatformCheckoutController::class, 'deliveryOptions']);
         Route::post('/{checkout}/shipping-method', [PlatformCheckoutController::class, 'selectShippingMethod']);
+        Route::post('/{checkout}/shipping-address', [PlatformCheckoutController::class, 'updateShippingAddress']);
+        Route::post('/{checkout}/items', [PlatformCheckoutController::class, 'updateItems']);
+        Route::post('/{checkout}/coupon', [PlatformCheckoutController::class, 'applyCoupon']);
+        Route::delete('/{checkout}/coupon', [PlatformCheckoutController::class, 'removeCoupon']);
         Route::post('/{checkout}/confirm', [PlatformCheckoutController::class, 'confirm']);
     });
 

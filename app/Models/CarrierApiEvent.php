@@ -22,6 +22,18 @@ class CarrierApiEvent extends Model
 
     public const ACTION_MERCHANT_OAUTH_TOKEN = 'merchant_oauth_token';
 
+    public const ACTION_USPS_OAUTH_AUTHORIZE = 'usps_oauth_authorize';
+
+    public const ACTION_USPS_AUTHORIZATION_VERIFY = 'usps_authorization_verify';
+
+    public const ACTION_USPS_USERINFO = 'usps_userinfo';
+
+    public const ACTION_USPS_OAUTH_REVOKE = 'usps_oauth_revoke';
+
+    public const ACTION_USPS_SHIP_ENROLLMENT_VERIFY = 'usps_ship_enrollment_verify';
+
+    public const ACTION_USPS_PAYMENT_AUTHORIZATION = 'usps_payment_authorization';
+
     public const SCENARIO_AUTHORIZATION_PARENT = 'authorization_parent';
 
     public const SCENARIO_AUTHORIZATION_CHILD = 'authorization_child';
@@ -53,6 +65,8 @@ class CarrierApiEvent extends Model
     public const ACTION_FEDEX_BASIC_INTEGRATED_VISIBILITY = 'fedex_basic_integrated_visibility';
 
     public const ACTION_FEDEX_TRADE_DOCUMENTS_UPLOAD = 'fedex_trade_documents_upload';
+
+    public const ACTION_FEDEX_CONSOLIDATION = 'fedex_consolidation';
 
     public const SCENARIO_REGISTRATION_ADDRESS = 'registration_address_validation';
 

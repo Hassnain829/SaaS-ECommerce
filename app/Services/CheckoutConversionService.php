@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Data\Payments\PaymentWebhookResult;
 use App\Exceptions\CheckoutPaymentAmountMismatchException;
+use App\Exceptions\CheckoutTotalsMismatchException;
 use App\Models\Checkout;
+use App\Models\CheckoutTaxLine;
 use App\Models\InventoryReservation;
 use App\Models\Location;
 use App\Models\Order;
@@ -12,7 +14,11 @@ use App\Models\PaymentCapture;
 use App\Models\PaymentIntent as LocalPaymentIntent;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Checkout\FinancialTotalsInvariantService;
+use App\Services\Coupons\CouponService;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\Money\CurrencyPrecision;
+use App\Support\Money\DecimalString;
 use App\Support\OrderLifecycle;
 use Illuminate\Support\Facades\DB;
 
@@ -27,6 +33,9 @@ class CheckoutConversionService
         private readonly CheckoutEventRecorder $checkoutEventRecorder,
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
+        private readonly CouponService $couponService,
+        private readonly FinancialTotalsInvariantService $financialTotalsInvariantService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     public function handleSucceededPayment(PaymentWebhookResult $result): ?Order
@@ -73,6 +82,7 @@ class CheckoutConversionService
                 }
 
                 $this->assertPaymentAmountsMatch($checkout, $paymentIntent, $result);
+                $this->financialTotalsInvariantService->assertCheckoutConsistent($checkout);
 
                 $paymentIntent->forceFill([
                     'status' => $result->status ?: 'succeeded',
@@ -149,6 +159,7 @@ class CheckoutConversionService
                         'shipping' => $checkout->shipping_snapshot,
                         'fulfillment_routing' => $routingSnapshot,
                         'tax_snapshot' => data_get($checkout->metadata, 'tax_snapshot'),
+                        'coupon_snapshot' => data_get($checkout->metadata, 'coupon_snapshot'),
                         'platform_checkout' => [
                             'checkout_id' => $checkout->id,
                             'checkout_number' => $checkout->checkout_number,
@@ -204,6 +215,7 @@ class CheckoutConversionService
                         'meta' => [
                             'source' => self::SOURCE,
                             'checkout_item_id' => $item->id,
+                            'coupon' => data_get($item->metadata, 'coupon'),
                         ],
                     ]);
                 }
@@ -222,6 +234,11 @@ class CheckoutConversionService
                         'calculated_at' => $taxLine->calculated_at,
                     ]);
                 }
+
+                $order->load(['items', 'taxLines']);
+                $this->financialTotalsInvariantService->assertOrderMatchesCheckout($order, $checkout);
+
+                $this->couponService->redeem($checkout, $order);
 
                 $reservations = InventoryReservation::query()
                     ->where('store_id', $checkout->store_id)
@@ -337,10 +354,20 @@ class CheckoutConversionService
                     $this->customerMetricsService->recalculate($customer);
                 }
 
+                $this->commerceNotifications->orderCreated($order);
+
                 return $order->load(['items', 'addresses', 'customer', 'events']);
             });
         } catch (CheckoutPaymentAmountMismatchException $exception) {
-            $this->recordPaymentMismatchEvent($exception);
+            $this->recordAuditAfterConversionRollback(
+                fn () => $this->recordPaymentMismatchEvent($exception)
+            );
+
+            throw $exception;
+        } catch (CheckoutTotalsMismatchException $exception) {
+            $this->recordAuditAfterConversionRollback(
+                fn () => $this->recordTotalsMismatchEvent($exception)
+            );
 
             throw $exception;
         }
@@ -408,6 +435,8 @@ class CheckoutConversionService
                 ]);
             }
 
+            $this->couponService->release($checkout);
+
             $checkout->forceFill(['status' => Checkout::STATUS_FAILED])->save();
             $this->checkoutEventRecorder->record(
                 $checkout,
@@ -419,6 +448,17 @@ class CheckoutConversionService
                     'failure_code' => $result->failureCode,
                 ]
             );
+
+            $checkout->loadMissing('store');
+            if ($checkout->store) {
+                $this->commerceNotifications->paymentFailed(
+                    $checkout->store,
+                    (string) $result->providerIntentId,
+                    $result->failureMessage
+                        ?: 'A checkout payment did not complete. Reserved stock was released.',
+                    (int) $checkout->id
+                );
+            }
         });
     }
 
@@ -452,10 +492,12 @@ class CheckoutConversionService
         $localCurrency = strtoupper((string) $paymentIntent->currency_code);
         $expectedMinor = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, $expectedCurrency);
         $localMinor = (int) $paymentIntent->amount_minor;
+        $localAmountAsMinor = CurrencyPrecision::toMinorUnits((string) $paymentIntent->amount, $localCurrency);
         $providerActualMinor = $this->providerActualMinor($result, $providerCurrency ?? $expectedCurrency);
 
         if (
             $localMinor !== $expectedMinor
+            || $localAmountAsMinor !== $expectedMinor
             || $providerActualMinor !== $expectedMinor
             || $localCurrency !== $expectedCurrency
             || $providerCurrency !== $expectedCurrency
@@ -468,6 +510,7 @@ class CheckoutConversionService
                 expectedCurrency: $expectedCurrency,
                 providerCurrency: $providerCurrency,
                 providerIntentId: $result->providerIntentId,
+                localPaymentIntentAmountAsMinor: $localAmountAsMinor,
             );
         }
     }
@@ -487,11 +530,29 @@ class CheckoutConversionService
         return CurrencyPrecision::toMinorUnits((string) $result->amount, $currency);
     }
 
-    private function shippingTaxTotal(Checkout $checkout): float
+    private function shippingTaxTotal(Checkout $checkout): string
     {
-        return round((float) $checkout->taxLines
-            ->where('applies_to', \App\Models\CheckoutTaxLine::APPLIES_TO_SHIPPING)
-            ->sum(fn ($line): float => (float) $line->tax_amount), 2);
+        $currency = strtoupper((string) $checkout->currency_code);
+        $total = CurrencyPrecision::roundMajor('0', $currency);
+
+        foreach ($checkout->taxLines->where('applies_to', CheckoutTaxLine::APPLIES_TO_SHIPPING) as $line) {
+            $total = CurrencyPrecision::roundMajor(
+                bcadd($total, DecimalString::normalizeNonNegative((string) $line->tax_amount), 6),
+                $currency,
+            );
+        }
+
+        return $total;
+    }
+
+    /**
+     * Audit events must survive conversion rollback.
+     * Record only after the conversion DB::transaction() callback has exited (and rolled back).
+     * An outer test transaction (RefreshDatabase) may still be open; that is expected.
+     */
+    private function recordAuditAfterConversionRollback(callable $recorder): void
+    {
+        $recorder();
     }
 
     private function recordPaymentMismatchEvent(CheckoutPaymentAmountMismatchException $exception): void
@@ -507,6 +568,23 @@ class CheckoutConversionService
             'payment.amount_mismatch',
             'Payment total mismatch',
             'Payment confirmation did not match the stored checkout total, so no order was created.',
+            $exception->context(),
+        );
+    }
+
+    private function recordTotalsMismatchEvent(CheckoutTotalsMismatchException $exception): void
+    {
+        $checkout = Checkout::query()->find($exception->checkoutId);
+
+        if (! $checkout) {
+            return;
+        }
+
+        $this->checkoutEventRecorder->record(
+            $checkout,
+            'checkout.totals_mismatch',
+            'Checkout totals mismatch',
+            'Stored checkout totals were inconsistent, so payment capture and order creation were blocked.',
             $exception->context(),
         );
     }

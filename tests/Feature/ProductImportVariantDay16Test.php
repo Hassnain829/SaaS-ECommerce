@@ -244,8 +244,9 @@ CSV;
 
         $v = ProductVariant::query()->where('sku', 'VM1')->first();
         $this->assertNotNull($v);
+        $this->assertNotNull($v->product_image_id);
         $this->assertTrue(
-            \App\Models\ProductImage::query()->where('product_variant_id', $v->id)->where('product_id', $v->product_id)->exists()
+            \App\Models\ProductImage::query()->whereKey($v->product_image_id)->where('product_id', $v->product_id)->exists()
         );
     }
 

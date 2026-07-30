@@ -3,18 +3,20 @@
 @section('title', 'Orders | BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4 shrink-0">
-    <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-        <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
-        </svg>
-    </button>
-
-    <div>
-        <h1 class="text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Orders</h1>
-        <p class="hidden md:block text-xs text-[#64748B]">Review order, payment, and fulfillment state separately.</p>
-    </div>
-</header>
+    <x-ui.merchant-topbar title="All orders" :lead="'Track customer orders for '.($selectedStore?->name ?? 'this store').'.'">
+        <x-slot:search>
+            <form method="GET" action="{{ route('orders') }}" class="flex w-full items-center gap-2">
+                <input type="hidden" name="status" value="{{ $currentStatus }}">
+                <input name="q" value="{{ $search }}" class="h-9 min-w-0 flex-1 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm" placeholder="Search orders…">
+                <button class="inline-flex h-9 shrink-0 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 hover:bg-stone-50">Search</button>
+            </form>
+        </x-slot:search>
+        @if($canManageOrders)
+            <x-slot:actions>
+                <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-hover xl:inline-flex">Create order</a>
+            </x-slot:actions>
+        @endif
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -29,34 +31,20 @@
 <div class="w-full py-2 md:py-4 space-y-4">
     @include('user_view.partials.flash_success')
 
-    <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-            <h1 class="text-2xl font-medium text-[#0F172A] font-poppins">All orders</h1>
-            <p class="text-sm text-[#64748B]">Track customer orders for {{ $selectedStore?->name ?? 'this store' }}.</p>
-        </div>
-        @if($canManageOrders)
-            <a href="{{ route('orders.create') }}" class="inline-flex h-10 items-center justify-center rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white hover:bg-[#0047B3]">
-                Create order manually
-            </a>
-        @endif
-    </div>
-
     <section class="bg-white border border-[#CBD5E1] rounded-2xl p-4 md:p-5 space-y-4">
-        <form method="GET" action="{{ route('orders') }}" class="flex flex-col gap-3 md:flex-row">
-            <input type="hidden" name="status" value="{{ $currentStatus }}">
-            <input name="q" value="{{ $search }}" class="h-10 flex-1 rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Search order number, external order, payment reference, customer, or email">
-            <button class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Search</button>
-            @if($search !== '')
-                <a href="{{ route('orders', ['status' => $currentStatus]) }}" class="h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#64748B] inline-flex items-center justify-center">Clear</a>
-            @endif
-        </form>
+        @if($search !== '')
+            <div class="flex items-center justify-between rounded-lg bg-[#F8FAFC] px-3 py-2 text-sm text-[#475569]">
+                <span>Search: <span class="font-semibold text-[#0F172A]">{{ $search }}</span></span>
+                <a href="{{ route('orders', ['status' => $currentStatus]) }}" class="font-semibold text-[#0052CC]">Clear</a>
+            </div>
+        @endif
 
         <div class="flex flex-wrap gap-2 text-sm font-semibold">
-            <a href="{{ route('orders', ['status' => 'all']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'all' ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
+            <a href="{{ route('orders', ['status' => 'all']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'all' ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
                 All ({{ $statusCounts['all'] ?? 0 }})
             </a>
             @foreach($orderStatuses as $status)
-                <a href="{{ route('orders', ['status' => $status]) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === $status ? 'bg-[#0052CC] text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
+                <a href="{{ route('orders', ['status' => $status]) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === $status ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
                     {{ \App\Support\OrderLifecycle::orderStatusLabel($status) }} ({{ $statusCounts[$status] ?? 0 }})
                 </a>
             @endforeach
@@ -67,7 +55,7 @@
         <div class="border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 md:px-6">
             <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Draft orders</h2>
+                    <h2 class="text-lg font-semibold text-[#0F172A]">Draft orders</h2>
                     <p class="text-sm text-[#64748B]">Manual orders that have not become confirmed orders yet.</p>
                 </div>
                 @if($canManageOrders)
@@ -143,7 +131,7 @@
 
     <section class="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden">
         <div class="border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 md:px-6">
-            <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Final orders</h2>
+            <h2 class="text-lg font-semibold text-[#0F172A]">Final orders</h2>
             <p class="text-sm text-[#64748B]">Confirmed customer orders stay separate from drafts.</p>
         </div>
         <div class="overflow-x-auto">

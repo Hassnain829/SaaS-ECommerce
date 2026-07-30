@@ -609,6 +609,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
     public function test_ui_does_not_show_fake_label_live_rate_or_pickup_buttons(): void
     {
         [$owner, $store] = $this->ownerStore('FedEx UI Store');
+        $this->createFedExAccount($store);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -616,7 +617,6 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertOk()
             ->assertSeeText('FedEx Merchant Account')
             ->assertSeeText('Sandbox')
-            ->assertSeeText('Connect FedEx account')
             ->assertDontSeeText('Buy label')
             ->assertDontSeeText('Generate label')
             ->assertDontSeeText('Live rates')

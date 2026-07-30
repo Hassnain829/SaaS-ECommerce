@@ -13,8 +13,10 @@ use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\TaxRate;
 use App\Models\TaxSetting;
+use App\Services\Checkout\CheckoutTotalsService;
 use App\Services\Tax\TaxCalculator;
 use App\Support\Money\CurrencyPrecision;
+use App\Support\Money\DecimalString;
 use App\Support\Tax\TaxDisplayPresenter;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
@@ -81,13 +83,21 @@ class DraftTaxService
 
             $variant = $variants->get($variantId);
             $quantity = max(1, (int) ($row['quantity'] ?? 1));
-            $unitPrice = number_format((float) ($row['unit_price'] ?? $variant?->price ?? 0), 2, '.', '');
+            $unitPrice = CurrencyPrecision::roundMajor(
+                DecimalString::normalizeNonNegative((string) ($row['unit_price'] ?? $variant?->price ?? 0)),
+                $currencyCode,
+            );
+            $lineDiscount = CurrencyPrecision::roundMajor(
+                DecimalString::normalizeNonNegative((string) ($row['discount_amount'] ?? 0)),
+                $currencyCode,
+            );
 
             $lineInputs[] = new TaxLineItemInput(
                 lineKey: 'preview:'.$index,
                 quantity: $quantity,
                 unitPrice: $unitPrice,
                 isTaxable: (bool) ($variant?->product?->is_taxable ?? true),
+                discountAmount: $lineDiscount,
             );
         }
 
@@ -103,7 +113,10 @@ class DraftTaxService
             settings: $settings,
             currencyCode: $currencyCode,
             items: $lineInputs,
-            shippingAmount: number_format((float) ($payload['shipping_total'] ?? 0), 2, '.', ''),
+            shippingAmount: CurrencyPrecision::roundMajor(
+                DecimalString::normalizeNonNegative((string) ($payload['shipping_total'] ?? 0)),
+                $currencyCode,
+            ),
             destination: $destination,
         ));
 
@@ -123,10 +136,16 @@ class DraftTaxService
             'prices_include_tax' => (bool) $settings->prices_include_tax,
         ];
 
-        $discount = number_format((float) ($payload['discount_total'] ?? 0), 2, '.', '');
+        $discount = CurrencyPrecision::roundMajor(
+            DecimalString::normalizeNonNegative((string) ($payload['discount_total'] ?? 0)),
+            $currencyCode,
+        );
         $estimatedTotal = $this->grandTotal(
             subtotal: $result->itemsSubtotal,
-            shippingTotal: number_format((float) ($payload['shipping_total'] ?? 0), 2, '.', ''),
+            shippingTotal: CurrencyPrecision::roundMajor(
+                DecimalString::normalizeNonNegative((string) ($payload['shipping_total'] ?? 0)),
+                $currencyCode,
+            ),
             itemsTax: $result->itemsTax,
             shippingTax: $result->shippingTax,
             discountTotal: $discount,
@@ -206,15 +225,25 @@ class DraftTaxService
             $currencyCode = (string) ($draft->currency ?: $store->currency ?: 'USD');
             $lineInputs = [];
             $taxableByLineKey = [];
+            $itemDiscounts = data_get($draft->metadata, 'coupon_snapshot.item_discounts', []);
+            if (! is_array($itemDiscounts)) {
+                $itemDiscounts = [];
+            }
 
             foreach ($draft->items as $item) {
                 $lineKey = $this->lineKey((int) $item->id);
+                $variantLineKey = CheckoutTotalsService::lineKeyForVariant((int) $item->product_variant_id);
                 $isTaxable = $this->isDraftItemTaxable($item);
+                $lineDiscount = CurrencyPrecision::roundMajor(
+                    DecimalString::normalizeNonNegative((string) ($itemDiscounts[$variantLineKey] ?? '0')),
+                    $currencyCode,
+                );
                 $lineInputs[] = new TaxLineItemInput(
                     lineKey: $lineKey,
                     quantity: (int) $item->quantity,
                     unitPrice: (string) $item->unit_price,
                     isTaxable: $isTaxable,
+                    discountAmount: $lineDiscount,
                 );
                 $taxableByLineKey[$lineKey] = $isTaxable;
             }

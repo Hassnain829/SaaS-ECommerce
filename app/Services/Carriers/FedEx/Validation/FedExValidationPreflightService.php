@@ -6,6 +6,8 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\FedExValidationArtifact;
 use App\Models\Store;
+use App\Services\Carriers\FedEx\Validation\FedExConsolidationFixtureService;
+use App\Services\Carriers\FedEx\Validation\FedExLabelArtifactValidator;
 
 class FedExValidationPreflightService
 {
@@ -19,6 +21,7 @@ class FedExValidationPreflightService
         private readonly FedExHostedEulaEvidenceService $hostedEulaEvidence,
         private readonly FedExComprehensiveRateEvidenceService $comprehensiveRateEvidence,
         private readonly FedExShipEvidenceRules $shipEvidenceRules,
+        private readonly FedExConsolidationEvidenceRules $consolidationEvidenceRules,
         private readonly Preflight\GlobalShipCheckProvider $globalShipCheckProvider,
         private readonly FedExBrandComplianceService $brandCompliance,
         private readonly FedExCapabilityEvidenceService $capabilityEvidence,
@@ -71,10 +74,11 @@ class FedExValidationPreflightService
         }
 
         if (in_array(FedExValidationScopeService::SCOPE_ADDRESS_VALIDATION, $scopes, true)) {
+            $canonicalAddress = $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'address_validation');
             $addressCheck = $this->apiCheck(
                 'address_validation',
                 'Address validation',
-                $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'address_validation'),
+                $canonicalAddress ?? $this->evidenceQuery->latestCompleteEvent($store, $account, 'address_validation'),
             );
             $checks[] = $addressCheck;
             if ($this->isBlockingCheck($addressCheck)) {
@@ -83,10 +87,11 @@ class FedExValidationPreflightService
         }
 
         if (in_array(FedExValidationScopeService::SCOPE_SERVICE_AVAILABILITY, $scopes, true)) {
+            $canonicalService = $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'service_availability');
             $serviceCheck = $this->apiCheck(
                 'service_availability',
                 'Service availability',
-                $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, 'service_availability'),
+                $canonicalService ?? $this->evidenceQuery->latestCompleteEvent($store, $account, 'service_availability'),
             );
             $checks[] = $serviceCheck;
             if ($this->isBlockingCheck($serviceCheck)) {
@@ -113,8 +118,41 @@ class FedExValidationPreflightService
         }
 
         if (in_array(FedExValidationScopeService::SCOPE_SHIP, $scopes, true)) {
-            foreach (FedExValidationScenarioCatalog::lockedShipScenarios() as $testCaseKey => $meta) {
+            foreach (FedExValidationScenarioCatalog::requiredLockedShipScenarios() as $testCaseKey => $meta) {
                 foreach ($this->shipScenarioChecks($store, $account, $testCaseKey, $meta) as $check) {
+                    $checks[] = $check;
+                    if ($this->isBlockingCheck($check)) {
+                        $blockers[] = $check;
+                    }
+                }
+            }
+
+            if (! FedExValidationScenarioCatalog::isShipScenarioEnabled('IntegratorUS08')) {
+                $checks[] = [
+                    'key' => 'ship_us08_zplii_excluded',
+                    'category' => 'ship',
+                    'label' => 'IntegratorUS08 Freight LTL (excluded)',
+                    'required' => false,
+                    'status' => 'passed',
+                    'explanation' => FedExValidationScenarioCatalog::us08ExclusionNote()
+                        .' Historical Freight events remain stored for audit and do not block final readiness.',
+                    'event_id' => null,
+                ];
+            }
+
+            if (! FedExValidationScenarioCatalog::isConsolidationEnabled()) {
+                $checks[] = [
+                    'key' => 'consolidation_us10_excluded',
+                    'category' => 'ship',
+                    'label' => 'IntegratorUS10 Consolidation / IPD (excluded)',
+                    'required' => false,
+                    'status' => 'passed',
+                    'explanation' => FedExValidationScenarioCatalog::us10ExclusionNote()
+                        .' Historical Consolidation events remain stored for audit and do not block final readiness.',
+                    'event_id' => null,
+                ];
+            } else {
+                foreach ($this->consolidationScenarioChecks($store, $account) as $check) {
                     $checks[] = $check;
                     if ($this->isBlockingCheck($check)) {
                         $blockers[] = $check;
@@ -354,6 +392,36 @@ class FedExValidationPreflightService
         $expectedPackages = (int) $meta['expected_packages'];
         $checks = [];
 
+        if (filled($meta['upload_scenario_key'] ?? null) || filled($meta['upload_scenario_keys'] ?? null)) {
+            $uploadKeys = array_values(array_unique(array_filter(array_merge(
+                (array) ($meta['upload_scenario_keys'] ?? []),
+                filled($meta['upload_scenario_key'] ?? null) ? [(string) $meta['upload_scenario_key']] : [],
+            ))));
+
+            foreach ($uploadKeys as $uploadScenarioKey) {
+                $uploadEvent = $uploadScenarioKey === 'upload_us09_document'
+                    ? $this->evidenceQuery->canonicalUs09DocumentUploadEvent($store, $account)
+                    : $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, $uploadScenarioKey);
+                $label = match ($uploadScenarioKey) {
+                    'upload_us09_image_letterhead' => $testCaseKey.' letterhead image upload',
+                    'upload_us09_image_signature' => $testCaseKey.' signature image upload',
+                    'upload_us09_document' => $testCaseKey.' commercial invoice upload',
+                    default => $testCaseKey.' trade-document upload',
+                };
+                $checks[] = [
+                    'key' => $uploadScenarioKey.'_event',
+                    'category' => 'ship',
+                    'label' => $label,
+                    'required' => true,
+                    'status' => $uploadEvent ? 'passed' : 'not_tested',
+                    'explanation' => $uploadEvent
+                        ? 'Canonical successful Trade Documents upload event recorded ('.$uploadScenarioKey.').'
+                        : 'Complete the locked '.$uploadScenarioKey.' upload before creating the ETD label. Each upload is independent; one image upload cannot satisfy both letterhead and signature.',
+                    'event_id' => $uploadEvent?->id,
+                ];
+            }
+        }
+
         $event = $this->evidenceQuery->canonicalShipLabelEvent(
             $store,
             $account,
@@ -362,17 +430,83 @@ class FedExValidationPreflightService
             labelFormat: $labelFormat,
         );
 
+        $latestAttempt = $event === null
+            ? $this->evidenceQuery->latestShipLabelAttempt(
+                $store,
+                $account,
+                $scenarioKey,
+                testCaseKey: $testCaseKey,
+                labelFormat: $labelFormat,
+            )
+            : null;
+
+        $artifactSourceEvent = $event ?? (
+            $latestAttempt !== null
+            && $latestAttempt->hasCompleteEvidence()
+            && $latestAttempt->isSuccessfulHttp()
+                ? $latestAttempt
+                : null
+        );
+
+        $eventStatus = $event !== null
+            ? $this->shipEventEvidenceStatus($event, $testCaseKey)
+            : ($latestAttempt !== null ? 'incomplete' : 'not_tested');
+
         $checks[] = [
             'key' => $scenarioKey.'_event',
             'category' => 'ship',
             'label' => $testCaseKey.' ship label API',
             'required' => true,
-            'status' => $this->shipEventEvidenceStatus($event, $testCaseKey),
+            'status' => $eventStatus,
             'explanation' => $event
                 ? 'Canonical successful ship label event recorded.'
-                : 'Run the locked '.$testCaseKey.' label button in the validation workspace. Ship validate alone does not create labels.',
-            'event_id' => $event?->id,
+                : ($latestAttempt !== null
+                    ? 'A '.$testCaseKey.' ship attempt exists but is not yet complete canonical evidence (label, documents, or response checks still need attention).'
+                    : 'Run the locked '.$testCaseKey.' label button in the validation workspace. Ship validate alone does not create labels.'),
+            'event_id' => $event?->id ?? $latestAttempt?->id,
         ];
+
+        if ($event !== null) {
+            $sanitizedRequest = $this->sanitizer->sanitize(
+                is_array($event->request_body_encrypted) ? $event->request_body_encrypted : []
+            );
+            $exportValidation = $this->shipEvidenceRules->validateSanitizedExport(
+                is_array($sanitizedRequest) ? $sanitizedRequest : [],
+                $testCaseKey,
+            );
+
+            $checks[] = [
+                'key' => $scenarioKey.'_export_payload',
+                'category' => 'ship',
+                'label' => $testCaseKey.' exported payment and special-service fields',
+                'required' => true,
+                'status' => $exportValidation['valid'] ? 'passed' : 'failed',
+                'explanation' => $exportValidation['valid']
+                    ? 'Sanitized export preserves paymentType and required special services while redacting account numbers.'
+                    : 'Export payload failed validation: '.implode(', ', $exportValidation['reasons']).'. Re-run the locked ship case and regenerate the evidence bundle.',
+                'event_id' => $event->id,
+            ];
+        } elseif ($latestAttempt !== null) {
+            $sanitizedRequest = $this->sanitizer->sanitize(
+                is_array($latestAttempt->request_body_encrypted) ? $latestAttempt->request_body_encrypted : []
+            );
+            $exportValidation = $this->shipEvidenceRules->validateSanitizedExport(
+                is_array($sanitizedRequest) ? $sanitizedRequest : [],
+                $testCaseKey,
+            );
+
+            $checks[] = [
+                'key' => $scenarioKey.'_export_payload',
+                'category' => 'ship',
+                'label' => $testCaseKey.' exported payment and special-service fields',
+                'required' => true,
+                'status' => $exportValidation['valid'] ? 'passed' : 'failed',
+                'explanation' => $exportValidation['valid']
+                    ? 'Sanitized export preserves paymentType and required special services while redacting account numbers.'
+                    : 'Export payload failed validation: '.implode(', ', $exportValidation['reasons']).'. Re-run the locked ship case and regenerate the evidence bundle.',
+                'event_id' => $latestAttempt->id,
+            ];
+        }
 
         if ($event !== null && $this->hasDuplicateArtifactsForEvent($store, $account, $event, FedExValidationArtifact::ROLE_GENERATED_LABEL)) {
             $checks[] = [
@@ -402,7 +536,7 @@ class FedExValidationPreflightService
             $labelArtifact = $this->findArtifact(
                 $store,
                 $account,
-                $event,
+                $artifactSourceEvent,
                 $scenarioKey,
                 $testCaseKey,
                 $labelFormat,
@@ -425,7 +559,7 @@ class FedExValidationPreflightService
             $scanArtifact = $this->findArtifact(
                 $store,
                 $account,
-                $event,
+                $artifactSourceEvent,
                 $scenarioKey,
                 $testCaseKey,
                 $labelFormat,
@@ -439,14 +573,229 @@ class FedExValidationPreflightService
                 'label' => $testCaseKey.' printed scan package '.$sequence,
                 'required' => true,
                 'status' => $this->scanArtifactStatus($scanArtifact),
-                'explanation' => $scanArtifact
-                    ? 'Printed scan uploaded.'
-                    : 'Upload a 600 DPI or higher printed scan for package '.$sequence.'.',
+                'explanation' => $this->scanArtifactExplanation($scanArtifact, $sequence),
                 'artifact_id' => $scanArtifact?->id,
             ];
         }
 
+        if ($testCaseKey === 'IntegratorUS08') {
+            $bolArtifact = null;
+            if ($artifactSourceEvent !== null) {
+                $bolArtifact = FedExValidationArtifact::query()
+                    ->where('store_id', $store->id)
+                    ->where('carrier_account_id', $account->id)
+                    ->where('carrier_api_event_id', $artifactSourceEvent->id)
+                    ->where('artifact_role', FedExValidationArtifact::ROLE_VALIDATION_DOCUMENT)
+                    ->where('artifact_type', 'freight_bill_of_lading')
+                    ->latest('id')
+                    ->first();
+            }
+
+            $bolPath = $bolArtifact?->absolutePath();
+            $bolValid = $bolPath !== null
+                && is_file($bolPath)
+                && filesize($bolPath) > 0
+                && str_starts_with((string) file_get_contents($bolPath), '%PDF');
+
+            $checks[] = [
+                'key' => $scenarioKey.'_bol',
+                'category' => 'ship',
+                'label' => $testCaseKey.' Straight Bill of Lading',
+                'required' => true,
+                'status' => $bolValid ? 'passed' : 'incomplete',
+                'explanation' => $bolValid
+                    ? 'Freight Straight Bill of Lading PDF saved.'
+                    : 'Create IntegratorUS08 Freight shipment and retain the Straight Bill of Lading PDF artifact.',
+                'artifact_id' => $bolArtifact?->id,
+            ];
+        }
+
         return $checks;
+    }
+
+    /**
+     * IntegratorUS10 — each consolidation step and document requirement is independent.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function consolidationScenarioChecks(Store $store, CarrierAccount $account): array
+    {
+        $checks = [];
+        $accountConfigured = trim((string) config('carriers.fedex.validation_us10_consolidation_account', '')) !== '';
+
+        $checks[] = [
+            'key' => 'consolidation_us10_account_configured',
+            'category' => 'ship',
+            'label' => 'IntegratorUS10 consolidation account configured',
+            'required' => true,
+            'status' => $accountConfigured ? 'passed' : 'not_tested',
+            'explanation' => $accountConfigured
+                ? 'FEDEX_VALIDATION_US10_CONSOLIDATION_ACCOUNT is configured (value never printed).'
+                : 'Set FEDEX_VALIDATION_US10_CONSOLIDATION_ACCOUNT to the Consolidation/IPD-enabled workbook account. Do not substitute parcel, Ground Economy, or Freight accounts.',
+            'event_id' => null,
+        ];
+
+        foreach (FedExValidationScenarioCatalog::lockedConsolidationScenarios() as $testCaseKey => $meta) {
+            $scenarioKey = (string) $meta['scenario_key'];
+            $operation = (string) ($meta['operation'] ?? 'create');
+            $event = $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, $scenarioKey, $testCaseKey);
+
+            $checks[] = [
+                'key' => $scenarioKey.'_event',
+                'category' => 'ship',
+                'label' => $testCaseKey.' Consolidation API',
+                'required' => true,
+                'status' => $event ? 'passed' : 'not_tested',
+                'explanation' => $event
+                    ? 'Canonical successful Consolidation event recorded for '.$scenarioKey.'.'
+                    : 'Run the full US10 Consolidation chain during the final evidence run. One Add Shipment event cannot satisfy another shipment requirement.',
+                'event_id' => $event?->id,
+            ];
+
+            if ($event !== null) {
+                $sanitizedRequest = $this->sanitizer->sanitize(
+                    is_array($event->request_body_encrypted) ? $event->request_body_encrypted : []
+                );
+                $exportValidation = $this->consolidationEvidenceRules->validateSanitizedExport(
+                    is_array($sanitizedRequest) ? $sanitizedRequest : [],
+                    $operation,
+                );
+
+                $checks[] = [
+                    'key' => $scenarioKey.'_export_payload',
+                    'category' => 'ship',
+                    'label' => $testCaseKey.' sanitized Consolidation export',
+                    'required' => true,
+                    'status' => $exportValidation['valid'] ? 'passed' : 'failed',
+                    'explanation' => $exportValidation['valid']
+                        ? 'Sanitized export preserves consolidation/payment/commodity structure while redacting accounts, TINs, jobId, and sensitive indexes.'
+                        : 'Export payload failed validation: '.implode(', ', $exportValidation['reasons']).'.',
+                    'event_id' => $event->id,
+                ];
+            }
+        }
+
+        $confirmResultsEvent = $this->evidenceQuery->canonicalSuccessfulEvent(
+            $store,
+            $account,
+            'consolidation_us10_confirm_results',
+            'IntegratorUS10_CONFIRM_RESULTS',
+        );
+
+        $expectedLabelCount = count(app(FedExConsolidationFixtureService::class)->addShipmentKeys());
+        $labelArtifacts = [];
+        $cciArtifact = null;
+
+        if ($confirmResultsEvent !== null) {
+            $labelArtifacts = FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('carrier_api_event_id', $confirmResultsEvent->id)
+                ->where('artifact_role', FedExValidationArtifact::ROLE_GENERATED_LABEL)
+                ->where('test_case_key', 'IntegratorUS10_CONFIRM_RESULTS')
+                ->orderBy('package_sequence')
+                ->get()
+                ->all();
+
+            $cciArtifact = FedExValidationArtifact::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('carrier_api_event_id', $confirmResultsEvent->id)
+                ->where('artifact_role', FedExValidationArtifact::ROLE_VALIDATION_DOCUMENT)
+                ->where('artifact_type', 'consolidation_commercial_invoice')
+                ->latest('id')
+                ->first();
+        }
+
+        $validLabels = array_values(array_filter(
+            $labelArtifacts,
+            fn (FedExValidationArtifact $artifact): bool => $this->us10LabelArtifactValid($artifact),
+        ));
+        $labelsStatus = 'not_tested';
+        $labelsExplanation = 'Preserve all child labels returned by Confirm Consolidation Results in 08_ship_us10_ipd/labels/.';
+        if ($confirmResultsEvent === null) {
+            $labelsStatus = 'not_tested';
+        } elseif (count($validLabels) < $expectedLabelCount) {
+            $labelsStatus = 'incomplete';
+            $labelsExplanation = 'Expected '.$expectedLabelCount.' valid child labels linked to the Confirm Results event; found '.count($validLabels).'.';
+        } else {
+            $labelsStatus = 'passed';
+            $labelsExplanation = 'All '.$expectedLabelCount.' child labels are present and valid.';
+        }
+
+        $checks[] = [
+            'key' => 'consolidation_us10_child_labels',
+            'category' => 'ship',
+            'label' => 'IntegratorUS10 child labels',
+            'required' => true,
+            'status' => $labelsStatus,
+            'explanation' => $labelsExplanation,
+            'event_id' => $confirmResultsEvent?->id,
+            'artifact_count' => count($validLabels),
+            'expected_count' => $expectedLabelCount,
+        ];
+
+        $cciPath = $cciArtifact?->absolutePath();
+        $cciValid = $cciPath !== null
+            && is_file($cciPath)
+            && filesize($cciPath) > 0
+            && filled($cciArtifact->sha256)
+            && hash_file('sha256', $cciPath) === (string) $cciArtifact->sha256
+            && str_starts_with((string) file_get_contents($cciPath), '%PDF');
+
+        $cciStatus = 'not_tested';
+        $cciExplanation = 'Preserve the Consolidated Commercial Invoice from Confirm Results in 08_ship_us10_ipd/documents/.';
+        if ($confirmResultsEvent === null) {
+            $cciStatus = 'not_tested';
+        } elseif (! $cciValid) {
+            $cciStatus = 'incomplete';
+            $cciExplanation = 'Consolidated Commercial Invoice artifact is missing, empty, corrupt, or not linked to the Confirm Results event.';
+        } else {
+            $cciStatus = 'passed';
+            $cciExplanation = 'Consolidated Commercial Invoice PDF is present and valid.';
+        }
+
+        $checks[] = [
+            'key' => 'consolidation_us10_cci',
+            'category' => 'ship',
+            'label' => 'IntegratorUS10 Consolidated Commercial Invoice',
+            'required' => true,
+            'status' => $cciStatus,
+            'explanation' => $cciExplanation,
+            'event_id' => $confirmResultsEvent?->id,
+            'artifact_id' => $cciArtifact?->id,
+        ];
+
+        $tinConfigured = trim((string) config('carriers.fedex.validation_us10_shipper_tin', '')) !== '';
+        $checks[] = [
+            'key' => 'consolidation_us10_shipper_tin_configured',
+            'category' => 'ship',
+            'label' => 'IntegratorUS10 shipper TIN configured',
+            'required' => true,
+            'status' => $tinConfigured ? 'passed' : 'not_tested',
+            'explanation' => $tinConfigured
+                ? 'FEDEX_VALIDATION_US10_SHIPPER_TIN is configured (value never printed).'
+                : 'Set FEDEX_VALIDATION_US10_SHIPPER_TIN. Placeholder TIN values are not allowed.',
+            'event_id' => null,
+        ];
+
+        return $checks;
+    }
+
+    private function us10LabelArtifactValid(FedExValidationArtifact $artifact): bool
+    {
+        $path = $artifact->absolutePath();
+        if ($path === null || ! is_file($path) || filesize($path) <= 0) {
+            return false;
+        }
+
+        if (! filled($artifact->sha256) || hash_file('sha256', $path) !== (string) $artifact->sha256) {
+            return false;
+        }
+
+        $format = strtoupper((string) ($artifact->label_format ?: 'PDF'));
+
+        return FedExLabelArtifactValidator::isValid($path, $format);
     }
 
     private function apiCheck(string $key, string $label, ?CarrierApiEvent $event): array
@@ -661,8 +1010,12 @@ class FedExValidationPreflightService
         }
 
         $path = $artifact->absolutePath();
+        $mime = is_string($path) && is_file($path)
+            ? (string) mime_content_type($path)
+            : (string) ($artifact->mime_type ?? '');
 
-        if (! in_array((string) mime_content_type((string) $path), ['application/pdf', 'image/png'], true)) {
+        // Match upload validation: PDF, PNG, JPG/JPEG are accepted for printed scans.
+        if (! in_array($mime, ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'], true)) {
             return 'failed';
         }
 
@@ -675,11 +1028,57 @@ class FedExValidationPreflightService
         }
 
         $scanValidation = FedExLabelArtifactValidator::validateScan((string) $path, (int) $artifact->scan_dpi);
-        if (! $scanValidation['valid']) {
+        if (! ($scanValidation['valid'] ?? false)) {
             return 'failed';
         }
 
         return 'passed';
+    }
+
+    /**
+     * Human-readable explanation for a printed-scan check.
+     */
+    private function scanArtifactExplanation(?FedExValidationArtifact $artifact, int $sequence): string
+    {
+        if ($artifact === null) {
+            return 'Upload a 600 DPI or higher printed scan for package '.$sequence.'.';
+        }
+
+        if (! $this->artifactIntegrityValid($artifact)) {
+            return 'Printed scan file is missing, empty, or failed integrity checks. Re-upload the scanned print.';
+        }
+
+        $path = $artifact->absolutePath();
+        $mime = is_string($path) && is_file($path)
+            ? (string) mime_content_type($path)
+            : (string) ($artifact->mime_type ?? '');
+
+        if (! in_array($mime, ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'], true)) {
+            return 'Printed scan must be a PDF, PNG, or JPG/JPEG file.';
+        }
+
+        if ((int) ($artifact->scan_dpi ?? 0) < 600) {
+            return 'Printed scan DPI must be 600 or higher. Re-upload with the scanner DPI set correctly.';
+        }
+
+        if (! (bool) data_get($artifact->metadata_json, 'printed_scan_attestation', false)) {
+            return 'Printed scan attestation is missing. Re-upload and confirm the physical-print attestation checkbox.';
+        }
+
+        $scanValidation = FedExLabelArtifactValidator::validateScan((string) $path, (int) $artifact->scan_dpi);
+        if (! ($scanValidation['valid'] ?? false)) {
+            $reason = (string) ($scanValidation['reason'] ?? 'validation_failed');
+
+            return match ($reason) {
+                'detected_dpi_below_minimum' => 'Uploaded scan image DPI metadata is below 600. Re-scan the printed label at 600 DPI or higher.',
+                'claimed_dpi_below_minimum' => 'Claimed scan DPI is below 600. Re-upload with DPI set to at least 600.',
+                'unsupported_mime' => 'Printed scan must be a PDF, PNG, or JPG/JPEG file.',
+                'empty_file' => 'Printed scan file is empty. Re-upload the scan.',
+                default => 'Printed scan failed validation ('.$reason.'). Re-upload a 600 DPI+ scan of the printed label.',
+            };
+        }
+
+        return 'Printed scan uploaded and accepted (600 DPI+ attested).';
     }
 
     /**

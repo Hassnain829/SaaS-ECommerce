@@ -121,7 +121,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
                     providerIntentId: 'pi_connect_checkout_'.$checkout->id,
                     clientSecret: 'pi_connect_checkout_'.$checkout->id.'_secret_test',
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
+                    amount: (string) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: [
                         'id' => 'pi_connect_checkout_'.$checkout->id,
@@ -143,7 +143,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
                     eventType: 'payment_intent.succeeded',
                     providerIntentId: $providerIntentId,
                     status: 'succeeded',
-                    amount: (float) ($intent?->amount ?? 24.00),
+                    amount: (string) ($intent?->amount ?? '24.00'),
                     currencyCode: $intent?->currency_code ?? 'USD',
                     raw: [
                         'id' => 'client_confirm_'.$providerIntentId,

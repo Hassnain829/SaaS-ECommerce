@@ -2,7 +2,7 @@
 
 @section('wizard-content')
     <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
-        <h2 class="text-2xl font-poppins font-semibold text-[#0F172A]">What should customers see at checkout?</h2>
+        <h2 class="text-2xl font-semibold text-[#0F172A]">What should customers see at checkout?</h2>
         <p class="mt-2 text-sm text-[#64748B]">Create or update a delivery option customers can choose during checkout.</p>
 
         @if ($flagMismatch ?? false)
@@ -90,7 +90,7 @@
                 <a href="{{ route('settings.delivery.setup.deliver-to') }}" class="text-sm font-semibold text-[#64748B]">Back</a>
                 <div class="flex flex-wrap gap-2">
                     <a href="{{ route('shippingAutomation', ['tab' => 'advanced']) }}" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Advanced settings</a>
-                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-5 text-sm font-bold text-white">Save and continue</button>
+                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Save and continue</button>
                 </div>
             </div>
         </form>

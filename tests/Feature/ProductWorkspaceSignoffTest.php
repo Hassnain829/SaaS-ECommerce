@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\ProductEditPayload;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -39,12 +40,48 @@ class ProductWorkspaceSignoffTest extends TestCase
             ->get(route('products.edit', $product))
             ->assertOk()
             ->assertSee('Editable', false)
-            ->assertSee('Edit catalog item', false)
-            ->assertSee('Back to product workspace', false)
             ->assertSee('Save and return to workspace', false)
+            ->assertSee('Save and exit', false)
             ->assertSee('id="editProductForm"', false)
             ->assertSee('id="catalog-editor-workspace-layout"', false)
+            ->assertSee('id="product-edit-workspace"', false)
+            ->assertSee('id="catalog-editor-section-nav"', false)
+            ->assertSee('class="product-edit-inline-footer', false)
+            ->assertSee('Editor status', false)
+            ->assertSee('href="#catalog-edit-section-basics"', false)
+            ->assertSee('href="#catalog-edit-section-media"', false)
+            ->assertSee('href="#catalog-edit-section-pricing"', false)
+            ->assertSee('href="#catalog-edit-section-organization"', false)
+            ->assertSee('href="#catalog-edit-section-attributes"', false)
+            ->assertSee('href="#catalog-edit-section-additional-details"', false)
+            ->assertSee('href="#catalog-edit-section-option-groups"', false)
+            ->assertSee('href="#catalog-edit-section-inventory"', false)
+            ->assertSee('aria-label="Notifications"', false)
+            ->assertSee('aria-label="Help"', false)
+            ->assertSee('aria-label="Open profile menu"', false)
+            ->assertDontSee('Edit catalog item', false)
             ->assertDontSee('Editing from product workspace', false);
+    }
+
+    public function test_catalog_edit_popup_collapses_advanced_fields_and_links_to_full_workspace(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Popup Edit Store');
+        $product = $this->makeProduct($store, 'Popup Editable');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products'))
+            ->assertOk()
+            ->assertSee('id="editAdvancedFieldsToggle"', false)
+            ->assertSee('id="editAdvancedFieldsPanel" class="hidden', false)
+            ->assertSee('Show all fields', false)
+            ->assertSee('Open full edit workspace', false);
+
+        $this->assertSame(
+            route('products.edit', $product),
+            ProductEditPayload::forProduct($product)['edit_workspace_url']
+        );
     }
 
     public function test_staff_cannot_open_dedicated_edit_page(): void

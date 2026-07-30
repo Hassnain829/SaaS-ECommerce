@@ -1,0 +1,25 @@
+# USPS Integration — Locked Rules
+
+These rules are non-negotiable for all USPS merchant and platform integration work.
+
+## Business model (locked)
+
+- BmyBrand EPA/EPS = **PLATFORM** role only
+- Merchant EPA = **PAYER** + **RATE_HOLDER**
+- Merchant MID = **LABEL_OWNER**
+- Postage is charged to the merchant's own EPA — never BmyBrand EPA as payer for merchant labels
+- Merchants authorize BmyBrand as Label Provider in the USPS Business Portal — they do not paste API keys, Consumer Secret, USPS password, or EPS password into the SaaS UI
+
+## Engineering guardrails
+
+1. Never expose or collect merchant Consumer Secret, USPS password, or EPS password in merchant-facing UI or store them on merchant carrier accounts.
+2. Never use BmyBrand platform EPA as PAYER for merchant label purchases.
+3. Never enable production `apis.usps.com` until TEM validation passes and USPS grants label entitlements.
+4. Never skip Label Provider authorization — payment tokens will fail without it.
+5. Never mix sandbox platform RETAIL test quotes with merchant commercial rates at checkout.
+6. Never purchase labels synchronously in bulk request threads — use queued jobs for batch label work.
+
+## UI separation
+
+- **USPS Merchant Account** = merchant-owned connection (labels, postage, rates when enabled)
+- **USPS Sandbox Tools** = platform internal diagnostics only; not merchant-owned postage

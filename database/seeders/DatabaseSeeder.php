@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             RoleSeeder::class,
             UserSeeder::class,
             CarrierSeeder::class,
+            ReturnReasonSeeder::class,
             DemoStoreSeeder::class,
             CustomerAndOrderSeeder::class,
         ]);

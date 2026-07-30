@@ -418,7 +418,25 @@ class FedExValidationEvidenceQueryService
                 ->values()
                 ->all();
 
-            $artifactValidation = $this->shipEvidenceRules->validateGeneratedArtifacts($event, $testCaseKey, $generatedLabels);
+            $documentArtifacts = [];
+            if ($testCaseKey === 'IntegratorUS08') {
+                $documentArtifacts = \App\Models\FedExValidationArtifact::query()
+                    ->where('store_id', $store->id)
+                    ->where('carrier_account_id', $account->id)
+                    ->where('carrier_api_event_id', $event->id)
+                    ->where('artifact_role', \App\Models\FedExValidationArtifact::ROLE_VALIDATION_DOCUMENT)
+                    ->whereIn('artifact_type', ['freight_bill_of_lading', 'freight_commercial_invoice'])
+                    ->orderBy('id')
+                    ->get()
+                    ->all();
+            }
+
+            $artifactValidation = $this->shipEvidenceRules->validateGeneratedArtifacts(
+                $event,
+                $testCaseKey,
+                $generatedLabels,
+                $documentArtifacts,
+            );
             if (! $artifactValidation['valid']) {
                 continue;
             }
@@ -540,8 +558,36 @@ class FedExValidationEvidenceQueryService
      */
     private function firstCanonicalCandidate($candidates): ?CarrierApiEvent
     {
-        return $candidates->first(fn (CarrierApiEvent $event): bool => $event->hasCompleteEvidence() && $event->isSuccessfulHttp())
-            ?? $candidates->first(fn (CarrierApiEvent $event): bool => $event->hasCompleteEvidence());
+        // Prefer true successes. Never fall back to failed/incomplete events that merely have
+        // request/response bodies (e.g. US09 HTTP 201 upload that failed local docId parsing).
+        return $candidates->first(
+            fn (CarrierApiEvent $event): bool => $event->hasCompleteEvidence() && $event->isSuccessfulHttp()
+        );
+    }
+
+    /**
+     * Canonical US09 commercial-invoice upload with a recoverable encrypted document id.
+     */
+    public function canonicalUs09DocumentUploadEvent(Store $store, CarrierAccount $account): ?CarrierApiEvent
+    {
+        $candidates = $this->canonicalCandidates(
+            $store,
+            $account,
+            FedExUs09EtdFixtureService::UPLOAD_SCENARIO_DOCUMENT,
+            testCaseKey: null,
+            labelFormat: null,
+            mfaMethod: null,
+        );
+
+        return $candidates->first(function (CarrierApiEvent $event): bool {
+            if (! $event->hasCompleteEvidence() || ! $event->isSuccessfulHttp()) {
+                return false;
+            }
+
+            $documentId = \App\Services\Carriers\FedEx\Operations\FedExTradeDocumentUploadService::resolveStoredDocumentId($event);
+
+            return is_string($documentId) && $documentId !== '' && $documentId !== '{{US09_DOCUMENT_ID}}';
+        });
     }
 
     public function latestCompleteEvent(

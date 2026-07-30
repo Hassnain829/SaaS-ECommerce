@@ -3,6 +3,8 @@
 @section('title', 'Product specifications')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('page_title', 'Product specifications')
+@section('page_lead', 'Structured product facts shoppers can filter or compare.')
 
 @section('content')
     <div class="flex-1 overflow-y-auto bg-[#F1F5F9]/50 p-4 lg:p-10">
@@ -12,10 +14,6 @@
             <div class="flex flex-col gap-4 border-b border-[#E2E8F0] pb-6 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <a href="{{ route('products') }}" class="text-sm font-semibold text-[#0052CC] hover:underline">Back to products</a>
-                    <h1 class="mt-3 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Product specifications</h1>
-                    <p class="mt-2 max-w-3xl text-sm leading-relaxed text-[#64748B]">
-                        Specifications are structured product facts shoppers can filter or compare, such as material, capacity, color family, or ingredients.
-                    </p>
                 </div>
             </div>
 
@@ -30,7 +28,7 @@
             @endif
 
             <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm sm:p-7">
-                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Add a specification</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Add a specification</h2>
                 <form method="post" action="{{ route('catalog.attributes.store') }}" class="mt-5 grid gap-4 lg:grid-cols-12">
                     @csrf
                     <div class="lg:col-span-3">
@@ -55,7 +53,7 @@
                         <label class="inline-flex items-center gap-2 text-sm text-[#334155]"><input type="checkbox" name="is_visible" value="1" class="rounded border-[#CBD5E1] accent-[#0052CC]" checked> Visible</label>
                     </div>
                     <div class="lg:col-span-1 lg:pt-6">
-                        <button type="submit" class="w-full rounded-xl bg-[#0052CC] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0047B3]">Save</button>
+                        <button type="submit" class="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover">Save</button>
                     </div>
                 </form>
             </section>
@@ -66,7 +64,7 @@
                         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div class="min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">{{ $attribute->name }}</h2>
+                                    <h2 class="text-lg font-semibold text-[#0F172A]">{{ $attribute->name }}</h2>
                                     @if ($attribute->is_filterable)
                                         <span class="rounded-full bg-[#EEF4FF] px-2.5 py-1 text-xs font-semibold text-[#0052CC]">Filterable</span>
                                     @endif

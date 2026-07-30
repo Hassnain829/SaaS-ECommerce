@@ -37,7 +37,8 @@ class Phase6FedExValidationWorkspaceTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.shipping.carrier-accounts.fedex.validation', $account))
             ->assertOk()
-            ->assertSeeText('FedEx validation workspace')
+            ->assertSeeText('FedEx approval tools')
+            ->assertSeeText('Certification tools')
             ->assertSeeText('IntegratorUS02')
             ->assertSeeText('Export diagnostic bundle')
             ->assertSeeText('Final export blocked');

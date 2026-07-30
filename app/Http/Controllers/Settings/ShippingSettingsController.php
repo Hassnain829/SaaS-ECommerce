@@ -138,11 +138,20 @@ class ShippingSettingsController extends Controller
             'fedExBaselineAvailable' => app(\App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService::class)->baselineAvailable(),
             'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
             'uspsCarrier' => Carrier::query()->where('code', 'usps')->first(),
-            'uspsAccounts' => $store->carrierAccounts()
+            'uspsMerchantAccounts' => $store->carrierAccounts()
                 ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->where('connection_mode', CarrierAccount::CONNECTION_MODE_USPS_MERCHANT_LABEL_PROVIDER)
+                ->with(['carrier', 'defaultOriginLocation'])
+                ->orderByDesc('updated_at')
+                ->get()
+                ->reject(fn (CarrierAccount $account): bool => $account->usps_authorization_status === CarrierAccount::USPS_AUTH_DISABLED),
+            'uspsPlatformTestingAccounts' => $store->carrierAccounts()
+                ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->where('connection_mode', CarrierAccount::CONNECTION_MODE_USPS_PLATFORM)
                 ->with('carrier')
                 ->orderByDesc('updated_at')
                 ->get(),
+            'uspsMerchantConnectionEnabled' => $uspsConfig->merchantConnectionEnabled() && $uspsConfig->isEnabled(),
             'uspsApiEvents' => $store->carrierApiEvents()
                 ->where('provider', CarrierAccount::PROVIDER_USPS)
                 ->latest('id')

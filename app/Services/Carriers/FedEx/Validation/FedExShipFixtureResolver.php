@@ -10,6 +10,9 @@ class FedExShipFixtureResolver
     public function __construct(
         private readonly FedExShipTestCaseFixtureService $usFixtures,
         private readonly FedExCanadaShipTestCaseFixtureService $canadaFixtures,
+        private readonly FedExFreightLtlFixtureService $freightFixtures,
+        private readonly FedExUs09EtdFixtureService $us09Fixtures,
+        private readonly FedExConsolidationFixtureService $consolidationFixtures,
     ) {}
 
     /**
@@ -17,7 +20,12 @@ class FedExShipFixtureResolver
      */
     public function usTestCaseKeys(): array
     {
-        return $this->usFixtures->testCaseKeys();
+        return array_values(array_unique(array_merge(
+            $this->usFixtures->testCaseKeys(),
+            $this->freightFixtures->testCaseKeys(),
+            $this->us09Fixtures->testCaseKeys(),
+            $this->consolidationFixtures->testCaseKeys(),
+        )));
     }
 
     /**
@@ -36,9 +44,27 @@ class FedExShipFixtureResolver
         return $this->regionForCase($testCaseKey) !== null;
     }
 
+    public function isFreightLtlCase(string $testCaseKey): bool
+    {
+        return in_array($testCaseKey, $this->freightFixtures->testCaseKeys(), true);
+    }
+
+    public function isUs09EtdCase(string $testCaseKey): bool
+    {
+        return in_array($testCaseKey, $this->us09Fixtures->testCaseKeys(), true);
+    }
+
+    public function isConsolidationCase(string $testCaseKey): bool
+    {
+        return in_array($testCaseKey, $this->consolidationFixtures->testCaseKeys(), true);
+    }
+
     public function regionForCase(string $testCaseKey): ?string
     {
-        if (in_array($testCaseKey, $this->usFixtures->testCaseKeys(), true)) {
+        if (in_array($testCaseKey, $this->usFixtures->testCaseKeys(), true)
+            || in_array($testCaseKey, $this->freightFixtures->testCaseKeys(), true)
+            || in_array($testCaseKey, $this->us09Fixtures->testCaseKeys(), true)
+            || in_array($testCaseKey, $this->consolidationFixtures->testCaseKeys(), true)) {
             return 'US';
         }
 
@@ -54,6 +80,18 @@ class FedExShipFixtureResolver
      */
     public function fixture(string $testCaseKey): array
     {
+        if ($this->isFreightLtlCase($testCaseKey)) {
+            return $this->freightFixtures->fixture($testCaseKey);
+        }
+
+        if ($this->isUs09EtdCase($testCaseKey)) {
+            return $this->us09Fixtures->fixture($testCaseKey);
+        }
+
+        if ($this->isConsolidationCase($testCaseKey)) {
+            return $this->consolidationFixtures->fixture($testCaseKey);
+        }
+
         return match ($this->regionForCase($testCaseKey)) {
             'US' => $this->usFixtures->fixture($testCaseKey),
             FedExGlobalShipCaseCatalog::REGION_CA => $this->canadaFixtures->fixture($testCaseKey),
@@ -63,6 +101,18 @@ class FedExShipFixtureResolver
 
     public function lockedLabelFormat(string $testCaseKey): string
     {
+        if ($this->isFreightLtlCase($testCaseKey)) {
+            return $this->freightFixtures->lockedLabelFormat($testCaseKey);
+        }
+
+        if ($this->isUs09EtdCase($testCaseKey)) {
+            return $this->us09Fixtures->lockedLabelFormat($testCaseKey);
+        }
+
+        if ($this->isConsolidationCase($testCaseKey)) {
+            return 'PNG';
+        }
+
         $region = $this->regionForCase($testCaseKey);
 
         if ($region === 'US') {

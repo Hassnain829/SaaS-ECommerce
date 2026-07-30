@@ -82,7 +82,7 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
                     eventType: 'payment_intent.succeeded',
                     providerIntentId: $providerIntentId,
                     status: 'succeeded',
-                    amount: (float) $intent['amount'],
+                    amount: (string) $intent['amount'],
                     currencyCode: (string) $intent['currency'],
                     raw: [
                         'id' => 'client_confirm_'.$providerIntentId,
@@ -119,7 +119,7 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
             ): PaymentIntentUpdateResult {
                 $currency = strtoupper($currencyCode);
                 $this->intents[$providerIntentId] = [
-                    'amount' => (float) CurrencyPrecision::fromMinorUnits($amountMinor, $currency),
+                    'amount' => CurrencyPrecision::fromMinorUnits($amountMinor, $currency),
                     'amount_minor' => $amountMinor,
                     'currency' => $currency,
                 ];

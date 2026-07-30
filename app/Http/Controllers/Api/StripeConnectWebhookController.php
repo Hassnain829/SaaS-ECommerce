@@ -118,7 +118,7 @@ class StripeConnectWebhookController extends Controller
             providerIntentId: (string) ($rawObject['id'] ?? ''),
             status: (string) ($rawObject['status'] ?? ''),
             amount: isset($rawObject['amount'])
-                ? (float) CurrencyPrecision::fromMinorUnits((int) $rawObject['amount'], (string) ($rawObject['currency'] ?? 'usd'))
+                ? CurrencyPrecision::fromMinorUnits((int) $rawObject['amount'], (string) ($rawObject['currency'] ?? 'usd'))
                 : null,
             currencyCode: isset($rawObject['currency']) ? strtoupper((string) $rawObject['currency']) : null,
             failureCode: is_array($failure) ? ($failure['code'] ?? null) : null,

@@ -20,20 +20,12 @@
 @endphp
 
 @section('topbar')
-    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-        <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-            <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-        </button>
-        <div>
-            <h1 class="text-lg md:text-xl font-poppins font-semibold">Locations</h1>
-            <p class="hidden text-xs text-[#64748B] sm:block">Places where {{ $selectedStore?->name ?? 'your store' }} keeps inventory.</p>
-        </div>
-        <a href="{{ route('generalSettings') }}" class="ml-auto inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">General settings</a>
-    </header>
+    <x-ui.merchant-topbar title="Locations" lead="Places where your store keeps inventory and fulfills orders.">
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
-    <div class="mx-auto max-w-[1280px] space-y-6">
+    <div class="settings-workspace space-y-6">
         @include('user_view.partials.flash_success')
 
         @if ($errors->any())
@@ -42,11 +34,20 @@
             </div>
         @endif
 
+        <section class="settings-guide">
+            <p class="settings-guide-title">Locations guide</p>
+            <ul class="settings-guide-list">
+                <li><span class="settings-guide-step">1</span><span>Create each physical fulfillment location (warehouse, shop, or 3PL) with complete address fields.</span></li>
+                <li><span class="settings-guide-step">2</span><span>Set one default location for fallback stock and shipping origin behavior.</span></li>
+                <li><span class="settings-guide-step">3</span><span>Use service countries/regions/postal rules only when you need routing control beyond standard fulfillment.</span></li>
+            </ul>
+        </section>
+
         <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="max-w-3xl">
                     <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Inventory settings</p>
-                    <h2 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">Inventory locations</h2>
+                    <h2 class="mt-1 text-2xl font-semibold text-[#0F172A]">Inventory locations</h2>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations are places where you store or fulfill inventory, such as a warehouse, shop, stock room, restaurant branch, or third-party storage.</p>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations control where stock is stored. Markets and currencies control where and how you sell. Market-specific selling settings will be added later.</p>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Use service areas to control which destinations this location can fulfill. This routing is based on configured service areas, stock availability, and your priority settings.</p>
@@ -145,7 +146,7 @@
                                 </div>
                             </details>
                         </div>
-                        <button type="submit" class="mt-4 inline-flex rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Add location</button>
+                        <button type="submit" class="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Add location</button>
                     </form>
                 @else
                     <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#64748B]">
@@ -157,7 +158,7 @@
 
         <section class="overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white shadow-sm">
             <div class="border-b border-[#F1F5F9] px-5 py-4">
-                <h2 class="text-lg font-semibold text-[#0F172A] font-[Poppins]">Current locations</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Current locations</h2>
                 <p class="mt-1 text-sm text-[#64748B]">One active default location is used when imports, quick add, product edits, and storefront orders need a stock location.</p>
             </div>
 
@@ -311,7 +312,7 @@
                                                         </div>
                                                     </details>
                                                     <div class="sm:col-span-2">
-                                                        <button class="rounded-lg bg-[#0052CC] px-3 py-2 text-xs font-bold text-white">Save location</button>
+                                                        <button class="rounded-lg bg-brand px-3 py-2 text-xs font-bold text-white">Save location</button>
                                                     </div>
                                                 </form>
                                             </details>

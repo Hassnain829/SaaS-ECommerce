@@ -11,11 +11,14 @@ final readonly class TaxLineItemInput
 
     public string $unitPrice;
 
+    public string $discountAmount;
+
     public function __construct(
         string $lineKey,
         public int $quantity,
         string $unitPrice,
         public bool $isTaxable = true,
+        string $discountAmount = '0',
     ) {
         $lineKey = trim($lineKey);
 
@@ -31,6 +34,10 @@ final readonly class TaxLineItemInput
         $this->unitPrice = DecimalString::normalizeNonNegative(
             $unitPrice,
             'Unit price must be a non-negative decimal amount.',
+        );
+        $this->discountAmount = DecimalString::normalizeNonNegative(
+            $discountAmount,
+            'Discount amount must be a non-negative decimal amount.',
         );
     }
 }

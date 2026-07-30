@@ -43,7 +43,7 @@
 
 
     <div>
-        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30] font-poppins">Security & Authentication</h1>
+        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30]">Security & Authentication</h1>
         <p class="text-[19px] text-[#434654] mt-2 max-w-4xl">Configure identity providers, access policies, and platform hardening settings.</p>
     </div>
 
@@ -66,7 +66,7 @@
                         </svg>
                     </div>
                     <div>
-                        <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">Multi-Factor Authentication</h2>
+                        <h2 class="text-lg font-medium text-[#0B1C30]">Multi-Factor Authentication</h2>
                         <p class="text-sm text-[#434654]">Enforce extra security for all admin accounts</p>
                     </div>
                 </div>
@@ -76,7 +76,7 @@
             <div class="bg-[#EFF4FF] rounded-xl p-4 border border-[#DEE5F2] mb-4">
                 <div class="flex items-center justify-between gap-4">
                     <div>
-                        <h3 class="text-base font-medium text-[#1A293D] font-poppins">Enforce 2FA for all Administrators</h3>
+                        <h3 class="text-base font-medium text-[#1A293D]">Enforce 2FA for all Administrators</h3>
                         <p class="text-sm text-[#4A5568]">Requires TOTP or Hardware key on every login</p>
                     </div>
                     <button class="w-12 h-7 rounded-full bg-[#003D9B] relative shrink-0" aria-label="toggle">
@@ -87,7 +87,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="border border-[#DCE3EF] rounded-xl p-4">
-                    <h4 class="text-[11px] font-medium uppercase tracking-[0.12em] text-[#003D9B] mb-3 font-poppins">Trusted Methods</h4>
+                    <h4 class="text-[11px] font-medium uppercase tracking-[0.12em] text-[#003D9B] mb-3">Trusted Methods</h4>
                     <div class="space-y-2">
                         <div class="flex items-center gap-2 text-base text-[#1A293D]">
                             <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
@@ -105,7 +105,7 @@
                 </div>
 
                 <div class="border border-[#DCE3EF] rounded-xl p-4 bg-[#F8FAFD]">
-                    <h4 class="text-[11px] font-medium uppercase tracking-[0.12em] text-[#A1A8B5] mb-3 font-poppins">Legacy Methods</h4>
+                    <h4 class="text-[11px] font-medium uppercase tracking-[0.12em] text-[#A1A8B5] mb-3">Legacy Methods</h4>
                     <div class="flex items-center gap-2 text-base text-[#8B94A5]">
                         <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
                             <path d="M5.83333 11.6667C5.02639 11.6667 4.26806 11.5135 3.55833 11.2073C2.84861 10.901 2.23125 10.4854 1.70625 9.96042C1.18125 9.43542 0.765625 8.81806 0.459375 8.10833C0.153125 7.39861 0 6.64028 0 5.83333C0 5.02639 0.153125 4.26806 0.459375 3.55833C0.765625 2.84861 1.18125 2.23125 1.70625 1.70625C2.23125 1.18125 2.84861 0.765625 3.55833 0.459375C4.26806 0.153125 5.02639 0 5.83333 0C6.64028 0 7.39861 0.153125 8.10833 0.459375C8.81806 0.765625 9.43542 1.18125 9.96042 1.70625C10.4854 2.23125 10.901 2.84861 11.2073 3.55833C11.5135 4.26806 11.6667 5.02639 11.6667 5.83333C11.6667 6.64028 11.5135 7.39861 11.2073 8.10833C10.901 8.81806 10.4854 9.43542 9.96042 9.96042C9.43542 10.4854 8.81806 10.901 8.10833 11.2073C7.39861 11.5135 6.64028 11.6667 5.83333 11.6667Z" fill="#9CA6B9"/>
@@ -124,7 +124,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">Session Management</h2>
+                    <h2 class="text-lg font-medium text-[#0B1C30]">Session Management</h2>
                     <p class="text-sm text-[#434654]">Control active connection limits</p>
                 </div>
             </div>
@@ -168,7 +168,7 @@
                         </svg>
                     </div>
                     <div>
-                        <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">SSO / OAuth Providers</h2>
+                        <h2 class="text-lg font-medium text-[#0B1C30]">SSO / OAuth Providers</h2>
                         <p class="text-sm text-[#434654]">Manage external identity federation</p>
                     </div>
                 </div>
@@ -244,7 +244,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">Password Policy</h2>
+                    <h2 class="text-lg font-medium text-[#0B1C30]">Password Policy</h2>
                     <p class="text-sm text-[#434654]">Complexity and rotation standards</p>
                 </div>
             </div>
@@ -261,7 +261,7 @@
             </div>
 
             <div>
-                <h3 class="text-[12px] font-medium uppercase tracking-[0.12em] text-[#333D50] mb-3 font-poppins">Complexity Requirements</h3>
+                <h3 class="text-[12px] font-medium uppercase tracking-[0.12em] text-[#333D50] mb-3">Complexity Requirements</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-8 text-base text-[#0B1C30] mb-5">
                     <label class="flex items-center gap-2">
                         <input type="checkbox" class="w-5 h-5 accent-[#003D9B]" checked>

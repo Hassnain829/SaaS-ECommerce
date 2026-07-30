@@ -12,6 +12,7 @@ use App\Support\Catalog\ProductImportMerchantMessages;
 use App\Support\Catalog\ProductImportQueue;
 use App\Support\Catalog\ProductImportRowPayloadSanitizer;
 use App\Support\Catalog\SpreadsheetValueNormalizer;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ final class ProductImportProcessor
         private readonly ProductCatalogImageDownloader $imageDownloader,
         private readonly ProductImportVariantFinalizer $variantFinalizer,
         private readonly ProductImportRowMapper $rowMapper,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     private function maxRows(): int
@@ -427,6 +429,8 @@ final class ProductImportProcessor
                 ]),
                 'result_summary' => $completedSummary,
             ]);
+
+            $this->commerceNotifications->importFinished($import->fresh(), false);
         } catch (\Throwable $e) {
             Log::channel('import')->error('product_import_failed', [
                 'import_id' => $import->id,
@@ -454,6 +458,8 @@ final class ProductImportProcessor
                 'fatal_error' => true,
             ]),
         ]);
+
+        $this->commerceNotifications->importFinished($import->fresh(), true);
     }
 
     /**

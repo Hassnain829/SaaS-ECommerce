@@ -57,6 +57,7 @@
             .fedex-eula-scroll-viewport,
             .fedex-eula-scroll-viewport.fedex-eula-printing {
                 max-height: none !important;
+                min-height: 0 !important;
                 height: auto !important;
                 overflow: visible !important;
                 border: 0 !important;
@@ -154,6 +155,13 @@
                 <p class="font-semibold text-[#0F172A]">FedEx End User License Agreement</p>
                 <p>{{ $eulaVersion }}</p>
                 <p>{{ (int) ($eulaExpectedPages ?? 11) }} pages</p>
+                <p class="mt-2 font-medium text-[#0F172A]" x-text="`${pagesRendered} of {{ (int) ($eulaExpectedPages ?? 11) }} pages loaded`"></p>
+                <p x-show="! scrollCompleted" class="mt-1 text-amber-800">
+                    Acceptance locked until the end of page {{ (int) ($eulaExpectedPages ?? 11) }}
+                </p>
+                <p x-show="scrollCompleted" x-cloak class="mt-1 text-emerald-700">
+                    All {{ (int) ($eulaExpectedPages ?? 11) }} pages reviewed
+                </p>
             </div>
 
             @unless ($eulaAvailable && $eulaValid)
@@ -164,7 +172,7 @@
                 <div
                     id="{{ $viewerId }}"
                     data-fedex-eula-config='@json($fedexEulaViewerConfig)'
-                    class="fedex-eula-scroll-viewport mt-4 max-h-[520px] overflow-y-auto rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4"
+                    class="fedex-eula-scroll-viewport mt-4 min-h-[70vh] h-[min(1120px,calc(100dvh-11rem))] overflow-y-auto rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4"
                 >
                     <p data-fedex-eula-loading class="text-sm text-[#64748B]" x-show="loading">Loading agreement pages…</p>
                     <p data-fedex-eula-error class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"></p>
@@ -174,7 +182,7 @@
                 </div>
 
                 <p x-show="! scrollCompleted && pagesRendered === {{ (int) ($eulaExpectedPages ?? 11) }}" class="mt-2 text-xs text-[#64748B]">
-                    Scroll to the end of the agreement to enable acceptance.
+                    Scroll to the end of page {{ (int) ($eulaExpectedPages ?? 11) }} to enable acceptance.
                 </p>
 
                 <form method="POST" action="{{ route('settings.shipping.fedex-integrator.eula.accept', $session) }}" class="fedex-eula-print-evidence mt-4 space-y-3">
@@ -194,7 +202,7 @@
                     <div class="fedex-eula-print-actions flex flex-wrap items-center gap-3">
                         <button
                             type="submit"
-                            class="rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                             :disabled="! canSubmit()"
                         >
                             I accept

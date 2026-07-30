@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-Sidebar')
+@extends('layouts.admin.admin-Sidebar')
 
 @section('title', 'Admin Profile')
 
@@ -75,7 +75,7 @@
             <!-- User info -->
             <div class="flex-1">
                 <div class="flex flex-wrap items-center gap-3">
-                    <h1 class="text-3xl md:text-4xl font-medium font-poppins">Alex Rivers</h1>
+                    <h1 class="text-3xl md:text-4xl font-medium">Alex Rivers</h1>
                     <span class="inline-flex items-center gap-1 px-3 py-1 bg-[#4EDEA3] text-[#002113] text-xs font-bold uppercase rounded-full">
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                             <path d="M4.43333 11.25L3.325 9.38333L1.225 8.91667L1.42917 6.75833L0 5.125L1.42917 3.49167L1.225 1.33333L3.325 0.866667L4.43333 0L6.41667 0.845833L8.4 0L9.50833 1.86667L11.6083 2.33333L11.4042 4.49167L12.8333 6.125L11.4042 7.75833L11.6083 9.91667L9.50833 10.3833L8.4 12.25L6.41667 11.4042L4.43333 11.25ZM5.80417 7.19583L9.1 3.9L8.28333 3.05417L5.80417 5.53333L4.55 4.30833L3.73333 5.125L5.80417 7.19583Z" fill="#002113"/>
@@ -115,14 +115,14 @@
         </nav>
     </div>
 
-    <!-- Main twoâ€‘column grid -->
+    <!-- Main two‑column grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Left column (2/3) -->
         <div class="lg:col-span-2 space-y-6">
             <!-- Personal Information Card -->
             <div class="bg-white rounded-2xl p-6 border border-[#C3C6D6]/20 shadow-sm">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">Personal Information</h2>
+                    <h2 class="text-lg font-medium text-[#0B1C30]">Personal Information</h2>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                         <path d="M8 8C6.9 8 5.95833 7.60833 5.175 6.825C4.39167 6.04167 4 5.1 4 4C4 2.9 4.39167 1.95833 5.175 1.175C5.95833 0.391667 6.9 0 8 0C9.1 0 10.0417 0.391667 10.825 1.175C11.6083 1.95833 12 2.9 12 4C12 5.1 11.6083 6.04167 10.825 6.825C10.0417 7.60833 9.1 8 8 8ZM0 16V13.2C0 12.6333 0.145833 12.1125 0.4375 11.6375C0.729167 11.1625 1.11667 10.8 1.6 10.55C2.63333 10.0333 3.68333 9.64583 4.75 9.3875C5.81667 9.12917 6.9 9 8 9C9.1 9 10.1833 9.12917 11.25 9.3875C12.3167 9.64583 13.3667 10.0333 14.4 10.55C14.8833 10.8 15.2708 11.1625 15.5625 11.6375C15.8542 12.1125 16 12.6333 16 13.2V16H0Z" fill="#434654" fill-opacity="0.4"/>
                     </svg>
@@ -174,7 +174,7 @@
             <!-- Account Preferences Card -->
             <div class="bg-white rounded-2xl p-6 border border-[#C3C6D6]/20 shadow-sm">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-medium text-[#0B1C30] font-poppins">Account Preferences</h2>
+                    <h2 class="text-lg font-medium text-[#0B1C30]">Account Preferences</h2>
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                         <path d="M8 18V12H10V14H18V16H10V18H8ZM0 16V14H6V16H0ZM4 12V10H0V8H4V6H6V12H4ZM8 10V8H18V10H8ZM12 6V0H14V2H18V4H14V6H12ZM0 4V2H10V4H0Z" fill="#434654" fill-opacity="0.4"/>
                     </svg>
@@ -242,7 +242,7 @@
             <!-- Organization Card -->
             <div class="bg-[#EFF4FF] rounded-2xl p-6 border border-[#003D9B]/10">
                 <div class="flex items-center gap-4 mb-4">
-                    <div class="w-12 h-12 bg-[#0052CC] rounded-2xl flex items-center justify-center">
+                    <div class="w-12 h-12 bg-brand rounded-2xl flex items-center justify-center">
                         <svg width="20" height="18" viewBox="0 0 20 18" fill="none">
                             <path d="M0 18V0H10V4H20V18H0ZM2 16H8V14H2V16ZM2 12H8V10H2V12ZM2 8H8V6H2V8ZM2 4H8V2H2V4ZM10 16H18V6H10V16ZM12 10V8H16V10H12ZM12 14V12H16V14H12Z" fill="white"/>
                         </svg>

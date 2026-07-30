@@ -34,7 +34,7 @@
                     <a href="{{ route('generalSettings') }}" class="text-[#475569] font-inter font-medium">Settings</a>
                 </nav>
                 <div class="flex items-center gap-3 sm:gap-4">
-                    <a href="{{ route('dashboard') }}" class="hidden sm:inline-flex bg-[#0052CC] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">Go to Dashboard</a>
+                    <a href="{{ route('dashboard') }}" class="hidden sm:inline-flex bg-brand text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">Go to Dashboard</a>
                     <div class="w-10 h-10 rounded-full border border-[#E2E8F0] overflow-hidden bg-[#E2E8F0]">
                         <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <rect width="40" height="40" rx="20" fill="#CBD5E1" />
@@ -53,11 +53,11 @@
                 <!-- progress stepper (three steps, all complete) -->
                 <div class="w-full max-w-[672px] mb-12 relative">
                     <!-- connecting line (behind circles) -->
-                    <div class="absolute top-5 left-[calc(16.67%+20px)] right-[calc(16.67%+20px)] h-0.5 bg-[#0052CC] z-0"></div>
+                    <div class="absolute top-5 left-[calc(16.67%+20px)] right-[calc(16.67%+20px)] h-0.5 bg-brand z-0"></div>
                     <div class="relative z-10 flex justify-between items-start w-full">
                         <!-- step 1: Create Store -->
                         <div class="flex flex-col items-center w-1/3">
-                            <div class="w-10 h-10 bg-[#0052CC] rounded-full flex items-center justify-center">
+                            <div class="w-10 h-10 bg-brand rounded-full flex items-center justify-center">
                                 <svg width="14" height="11" viewBox="0 0 14 11" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M4.75 10.0208L0 5.27083L1.1875 4.08333L4.75 7.64583L12.3958 0L13.5833 1.1875L4.75 10.0208Z" fill="white"/>
                                 </svg>
@@ -66,7 +66,7 @@
                         </div>
                         <!-- step 2: Add Product -->
                         <div class="flex flex-col items-center w-1/3">
-                            <div class="w-10 h-10 bg-[#0052CC] rounded-full flex items-center justify-center">
+                            <div class="w-10 h-10 bg-brand rounded-full flex items-center justify-center">
                                 <svg width="14" height="11" viewBox="0 0 14 11" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M4.75 10.0208L0 5.27083L1.1875 4.08333L4.75 7.64583L12.3958 0L13.5833 1.1875L4.75 10.0208Z" fill="white"/>
                                 </svg>
@@ -75,7 +75,7 @@
                         </div>
                         <!-- step 3: Launch -->
                         <div class="flex flex-col items-center w-1/3">
-                            <div class="w-10 h-10 bg-[#0052CC] rounded-full flex items-center justify-center">
+                            <div class="w-10 h-10 bg-brand rounded-full flex items-center justify-center">
                                 <svg width="14" height="11" viewBox="0 0 14 11" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M4.75 10.0208L0 5.27083L1.1875 4.08333L4.75 7.64583L12.3958 0L13.5833 1.1875L4.75 10.0208Z" fill="white"/>
                                 </svg>
@@ -87,12 +87,12 @@
 
                 <!-- celebration icon + text -->
                 <div class="flex flex-col items-center text-center mb-10">
-                    <div class="w-32 h-32 bg-[#0052CC]/10 rounded-full flex items-center justify-center">
+                    <div class="w-32 h-32 bg-brand/10 rounded-full flex items-center justify-center">
                         <svg width="54" height="52" viewBox="0 0 54 52" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M0 51.25L12.5 16.25L35 38.75L0 51.25ZM8.25 43L25.875 36.75L14.5 25.375L8.25 43ZM31.375 27.625L28.75 25L42.75 11C44.0833 9.66667 45.6875 9 47.5625 9C49.4375 9 51.0417 9.66667 52.375 11L53.875 12.5L51.25 15.125L49.75 13.625C49.1667 13.0417 48.4375 12.75 47.5625 12.75C46.6875 12.75 45.9583 13.0417 45.375 13.625L31.375 27.625ZM21.375 17.625L18.75 15L20.25 13.5C20.8333 12.9167 21.125 12.2083 21.125 11.375C21.125 10.5417 20.8333 9.83333 20.25 9.25L18.625 7.625L21.25 5L22.875 6.625C24.2083 7.95833 24.875 9.54167 24.875 11.375C24.875 13.2083 24.2083 14.7917 22.875 16.125L21.375 17.625ZM26.375 22.625L23.75 20L32.75 11C33.3333 10.4167 33.625 9.6875 33.625 8.8125C33.625 7.9375 33.3333 7.20833 32.75 6.625L28.75 2.625L31.375 0L35.375 4C36.7083 5.33333 37.375 6.9375 37.375 8.8125C37.375 10.6875 36.7083 12.2917 35.375 13.625L26.375 22.625ZM36.375 32.625L33.75 30L37.75 26C39.0833 24.6667 40.6875 24 42.5625 24C44.4375 24 46.0417 24.6667 47.375 26L51.375 30L48.75 32.625L44.75 28.625C44.1667 28.0417 43.4375 27.75 42.5625 27.75C41.6875 27.75 40.9583 28.0417 40.375 28.625L36.375 32.625Z" fill="#0052CC"/>
                         </svg>
                     </div>
-                    <h1 class="text-3xl md:text-4xl font-medium text-[#0F172A] font-[Poppins] mt-6">Congratulations, your store is ready!</h1>
+                    <h1 class="text-3xl md:text-4xl font-medium text-[#0F172A] mt-6">Congratulations, your store is ready!</h1>
                     <p class="text-lg text-[#475569] mt-2 max-w-[500px]">Your marketplace is live and ready for your first customers.</p>
                 </div>
 
@@ -100,12 +100,12 @@
                 <div class="w-full max-w-[448px] mb-8">
                     <div class="bg-white rounded-xl shadow-xl border border-[#0052CC]/10 overflow-hidden">
                         <!-- header with icon -->
-                        <div class="bg-[#0052CC]/5 px-6 py-4 border-b border-[#0052CC]/10">
+                        <div class="bg-brand/5 px-6 py-4 border-b border-[#0052CC]/10">
                             <div class="flex items-center gap-2">
                                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M4 14H6V9H4V14ZM12 14H14V4H12V14ZM8 14H10V11H8V14ZM8 9H10V7H8V9ZM2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H16C16.55 0 17.0208 0.195833 17.4125 0.5875C17.8042 0.979167 18 1.45 18 2V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2ZM2 16H16V2H2V16ZM2 2V16V2Z" fill="#0052CC"/>
                                 </svg>
-                                <span class="text-base font-medium font-poppins text-[#1E293B]">Store Summary</span>
+                                <span class="text-base font-medium text-[#1E293B]">Store Summary</span>
                             </div>
                         </div>
                         <!-- content -->
@@ -147,7 +147,7 @@
                     @csrf
                     <!-- action buttons (448px max) -->
                     <div class="w-full flex flex-col gap-4">
-                        <button type="submit" class="w-full bg-[#0052CC] text-white font-bold py-4 px-8 rounded-xl shadow-lg shadow-[#0052CC]/20 flex items-center justify-center gap-2 hover:bg-[#0042a3] transition">
+                        <button type="submit" class="w-full bg-brand text-white font-bold py-4 px-8 rounded-xl shadow-lg shadow-brand/20 flex items-center justify-center gap-2 hover:bg-brand-hover transition">
                             <span>Go to Dashboard</span>
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M12.175 9H0V7H12.175L6.575 1.4L8 0L16 8L8 16L6.575 14.6L12.175 9Z" fill="white"/>
@@ -177,9 +177,9 @@
 
         <!-- decorative background circles (as per original HTML, subtle) -->
         <div class="absolute bottom-0 left-0 right-0 h-24 flex justify-between items-end px-12 opacity-20 pointer-events-none">
-            <div class="w-28 h-28 bg-[#0052CC]/20 rounded-full -mb-8"></div>
-            <div class="w-64 h-64 bg-[#0052CC]/10 rounded-full -mb-16"></div>
-            <div class="w-28 h-28 bg-[#0052CC]/20 rounded-full -mb-8"></div>
+            <div class="w-28 h-28 bg-brand/20 rounded-full -mb-8"></div>
+            <div class="w-64 h-64 bg-brand/10 rounded-full -mb-16"></div>
+            <div class="w-28 h-28 bg-brand/20 rounded-full -mb-8"></div>
         </div>
     </div>
 </body>

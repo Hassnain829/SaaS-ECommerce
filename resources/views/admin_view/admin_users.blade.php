@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-Sidebar')
+@extends('layouts.admin.admin-Sidebar')
 
 @section('title', 'User Directory')
 
@@ -65,7 +65,7 @@
                 </svg>
                 <span class="text-[#003D9B] font-bold">Directories</span>
             </div>
-            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30] font-poppins">User Directory</h1>
+            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30]">User Directory</h1>
             <p class="text-sm md:text-base text-[#434654] mt-1">Manage global user access, permissions, and security protocols.</p>
         </div>
         <!-- Action buttons -->
@@ -145,7 +145,7 @@
         </div>
 
         <!-- Quick Stats card (1 column) -->
-        <div class="bg-[#0052CC] rounded-xl p-5 md:p-6 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] flex flex-col justify-between">
+        <div class="bg-brand rounded-xl p-5 md:p-6 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] flex flex-col justify-between">
             <div class="flex justify-end">
                 <svg width="24" height="30" viewBox="0 0 24 30" fill="none">
                     <g opacity="0.4">
@@ -363,7 +363,7 @@
         <!-- Critical Security Alert -->
         <div class="bg-[#EFF4FF] rounded-2xl p-6 border-l-4 border-l-[#003D9B]">
             <div class="flex justify-between items-start mb-4">
-                <h3 class="text-lg font-medium text-[#0B1C30] font-poppins">Critical Security Alert</h3>
+                <h3 class="text-lg font-medium text-[#0B1C30]">Critical Security Alert</h3>
                 <span class="px-2 py-1 bg-[#BA1A1A] text-white text-[10px] font-bold uppercase rounded">Action Required</span>
             </div>
             <p class="text-sm text-[#434654] leading-relaxed mb-4">
@@ -380,7 +380,7 @@
         <!-- User Growth Velocity -->
         <div class="bg-white rounded-2xl p-6 shadow-[0_1px_2px_rgba(0,0,0,0.05),0_0_0_1px_rgba(195,198,214,0.1)] relative overflow-hidden">
             <div class="relative z-10">
-                <h3 class="text-lg font-medium text-[#0B1C30] mb-1 font-poppins">User Growth Velocity</h3>
+                <h3 class="text-lg font-medium text-[#0B1C30] mb-1">User Growth Velocity</h3>
                 <p class="text-sm text-[#434654]">+12% growth in new users this month</p>
             </div>
             <!-- decorative abstract pattern -->

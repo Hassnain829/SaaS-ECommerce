@@ -74,7 +74,7 @@
     @php
         $navSelling = request()->routeIs('products', 'products.' . 'create', 'orders', 'orderViewDetails', 'customers');
         $navActivity = request()->routeIs('team-members.index', 'analytics', 'notifications');
-        $navSettings = request()->routeIs('billingSubscription', 'generalSettings', 'settings.payments.*', 'settings.locations.*', 'settings.taxes.*', 'shippingAutomation', 'settings.shipping.*', 'developer-storefront.*', 'security');
+        $navSettings = request()->routeIs('billingSubscription', 'generalSettings', 'settings.payments.*', 'settings.locations.*', 'settings.taxes.*', 'settings.coupons.*', 'shippingAutomation', 'settings.shipping.*', 'developer-storefront.*', 'security');
     @endphp
 
     <nav id="merchantNav" class="sidebar-nav-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2.5 pb-3 pt-1">
@@ -183,6 +183,12 @@
                     </svg>
                     <span>Checkout &amp; tax</span>
                 </a>
+                <a href="{{ route('settings.coupons.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.coupons.*')])>
+                    <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M11.7 2H5C3.9 2 3 2.9 3 4V10.7C3 11.2 3.2 11.7 3.6 12.1L9.5 18L18 9.5L12.1 3.6C12 3.5 11.8 3.3 11.7 2ZM6.5 7C5.7 7 5 6.3 5 5.5S5.7 4 6.5 4 8 4.7 8 5.5 7.3 7 6.5 7ZM8 13.5L6.5 12 12 6.5 13.5 8 8 13.5Z" fill="currentColor"/>
+                    </svg>
+                    <span>Discounts</span>
+                </a>
                 <a href="{{ route('shippingAutomation') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('shippingAutomation', 'settings.shipping.*')])>
                     <svg class="shrink-0" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                         <path d="M6 17C5.45 17 4.97917 16.8042 4.5875 16.4125C4.19583 16.0208 4 15.55 4 15C4 14.45 4.19583 13.9792 4.5875 13.5875C4.97917 13.1958 5.45 13 6 13C6.55 13 7.02083 13.1958 7.4125 13.5875C7.80417 13.9792 8 14.45 8 15C8 15.55 7.80417 16.0208 7.4125 16.4125C7.02083 16.8042 6.55 17 6 17ZM14 17C13.45 17 12.9792 16.8042 12.5875 16.4125C12.1958 16.0208 12 15.55 12 15C12 14.45 12.1958 13.9792 12.5875 13.5875C12.9792 13.1958 13.45 13 14 13C14.55 13 15.0208 13.1958 15.4125 13.5875C15.8042 13.9792 16 14.45 16 15C16 15.55 15.8042 16.0208 15.4125 16.4125C15.0208 16.8042 14.55 17 14 17ZM3 3H7L9 7H17C17.2833 7 17.5208 7.09583 17.7125 7.2875C17.9042 7.47917 18 7.71667 18 8C18 8.08333 17.9917 8.17083 17.975 8.2625C17.9583 8.35417 17.925 8.44167 17.875 8.525L16.1 11.75C15.9167 12.0833 15.6708 12.3333 15.3625 12.5C15.0542 12.6667 14.7167 12.75 14.35 12.75H8.25C7.88333 12.75 7.56667 12.675 7.3 12.525C7.03333 12.375 6.83333 12.1667 6.7 11.9L3 4H1V2H3V3Z" fill="currentColor"/>
@@ -243,88 +249,47 @@
 <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
     @hasSection('topbar')
         @yield('topbar')
+    @else
+        <x-ui.merchant-topbar />
     @endif
 
-    <div class="merchant-app flex-1 space-y-6 overflow-y-auto p-4 lg:p-8">
+    <div class="merchant-app ui-page-enter flex-1 space-y-6 overflow-y-auto p-4 lg:p-8">
         @yield('content')
     </div>
 </main>
 
 <script>
-    function closeAllProfileMenus() {
-      document.querySelectorAll('.profileMenu').forEach(function (menu) {
+    function closeAllMerchantProfileMenus() {
+      document.querySelectorAll('[data-merchant-profile-dropdown]').forEach(function (menu) {
         menu.classList.add('hidden');
       });
+      document.querySelectorAll('[data-merchant-profile-toggle]').forEach(function (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+      });
     }
-    
 
-    function initTopbarProfileMenu(profileSettingsUrl, logoutUrl) {
-      var headers = document.querySelectorAll('header');
-      headers.forEach(function (header) {
-        var avatar = header.querySelector('div.rounded-full.overflow-hidden');
-        if (avatar && avatar.closest('aside')) return;
-        if (avatar && avatar.closest('.profile-menu-wrapper')) return;
+    function initMerchantProfileMenus() {
+      document.querySelectorAll('[data-merchant-profile-menu]').forEach(function (wrapper) {
+        if (wrapper.dataset.bound === 'true') return;
+        wrapper.dataset.bound = 'true';
 
-        function createProfileWrapper() {
-          var wrapper = document.createElement('div');
-          wrapper.className = 'relative profile-menu-wrapper shrink-0';
-
-          var trigger = document.createElement('button');
-          trigger.type = 'button';
-          trigger.className = 'w-9 h-9 rounded-full bg-stone-200 border border-stone-300 overflow-hidden shrink-0 profileMenuToggle';
-          trigger.setAttribute('aria-haspopup', 'true');
-          trigger.setAttribute('aria-expanded', 'false');
-          trigger.setAttribute('aria-label', 'Open profile menu');
-          trigger.innerHTML =
-            '<svg width=\"36\" height=\"36\" viewBox=\"0 0 36 36\" fill=\"none\">' +
-            '<circle cx=\"18\" cy=\"13\" r=\"6\" fill=\"#94A3B8\"/>' +
-            '<path d=\"M28 28C28 24 24 22 18 22C12 22 8 24 8 28\" fill=\"#94A3B8\"/>' +
-            '</svg>';
-
-          var menu = document.createElement('div');
-          menu.className = 'profileMenu hidden absolute right-0 mt-2 w-44 rounded-xl border border-stone-200 bg-white py-1 shadow-lg shadow-stone-900/15 z-50';
-          menu.innerHTML =
-            '<a href=\"' + profileSettingsUrl + '\" class=\"block px-4 py-2 text-sm text-stone-800 hover:bg-stone-50\">Profile Settings</a>' +
-            '<a href=\"' + logoutUrl + '\" class=\"block px-4 py-2 text-sm text-rose-700 hover:bg-rose-50\">Logout</a>';
-
-          wrapper.appendChild(trigger);
-          wrapper.appendChild(menu);
-          return { wrapper: wrapper, trigger: trigger, menu: menu };
-        }
-
-        var parts = createProfileWrapper();
-        var wrapper = parts.wrapper;
-        var trigger = parts.trigger;
-        var menu = parts.menu;
-
-        if (avatar) {
-          trigger.className = avatar.className + ' profileMenuToggle';
-          trigger.innerHTML = avatar.innerHTML;
-          avatar.replaceWith(wrapper);
-        } else {
-          var rightActions = header.querySelector('.flex.items-center.gap-3.shrink-0, .flex.items-center.gap-4.shrink-0, .flex.items-center.gap-2.shrink-0');
-          if (rightActions) {
-            rightActions.appendChild(wrapper);
-          } else {
-            header.appendChild(wrapper);
-          }
-        }
+        var trigger = wrapper.querySelector('[data-merchant-profile-toggle]');
+        var menu = wrapper.querySelector('[data-merchant-profile-dropdown]');
+        if (!trigger || !menu) return;
 
         trigger.addEventListener('click', function (e) {
           e.stopPropagation();
           var isOpen = !menu.classList.contains('hidden');
-          closeAllProfileMenus();
+          closeAllMerchantProfileMenus();
           if (!isOpen) {
             menu.classList.remove('hidden');
             trigger.setAttribute('aria-expanded', 'true');
-          } else {
-            trigger.setAttribute('aria-expanded', 'false');
           }
         });
       });
 
       document.addEventListener('click', function () {
-        closeAllProfileMenus();
+        closeAllMerchantProfileMenus();
       });
     }
 
@@ -355,7 +320,7 @@
     });
 
     document.addEventListener('DOMContentLoaded', function () {
-      initTopbarProfileMenu("{{ route('profileSettings') }}", "{{ route('logout') }}");
+      initMerchantProfileMenus();
 
       var merchantNav = document.getElementById('merchantNav');
       if (merchantNav) {

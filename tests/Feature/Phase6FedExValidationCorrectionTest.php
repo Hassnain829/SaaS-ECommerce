@@ -307,21 +307,53 @@ class Phase6FedExValidationCorrectionTest extends TestCase
         $this->assertNull($eventCheck['event_id']);
     }
 
+    public function test_preflight_requires_us01_and_us03_locked_ship_events(): void
+    {
+        [$owner, $store, $account] = $this->integratorAccountFixture('US01 US03 Preflight Store');
+
+        $assessment = app(\App\Services\Carriers\FedEx\Validation\FedExValidationPreflightService::class)
+            ->assess($store, $account);
+
+        $us01 = collect($assessment['checks'])->firstWhere('key', 'ship_us01_pdf_event');
+        $us03 = collect($assessment['checks'])->firstWhere('key', 'ship_us03_pdf_event');
+
+        $this->assertNotNull($us01);
+        $this->assertNotNull($us03);
+        $this->assertSame('not_tested', $us01['status']);
+        $this->assertSame('not_tested', $us03['status']);
+        $this->assertTrue((bool) $us01['required']);
+        $this->assertTrue((bool) $us03['required']);
+    }
+
     public function test_us04_payload_preserves_home_delivery_premium_detail(): void
     {
         [, , $account] = $this->integratorAccountFixture('US04 Payload Store');
         $fixture = app(FedExShipTestCaseFixtureService::class)->fixture('IntegratorUS04');
         $payload = app(FedExShipPayloadFactory::class)->buildShipmentPayload($account, $fixture, 'PNG');
 
+        $this->assertSame('SENDER', data_get($payload, 'requestedShipment.shippingChargesPayment.paymentType'));
         $this->assertSame(
             'EVENING',
-            data_get($payload, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail.homeDeliveryPremiumType'),
+            data_get($payload, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail.homedeliveryPremiumType'),
         );
-        $this->assertSame(
-            300.0,
-            (float) data_get($payload, 'requestedShipment.requestedPackageLineItems.0.declaredValue.amount'),
+        $this->assertArrayNotHasKey(
+            'homeDeliveryPremiumType',
+            (array) data_get($payload, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail', []),
         );
-        $this->assertContains('NON_STANDARD_CONTAINER', data_get($payload, 'requestedShipment.requestedPackageLineItems.0.packageSpecialServices.specialServiceTypes'));
+        $this->assertArrayNotHasKey(
+            'deliveryDate',
+            (array) data_get($payload, 'requestedShipment.shipmentSpecialServices.homeDeliveryPremiumDetail', []),
+        );
+        $this->assertSame(300.0, (float) data_get($payload, 'requestedShipment.totalDeclaredValue.amount'));
+        $this->assertSame('USD', data_get($payload, 'requestedShipment.totalDeclaredValue.currency'));
+        $this->assertSame('9015550101', data_get($payload, 'requestedShipment.recipients.0.contact.phoneNumber'));
+        $this->assertArrayNotHasKey('phoneExtension', (array) data_get($payload, 'requestedShipment.recipients.0.contact', []));
+        $this->assertNull(data_get($payload, 'requestedShipment.requestedPackageLineItems.0.declaredValue'));
+        $this->assertNull(data_get($payload, 'requestedShipment.requestedPackageLineItems.0.packageSpecialServices'));
+        $this->assertNotContains(
+            'NON_STANDARD_CONTAINER',
+            (array) data_get($payload, 'requestedShipment.requestedPackageLineItems.0.packageSpecialServices.specialServiceTypes', []),
+        );
         $this->assertContains('HOME_DELIVERY_PREMIUM', data_get($payload, 'requestedShipment.shipmentSpecialServices.specialServiceTypes'));
     }
 
@@ -419,13 +451,62 @@ class Phase6FedExValidationCorrectionTest extends TestCase
                 true,
             );
             $payment = data_get($requestJson, 'request.body.requestedShipment.shippingChargesPayment');
+            $shipment = data_get($requestJson, 'request.body.requestedShipment');
 
             $this->assertIsArray($payment, $folder);
             $this->assertSame($paymentType, data_get($payment, 'paymentType'), $folder);
             $this->assertNotSame('[REDACTED]', $payment);
+            $this->assertSame('[REDACTED]', data_get($requestJson, 'request.body.accountNumber.value'), $folder);
+
+            if ($folder === '05_ship_us02_zplii') {
+                $types = (array) data_get($shipment, 'shipmentSpecialServices.specialServiceTypes', []);
+                $this->assertContains('EVENT_NOTIFICATION', $types);
+                $this->assertContains('SATURDAY_DELIVERY', $types);
+                $this->assertSame('ZPLII', data_get($shipment, 'labelSpecification.imageType'));
+            }
+
+            if ($folder === '06_ship_us04_png') {
+                $this->assertSame('PNG', data_get($shipment, 'labelSpecification.imageType'));
+            }
+
+            if ($folder === '07_ship_us05_pdf_mps') {
+                $this->assertSame('PDF', data_get($shipment, 'labelSpecification.imageType'));
+                $this->assertSame('[REDACTED]', data_get($payment, 'payor.responsibleParty.accountNumber.value'));
+            }
         }
 
         $zip->close();
+    }
+
+    public function test_preflight_fails_when_ship_export_payment_is_wholly_redacted(): void
+    {
+        [, $store, $account] = $this->integratorAccountFixture('Ship Export Redacted Payment Store');
+        $bodies = FedExShipTestEvidenceFactory::eventBodies($account, 'IntegratorUS02');
+        $bodies['request']['requestedShipment']['shippingChargesPayment'] = '[REDACTED]';
+
+        CarrierApiEvent::query()->create([
+            'store_id' => $store->id,
+            'carrier_account_id' => $account->id,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'action' => CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL,
+            'scenario_key' => 'ship_us02_zplii',
+            'test_case_key' => 'IntegratorUS02',
+            'label_format' => 'ZPLII',
+            'status' => CarrierApiEvent::STATUS_SUCCEEDED,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'http_status' => 200,
+            'http_method' => 'POST',
+            'endpoint' => '/ship/v1/shipments',
+            'request_body_encrypted' => $bodies['request'],
+            'response_body_encrypted' => $bodies['response'],
+            'evidence_recorded_at' => now(),
+        ]);
+
+        $assessment = app(FedExValidationPreflightService::class)->assess($store, $account);
+        $exportCheck = collect($assessment['checks'])->firstWhere('key', 'ship_us02_zplii_export_payload');
+
+        $this->assertSame('failed', $exportCheck['status'] ?? null);
+        $this->assertStringContainsString('shipping_charges_payment_wholly_redacted', (string) ($exportCheck['explanation'] ?? ''));
     }
 
     public function test_redacted_placeholder_does_not_block_secret_scan(): void

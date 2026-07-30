@@ -3,12 +3,8 @@
 @section('title', 'Developer test storefront | BaaS Core')
 
 @section('topbar')
-    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-        <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-            <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-        </button>
-        <h1 class="text-lg md:text-xl font-poppins font-semibold">Developer test storefront</h1>
-    </header>
+    <x-ui.merchant-topbar title="Developer test storefront" lead="Local API connection for catalog and order testing.">
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -21,7 +17,7 @@
 
         <section class="bg-white border border-[#E2E8F0] rounded-xl shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-[#F1F5F9]">
-                <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Connect a React dev app</h2>
+                <h2 class="text-xl font-semibold text-[#0F172A]">Connect a React dev app</h2>
                 <p class="text-sm text-[#64748B] mt-1">
                     Use this flow to verify catalog data and external checkout sync against your live store data. Intended for developers and staging; treat the token like a password.
                 </p>
@@ -98,7 +94,7 @@
                     @if (auth()->user()->hasStorePermission($selectedStore, \App\Support\StorePermission::DEVELOPER_API_MANAGE))
                         <form method="post" action="{{ route('developer-storefront.token.generate') }}">
                             @csrf
-                            <button type="submit" class="h-10 px-5 rounded-lg bg-[#0052CC] text-white text-sm font-semibold">
+                            <button type="submit" class="h-10 px-5 rounded-lg bg-brand text-white text-sm font-semibold">
                                 {{ $tokenConfigured ? 'Regenerate token' : 'Generate token' }}
                             </button>
                         </form>

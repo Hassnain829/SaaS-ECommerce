@@ -275,6 +275,16 @@ class Store extends Model
         return $this->hasMany(OrderTaxLine::class);
     }
 
+    public function coupons(): HasMany
+    {
+        return $this->hasMany(Coupon::class);
+    }
+
+    public function couponRedemptions(): HasMany
+    {
+        return $this->hasMany(CouponRedemption::class);
+    }
+
     public function customerTags(): HasMany
     {
         return $this->hasMany(CustomerTag::class);

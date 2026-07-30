@@ -3,53 +3,16 @@
 @section('title', 'Dashboard — '.config('app.name'))
 
 @section('topbar')
-<header class="sticky top-0 z-30 flex shrink-0 items-center justify-between gap-3 border-b border-stone-200/80 bg-white/92 px-4 py-3 shadow-sm shadow-stone-900/[0.03] backdrop-blur-md lg:px-8">
-    <button id="sidebarToggle" onclick="openSidebar()" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-600 shadow-sm transition hover:border-stone-300 hover:bg-stone-50 md:hidden" aria-label="Open menu">
-        <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
-            <path d="M0 14V12H20V14H0ZM0 7V5H20V7H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
-        </svg>
-    </button>
-
-    <div class="relative flex-1 max-w-xs sm:max-w-sm md:max-w-md">
-        <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-                <path d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z" fill="currentColor"/>
-            </svg>
-        </span>
-        <input type="search" name="q" autocomplete="off" placeholder="Search products, orders, customers…" class="w-full rounded-xl border border-stone-200 bg-stone-50 py-2.5 pl-10 pr-4 text-sm text-stone-900 shadow-inner placeholder:text-stone-500 focus:border-indigo-400/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-    </div>
-
-    <div class="flex shrink-0 items-center gap-2 sm:gap-3">
-        <a href="{{ route('products') }}" class="hidden items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover sm:inline-flex">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="currentColor"/>
-            </svg>
-            <span>Products</span>
-        </a>
-
-        <div class="hidden h-6 w-px bg-stone-200 sm:block"></div>
-
-        <a href="{{ route('notifications') }}" class="relative flex rounded-full p-2 text-stone-500 transition hover:bg-stone-100 hover:text-stone-800" aria-label="Notifications">
-            <svg width="16" height="20" viewBox="0 0 16 20" fill="none" aria-hidden="true">
-                <path d="M0 17V15H2V8C2 6.61667 2.41667 5.3875 3.25 4.3125C4.08333 3.2375 5.16667 2.53333 6.5 2.2V1.5C6.5 1.08333 6.64583 0.729167 6.9375 0.4375C7.22917 0.145833 7.58333 0 8 0C8.41667 0 8.77083 0.145833 9.0625 0.4375C9.35417 0.729167 9.5 1.08333 9.5 1.5V2.2C10.8333 2.53333 11.9167 3.2375 12.75 4.3125C13.5833 5.3875 14 6.61667 14 8V15H16V17H0ZM8 20C7.45 20 6.97917 19.8042 6.5875 19.4125C6.19583 19.0208 6 18.55 6 18H10C10 18.55 9.80417 19.0208 9.4125 19.4125C9.02083 19.8042 8.55 20 8 20Z" fill="currentColor"/>
-            </svg>
-            <span class="absolute top-1.5 right-1.5 h-2 w-2 rounded-full border-2 border-white bg-rose-500"></span>
-        </a>
-
-        <a href="{{ route('generalSettings') }}" class="hidden rounded-full p-2 text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 sm:flex" aria-label="Settings">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M10 20C8.61667 20 7.31667 19.7375 6.1 19.2125C4.88333 18.6875 3.825 17.975 2.925 17.075C2.025 16.175 1.3125 15.1167 0.7875 13.9C0.2625 12.6833 0 11.3833 0 10C0 8.61667 0.2625 7.31667 0.7875 6.1C1.3125 4.88333 2.025 3.825 2.925 2.925C3.825 2.025 4.88333 1.3125 6.1 0.7875C7.31667 0.2625 8.61667 0 10 0C11.3833 0 12.6833 0.2625 13.9 0.7875C15.1167 1.3125 16.175 2.025 17.075 2.925C17.975 3.825 18.6875 4.88333 19.2125 6.1C19.7375 7.31667 20 8.61667 20 10C20 11.3833 19.7375 12.6833 19.2125 13.9C18.6875 15.1167 17.975 16.175 17.075 17.075C16.175 17.975 15.1167 18.6875 13.9 19.2125C12.6833 19.7375 11.3833 20 10 20ZM9 17.95C11.2333 17.95 13.125 17.175 14.675 15.625C16.225 14.075 17 12.1833 17 9.95C17 7.71667 16.225 5.825 14.675 4.275C13.125 2.725 11.2333 1.95 9 1.95C6.76667 1.95 4.875 2.725 3.325 4.275C1.775 5.825 1 7.71667 1 9.95C1 12.1833 1.775 14.075 3.325 15.625C4.875 17.175 6.76667 17.95 9 17.95ZM9 15C9.28333 15 9.52083 14.9042 9.7125 14.7125C9.90417 14.5208 10 14.2833 10 14C10 13.7167 9.90417 13.4792 9.7125 13.2875C9.52083 13.0958 9.28333 13 9 13C8.71667 13 8.47917 13.0958 8.2875 13.2875C8.09583 13.4792 8 13.7167 8 14C8 14.2833 8.09583 14.5208 8.2875 14.7125C8.47917 14.9042 8.71667 15 9 15ZM9 11H10V5H8V6H9V11Z" fill="currentColor"/>
-            </svg>
-        </a>
-
-        <div class="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-stone-200 bg-stone-200">
-            <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
-                <circle cx="18" cy="13" r="6" fill="#94A3B8"/>
-                <path d="M28 28C28 24 24 22 18 22C12 22 8 24 8 28" fill="#94A3B8"/>
-            </svg>
-        </div>
-    </div>
-</header>
+    <x-ui.merchant-topbar title="Dashboard" lead="Store performance and setup checklist.">
+        <x-slot:actions>
+            <a href="{{ route('products') }}" class="hidden items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover sm:inline-flex">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="currentColor"/>
+                </svg>
+                <span>Products</span>
+            </a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -57,6 +20,48 @@
     $d = $dashboard ?? ['has_store' => false];
     $hasStore = $d['has_store'] ?? false;
     $currency = $d['currency'] ?? 'USD';
+    $setup = $d['setup_progress'] ?? [];
+    $setupSteps = [
+        [
+            'title' => 'Set store location',
+            'description' => (($setup['location']['count'] ?? 0) > 0)
+                ? (($setup['location']['count'] ?? 0).' active ship-from location(s)')
+                : 'Add at least one active ship-from location',
+            'ready' => (bool) ($setup['location']['ready'] ?? false),
+            'href' => route('settings.locations.index'),
+            'cta' => ((bool) ($setup['location']['ready'] ?? false)) ? 'Manage locations' : 'Set location',
+        ],
+        [
+            'title' => 'Configure checkout tax',
+            'description' => ((bool) ($setup['tax']['ready'] ?? false))
+                ? (($setup['tax']['count'] ?? 0).' active tax rate(s)')
+                : 'Enable tax and add at least one active tax rate',
+            'ready' => (bool) ($setup['tax']['ready'] ?? false),
+            'href' => route('settings.taxes.index'),
+            'cta' => ((bool) ($setup['tax']['ready'] ?? false)) ? 'Review tax' : 'Set tax',
+        ],
+        [
+            'title' => 'Prepare delivery setup',
+            'description' => ((bool) ($setup['delivery']['ready'] ?? false))
+                ? (($setup['delivery']['areas_count'] ?? 0).' area(s), '.($setup['delivery']['options_count'] ?? 0).' option(s)')
+                : 'Add delivery areas and checkout delivery options',
+            'ready' => (bool) ($setup['delivery']['ready'] ?? false),
+            'href' => route('shippingAutomation'),
+            'cta' => ((bool) ($setup['delivery']['ready'] ?? false)) ? 'Review delivery' : 'Set delivery',
+        ],
+        [
+            'title' => 'Connect payments',
+            'description' => ((bool) ($setup['payments']['ready'] ?? false))
+                ? 'Payment account is ready for checkout'
+                : 'Connect Stripe or use platform payment setup',
+            'ready' => (bool) ($setup['payments']['ready'] ?? false),
+            'href' => route('settings.payments.index'),
+            'cta' => ((bool) ($setup['payments']['ready'] ?? false)) ? 'Review payments' : 'Set payments',
+        ],
+    ];
+    $setupReadyCount = collect($setupSteps)->where('ready', true)->count();
+    $setupComplete = $setupReadyCount === count($setupSteps);
+    $setupPercent = count($setupSteps) > 0 ? (int) round(($setupReadyCount / count($setupSteps)) * 100) : 0;
     $chartDays = $d['chart_days'] ?? [];
     $chartMax = 0.0;
     foreach ($chartDays as $day) {
@@ -67,7 +72,7 @@
 
 @if (! $hasStore)
     <div class="merchant-card max-w-xl p-8">
-        <h1 class="text-xl font-semibold text-stone-900">Welcome</h1>
+        <h2 class="text-xl font-semibold text-stone-900">Welcome</h2>
         <p class="mt-2 text-stone-600">Create a store to see your dashboard and start managing products and orders.</p>
         <a href="{{ route('store-management') }}" class="mt-6 inline-flex items-center rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">
             Go to store management
@@ -76,19 +81,77 @@
 @else
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-semibold tracking-tight text-stone-900">Dashboard</h1>
+            <h2 class="text-2xl font-semibold tracking-tight text-stone-900">{{ $setupComplete ? 'Performance overview' : 'Store setup' }}</h2>
             <p class="mt-0.5 text-sm text-stone-600">
                 <span class="font-medium text-stone-800">{{ $d['store']->name }}</span>
-                <span class="text-stone-400"> · </span>
-                Revenue and activity use the last 30 days; the chart uses the last 7 days.
+                @if ($setupComplete)
+                    <span class="text-stone-400"> · </span>
+                    Revenue and activity use the last 30 days.
+                @else
+                    <span class="text-stone-400"> · </span>
+                    Complete the steps below to get your store ready for sales.
+                @endif
             </p>
         </div>
-        <div class="inline-flex items-center gap-2 self-start rounded-lg border border-stone-200/90 bg-stone-50/90 px-2.5 py-1.5 text-xs font-medium text-stone-600">
-            <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25" aria-hidden="true"></span>
-            Connected to your store
-        </div>
+        @if ($setupComplete)
+            <div class="inline-flex items-center gap-2 self-start rounded-lg border border-stone-200/90 bg-stone-50/90 px-2.5 py-1.5 text-xs font-medium text-stone-600">
+                <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25" aria-hidden="true"></span>
+                Store setup complete
+            </div>
+        @endif
     </div>
 
+    <section class="dashboard-setup-hero">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">Store setup</p>
+                <h2 class="mt-1 text-xl font-semibold text-stone-900">
+                    {{ $setupComplete ? 'Your store is ready to operate' : 'Finish setup to start selling confidently' }}
+                </h2>
+                <p class="mt-1 text-sm text-stone-600">{{ $setupReadyCount }} of {{ count($setupSteps) }} areas are ready.</p>
+            </div>
+            <a href="{{ route('generalSettings') }}" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 transition hover:border-stone-300 hover:bg-stone-50">
+                Store settings
+            </a>
+        </div>
+        <div class="dashboard-setup-progress" aria-hidden="true">
+            <div class="dashboard-setup-progress-bar" style="width: {{ $setupPercent }}%"></div>
+        </div>
+        <div class="mt-4 settings-checklist">
+            @foreach ($setupSteps as $index => $step)
+                <article class="settings-checklist-row">
+                    <span @class([
+                        'settings-checklist-icon',
+                        'settings-checklist-icon-ready' => $step['ready'],
+                        'settings-checklist-icon-pending' => ! $step['ready'],
+                    ])>{{ $step['ready'] ? '✓' : ($index + 1) }}</span>
+                    <div>
+                        <p class="settings-checklist-label">Step {{ $index + 1 }}</p>
+                        <h3 class="settings-checklist-title">{{ $step['title'] }}</h3>
+                        <p class="settings-checklist-detail">{{ $step['description'] }}</p>
+                    </div>
+                    <a href="{{ $step['href'] }}" class="settings-checklist-action {{ $step['ready'] ? 'settings-checklist-action-secondary' : 'settings-checklist-action-primary' }}">
+                        {{ $step['cta'] }}
+                    </a>
+                </article>
+            @endforeach
+        </div>
+    </section>
+
+    @if (! $setupComplete)
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div class="merchant-card p-4">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Open orders</p>
+                <p class="mt-1.5 text-xl font-semibold tabular-nums text-stone-900">{{ number_format($d['active_orders_count']) }}</p>
+                <p class="mt-1.5 text-xs text-stone-500">Orders waiting for action.</p>
+            </div>
+            <div class="merchant-card p-4">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Products</p>
+                <p class="mt-1.5 text-xl font-semibold tabular-nums text-stone-900">{{ number_format($d['products_count']) }}</p>
+                <p class="mt-1.5 text-xs text-stone-500">Items in your catalog.</p>
+            </div>
+        </div>
+    @else
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div class="merchant-card p-4">
             <div class="flex items-start justify-between gap-3">
@@ -262,5 +325,6 @@
             </table>
         </div>
     </div>
+    @endif
 @endif
 @endsection

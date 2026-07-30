@@ -173,6 +173,7 @@ class TaxCalculator
         string $ratePercent,
     ): ItemTaxAllocation {
         $lineSubtotal = $this->lineSubtotal($item, $currency);
+        $discountedLineSubtotal = $this->discountedLineSubtotal($item, $lineSubtotal, $currency);
         $zero = $this->zeroAmount($currency);
 
         if (! $item->isTaxable) {
@@ -185,10 +186,17 @@ class TaxCalculator
         }
 
         if ($pricesIncludeTax) {
-            return $this->allocateInclusiveItemTax($item->lineKey, $lineSubtotal, $ratePercent, $currency);
+            $inclusive = $this->allocateInclusiveItemTax($item->lineKey, $discountedLineSubtotal, $ratePercent, $currency);
+
+            return new ItemTaxAllocation(
+                lineKey: $item->lineKey,
+                lineSubtotal: $lineSubtotal,
+                taxableAmount: $inclusive->taxableAmount,
+                taxAmount: $inclusive->taxAmount,
+            );
         }
 
-        $taxableAmount = $lineSubtotal;
+        $taxableAmount = $discountedLineSubtotal;
         $taxAmount = $this->calculateExclusiveTax($taxableAmount, $ratePercent, $currency);
 
         return new ItemTaxAllocation(
@@ -234,6 +242,17 @@ class TaxCalculator
         $raw = bcmul($item->unitPrice, (string) $item->quantity, 6);
 
         return CurrencyPrecision::roundMajor($raw, $currency);
+    }
+
+    private function discountedLineSubtotal(TaxLineItemInput $item, string $lineSubtotal, string $currency): string
+    {
+        $discount = CurrencyPrecision::roundMajor($item->discountAmount, $currency);
+
+        if (bccomp($discount, $lineSubtotal, 6) >= 0) {
+            return $this->zeroAmount($currency);
+        }
+
+        return CurrencyPrecision::roundMajor(bcsub($lineSubtotal, $discount, 6), $currency);
     }
 
     /**

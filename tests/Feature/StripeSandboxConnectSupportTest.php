@@ -418,7 +418,7 @@ class StripeSandboxConnectSupportTest extends TestCase
                     providerIntentId: 'pi_connect_checkout_'.$checkout->id,
                     clientSecret: 'pi_connect_checkout_'.$checkout->id.'_secret_'.$mode,
                     status: 'requires_payment_method',
-                    amount: (float) $checkout->grand_total,
+                    amount: (string) $checkout->grand_total,
                     currencyCode: $checkout->currency_code,
                     raw: [
                         'id' => 'pi_connect_checkout_'.$checkout->id,
@@ -436,7 +436,7 @@ class StripeSandboxConnectSupportTest extends TestCase
                     eventType: 'payment_intent.succeeded',
                     providerIntentId: $providerIntentId,
                     status: 'succeeded',
-                    amount: 24.00,
+                    amount: '24.00',
                     currencyCode: 'USD',
                     raw: ['id' => $providerIntentId, 'type' => 'payment_intent.succeeded'],
                     mode: $mode,

@@ -50,18 +50,12 @@ class CustomerAndOrderSeeder extends Seeder
                 ]
             );
 
-            $variant = $product->variants()->firstOrCreate(
+            $product->variants()->firstOrCreate(
                 ['sku' => 'DEMO-SKU-001'],
                 [
                     'price' => 29.99,
                     'stock' => 100,
                 ]
-            );
-
-            // Create a fake default option so the UI doesn't break
-            $product->variationTypes()->firstOrCreate(
-                ['name' => 'Size'],
-                ['type' => 'select']
             );
 
             $products = collect([$product->load('variants')]);

@@ -17,20 +17,8 @@
 @endphp
 
 @section('topbar')
-    <header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-        <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-            <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-        </button>
-        <h1 class="text-lg md:text-xl font-poppins font-semibold">General Settings</h1>
-        <div class="ml-auto flex items-center gap-2 md:gap-3">
-            <a href="{{ route('generalSettings') }}" class="hidden h-10 items-center rounded-lg px-4 text-sm font-semibold text-[#475569] hover:bg-[#F1F5F9] sm:inline-flex">Discard</a>
-            @if ($canManageStoreSettings)
-                <a href="{{ route('store-management') }}" class="h-10 rounded-lg bg-[#0052CC] px-5 text-sm font-semibold text-white inline-flex items-center justify-center">Edit store details</a>
-            @else
-                <a href="{{ route('store-management') }}" class="h-10 rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#475569] inline-flex items-center justify-center">View stores</a>
-            @endif
-        </div>
-    </header>
+    <x-ui.merchant-topbar title="General settings" lead="Store identity, defaults, and operational preferences.">
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -39,14 +27,14 @@
 
         @unless ($store)
             <section class="rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
-                <h2 class="text-xl font-semibold text-[#0F172A] font-[Poppins]">No active store</h2>
+                <h2 class="text-xl font-semibold text-[#0F172A]">No active store</h2>
                 <p class="mt-2 text-sm text-[#64748B]">Create or select a store before changing settings.</p>
-                <a href="{{ route('store-management') }}" class="mt-4 inline-flex rounded-lg bg-[#0052CC] px-4 py-2 text-sm font-bold text-white">Open store management</a>
+                <a href="{{ route('store-management') }}" class="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Open store management</a>
             </section>
         @else
             <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
                 <div class="border-b border-[#F1F5F9] px-5 py-4">
-                    <h2 class="text-2xl font-poppins">Store Profile</h2>
+                    <h2 class="text-2xl">Store Profile</h2>
                     <p class="text-sm text-[#64748B]">Public identity and appearance of your storefront.</p>
                 </div>
                 <div class="p-5 space-y-6">
@@ -82,10 +70,10 @@
 
                     <hr class="border-[#F1F5F9]">
                     <div>
-                        <h3 class="mb-3 text-sm font-bold uppercase tracking-[0.7px] font-poppins">Branding</h3>
+                        <h3 class="mb-3 text-sm font-bold uppercase tracking-[0.7px]">Branding</h3>
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div class="flex items-center gap-4 rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
-                                <div class="rounded-lg border border-[#E2E8F0] bg-white p-2"><div class="h-6 w-7 rounded-[2px] bg-[#0052CC]"></div></div>
+                                <div class="rounded-lg border border-[#E2E8F0] bg-white p-2"><div class="h-6 w-7 rounded-[2px] bg-brand"></div></div>
                                 <div>
                                     <p class="font-semibold">Primary color</p>
                                     <p class="text-xs text-[#64748B]">Current dashboard action color. Branding controls will be editable later.</p>
@@ -105,7 +93,7 @@
 
             <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
                 <div class="border-b border-[#F1F5F9] px-5 py-4">
-                    <h2 class="text-2xl font-poppins">Regional &amp; Financials</h2>
+                    <h2 class="text-2xl">Regional &amp; Financials</h2>
                     <p class="text-sm text-[#64748B]">Store defaults for dashboard totals, dates, and default selling context.</p>
                 </div>
                 <div class="grid grid-cols-1 gap-4 p-5 lg:grid-cols-3">
@@ -129,7 +117,7 @@
 
             <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
                 <div class="border-b border-[#F1F5F9] px-5 py-4">
-                    <h2 class="text-2xl font-poppins">Business Configuration</h2>
+                    <h2 class="text-2xl">Business Configuration</h2>
                     <p class="text-sm text-[#64748B]">Operational status, store type, inventory location, and future fulfillment preview.</p>
                 </div>
                 <div class="grid grid-cols-1 gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -179,7 +167,7 @@
                                 <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Set ship-from locations, delivery areas, checkout delivery options, and optional delivery providers.</p>
                             </div>
                         </div>
-                        <a href="{{ route('shippingAutomation') }}" class="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Open delivery setup</a>
+                        <a href="{{ route('shippingAutomation') }}" class="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Open delivery setup</a>
                     </aside>
                 </div>
             </section>

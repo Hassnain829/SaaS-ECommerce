@@ -223,7 +223,7 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
-            'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
+            'variants.*.product_image_id' => ['nullable', 'regex:/^(?:[1-9]\d*|new:\d+)$/'],
             'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
             'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
             'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
@@ -334,11 +334,48 @@ class OnboardingController extends Controller
                 ]);
             }
 
-            $galleryPaths = [];
-            foreach ($request->file('product_images', []) as $imageFile) {
-                $galleryPaths[] = ProductImageStorage::store($imageFile, $store);
+            $uploadedImageIdsByIndex = [];
+            $incomingImages = $request->file('product_images', []);
+            $isOnboardingEdit = ($validated['mode'] ?? '') === 'edit';
+            if ($incomingImages === [] && $isOnboardingEdit) {
+                // Keep the existing gallery when the merchant re-saves without new Media uploads.
+            } else {
+                if ($isOnboardingEdit || $incomingImages !== []) {
+                    foreach ($product->images()->get() as $img) {
+                        $img->delete();
+                    }
+                }
+                $nextOrder = 0;
+                foreach ($incomingImages as $uploadIndex => $imageFile) {
+                    $uploadedImage = ProductImage::query()->create([
+                        'product_id' => $product->id,
+                        'image_path' => ProductImageStorage::store($imageFile, $store),
+                        'alt_text' => null,
+                        'sort_order' => $nextOrder,
+                        'is_primary' => false,
+                        'created_by' => $request->user()?->id,
+                        'updated_by' => $request->user()?->id,
+                    ]);
+                    $uploadedImageIdsByIndex[(int) $uploadIndex] = (int) $uploadedImage->id;
+                    $nextOrder++;
+                }
+                $this->normalizePrimaryProductImage($product);
             }
-            $this->replaceProductGallery($product, $galleryPaths, $request->user()?->id, ($validated['mode'] ?? '') === 'edit');
+
+            foreach ($validated['variants'] as $rowIndex => &$variantData) {
+                $uploadIndex = $variantData['product_image_upload_index'] ?? null;
+                if ($uploadIndex === null) {
+                    continue;
+                }
+                if (! array_key_exists((int) $uploadIndex, $uploadedImageIdsByIndex)) {
+                    throw ValidationException::withMessages([
+                        'variants.'.$rowIndex.'.product_image_id' => 'Choose a newly uploaded image that is still attached under Media.',
+                    ]);
+                }
+                $variantData['product_image_id'] = $uploadedImageIdsByIndex[(int) $uploadIndex];
+                unset($variantData['product_image_upload_index']);
+            }
+            unset($variantData);
 
             $imageErrors = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
             if ($imageErrors !== []) {
@@ -808,7 +845,9 @@ class OnboardingController extends Controller
                 'compare_at_price' => $variant->compare_at_price !== null ? (float) $variant->compare_at_price : null,
                 'stock' => (int) $variant->stock,
                 'stock_alert' => (int) $variant->stock_alert,
-                'product_image_id' => $variant->linkedCatalogImage?->id,
+                'product_image_id' => $variant->product_image_id
+                    ? (int) $variant->product_image_id
+                    : null,
             ];
         })->values()->all();
 
@@ -894,11 +933,20 @@ class OnboardingController extends Controller
     }
 
     /**
+     * Assign catalog images onto variants. One product image may be shared by many variants.
+     *
      * @param  array<int, array{variant: ProductVariant, image_id?: int|null}>  $assignments
      */
     private function syncVariantCatalogImages(Product $product, array $assignments): void
     {
-        ProductImage::query()->where('product_id', $product->id)->update(['product_variant_id' => null]);
+        ProductVariant::query()
+            ->where('product_id', $product->id)
+            ->update(['product_image_id' => null]);
+
+        // Legacy column: clear ownership so shared images are not pinned to a single variant.
+        ProductImage::query()
+            ->where('product_id', $product->id)
+            ->update(['product_variant_id' => null]);
 
         foreach ($assignments as $item) {
             $variant = $item['variant'] ?? null;
@@ -913,7 +961,12 @@ class OnboardingController extends Controller
                 ->first();
 
             if ($image) {
-                $image->update(['product_variant_id' => $variant->id]);
+                // Query builder update (not $variant->update): a prior mass-null can leave the
+                // in-memory model thinking product_image_id is unchanged, so Eloquent would skip.
+                ProductVariant::query()
+                    ->where('product_id', $product->id)
+                    ->whereKey($variant->id)
+                    ->update(['product_image_id' => $image->id]);
             }
         }
     }
@@ -1002,9 +1055,56 @@ class OnboardingController extends Controller
     }
 
     /**
+     * Drop incomplete option groups so simple products are not blocked by orphan variation_types.0.options.
+     *
+     * @param  mixed  $variationTypes
+     * @return array<int, array{name: string, type: string, options: array<int, string>}>
+     */
+    private function sanitizeSubmittedVariationTypes(mixed $variationTypes): array
+    {
+        if (! is_array($variationTypes)) {
+            return [];
+        }
+
+        $sanitized = [];
+        foreach ($variationTypes as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $name = trim((string) ($row['name'] ?? ''));
+            $type = trim((string) ($row['type'] ?? 'select'));
+            $options = $row['options'] ?? [];
+            if ($name === '' || ! is_array($options)) {
+                continue;
+            }
+
+            $cleanOptions = [];
+            foreach ($options as $option) {
+                $value = trim((string) $option);
+                if ($value !== '') {
+                    $cleanOptions[] = $value;
+                }
+            }
+
+            if ($cleanOptions === []) {
+                continue;
+            }
+
+            $sanitized[] = [
+                'name' => $name,
+                'type' => in_array($type, ['select', 'radio', 'checkbox'], true) ? $type : 'select',
+                'options' => array_values($cleanOptions),
+            ];
+        }
+
+        return $sanitized;
+    }
+
+    /**
      * @param  array<int|string, mixed>  $variantRows
      * @param  array<int, array{name:string, type:string, options:array<int, string>}>  $variationTypes
-     * @return array{variants: array<int, array{option_map: array<int, int>, sku: string|null, price: float, compare_at_price: float|null, stock: int, stock_alert: int, product_image_id: int|null}>, errors: array<string, string>}
+     * @return array{variants: array<int, array{option_map: array<int, int>, sku: string|null, price: float, compare_at_price: float|null, stock: int, stock_alert: int, product_image_id: int|null, product_image_upload_index: int|null}>, errors: array<string, string>}
      */
     private function normalizeCustomVariants(
         array $variantRows,
@@ -1104,9 +1204,24 @@ class OnboardingController extends Controller
             }
 
             $productImageId = null;
+            $productImageUploadIndex = null;
             if (isset($row['product_image_id']) && $row['product_image_id'] !== '' && $row['product_image_id'] !== null) {
-                $productImageId = (int) $row['product_image_id'];
-                if ($productImageId < 1) {
+                $submittedImageReference = (string) $row['product_image_id'];
+                if (str_starts_with($submittedImageReference, 'new:')) {
+                    $uploadIndex = substr($submittedImageReference, 4);
+                    if ($uploadIndex === '' || ! ctype_digit($uploadIndex)) {
+                        $errors['variants.'.$rowIndex.'.product_image_id'] = sprintf(
+                            'Variant %d has an invalid newly uploaded image.',
+                            $rowIndex + 1
+                        );
+
+                        continue;
+                    }
+                    $productImageUploadIndex = (int) $uploadIndex;
+                } else {
+                    $productImageId = (int) $submittedImageReference;
+                }
+                if ($productImageId !== null && $productImageId < 1) {
                     $errors['variants.'.$rowIndex.'.product_image_id'] = sprintf(
                         'Variant %d has an invalid catalog image.',
                         $rowIndex + 1
@@ -1121,7 +1236,7 @@ class OnboardingController extends Controller
                 $variantRowId = (int) $row['id'];
             }
 
-            $normalized[] = [
+            $normalizedRow = [
                 'id' => $variantRowId,
                 'option_map' => $optionMap,
                 'sku' => isset($row['sku']) && trim((string) $row['sku']) !== '' ? trim((string) $row['sku']) : null,
@@ -1130,7 +1245,14 @@ class OnboardingController extends Controller
                 'stock' => isset($row['stock']) && $row['stock'] !== '' ? (int) $row['stock'] : $defaultStock,
                 'stock_alert' => isset($row['stock_alert']) && $row['stock_alert'] !== '' ? (int) $row['stock_alert'] : $defaultStockAlert,
                 'product_image_id' => $productImageId,
+                'product_image_upload_index' => $productImageUploadIndex,
             ];
+
+            if (isset($row['custom_fields']) && is_array($row['custom_fields'])) {
+                $normalizedRow['custom_fields'] = $row['custom_fields'];
+            }
+
+            $normalized[] = $normalizedRow;
         }
 
         return [
@@ -1274,6 +1396,10 @@ class OnboardingController extends Controller
             ->where('store_id', $currentStore->id)
             ->firstOrFail();
 
+        $request->merge([
+            'variation_types' => $this->sanitizeSubmittedVariationTypes($request->input('variation_types', [])),
+        ]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:4000'],
@@ -1304,7 +1430,7 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
-            'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
+            'variants.*.product_image_id' => ['nullable', 'regex:/^(?:[1-9]\d*|new:\d+)$/'],
             'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
             'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
             'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
@@ -1359,6 +1485,17 @@ class OnboardingController extends Controller
         $validated['brand_id'] = $validated['brand_id'] ?? null;
 
         $this->applyInventoryStockAllocationModeToVariants($request, $validated);
+
+        if ($request->filled('_custom_fields_editor')) {
+            foreach ($validated['variants'] as $rowIndex => $variantData) {
+                if (empty($variantData['custom_fields']) || ! is_array($variantData['custom_fields'])) {
+                    continue;
+                }
+                $validated['variants'][$rowIndex]['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
+                    $variantData['custom_fields']
+                );
+            }
+        }
 
         $skuPlanSkus = [];
         if (($validated['variants'] ?? []) !== []) {
@@ -1491,8 +1628,9 @@ class OnboardingController extends Controller
             }
 
             $nextOrder = (int) $product->images()->max('sort_order') + 1;
-            foreach ($request->file('product_images', []) as $imageFile) {
-                ProductImage::query()->create([
+            $uploadedImageIdsByIndex = [];
+            foreach ($request->file('product_images', []) as $uploadIndex => $imageFile) {
+                $uploadedImage = ProductImage::query()->create([
                     'product_id' => $product->id,
                     'image_path' => ProductImageStorage::store($imageFile, $currentStore),
                     'alt_text' => null,
@@ -1501,10 +1639,26 @@ class OnboardingController extends Controller
                     'created_by' => $request->user()?->id,
                     'updated_by' => $request->user()?->id,
                 ]);
+                $uploadedImageIdsByIndex[(int) $uploadIndex] = (int) $uploadedImage->id;
                 $nextOrder++;
             }
 
             $this->normalizePrimaryProductImage($product);
+
+            foreach ($validated['variants'] as $rowIndex => &$variantData) {
+                $uploadIndex = $variantData['product_image_upload_index'] ?? null;
+                if ($uploadIndex === null) {
+                    continue;
+                }
+                if (! array_key_exists((int) $uploadIndex, $uploadedImageIdsByIndex)) {
+                    throw ValidationException::withMessages([
+                        'variants.'.$rowIndex.'.product_image_id' => 'Choose a newly uploaded image that is still attached under Media.',
+                    ]);
+                }
+                $variantData['product_image_id'] = $uploadedImageIdsByIndex[(int) $uploadIndex];
+                unset($variantData['product_image_upload_index']);
+            }
+            unset($variantData);
 
             $imageErrorsUpdate = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
             if ($imageErrorsUpdate !== []) {
@@ -1815,10 +1969,15 @@ class OnboardingController extends Controller
     {
         $this->syncActiveStoreSessions($request, $store);
 
+        $isFullWorkspaceCreate = $request->boolean('_full_workspace_create');
+        $isCatalogQuickAdd = $request->boolean('_open_add_product_modal')
+            || ($request->boolean('_from_product_create_page') && ! $isFullWorkspaceCreate);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:4000'],
-            'bulk_price' => ['required', 'numeric', 'min:0'],
+            'bulk_price' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'numeric', 'min:0'],
+            'base_price' => ['nullable', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
             'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
             'product_type_selector' => ['nullable', 'string', Rule::in(array_merge(ProductTypeBehavior::types(), ['__custom__']))],
@@ -1826,7 +1985,7 @@ class OnboardingController extends Controller
             'custom_product_type_behavior' => ['nullable', 'string', Rule::in(ProductTypeBehavior::types())],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'bulk_stock' => ['required', 'integer', 'min:0'],
+            'bulk_stock' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'integer', 'min:0'],
             'stock_alert' => ['required', 'integer', 'min:0'],
             'inventory_variant_stock_mode' => ['nullable', 'string', Rule::in(['split_total', 'repeat_each'])],
             'variation_types' => ['nullable', 'array'],
@@ -1841,11 +2000,21 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
-            'variants.*.product_image_id' => ['nullable', 'integer', 'min:1'],
+            'variants.*.product_image_id' => ['nullable', 'regex:/^(?:[1-9]\d*|new:\d+)$/'],
             'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
             'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
             'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
             'variants.*.custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
+            'custom_fields' => ['nullable', 'array', 'max:40'],
+            'custom_fields.*.key' => ['nullable', 'string', 'max:128'],
+            'custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
+            'custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
+            'attribute_terms' => ['nullable', 'array'],
+            'attribute_terms.*' => ['nullable', 'array'],
+            'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
+            'inventory_stock_allocation_mode' => ['nullable', 'string', Rule::in(['manual', 'apply_same_each', 'split_total'])],
+            'inventory_apply_same_stock' => ['nullable', 'integer', 'min:0'],
+            'inventory_split_total' => ['nullable', 'integer', 'min:0'],
             'brand_id' => CatalogRules::brandIdForStore($store),
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
@@ -1853,6 +2022,15 @@ class OnboardingController extends Controller
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
+
+        $resolvedPrice = $validated['base_price'] ?? $validated['bulk_price'] ?? null;
+        if ($resolvedPrice === null || $resolvedPrice === '') {
+            return back()
+                ->withErrors(['base_price' => 'The base price field is required.'])
+                ->withInput($request->except(['product_images']));
+        }
+        $validated['base_price'] = (float) $resolvedPrice;
+        $validated['bulk_price'] = $validated['base_price'];
 
         $productSku = trim((string) ($validated['sku'] ?? ''));
         if ($productSku !== '' && Product::query()
@@ -1864,15 +2042,36 @@ class OnboardingController extends Controller
                 ->withInput($request->except(['product_images']));
         }
 
-        // Map bulk_price and bulk_stock to base_price and default_stock for processing
-        $validated['base_price'] = $validated['bulk_price'];
-        $validated['default_stock'] = $validated['bulk_stock'];
         $validated['brand_id'] = $validated['brand_id'] ?? null;
 
-        $isCatalogQuickAdd = $request->boolean('_open_add_product_modal')
-            || $request->boolean('_from_product_create_page');
         if ($isCatalogQuickAdd) {
             $validated['variation_types'] = [];
+        }
+
+        if ($isFullWorkspaceCreate && $request->filled('_custom_fields_editor')) {
+            foreach (array_values($validated['custom_fields'] ?? []) as $i => $cfRow) {
+                if (! is_array($cfRow)) {
+                    continue;
+                }
+                $key = trim((string) ($cfRow['key'] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
+                if (! ProductCustomFieldHelper::isValidKey($key)) {
+                    return back()
+                        ->withErrors([
+                            'custom_fields.'.$i.'.key' => 'Field name can only use letters, numbers, dots, dashes, and underscores (up to 128 characters).',
+                        ])
+                        ->withInput($request->except(['product_images']));
+                }
+                if (! ProductCustomFieldHelper::isAllowedKey($key)) {
+                    return back()
+                        ->withErrors([
+                            'custom_fields.'.$i.'.key' => 'This name is reserved for catalog or import data. Choose a different field name.',
+                        ])
+                        ->withInput($request->except(['product_images']));
+                }
+            }
         }
 
         $tagIds = collect($validated['tag_ids'] ?? [])
@@ -1893,8 +2092,27 @@ class OnboardingController extends Controller
             $variantStockMode = 'split_total';
         }
 
+        $incomingVariants = $isCatalogQuickAdd ? [] : $request->input('variants', []);
+        $defaultStockFromVariants = 0;
+        if (is_array($incomingVariants)) {
+            foreach ($incomingVariants as $variantRow) {
+                if (! is_array($variantRow)) {
+                    continue;
+                }
+                $defaultStockFromVariants += max(0, (int) ($variantRow['stock'] ?? 0));
+            }
+        }
+
+        if ($isFullWorkspaceCreate) {
+            $validated['default_stock'] = array_key_exists('bulk_stock', $validated) && $validated['bulk_stock'] !== null && $validated['bulk_stock'] !== ''
+                ? (int) $validated['bulk_stock']
+                : $defaultStockFromVariants;
+        } else {
+            $validated['default_stock'] = (int) ($validated['bulk_stock'] ?? 0);
+        }
+
         $normalizedVariants = $this->normalizeCustomVariants(
-            $isCatalogQuickAdd ? [] : $request->input('variants', []),
+            $incomingVariants,
             $validated['variation_types'] ?? [],
             (float) $validated['base_price'],
             (int) $validated['default_stock'],
@@ -1907,6 +2125,19 @@ class OnboardingController extends Controller
 
         $validated['variants'] = $normalizedVariants['variants'];
 
+        $this->applyInventoryStockAllocationModeToVariants($request, $validated);
+
+        if ($isFullWorkspaceCreate) {
+            foreach ($validated['variants'] as $rowIndex => $variantData) {
+                if (empty($variantData['custom_fields']) || ! is_array($variantData['custom_fields'])) {
+                    continue;
+                }
+                $validated['variants'][$rowIndex]['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
+                    $variantData['custom_fields']
+                );
+            }
+        }
+
         $variationOptionErrorsCatalog = $this->validateVariationOptionUniqueness($validated['variation_types'] ?? []);
         if ($variationOptionErrorsCatalog !== []) {
             return back()
@@ -1914,8 +2145,18 @@ class OnboardingController extends Controller
                 ->withInput($request->except(['product_images']));
         }
 
-        $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode, $customProductTypeLabel): int {
+        $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode, $customProductTypeLabel, $isFullWorkspaceCreate): int {
             $oldFingerprintStocks = [];
+            $productMeta = [
+                'default_stock' => $validated['default_stock'],
+                'stock_alert' => $validated['stock_alert'],
+                'custom_product_type_label' => $customProductTypeLabel,
+            ];
+            if ($isFullWorkspaceCreate && $request->filled('_custom_fields_editor')) {
+                $productMeta['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
+                    $validated['custom_fields'] ?? []
+                );
+            }
             $productPayload = [
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -1928,11 +2169,7 @@ class OnboardingController extends Controller
                     ? (bool) $validated['is_taxable']
                     : app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => true,
-                'meta' => [
-                    'default_stock' => $validated['default_stock'],
-                    'stock_alert' => $validated['stock_alert'],
-                    'custom_product_type_label' => $customProductTypeLabel,
-                ],
+                'meta' => $productMeta,
             ];
 
             $product = Product::create($productPayload + [
@@ -1940,11 +2177,37 @@ class OnboardingController extends Controller
                 'slug' => $this->uniqueProductSlug($store->id, $validated['name']),
             ]);
 
-            $galleryPaths = [];
-            foreach ($request->file('product_images', []) as $imageFile) {
-                $galleryPaths[] = ProductImageStorage::store($imageFile, $store);
+            $uploadedImageIdsByIndex = [];
+            $nextOrder = 0;
+            foreach ($request->file('product_images', []) as $uploadIndex => $imageFile) {
+                $uploadedImage = ProductImage::query()->create([
+                    'product_id' => $product->id,
+                    'image_path' => ProductImageStorage::store($imageFile, $store),
+                    'alt_text' => null,
+                    'sort_order' => $nextOrder,
+                    'is_primary' => false,
+                    'created_by' => $request->user()?->id,
+                    'updated_by' => $request->user()?->id,
+                ]);
+                $uploadedImageIdsByIndex[(int) $uploadIndex] = (int) $uploadedImage->id;
+                $nextOrder++;
             }
-            $this->replaceProductGallery($product, $galleryPaths, $request->user()?->id, false);
+            $this->normalizePrimaryProductImage($product);
+
+            foreach ($validated['variants'] as $rowIndex => &$variantData) {
+                $uploadIndex = $variantData['product_image_upload_index'] ?? null;
+                if ($uploadIndex === null) {
+                    continue;
+                }
+                if (! array_key_exists((int) $uploadIndex, $uploadedImageIdsByIndex)) {
+                    throw ValidationException::withMessages([
+                        'variants.'.$rowIndex.'.product_image_id' => 'Choose a newly uploaded image that is still attached under Media.',
+                    ]);
+                }
+                $variantData['product_image_id'] = $uploadedImageIdsByIndex[(int) $uploadIndex];
+                unset($variantData['product_image_upload_index']);
+            }
+            unset($variantData);
 
             $imageErrorsCatalog = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
             if ($imageErrorsCatalog !== []) {
@@ -2126,6 +2389,10 @@ class OnboardingController extends Controller
             $product->tags()->sync($tagIds);
             $product->categories()->sync($categoryIds);
 
+            if ($isFullWorkspaceCreate) {
+                app(ProductAttributeAssigner::class)->syncTerms($product, $validated['attribute_terms'] ?? []);
+            }
+
             $product->refresh();
             $product->load(['variants.options.variationType']);
             StockMovementRecorder::syncAfterVariantRebuild(
@@ -2139,22 +2406,6 @@ class OnboardingController extends Controller
             return (int) $product->id;
         });
 
-        if ($isCatalogQuickAdd) {
-            $createdProduct = Product::query()->find($newProductId);
-            app(SecurityLogRecorder::class)->record(
-                $request,
-                'product_created',
-                store: $store,
-                metadata: ['product_id' => $newProductId, 'product_name' => $createdProduct?->name]
-            );
-
-            return redirect()
-                ->route('products.edit', ['product' => $newProductId])
-                ->with('success', "Product '{$validated['name']}' was created. Use this full editor to add option groups, variant photos, and additional details when you are ready.")
-                ->with('success_title', 'Product created')
-                ->with('success_meta', $store->name);
-        }
-
         $createdProduct = Product::query()->find($newProductId);
         app(SecurityLogRecorder::class)->record(
             $request,
@@ -2162,6 +2413,22 @@ class OnboardingController extends Controller
             store: $store,
             metadata: ['product_id' => $newProductId, 'product_name' => $createdProduct?->name]
         );
+
+        if ($isFullWorkspaceCreate) {
+            return redirect()
+                ->route('products.show', ['product' => $newProductId])
+                ->with('success', "Product '{$validated['name']}' was created.")
+                ->with('success_title', 'Product created')
+                ->with('success_meta', $store->name);
+        }
+
+        if ($isCatalogQuickAdd) {
+            return redirect()
+                ->route('products.edit', ['product' => $newProductId])
+                ->with('success', "Product '{$validated['name']}' was created. Use this full editor to add option groups, variant photos, and additional details when you are ready.")
+                ->with('success_title', 'Product created')
+                ->with('success_meta', $store->name);
+        }
 
         return redirect()
             ->route('products')

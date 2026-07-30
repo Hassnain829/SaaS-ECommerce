@@ -4,6 +4,7 @@ namespace App\Services\Checkout;
 
 use App\Data\Checkout\CheckoutItemTotals;
 use App\Data\Checkout\CheckoutTotalsResult;
+use App\Data\Coupons\CouponDiscountResult;
 use App\Data\Tax\MatchedTaxRate;
 use App\Data\Tax\TaxAddressInput;
 use App\Data\Tax\TaxCalculationRequest;
@@ -70,6 +71,7 @@ class CheckoutTotalsService
         string|int|float $shippingTotal,
         array $shippingAddress,
         ?CarbonInterface $calculatedAt = null,
+        ?CouponDiscountResult $couponDiscount = null,
     ): CheckoutTotalsResult {
         if ((int) $settings->store_id !== (int) $store->id) {
             throw new InvalidArgumentException('Tax settings do not belong to the provided store.');
@@ -104,11 +106,13 @@ class CheckoutTotalsService
             }
 
             $lineKey = self::lineKeyForVariant((int) $variant->id);
+            $lineDiscount = $couponDiscount?->itemDiscounts[$lineKey] ?? '0';
             $taxLineItems[] = new TaxLineItemInput(
                 lineKey: $lineKey,
                 quantity: (int) $item['quantity'],
                 unitPrice: $this->authoritativeUnitPrice($variant),
                 isTaxable: (bool) $product->is_taxable,
+                discountAmount: $lineDiscount,
             );
             $taxableByLineKey[$lineKey] = (bool) $product->is_taxable;
         }
@@ -122,6 +126,8 @@ class CheckoutTotalsService
             shippingTotal: $shippingTotal,
             shippingAddress: $shippingAddress,
             calculatedAt: $calculatedAt,
+            discountTotal: $couponDiscount?->discountTotal ?? CurrencyPrecision::roundMajor('0', $currencyCode),
+            discountByLineKey: $couponDiscount?->itemDiscounts ?? [],
         );
     }
 
@@ -154,6 +160,8 @@ class CheckoutTotalsService
 
         $taxLineItems = [];
         $taxableByLineKey = [];
+        $discountByLineKey = [];
+        $discountTotal = CurrencyPrecision::roundMajor('0', $currencyCode);
 
         foreach ($checkout->items as $item) {
             $variantId = (int) ($item->product_variant_id ?? 0);
@@ -184,6 +192,13 @@ class CheckoutTotalsService
             }
 
             $lineKey = self::lineKeyForVariant($variantId);
+            $lineDiscount = CurrencyPrecision::roundMajor(
+                DecimalString::normalizeNonNegative(
+                    (string) $item->discount_amount,
+                    'Discount amount must be a non-negative decimal amount.',
+                ),
+                $currencyCode,
+            );
             $taxLineItems[] = new TaxLineItemInput(
                 lineKey: $lineKey,
                 quantity: $quantity,
@@ -192,8 +207,14 @@ class CheckoutTotalsService
                     'Unit price must be a non-negative decimal amount.',
                 ),
                 isTaxable: $taxability,
+                discountAmount: $lineDiscount,
             );
             $taxableByLineKey[$lineKey] = $taxability;
+            $discountByLineKey[$lineKey] = $lineDiscount;
+            $discountTotal = CurrencyPrecision::roundMajor(
+                bcadd($discountTotal, $lineDiscount, 6),
+                $currencyCode,
+            );
         }
 
         return $this->calculateFromLineInputs(
@@ -205,6 +226,8 @@ class CheckoutTotalsService
             shippingTotal: $shippingTotal,
             shippingAddress: $shippingAddress,
             calculatedAt: $calculatedAt,
+            discountTotal: $discountTotal,
+            discountByLineKey: $discountByLineKey,
         );
     }
 
@@ -212,6 +235,7 @@ class CheckoutTotalsService
      * @param  list<TaxLineItemInput>  $taxLineItems
      * @param  array<string, bool>  $taxableByLineKey
      * @param  array<string, mixed>  $shippingAddress
+     * @param  array<string, string>  $discountByLineKey
      */
     private function calculateFromLineInputs(
         Store $store,
@@ -222,6 +246,8 @@ class CheckoutTotalsService
         string $shippingTotal,
         array $shippingAddress,
         CarbonInterface $calculatedAt,
+        string $discountTotal,
+        array $discountByLineKey,
     ): CheckoutTotalsResult {
         $destination = $this->normalizeDestinationFromAddress($shippingAddress);
 
@@ -234,7 +260,13 @@ class CheckoutTotalsService
             destination: $destination,
         ));
 
-        $discountTotal = CurrencyPrecision::roundMajor('0', $currencyCode);
+        $discountTotal = CurrencyPrecision::roundMajor(
+            DecimalString::normalizeNonNegative(
+                $discountTotal,
+                'Discount amount must be a non-negative decimal amount.',
+            ),
+            $currencyCode,
+        );
         $pricesIncludeTax = (bool) $settings->prices_include_tax;
         $grandTotal = $this->grandTotal(
             $taxResult->itemsSubtotal,
@@ -251,15 +283,27 @@ class CheckoutTotalsService
         foreach ($taxResult->itemAllocations as $allocation) {
             $lineKey = $allocation->lineKey;
             $isTaxable = $taxableByLineKey[$lineKey] ?? false;
+            $lineDiscount = CurrencyPrecision::roundMajor(
+                $discountByLineKey[$lineKey] ?? '0',
+                $currencyCode,
+            );
+            if (bccomp($lineDiscount, $allocation->lineSubtotal, 6) > 0) {
+                $lineDiscount = $allocation->lineSubtotal;
+            }
+
+            $discountedSubtotal = CurrencyPrecision::roundMajor(
+                bcsub($allocation->lineSubtotal, $lineDiscount, 6),
+                $currencyCode,
+            );
             $itemTotals[$lineKey] = new CheckoutItemTotals(
                 lineKey: $lineKey,
                 subtotal: $allocation->lineSubtotal,
-                discountAmount: $discountTotal,
+                discountAmount: $lineDiscount,
                 taxAmount: $allocation->taxAmount,
                 total: $pricesIncludeTax
-                    ? $allocation->lineSubtotal
+                    ? $discountedSubtotal
                     : CurrencyPrecision::roundMajor(
-                        bcadd($allocation->lineSubtotal, $allocation->taxAmount, 6),
+                        bcadd($discountedSubtotal, $allocation->taxAmount, 6),
                         $currencyCode,
                     ),
                 isTaxable: $isTaxable,

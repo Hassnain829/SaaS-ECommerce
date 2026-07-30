@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-Sidebar')
+@extends('layouts.admin.admin-Sidebar')
 
 @section('title', 'Platform Settings')
 
@@ -53,7 +53,7 @@
 <div class="font-inter max-w-9xl mx-auto space-y-8">
     <!-- Page Header -->
     <div>
-        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30] font-poppins">Platform Settings</h1>
+        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30]">Platform Settings</h1>
         <p class="text-base md:text-lg text-[#434654] mt-2 max-w-2xl">
             Manage global configurations, security protocols, and system-level preferences.
         </p>
@@ -69,7 +69,7 @@
         </nav>
     </div>
 
-    <!-- Main twoâ€‘column grid -->
+    <!-- Main two‑column grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Left column -->
         <div class="space-y-6">
@@ -77,7 +77,7 @@
             <div class="bg-white rounded-xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-6 border border-[#C3C6D6]/10">
                 <div class="flex justify-between items-start mb-6">
                     <div>
-                        <h2 class="text-xl font-medium text-[#0B1C30] font-poppins">Platform Branding</h2>
+                        <h2 class="text-xl font-medium text-[#0B1C30]">Platform Branding</h2>
                         <p class="text-sm text-[#434654]">Global visual identity and instance assets.</p>
                     </div>
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -124,7 +124,7 @@
             <div class="bg-white rounded-xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-6 border border-[#C3C6D6]/10">
                 <div class="flex justify-between items-start mb-6">
                     <div>
-                        <h2 class="text-xl font-medium text-[#0B1C30] font-poppins">Tenant Registration Policies</h2>
+                        <h2 class="text-xl font-medium text-[#0B1C30]">Tenant Registration Policies</h2>
                         <p class="text-sm text-[#434654]">Onboarding logic and default configurations.</p>
                     </div>
                     <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
@@ -183,7 +183,7 @@
             <div class="bg-white rounded-xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-6 border border-[#C3C6D6]/10 border-l-4 border-l-[#C3C6D6]/10">
                 <div class="flex justify-between items-start mb-6">
                     <div>
-                        <h2 class="text-xl font-medium text-[#0B1C30] font-poppins">Maintenance & Availability</h2>
+                        <h2 class="text-xl font-medium text-[#0B1C30]">Maintenance & Availability</h2>
                         <p class="text-sm text-[#434654]">Control instance-wide uptime states.</p>
                     </div>
                     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -211,7 +211,7 @@
             <div class="bg-white rounded-xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-6 border border-[#C3C6D6]/10">
                 <div class="flex justify-between items-start mb-6">
                     <div>
-                        <h2 class="text-xl font-medium text-[#0B1C30] font-poppins">Global Legal Links</h2>
+                        <h2 class="text-xl font-medium text-[#0B1C30]">Global Legal Links</h2>
                         <p class="text-sm text-[#434654]">Policy documentation requirements.</p>
                     </div>
                     <svg width="18" height="19" viewBox="0 0 18 19" fill="none">
@@ -240,7 +240,7 @@
             </div>
 
             <!-- Save Changes Card -->
-            <div class="bg-[#0052CC]/5 rounded-2xl p-6 border border-[#003D9B]/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="bg-brand/5 rounded-2xl p-6 border border-[#003D9B]/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div class="text-sm text-[#003D9B]/70 max-w-xs">
                     Unsaved changes will be discarded if you navigate away.
                 </div>

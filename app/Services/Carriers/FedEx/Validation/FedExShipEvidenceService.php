@@ -78,12 +78,15 @@ class FedExShipEvidenceService
     public function exportResultSummary(?CarrierApiEvent $event, string $testCaseKey, bool $diagnosticOnly = false): array
     {
         $expected = $this->evidenceRules->expectedMetadata($testCaseKey);
+        $defaultEndpoint = $testCaseKey === 'IntegratorUS08'
+            ? '/ship/v1/freight/shipments'
+            : '/ship/v1/shipments';
 
         if ($event === null) {
             return [
                 'test_case' => $testCaseKey,
                 'scenario_key' => $expected['scenario_key'],
-                'endpoint' => '/ship/v1/shipments',
+                'endpoint' => $defaultEndpoint,
                 'status' => 'missing',
                 'submission_ready' => false,
             ];
@@ -102,7 +105,23 @@ class FedExShipEvidenceService
             ->get()
             ->all();
 
-        $artifactValidation = $this->evidenceRules->validateGeneratedArtifacts($event, $testCaseKey, $artifacts);
+        $documentArtifacts = [];
+        if ($testCaseKey === 'IntegratorUS08') {
+            $documentArtifacts = FedExValidationArtifact::query()
+                ->where('carrier_api_event_id', $event->id)
+                ->where('artifact_role', FedExValidationArtifact::ROLE_VALIDATION_DOCUMENT)
+                ->whereIn('artifact_type', ['freight_bill_of_lading', 'freight_commercial_invoice'])
+                ->orderBy('id')
+                ->get()
+                ->all();
+        }
+
+        $artifactValidation = $this->evidenceRules->validateGeneratedArtifacts(
+            $event,
+            $testCaseKey,
+            $artifacts,
+            $documentArtifacts,
+        );
         $scans = FedExValidationArtifact::query()
             ->where('carrier_api_event_id', $event->id)
             ->where('artifact_role', FedExValidationArtifact::ROLE_PRINTED_SCAN)
@@ -111,13 +130,17 @@ class FedExShipEvidenceService
         $responseValidation = $validation['response'];
         $parsed = $responseValidation['parsed'] ?? [];
 
+        $requestServiceType = $testCaseKey === 'IntegratorUS08'
+            ? data_get($request, 'freightRequestedShipment.serviceType')
+            : data_get($request, 'requestedShipment.serviceType');
+
         $summary = [
             'test_case' => $testCaseKey,
             'scenario_key' => $expected['scenario_key'],
-            'endpoint' => (string) ($event->endpoint ?? '/ship/v1/shipments'),
+            'endpoint' => (string) ($event->endpoint ?? $defaultEndpoint),
             'http_status' => $event->http_status,
             'expected_service_type' => $expected['expected_service_type'],
-            'request_service_type' => data_get($request, 'requestedShipment.serviceType'),
+            'request_service_type' => $requestServiceType,
             'response_service_type' => $parsed['service_type'] ?? null,
             'service_matches' => $responseValidation['valid'] ?? false,
             'payment_type' => $expected['payment_type'],
@@ -133,6 +156,16 @@ class FedExShipEvidenceService
                 && ($artifactValidation['valid'] ?? false)
                 && $scans >= (int) $expected['expected_package_count'],
         ];
+
+        if ($testCaseKey === 'IntegratorUS08') {
+            $summary['generated_document_count'] = count($documentArtifacts);
+            $summary['freight_bol_present'] = collect($documentArtifacts)->contains(
+                static fn (FedExValidationArtifact $artifact): bool => $artifact->artifact_type === 'freight_bill_of_lading'
+            );
+            $summary['freight_commercial_invoice_present'] = collect($documentArtifacts)->contains(
+                static fn (FedExValidationArtifact $artifact): bool => $artifact->artifact_type === 'freight_commercial_invoice'
+            );
+        }
 
         if ($testCaseKey === 'IntegratorUS05') {
             $summary['mps'] = true;
@@ -164,9 +197,16 @@ class FedExShipEvidenceService
     private function printingInstructions(string $testCaseKey): string
     {
         return match ($testCaseKey) {
+            'IntegratorUS01' => 'Print the alcohol PDF label on a laser printer at actual size / 100%. Do not scale or fit-to-page.',
             'IntegratorUS02' => 'Print this ZPLII file on a compatible Zebra thermal printer at the printer\'s native label size. Do not convert it using an online renderer.',
+            'IntegratorUS03' => 'Print the international PDF label and commercial invoice documents at actual size / 100%. Do not scale or fit-to-page.',
             'IntegratorUS04' => 'Print on a laser printer at actual size / 100%. Do not scale, fit, enlarge or shrink. Do not use the API PNG itself as the scanned submission.',
             'IntegratorUS05' => 'Print each package PDF label separately on a laser printer. Use actual size / no scaling. Package 1 and package 2 must both be printed and scanned.',
+            'IntegratorUS06' => 'Print the Return Manager PDF return label at actual size / 100%. Do not scale or fit-to-page.',
+            'IntegratorUS07' => 'Print the Ground Economy PDF label at actual size / 100%. Do not scale or fit-to-page.',
+            'IntegratorUS08' => 'Print the Freight LTL ZPLII handling-unit label on a compatible Zebra thermal printer. Also retain the Bill of Lading PDF when generated.',
+            'IntegratorUS09_IMAGE' => 'Print the international ETD PDF label (image letterhead/signature) at actual size / 100%. Do not scale or fit-to-page.',
+            'IntegratorUS09_DOCUMENT' => 'Print the international ETD PDF label (uploaded commercial invoice) at actual size / 100%. Do not scale or fit-to-page.',
             default => 'Print the generated label at actual size before scanning.',
         };
     }

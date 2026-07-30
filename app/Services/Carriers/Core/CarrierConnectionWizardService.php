@@ -56,11 +56,18 @@ class CarrierConnectionWizardService
             self::CARRIER_USPS => [
                 'code' => self::CARRIER_USPS,
                 'name' => 'USPS',
-                'summary' => 'Platform testing connection for address validation and test rate quotes.',
-                'available' => $uspsConfig->isConfigured(),
+                'summary' => $uspsConfig->merchantConnectionEnabled()
+                    ? 'Connect your merchant-owned USPS business account. Postage stays on your USPS payment account. Authorize BmyBrand as your Label Provider in the USPS Business Portal.'
+                    : 'Platform testing connection for address validation and test rate quotes.',
+                'available' => $uspsConfig->merchantConnectionEnabled() || $uspsConfig->isConfigured(),
                 'deferred' => false,
                 'blocked' => false,
-                'action' => $uspsConfig->isConfigured() ? 'Connect for testing' : 'Platform testing unavailable',
+                'connect_route' => $uspsConfig->merchantConnectionEnabled()
+                    ? 'settings.shipping.usps-merchant.start'
+                    : 'shipping.carriers.connect.show',
+                'action' => $uspsConfig->merchantConnectionEnabled()
+                    ? 'Connect USPS account'
+                    : ($uspsConfig->isConfigured() ? 'Connect for testing' : 'Platform testing unavailable'),
             ],
             self::CARRIER_FEDEX => [
                 'code' => self::CARRIER_FEDEX,
@@ -134,17 +141,16 @@ class CarrierConnectionWizardService
     {
         return match ($carrier) {
             self::CARRIER_USPS => array_values(array_filter([
+                $uspsConfig->merchantConnectionEnabled() ? [
+                    'value' => CarrierAccount::OWNERSHIP_MERCHANT_OWNED,
+                    'label' => 'Merchant-owned USPS account',
+                    'description' => 'Connect your USPS business account through Label Provider authorization. Postage stays on your EPA. You never paste API keys or passwords here.',
+                ] : null,
                 $uspsConfig->isConfigured() ? [
                     'value' => CarrierAccount::OWNERSHIP_PLATFORM_TESTING,
                     'label' => 'Platform testing connection',
                     'description' => 'Uses platform testing credentials for address validation and test rate quotes. This is not your merchant-owned USPS account.',
                 ] : null,
-                [
-                    'value' => 'merchant_owned_planned',
-                    'label' => 'Merchant-owned USPS account',
-                    'description' => 'Merchant-owned USPS credential setup is planned for a later phase. Use platform testing or manual delivery for now.',
-                    'disabled' => true,
-                ],
             ])),
             self::CARRIER_FEDEX => array_values(array_filter([
                 $fedExConfig->modelAEnabled() ? [

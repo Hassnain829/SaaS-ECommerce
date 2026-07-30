@@ -4,11 +4,11 @@
 <section class="rounded-2xl border border-[#CBD5E1] bg-white shadow-sm">
     <div class="flex flex-col gap-3 border-b border-[#F1F5F9] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h2 class="text-xl font-poppins font-semibold text-[#0F172A]">Delivery areas</h2>
+            <h2 class="text-xl font-semibold text-[#0F172A]">Delivery areas</h2>
             <p class="mt-1 text-sm text-[#64748B]">Define where customers can receive delivery. Delivery options match the customer address to a delivery area.</p>
         </div>
         @if ($canManageShipping)
-            <button type="button" data-open-drawer="zone-add" class="inline-flex h-10 items-center rounded-lg bg-[#0052CC] px-4 text-sm font-bold text-white">Add delivery area</button>
+            <button type="button" data-open-drawer="zone-add" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Add delivery area</button>
         @endif
     </div>
 

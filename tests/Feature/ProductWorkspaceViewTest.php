@@ -111,7 +111,7 @@ class ProductWorkspaceViewTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products.show', $product))
             ->assertOk()
-            ->assertSee('Extra information for this variant', false)
+            ->assertSee('Extra details', false)
             ->assertSee('Bundle', false)
             ->assertSee('3-pack', false);
     }
@@ -243,8 +243,11 @@ class ProductWorkspaceViewTest extends TestCase
             ->get(route('products.edit', $product))
             ->assertOk()
             ->assertSee('Native Edit Product', false)
-            ->assertSee('Edit catalog item', false)
+            ->assertSee('id="product-edit-workspace"', false)
+            ->assertSee('product-edit-section-nav', false)
             ->assertSee('Additional details', false)
+            ->assertSee('aria-label="Notifications"', false)
+            ->assertDontSee('Edit catalog item', false)
             ->assertDontSee('Catalog · Edit workspace', false);
     }
 

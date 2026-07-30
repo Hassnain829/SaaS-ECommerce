@@ -110,12 +110,41 @@ class FedExValidationEvidenceExporter
             '02_address_validation',
             '03_service_availability',
             '04_comprehensive_rates',
+            '05a_ship_us01_pdf/generated',
+            '05a_ship_us01_pdf/printed_scans',
             '05_ship_us02_zplii/generated',
             '05_ship_us02_zplii/printed_scans',
+            '05c_ship_us03_pdf/generated',
+            '05c_ship_us03_pdf/printed_scans',
             '06_ship_us04_png/generated',
             '06_ship_us04_png/printed_scans',
             '07_ship_us05_pdf_mps/generated',
             '07_ship_us05_pdf_mps/printed_scans',
+            '07a_ship_us06_pdf/generated',
+            '07a_ship_us06_pdf/printed_scans',
+            '07b_ship_us07_pdf/generated',
+            '07b_ship_us07_pdf/printed_scans',
+            '07c_ship_us08_zplii/generated',
+            '07c_ship_us08_zplii/printed_scans',
+            '07c_ship_us08_zplii/documents',
+            '07d_ship_us09_image_pdf/generated',
+            '07d_ship_us09_image_pdf/printed_scans',
+            '07d_ship_us09_image_pdf/uploads/letterhead',
+            '07d_ship_us09_image_pdf/uploads/signature',
+            '07e_ship_us09_document_pdf/generated',
+            '07e_ship_us09_document_pdf/printed_scans',
+            '07e_ship_us09_document_pdf/uploads',
+            '08_ship_us10_ipd/01_create_consolidation',
+            '08_ship_us10_ipd/02_add_shipment_1',
+            '08_ship_us10_ipd/03_add_shipment_2',
+            '08_ship_us10_ipd/04_add_shipment_3',
+            '08_ship_us10_ipd/05_add_shipment_4',
+            '08_ship_us10_ipd/06_add_shipment_5',
+            '08_ship_us10_ipd/07_add_shipment_6',
+            '08_ship_us10_ipd/08_confirm',
+            '08_ship_us10_ipd/09_confirm_results',
+            '08_ship_us10_ipd/labels',
+            '08_ship_us10_ipd/documents',
             '08_global_territories/ca',
             '08_global_territories/scope_notes',
             '09_tracking',
@@ -131,16 +160,31 @@ class FedExValidationEvidenceExporter
         $this->exportScenarioEvent($bundleDir.'/02_address_validation', $this->resolveCheckEvent($store, $account, $preflight, 'address_validation', false), false, 'final');
         $this->exportScenarioEvent($bundleDir.'/03_service_availability', $this->resolveCheckEvent($store, $account, $preflight, 'service_availability', false), false, 'final');
         $this->exportComprehensiveRates($bundleDir.'/04_comprehensive_rates', $store, $account, $preflight, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/05a_ship_us01_pdf', $store, $account, 'IntegratorUS01', $preflight, false, 'final');
         $this->exportLockedShipScenario($bundleDir.'/05_ship_us02_zplii', $store, $account, 'IntegratorUS02', $preflight, false, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/05c_ship_us03_pdf', $store, $account, 'IntegratorUS03', $preflight, false, 'final');
         $this->exportLockedShipScenario($bundleDir.'/06_ship_us04_png', $store, $account, 'IntegratorUS04', $preflight, false, 'final');
         $this->exportLockedShipScenario($bundleDir.'/07_ship_us05_pdf_mps', $store, $account, 'IntegratorUS05', $preflight, false, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/07a_ship_us06_pdf', $store, $account, 'IntegratorUS06', $preflight, false, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/07b_ship_us07_pdf', $store, $account, 'IntegratorUS07', $preflight, false, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/07c_ship_us08_zplii', $store, $account, 'IntegratorUS08', $preflight, false, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/07d_ship_us09_image_pdf', $store, $account, 'IntegratorUS09_IMAGE', $preflight, false, 'final');
+        $this->exportUs09Upload($bundleDir.'/07d_ship_us09_image_pdf/uploads/letterhead', $store, $account, 'upload_us09_image_letterhead', false, 'final');
+        $this->exportUs09Upload($bundleDir.'/07d_ship_us09_image_pdf/uploads/signature', $store, $account, 'upload_us09_image_signature', false, 'final');
+        $this->exportLockedShipScenario($bundleDir.'/07e_ship_us09_document_pdf', $store, $account, 'IntegratorUS09_DOCUMENT', $preflight, false, 'final');
+        $this->exportUs09Upload($bundleDir.'/07e_ship_us09_document_pdf/uploads', $store, $account, 'upload_us09_document', false, 'final');
+        $this->exportUs10Consolidation($bundleDir.'/08_ship_us10_ipd', $store, $account, $preflight, false, 'final');
         $this->exportGlobalCanadaTerritories($bundleDir.'/08_global_territories/ca', $store, $account, $preflight, 'final');
         $this->writeJson($bundleDir.'/08_global_territories/scope_notes/americas_scope.json', [
             'scope' => 'Americas — US and Canada only',
             'lac' => 'not_applicable',
             'amea' => 'not_applicable',
             'europe_etd' => 'not_applicable',
+            'us08_freight_ltl' => 'excluded',
+            'us10_consolidation_ipd' => FedExValidationScenarioCatalog::isConsolidationEnabled() ? 'in_scope' : 'excluded',
             'note' => 'LAC, AMEA, and Europe+ETD excluded per Integrator Validation Cover Sheet.',
+            'us08_exclusion_note' => FedExValidationScenarioCatalog::us08ExclusionNote(),
+            'us10_exclusion_note' => FedExValidationScenarioCatalog::us10ExclusionNote(),
         ]);
 
         if ($this->scopeService->trackingRequired($preflight['selected_scopes'] ?? null)) {
@@ -222,12 +266,41 @@ class FedExValidationEvidenceExporter
         File::ensureDirectoryExists($bundleDir.'/02_address_validation');
         File::ensureDirectoryExists($bundleDir.'/03_service_availability');
         File::ensureDirectoryExists($bundleDir.'/04_comprehensive_rates');
+        File::ensureDirectoryExists($bundleDir.'/05a_ship_us01_pdf/generated');
+        File::ensureDirectoryExists($bundleDir.'/05a_ship_us01_pdf/printed_scans');
         File::ensureDirectoryExists($bundleDir.'/05_ship_us02_zplii/generated');
         File::ensureDirectoryExists($bundleDir.'/05_ship_us02_zplii/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/05c_ship_us03_pdf/generated');
+        File::ensureDirectoryExists($bundleDir.'/05c_ship_us03_pdf/printed_scans');
         File::ensureDirectoryExists($bundleDir.'/06_ship_us04_png/generated');
         File::ensureDirectoryExists($bundleDir.'/06_ship_us04_png/printed_scans');
         File::ensureDirectoryExists($bundleDir.'/07_ship_us05_pdf_mps/generated');
         File::ensureDirectoryExists($bundleDir.'/07_ship_us05_pdf_mps/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/07a_ship_us06_pdf/generated');
+        File::ensureDirectoryExists($bundleDir.'/07a_ship_us06_pdf/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/07b_ship_us07_pdf/generated');
+        File::ensureDirectoryExists($bundleDir.'/07b_ship_us07_pdf/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/07c_ship_us08_zplii/generated');
+        File::ensureDirectoryExists($bundleDir.'/07c_ship_us08_zplii/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/07c_ship_us08_zplii/documents');
+        File::ensureDirectoryExists($bundleDir.'/07d_ship_us09_image_pdf/generated');
+        File::ensureDirectoryExists($bundleDir.'/07d_ship_us09_image_pdf/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/07d_ship_us09_image_pdf/uploads/letterhead');
+        File::ensureDirectoryExists($bundleDir.'/07d_ship_us09_image_pdf/uploads/signature');
+        File::ensureDirectoryExists($bundleDir.'/07e_ship_us09_document_pdf/generated');
+        File::ensureDirectoryExists($bundleDir.'/07e_ship_us09_document_pdf/printed_scans');
+        File::ensureDirectoryExists($bundleDir.'/07e_ship_us09_document_pdf/uploads');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/01_create_consolidation');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/02_add_shipment_1');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/03_add_shipment_2');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/04_add_shipment_3');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/05_add_shipment_4');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/06_add_shipment_5');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/07_add_shipment_6');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/08_confirm');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/09_confirm_results');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/labels');
+        File::ensureDirectoryExists($bundleDir.'/08_ship_us10_ipd/documents');
         File::ensureDirectoryExists($bundleDir.'/08_global_territories/ca');
         File::ensureDirectoryExists($bundleDir.'/08_global_territories/scope_notes');
         File::ensureDirectoryExists($bundleDir.'/08_tracking');
@@ -243,16 +316,31 @@ class FedExValidationEvidenceExporter
         $this->exportScenarioEvent($bundleDir.'/02_address_validation', $this->resolveCheckEvent($store, $account, $preflight, 'address_validation', $includeFailedAttempts), $includeFailedAttempts, $mode);
         $this->exportScenarioEvent($bundleDir.'/03_service_availability', $this->resolveCheckEvent($store, $account, $preflight, 'service_availability', $includeFailedAttempts), $includeFailedAttempts, $mode);
         $this->exportComprehensiveRates($bundleDir.'/04_comprehensive_rates', $store, $account, $preflight, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/05a_ship_us01_pdf', $store, $account, 'IntegratorUS01', $preflight, $includeFailedAttempts, $mode);
         $this->exportLockedShipScenario($bundleDir.'/05_ship_us02_zplii', $store, $account, 'IntegratorUS02', $preflight, $includeFailedAttempts, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/05c_ship_us03_pdf', $store, $account, 'IntegratorUS03', $preflight, $includeFailedAttempts, $mode);
         $this->exportLockedShipScenario($bundleDir.'/06_ship_us04_png', $store, $account, 'IntegratorUS04', $preflight, $includeFailedAttempts, $mode);
         $this->exportLockedShipScenario($bundleDir.'/07_ship_us05_pdf_mps', $store, $account, 'IntegratorUS05', $preflight, $includeFailedAttempts, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/07a_ship_us06_pdf', $store, $account, 'IntegratorUS06', $preflight, $includeFailedAttempts, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/07b_ship_us07_pdf', $store, $account, 'IntegratorUS07', $preflight, $includeFailedAttempts, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/07c_ship_us08_zplii', $store, $account, 'IntegratorUS08', $preflight, $includeFailedAttempts, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/07d_ship_us09_image_pdf', $store, $account, 'IntegratorUS09_IMAGE', $preflight, $includeFailedAttempts, $mode);
+        $this->exportUs09Upload($bundleDir.'/07d_ship_us09_image_pdf/uploads/letterhead', $store, $account, 'upload_us09_image_letterhead', $includeFailedAttempts, $mode);
+        $this->exportUs09Upload($bundleDir.'/07d_ship_us09_image_pdf/uploads/signature', $store, $account, 'upload_us09_image_signature', $includeFailedAttempts, $mode);
+        $this->exportLockedShipScenario($bundleDir.'/07e_ship_us09_document_pdf', $store, $account, 'IntegratorUS09_DOCUMENT', $preflight, $includeFailedAttempts, $mode);
+        $this->exportUs09Upload($bundleDir.'/07e_ship_us09_document_pdf/uploads', $store, $account, 'upload_us09_document', $includeFailedAttempts, $mode);
+        $this->exportUs10Consolidation($bundleDir.'/08_ship_us10_ipd', $store, $account, $preflight, $includeFailedAttempts, $mode);
         $this->exportGlobalCanadaTerritories($bundleDir.'/08_global_territories/ca', $store, $account, $preflight, $mode);
         $this->writeJson($bundleDir.'/08_global_territories/scope_notes/americas_scope.json', [
             'scope' => 'Americas — US and Canada only',
             'lac' => 'not_applicable',
             'amea' => 'not_applicable',
             'europe_etd' => 'not_applicable',
+            'us08_freight_ltl' => 'excluded',
+            'us10_consolidation_ipd' => FedExValidationScenarioCatalog::isConsolidationEnabled() ? 'in_scope' : 'excluded',
             'note' => 'LAC, AMEA, and Europe+ETD excluded per Integrator Validation Cover Sheet.',
+            'us08_exclusion_note' => FedExValidationScenarioCatalog::us08ExclusionNote(),
+            'us10_exclusion_note' => FedExValidationScenarioCatalog::us10ExclusionNote(),
         ]);
 
         if ($mode === 'final') {
@@ -548,6 +636,234 @@ class FedExValidationEvidenceExporter
     }
 
     /**
+     * Export US09 Trade Documents upload event (redacted; no binary).
+     */
+    private function exportUs09Upload(
+        string $directory,
+        Store $store,
+        CarrierAccount $account,
+        string $uploadScenarioKey,
+        bool $includeFailed,
+        string $mode,
+    ): void {
+        File::ensureDirectoryExists($directory);
+        $event = $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, $uploadScenarioKey);
+        if ($event === null && $includeFailed) {
+            $event = CarrierApiEvent::query()
+                ->where('store_id', $store->id)
+                ->where('carrier_account_id', $account->id)
+                ->where('scenario_key', $uploadScenarioKey)
+                ->latest('id')
+                ->first();
+        }
+
+        if ($event === null) {
+            $this->writeJson($directory.'/upload_pending.json', [
+                'scenario_key' => $uploadScenarioKey,
+                'status' => 'not_tested',
+                'note' => 'US09 upload deferred until final evidence run.',
+            ]);
+
+            return;
+        }
+
+        $this->exportScenarioEvent($directory, $event, $includeFailed || $mode !== 'final', $mode);
+    }
+
+    /**
+     * Export IntegratorUS10 Consolidation evidence into separate step folders.
+     *
+     * @param  array<string, mixed>  $preflight
+     */
+    private function exportUs10Consolidation(
+        string $directory,
+        Store $store,
+        CarrierAccount $account,
+        array $preflight,
+        bool $includeFailed,
+        string $mode,
+    ): void {
+        File::ensureDirectoryExists($directory.'/labels');
+        File::ensureDirectoryExists($directory.'/documents');
+
+        if (! FedExValidationScenarioCatalog::isConsolidationEnabled()) {
+            $this->writeJson($directory.'/README.json', [
+                'case' => 'IntegratorUS10',
+                'api_family' => 'consolidation',
+                'status' => 'excluded',
+                'note' => FedExValidationScenarioCatalog::us10ExclusionNote(),
+                'historical_events' => 'Failed historical IntegratorUS10 events remain stored for audit and are not required for final export.',
+            ]);
+            $this->writeJson($directory.'/excluded.json', [
+                'test_case_key' => 'IntegratorUS10',
+                'status' => 'excluded',
+                'reason' => FedExValidationScenarioCatalog::us10ExclusionNote(),
+            ]);
+
+            return;
+        }
+
+        foreach (FedExValidationScenarioCatalog::lockedConsolidationScenarios() as $testCaseKey => $meta) {
+            $exportFolder = (string) ($meta['export_folder'] ?? '');
+            $relative = str_starts_with($exportFolder, '08_ship_us10_ipd/')
+                ? substr($exportFolder, strlen('08_ship_us10_ipd/'))
+                : (string) ($meta['scenario_key'] ?? $testCaseKey);
+            $stepDir = $directory.'/'.$relative;
+            File::ensureDirectoryExists($stepDir);
+
+            $scenarioKey = (string) $meta['scenario_key'];
+            $eventCheckKey = $scenarioKey.'_event';
+            $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $eventCheckKey)['event_id'] ?? null;
+            $event = $eventId
+                ? $this->evidenceQuery->eventById($store, $account, (int) $eventId)
+                : $this->evidenceQuery->canonicalSuccessfulEvent($store, $account, $scenarioKey, $testCaseKey);
+
+            if ($event === null && $includeFailed) {
+                $event = CarrierApiEvent::query()
+                    ->where('store_id', $store->id)
+                    ->where('carrier_account_id', $account->id)
+                    ->where('scenario_key', $scenarioKey)
+                    ->latest('id')
+                    ->first();
+            }
+
+            if ($event === null) {
+                $this->writeJson($stepDir.'/pending.json', [
+                    'test_case_key' => $testCaseKey,
+                    'scenario_key' => $scenarioKey,
+                    'status' => 'not_tested',
+                    'note' => 'US10 Consolidation step deferred until the final evidence run.',
+                ]);
+
+                continue;
+            }
+
+            $this->exportScenarioEvent($stepDir, $event, $includeFailed || $mode !== 'final', $mode);
+
+            $sanitizedRequest = $this->sanitizer->sanitize(
+                is_array($event->request_body_encrypted) ? $event->request_body_encrypted : []
+            );
+            $exportValidation = app(FedExConsolidationEvidenceRules::class)->validateSanitizedExport(
+                is_array($sanitizedRequest) ? $sanitizedRequest : [],
+                (string) ($meta['operation'] ?? 'create'),
+            );
+
+            if ($mode === 'final' && ! $exportValidation['valid']) {
+                throw new HttpException(
+                    422,
+                    'Final export blocked: '.$testCaseKey.' sanitized consolidation request failed validation ('.implode(', ', $exportValidation['reasons']).').'
+                );
+            }
+
+            $this->writeJson($stepDir.'/export_validation.json', $exportValidation);
+        }
+
+        $confirmResultsEvent = $this->evidenceQuery->canonicalSuccessfulEvent(
+            $store,
+            $account,
+            'consolidation_us10_confirm_results',
+            'IntegratorUS10_CONFIRM_RESULTS',
+        );
+
+        $expectedLabelCount = count(app(FedExConsolidationFixtureService::class)->addShipmentKeys());
+        $labelsCopied = 0;
+        $cciCopied = false;
+
+        if ($confirmResultsEvent !== null) {
+            $labelsCopied = $this->copyUs10ChildLabels($directory.'/labels', $confirmResultsEvent);
+            $cciCopied = $this->copyUs10ConsolidatedCommercialInvoice($directory.'/documents', $confirmResultsEvent);
+        }
+
+        if ($mode === 'final') {
+            if ($labelsCopied < $expectedLabelCount) {
+                throw new HttpException(
+                    422,
+                    'Final export blocked: IntegratorUS10 expected '.$expectedLabelCount.' child labels under 08_ship_us10_ipd/labels/; copied '.$labelsCopied.'.'
+                );
+            }
+            if (! $cciCopied) {
+                throw new HttpException(
+                    422,
+                    'Final export blocked: IntegratorUS10 Consolidated Commercial Invoice was not copied into 08_ship_us10_ipd/documents/.'
+                );
+            }
+        }
+
+        $this->writeJson($directory.'/README.json', [
+            'case' => 'IntegratorUS10',
+            'api_family' => 'consolidation',
+            'note' => 'Each create/add/confirm/results step is an independent evidence requirement. Labels and CCI belong under labels/ and documents/.',
+            'child_labels_copied' => $labelsCopied,
+            'expected_child_labels' => $expectedLabelCount,
+            'cci_copied' => $cciCopied,
+        ]);
+    }
+
+    private function copyUs10ChildLabels(string $directory, CarrierApiEvent $event): int
+    {
+        File::ensureDirectoryExists($directory);
+
+        $artifacts = FedExValidationArtifact::query()
+            ->where('store_id', $event->store_id)
+            ->where('carrier_account_id', $event->carrier_account_id)
+            ->where('carrier_api_event_id', $event->id)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_GENERATED_LABEL)
+            ->where('test_case_key', 'IntegratorUS10_CONFIRM_RESULTS')
+            ->orderBy('package_sequence')
+            ->get();
+
+        $copied = 0;
+        foreach ($artifacts as $artifact) {
+            $path = $artifact->absolutePath();
+            if ($path === null || ! is_file($path) || filesize($path) <= 0) {
+                continue;
+            }
+            if (! filled($artifact->sha256) || hash_file('sha256', $path) !== (string) $artifact->sha256) {
+                continue;
+            }
+            if (! FedExLabelArtifactValidator::isValid($path, strtoupper((string) ($artifact->label_format ?: 'PDF')))) {
+                continue;
+            }
+
+            $sequence = (int) ($artifact->package_sequence ?: ($copied + 1));
+            $target = $directory.'/child-label-'.$sequence.'.'.pathinfo($path, PATHINFO_EXTENSION);
+            File::copy($path, $target);
+            $copied++;
+        }
+
+        return $copied;
+    }
+
+    private function copyUs10ConsolidatedCommercialInvoice(string $directory, CarrierApiEvent $event): bool
+    {
+        File::ensureDirectoryExists($directory);
+
+        $artifact = FedExValidationArtifact::query()
+            ->where('store_id', $event->store_id)
+            ->where('carrier_account_id', $event->carrier_account_id)
+            ->where('carrier_api_event_id', $event->id)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_VALIDATION_DOCUMENT)
+            ->where('artifact_type', 'consolidation_commercial_invoice')
+            ->latest('id')
+            ->first();
+
+        $path = $artifact?->absolutePath();
+        if ($path === null || ! is_file($path) || filesize($path) <= 0) {
+            return false;
+        }
+        if (! filled($artifact->sha256) || hash_file('sha256', $path) !== (string) $artifact->sha256) {
+            return false;
+        }
+        if (! str_starts_with((string) file_get_contents($path), '%PDF')) {
+            return false;
+        }
+
+        File::copy($path, $directory.'/Consolidated_Commercial_Invoice.pdf');
+
+        return true;
+    }
+
+    /**
      * @param  array<string, mixed>  $preflight
      */
     private function exportLockedShipScenario(
@@ -559,6 +875,28 @@ class FedExValidationEvidenceExporter
         bool $includeFailed,
         string $mode,
     ): void {
+        if ($testCaseKey === 'IntegratorUS08' && ! FedExValidationScenarioCatalog::isShipScenarioEnabled('IntegratorUS08')) {
+            File::ensureDirectoryExists($directory.'/documents');
+            $this->writeJson($directory.'/EXCLUDED.json', [
+                'test_case_key' => 'IntegratorUS08',
+                'api_family' => 'freight_ltl',
+                'status' => 'excluded',
+                'required_for_readiness' => false,
+                'reason' => FedExValidationScenarioCatalog::us08ExclusionNote(),
+                'historical_events' => 'Failed historical IntegratorUS08 events remain stored for audit and are not required for final export.',
+            ]);
+            // Keep DISABLED.json alias for older export consumers.
+            $this->writeJson($directory.'/DISABLED.json', [
+                'test_case_key' => 'IntegratorUS08',
+                'api_family' => 'freight_ltl',
+                'status' => 'excluded',
+                'required_for_readiness' => false,
+                'reason' => FedExValidationScenarioCatalog::us08ExclusionNote(),
+            ]);
+
+            return;
+        }
+
         $meta = FedExValidationScenarioCatalog::lockedShipScenarios()[$testCaseKey];
         $eventCheckKey = $meta['scenario_key'].'_event';
         $eventId = collect($preflight['checks'] ?? [])->firstWhere('key', $eventCheckKey)['event_id'] ?? null;
@@ -574,12 +912,197 @@ class FedExValidationEvidenceExporter
 
         $this->exportScenarioEvent($directory, $event, $includeFailed, $mode);
         if ($event !== null) {
+            $sanitizedRequest = $this->sanitizer->sanitize(
+                is_array($event->request_body_encrypted) ? $event->request_body_encrypted : []
+            );
+            $exportValidation = app(FedExShipEvidenceRules::class)->validateSanitizedExport(
+                is_array($sanitizedRequest) ? $sanitizedRequest : [],
+                $testCaseKey,
+            );
+
+            if ($mode === 'final' && ! $exportValidation['valid']) {
+                throw new HttpException(
+                    422,
+                    'Final export blocked: '.$testCaseKey.' sanitized ship request failed validation ('.implode(', ', $exportValidation['reasons']).').'
+                );
+            }
+
             $this->writeJson(
                 $directory.'/result_summary.json',
                 $this->shipEvidenceService->exportResultSummary($event, $testCaseKey, $mode !== 'final'),
             );
             $this->copyArtifacts($directory.'/generated', $event, FedExValidationArtifact::ROLE_GENERATED_LABEL);
             $this->copyArtifacts($directory.'/printed_scans', $event, FedExValidationArtifact::ROLE_PRINTED_SCAN);
+
+            if ($testCaseKey === 'IntegratorUS08') {
+                $this->copyUs08ValidationDocuments($directory.'/documents', $event, $mode);
+            }
+
+            if (in_array($testCaseKey, ['IntegratorUS09_IMAGE', 'IntegratorUS09_DOCUMENT'], true)) {
+                $this->copyUs09ValidationDocuments($directory.'/documents', $event, $mode, $testCaseKey);
+            }
+        } elseif ($testCaseKey === 'IntegratorUS08') {
+            File::ensureDirectoryExists($directory.'/documents');
+        } elseif (in_array($testCaseKey, ['IntegratorUS09_IMAGE', 'IntegratorUS09_DOCUMENT'], true)) {
+            File::ensureDirectoryExists($directory.'/documents');
+        }
+    }
+
+    /**
+     * Copy commercial invoice / shipping documents for IntegratorUS09.
+     *
+     * IMAGE: FedEx returns a generated Commercial Invoice PDF on the ship response.
+     * DOCUMENT: the Commercial Invoice is the ETD-uploaded PDF; ship often returns a label only.
+     */
+    private function copyUs09ValidationDocuments(
+        string $directory,
+        CarrierApiEvent $event,
+        string $mode,
+        string $testCaseKey,
+    ): void {
+        File::ensureDirectoryExists($directory);
+
+        $artifacts = FedExValidationArtifact::query()
+            ->where('store_id', $event->store_id)
+            ->where('carrier_account_id', $event->carrier_account_id)
+            ->where('carrier_api_event_id', $event->id)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_VALIDATION_DOCUMENT)
+            ->where('test_case_key', $testCaseKey)
+            ->orderBy('id')
+            ->get();
+
+        $copiedCommercialInvoice = false;
+        $index = 0;
+
+        foreach ($artifacts as $artifact) {
+            $path = $artifact->absolutePath();
+            if (! $this->isValidUs09CommercialInvoicePdf($path, $artifact->sha256)) {
+                continue;
+            }
+
+            $index++;
+            if ($artifact->artifact_type === 'commercial_invoice') {
+                File::copy($path, $directory.'/Commercial_Invoice.pdf');
+                $copiedCommercialInvoice = true;
+            } else {
+                File::copy($path, $directory.'/shipping-document-'.$index.'.pdf');
+            }
+        }
+
+        if (! $copiedCommercialInvoice && $testCaseKey === 'IntegratorUS09_DOCUMENT') {
+            $copiedCommercialInvoice = $this->copyUs09DocumentCaseCommercialInvoice(
+                $directory,
+                $event,
+                $testCaseKey,
+            );
+        }
+
+        if ($mode === 'final' && ! $copiedCommercialInvoice) {
+            throw new HttpException(
+                422,
+                'Final export blocked: '.$testCaseKey.' Commercial Invoice was not copied into the submission documents directory.'
+            );
+        }
+    }
+
+    /**
+     * For ETD document mode, copy the uploaded Commercial Invoice PDF when ship did not return one.
+     */
+    private function copyUs09DocumentCaseCommercialInvoice(
+        string $directory,
+        CarrierApiEvent $event,
+        string $testCaseKey,
+    ): bool {
+        $stored = FedExValidationArtifact::query()
+            ->where('store_id', $event->store_id)
+            ->where('carrier_account_id', $event->carrier_account_id)
+            ->where('test_case_key', $testCaseKey)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_VALIDATION_DOCUMENT)
+            ->where('artifact_type', 'commercial_invoice')
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($stored as $artifact) {
+            $path = $artifact->absolutePath();
+            if (! $this->isValidUs09CommercialInvoicePdf($path, $artifact->sha256)) {
+                continue;
+            }
+
+            File::copy($path, $directory.'/Commercial_Invoice.pdf');
+
+            return true;
+        }
+
+        $fixturePath = app(FedExUs09EtdFixtureService::class)->documentCommercialInvoiceAbsolutePath();
+        if ($fixturePath === null || ! $this->isValidUs09CommercialInvoicePdf($fixturePath, null)) {
+            return false;
+        }
+
+        File::copy($fixturePath, $directory.'/Commercial_Invoice.pdf');
+
+        return true;
+    }
+
+    private function isValidUs09CommercialInvoicePdf(?string $path, mixed $expectedSha256): bool
+    {
+        if ($path === null || ! is_file($path) || filesize($path) <= 0) {
+            return false;
+        }
+
+        if (filled($expectedSha256) && hash_file('sha256', $path) !== (string) $expectedSha256) {
+            return false;
+        }
+
+        return str_starts_with((string) file_get_contents($path), '%PDF');
+    }
+
+    /**
+     * Copy Freight validation documents (BOL / commercial invoice) for IntegratorUS08.
+     */
+    private function copyUs08ValidationDocuments(string $directory, CarrierApiEvent $event, string $mode): void
+    {
+        File::ensureDirectoryExists($directory);
+
+        $filenameMap = [
+            'freight_bill_of_lading' => 'Straight_Bill_of_Lading.pdf',
+            'freight_commercial_invoice' => 'Commercial_Invoice.pdf',
+        ];
+
+        $copied = [];
+
+        $artifacts = FedExValidationArtifact::query()
+            ->where('store_id', $event->store_id)
+            ->where('carrier_account_id', $event->carrier_account_id)
+            ->where('carrier_api_event_id', $event->id)
+            ->where('artifact_role', FedExValidationArtifact::ROLE_VALIDATION_DOCUMENT)
+            ->whereIn('artifact_type', array_keys($filenameMap))
+            ->orderBy('id')
+            ->get();
+
+        foreach ($artifacts as $artifact) {
+            $filename = $filenameMap[$artifact->artifact_type] ?? null;
+            if ($filename === null) {
+                continue;
+            }
+
+            $path = $artifact->absolutePath();
+            if ($path === null || ! is_file($path) || filesize($path) <= 0) {
+                continue;
+            }
+
+            if (! filled($artifact->sha256) || hash_file('sha256', $path) !== (string) $artifact->sha256) {
+                continue;
+            }
+
+            File::copy($path, $directory.'/'.$filename);
+            $copied[$artifact->artifact_type] = $directory.'/'.$filename;
+        }
+
+        if ($mode === 'final' && ! isset($copied['freight_bill_of_lading'])) {
+            throw new HttpException(
+                422,
+                'Final export blocked: IntegratorUS08 Straight Bill of Lading was not copied into the submission documents directory.'
+            );
         }
     }
 
@@ -814,6 +1337,9 @@ class FedExValidationEvidenceExporter
             'This bundle contains sanitized complete request/response JSON where recorded, plus private artifact copies.',
             'Secrets, tokens, child keys, PINs, and raw label Base64 are excluded from JSON files.',
             '',
+            FedExValidationScenarioCatalog::us08ExclusionNote(),
+            FedExValidationScenarioCatalog::us10ExclusionNote(),
+            '',
             'Generated at: '.now()->toIso8601String(),
         ]);
 
@@ -914,6 +1440,41 @@ class FedExValidationEvidenceExporter
             }
 
             $this->verifyCanadaCheckExported($bundleDir, $check);
+        }
+
+        $this->verifyUs08BolExported($bundleDir, $preflight);
+    }
+
+    /**
+     * @param  array<string, mixed>  $preflight
+     */
+    private function verifyUs08BolExported(string $bundleDir, array $preflight): void
+    {
+        if (! FedExValidationScenarioCatalog::isShipScenarioEnabled('IntegratorUS08')) {
+            return;
+        }
+
+        $bolCheck = collect($preflight['checks'] ?? [])->firstWhere('key', 'ship_us08_zplii_bol');
+        if ($bolCheck === null || ! ($bolCheck['required'] ?? false)) {
+            return;
+        }
+
+        // Final submission expects the BOL whenever the US08 BOL check is required and has passed
+        // (or the canonical US08 event check passed, which implies BOL evidence existed).
+        $eventCheck = collect($preflight['checks'] ?? [])->firstWhere('key', 'ship_us08_zplii_event');
+        $expectsBol = ($bolCheck['status'] ?? '') === 'passed'
+            || ($eventCheck['status'] ?? '') === 'passed';
+
+        if (! $expectsBol) {
+            return;
+        }
+
+        $path = $bundleDir.'/07c_ship_us08_zplii/documents/Straight_Bill_of_Lading.pdf';
+        if (! is_file($path) || filesize($path) <= 0) {
+            throw new HttpException(
+                422,
+                'Final export integrity failed: missing Straight_Bill_of_Lading.pdf for IntegratorUS08.'
+            );
         }
     }
 
@@ -1164,6 +1725,9 @@ class FedExValidationEvidenceExporter
             'Manifest: FILE_MANIFEST_SHA256.json',
             'Feedback matrix: FEDEX_FEEDBACK_RESPONSE_MATRIX.json',
             '',
+            FedExValidationScenarioCatalog::us08ExclusionNote(),
+            FedExValidationScenarioCatalog::us10ExclusionNote(),
+            '',
             'This package was generated from an immutable snapshot. No secrets or source code are included.',
         ]);
     }
@@ -1179,6 +1743,8 @@ class FedExValidationEvidenceExporter
             '',
             'Tracking evidence: previously approved where applicable.',
             'Americas scope: US + Canada only (LAC/AMEA/Europe excluded per Cover Sheet).',
+            FedExValidationScenarioCatalog::us08ExclusionNote(),
+            FedExValidationScenarioCatalog::us10ExclusionNote(),
             '',
             'Review this draft before sending through the FedEx case email thread.',
         ]);

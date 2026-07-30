@@ -7,8 +7,13 @@ use App\Models\DraftOrder;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Checkout\CheckoutTotalsService;
+use App\Services\Coupons\CouponService;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Notifications\CommerceNotificationEmitter;
+use App\Support\Money\CurrencyPrecision;
+use App\Support\Money\DecimalString;
 use App\Support\OrderLifecycle;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +26,8 @@ class ManualOrderConversionService
         private readonly OrderEventRecorder $eventRecorder,
         private readonly OrderNumberGenerator $orderNumberGenerator,
         private readonly CustomerMetricsService $customerMetricsService,
+        private readonly CouponService $couponService,
+        private readonly CommerceNotificationEmitter $commerceNotifications,
     ) {}
 
     public function convert(DraftOrder $draft, Store $store, User $actor): Order
@@ -35,7 +42,7 @@ class ManualOrderConversionService
             ]);
         }
 
-        $draft->loadMissing(['customer.addresses', 'items.variant.product.images', 'taxLines']);
+        $draft->loadMissing(['customer.addresses', 'items.variant.product.images', 'items.variant.product.categories:id', 'taxLines']);
 
         if (! $draft->customer) {
             throw ValidationException::withMessages([
@@ -97,6 +104,34 @@ class ManualOrderConversionService
 
             if ($isCalculatedTax && isset($draftMetadata['tax_snapshot'])) {
                 $orderMeta['tax_snapshot'] = $draftMetadata['tax_snapshot'];
+            }
+
+            $couponDiscount = null;
+            $couponCode = trim((string) data_get($draftMetadata, 'coupon_snapshot.code', ''));
+            if ($couponCode !== '' && $draft->customer) {
+                $prepared = [];
+                foreach ($draft->items as $draftItem) {
+                    if (! $draftItem->variant) {
+                        continue;
+                    }
+                    $prepared[] = [
+                        'variant' => $draftItem->variant,
+                        'quantity' => (int) $draftItem->quantity,
+                    ];
+                }
+                $couponDiscount = $this->couponService->calculate(
+                    $store,
+                    $draft->customer,
+                    (string) $draft->currency,
+                    $prepared,
+                    $couponCode,
+                );
+                $this->assertDraftCouponMatchesStoredSnapshot(
+                    $draft,
+                    $draftMetadata['coupon_snapshot'] ?? [],
+                    $couponDiscount,
+                );
+                $orderMeta['coupon_snapshot'] = $draftMetadata['coupon_snapshot'];
             }
 
             $order = Order::query()->create([
@@ -179,6 +214,22 @@ class ManualOrderConversionService
                 ]);
                 $reservations[] = $reservation->fresh();
 
+                $lineKey = CheckoutTotalsService::lineKeyForVariant((int) $item->product_variant_id);
+                $lineDiscount = $couponDiscount
+                    ? CurrencyPrecision::roundMajor(
+                        DecimalString::normalizeNonNegative((string) ($couponDiscount->itemDiscounts[$lineKey] ?? '0')),
+                        (string) $draft->currency,
+                    )
+                    : CurrencyPrecision::roundMajor('0', (string) $draft->currency);
+
+                $itemTotal = CurrencyPrecision::roundMajor(
+                    bcsub($this->orderItemTotal($item, $isCalculatedTax, (string) $draft->currency), $lineDiscount, 6),
+                    (string) $draft->currency,
+                );
+                if (bccomp($itemTotal, '0', 6) < 0) {
+                    $itemTotal = CurrencyPrecision::roundMajor('0', (string) $draft->currency);
+                }
+
                 $order->items()->create([
                     'product_id' => $item->product_id,
                     'product_variant_id' => $item->product_variant_id,
@@ -192,10 +243,21 @@ class ManualOrderConversionService
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
                     'subtotal' => $item->line_total,
+                    'discount_amount' => $lineDiscount,
                     'tax_amount' => $isCalculatedTax ? $item->tax_amount : 0,
-                    'total' => $this->orderItemTotal($item, $isCalculatedTax),
+                    'total' => $itemTotal,
                     'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                    'meta' => $couponDiscount ? [
+                        'coupon' => [
+                            'code' => $couponDiscount->coupon->code,
+                            'discount_amount' => $lineDiscount,
+                        ],
+                    ] : null,
                 ]);
+            }
+
+            if ($couponDiscount && $draft->customer) {
+                $this->couponService->recordRedeemedForOrder($order, $draft->customer, $couponDiscount);
             }
 
             if ($isCalculatedTax) {
@@ -259,6 +321,8 @@ class ManualOrderConversionService
 
             $this->customerMetricsService->recalculate($draft->customer);
 
+            $this->commerceNotifications->orderCreated($order, $actor);
+
             return $order->load(['items', 'addresses', 'customer', 'events']);
         });
     }
@@ -316,23 +380,102 @@ class ManualOrderConversionService
         ]);
     }
 
-    private function shippingTaxTotal(DraftOrder $draft): float
+    private function shippingTaxTotal(DraftOrder $draft): string
     {
-        return round((float) $draft->taxLines
-            ->where('applies_to', \App\Models\DraftTaxLine::APPLIES_TO_SHIPPING)
-            ->sum(fn ($line): float => (float) $line->tax_amount), 2);
+        $currency = strtoupper((string) ($draft->currency ?: 'USD'));
+        $total = CurrencyPrecision::roundMajor('0', $currency);
+
+        foreach ($draft->taxLines->where('applies_to', \App\Models\DraftTaxLine::APPLIES_TO_SHIPPING) as $line) {
+            $total = CurrencyPrecision::roundMajor(
+                bcadd($total, DecimalString::normalizeNonNegative((string) $line->tax_amount), 6),
+                $currency,
+            );
+        }
+
+        return $total;
     }
 
-    private function orderItemTotal($item, bool $isCalculatedTax): string
+    /**
+     * @param  array<string, mixed>  $storedSnapshot
+     */
+    private function assertDraftCouponMatchesStoredSnapshot(
+        DraftOrder $draft,
+        array $storedSnapshot,
+        \App\Data\Coupons\CouponDiscountResult $fresh,
+    ): void {
+        $currencyCode = strtoupper((string) ($draft->currency ?: 'USD'));
+        $headerDiscount = CurrencyPrecision::roundMajor(
+            DecimalString::normalizeNonNegative((string) $draft->discount_total),
+            $currencyCode,
+        );
+        $storedDiscount = CurrencyPrecision::roundMajor(
+            DecimalString::normalizeNonNegative((string) ($storedSnapshot['discount_amount'] ?? '0')),
+            $currencyCode,
+        );
+        $freshDiscount = CurrencyPrecision::roundMajor($fresh->discountTotal, $currencyCode);
+
+        $storedItems = is_array($storedSnapshot['item_discounts'] ?? null) ? $storedSnapshot['item_discounts'] : [];
+        $allocationSum = CurrencyPrecision::roundMajor('0', $currencyCode);
+        foreach ($storedItems as $amount) {
+            $allocationSum = CurrencyPrecision::roundMajor(
+                bcadd($allocationSum, DecimalString::normalizeNonNegative((string) $amount), 6),
+                $currencyCode,
+            );
+        }
+
+        $headerMinor = CurrencyPrecision::toMinorUnits($headerDiscount, $currencyCode);
+        $storedMinor = CurrencyPrecision::toMinorUnits($storedDiscount, $currencyCode);
+        $allocationMinor = CurrencyPrecision::toMinorUnits($allocationSum, $currencyCode);
+        $freshMinor = CurrencyPrecision::toMinorUnits($freshDiscount, $currencyCode);
+
+        if (
+            strtoupper((string) ($storedSnapshot['code'] ?? '')) !== strtoupper($fresh->coupon->code)
+            || $headerMinor !== $storedMinor
+            || $headerMinor !== $allocationMinor
+            || $headerMinor !== $freshMinor
+        ) {
+            throw ValidationException::withMessages([
+                'coupon_code' => 'This coupon no longer matches the approved draft discount. Update the draft before creating the order.',
+            ]);
+        }
+
+        $freshItems = $fresh->itemDiscounts;
+        $keys = collect(array_unique(array_merge(array_keys($storedItems), array_keys($freshItems))))->sort()->values();
+
+        foreach ($keys as $key) {
+            $storedLine = CurrencyPrecision::roundMajor(
+                DecimalString::normalizeNonNegative((string) ($storedItems[$key] ?? '0')),
+                $currencyCode,
+            );
+            $freshLine = CurrencyPrecision::roundMajor(
+                DecimalString::normalizeNonNegative((string) ($freshItems[$key] ?? '0')),
+                $currencyCode,
+            );
+
+            if (
+                CurrencyPrecision::toMinorUnits($storedLine, $currencyCode)
+                !== CurrencyPrecision::toMinorUnits($freshLine, $currencyCode)
+            ) {
+                throw ValidationException::withMessages([
+                    'coupon_code' => 'This coupon no longer matches the approved draft discount. Update the draft before creating the order.',
+                ]);
+            }
+        }
+    }
+
+    private function orderItemTotal($item, bool $isCalculatedTax, string $currencyCode): string
     {
         if (! $isCalculatedTax) {
-            return (string) $item->line_total;
+            return CurrencyPrecision::roundMajor((string) $item->line_total, $currencyCode);
         }
 
         if ((bool) data_get($item->metadata, 'tax.prices_include_tax', false)) {
-            return (string) $item->line_total;
+            return CurrencyPrecision::roundMajor((string) $item->line_total, $currencyCode);
         }
 
-        return bcadd((string) $item->line_total, (string) $item->tax_amount, 2);
+        return CurrencyPrecision::roundMajor(
+            bcadd((string) $item->line_total, (string) $item->tax_amount, 6),
+            $currencyCode,
+        );
     }
 }

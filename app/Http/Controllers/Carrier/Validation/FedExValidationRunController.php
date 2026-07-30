@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Carrier\Validation;
 use App\Http\Controllers\Carrier\Validation\Concerns\ResolvesFedExValidationAccount;
 use App\Http\Controllers\Controller;
 use App\Models\CarrierAccount;
+use App\Models\CarrierApiEvent;
 use App\Models\Location;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
@@ -13,11 +14,14 @@ use App\Services\Carriers\FedEx\Operations\FedExBasicIntegratedVisibilityService
 use App\Services\Carriers\FedEx\Operations\FedExComprehensiveRateAccessClassifier;
 use App\Services\Carriers\FedEx\Operations\FedExComprehensiveRateQuoteService;
 use App\Services\Carriers\FedEx\Operations\FedExServiceAvailabilityService;
+use App\Services\Carriers\FedEx\Operations\FedExFreightLtlService;
+use App\Services\Carriers\FedEx\Operations\FedExConsolidationService;
 use App\Services\Carriers\FedEx\Operations\FedExShipValidationService;
 use App\Services\Carriers\FedEx\Operations\FedExTradeDocumentsUploadService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExShipFixtureResolver;
 use App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService;
+use App\Services\Carriers\FedEx\Validation\FedExUs09OperatorService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationAuthorizationEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationMfaEvidenceService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationScopeService;
@@ -280,6 +284,16 @@ class FedExValidationRunController extends Controller
     ): RedirectResponse {
         $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
         abort_unless(in_array($testCaseKey, $fixtureService->testCaseKeys(), true), 404);
+        abort_if(
+            $testCaseKey === 'IntegratorUS08',
+            422,
+            'IntegratorUS08 must use the dedicated Freight LTL validation route.',
+        );
+        abort_if(
+            in_array($testCaseKey, ['IntegratorUS09_IMAGE', 'IntegratorUS09_DOCUMENT'], true),
+            422,
+            'IntegratorUS09 must use the dedicated US09 ETD validation routes.',
+        );
 
         $lockedFormat = $fixtureService->lockedLabelFormat($testCaseKey);
 
@@ -304,6 +318,398 @@ class FedExValidationRunController extends Controller
         ]);
 
         return $this->redirectWithRunResult($account, $testCaseKey.' locked ship label ('.$lockedFormat.')', $result);
+    }
+
+    public function runFreightUs08(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExFreightLtlService $freightLtlService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+        abort_unless($account->isSandbox(), 422, 'IntegratorUS08 Freight validation is sandbox-only.');
+        abort_unless(
+            $config->freightLtlApiEnabled(),
+            422,
+            $config->freightLtlApiDisabledMessage(),
+        );
+        abort_unless(
+            $config->validationUs08Enabled(),
+            422,
+            'IntegratorUS08 Freight LTL validation is disabled.',
+        );
+
+        $request->validate([
+            'confirm_freight_creation' => ['required', 'accepted'],
+        ], [
+            'confirm_freight_creation.required' => 'Confirm that this creates a sandbox Freight shipment.',
+            'confirm_freight_creation.accepted' => 'Confirm that this creates a sandbox Freight shipment.',
+        ]);
+
+        $outcome = $freightLtlService->createShipment(
+            store: $account->store,
+            account: $account,
+            testCaseKey: 'IntegratorUS08',
+            actor: $request->user(),
+        );
+
+        /** @var \App\Services\Carriers\Core\DTO\CarrierApiResult $result */
+        $result = $outcome['result'];
+        $evidenceReady = (bool) ($outcome['evidence_ready'] ?? false);
+        $evidenceReasons = array_values($outcome['evidence_reasons'] ?? []);
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_run_freight_us08', store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'test_case_key' => 'IntegratorUS08',
+            'label_format' => 'ZPLII',
+            'api_family' => 'freight_ltl',
+            'success' => $result->success,
+            'evidence_ready' => $evidenceReady,
+            'evidence_reasons' => $evidenceReasons,
+            'label_artifact_count' => count($outcome['label_artifacts'] ?? []),
+            'document_artifact_count' => count($outcome['document_artifacts'] ?? []),
+        ]);
+
+        if (! $result->success) {
+            $code = is_string($result->errorCode) && $result->errorCode !== '' ? $result->errorCode : null;
+            $httpStatus = data_get($result->responseSummary, 'http_status');
+            $fedexErrors = collect((array) data_get($result->responseSummary, 'errors', []))
+                ->map(static function (mixed $error): ?string {
+                    if (! is_array($error)) {
+                        return null;
+                    }
+                    $parts = array_filter([
+                        is_string($error['code'] ?? null) ? (string) $error['code'] : null,
+                        is_string($error['message'] ?? null) ? (string) $error['message'] : null,
+                    ]);
+
+                    return $parts !== [] ? implode(' — ', $parts) : null;
+                })
+                ->filter()
+                ->values()
+                ->all();
+
+            $message = 'IntegratorUS08 Freight LTL shipment did not pass.';
+            if ($httpStatus) {
+                $message .= ' HTTP '.$httpStatus.'.';
+            }
+            if ($code) {
+                $message .= ' Code '.$code.'.';
+            }
+            if ($result->errorMessage) {
+                $message .= ' '.$result->errorMessage;
+            } elseif ($fedexErrors !== []) {
+                $message .= ' '.implode(' | ', $fedexErrors);
+            }
+
+            $eventId = data_get($result->responseSummary, 'carrier_api_event_id');
+            if ($eventId) {
+                $message .= ' Evidence event #'.$eventId.' recorded.';
+            }
+
+            if ((int) $httpStatus === 403 || $code === 'FORBIDDEN.ERROR' || $code === 'fedex_authorization_blocked') {
+                $message .= ' This is an exact FedEx authorization response — no local code change can bypass it. Confirm Freight LTL project/API entitlement and that FEDEX_VALIDATION_US08_FREIGHT_ACCOUNT is linked to the connected Integrator child credentials.';
+            }
+
+            return redirect()
+                ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+                ->with('error', $message);
+        }
+
+        if ($evidenceReady) {
+            return $this->redirectWithRunResult($account, 'IntegratorUS08 Freight LTL shipment', $result);
+        }
+
+        $eventId = data_get($result->responseSummary, 'carrier_api_event_id');
+        $reasons = $evidenceReasons !== [] ? ' Reasons: '.implode(', ', $evidenceReasons).'.' : '';
+        $message = 'FedEx created the sandbox Freight shipment, but the required validation evidence was incomplete. Do not retry blindly.'.$reasons
+            .($eventId ? ' Review evidence event #'.$eventId.'.' : '');
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('warning', $message);
+    }
+
+    public function runUs09UploadLetterhead(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExUs09OperatorService $operatorService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->runUs09Upload(
+            $request,
+            $carrierAccount,
+            $config,
+            $operatorService,
+            $securityLogRecorder,
+            'letterhead',
+            'IntegratorUS09 letterhead image upload',
+            'shipping.fedex_validation_run_us09_upload_letterhead',
+        );
+    }
+
+    public function runUs09UploadSignature(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExUs09OperatorService $operatorService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->runUs09Upload(
+            $request,
+            $carrierAccount,
+            $config,
+            $operatorService,
+            $securityLogRecorder,
+            'signature',
+            'IntegratorUS09 signature image upload',
+            'shipping.fedex_validation_run_us09_upload_signature',
+        );
+    }
+
+    public function runUs09UploadDocument(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExUs09OperatorService $operatorService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->runUs09Upload(
+            $request,
+            $carrierAccount,
+            $config,
+            $operatorService,
+            $securityLogRecorder,
+            'document',
+            'IntegratorUS09 commercial invoice upload',
+            'shipping.fedex_validation_run_us09_upload_document',
+        );
+    }
+
+    public function runUs09ShipImage(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExUs09OperatorService $operatorService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->runUs09Ship(
+            $request,
+            $carrierAccount,
+            $config,
+            $operatorService,
+            $securityLogRecorder,
+            'image',
+            'IntegratorUS09 image ETD shipment',
+            'shipping.fedex_validation_run_us09_ship_image',
+        );
+    }
+
+    public function runUs09ShipDocument(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExUs09OperatorService $operatorService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        return $this->runUs09Ship(
+            $request,
+            $carrierAccount,
+            $config,
+            $operatorService,
+            $securityLogRecorder,
+            'document',
+            'IntegratorUS09 document ETD shipment',
+            'shipping.fedex_validation_run_us09_ship_document',
+        );
+    }
+
+    public function runUs10Consolidation(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExConsolidationService $consolidationService,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+        abort_unless($account->isSandbox(), 422, 'IntegratorUS10 Consolidation validation is sandbox-only.');
+        abort_unless($config->us10LiveRunEnabled(), 422, $config->us10ExclusionNote());
+
+        $request->validate([
+            'confirm_us10_consolidation' => ['required', 'accepted'],
+        ], [
+            'confirm_us10_consolidation.required' => 'Confirm that this creates a sandbox Consolidation / IPD workflow.',
+            'confirm_us10_consolidation.accepted' => 'Confirm that this creates a sandbox Consolidation / IPD workflow.',
+        ]);
+
+        $outcome = $consolidationService->execute(
+            store: $account->store,
+            account: $account,
+            allowLive: true,
+            actor: $request->user(),
+        );
+
+        $success = (bool) ($outcome['success'] ?? false);
+        $evidenceReady = (bool) ($outcome['evidence_ready'] ?? false);
+        $evidenceReasons = array_values($outcome['evidence_reasons'] ?? []);
+
+        $securityLogRecorder->record($request, 'shipping.fedex_validation_run_us10_consolidation', store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'test_case_key' => 'IntegratorUS10',
+            'api_family' => 'consolidation',
+            'success' => $success,
+            'evidence_ready' => $evidenceReady,
+            'evidence_reasons' => $evidenceReasons,
+            'completed_steps' => $outcome['completed_steps'] ?? [],
+            'failed_step' => $outcome['failed_step'] ?? null,
+            'label_count' => (int) ($outcome['label_count'] ?? 0),
+            'document_count' => (int) ($outcome['document_count'] ?? 0),
+            'event_ids' => $outcome['event_ids'] ?? [],
+        ]);
+
+        if (! $success) {
+            $failedStep = (string) ($outcome['failed_step'] ?? ($outcome['halted_reason'] ?? 'unknown'));
+            $detail = '';
+            $eventIds = array_values(array_filter($outcome['event_ids'] ?? []));
+            $lastEventId = $eventIds !== [] ? (int) end($eventIds) : null;
+            if ($lastEventId > 0) {
+                $failedEvent = CarrierApiEvent::query()->find($lastEventId);
+                if ($failedEvent !== null) {
+                    $httpStatus = is_numeric($failedEvent->http_status) ? (int) $failedEvent->http_status : null;
+                    $errorCode = data_get($failedEvent->response_summary, 'errors.0.code')
+                        ?? data_get($failedEvent->response_body_encrypted, 'errors.0.code');
+                    $errorMessage = $failedEvent->error_message
+                        ?? data_get($failedEvent->response_summary, 'errors.0.message')
+                        ?? data_get($failedEvent->response_body_encrypted, 'errors.0.message');
+                    $parts = array_filter([
+                        $httpStatus !== null ? 'HTTP '.$httpStatus : null,
+                        is_string($errorCode) && $errorCode !== '' ? $errorCode : null,
+                        is_string($errorMessage) && $errorMessage !== '' ? trim($errorMessage) : null,
+                    ]);
+                    if ($parts !== []) {
+                        $detail = ' '.implode(' · ', $parts);
+                        if (strlen($detail) > 240) {
+                            $detail = substr($detail, 0, 237).'...';
+                        }
+                    }
+                }
+            }
+
+            return redirect()
+                ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+                ->with('error', 'IntegratorUS10 Consolidation did not complete. Stopped at '.$failedStep.'.'.$detail.' Do not retry blindly.');
+        }
+
+        if ($evidenceReady) {
+            return redirect()
+                ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+                ->with('success', 'IntegratorUS10 Consolidation completed successfully.');
+        }
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('warning', 'FedEx completed the sandbox Consolidation chain, but the required validation evidence was incomplete. Do not retry blindly.');
+    }
+
+    private function runUs09Upload(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExUs09OperatorService $operatorService,
+        SecurityLogRecorder $securityLogRecorder,
+        string $role,
+        string $label,
+        string $securityAction,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+        abort_unless($account->isSandbox(), 422, 'IntegratorUS09 Trade Documents upload is sandbox-only.');
+
+        $request->validate([
+            'confirm_us09_upload' => ['required', 'accepted'],
+        ], [
+            'confirm_us09_upload.required' => 'Confirm that this uploads a sandbox Trade Document.',
+            'confirm_us09_upload.accepted' => 'Confirm that this uploads a sandbox Trade Document.',
+        ]);
+
+        $outcome = match ($role) {
+            'letterhead' => $operatorService->uploadLetterhead($account->store, $account),
+            'signature' => $operatorService->uploadSignature($account->store, $account),
+            default => $operatorService->uploadDocument($account->store, $account),
+        };
+
+        /** @var CarrierApiResult $result */
+        $result = $outcome['result'];
+
+        $securityLogRecorder->record($request, $securityAction, store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'upload_role' => $role,
+            'success' => $result->success,
+            'scenario_key' => data_get($outcome, 'prepared.scenario_key'),
+            'returned_image_index' => $outcome['returned_image_index'] ?? null,
+            'event_id' => data_get($result->responseSummary, 'carrier_api_event_id')
+                ?? $outcome['event']?->id,
+        ]);
+
+        return $this->redirectWithRunResult($account, $label, $result);
+    }
+
+    private function runUs09Ship(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        FedExUs09OperatorService $operatorService,
+        SecurityLogRecorder $securityLogRecorder,
+        string $mode,
+        string $label,
+        string $securityAction,
+    ): RedirectResponse {
+        $account = $this->resolveFedExValidationAccount($request, $carrierAccount, $config);
+        abort_unless($account->isSandbox(), 422, 'IntegratorUS09 ETD ship validation is sandbox-only.');
+
+        $request->validate([
+            'confirm_us09_ship' => ['required', 'accepted'],
+        ], [
+            'confirm_us09_ship.required' => 'Confirm that this creates a sandbox ETD shipment.',
+            'confirm_us09_ship.accepted' => 'Confirm that this creates a sandbox ETD shipment.',
+        ]);
+
+        $outcome = $mode === 'image'
+            ? $operatorService->createImageShipment($account->store, $account, $request->user())
+            : $operatorService->createDocumentShipment($account->store, $account, $request->user());
+
+        /** @var CarrierApiResult $result */
+        $result = $outcome['result'];
+        $evidenceReady = (bool) ($outcome['evidence_ready'] ?? false);
+        $evidenceReasons = array_values($outcome['evidence_reasons'] ?? []);
+
+        $securityLogRecorder->record($request, $securityAction, store: $account->store, metadata: [
+            'carrier_account_id' => $account->id,
+            'test_case_key' => $mode === 'image' ? 'IntegratorUS09_IMAGE' : 'IntegratorUS09_DOCUMENT',
+            'label_format' => 'PDF',
+            'api_family' => 'parcel_etd',
+            'success' => $result->success,
+            'evidence_ready' => $evidenceReady,
+            'evidence_reasons' => $evidenceReasons,
+            'artifact_count' => count($outcome['artifacts'] ?? []),
+        ]);
+
+        if (! $result->success) {
+            return $this->redirectWithRunResult($account, $label, $result);
+        }
+
+        if ($evidenceReady) {
+            return $this->redirectWithRunResult($account, $label, $result);
+        }
+
+        $eventId = data_get($result->responseSummary, 'carrier_api_event_id');
+        $message = 'FedEx created the sandbox ETD shipment, but the required validation evidence was incomplete. Do not retry blindly.'
+            .($eventId ? ' Review evidence event #'.$eventId.'.' : '');
+
+        return redirect()
+            ->route('settings.shipping.carrier-accounts.fedex.validation', $account)
+            ->with('warning', $message);
     }
 
     public function runGlobalShipCase(

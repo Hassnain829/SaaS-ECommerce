@@ -147,18 +147,37 @@ ALWAYS:
 
 ---
 
-## ✅ CURRENT STATE (2026-06-24)
+## ✅ CURRENT STATE (2026-07-28)
 
 Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integrator connectivity and validation tooling are implemented; **production carrier approvals and live carrier operation remain pending.**
 
-Current approved focus: Phase 9 Integration Foundation. Phase 5R-2, Phase 5R-3, and Phase 7 remain pending and are not considered complete.
+**Phase 5R (5R-0 through 5R-3) is complete.** **Phase 7 — Returns, Refunds, and Exchanges is COMPLETE (2026-07-28).** Current approved focus: Phase 9 Integration Foundation (and later portal phases). Do not reopen Phase 7 unless a production defect requires it.
 
-### Phase 5R (calculation and tax)
+### Phase 7 (returns, refunds, exchanges) — complete
+
+Functionally complete:
+
+- Store-scoped return request, approval, rejection, receipt, completion and cancellation
+- Return reasons and item quantity eligibility
+- Full, partial, item, shipping, shipping-tax, tax and other refund adjustments
+- Platform/provider and externally processed refund routing
+- Provider result verification for amount, currency, mode and account
+- Safe pending, failed, uncertain and mismatched refund reconciliation
+- Refund allocation locking, idempotency and terminal retry attempts
+- Sellable return restocking through InventoryAdjustmentService and TYPE_RETURN_RESTOCK
+- Non-sellable/damaged inventory protection
+- Exchanges with replacement reservation, collection, price-difference refunds, completion, cancellation and interrupted-completion recovery
+- Customer total_spent calculated net of successful refunds
+- Store isolation, orders.manage authorization, security logs and order events
+
+Verification (Phase 7 gate only; entire project suite not claimed green): Phase 7 four-suite gate 54 passed / 0 failed; related payment/order/inventory/customer regressions 39 passed / 0 failed; `composer validate --strict` valid; root and storefront builds passed; `git diff --check` clean.
+
+### Phase 5R (calculation and tax) — complete
 
 - **5R-0 (completed 2026-06-24):** Current calculation audit — `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`
 - **5R-1 (complete 2026-06-25):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator`, platform checkout tax, shipping recalculation, PaymentIntent synchronization, conversion invariant, order tax snapshots, product taxable defaults, draft/manual calculated tax, and external preservation — final report: `docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`
-- **5R-2 (pending):** Coupons
-- **5R-3 (pending):** Checkout/order totals hardening
+- **5R-2 (complete 2026-07-22):** Store-scoped coupons (fixed/percentage, min/max, dates, usage limits, product/category eligibility), checkout apply/remove + mid-checkout item/address revalidation, draft-order apply + convert redeem, external opt-in platform coupons, abandoned-checkout reservation release — covered by `tests/Feature/Phase5R2CouponTest.php`
+- **5R-3 (complete 2026-07-23):** Checkout/order totals hardening — `FinancialTotalsInvariantService`, decimal-safe PI/conversion/external coupon line paths, `checkout.totals_mismatch` audit outside rolled-back conversion TX — report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`
 
 ### Implemented foundations
 
@@ -170,19 +189,20 @@ Current approved focus: Phase 9 Integration Foundation. Phase 5R-2, Phase 5R-3, 
 - Checkout delivery methods
 - Stripe platform checkout and Stripe Connect foundation
 - External checkout synchronization (developer storefront prototype)
+- Coupons and discount rules (Phase 5R-2)
+- Checkout/order totals hardening (Phase 5R-3)
+- Returns, refunds, restock, and exchanges (Phase 7)
 - Security logs and user sessions
 - FedEx Model A connectivity and validation workspace
 - USPS public API foundation
 - CLEAN-1 through CLEAN-4 repository hygiene and controlled refactoring
+- Notifications and communication (Phase 11 — **Complete 2026-07-29**; in-app center, preferences, merchant/customer email, commit-isolated dispatch, retryable delivery, interrupted-worker recovery; report: `docs/phases/PHASE_11_NOTIFICATIONS_REPORT.md`. Repository full suite still has five known unrelated Phase 5/6 failures — Phase 11 does not claim suite-green.)
 
 ### Partial or pending
 
-- Coupons (**5R-1 tax foundation complete; 5R-2 pending**)
-- Refunds, returns, and exchanges
 - Shipping rules and async carrier production jobs
 - Production carrier approvals and live carrier rates/labels/tracking
 - API keys/scopes, webhooks, event outbox — **approved execution plan (not root canonical):** `docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`
-- Notifications
 - SaaS billing and subscriptions
 - Markets and B2B
 - Observability

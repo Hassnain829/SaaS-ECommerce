@@ -71,6 +71,11 @@ class Customer extends Model
         return $this->hasMany(Checkout::class);
     }
 
+    public function couponRedemptions()
+    {
+        return $this->hasMany(CouponRedemption::class);
+    }
+
     public function profileNotes()
     {
         return $this->hasMany(CustomerNote::class)->latest();

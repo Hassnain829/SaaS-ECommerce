@@ -1,7 +1,7 @@
 {{-- Zone drawer --}}
-<div id="shipping-drawer-zone" class="shipping-drawer fixed inset-0 z-50 hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="zone-drawer-title">
+<div id="shipping-drawer-zone" class="shipping-drawer shipping-drawer-modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="zone-drawer-title">
     <div class="shipping-drawer-backdrop absolute inset-0 bg-slate-900/40" data-close-drawer></div>
-    <div class="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-xl">
+    <div class="shipping-drawer-panel relative flex flex-col">
         <div class="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4">
             <h3 id="zone-drawer-title" class="text-lg font-semibold text-[#0F172A]">Add delivery area</h3>
             <button type="button" class="text-[#64748B]" data-close-drawer aria-label="Close">✕</button>
@@ -48,16 +48,16 @@
             </details>
 
             <div class="mt-auto border-t border-[#F1F5F9] pt-4">
-                <button type="submit" class="h-10 w-full rounded-lg bg-[#0052CC] text-sm font-bold text-white shipping-submit-btn">Save delivery area</button>
+                <button type="submit" class="h-10 w-full rounded-lg bg-brand text-sm font-bold text-white shipping-submit-btn">Save delivery area</button>
             </div>
         </form>
     </div>
 </div>
 
 {{-- Method drawer --}}
-<div id="shipping-drawer-method" class="shipping-drawer fixed inset-0 z-50 hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="method-drawer-title">
+<div id="shipping-drawer-method" class="shipping-drawer shipping-drawer-modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="method-drawer-title">
     <div class="shipping-drawer-backdrop absolute inset-0 bg-slate-900/40" data-close-drawer></div>
-    <div class="absolute inset-y-0 right-0 flex w-full max-w-lg flex-col bg-white shadow-xl">
+    <div class="shipping-drawer-panel relative flex flex-col">
         <div class="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4">
             <h3 id="method-drawer-title" class="text-lg font-semibold text-[#0F172A]">Add delivery option</h3>
             <button type="button" class="text-[#64748B]" data-close-drawer aria-label="Close">✕</button>
@@ -144,7 +144,7 @@
                 </details>
             </div>
             <div class="mt-6 border-t border-[#F1F5F9] pt-4">
-                <button type="submit" class="h-10 w-full rounded-lg bg-[#0052CC] text-sm font-bold text-white shipping-submit-btn">Save delivery option</button>
+                <button type="submit" class="h-10 w-full rounded-lg bg-brand text-sm font-bold text-white shipping-submit-btn">Save delivery option</button>
             </div>
         </form>
     </div>

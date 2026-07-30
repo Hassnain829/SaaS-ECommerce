@@ -11,14 +11,21 @@ class CustomerMetricsService
     public function recalculate(Customer $customer): void
     {
         $orders = $customer->orders()
-            ->whereNotIn('status', [OrderLifecycle::ORDER_CANCELLED, OrderLifecycle::ORDER_REFUNDED])
-            ->get(['id', 'grand_total', 'total', 'placed_at']);
+            ->where('status', '!=', OrderLifecycle::ORDER_CANCELLED)
+            ->get(['id', 'status', 'grand_total', 'total', 'refunded_total', 'placed_at']);
 
+        // Fully refunded orders still count toward order history, but contribute $0 net spend.
         $totalOrders = $orders->count();
-        $totalSpent = $orders->reduce(
-            fn (string $carry, $order): string => bcadd($carry, (string) ($order->grand_total ?: $order->total), 2),
-            '0'
-        );
+        $totalSpent = $orders->reduce(function (string $carry, $order): string {
+            $gross = (string) ($order->grand_total ?: $order->total ?: '0');
+            $refunded = (string) ($order->refunded_total ?: '0');
+            $net = bcsub($gross, $refunded, 2);
+            if (bccomp($net, '0', 2) < 0) {
+                $net = '0.00';
+            }
+
+            return bcadd($carry, $net, 2);
+        }, '0');
 
         $customer->forceFill([
             'total_orders' => $totalOrders,

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Role;
+use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
 use Database\Seeders\CarrierSeeder;
@@ -47,10 +48,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             ->assertSeeText('Where do you deliver?')
             ->assertSeeText('Connect delivery provider')
             ->assertSee(route('shipping.carriers.connect.index'), false)
-            ->assertSeeText('Checkout tax (read-only)')
-            ->assertSeeText('Edit tax settings')
-            ->assertSee('data-shipping-tab="setup"', false)
-            ->assertSee('data-shipping-tab="advanced"', false);
+            ->assertSee('id="delivery-advanced-panel"', false);
     }
 
     public function test_legacy_shipping_tab_query_still_opens_advanced_view(): void
@@ -75,9 +73,8 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             ->get(route('shippingAutomation', ['tab' => 'advanced']))
             ->assertOk()
             ->assertSeeText('FedEx Merchant Account')
-            ->assertSeeText('USPS Sandbox Tools')
+            ->assertSeeText('USPS Merchant Account')
             ->assertSeeText('Manual / Local Delivery')
-            ->assertSeeText('Platform testing only')
             ->assertSeeText('Connect FedEx account');
     }
 
@@ -125,7 +122,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
 
         $html = (string) $response->getContent();
         $this->assertStringContainsString('id="shipping-drawer-zone"', $html);
-        $this->assertStringContainsString('shipping-drawer fixed inset-0 z-50 hidden', $html);
+        $this->assertStringContainsString('shipping-drawer shipping-drawer-modal hidden', $html);
         $this->assertStringNotContainsString('<details open', $html);
     }
 
@@ -133,6 +130,15 @@ class Phase6ShippingDeliveryUxTest extends TestCase
     {
         [$owner, $store] = $this->ownerStore('Shipping UX Drawer Store');
         $this->readyLocation($store);
+        ShippingZone::query()->create([
+            'store_id' => $store->id,
+            'name' => 'United States',
+            'countries' => ['US'],
+            'regions' => [],
+            'postal_patterns' => [],
+            'is_active' => true,
+            'sort_order' => 0,
+        ]);
 
         $response = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -146,7 +152,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
 
         $html = (string) $response->getContent();
         $this->assertStringContainsString('id="shipping-drawer-method"', $html);
-        $this->assertStringContainsString('shipping-drawer fixed inset-0 z-50 hidden', $html);
+        $this->assertStringContainsString('shipping-drawer shipping-drawer-modal hidden', $html);
     }
 
     public function test_connect_carrier_wizard_still_renders(): void

@@ -32,6 +32,14 @@ final class FedExCustomsClearanceBuilder
             $payload['dutiesPayment'] = $dutiesPayment;
         }
 
+        if ($commercialInvoice = $this->buildCommercialInvoice($customs['commercial_invoice'] ?? null)) {
+            $payload['commercialInvoice'] = $commercialInvoice;
+        }
+
+        if ($customsOption = $this->buildCustomsOption($customs['customs_option'] ?? null)) {
+            $payload['customsOption'] = $customsOption;
+        }
+
         if ($commodities = $this->buildCommodities($customs['commodities'] ?? [])) {
             $payload['commodities'] = $commodities;
         }
@@ -43,6 +51,89 @@ final class FedExCustomsClearanceBuilder
         }
 
         return $payload !== [] ? $payload : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $invoice
+     * @return array<string, mixed>|null
+     */
+    private function buildCommercialInvoice(?array $invoice): ?array
+    {
+        if (! is_array($invoice) || $invoice === []) {
+            return null;
+        }
+
+        $comments = array_values(array_filter(
+            array_map(
+                static fn (mixed $comment): string => trim((string) $comment),
+                is_array($invoice['comments'] ?? null)
+                    ? $invoice['comments']
+                    : (filled($invoice['comments'] ?? null) ? [(string) $invoice['comments']] : []),
+            ),
+            static fn (string $comment): bool => $comment !== '',
+        ));
+
+        $payload = array_filter([
+            'comments' => $comments !== [] ? $comments : null,
+            'specialInstructions' => $invoice['special_instructions'] ?? null,
+            'taxesOrMiscellaneousChargeType' => $invoice['taxes_or_miscellaneous_charge_type'] ?? null,
+            'shipmentPurpose' => $invoice['shipment_purpose'] ?? null,
+            'termsOfSale' => $invoice['terms_of_sale'] ?? null,
+            'declarationStatement' => $invoice['declaration_statement'] ?? null,
+            'originatorName' => $invoice['originator_name'] ?? null,
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
+
+        if ($insurance = $this->money($invoice['insurance_charge'] ?? null)) {
+            $payload['insuranceCharge'] = $insurance;
+        }
+
+        if ($taxes = $this->money($invoice['taxes_or_miscellaneous_charge'] ?? null)) {
+            $payload['taxesOrMiscellaneousCharge'] = $taxes;
+        }
+
+        if ($freight = $this->money($invoice['freight_charge'] ?? null)) {
+            $payload['freightCharge'] = $freight;
+        }
+
+        $references = [];
+        foreach ((array) ($invoice['customer_references'] ?? []) as $reference) {
+            if (! is_array($reference)) {
+                continue;
+            }
+
+            $type = $reference['customerReferenceType'] ?? $reference['customer_reference_type'] ?? null;
+            $value = $reference['value'] ?? null;
+            if (filled($type) && filled($value)) {
+                $references[] = [
+                    'customerReferenceType' => (string) $type,
+                    'value' => (string) $value,
+                ];
+            }
+        }
+
+        if ($references !== []) {
+            $payload['customerReferences'] = $references;
+        }
+
+        return $payload !== [] ? $payload : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $option
+     * @return array<string, mixed>|null
+     */
+    private function buildCustomsOption(?array $option): ?array
+    {
+        if (! is_array($option) || $option === []) {
+            return null;
+        }
+
+        $type = $option['type'] ?? null;
+        if (! filled($type)) {
+            return null;
+        }
+
+        return ['type' => (string) $type];
     }
 
     /**
@@ -155,9 +246,16 @@ final class FedExCustomsClearanceBuilder
             return null;
         }
 
-        return [
+        $address = array_filter([
+            'streetLines' => array_values(array_filter($payor['street_lines'] ?? [])),
+            'city' => $payor['city'] ?? null,
+            'stateOrProvinceCode' => $payor['state'] ?? null,
+            'postalCode' => $payor['postal_code'] ?? null,
             'countryCode' => strtoupper((string) $payor['country_code']),
-        ];
+            'residential' => array_key_exists('residential', $payor) ? (bool) $payor['residential'] : null,
+        ], static fn (mixed $value): bool => $value !== null && $value !== []);
+
+        return $address !== [] ? $address : null;
     }
 
     /**

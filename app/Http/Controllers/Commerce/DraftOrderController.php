@@ -31,6 +31,10 @@ class DraftOrderController extends Controller
             'customers' => $this->customers($store),
             'variants' => $this->variants($store),
             'taxSetting' => $store->taxSetting,
+            'currency' => $store->currency ?: 'USD',
+            'defaultTaxMode' => ($store->taxSetting?->enabled ?? false)
+                ? DraftOrder::TAX_SOURCE_CALCULATED
+                : DraftOrder::TAX_SOURCE_MANUAL,
         ]);
     }
 
@@ -466,6 +470,7 @@ class DraftOrderController extends Controller
             'billing_postal_code' => [Rule::excludeIf($billingSameAsShipping), 'nullable', 'string', 'max:40'],
             'billing_country' => [Rule::excludeIf($billingSameAsShipping), 'required', 'string', 'size:2', 'regex:/\A[A-Za-z]{2}\z/'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
+            'coupon_code' => ['nullable', 'string', 'max:100'],
             'tax_total' => ['nullable', 'numeric', 'min:0'],
             'manual_tax_total' => [Rule::excludeIf($isCalculatedMode), 'nullable', 'numeric', 'min:0'],
             'shipping_total' => ['nullable', 'numeric', 'min:0'],

@@ -158,6 +158,19 @@ final class OrderLifecycle
         self::EVENT_EXTERNAL_SHIPPING_RECORDED => 'External shipping recorded',
         self::EVENT_EXTERNAL_FULFILLMENT_RECORDED => 'External fulfillment recorded',
         self::EVENT_EXTERNAL_SHIPMENT_UPDATED => 'External shipment updated',
+        ReturnLifecycle::EVENT_RETURN_REQUESTED => 'Return requested',
+        ReturnLifecycle::EVENT_RETURN_APPROVED => 'Return approved',
+        ReturnLifecycle::EVENT_RETURN_REJECTED => 'Return rejected',
+        ReturnLifecycle::EVENT_RETURN_RECEIVED => 'Return received',
+        ReturnLifecycle::EVENT_RETURN_COMPLETED => 'Return completed',
+        ReturnLifecycle::EVENT_RETURN_CANCELLED => 'Return cancelled',
+        RefundLifecycle::EVENT_REFUND_REQUESTED => 'Refund requested',
+        RefundLifecycle::EVENT_REFUND_SUCCEEDED => 'Refund succeeded',
+        RefundLifecycle::EVENT_REFUND_FAILED => 'Refund failed',
+        ExchangeLifecycle::EVENT_EXCHANGE_CREATED => 'Exchange created',
+        ExchangeLifecycle::EVENT_EXCHANGE_COMPLETED => 'Exchange completed',
+        ExchangeLifecycle::EVENT_EXCHANGE_CANCELLED => 'Exchange cancelled',
+        'return.restocked' => 'Return restocked',
     ];
 
     /**
@@ -231,7 +244,8 @@ final class OrderLifecycle
             self::ORDER_PENDING => [self::ORDER_CONFIRMED, self::ORDER_CANCELLED],
             self::ORDER_CONFIRMED => [self::ORDER_PROCESSING, self::ORDER_COMPLETED, self::ORDER_CANCELLED],
             self::ORDER_PROCESSING => [self::ORDER_COMPLETED, self::ORDER_CANCELLED],
-            self::ORDER_COMPLETED => [self::ORDER_REFUNDED],
+            // Financial refunded state is owned by RefundService (Phase 7 Part 2), not status mutation.
+            self::ORDER_COMPLETED => [],
             self::ORDER_CANCELLED => [],
             self::ORDER_REFUNDED => [],
         ];

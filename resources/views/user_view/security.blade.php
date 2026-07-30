@@ -3,16 +3,11 @@
 @section('title', 'Security | BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-3">
-  <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-    <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-  </button>
-  <div>
-    <h1 class="text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">Security</h1>
-    <p class="hidden md:block text-xs text-[#64748B]">Sessions and recent account activity</p>
-  </div>
-  <a href="{{ route('profileSettings') }}" class="ml-auto h-10 px-4 rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A] inline-flex items-center justify-center">Profile settings</a>
-</header>
+    <x-ui.merchant-topbar title="Security" lead="Sessions and recent account activity.">
+        <x-slot:actions>
+            <a href="{{ route('profileSettings') }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Profile settings</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -54,7 +49,7 @@
   @endif
 
   <section>
-    <h2 class="text-3xl font-poppins text-[#0F172A]">Account security</h2>
+    <h2 class="text-3xl text-[#0F172A]">Account security</h2>
     <p class="text-[#64748B] text-sm md:text-base">Review signed-in devices and store-sensitive activity for {{ $selectedStore?->name ?? 'your account' }}.</p>
   </section>
 
@@ -63,7 +58,7 @@
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between gap-4">
           <div>
-            <h3 class="text-2xl font-poppins text-[#0F172A]">Active sessions</h3>
+            <h3 class="text-2xl text-[#0F172A]">Active sessions</h3>
             <p class="text-sm text-[#64748B]">Sign out devices you do not recognize.</p>
           </div>
           <span class="rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-bold text-[#0052CC]">{{ $sessions->whereNull('revoked_at')->count() }} active</span>
@@ -125,7 +120,7 @@
 
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="px-6 py-4 border-b border-[#E2E8F0]">
-          <h3 class="text-2xl font-poppins text-[#0F172A]">Recent security activity</h3>
+          <h3 class="text-2xl text-[#0F172A]">Recent security activity</h3>
           <p class="text-sm text-[#64748B]">Audit records from your account and the active store.</p>
         </div>
         <div class="divide-y divide-[#E2E8F0]">
@@ -167,7 +162,7 @@
     <aside class="space-y-6">
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="px-6 py-4 border-b border-[#E2E8F0]">
-          <h3 class="text-xl font-poppins text-[#0F172A]">Account protection</h3>
+          <h3 class="text-xl text-[#0F172A]">Account protection</h3>
         </div>
         <div class="p-6 space-y-5 text-sm">
           <div>
@@ -181,7 +176,7 @@
           <div>
             <p class="font-semibold text-[#0F172A]">Password</p>
             <p class="text-[#64748B]">Change it from your profile settings when a teammate leaves or you suspect exposure.</p>
-            <a href="{{ route('profileSettings') }}#password" class="mt-3 inline-flex h-10 px-4 rounded-lg bg-[#0052CC] text-white font-semibold items-center justify-center">Change password</a>
+            <a href="{{ route('profileSettings') }}#password" class="mt-3 inline-flex h-10 px-4 rounded-lg bg-brand text-white font-semibold items-center justify-center">Change password</a>
           </div>
           <hr class="border-[#E2E8F0]">
           <div>
@@ -193,7 +188,7 @@
 
       <section class="bg-white border border-[#FECDD3] rounded-xl overflow-hidden">
         <div class="px-6 py-4 bg-[#FFF1F2] border-b border-[#FFE4E6]">
-          <h3 class="text-xl font-poppins text-[#BE123C]">Account access</h3>
+          <h3 class="text-xl text-[#BE123C]">Account access</h3>
         </div>
         <form method="POST" action="{{ route('profile.deactivate') }}" class="p-6 space-y-4">
           @csrf

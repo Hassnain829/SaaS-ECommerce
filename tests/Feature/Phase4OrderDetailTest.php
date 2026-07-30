@@ -79,7 +79,7 @@ class Phase4OrderDetailTest extends TestCase
             ->assertSeeText('SKU SNAP-M')
             ->assertSeeText('12 Snapshot Street')
             ->assertSeeText('No shipments have been created yet')
-            ->assertSeeText('No returns or refunds are recorded yet')
+            ->assertSeeText('No returns are recorded yet')
             ->assertSeeText('Pack with care.')
             ->assertDontSeeText('DHL Express')
             ->assertDontSeeText('Print Label')

@@ -19,6 +19,7 @@ class ProductVariant extends Model
         'sku',
         'price',
         'compare_at_price',
+        'product_image_id',
         'stock',
         'stock_alert',
         'image',
@@ -73,11 +74,11 @@ class ProductVariant extends Model
     }
 
     /**
-     * Catalog image row linked to this variant (normalized media; Day 15).
+     * Catalog image chosen for this variant. Many variants may share one product image.
      */
-    public function linkedCatalogImage(): HasOne
+    public function linkedCatalogImage(): BelongsTo
     {
-        return $this->hasOne(ProductImage::class, 'product_variant_id');
+        return $this->belongsTo(ProductImage::class, 'product_image_id');
     }
 
     public function inventoryItem(): HasOne

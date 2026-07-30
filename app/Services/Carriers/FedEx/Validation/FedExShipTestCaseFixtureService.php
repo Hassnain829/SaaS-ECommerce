@@ -10,16 +10,24 @@ class FedExShipTestCaseFixtureService
 
     public const BASELINE_SHEET = 'Americas_US_Test cases';
 
+    public function __construct(
+        private readonly FedExFreightLtlFixtureService $freightLtlFixtures,
+    ) {}
+
     /**
      * @return array<string, array<string, mixed>>
      */
     public function fixtures(): array
     {
-        return [
+        return array_merge([
+            'IntegratorUS01' => $this->integratorUs01(),
             'IntegratorUS02' => $this->integratorUs02(),
+            'IntegratorUS03' => $this->integratorUs03(),
             'IntegratorUS04' => $this->integratorUs04(),
             'IntegratorUS05' => $this->integratorUs05(),
-        ];
+            'IntegratorUS06' => $this->integratorUs06(),
+            'IntegratorUS07' => $this->integratorUs07(),
+        ], $this->freightLtlFixtures->fixtures());
     }
 
     /**
@@ -35,7 +43,19 @@ class FedExShipTestCaseFixtureService
      */
     public function fixture(string $key): array
     {
-        $fixtures = $this->fixtures();
+        if ($this->freightLtlFixtures->fixtures()[$key] ?? null) {
+            return $this->freightLtlFixtures->fixture($key);
+        }
+
+        $fixtures = [
+            'IntegratorUS01' => $this->integratorUs01(),
+            'IntegratorUS02' => $this->integratorUs02(),
+            'IntegratorUS03' => $this->integratorUs03(),
+            'IntegratorUS04' => $this->integratorUs04(),
+            'IntegratorUS05' => $this->integratorUs05(),
+            'IntegratorUS06' => $this->integratorUs06(),
+            'IntegratorUS07' => $this->integratorUs07(),
+        ];
 
         abort_unless(isset($fixtures[$key]), 404, 'Unknown FedEx ship test case.');
 
@@ -131,6 +151,71 @@ class FedExShipTestCaseFixtureService
     }
 
     /**
+     * Americas_US_Test cases — US_Exp_Dom-Alcohol / IntegratorUS01.
+     *
+     * @return array<string, mixed>
+     */
+    private function integratorUs01(): array
+    {
+        return [
+            'key' => 'IntegratorUS01',
+            'label' => 'Express Saver · PDF · Alcohol',
+            'scenario_key' => 'ship_us01_pdf',
+            'baseline_sheet' => self::BASELINE_SHEET,
+            'baseline_case' => 'IntegratorUS01',
+            'fixture_version' => self::FIXTURE_VERSION,
+            'expected_service_type' => 'FEDEX_EXPRESS_SAVER',
+            'expected_label_format' => 'PDF',
+            'expected_package_count' => 1,
+            'service_type' => 'FEDEX_EXPRESS_SAVER',
+            'packaging_type' => 'YOUR_PACKAGING',
+            'pickup_type' => 'USE_SCHEDULED_PICKUP',
+            'label_format' => 'PDF',
+            'label_stock_type' => 'PAPER_85X11_TOP_HALF_LABEL',
+            'transportation_payment_type' => 'SENDER',
+            'total_weight' => 36,
+            'rate_request_types' => ['LIST'],
+            'total_package_count' => 1,
+            'shipper' => [
+                'person_name' => 'James Weston',
+                'company_name' => 'RTC',
+                'phone' => '9012633035',
+                'street_lines' => ['1751 THOMPSON ST'],
+                'city' => 'AURORA',
+                'state' => 'OH',
+                'postal_code' => '44202',
+                'country_code' => 'US',
+            ],
+            'recipient' => [
+                'person_name' => '323401',
+                'company_name' => 'Integrator',
+                'phone' => '9012633035',
+                'street_lines' => ['110 Fedex parkway'],
+                'city' => 'NEW ORLEANS',
+                'state' => 'LA',
+                'postal_code' => '70119',
+                'country_code' => 'US',
+            ],
+            'packages' => [[
+                'sequence_number' => 1,
+                'weight' => 18.0,
+                'weight_unit' => 'LB',
+                'length' => 20.0,
+                'width' => 15.0,
+                'height' => 20.0,
+                'dimension_unit' => 'IN',
+                'declared_value' => ['amount' => 250, 'currency' => 'USD'],
+                'package_special_services' => [
+                    'specialServiceTypes' => ['ALCOHOL'],
+                    'alcoholDetail' => [
+                        'alcoholRecipientType' => 'LICENSEE',
+                    ],
+                ],
+            ]],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function integratorUs02(): array
@@ -202,6 +287,106 @@ class FedExShipTestCaseFixtureService
     }
 
     /**
+     * Americas_US_Test cases — US_Exp_Intl / IntegratorUS03.
+     *
+     * @return array<string, mixed>
+     */
+    private function integratorUs03(): array
+    {
+        return [
+            'key' => 'IntegratorUS03',
+            'label' => 'International Priority · PDF · Customs',
+            'scenario_key' => 'ship_us03_pdf',
+            'baseline_sheet' => self::BASELINE_SHEET,
+            'baseline_case' => 'IntegratorUS03',
+            'fixture_version' => self::FIXTURE_VERSION,
+            'expected_service_type' => 'FEDEX_INTERNATIONAL_PRIORITY',
+            'expected_label_format' => 'PDF',
+            'expected_package_count' => 1,
+            'service_type' => 'FEDEX_INTERNATIONAL_PRIORITY',
+            'packaging_type' => 'YOUR_PACKAGING',
+            'pickup_type' => 'USE_SCHEDULED_PICKUP',
+            'label_format' => 'PDF',
+            'label_stock_type' => 'PAPER_85X11_TOP_HALF_LABEL',
+            'transportation_payment_type' => 'SENDER',
+            'total_weight' => 30,
+            'rate_request_types' => ['LIST'],
+            'total_package_count' => 1,
+            'shipper' => [
+                'person_name' => 'James Weston',
+                'company_name' => 'RTC',
+                'phone' => '9012633035',
+                'street_lines' => ['1751 THOMPSON ST'],
+                'city' => 'AURORA',
+                'state' => 'OH',
+                'postal_code' => '44202',
+                'country_code' => 'US',
+                'tins' => [[
+                    'tinType' => 'PERSONAL_STATE',
+                    'number' => '123456789',
+                ]],
+            ],
+            'recipient' => [
+                'person_name' => '413250',
+                'company_name' => 'Integrator',
+                'phone' => '9012633035',
+                'street_lines' => ['14 TOTTENHAM COURT ROAD'],
+                'city' => 'LONDON',
+                'postal_code' => 'W1T1JY',
+                'country_code' => 'GB',
+            ],
+            'customs_clearance' => [
+                'is_document_only' => false,
+                'total_customs_value' => ['amount' => 55, 'currency' => 'USD'],
+                'duties_payment_type' => 'SENDER',
+                'duties_payor' => [
+                    'person_name' => 'Integrator',
+                    'country_code' => 'US',
+                ],
+                'commercial_invoice' => [
+                    'comments' => ['FEDEX BUSINESS'],
+                    'insurance_charge' => ['amount' => 50, 'currency' => 'USD'],
+                    'taxes_or_miscellaneous_charge' => ['amount' => 25, 'currency' => 'USD'],
+                    'taxes_or_miscellaneous_charge_type' => 'OTHER',
+                    'shipment_purpose' => 'SAMPLE',
+                    'customer_references' => [[
+                        'customerReferenceType' => 'CUSTOMER_REFERENCE',
+                        'value' => '123456789',
+                    ]],
+                ],
+                'commodities' => [[
+                    'number_of_pieces' => 1,
+                    'description' => 'Dictionaries ',
+                    'country_of_manufacture' => 'US',
+                    'weight' => ['units' => 'LB', 'value' => 30],
+                    'quantity' => 1,
+                    'quantity_units' => 'EA',
+                    'unit_price' => ['amount' => 100, 'currency' => 'USD'],
+                    'customs_value' => ['amount' => 55, 'currency' => 'USD'],
+                ]],
+                'export_detail' => [
+                    'b13AFilingOption' => 'NOT_REQUIRED',
+                    'exportComplianceStatement' => 'NO EEI 30.37(f)',
+                ],
+            ],
+            'packages' => [[
+                'sequence_number' => 1,
+                'weight' => 30.0,
+                'weight_unit' => 'LB',
+                'length' => 20.0,
+                'width' => 20.0,
+                'height' => 20.0,
+                'dimension_unit' => 'IN',
+                'declared_value' => ['amount' => 55, 'currency' => 'USD'],
+                'customer_references' => [[
+                    'customerReferenceType' => 'CUSTOMER_REFERENCE',
+                    'value' => 'Integrator',
+                ]],
+            ]],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function integratorUs04(): array
@@ -235,8 +420,7 @@ class FedExShipTestCaseFixtureService
             'recipient' => [
                 'person_name' => 'Residential Recipient',
                 'company_name' => null,
-                'phone' => '9012633035',
-                'phone_extension' => '200',
+                'phone' => '9015550101',
                 'street_lines' => ['109 FEDEX PRKWY'],
                 'city' => 'Collierville',
                 'state' => 'TN',
@@ -252,18 +436,17 @@ class FedExShipTestCaseFixtureService
                 'width' => 15.0,
                 'height' => 20.0,
                 'dimension_unit' => 'IN',
-                'declared_value' => ['amount' => 300, 'currency' => 'USD'],
-                'package_special_services' => [
-                    'specialServiceTypes' => ['NON_STANDARD_CONTAINER'],
-                ],
             ]],
             'shipment_special_services' => [
                 'specialServiceTypes' => ['HOME_DELIVERY_PREMIUM'],
                 'homeDeliveryPremiumDetail' => [
-                    'homeDeliveryPremiumType' => 'EVENING',
+                    'homedeliveryPremiumType' => 'EVENING',
                 ],
             ],
-            'home_delivery_premium_delivery_date_strategy' => 'one_week_after_ship_date',
+            'total_declared_value' => [
+                'amount' => 300,
+                'currency' => 'USD',
+            ],
         ];
     }
 
@@ -340,6 +523,159 @@ class FedExShipTestCaseFixtureService
                     'dimension_unit' => 'IN',
                 ],
             ],
+        ];
+    }
+
+    /**
+     * Americas_US_Test cases — US_Grn_Dom,_Intl_&_Home_Del / IntegratorUS06.
+     *
+     * @return array<string, mixed>
+     */
+    private function integratorUs06(): array
+    {
+        return [
+            'key' => 'IntegratorUS06',
+            'label' => 'International Ground · PDF · Return Manager Printed Label',
+            'scenario_key' => 'ship_us06_pdf',
+            'baseline_sheet' => self::BASELINE_SHEET,
+            'baseline_case' => 'IntegratorUS06',
+            'fixture_version' => self::FIXTURE_VERSION,
+            'expected_service_type' => 'FEDEX_GROUND',
+            'expected_label_format' => 'PDF',
+            'expected_package_count' => 1,
+            'service_type' => 'FEDEX_GROUND',
+            'packaging_type' => 'YOUR_PACKAGING',
+            'pickup_type' => 'USE_SCHEDULED_PICKUP',
+            'label_format' => 'PDF',
+            'label_stock_type' => 'PAPER_85X11_TOP_HALF_LABEL',
+            'transportation_payment_type' => 'SENDER',
+            'block_insight_visibility' => false,
+            'shipper' => [
+                'person_name' => 'James Weston',
+                'company_name' => 'Integrator',
+                'phone' => '9012633035',
+                'street_lines' => ['1751 THOMPSON ST'],
+                'city' => 'AURORA',
+                'state' => 'OH',
+                'postal_code' => '44202',
+                'country_code' => 'US',
+            ],
+            'recipient' => [
+                'person_name' => '141',
+                'company_name' => 'Integrator',
+                'phone' => '9012633035',
+                'street_lines' => ['80 FEDEX PRKWY'],
+                'city' => 'Mississauga',
+                'state' => 'ON',
+                'postal_code' => 'L4W5K6',
+                'country_code' => 'CA',
+                'residential' => true,
+            ],
+            'shipment_special_services' => [
+                'specialServiceTypes' => ['RETURN_SHIPMENT'],
+                'returnShipmentDetail' => [
+                    'returnType' => 'PRINT_RETURN_LABEL',
+                ],
+            ],
+            'customs_clearance' => [
+                // The FedEx workbook leaves the customs-value amount blank, but the current
+                // Ship REST API rejects zero/null customs value for the US-to-Canada shipment.
+                // USD 1.00 is the minimal nominal compatibility value; unitPrice remains the
+                // workbook-defined USD 0.00.
+                'total_customs_value' => [
+                    'amount' => 1,
+                    'currency' => 'USD',
+                ],
+                'commercial_invoice' => [
+                    'special_instructions' => 'GSNE.  IOR equals Duties/Taxes payer',
+                    'shipment_purpose' => 'SAMPLE',
+                ],
+                'customs_option' => [
+                    'type' => 'EXHIBITION_TRADE_SHOW',
+                ],
+                'commodities' => [[
+                    'description' => 'Dictionaries ',
+                    'country_of_manufacture' => 'US',
+                    'weight' => ['units' => 'LB', 'value' => 10],
+                    'quantity' => 1,
+                    'quantity_units' => 'PC',
+                    'unit_price' => ['amount' => 0, 'currency' => 'USD'],
+                    'customs_value' => [
+                        'amount' => 1,
+                        'currency' => 'USD',
+                    ],
+                ]],
+            ],
+            'packages' => [[
+                'sequence_number' => 1,
+                'weight' => 10.0,
+                'weight_unit' => 'LB',
+            ]],
+        ];
+    }
+
+    /**
+     * Americas_US_Test cases — FedEx Ground® Economy / IntegratorUS07.
+     *
+     * @return array<string, mixed>
+     */
+    private function integratorUs07(): array
+    {
+        $groundEconomyAccount = (string) config('carriers.fedex.validation_us07_ground_economy_account', '');
+
+        return [
+            'key' => 'IntegratorUS07',
+            'label' => 'FedEx Ground® Economy · PDF · SMART_POST',
+            'scenario_key' => 'ship_us07_pdf',
+            'baseline_sheet' => self::BASELINE_SHEET,
+            'baseline_case' => 'IntegratorUS07',
+            'fixture_version' => self::FIXTURE_VERSION,
+            'expected_service_type' => 'SMART_POST',
+            'expected_label_format' => 'PDF',
+            'expected_package_count' => 1,
+            'service_type' => 'SMART_POST',
+            'packaging_type' => 'YOUR_PACKAGING',
+            'pickup_type' => 'USE_SCHEDULED_PICKUP',
+            'label_format' => 'PDF',
+            'label_stock_type' => 'PAPER_85X11_TOP_HALF_LABEL',
+            'account_number' => $groundEconomyAccount,
+            'transportation_payment_type' => 'SENDER',
+            'transportation_payment_account' => $groundEconomyAccount,
+            'include_transportation_payor' => true,
+            'transportation_payor' => [
+                'country_code' => 'US',
+            ],
+            'total_package_count' => 1,
+            'omit_recipient_residential' => true,
+            'smart_post_info_detail' => [
+                'indicia' => 'PARCEL_SELECT',
+                'hub_id' => '5531',
+            ],
+            'shipper' => [
+                'person_name' => 'ANTHONY JAMES',
+                'company_name' => 'RTC',
+                'phone' => '9012633035',
+                'street_lines' => ['10 FedEx Pkwy'],
+                'city' => 'Collierville',
+                'state' => 'TN',
+                'postal_code' => '38017',
+                'country_code' => 'US',
+            ],
+            'recipient' => [
+                'person_name' => 'ANTHONY JAMES',
+                'company_name' => 'IntegratorUS08',
+                'phone' => '9012633035',
+                'street_lines' => ['62 Ford St'],
+                'city' => 'Brulington',
+                'state' => 'CT',
+                'postal_code' => '06013',
+                'country_code' => 'US',
+            ],
+            'packages' => [[
+                'sequence_number' => 1,
+                'weight' => 2.3,
+                'weight_unit' => 'LB',
+            ]],
         ];
     }
 }

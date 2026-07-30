@@ -3,20 +3,11 @@
 @section('title', 'Create manual order | BaaS Core')
 
 @section('topbar')
-@php
-    $taxEnabled = (bool) ($taxSetting?->enabled ?? false);
-    $defaultTaxMode = old('tax_mode', $taxEnabled ? \App\Models\DraftOrder::TAX_SOURCE_CALCULATED : \App\Models\DraftOrder::TAX_SOURCE_MANUAL);
-@endphp
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4 shrink-0">
-    <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-        <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-    </button>
-    <div class="min-w-0">
-        <h1 class="truncate text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">New draft</h1>
-        <p class="hidden md:block text-xs text-[#64748B]">Add customer, products, and addresses — tax can be calculated on save.</p>
-    </div>
-    <a href="{{ route('orders') }}" class="h-10 px-4 rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A] inline-flex items-center justify-center hover:bg-[#F8FAFC]">Back to orders</a>
-</header>
+    <x-ui.merchant-topbar title="New draft" lead="Add customer, products, and addresses before creating the order.">
+        <x-slot:actions>
+            <a href="{{ route('orders') }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Back to orders</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -50,7 +41,7 @@
 
         <div class="space-y-4">
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Customer</h2>
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label class="block md:col-span-2">
                         <span class="text-xs font-semibold text-[#64748B]">Existing customer</span>
@@ -77,7 +68,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Products</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Products</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Add one or more variants. Stock shown is guidance — inventory is checked when you create the order.</p>
 
                 @if($variants->isEmpty())
@@ -95,7 +86,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h2 class="text-lg font-poppins font-semibold text-[#0F172A]">Shipping address</h2>
+                <h2 class="text-lg font-semibold text-[#0F172A]">Shipping address</h2>
                 <p class="mt-1 text-sm text-[#64748B]">Address, city, and country are required before creating the order.</p>
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label class="block">
@@ -162,7 +153,7 @@
             </section>
 
             <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <label for="draft-notes" class="text-lg font-poppins font-semibold text-[#0F172A]">Notes</label>
+                <label for="draft-notes" class="text-lg font-semibold text-[#0F172A]">Notes</label>
                 <textarea id="draft-notes" name="notes" rows="4" class="mt-3 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Internal order note">{{ old('notes') }}</textarea>
             </section>
         </div>
@@ -172,6 +163,7 @@
                 'currency' => $currency,
                 'subtotal' => '0.00',
                 'discount' => old('discount_total', '0.00'),
+                'couponCode' => old('coupon_code', ''),
                 'shipping' => old('shipping_total', '0.00'),
                 'tax' => '0.00',
                 'total' => '0.00',
@@ -191,7 +183,7 @@
             ])
 
             <section class="hidden xl:block rounded-2xl border border-[#CBD5E1] bg-white p-5 space-y-3">
-                <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-[#0052CC] text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
+                <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-brand text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
                     Save draft
                 </button>
                 <p class="text-xs text-[#64748B]">Payment collection is not available here yet. Creating the order does not charge a card.</p>
@@ -199,7 +191,7 @@
         </aside>
 
         <div class="fixed inset-x-0 bottom-0 z-20 border-t border-[#E2E8F0] bg-white/95 p-4 backdrop-blur xl:hidden">
-            <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-[#0052CC] text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
+            <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-brand text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
                 Save draft
             </button>
         </div>

@@ -3,16 +3,11 @@
 @section('title', 'Customer Profile | BaaS Core')
 
 @section('topbar')
-<header class="sticky top-0 z-30 h-16 bg-white border-b border-[#E2E8F0] px-4 md:px-8 flex items-center justify-between gap-4 shrink-0">
-    <button id="sidebarToggle" onclick="openSidebar()" class="md:hidden h-10 w-10 rounded-lg border border-[#E2E8F0] bg-white text-[#475569] shadow-sm flex items-center justify-center shrink-0" aria-label="Open sidebar">
-        <svg width="18" height="14" viewBox="0 0 20 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 14V12H20V14H0ZM0 8V6H20V8H0ZM0 2V0H20V2H0Z" fill="currentColor"/></svg>
-    </button>
-    <div class="min-w-0">
-        <h1 class="truncate text-lg md:text-xl font-poppins font-semibold text-[#0F172A]">{{ $customer->full_name ?: $customer->email }}</h1>
-        <p class="hidden md:block text-xs text-[#64748B]">Customer profile, notes, addresses, tags, and order history.</p>
-    </div>
-    <a href="{{ route('customers') }}" class="h-10 px-4 rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A] inline-flex items-center justify-center hover:bg-[#F8FAFC]">Back to customers</a>
-</header>
+    <x-ui.merchant-topbar title="Customer profile" :lead="$customer->full_name ?: $customer->email">
+        <x-slot:actions>
+            <a href="{{ route('customers') }}" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Back to customers</a>
+        </x-slot:actions>
+    </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
@@ -36,7 +31,7 @@
                 <div class="h-16 w-16 rounded-2xl bg-[#EFF6FF] text-[#1D4ED8] grid place-items-center text-xl font-bold shrink-0">{{ strtoupper($initials) ?: 'C' }}</div>
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                        <h2 class="truncate text-2xl md:text-3xl font-poppins font-semibold text-[#0F172A]">{{ $customer->full_name ?: $customer->email }}</h2>
+                        <h2 class="truncate text-2xl md:text-3xl font-semibold text-[#0F172A]">{{ $customer->full_name ?: $customer->email }}</h2>
                         @if($customer->status === 'blocked')
                             <span class="rounded-full bg-[#FEF2F2] px-2 py-1 text-[10px] font-bold uppercase tracking-[.6px] text-[#BA1A1A]">Blocked</span>
                         @elseif($customer->status === 'active')
@@ -73,7 +68,7 @@
                     <form action="{{ route('customers.tags.store', $customer) }}" method="POST" class="flex gap-2">
                         @csrf
                         <input name="name" class="h-10 min-w-0 flex-1 rounded-lg border border-[#CBD5E1] px-3 text-sm" placeholder="Add tag">
-                        <button class="h-10 rounded-lg bg-[#0052CC] px-3 text-sm font-semibold text-white">Add</button>
+                        <button class="h-10 rounded-lg bg-brand px-3 text-sm font-semibold text-white">Add</button>
                     </form>
                     <form action="{{ route('customers.marketing.update', $customer) }}" method="POST" class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm">
                         @csrf
@@ -113,7 +108,7 @@
         <div class="space-y-4">
             <article class="rounded-2xl border border-[#CBD5E1] bg-white overflow-hidden">
                 <div class="border-b border-[#E2E8F0] px-5 py-4">
-                    <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Order history</h3>
+                    <h3 class="text-lg font-semibold text-[#0F172A]">Order history</h3>
                     <p class="text-sm text-[#64748B]">Real orders linked to this customer.</p>
                 </div>
                 <div class="overflow-x-auto">
@@ -146,8 +141,62 @@
                 </div>
             </article>
 
+            <article class="rounded-2xl border border-[#CBD5E1] bg-white overflow-hidden">
+                <div class="border-b border-[#E2E8F0] px-5 py-4">
+                    <h3 class="text-lg font-semibold text-[#0F172A]">Returns, refunds &amp; exchanges</h3>
+                    <p class="text-sm text-[#64748B]">Recent post-purchase activity for this customer.</p>
+                </div>
+                <div class="space-y-4 p-5 text-sm">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Returns</p>
+                        <ul class="mt-2 space-y-2">
+                            @forelse (($customerReturns ?? collect()) as $return)
+                                <li>
+                                    <a class="font-semibold text-[#0052CC] hover:underline" href="{{ route('orderViewDetails', $return->order_id) }}#returns-refunds">
+                                        {{ $return->return_number }}
+                                    </a>
+                                    <span class="text-[#64748B]"> · {{ \App\Support\ReturnLifecycle::statusLabel($return->status) }} · {{ optional($return->order)->order_number }}</span>
+                                </li>
+                            @empty
+                                <li class="text-[#64748B]">No returns yet.</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Refunds</p>
+                        <ul class="mt-2 space-y-2">
+                            @forelse (($customerRefunds ?? collect()) as $refund)
+                                <li>
+                                    <a class="font-semibold text-[#0052CC] hover:underline" href="{{ route('orderViewDetails', $refund->order_id) }}#returns-refunds">
+                                        {{ $refund->refund_number }}
+                                    </a>
+                                    <span class="text-[#64748B]"> · {{ \App\Support\RefundLifecycle::statusLabel($refund->status) }} · {{ optional($refund->order)->order_number }}</span>
+                                </li>
+                            @empty
+                                <li class="text-[#64748B]">No refunds yet.</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Exchanges</p>
+                        <ul class="mt-2 space-y-2">
+                            @forelse (($customerExchanges ?? collect()) as $exchange)
+                                <li>
+                                    <a class="font-semibold text-[#0052CC] hover:underline" href="{{ route('orderViewDetails', $exchange->order_id) }}#returns-refunds">
+                                        {{ $exchange->exchange_number }}
+                                    </a>
+                                    <span class="text-[#64748B]"> · {{ \App\Support\ExchangeLifecycle::statusLabel($exchange->status) }} · {{ optional($exchange->order)->order_number }}</span>
+                                </li>
+                            @empty
+                                <li class="text-[#64748B]">No exchanges yet.</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                </div>
+            </article>
+
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5 md:p-6">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Addresses</h3>
+                <h3 class="text-lg font-semibold text-[#0F172A]">Addresses</h3>
                 <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <div class="rounded-xl bg-[#F8FAFC] p-4 text-sm">
                         <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Default shipping</p>
@@ -225,7 +274,7 @@
                             <input name="country" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="Country">
                         </div>
                         <label class="mt-3 flex items-center gap-2 text-sm text-[#475569]"><input type="checkbox" name="is_default" value="1"> Make default for this address type</label>
-                        <button class="mt-3 h-10 rounded-lg bg-[#0052CC] px-4 text-sm font-semibold text-white">Add address</button>
+                        <button class="mt-3 h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Add address</button>
                     </form>
                 @endif
             </article>
@@ -233,7 +282,7 @@
 
         <aside class="space-y-4">
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer status</h3>
+                <h3 class="text-lg font-semibold text-[#0F172A]">Customer status</h3>
                 @if($canManageCustomers)
                     <form action="{{ route('customers.status.update', $customer) }}" method="POST" class="mt-4 space-y-3">
                         @csrf
@@ -243,7 +292,7 @@
                             <option value="blocked" @selected($customer->status === 'blocked')>Blocked</option>
                         </select>
                         <textarea name="blocked_reason" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Reason if blocked">{{ $customer->blocked_reason }}</textarea>
-                        <button class="w-full h-10 rounded-lg bg-[#0052CC] text-sm font-semibold text-white">Save status</button>
+                        <button class="w-full h-10 rounded-lg bg-brand text-sm font-semibold text-white">Save status</button>
                     </form>
                 @else
                     <p class="mt-3 text-sm text-[#64748B]">You can view this customer, but your store role cannot change status.</p>
@@ -251,12 +300,12 @@
             </article>
 
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Customer notes</h3>
+                <h3 class="text-lg font-semibold text-[#0F172A]">Customer notes</h3>
                 @if($canManageCustomers)
                     <form action="{{ route('customers.notes.store', $customer) }}" method="POST" class="mt-4 space-y-3">
                         @csrf
                         <textarea name="body" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm" placeholder="Add a note"></textarea>
-                        <button class="w-full h-10 rounded-lg bg-[#0052CC] text-sm font-semibold text-white">Add note</button>
+                        <button class="w-full h-10 rounded-lg bg-brand text-sm font-semibold text-white">Add note</button>
                     </form>
                 @endif
 
@@ -273,7 +322,7 @@
             </article>
 
             <article class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
-                <h3 class="text-lg font-poppins font-semibold text-[#0F172A]">Marketing consent</h3>
+                <h3 class="text-lg font-semibold text-[#0F172A]">Marketing consent</h3>
                 <p class="mt-3 text-sm text-[#475569]">{{ $customer->marketing_consent || $customer->accepts_marketing ? 'Customer has accepted marketing messages.' : 'Customer has not accepted marketing messages.' }}</p>
                 @if($customer->marketing_consent_at)
                     <p class="mt-1 text-xs text-[#94A3B8]">Recorded {{ $customer->marketing_consent_at->format('M d, Y') }} from {{ $customer->marketing_consent_source ?: 'dashboard' }}.</p>

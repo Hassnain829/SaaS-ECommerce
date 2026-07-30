@@ -136,7 +136,7 @@ final class ProductWorkspaceController extends Controller
             $imageIsProductFallback = false;
             if ($img && $img->isReady() && $img->image_path) {
                 $thumbUrl = asset('storage/'.$img->image_path);
-            } elseif ($primaryCatalogThumb !== null) {
+            } elseif ($primaryCatalogThumb !== null && $variantCount <= 1) {
                 $thumbUrl = $primaryCatalogThumb;
                 $imageIsProductFallback = true;
             }

@@ -165,6 +165,111 @@ final class FedExConfig
         return (string) config('carriers.fedex.ship_validate_path', '/ship/v1/shipments/packages/validate');
     }
 
+    public function freightLtlShipPath(?string $environment = null): string
+    {
+        return (string) config('carriers.fedex.freight_ltl_ship_path', '/ship/v1/freight/shipments');
+    }
+
+    public function validationUs08Enabled(): bool
+    {
+        return filter_var(config('carriers.fedex.validation_us08_enabled', false), FILTER_VALIDATE_BOOL);
+    }
+
+    public function freightLtlApiEnabled(): bool
+    {
+        return filter_var(config('carriers.fedex.freight_ltl_api_enabled', false), FILTER_VALIDATE_BOOL);
+    }
+
+    public function us08LiveRunEnabled(): bool
+    {
+        return $this->validationUs08Enabled() && $this->freightLtlApiEnabled();
+    }
+
+    public function freightLtlApiDisabledMessage(): string
+    {
+        return $this->us08ExclusionNote();
+    }
+
+    /**
+     * Canonical exclusion note for IntegratorUS08 in workspace, preflight, and export reports.
+     */
+    public function us08ExclusionNote(): string
+    {
+        return 'IntegratorUS08 Freight LTL is excluded because Freight LTL is not a supported capability of this application and is no longer available through the current FedEx Developer Portal project.';
+    }
+
+    public function validationUs10Enabled(): bool
+    {
+        return filter_var(config('carriers.fedex.validation_us10_enabled', false), FILTER_VALIDATE_BOOL);
+    }
+
+    public function us10LiveRunEnabled(): bool
+    {
+        return $this->validationUs10Enabled();
+    }
+
+    /**
+     * Canonical exclusion note for IntegratorUS10 in workspace, preflight, and export reports.
+     */
+    public function us10ExclusionNote(): string
+    {
+        return 'IntegratorUS10 Consolidation / IPD is excluded because Consolidation API is not a supported capability of this application and was not included in the current FedEx Developer Portal project.';
+    }
+
+    public function validationUs10ConsolidationAccount(): string
+    {
+        return trim((string) config('carriers.fedex.validation_us10_consolidation_account', ''));
+    }
+
+    public function validationUs10ShipperTin(): string
+    {
+        return trim((string) config('carriers.fedex.validation_us10_shipper_tin', ''));
+    }
+
+    public function consolidationCreatePath(): string
+    {
+        return (string) config('carriers.fedex.consolidation_create_path', '/ship/v1/consolidations');
+    }
+
+    public function consolidationShipmentPath(): string
+    {
+        return (string) config('carriers.fedex.consolidation_shipment_path', '/ship/v1/consolidations/shipments');
+    }
+
+    public function consolidationConfirmPath(): string
+    {
+        return (string) config('carriers.fedex.consolidation_confirm_path', '/ship/v1/consolidations/confirmations');
+    }
+
+    public function consolidationConfirmResultsPath(): string
+    {
+        return (string) config('carriers.fedex.consolidation_confirm_results_path', '/ship/v1/consolidations/confirmationresults');
+    }
+
+    public function documentApiBaseUrl(?string $environment = null): string
+    {
+        $environment = $this->environment($environment);
+
+        return rtrim((string) config(
+            $environment === 'live'
+                ? 'carriers.fedex.document_api_live_base_url'
+                : 'carriers.fedex.document_api_sandbox_base_url',
+            $environment === 'live'
+                ? 'https://documentapi.prod.fedex.com'
+                : 'https://documentapitest.prod.fedex.com/sandbox'
+        ), '/');
+    }
+
+    public function tradeDocumentsUploadImagePath(): string
+    {
+        return (string) config('carriers.fedex.trade_documents_upload_image_path', '/documents/v1/lhsimages/upload');
+    }
+
+    public function tradeDocumentsUploadDocumentPath(): string
+    {
+        return (string) config('carriers.fedex.trade_documents_upload_document_path', '/documents/v1/etds/upload');
+    }
+
     public function shipCancelPath(?string $environment = null): string
     {
         return (string) config('carriers.fedex.ship_cancel_path', '/ship/v1/shipments/cancel');

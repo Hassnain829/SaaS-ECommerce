@@ -12,6 +12,8 @@
 @section('title', 'Import details')
 @section('sidebar_brand_title', 'BaaS Admin')
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('page_title', $import->original_filename)
+@section('page_lead', 'Import details, outcome, and preserved catalog data.')
 
 @section('content')
     <div class="flex-1 overflow-y-auto p-4 lg:p-8">
@@ -19,7 +21,6 @@
             <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Import details</p>
-                    <h1 class="mt-1 text-2xl font-semibold text-[#0F172A] font-[Poppins]">{{ $import->original_filename }}</h1>
                     <p class="mt-2 text-sm text-[#64748B]">
                         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset {{ ProductImportStatusPresenter::badgeClass($import->status) }}">{{ ProductImportStatusPresenter::label($import->status) }}</span>
                         <span class="mx-2 text-[#CBD5E1]">·</span>
@@ -89,7 +90,7 @@
                         @if ($canRetryFailed)
                             <form method="post" action="{{ route('products.import.retry-failed', ['productImportId' => $import->id]) }}" class="inline" onsubmit="this.querySelector('button').disabled=true;">
                                 @csrf
-                                <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-[#0052CC] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#0047B3]">Try failed rows again</button>
+                                <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">Try failed rows again</button>
                             </form>
                         @endif
                         @if ($import->canReopenMapping())
