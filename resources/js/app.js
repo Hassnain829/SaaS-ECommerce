@@ -278,20 +278,63 @@ document.addEventListener('turbo:load', () => {
     document.documentElement.classList.remove('turbo-loading');
 });
 
-document.addEventListener('turbo:click', () => {
+document.addEventListener('click', (e) => {
+    const tab = e.target.closest('[data-filter-tab]');
+    if (! tab) {
+        return;
+    }
+    const group = tab.closest('[data-filter-tabs]');
+    if (! group) {
+        return;
+    }
+    group.querySelectorAll('[data-filter-tab]').forEach((el) => {
+        el.classList.remove('bg-brand', 'text-white');
+        el.classList.add('bg-surface-muted', 'text-ink-secondary');
+    });
+    tab.classList.add('bg-brand', 'text-white');
+    tab.classList.remove('bg-surface-muted', 'text-ink-secondary');
+
+    const panel = tab.closest('turbo-frame');
+    const results = panel?.querySelector('[data-filter-results]');
+    if (results) {
+        results.classList.add('is-filtering');
+    }
+});
+
+document.addEventListener('turbo:frame-load', () => {
+    document.documentElement.classList.remove('turbo-frame-loading', 'turbo-loading');
+    document.querySelectorAll('[data-filter-results].is-filtering').forEach((el) => {
+        el.classList.remove('is-filtering');
+    });
+});
+
+document.addEventListener('turbo:click', (event) => {
+    const link = event.target;
+    if (! (link instanceof Element)) {
+        return;
+    }
+    if (link.closest('#customers-panel, #orders-panel')) {
+        document.documentElement.classList.add('turbo-frame-loading');
+        return;
+    }
     document.documentElement.classList.add('turbo-loading');
 });
-document.addEventListener('turbo:submit-start', () => {
+
+document.addEventListener('turbo:submit-start', (event) => {
+    const form = event.target;
+    if (form instanceof HTMLFormElement && form.closest('#customers-panel, #orders-panel')) {
+        document.documentElement.classList.add('turbo-frame-loading');
+        return;
+    }
     document.documentElement.classList.add('turbo-loading');
 });
-document.addEventListener('turbo:before-fetch-request', () => {
-    document.documentElement.classList.add('turbo-loading');
-});
+
 document.addEventListener('turbo:before-fetch-response', () => {
     document.documentElement.classList.remove('turbo-loading');
 });
+
 document.addEventListener('turbo:fetch-request-error', () => {
-    document.documentElement.classList.remove('turbo-loading');
+    document.documentElement.classList.remove('turbo-loading', 'turbo-frame-loading');
 });
 
 Alpine.start();

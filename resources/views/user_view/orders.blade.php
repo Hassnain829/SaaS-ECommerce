@@ -5,7 +5,7 @@
 @section('topbar')
     <x-ui.merchant-topbar title="Orders" :lead="'Track customer orders for '.($selectedStore?->name ?? 'this store').'.'">
         <x-slot:search>
-            <form method="GET" action="{{ route('orders') }}" class="flex w-full items-center gap-2">
+            <form method="GET" action="{{ route('orders') }}" data-turbo-frame="orders-panel" class="flex w-full items-center gap-2">
                 <input type="hidden" name="status" value="{{ $currentStatus }}">
                 <input name="q" value="{{ $search }}" class="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" placeholder="Search orders…">
                 <button class="inline-flex h-9 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-xs font-semibold text-ink-secondary hover:bg-surface-muted">Search</button>
@@ -31,6 +31,7 @@
 <div class="w-full space-y-4">
     @include('user_view.partials.flash_success')
 
+<turbo-frame id="orders-panel" data-turbo-action="advance">
     <section class="merchant-card space-y-4 p-4">
         @if($search !== '')
             <div class="flex items-center justify-between rounded-md bg-surface-muted px-3 py-2 text-sm text-ink-secondary">
@@ -39,17 +40,17 @@
             </div>
         @endif
 
-        <div class="flex flex-wrap gap-2 text-sm font-semibold">
-            <a href="{{ route('orders', ['status' => 'all']) }}" @class([
-                'inline-flex h-8 items-center rounded-md px-3',
+        <div class="flex flex-wrap gap-2 text-sm font-semibold" data-filter-tabs>
+            <a href="{{ route('orders', ['status' => 'all']) }}" data-filter-tab @class([
+                'inline-flex h-8 items-center rounded-md px-3 transition',
                 'bg-brand text-white' => $currentStatus === 'all',
                 'bg-surface-muted text-ink-secondary hover:bg-border/60' => $currentStatus !== 'all',
             ])>
                 All ({{ $statusCounts['all'] ?? 0 }})
             </a>
             @foreach($orderStatuses as $status)
-                <a href="{{ route('orders', ['status' => $status]) }}" @class([
-                    'inline-flex h-8 items-center rounded-md px-3',
+                <a href="{{ route('orders', ['status' => $status]) }}" data-filter-tab @class([
+                    'inline-flex h-8 items-center rounded-md px-3 transition',
                     'bg-brand text-white' => $currentStatus === $status,
                     'bg-surface-muted text-ink-secondary hover:bg-border/60' => $currentStatus !== $status,
                 ])>
@@ -59,6 +60,7 @@
         </div>
     </section>
 
+    <div data-filter-results class="space-y-4">
     <section class="merchant-card overflow-hidden">
         <div class="border-b border-border px-4 py-3.5 md:px-5">
             <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
@@ -67,7 +69,7 @@
                     <p class="text-xs text-ink-muted">Manual orders that have not become confirmed orders yet.</p>
                 </div>
                 @if($canManageOrders)
-                    <a href="{{ route('orders.create') }}" class="text-sm font-semibold text-brand hover:text-brand-hover">New draft</a>
+                    <a href="{{ route('orders.create') }}" data-turbo-frame="_top" class="text-sm font-semibold text-brand hover:text-brand-hover">New draft</a>
                 @endif
             </div>
         </div>
@@ -90,7 +92,7 @@
                         @foreach($draftOrders as $draft)
                             <tr class="border-b border-border/80 hover:bg-surface-muted/40">
                                 <td class="px-5 py-3">
-                                    <a href="{{ route('draft-orders.show', $draft) }}" class="font-semibold text-brand hover:text-brand-hover">{{ $draft->draft_number }}</a>
+                                    <a href="{{ route('draft-orders.show', $draft) }}" data-turbo-frame="_top" class="font-semibold text-brand hover:text-brand-hover">{{ $draft->draft_number }}</a>
                                 </td>
                                 <td class="px-4 py-3">
                                     <p class="font-medium text-ink">{{ $draft->customer?->full_name ?? $draft->customer?->email ?? 'No customer selected' }}</p>
@@ -110,19 +112,19 @@
                                 <td class="px-4 py-3 text-ink-secondary">{{ $draft->items_count }} {{ str('item')->plural($draft->items_count) }}</td>
                                 <td class="px-5 py-3">
                                     <div class="flex flex-wrap items-center justify-end gap-1.5">
-                                        <a href="{{ route('draft-orders.show', $draft) }}" class="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-surface-muted">View/Edit</a>
+                                        <a href="{{ route('draft-orders.show', $draft) }}" data-turbo-frame="_top" class="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-surface-muted">View/Edit</a>
                                         @if($draft->status === \App\Models\DraftOrder::STATUS_DRAFT)
-                                            <form action="{{ route('draft-orders.convert', $draft) }}" method="POST">
+                                            <form action="{{ route('draft-orders.convert', $draft) }}" method="POST" data-turbo-frame="_top">
                                                 @csrf
                                                 <button class="rounded-md bg-brand px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover">Create order</button>
                                             </form>
-                                            <form action="{{ route('draft-orders.cancel', $draft) }}" method="POST">
+                                            <form action="{{ route('draft-orders.cancel', $draft) }}" method="POST" data-turbo-frame="_top">
                                                 @csrf
                                                 @method('PATCH')
                                                 <button class="rounded-md border border-danger/30 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft">Cancel</button>
                                             </form>
                                         @endif
-                                        <form action="{{ route('draft-orders.destroy', $draft) }}" method="POST" onsubmit="return confirm('Delete this draft order? This will remove it from your active draft list. Converted orders cannot be deleted.');">
+                                        <form action="{{ route('draft-orders.destroy', $draft) }}" method="POST" data-turbo-frame="_top" onsubmit="return confirm('Delete this draft order? This will remove it from your active draft list. Converted orders cannot be deleted.');">
                                             @csrf
                                             @method('DELETE')
                                             <button class="rounded-md border border-danger/30 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft">Delete</button>
@@ -203,7 +205,7 @@
                             </span>
                         </td>
                         <td class="px-5 py-3 text-right">
-                            <a href="{{ route('orderViewDetails', $order->id) }}" class="text-sm font-semibold text-brand hover:text-brand-hover">View</a>
+                            <a href="{{ route('orderViewDetails', $order->id) }}" data-turbo-frame="_top" class="text-sm font-semibold text-brand hover:text-brand-hover">View</a>
                         </td>
                     </tr>
                     @empty
@@ -230,5 +232,7 @@
         </div>
         @endif
     </section>
+    </div>
+</turbo-frame>
 </div>
 @endsection

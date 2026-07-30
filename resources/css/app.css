@@ -1414,9 +1414,10 @@
         transition: transform 0.2s ease, opacity 0.2s ease;
     }
 
-    html.turbo-loading .merchant-app {
-        opacity: 0.72;
-        transition: opacity 0.12s ease;
+        html.turbo-frame-loading [data-filter-results],
+    [data-filter-results].is-filtering {
+        opacity: 0.55;
+        transition: opacity 0.1s ease;
         pointer-events: none;
     }
 
