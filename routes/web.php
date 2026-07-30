@@ -29,9 +29,14 @@ use App\Http\Controllers\Store\DashboardController;
 use App\Http\Controllers\Store\NotificationController;
 use Illuminate\Support\Facades\Route;
 
-//
 Route::get('/', function () {
-    return view('user_view.welcome');
+    if (! auth()->check()) {
+        return redirect()->route('signin');
+    }
+
+    return auth()->user()->role?->name === 'admin'
+        ? redirect()->route('admin-dashboard')
+        : redirect()->route('dashboard');
 });
 
 Route::middleware('guest')->group(function () {
