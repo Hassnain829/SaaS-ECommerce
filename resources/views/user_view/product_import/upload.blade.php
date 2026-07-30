@@ -1,8 +1,8 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Import products - BaaS Core')
-@section('sidebar_brand_title', 'BaaS Admin')
-@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('title', 'Import products — '.config('app.name'))
+@section('sidebar_brand_title', config('app.name'))
+@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'Your store')
 @section('page_title', 'Bulk product import')
 @section('page_lead', 'Upload a CSV or Excel file and review detected catalog columns.')
 

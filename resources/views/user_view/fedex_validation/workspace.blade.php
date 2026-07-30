@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'FedEx Validation Workspace | BaaS Core')
+@section('title', 'FedEx Validation Workspace — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="FedEx approval tools" lead="Validation scenarios and evidence for carrier approval.">

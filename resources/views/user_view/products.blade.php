@@ -1,8 +1,8 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Products Admin - BaaS Core')
-@section('sidebar_brand_title', 'BaaS Admin')
-@section('sidebar_brand_subtitle', 'E-commerce Portal')
+@section('title', 'Products — '.config('app.name'))
+@section('sidebar_brand_title', config('app.name'))
+@section('sidebar_brand_subtitle', optional($currentStore)->name ?? 'Catalog')
 
 @php
     use App\Support\ProductCustomFieldHelper;
@@ -84,7 +84,7 @@
 @endphp
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Products" lead="Products and inventory for the store selected in the sidebar.">
+    <x-ui.merchant-topbar title="Products" lead="Catalog and inventory for the selected store.">
         <x-slot:search>
             <form method="GET" action="{{ route('products') }}" class="flex w-full items-center gap-2">
                 <input type="hidden" name="category" value="{{ $filters['category'] ?? '' }}">
@@ -97,31 +97,31 @@
                 <input type="hidden" name="attribute_term" value="{{ $filters['attribute_term'] ?? '' }}">
                 <input type="hidden" name="cf_key" value="{{ $filters['cf_key'] ?? '' }}">
                 <input type="hidden" name="cf_value" value="{{ $filters['cf_value'] ?? '' }}">
-                <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search products…" class="h-9 min-w-0 flex-1 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-900 placeholder:text-stone-500 focus:border-indigo-400/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
-                <button type="submit" class="inline-flex h-9 shrink-0 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 hover:bg-stone-50">Search</button>
+                <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search products…" class="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                <button type="submit" class="inline-flex h-9 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-xs font-semibold text-ink-secondary hover:bg-surface-muted">Search</button>
             </form>
         </x-slot:search>
         <x-slot:actions>
-            <a href="{{ route('products.create') }}" class="hidden sm:inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-brand-hover">
+            <a href="{{ route('products.create') }}" class="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
                 </svg>
-                <span>Add Product</span>
+                <span>Add product</span>
             </a>
             @if ($canManageBrands || $canManageTags || $canManageCategories)
                 <details id="products-catalog-more-menu" class="group relative hidden sm:block" data-products-more-actions>
-                    <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-semibold text-stone-600 shadow-sm hover:bg-stone-50 [&::-webkit-details-marker]:hidden" aria-label="More catalog actions">
+                    <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-ink-secondary hover:bg-surface-muted [&::-webkit-details-marker]:hidden" aria-label="More catalog actions">
                         <span>More</span>
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-stone-400 transition group-open:rotate-180" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-ink-muted transition group-open:rotate-180" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </summary>
-                    <div class="absolute right-0 z-40 mt-1 w-52 overflow-hidden rounded-xl border border-stone-200 bg-white py-1 shadow-lg ring-1 ring-black/5">
+                    <div class="absolute right-0 z-40 mt-1 w-52 overflow-hidden rounded-md border border-border bg-surface py-1 shadow-lg">
                         @if ($canManageBrands)
-                            <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50">Import products</a>
-                            <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50">Import history</a>
-                            <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-stone-700 hover:bg-stone-50">Manage specifications</a>
+                            <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">Import products</a>
+                            <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">Import history</a>
+                            <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">Manage specifications</a>
                         @endif
                         @if ($canManageBrands || $canManageTags || $canManageCategories)
-                            <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-stone-700 hover:bg-stone-50">
+                            <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">
                                 Catalog tools
                             </button>
                         @endif

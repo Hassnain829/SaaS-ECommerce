@@ -1,7 +1,7 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Billing & Subscription | BaaS Core')
-@section('sidebar_brand_title', 'BaaS Platform')
+@section('title', 'Billing & Subscription — '.config('app.name'))
+@section('sidebar_brand_title', config('app.name'))
 @section('sidebar_brand_subtitle', 'Management Console')
 
 @section('topbar')

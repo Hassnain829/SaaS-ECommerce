@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'FedEx Verification | BaaS Core')
+@section('title', 'FedEx Verification — '.config('app.name'))
 
 @section('content')
     <div class="mx-auto max-w-[760px] space-y-6">

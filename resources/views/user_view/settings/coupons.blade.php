@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Discounts | BaaS Core')
+@section('title', 'Discounts — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Discounts" lead="Create simple coupon codes for platform checkout." />

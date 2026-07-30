@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Test a customer address | BaaS Core')
+@section('title', 'Test a customer address — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Test a customer address" lead="Preview delivery areas and checkout options for an address.">

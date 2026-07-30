@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Delivery setup | BaaS Core')
+@section('title', 'Delivery setup — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Delivery setup" lead="Guided setup for ship-from, delivery areas, and checkout options.">

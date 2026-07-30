@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Profile Settings | BaaS Core')
+@section('title', 'Profile Settings — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Profile settings" lead="Account identity and password.">

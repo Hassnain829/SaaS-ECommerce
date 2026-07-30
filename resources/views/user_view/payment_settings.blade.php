@@ -1,11 +1,11 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Payments & Channels | BaaS Core')
+@section('title', 'Payments — '.config('app.name'))
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Payments & Checkout" lead="Configure transaction processing and external sales channels.">
+    <x-ui.merchant-topbar title="Payments" lead="Configure checkout processing and sales channels.">
         <x-slot:actions>
-        <a href="{{ route('settings.taxes.index') }}" class="payments-btn payments-btn-primary shrink-0">Checkout &amp; tax</a>
+        <a href="{{ route('settings.taxes.index') }}" class="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">Checkout &amp; tax</a>
     </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection

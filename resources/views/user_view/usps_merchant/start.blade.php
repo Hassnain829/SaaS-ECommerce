@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Connect USPS | BaaS Core')
+@section('title', 'Connect USPS — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Connect USPS" lead="Review requirements and choose a ship-from location.">

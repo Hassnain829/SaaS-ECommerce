@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'FedEx Capabilities | BaaS Core')
+@section('title', 'FedEx Capabilities — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar

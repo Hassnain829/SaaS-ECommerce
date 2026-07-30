@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', $draftOrder->draft_number . ' | BaaS Core')
+@section('title', $draftOrder->draft_number . ' — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar :title="'Draft '.$draftOrder->draft_number" :lead="$draftOrder->customer?->full_name ?? $draftOrder->customer?->email ?? 'No customer'">

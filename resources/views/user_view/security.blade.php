@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Security | BaaS Core')
+@section('title', 'Security — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Security" lead="Sessions and recent account activity.">

@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Connect FedEx | BaaS Core')
+@section('title', 'Connect FedEx — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Connect FedEx" lead="Connect a merchant-owned FedEx account for this store.">

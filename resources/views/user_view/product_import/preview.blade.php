@@ -1,8 +1,8 @@
 @extends('layouts.user.user-sidebar')
 
 @section('title', 'Import preview')
-@section('sidebar_brand_title', 'BaaS Admin')
-@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('sidebar_brand_title', config('app.name'))
+@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'Your store')
 @section('page_title', 'Validation preview')
 @section('page_lead', 'Review detected catalog data before starting the import.')
 

@@ -14,8 +14,8 @@
 @endphp
 
 @section('title', 'Import result')
-@section('sidebar_brand_title', 'BaaS Admin')
-@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('sidebar_brand_title', config('app.name'))
+@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'Your store')
 @section('page_title', 'Import status')
 @section('page_lead', $import->original_filename)
 

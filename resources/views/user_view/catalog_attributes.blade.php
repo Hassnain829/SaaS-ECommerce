@@ -1,8 +1,8 @@
 @extends('layouts.user.user-sidebar')
 
 @section('title', 'Product specifications')
-@section('sidebar_brand_title', 'BaaS Admin')
-@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('sidebar_brand_title', config('app.name'))
+@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'Your store')
 @section('page_title', 'Product specifications')
 @section('page_lead', 'Structured product facts shoppers can filter or compare.')
 

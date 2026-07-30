@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Notifications | BaaS Core')
+@section('title', 'Notifications — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Notifications" lead="Manage your store alerts and stay updated on logistics and sales.">

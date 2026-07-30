@@ -1,11 +1,11 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Connect '.$carrierCard['name'].' | BaaS Core')
+@section('title', 'Connect '.$carrierCard['name'].' — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="{{ $carrierCard['name'] }} connection" lead="Set up this carrier for the active store.">
         <x-slot:actions>
-            <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Back to carriers</a>
+            <a href="{{ route('shipping.carriers.connect.index') }}" class="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">Back to carriers</a>
         </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection

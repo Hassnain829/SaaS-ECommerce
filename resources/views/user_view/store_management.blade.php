@@ -1,13 +1,13 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Store Management Hub - BaaS Core')
+@section('title', 'Store Management Hub — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Your stores" lead="Each store is its own workspace. Use the sidebar switcher to change the active store.">
         <x-slot:actions>
-            <button type="button" class="js-open-create-store-modal hidden sm:inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">
+            <button type="button" class="js-open-create-store-modal hidden sm:inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/></svg>
-                <span>Create Store</span>
+                <span>Create store</span>
             </button>
         </x-slot:actions>
     </x-ui.merchant-topbar>

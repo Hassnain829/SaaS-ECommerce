@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Manage Products - ' . $store->name . ' | BaaS Core')
+@section('title', 'Manage Products - ' . $store->name . ' — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Store products" :lead="$store->name">

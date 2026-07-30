@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Team Members - BaaS Core')
+@section('title', 'Team Members — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Team members" :lead="'Manage people who can operate '.$selectedStore->name.'.'">

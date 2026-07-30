@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Delivery | BaaS Core')
+@section('title', 'Delivery — '.config('app.name'))
 
 @php
     $connectionStatusLabels = [

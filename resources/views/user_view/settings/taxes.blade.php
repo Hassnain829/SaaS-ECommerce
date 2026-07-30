@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Taxes | BaaS Core')
+@section('title', 'Taxes — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Checkout & tax" lead="Configure platform checkout tax separately from delivery.">

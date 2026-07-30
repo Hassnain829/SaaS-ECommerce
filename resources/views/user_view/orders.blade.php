@@ -1,19 +1,19 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Orders | BaaS Core')
+@section('title', 'Orders — '.config('app.name'))
 
 @section('topbar')
-    <x-ui.merchant-topbar title="All orders" :lead="'Track customer orders for '.($selectedStore?->name ?? 'this store').'.'">
+    <x-ui.merchant-topbar title="Orders" :lead="'Track customer orders for '.($selectedStore?->name ?? 'this store').'.'">
         <x-slot:search>
             <form method="GET" action="{{ route('orders') }}" class="flex w-full items-center gap-2">
                 <input type="hidden" name="status" value="{{ $currentStatus }}">
-                <input name="q" value="{{ $search }}" class="h-9 min-w-0 flex-1 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm" placeholder="Search orders…">
-                <button class="inline-flex h-9 shrink-0 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700 hover:bg-stone-50">Search</button>
+                <input name="q" value="{{ $search }}" class="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" placeholder="Search orders…">
+                <button class="inline-flex h-9 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-xs font-semibold text-ink-secondary hover:bg-surface-muted">Search</button>
             </form>
         </x-slot:search>
         @if($canManageOrders)
             <x-slot:actions>
-                <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-lg bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-hover xl:inline-flex">Create order</a>
+                <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-md bg-brand px-3.5 text-sm font-semibold text-white transition hover:bg-brand-hover xl:inline-flex">Create order</a>
             </x-slot:actions>
         @endif
     </x-ui.merchant-topbar>
@@ -28,92 +28,104 @@
         'manual' => 'Manual order',
     ];
 @endphp
-<div class="w-full py-2 md:py-4 space-y-4">
+<div class="w-full space-y-4">
     @include('user_view.partials.flash_success')
 
-    <section class="bg-white border border-[#CBD5E1] rounded-2xl p-4 md:p-5 space-y-4">
+    <section class="merchant-card space-y-4 p-4">
         @if($search !== '')
-            <div class="flex items-center justify-between rounded-lg bg-[#F8FAFC] px-3 py-2 text-sm text-[#475569]">
-                <span>Search: <span class="font-semibold text-[#0F172A]">{{ $search }}</span></span>
-                <a href="{{ route('orders', ['status' => $currentStatus]) }}" class="font-semibold text-[#0052CC]">Clear</a>
+            <div class="flex items-center justify-between rounded-md bg-surface-muted px-3 py-2 text-sm text-ink-secondary">
+                <span>Search: <span class="font-semibold text-ink">{{ $search }}</span></span>
+                <a href="{{ route('orders', ['status' => $currentStatus]) }}" class="font-semibold text-brand hover:text-brand-hover">Clear</a>
             </div>
         @endif
 
         <div class="flex flex-wrap gap-2 text-sm font-semibold">
-            <a href="{{ route('orders', ['status' => 'all']) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === 'all' ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
+            <a href="{{ route('orders', ['status' => 'all']) }}" @class([
+                'inline-flex h-8 items-center rounded-md px-3',
+                'bg-brand text-white' => $currentStatus === 'all',
+                'bg-surface-muted text-ink-secondary hover:bg-border/60' => $currentStatus !== 'all',
+            ])>
                 All ({{ $statusCounts['all'] ?? 0 }})
             </a>
             @foreach($orderStatuses as $status)
-                <a href="{{ route('orders', ['status' => $status]) }}" class="h-9 px-4 rounded-full flex items-center justify-center {{ $currentStatus === $status ? 'bg-brand text-white' : 'bg-[#F1F5F9] text-[#475569]' }}">
+                <a href="{{ route('orders', ['status' => $status]) }}" @class([
+                    'inline-flex h-8 items-center rounded-md px-3',
+                    'bg-brand text-white' => $currentStatus === $status,
+                    'bg-surface-muted text-ink-secondary hover:bg-border/60' => $currentStatus !== $status,
+                ])>
                     {{ \App\Support\OrderLifecycle::orderStatusLabel($status) }} ({{ $statusCounts[$status] ?? 0 }})
                 </a>
             @endforeach
         </div>
     </section>
 
-    <section class="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden">
-        <div class="border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 md:px-6">
+    <section class="merchant-card overflow-hidden">
+        <div class="border-b border-border px-4 py-3.5 md:px-5">
             <div class="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold text-[#0F172A]">Draft orders</h2>
-                    <p class="text-sm text-[#64748B]">Manual orders that have not become confirmed orders yet.</p>
+                    <h2 class="text-sm font-semibold text-ink">Draft orders</h2>
+                    <p class="text-xs text-ink-muted">Manual orders that have not become confirmed orders yet.</p>
                 </div>
                 @if($canManageOrders)
-                    <a href="{{ route('orders.create') }}" class="text-sm font-semibold text-[#0052CC]">New draft</a>
+                    <a href="{{ route('orders.create') }}" class="text-sm font-semibold text-brand hover:text-brand-hover">New draft</a>
                 @endif
             </div>
         </div>
 
         @if(($draftOrders ?? collect())->isNotEmpty())
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[860px]">
-                    <thead class="bg-white border-b border-[#E2E8F0] text-[#64748B] text-xs uppercase tracking-[1px]">
+                <table class="w-full min-w-[860px] text-sm">
+                    <thead class="border-b border-border bg-surface-muted/70 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                         <tr>
-                            <th class="text-left px-6 py-4">Draft</th>
-                            <th class="text-left px-4 py-4">Customer</th>
-                            <th class="text-left px-4 py-4">Created</th>
-                            <th class="text-right px-4 py-4">Total</th>
-                            <th class="text-left px-4 py-4">Status</th>
-                            <th class="text-left px-4 py-4">Items</th>
-                            <th class="text-right px-6 py-4">Actions</th>
+                            <th class="px-5 py-2.5 text-left">Draft</th>
+                            <th class="px-4 py-2.5 text-left">Customer</th>
+                            <th class="px-4 py-2.5 text-left">Created</th>
+                            <th class="px-4 py-2.5 text-right">Total</th>
+                            <th class="px-4 py-2.5 text-left">Status</th>
+                            <th class="px-4 py-2.5 text-left">Items</th>
+                            <th class="px-5 py-2.5 text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="text-sm">
+                    <tbody>
                         @foreach($draftOrders as $draft)
-                            <tr class="border-b border-[#F1F5F9]">
-                                <td class="px-6 py-4">
-                                    <a href="{{ route('draft-orders.show', $draft) }}" class="font-bold text-[#0052CC]">{{ $draft->draft_number }}</a>
+                            <tr class="border-b border-border/80 hover:bg-surface-muted/40">
+                                <td class="px-5 py-3">
+                                    <a href="{{ route('draft-orders.show', $draft) }}" class="font-semibold text-brand hover:text-brand-hover">{{ $draft->draft_number }}</a>
                                 </td>
-                                <td class="px-4 py-4">
-                                    <p class="font-semibold text-[#0F172A]">{{ $draft->customer?->full_name ?? $draft->customer?->email ?? 'No customer selected' }}</p>
-                                    <p class="text-xs text-[#64748B]">{{ $draft->customer?->email }}</p>
+                                <td class="px-4 py-3">
+                                    <p class="font-medium text-ink">{{ $draft->customer?->full_name ?? $draft->customer?->email ?? 'No customer selected' }}</p>
+                                    <p class="text-xs text-ink-muted">{{ $draft->customer?->email }}</p>
                                 </td>
-                                <td class="px-4 py-4 text-[#475569]">{{ $draft->created_at?->format('M d, Y') }}</td>
-                                <td class="px-4 py-4 text-right font-bold">{{ $draft->currency ?: ($selectedStore->currency ?? 'USD') }} {{ number_format((float) $draft->total, 2) }}</td>
-                                <td class="px-4 py-4">
-                                    <span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] {{ $draft->status === \App\Models\DraftOrder::STATUS_DRAFT ? 'bg-[#DBEAFE] text-[#1D4ED8]' : 'bg-[#F1F5F9] text-[#475569]' }}">
+                                <td class="px-4 py-3 text-ink-secondary">{{ $draft->created_at?->format('M d, Y') }}</td>
+                                <td class="px-4 py-3 text-right font-semibold tabular-nums text-ink">{{ $draft->currency ?: ($selectedStore->currency ?? 'USD') }} {{ number_format((float) $draft->total, 2) }}</td>
+                                <td class="px-4 py-3">
+                                    <span @class([
+                                        'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                                        'bg-info-soft text-info' => $draft->status === \App\Models\DraftOrder::STATUS_DRAFT,
+                                        'bg-surface-muted text-ink-secondary' => $draft->status !== \App\Models\DraftOrder::STATUS_DRAFT,
+                                    ])>
                                         {{ str($draft->status)->title() }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-4 text-[#475569]">{{ $draft->items_count }} {{ str('item')->plural($draft->items_count) }}</td>
-                                <td class="px-6 py-4">
-                                    <div class="flex flex-wrap items-center justify-end gap-2">
-                                        <a href="{{ route('draft-orders.show', $draft) }}" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-xs font-semibold text-[#0F172A]">View/Edit</a>
+                                <td class="px-4 py-3 text-ink-secondary">{{ $draft->items_count }} {{ str('item')->plural($draft->items_count) }}</td>
+                                <td class="px-5 py-3">
+                                    <div class="flex flex-wrap items-center justify-end gap-1.5">
+                                        <a href="{{ route('draft-orders.show', $draft) }}" class="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-surface-muted">View/Edit</a>
                                         @if($draft->status === \App\Models\DraftOrder::STATUS_DRAFT)
                                             <form action="{{ route('draft-orders.convert', $draft) }}" method="POST">
                                                 @csrf
-                                                <button class="rounded-lg bg-[#059669] px-3 py-2 text-xs font-semibold text-white">Create order</button>
+                                                <button class="rounded-md bg-brand px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover">Create order</button>
                                             </form>
                                             <form action="{{ route('draft-orders.cancel', $draft) }}" method="POST">
                                                 @csrf
                                                 @method('PATCH')
-                                                <button class="rounded-lg border border-[#FECACA] px-3 py-2 text-xs font-semibold text-[#991B1B]">Cancel</button>
+                                                <button class="rounded-md border border-danger/30 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft">Cancel</button>
                                             </form>
                                         @endif
                                         <form action="{{ route('draft-orders.destroy', $draft) }}" method="POST" onsubmit="return confirm('Delete this draft order? This will remove it from your active draft list. Converted orders cannot be deleted.');">
                                             @csrf
                                             @method('DELETE')
-                                            <button class="rounded-lg border border-[#FECACA] px-3 py-2 text-xs font-semibold text-[#991B1B]">Delete</button>
+                                            <button class="rounded-md border border-danger/30 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft">Delete</button>
                                         </form>
                                     </div>
                                 </td>
@@ -123,80 +135,80 @@
                 </table>
             </div>
         @else
-            <div class="px-6 py-8 text-center text-sm text-[#64748B]">
+            <div class="px-5 py-8 text-center text-sm text-ink-muted">
                 No draft orders found. Drafts you save from the manual order workspace will appear here.
             </div>
         @endif
     </section>
 
-    <section class="bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden">
-        <div class="border-b border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 md:px-6">
-            <h2 class="text-lg font-semibold text-[#0F172A]">Final orders</h2>
-            <p class="text-sm text-[#64748B]">Confirmed customer orders stay separate from drafts.</p>
+    <section class="merchant-card overflow-hidden">
+        <div class="border-b border-border px-4 py-3.5 md:px-5">
+            <h2 class="text-sm font-semibold text-ink">Final orders</h2>
+            <p class="text-xs text-ink-muted">Confirmed customer orders stay separate from drafts.</p>
         </div>
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[980px]">
-                <thead class="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B] text-xs uppercase tracking-[1px]">
+            <table class="w-full min-w-[980px] text-sm">
+                <thead class="border-b border-border bg-surface-muted/70 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                     <tr>
-                        <th class="text-left px-6 py-4">Order</th>
-                        <th class="text-left px-4 py-4">Date</th>
-                        <th class="text-left px-4 py-4">Customer</th>
-                        <th class="text-left px-4 py-4">Source</th>
-                        <th class="text-right px-4 py-4">Total</th>
-                        <th class="text-left px-4 py-4">Order state</th>
-                        <th class="text-left px-4 py-4">Payment</th>
-                        <th class="text-left px-4 py-4">Fulfillment</th>
-                        <th class="text-right px-6 py-4"></th>
+                        <th class="px-5 py-2.5 text-left">Order</th>
+                        <th class="px-4 py-2.5 text-left">Date</th>
+                        <th class="px-4 py-2.5 text-left">Customer</th>
+                        <th class="px-4 py-2.5 text-left">Source</th>
+                        <th class="px-4 py-2.5 text-right">Total</th>
+                        <th class="px-4 py-2.5 text-left">Order state</th>
+                        <th class="px-4 py-2.5 text-left">Payment</th>
+                        <th class="px-4 py-2.5 text-left">Fulfillment</th>
+                        <th class="px-5 py-2.5 text-right"></th>
                     </tr>
                 </thead>
-                <tbody class="text-sm">
+                <tbody>
                     @forelse($orders as $order)
-                    <tr class="border-b border-[#F1F5F9]">
-                        <td class="px-6 py-4 text-[#0052CC] font-bold">{{ strtoupper($order->order_number) }}</td>
-                        <td class="px-4 py-4 text-[#475569]">{{ $order->placed_at ? $order->placed_at->format('M d, Y') : '-' }}</td>
-                        <td class="px-4 py-4">
-                            <p class="font-semibold">{{ $order->customer->full_name ?? $order->customer_email }}</p>
-                            <p class="text-xs text-[#64748B]">{{ $order->customer_email }}</p>
+                    <tr class="border-b border-border/80 hover:bg-surface-muted/40">
+                        <td class="px-5 py-3 font-semibold text-brand">{{ strtoupper($order->order_number) }}</td>
+                        <td class="px-4 py-3 text-ink-secondary">{{ $order->placed_at ? $order->placed_at->format('M d, Y') : '-' }}</td>
+                        <td class="px-4 py-3">
+                            <p class="font-medium text-ink">{{ $order->customer->full_name ?? $order->customer_email }}</p>
+                            <p class="text-xs text-ink-muted">{{ $order->customer_email }}</p>
                         </td>
-                        <td class="px-4 py-4">
-                            <p class="font-semibold text-[#0F172A]">{{ $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual order') }}</p>
-                            <p class="text-xs text-[#64748B]">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
+                        <td class="px-4 py-3">
+                            <p class="font-medium text-ink">{{ $sourceLabels[$order->order_source] ?? ($order->order_source ? str($order->order_source)->replace('_', ' ')->title() : 'Manual order') }}</p>
+                            <p class="text-xs text-ink-muted">{{ $order->channel ? str($order->channel)->replace('_', ' ')->title() : 'Dashboard' }}</p>
                             @if($order->external_order_number)
-                                <p class="text-xs text-[#64748B]">External {{ $order->external_order_number }}</p>
+                                <p class="text-xs text-ink-muted">External {{ $order->external_order_number }}</p>
                             @endif
                             @if(data_get($order->meta, 'platform_checkout.checkout_number'))
-                                <p class="text-xs text-[#64748B]">Checkout {{ data_get($order->meta, 'platform_checkout.checkout_number') }}</p>
+                                <p class="text-xs text-ink-muted">Checkout {{ data_get($order->meta, 'platform_checkout.checkout_number') }}</p>
                             @endif
                             @if(data_get($order->meta, 'platform_checkout.connection_label'))
-                                <p class="text-xs text-[#64748B]">{{ data_get($order->meta, 'platform_checkout.connection_label') }}</p>
+                                <p class="text-xs text-ink-muted">{{ data_get($order->meta, 'platform_checkout.connection_label') }}</p>
                             @endif
                             @if($order->payment_gateway)
-                                <p class="text-xs text-[#64748B]">{{ str($order->payment_gateway)->replace('_', ' ')->title() }}</p>
+                                <p class="text-xs text-ink-muted">{{ str($order->payment_gateway)->replace('_', ' ')->title() }}</p>
                             @endif
                         </td>
-                        <td class="px-4 py-4 text-right font-bold">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $order->total, 2) }}</td>
-                        <td class="px-4 py-4">
-                            <span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">
+                        <td class="px-4 py-3 text-right font-semibold tabular-nums text-ink">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $order->total, 2) }}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">
                                 {{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}
                             </span>
                         </td>
-                        <td class="px-4 py-4">
-                            <span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::paymentStatusBadgeClass($order->payment_status) }}">
                                 {{ \App\Support\OrderLifecycle::paymentStatusLabel($order->payment_status) }}
                             </span>
                         </td>
-                        <td class="px-4 py-4">
-                            <span class="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[1px] {{ \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::fulfillmentStatusBadgeClass($order->fulfillment_status) }}">
                                 {{ \App\Support\OrderLifecycle::fulfillmentStatusLabel($order->fulfillment_status) }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-right">
-                            <a href="{{ route('orderViewDetails', $order->id) }}" class="text-[#0052CC] font-bold">View details</a>
+                        <td class="px-5 py-3 text-right">
+                            <a href="{{ route('orderViewDetails', $order->id) }}" class="text-sm font-semibold text-brand hover:text-brand-hover">View</a>
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="9" class="px-6 py-8 text-center text-[#64748B]">
+                        <td colspan="9" class="px-5 py-8 text-center text-ink-muted">
                             No orders found. Manual orders you create and storefront orders will appear here.
                         </td>
                     </tr>
@@ -206,15 +218,15 @@
         </div>
 
         @if($orders->hasPages())
-        <div class="border-t border-[#F1F5F9] px-4 md:px-6 py-4 flex items-center justify-between text-xs text-[#64748B]">
-            <p>Showing <span class="font-bold text-[#0F172A]">{{ $orders->firstItem() }}</span> to <span class="font-bold text-[#0F172A]">{{ $orders->lastItem() }}</span> of <span class="font-bold text-[#0F172A]">{{ $orders->total() }}</span> orders</p>
+        <div class="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-ink-muted md:px-5">
+            <p>Showing <span class="font-semibold text-ink">{{ $orders->firstItem() }}</span> to <span class="font-semibold text-ink">{{ $orders->lastItem() }}</span> of <span class="font-semibold text-ink">{{ $orders->total() }}</span> orders</p>
             <div class="flex items-center gap-2">
                 {{ $orders->links('pagination::tailwind') }}
             </div>
         </div>
         @else
-        <div class="border-t border-[#F1F5F9] px-4 md:px-6 h-14 flex items-center justify-between text-xs text-[#64748B]">
-            <p>Showing <span class="font-bold text-[#0F172A]">{{ $orders->count() }}</span> orders</p>
+        <div class="flex h-12 items-center border-t border-border px-4 text-xs text-ink-muted md:px-5">
+            <p>Showing <span class="font-semibold text-ink">{{ $orders->count() }}</span> orders</p>
         </div>
         @endif
     </section>

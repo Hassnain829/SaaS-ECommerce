@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'FedEx Account Details | BaaS Core')
+@section('title', 'FedEx Account Details — '.config('app.name'))
 
 @section('content')
     <div class="mx-auto max-w-[900px] space-y-6">

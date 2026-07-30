@@ -1,13 +1,13 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Order ' . strtoupper($order->order_number) . ' | BaaS Core')
-@section('sidebar_brand_title', 'BaaS Admin')
-@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('title', 'Order ' . strtoupper($order->order_number) . ' — '.config('app.name'))
+@section('sidebar_brand_title', config('app.name'))
+@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'Orders')
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Order Details" :lead="strtoupper($order->order_number)">
+    <x-ui.merchant-topbar title="Order details" :lead="strtoupper($order->order_number)">
         <x-slot:actions>
-            <a href="{{ route('orders') }}" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Back to orders</a>
+            <a href="{{ route('orders') }}" class="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">Back to orders</a>
         </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection

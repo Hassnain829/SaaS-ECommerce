@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Developer test storefront | BaaS Core')
+@section('title', 'Developer test storefront — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Developer test storefront" lead="Local API connection for catalog and order testing.">

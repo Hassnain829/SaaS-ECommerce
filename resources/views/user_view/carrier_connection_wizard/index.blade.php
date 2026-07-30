@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Connect Carrier Account | BaaS Core')
+@section('title', 'Connect Carrier Account — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Connect carrier account" lead="Choose a carrier and ship-from fulfillment location.">

@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Analytics | BaaS Core')
+@section('title', 'Analytics — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Business Insights" lead="Store performance, trends, and operational reporting.">

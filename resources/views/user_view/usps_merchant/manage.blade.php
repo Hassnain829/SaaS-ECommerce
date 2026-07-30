@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Manage USPS | BaaS Core')
+@section('title', 'Manage USPS — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="Manage USPS connection" lead="Review merchant authorization and USPS account readiness.">

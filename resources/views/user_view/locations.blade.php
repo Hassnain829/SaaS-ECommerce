@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Locations | BaaS Core')
+@section('title', 'Locations — '.config('app.name'))
 
 @php
     use App\Support\Tax\TaxCountryCatalog;

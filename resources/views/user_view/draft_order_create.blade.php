@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Create manual order | BaaS Core')
+@section('title', 'Create manual order — '.config('app.name'))
 
 @section('topbar')
     <x-ui.merchant-topbar title="New draft" lead="Add customer, products, and addresses before creating the order.">

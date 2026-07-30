@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'FedEx EULA | BaaS Core')
+@section('title', 'FedEx EULA — '.config('app.name'))
 
 @php
     $viewerId = 'fedex-eula-viewer-'.$session->id;

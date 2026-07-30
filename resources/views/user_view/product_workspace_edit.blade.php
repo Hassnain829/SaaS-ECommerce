@@ -1,16 +1,16 @@
 @extends('layouts.user.user-sidebar')
 
 @section('title', 'Edit — '.$product->name.' — Product workspace')
-@section('sidebar_brand_title', 'BaaS Admin')
-@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('sidebar_brand_title', config('app.name'))
+@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'Catalog')
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Edit Product" lead="Update catalog details, variants, and inventory." class="!border-b-0 !shadow-none">
+    <x-ui.merchant-topbar title="Edit product" lead="Update catalog details, variants, and inventory.">
         <x-slot:actions>
-            <a href="{{ route('products.show', $product) }}" class="hidden sm:inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-600 transition hover:bg-stone-50">
+            <a href="{{ route('products.show', $product) }}" class="hidden sm:inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">
                 Back
             </a>
-            <button type="submit" form="editProductForm" class="hidden sm:inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-bold text-white shadow-sm transition hover:opacity-90">
+            <button type="submit" form="editProductForm" class="hidden sm:inline-flex h-9 items-center rounded-md bg-brand px-3.5 text-sm font-semibold text-white transition hover:bg-brand-hover">
                 Save and exit
             </button>
         </x-slot:actions>

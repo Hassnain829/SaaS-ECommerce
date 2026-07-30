@@ -1,6 +1,6 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'General Settings | BaaS Core')
+@section('title', 'General Settings — '.config('app.name'))
 
 @php
     $store = $selectedStore ?? $currentStore ?? null;

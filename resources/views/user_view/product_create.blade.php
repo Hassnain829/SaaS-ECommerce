@@ -1,8 +1,8 @@
 @extends('layouts.user.user-sidebar')
 
 @section('title', 'Add product — Product workspace')
-@section('sidebar_brand_title', 'BaaS Admin')
-@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
+@section('sidebar_brand_title', config('app.name'))
+@section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'Your store')
 @section('page_title', 'Add product')
 @section('page_lead', 'Create a catalog item with media, pricing, options, variants, and inventory.')
 
