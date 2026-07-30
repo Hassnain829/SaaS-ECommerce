@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name').' — Dashboard')</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,7 +16,6 @@
 <div id="sidebarOverlay" class="fixed inset-0 z-40 hidden bg-ink/40 md:hidden" onclick="closeSidebar()" aria-hidden="true"></div>
 
 <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 flex h-full min-h-0 w-[15rem] shrink-0 -translate-x-full flex-col border-r border-border bg-surface text-ink transition-transform duration-200 ease-out md:static md:z-auto md:translate-x-0">
-    {{-- Brand --}}
     <div class="flex shrink-0 items-center gap-2.5 px-3.5 py-3.5">
         <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand text-white" aria-hidden="true">
             @hasSection('sidebar_logo')
@@ -32,10 +32,9 @@
         </div>
     </div>
 
-    {{-- Store switcher --}}
     @if (!empty($availableStores) && count($availableStores) > 0)
         <div class="shrink-0 px-3 pb-3">
-            <form method="POST" action="{{ route('current-store.update') }}" class="relative">
+            <form method="POST" action="{{ route('current-store.update') }}" class="relative" data-turbo="false">
                 @csrf
                 <label for="sidebar-store-switcher" class="sr-only">Current store</label>
                 <select
@@ -65,7 +64,6 @@
 
     <div class="mx-3 border-t border-border" aria-hidden="true"></div>
 
-    {{-- Flat nav (always visible — better for demos than accordions) --}}
     <nav id="merchantNav" class="sidebar-nav-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain px-2.5 py-3">
         <div class="sidebar-nav-group">
             <a href="{{ route('dashboard') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('dashboard')])>
@@ -121,7 +119,7 @@
                 <span>Checkout &amp; tax</span>
             </a>
             <a href="{{ route('settings.coupons.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.coupons.*')])>
-                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 8a2 2 0 012-2h4.6l6.1 6.1a2 2 0 010 2.8l-2.8 2.8a2 2 0 01-2.8 0L4 11.6V8zm3.2-.2a1.2 1.2 0 100-2.4 1.2 1.2 0 000 2.4z"/></svg>
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 8a2 2 0 012-2h4.6l6.1 6.1a2 2 0 01-2.8 0L4 11.6V8zm3.2-.2a1.2 1.2 0 100-2.4 1.2 1.2 0 000 2.4z"/></svg>
                 <span>Discounts</span>
             </a>
         </div>
@@ -166,10 +164,10 @@
             </div>
             <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-semibold text-ink">{{ $sidebarUser?->name ?? 'Account' }}</div>
-                <div class="truncate text-[11px] text-ink-muted">{{ optional($currentStore)->name ?? 'Profile' }}</div>
+                <div id="sidebar-store-label" class="truncate text-[11px] text-ink-muted">{{ optional($currentStore)->name ?? 'Profile' }}</div>
             </div>
         </a>
-        <a href="{{ route('logout') }}" class="sidebar-footer-logout mt-1.5">Sign out</a>
+        <a href="{{ route('logout') }}" class="sidebar-footer-logout mt-1.5" data-turbo="false">Sign out</a>
     </div>
 </aside>
 
@@ -185,82 +183,6 @@
     </div>
 </main>
 
-<script>
-    function closeAllMerchantProfileMenus() {
-      document.querySelectorAll('[data-merchant-profile-dropdown]').forEach(function (menu) {
-        menu.classList.add('hidden');
-      });
-      document.querySelectorAll('[data-merchant-profile-toggle]').forEach(function (trigger) {
-        trigger.setAttribute('aria-expanded', 'false');
-      });
-    }
-
-    function initMerchantProfileMenus() {
-      document.querySelectorAll('[data-merchant-profile-menu]').forEach(function (wrapper) {
-        if (wrapper.dataset.bound === 'true') return;
-        wrapper.dataset.bound = 'true';
-
-        var trigger = wrapper.querySelector('[data-merchant-profile-toggle]');
-        var menu = wrapper.querySelector('[data-merchant-profile-dropdown]');
-        if (!trigger || !menu) return;
-
-        trigger.addEventListener('click', function (e) {
-          e.stopPropagation();
-          var isOpen = !menu.classList.contains('hidden');
-          closeAllMerchantProfileMenus();
-          if (!isOpen) {
-            menu.classList.remove('hidden');
-            trigger.setAttribute('aria-expanded', 'true');
-          }
-        });
-      });
-
-      document.addEventListener('click', function () {
-        closeAllMerchantProfileMenus();
-      });
-    }
-
-    function openSidebar() {
-      var sidebar = document.getElementById('sidebar');
-      var overlay = document.getElementById('sidebarOverlay');
-      if (!sidebar || !overlay) return;
-      sidebar.classList.remove('-translate-x-full');
-      overlay.classList.remove('hidden');
-      document.body.classList.add('overflow-hidden');
-    }
-
-    function closeSidebar() {
-      var sidebar = document.getElementById('sidebar');
-      var overlay = document.getElementById('sidebarOverlay');
-      if (!sidebar || !overlay) return;
-      sidebar.classList.add('-translate-x-full');
-      overlay.classList.add('hidden');
-      document.body.classList.remove('overflow-hidden');
-    }
-
-    window.addEventListener('resize', function () {
-      if (window.innerWidth >= 768) {
-        var overlay = document.getElementById('sidebarOverlay');
-        if (overlay) overlay.classList.add('hidden');
-        document.body.classList.remove('overflow-hidden');
-      }
-    });
-
-    document.addEventListener('DOMContentLoaded', function () {
-      initMerchantProfileMenus();
-
-      var merchantNav = document.getElementById('merchantNav');
-      if (merchantNav) {
-        merchantNav.addEventListener('click', function (e) {
-          var link = e.target.closest('a[href]');
-          if (!link) return;
-          if (window.matchMedia('(max-width: 767px)').matches) {
-            closeSidebar();
-          }
-        });
-      }
-    });
-</script>
 @stack('scripts')
 </body>
 </html>

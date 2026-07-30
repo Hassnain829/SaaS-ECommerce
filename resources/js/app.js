@@ -1,6 +1,8 @@
 import './bootstrap';
+import * as Turbo from '@hotwired/turbo';
 import Alpine from 'alpinejs';
 
+window.Turbo = Turbo;
 window.Alpine = Alpine;
 
 window.paymentsConsole = (initialPanel = 'test', storeId = 0, canManage = false, liveReady = false) => ({
@@ -84,10 +86,212 @@ const portalMerchantLayers = () => {
     });
 };
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', portalMerchantLayers, { once: true });
-} else {
+const closeAllMerchantProfileMenus = () => {
+    document.querySelectorAll('[data-merchant-profile-dropdown]').forEach((menu) => {
+        menu.classList.add('hidden');
+    });
+    document.querySelectorAll('[data-merchant-profile-toggle]').forEach((trigger) => {
+        trigger.setAttribute('aria-expanded', 'false');
+    });
+};
+
+const initMerchantProfileMenus = () => {
+    document.querySelectorAll('[data-merchant-profile-menu]').forEach((wrapper) => {
+        if (wrapper.dataset.bound === 'true') {
+            return;
+        }
+        wrapper.dataset.bound = 'true';
+
+        const trigger = wrapper.querySelector('[data-merchant-profile-toggle]');
+        const menu = wrapper.querySelector('[data-merchant-profile-dropdown]');
+        if (! trigger || ! menu) {
+            return;
+        }
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = ! menu.classList.contains('hidden');
+            closeAllMerchantProfileMenus();
+            if (! isOpen) {
+                menu.classList.remove('hidden');
+                trigger.setAttribute('aria-expanded', 'true');
+            }
+        });
+    });
+};
+
+const disableTurboOnMultipartForms = (root = document) => {
+    root.querySelectorAll('form[enctype="multipart/form-data"]').forEach((form) => {
+        form.setAttribute('data-turbo', 'false');
+    });
+};
+
+const pathMatchesHref = (pathname, href) => {
+    if (! href || href.startsWith('#') || href.startsWith('javascript:')) {
+        return false;
+    }
+
+    let url;
+    try {
+        url = new URL(href, window.location.origin);
+    } catch (e) {
+        return false;
+    }
+
+    if (url.origin !== window.location.origin) {
+        return false;
+    }
+
+    const target = url.pathname.replace(/\/+$/, '') || '/';
+    const current = pathname.replace(/\/+$/, '') || '/';
+
+    if (current === target) {
+        return true;
+    }
+
+    // Nested routes (product workspace, order detail, settings children).
+    if (target !== '/' && current.startsWith(`${target}/`)) {
+        return true;
+    }
+
+    return false;
+};
+
+const syncMerchantSidebarActive = () => {
+    const nav = document.getElementById('merchantNav');
+    if (! nav) {
+        return;
+    }
+
+    const pathname = window.location.pathname;
+    const links = [...nav.querySelectorAll('a.sidebar-nav-link[href]')];
+    let best = null;
+    let bestLen = -1;
+
+    links.forEach((link) => {
+        link.classList.remove('sidebar-nav-link-active');
+        if (! pathMatchesHref(pathname, link.getAttribute('href'))) {
+            return;
+        }
+        const len = (link.pathname || '').length;
+        if (len > bestLen) {
+            best = link;
+            bestLen = len;
+        }
+    });
+
+    if (best) {
+        best.classList.add('sidebar-nav-link-active');
+    }
+
+    const meta = document.getElementById('merchant-shell-meta');
+    const storeLabel = document.getElementById('sidebar-store-label');
+    if (meta && storeLabel) {
+        storeLabel.textContent = meta.dataset.storeName || 'Profile';
+    }
+};
+
+window.openSidebar = () => {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (! sidebar || ! overlay) {
+        return;
+    }
+    sidebar.classList.remove('-translate-x-full');
+    overlay.classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
+};
+
+window.closeSidebar = () => {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (! sidebar || ! overlay) {
+        return;
+    }
+    sidebar.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
+};
+
+const bootMerchantUi = (root = document) => {
     portalMerchantLayers();
-}
+    initMerchantProfileMenus();
+    disableTurboOnMultipartForms(root);
+    syncMerchantSidebarActive();
+};
+
+document.addEventListener('click', () => {
+    closeAllMerchantProfileMenus();
+});
+
+window.addEventListener('resize', () => {
+    if (window.innerWidth >= 768) {
+        const overlay = document.getElementById('sidebarOverlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+        }
+        document.body.classList.remove('overflow-hidden');
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const merchantNav = document.getElementById('merchantNav');
+    if (merchantNav) {
+        merchantNav.addEventListener('click', (e) => {
+            const link = e.target.closest('a[href]');
+            if (! link) {
+                return;
+            }
+            if (window.matchMedia('(max-width: 767px)').matches) {
+                window.closeSidebar();
+            }
+        });
+    }
+});
+
+document.addEventListener('turbo:before-cache', () => {
+    closeAllMerchantProfileMenus();
+    document.querySelectorAll('[data-ui-portal-ready="true"]').forEach((layer) => {
+        if (layer.parentElement === document.body && ! layer.classList.contains('hidden')) {
+            layer.classList.add('hidden');
+        }
+    });
+    document.querySelectorAll('[x-data]').forEach((el) => {
+        if (typeof Alpine !== 'undefined' && typeof Alpine.destroyTree === 'function') {
+            try {
+                Alpine.destroyTree(el);
+            } catch (e) {
+                // Ignore nodes already torn down by the body swap.
+            }
+        }
+    });
+});
+
+let merchantTurboReady = false;
+
+document.addEventListener('turbo:load', () => {
+    if (merchantTurboReady && typeof Alpine !== 'undefined' && typeof Alpine.initTree === 'function') {
+        Alpine.initTree(document.body);
+    }
+    merchantTurboReady = true;
+    bootMerchantUi(document);
+    document.documentElement.classList.remove('turbo-loading');
+});
+
+document.addEventListener('turbo:click', () => {
+    document.documentElement.classList.add('turbo-loading');
+});
+document.addEventListener('turbo:submit-start', () => {
+    document.documentElement.classList.add('turbo-loading');
+});
+document.addEventListener('turbo:before-fetch-request', () => {
+    document.documentElement.classList.add('turbo-loading');
+});
+document.addEventListener('turbo:before-fetch-response', () => {
+    document.documentElement.classList.remove('turbo-loading');
+});
+document.addEventListener('turbo:fetch-request-error', () => {
+    document.documentElement.classList.remove('turbo-loading');
+});
 
 Alpine.start();
