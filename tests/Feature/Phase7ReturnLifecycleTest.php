@@ -29,7 +29,7 @@ class Phase7ReturnLifecycleTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('orderViewDetails', $order))
             ->assertOk()
-            ->assertSeeText('Start return')
+            ->assertSeeText('Record return')
             ->assertSeeText('No returns are recorded yet');
 
         $this->actingAs($owner)
@@ -168,7 +168,7 @@ class Phase7ReturnLifecycleTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('orderViewDetails', $order))
             ->assertOk()
-            ->assertDontSeeText('Start return')
+            ->assertDontSeeText('Record return')
             ->assertSeeText('No returnable items are available on this order.');
 
         $this->actingAs($owner)

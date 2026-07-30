@@ -932,6 +932,10 @@ class DashboardController extends Controller
         $channelOwnership = app(\App\Services\Channels\ChannelOwnershipService::class);
         $returnService = app(ReturnService::class);
         $refundService = app(\App\Services\RefundService::class);
+        $exchangeService = app(\App\Services\ExchangeService::class);
+
+        $returnEligibility = $returnService->eligibilityForReturn($order);
+        $exchangeEligibility = $exchangeService->eligibilityForExchange($order, $selectedStore);
 
         return view('user_view.orderViewDetails', [
             'order' => $order,
@@ -963,14 +967,15 @@ class DashboardController extends Controller
             'remainingFulfillmentQuantities' => app(FulfillmentStatusService::class)->remainingQuantities($order),
             'returnReasons' => $returnService->activeReasonsForStore($selectedStore),
             'remainingReturnableQuantities' => $returnService->remainingReturnableQuantities($order),
-            'returnableItems' => $returnService->returnableItems($order),
+            'returnableItems' => $returnEligibility['returnable_items'],
+            'canRecordReturn' => $returnEligibility['eligible'],
+            'returnEligibilityMessage' => $returnEligibility['reason'],
             'remainingRefundableAmount' => $refundService->remainingRefundableAmount($order),
-            'exchangeVariants' => \App\Models\ProductVariant::query()
-                ->whereHas('product', fn ($q) => $q->where('store_id', $selectedStore->id)->where('status', true))
-                ->with('product:id,name,store_id')
-                ->orderBy('sku')
-                ->limit(200)
-                ->get(),
+            'exchangeableItems' => $exchangeEligibility['exchangeable_items'],
+            'remainingExchangeableQuantities' => $exchangeService->remainingExchangeableQuantities($order),
+            'canCreateExchange' => $exchangeEligibility['eligible'],
+            'exchangeEligibilityMessage' => $exchangeEligibility['reason'],
+            'exchangeVariants' => $exchangeEligibility['replacement_variants'],
         ]);
     }
 

@@ -836,27 +836,32 @@
                     </div>
                 </div>
 
-                {{-- Returns, refunds, exchanges --}}
+                {{-- After-sales: returns, refunds, exchanges --}}
                 <div id="returns-refunds" class="merchant-card scroll-mt-24 p-6">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <h3 class="font-heading text-xl font-semibold">Returns, refunds &amp; exchanges</h3>
-                            <p class="mt-1 text-sm text-slate-600">Manage returns, refund money, restock inventory, and exchange variants from this order.</p>
+                            <h3 class="font-heading text-xl font-semibold">After-sales service</h3>
+                            <p class="mt-1 text-sm text-slate-600">Record and manage return, refund or exchange decisions after a customer contacts your store.</p>
+                            <p class="mt-2 text-sm text-slate-500">Customer requests are received through your store’s normal support channels. Use this workspace to record and process the agreed action.</p>
                         </div>
                         <div class="flex flex-wrap gap-2">
-                            @if ($canManageOrders && $returnableItems->isNotEmpty())
-                                <button type="button" onclick="document.getElementById('start-return-form')?.classList.toggle('hidden')" class="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white transition hover:opacity-90">Start return</button>
+                            @if ($canManageOrders && $canRecordReturn)
+                                <button type="button" onclick="document.getElementById('start-return-form')?.classList.toggle('hidden')" class="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white transition hover:opacity-90">Record return</button>
                             @endif
                             @if ($canManageOrders && bccomp((string) $remainingRefundableAmount, '0', 4) > 0)
                                 <button type="button" onclick="document.getElementById('issue-refund-form')?.classList.toggle('hidden')" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Issue refund</button>
                             @endif
-                            @if ($canManageOrders && $order->items->isNotEmpty())
-                                <button type="button" onclick="document.getElementById('start-exchange-form')?.classList.toggle('hidden')" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Start exchange</button>
+                            @if ($canManageOrders && $canCreateExchange)
+                                <button type="button" onclick="document.getElementById('start-exchange-form')?.classList.toggle('hidden')" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Create exchange</button>
                             @endif
                         </div>
                     </div>
 
-                    @if ($canManageOrders && $returnableItems->isNotEmpty())
+                    @if ($canManageOrders && ! $canRecordReturn && $returnEligibilityMessage)
+                        <p class="mt-4 text-sm text-slate-500">{{ $returnEligibilityMessage }}</p>
+                    @endif
+
+                    @if ($canManageOrders && $canRecordReturn)
                         <form id="start-return-form" method="POST" action="{{ route('orders.returns.store', $order) }}" class="mt-5 hidden space-y-4 rounded-xl border border-stone-200 bg-stone-50/70 p-4">
                             @csrf
                             <div class="grid gap-3 sm:grid-cols-2">
@@ -897,15 +902,19 @@
                                 @endforeach
                             </div>
                             <label class="block text-sm">
+                                <span class="mb-1 block font-medium text-slate-700">Customer’s message</span>
+                                <textarea name="customer_notes" rows="2" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="Record what the customer reported by email, phone or chat.">{{ old('customer_notes') }}</textarea>
+                            </label>
+                            <label class="block text-sm">
                                 <span class="mb-1 block font-medium text-slate-700">Return instructions</span>
                                 <textarea name="manual_instructions" rows="2" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="Tell the customer how to send the items back">{{ old('manual_instructions') }}</textarea>
                             </label>
                             <label class="block text-sm">
-                                <span class="mb-1 block font-medium text-slate-700">Internal notes</span>
+                                <span class="mb-1 block font-medium text-slate-700">Internal team notes</span>
                                 <textarea name="merchant_notes" rows="2" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="Visible to your team">{{ old('merchant_notes') }}</textarea>
                             </label>
                             <div class="flex flex-wrap gap-2">
-                                <button type="submit" class="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white">Request return</button>
+                                <button type="submit" class="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white">Create return record</button>
                                 <button type="button" onclick="document.getElementById('start-return-form')?.classList.add('hidden')" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700">Cancel</button>
                             </div>
                         </form>
@@ -916,6 +925,7 @@
                             @csrf
                             <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                             <p class="text-sm text-slate-600">Remaining refundable: <span class="font-semibold text-slate-900">{{ MoneyDisplay::format($remainingRefundableAmount, $currency) }}</span>. Leave amount blank to refund the full remaining balance.</p>
+                            <p class="text-sm text-slate-600">Issuing a refund returns money only. It does not return or restock products. If goods are coming back, record and receive the return separately.</p>
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <label class="block text-sm">
                                     <span class="mb-1 block font-medium text-slate-700">Refund amount</span>
@@ -965,7 +975,7 @@
                             </label>
                             @if ($isOrderExternallyManaged)
                                 <input type="hidden" name="processed_externally" value="1">
-                                <p class="text-xs text-slate-500">External orders are recorded as processed outside this platform (no Stripe charge).</p>
+                                <p class="text-xs text-slate-500">Record this refund only after it has been processed through the original selling channel or payment provider.</p>
                             @endif
                             <div class="flex flex-wrap gap-2">
                                 <button type="submit" class="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white">Process refund</button>
@@ -974,7 +984,7 @@
                         </form>
                     @endif
 
-                    @if ($canManageOrders && $order->items->isNotEmpty())
+                    @if ($canManageOrders && $canCreateExchange)
                         <form id="start-exchange-form" method="POST" action="{{ route('orders.exchanges.store', $order) }}" class="mt-5 hidden space-y-4 rounded-xl border border-stone-200 bg-stone-50/70 p-4">
                             @csrf
                             <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
@@ -982,8 +992,9 @@
                                 <label class="block text-sm">
                                     <span class="mb-1 block font-medium text-slate-700">Original item</span>
                                     <select name="order_item_id" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm" required>
-                                        @foreach ($order->items as $item)
-                                            <option value="{{ $item->id }}">{{ $item->product_name }} ({{ $item->variant_label ?: 'Standard' }})</option>
+                                        @foreach ($exchangeableItems as $item)
+                                            @php $exchangeQty = (int) ($remainingExchangeableQuantities[$item->id] ?? 0); @endphp
+                                            <option value="{{ $item->id }}">{{ $item->product_name }} ({{ $item->variant_label ?: 'Standard' }}) · {{ $exchangeQty }} left</option>
                                         @endforeach
                                     </select>
                                 </label>
@@ -1008,7 +1019,10 @@
                     @endif
 
                     <div class="mt-6 space-y-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Returns</h4>
+                        <div>
+                            <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Returns</h4>
+                            <p class="mt-1 text-xs text-slate-500">Goods coming back to your store</p>
+                        </div>
                         @forelse ($order->returns as $return)
                             <div class="rounded-xl border border-stone-200 bg-white p-4">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
@@ -1093,8 +1107,8 @@
                             </div>
                         @empty
                             <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-600">
-                                @if ($returnableItems->isEmpty())
-                                    No returnable items are available on this order.
+                                @if (! $canRecordReturn)
+                                    {{ $returnEligibilityMessage ?: 'No returnable items are available on this order.' }}
                                 @else
                                     No returns are recorded yet.
                                 @endif
@@ -1103,7 +1117,10 @@
                     </div>
 
                     <div class="mt-6 space-y-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Refunds</h4>
+                        <div>
+                            <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Refunds</h4>
+                            <p class="mt-1 text-xs text-slate-500">Money returned to the customer</p>
+                        </div>
                         @forelse ($order->refunds as $refund)
                             <div class="rounded-xl border border-stone-200 bg-white p-4 text-sm">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -1139,7 +1156,10 @@
                     </div>
 
                     <div class="mt-6 space-y-4">
-                        <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Exchanges</h4>
+                        <div>
+                            <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Exchanges</h4>
+                            <p class="mt-1 text-xs text-slate-500">Replacement product for the customer</p>
+                        </div>
                         @forelse ($order->exchanges as $exchange)
                             <div class="rounded-xl border border-stone-200 bg-white p-4 text-sm">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
