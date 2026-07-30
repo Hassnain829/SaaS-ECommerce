@@ -5,7 +5,7 @@
 @section('topbar')
     <x-ui.merchant-topbar title="Customers" lead="Order history and profile details for the selected store.">
         <x-slot:search>
-            <form action="{{ route('customers') }}" method="GET" class="flex w-full items-center gap-2">
+            <form action="{{ route('customers') }}" method="GET" data-turbo-frame="customers-panel" class="flex w-full items-center gap-2">
                 <input type="hidden" name="status" value="{{ $currentStatus }}">
                 <input type="hidden" name="tag" value="{{ $currentTagId }}">
                 <input name="q" value="{{ $search }}" class="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" placeholder="Search customers…">
@@ -22,6 +22,8 @@
 
 @section('content')
 @php($currency = $selectedStore->currency ?? 'USD')
+{{-- Frame keeps filters snappy: only this block swaps, not the whole shell --}}
+<turbo-frame id="customers-panel" data-turbo-action="advance">
 <div class="w-full space-y-4">
     <section class="merchant-card space-y-4 p-4">
         <form action="{{ route('customers') }}" method="GET" class="grid grid-cols-1 gap-2 sm:grid-cols-[180px_180px_auto]">
@@ -48,17 +50,17 @@
             </div>
         @endif
 
-        <div class="flex flex-wrap gap-2 text-sm font-semibold">
-            <a href="{{ route('customers') }}" @class([
-                'inline-flex h-8 items-center rounded-md px-3',
+        <div class="flex flex-wrap gap-2 text-sm font-semibold" data-filter-tabs>
+            <a href="{{ route('customers') }}" data-filter-tab @class([
+                'inline-flex h-8 items-center rounded-md px-3 transition',
                 'bg-brand text-white' => $currentStatus === 'all' && $search === '' && $currentTagId === 0,
                 'bg-surface-muted text-ink-secondary hover:bg-border/60' => ! ($currentStatus === 'all' && $search === '' && $currentTagId === 0),
             ])>
                 All customers ({{ $statusCounts['all'] ?? 0 }})
             </a>
             @foreach(['active' => 'Active', 'guest' => 'Guest', 'blocked' => 'Blocked'] as $value => $label)
-                <a href="{{ route('customers', ['status' => $value]) }}" @class([
-                    'inline-flex h-8 items-center rounded-md px-3',
+                <a href="{{ route('customers', ['status' => $value]) }}" data-filter-tab @class([
+                    'inline-flex h-8 items-center rounded-md px-3 transition',
                     'bg-brand text-white' => $currentStatus === $value,
                     'bg-surface-muted text-ink-secondary hover:bg-border/60' => $currentStatus !== $value,
                 ])>
@@ -68,7 +70,7 @@
         </div>
     </section>
 
-    <section class="merchant-card overflow-hidden">
+    <section class="merchant-card overflow-hidden" data-filter-results>
         <div class="overflow-x-auto">
             <table class="w-full min-w-[1060px] text-sm">
                 <thead class="border-b border-border bg-surface-muted/70 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
@@ -123,7 +125,7 @@
                             <td class="px-4 py-3 text-ink-secondary">{{ $customer->last_order_at ? $customer->last_order_at->format('M d, Y') : 'Never' }}</td>
                             <td class="px-4 py-3 text-ink-secondary">{{ $customer->marketing_consent || $customer->accepts_marketing ? 'Accepted' : 'Not accepted' }}</td>
                             <td class="px-5 py-3 text-right">
-                                <a href="{{ route('customersProfile', $customer) }}" class="text-sm font-semibold text-brand hover:text-brand-hover">View</a>
+                                <a href="{{ route('customersProfile', $customer) }}" data-turbo-frame="_top" class="text-sm font-semibold text-brand hover:text-brand-hover">View</a>
                             </td>
                         </tr>
                     @empty
@@ -148,4 +150,5 @@
         @endif
     </section>
 </div>
+</turbo-frame>
 @endsection
