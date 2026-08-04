@@ -16,6 +16,7 @@ Runtime application code lives in `app/`, `routes/`, `resources/`, and `database
 | `phases/` | Phase completion reports (`PHASE_*_REPORT.md`) |
 | `architecture/` | Structural docs for controllers, carriers, refactoring |
 | `ux/` | UX simplification batches and acceptance |
+| `handoffs/` | Active colleague handoffs — **products list + stock/inventory UX (2026-08-05):** [`PRODUCT_STOCK_INVENTORY_UX_HANDOFF.md`](handoffs/PRODUCT_STOCK_INVENTORY_UX_HANDOFF.md) (filters/search UI, soft delete, bulk select-all, inline stock, live Edit sync) |
 | `cleanup/` | CLEAN-1–4 hygiene and retention reports |
 | `implementation/` | Tax/checkout slice implementation reports |
 | `audit/` | QA gap reports, risk register, command outputs |

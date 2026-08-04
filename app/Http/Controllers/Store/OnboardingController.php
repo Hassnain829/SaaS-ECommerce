@@ -1453,6 +1453,7 @@ class OnboardingController extends Controller
                 Rule::exists('product_images', 'image_path')->where('product_id', $product->id),
             ],
             'stock_alert' => ['required', 'integer', 'min:0'],
+            'bulk_stock' => ['nullable', 'integer', 'min:0'],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'variation_types' => ['nullable', 'array'],
@@ -1531,6 +1532,15 @@ class OnboardingController extends Controller
 
         $validated['variants'] = $normalizedVariants['variants'];
         $validated['brand_id'] = $validated['brand_id'] ?? null;
+
+        // Price & stock fields are the source of truth for single-row (simple) products.
+        // Merchants edit stock / low-stock alert above the inventory row; always map them here.
+        if (count($validated['variants']) === 1) {
+            if (array_key_exists('bulk_stock', $validated) && $validated['bulk_stock'] !== null) {
+                $validated['variants'][0]['stock'] = max(0, (int) $validated['bulk_stock']);
+            }
+            $validated['variants'][0]['stock_alert'] = (int) $validated['stock_alert'];
+        }
 
         $this->applyInventoryStockAllocationModeToVariants($request, $validated);
 
@@ -1844,7 +1854,7 @@ class OnboardingController extends Controller
                             'sku' => $defaultSku,
                             'price' => $validated['base_price'],
                             'compare_at_price' => null,
-                            'stock' => 0,
+                            'stock' => max(0, (int) ($validated['bulk_stock'] ?? $meta['default_stock'] ?? 0)),
                             'stock_alert' => $validated['stock_alert'],
                         ]);
                     } catch (UniqueConstraintViolationException) {
@@ -1956,20 +1966,84 @@ class OnboardingController extends Controller
             ->firstOrFail();
 
         $deletedProductName = $product->name;
-        $product->forceDelete();
+        $product->delete();
 
         app(SecurityLogRecorder::class)->record(
             $request,
-            'product_deleted',
+            'product_soft_deleted',
             store: $currentStore,
             metadata: ['product_id' => (int) $productId, 'product_name' => $deletedProductName]
         );
 
         return redirect()
             ->route('products')
-            ->with('success', "Product '{$deletedProductName}' deleted successfully.")
-            ->with('success_title', 'Product removed')
+            ->with('success', "Product '{$deletedProductName}' was deleted. You can undo that from Deleted products, or permanently remove it.")
+            ->with('success_title', 'Product deleted')
             ->with('success_meta', 'Catalog updated');
+    }
+
+    public function restoreProductFromManagement(Request $request, $productId): RedirectResponse
+    {
+        $currentStore = $request->attributes->get('currentStore');
+
+        if (! $currentStore) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No active store was found. Please switch to a store before restoring a product.']);
+        }
+
+        $product = Product::onlyTrashed()
+            ->where('id', $productId)
+            ->where('store_id', $currentStore->id)
+            ->firstOrFail();
+
+        $name = $product->name;
+        $product->restore();
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'product_restored',
+            store: $currentStore,
+            metadata: ['product_id' => (int) $productId, 'product_name' => $name]
+        );
+
+        return redirect()
+            ->route('products')
+            ->with('success', "Product '{$name}' restored to your active catalog.")
+            ->with('success_title', 'Product restored')
+            ->with('success_meta', 'Catalog updated');
+    }
+
+    public function forceDestroyProductFromManagement(Request $request, $productId): RedirectResponse
+    {
+        $currentStore = $request->attributes->get('currentStore');
+
+        if (! $currentStore) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No active store was found. Please switch to a store before permanently deleting a product.']);
+        }
+
+        $product = Product::onlyTrashed()
+            ->where('id', $productId)
+            ->where('store_id', $currentStore->id)
+            ->firstOrFail();
+
+        $deletedProductName = $product->name;
+        $product->forceDelete();
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'product_force_deleted',
+            store: $currentStore,
+            metadata: ['product_id' => (int) $productId, 'product_name' => $deletedProductName]
+        );
+
+        return redirect()
+            ->route('products', ['view' => 'deleted'])
+            ->with('success', "Product '{$deletedProductName}' permanently deleted.")
+            ->with('success_title', 'Permanently deleted')
+            ->with('success_meta', 'This cannot be undone');
     }
 
     public function storeProductFromStore(Request $request, $storeId): RedirectResponse

@@ -29,9 +29,10 @@ final class ProductBulkController extends Controller
         }
 
         $validated = $request->validate([
-            'action' => ['required', 'string', Rule::in(['delete', 'stock', 'categories', 'brand', 'tags', 'status'])],
-            'product_ids' => ['required', 'array', 'min:1', 'max:500'],
+            'action' => ['required', 'string', Rule::in(['delete', 'restore', 'force_delete', 'stock', 'categories', 'brand', 'tags', 'status'])],
+            'product_ids' => ['nullable', 'array', 'min:1', 'max:20000'],
             'product_ids.*' => ['integer', 'min:1'],
+            'product_ids_json' => ['nullable', 'string', 'max:2000000'],
             'stock_mode' => ['nullable', 'string', Rule::in(['set', 'delta'])],
             'stock_value' => ['nullable', 'integer', 'min:-999999', 'max:999999'],
             'bulk_variant_stock_scope' => ['nullable', 'string', Rule::in(['default_variant_only', 'all_variants_same', 'skip_multi_variant'])],
@@ -42,6 +43,14 @@ final class ProductBulkController extends Controller
             'tag_ids.*' => ['integer', 'min:1'],
             'product_status' => ['nullable', 'string', Rule::in(['published', 'draft'])],
         ]);
+
+        $uniqueIds = $this->resolveBulkProductIds($request, $validated);
+        if ($uniqueIds === []) {
+            return back()->withErrors(['bulk' => 'Select at least one product.'])->withInput();
+        }
+        if (count($uniqueIds) > 20000) {
+            return back()->withErrors(['bulk' => 'Too many products selected for one bulk action. Narrow your filters and try again.'])->withInput();
+        }
 
         if ($validated['action'] === 'stock') {
             $validated = array_merge($validated, $request->validate([
@@ -76,23 +85,53 @@ final class ProductBulkController extends Controller
             ]));
         }
 
-        $uniqueIds = array_values(array_unique(array_map('intval', $validated['product_ids'])));
-        $products = Product::query()->where('store_id', $store->id)->whereIn('id', $uniqueIds)->get()->keyBy('id');
+        $action = $validated['action'];
+        $productsQuery = Product::query()->where('store_id', $store->id)->whereIn('id', $uniqueIds);
+        if (in_array($action, ['restore', 'force_delete'], true)) {
+            $productsQuery->onlyTrashed();
+        }
+        $products = $productsQuery->get()->keyBy('id');
         if ($products->count() !== count($uniqueIds)) {
             return back()->withErrors(['bulk' => 'Some selected products are missing or do not belong to this store.'])->withInput();
         }
 
-        $action = $validated['action'];
         $n = $products->count();
 
         return match ($action) {
             'delete' => $this->bulkDelete($store, $products, $n),
+            'restore' => $this->bulkRestore($store, $products, $n),
+            'force_delete' => $this->bulkForceDelete($store, $products, $n),
             'stock' => $this->bulkStock($request, $store, $products, $validated, $n),
             'categories' => $this->bulkCategories($store, $products, $validated, $n),
             'brand' => $this->bulkBrand($store, $products, $validated, $n),
             'tags' => $this->bulkTags($store, $products, $validated, $n),
             'status' => $this->bulkStatus($store, $products, $validated, $n),
+            default => back()->withErrors(['bulk' => 'Unknown action.']),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return list<int>
+     */
+    private function resolveBulkProductIds(Request $request, array $validated): array
+    {
+        $fromArray = array_values(array_unique(array_map('intval', $validated['product_ids'] ?? [])));
+        if ($fromArray !== []) {
+            return $fromArray;
+        }
+
+        $json = trim((string) ($validated['product_ids_json'] ?? $request->input('product_ids_json', '')));
+        if ($json === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_map('intval', $decoded)));
     }
 
     /**
@@ -113,8 +152,54 @@ final class ProductBulkController extends Controller
             metadata: ['action' => 'delete', 'product_count' => $n]
         );
 
-        return back()->with('success', $n.' product(s) archived (soft deleted) from this store.')
-            ->with('success_title', 'Bulk delete');
+        return back()->with('success', $n.' product(s) deleted. You can undo that from Deleted products, or permanently remove them.')
+            ->with('success_title', 'Products deleted');
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     */
+    private function bulkRestore(Store $store, $products, int $n): RedirectResponse
+    {
+        DB::transaction(function () use ($products): void {
+            foreach ($products as $product) {
+                $product->restore();
+            }
+        });
+
+        app(SecurityLogRecorder::class)->record(
+            request(),
+            'product_bulk_action',
+            store: $store,
+            metadata: ['action' => 'restore', 'product_count' => $n]
+        );
+
+        return redirect()
+            ->route('products')
+            ->with('success', $n.' product(s) restored to your active catalog.')
+            ->with('success_title', 'Products restored');
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     */
+    private function bulkForceDelete(Store $store, $products, int $n): RedirectResponse
+    {
+        DB::transaction(function () use ($products): void {
+            foreach ($products as $product) {
+                $product->forceDelete();
+            }
+        });
+
+        app(SecurityLogRecorder::class)->record(
+            request(),
+            'product_bulk_action',
+            store: $store,
+            metadata: ['action' => 'force_delete', 'product_count' => $n]
+        );
+
+        return back()->with('success', $n.' product(s) permanently deleted. This cannot be undone.')
+            ->with('success_title', 'Permanently deleted');
     }
 
     /**

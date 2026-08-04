@@ -30,11 +30,12 @@
 
             <section class="product-edit-hero">
                 <div class="min-w-0">
-                    <p class="product-edit-eyebrow">Catalog <span aria-hidden="true">/</span> {{ $product->name }}</p>
+                    <p class="product-edit-eyebrow">Editing product</p>
                     <h2>{{ $product->name }}</h2>
-                    <p class="mt-1 text-sm text-[#454652]">Store: <span class="font-semibold text-[#1A1B22]">{{ $selectedStore?->name }}</span></p>
-                    <p class="mt-1 text-sm italic text-[#454652]">
-                         Use <span class="font-semibold not-italic text-[#3F51B5]">Save and return to workspace</span> when you are done.
+                    <p class="mt-1 text-sm text-[#454652]">
+                        Update name, price, stock, photos, and options for
+                        <span class="font-semibold text-[#1A1B22]">{{ $selectedStore?->name }}</span>.
+                        Use the shortcuts above to jump to a section, then save when you are done.
                     </p>
                 </div>
             </section>
@@ -47,14 +48,12 @@
                 <div class="min-w-0 space-y-4 lg:col-span-8">
                     <div class="product-edit-section-nav-shell" data-product-edit-nav-shell>
                         <nav id="catalog-editor-section-nav" class="product-edit-section-nav" aria-label="Jump to editor sections">
-                            <a href="#catalog-edit-section-basics" class="product-edit-section-link is-active" data-product-edit-tab>Basics</a>
-                            <a href="#catalog-edit-section-media" class="product-edit-section-link" data-product-edit-tab>Media</a>
-                            <a href="#catalog-edit-section-pricing" class="product-edit-section-link" data-product-edit-tab>Pricing</a>
-                            <a href="#catalog-edit-section-organization" class="product-edit-section-link" data-product-edit-tab>Organization</a>
-                            <a href="#catalog-edit-section-attributes" class="product-edit-section-link" data-product-edit-tab>Product specifications</a>
-                            <a href="#catalog-edit-section-additional-details" class="product-edit-section-link" data-product-edit-tab>Additional details</a>
-                            <a href="#catalog-edit-section-option-groups" class="product-edit-section-link" data-product-edit-tab>Variants</a>
-                            <a href="#catalog-edit-section-inventory" class="product-edit-section-link" data-product-edit-tab>Inventory</a>
+                            <a href="#catalog-edit-section-basics" class="product-edit-section-link is-active" data-product-edit-tab>Details</a>
+                            <a href="#catalog-edit-section-pricing" class="product-edit-section-link" data-product-edit-tab>Price &amp; stock</a>
+                            <a href="#catalog-edit-section-media" class="product-edit-section-link" data-product-edit-tab>Photos</a>
+                            <a href="#catalog-edit-section-organization" class="product-edit-section-link" data-product-edit-tab>Categories</a>
+                            <a href="#catalog-edit-section-option-groups" class="product-edit-section-link" data-product-edit-tab>Options &amp; inventory</a>
+                            <a href="#catalog-edit-section-attributes" class="product-edit-section-link" data-product-edit-tab>Extra info</a>
                         </nav>
                     </div>
 
@@ -83,10 +82,10 @@
                                 <p class="text-sm text-[#1A1B22]">{{ $selectedStore?->name }}</p>
                             </div>
                             <div class="mt-6 rounded-xl border border-[#3F51B5]/10 bg-[#3F51B5]/5 p-4">
-                                <p class="text-[10px] font-bold uppercase tracking-wide text-[#3F51B5]">Inventory summary</p>
-                                <p class="mt-1 text-4xl font-bold leading-none text-[#24389C] tabular-nums sm:text-5xl">{{ number_format($sumStock) }}</p>
-                                <p class="mt-2 text-[11px] text-[#454652]">Total units across all variant rows</p>
-                                <p class="mt-2 text-[9px] font-bold uppercase italic tracking-wide text-[#454652]/70">Updated {{ optional($product->updated_at)->diffForHumans() }}</p>
+                                <p class="text-[10px] font-bold uppercase tracking-wide text-[#3F51B5]">Units available</p>
+                                <p id="workspaceEditInventorySummary" class="mt-1 text-4xl font-bold leading-none text-[#24389C] tabular-nums sm:text-5xl">{{ number_format($sumStock) }}</p>
+                                <p class="mt-2 text-[11px] text-[#454652]">Total stock for this product</p>
+                                <p class="mt-2 text-[9px] font-bold uppercase italic tracking-wide text-[#454652]/70">Last saved {{ optional($product->updated_at)->diffForHumans() }}</p>
                             </div>
                             <div class="mt-6 space-y-3">
                                 <button type="submit" form="editProductForm" class="product-edit-primary-action w-full">Save and return to workspace</button>

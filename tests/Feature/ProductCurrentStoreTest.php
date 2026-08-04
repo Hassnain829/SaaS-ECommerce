@@ -104,7 +104,7 @@ class ProductCurrentStoreTest extends TestCase
 
         $response->assertRedirect(route('products'));
 
-        $this->assertDatabaseMissing('products', [
+        $this->assertSoftDeleted('products', [
             'id' => $product->id,
         ]);
     }

@@ -204,7 +204,7 @@ class Phase2CatalogCleanupTest extends TestCase
             ->assertSee('Clear specification filter', false);
     }
 
-    public function test_quick_chips_do_not_force_advanced_filters_open(): void
+    public function test_products_page_does_not_render_advanced_filters_panel(): void
     {
         [$owner, $store] = $this->ownerWithStore();
         Product::query()->create([
@@ -218,74 +218,20 @@ class Phase2CatalogCleanupTest extends TestCase
             'meta' => ['stock_alert' => 5],
         ]);
 
-        $this->assertAdvancedFiltersOpenState(
-            $this->actingAs($owner)->withSession(['current_store_id' => $store->id])->get(route('products')),
-            false
-        );
-        $this->assertAdvancedFiltersOpenState(
-            $this->actingAs($owner)->withSession(['current_store_id' => $store->id])->get(route('products', ['stock' => 'low'])),
-            false
-        );
-        $this->assertAdvancedFiltersOpenState(
-            $this->actingAs($owner)->withSession(['current_store_id' => $store->id])->get(route('products', ['status' => 'published'])),
-            false
-        );
-        $this->assertAdvancedFiltersOpenState(
-            $this->actingAs($owner)->withSession(['current_store_id' => $store->id])->get(route('products', ['status' => 'draft'])),
-            false
-        );
-    }
-
-    public function test_advanced_only_filters_open_advanced_panel(): void
-    {
-        [$owner, $store] = $this->ownerWithStore();
-        Product::query()->create([
-            'store_id' => $store->id,
-            'name' => 'Material Sample',
-            'slug' => 'material-sample',
-            'base_price' => 12,
-            'sku' => 'MAT-001',
-            'product_type' => 'physical',
-            'status' => true,
-            'meta' => [
-                'custom_fields' => [
-                    'material' => ['type' => 'text', 'value' => 'cotton'],
-                ],
-            ],
-        ]);
-
-        $attribute = $store->attributes()->create([
-            'name' => 'Material',
-            'slug' => 'material',
-            'display_type' => 'select',
-            'sort_order' => 1,
-            'is_filterable' => true,
-            'is_visible' => true,
-        ]);
-        $term = $attribute->terms()->create([
-            'name' => 'Cotton',
-            'slug' => 'cotton',
-            'sort_order' => 1,
-        ]);
-
-        $this->assertAdvancedFiltersOpenState(
-            $this->actingAs($owner)->withSession(['current_store_id' => $store->id])->get(route('products', ['attribute_term' => $term->id])),
-            true
-        );
-        $this->assertAdvancedFiltersOpenState(
-            $this->actingAs($owner)->withSession(['current_store_id' => $store->id])->get(route('products', ['cf_key' => 'material', 'cf_value' => 'cot'])),
-            true
-        );
-    }
-
-    private function assertAdvancedFiltersOpenState(\Illuminate\Testing\TestResponse $response, bool $expectedOpen): void
-    {
-        $response->assertOk();
-        $html = $response->getContent();
-        preg_match('/<details[^>]*id="products-advanced-filters-panel"[^>]*>/i', (string) $html, $matches);
-        $panelTag = (string) ($matches[0] ?? '');
-        $hasOpen = preg_match('/\sopen(\s|>|=)/i', $panelTag) === 1;
-        $this->assertSame($expectedOpen, $hasOpen);
+        foreach ([
+            route('products'),
+            route('products', ['stock' => 'low']),
+            route('products', ['status' => 'published']),
+            route('products', ['cf_key' => 'material', 'cf_value' => 'cot']),
+        ] as $url) {
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $store->id])
+                ->get($url)
+                ->assertOk()
+                ->assertDontSee('id="products-advanced-filters-panel"', false)
+                ->assertDontSee('Advanced filters & table settings', false)
+                ->assertDontSee('>Table settings<', false);
+        }
     }
 
     private function ownerWithStore(): array

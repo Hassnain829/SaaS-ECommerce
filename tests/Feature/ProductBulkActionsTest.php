@@ -252,6 +252,30 @@ class ProductBulkActionsTest extends TestCase
         $this->assertTrue((bool) $product->fresh()->status);
     }
 
+    public function test_bulk_accepts_product_ids_json_for_large_matching_sets(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $ids = [];
+        for ($i = 0; $i < 3; $i++) {
+            $ids[] = $this->makeProduct($store, 'Bulk JSON '.$i)->id;
+        }
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'status',
+                'product_ids_json' => json_encode($ids),
+                'product_status' => 'draft',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        foreach ($ids as $id) {
+            $this->assertFalse((bool) Product::query()->find($id)?->status);
+        }
+    }
+
     public function test_product_workspace_is_store_scoped(): void
     {
         $owner = $this->makeUser();

@@ -288,7 +288,7 @@ class CustomFieldsDay17Test extends TestCase
         );
     }
 
-    public function test_products_list_includes_cf_key_suggestions_datalist(): void
+    public function test_products_list_does_not_show_advanced_cf_filter_or_table_settings_ui(): void
     {
         $owner = $this->merchant();
         $store = $this->store($owner, 'CF Datalist');
@@ -309,34 +309,11 @@ class CustomFieldsDay17Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products'))
             ->assertOk()
-            ->assertSee('id="catalog-cf-key-suggestions"', false)
-            ->assertSee('value="material"', false);
-    }
-
-    public function test_products_list_highlight_form_uses_select_for_detail_keys(): void
-    {
-        $owner = $this->merchant();
-        $store = $this->store($owner, 'CF Select HL');
-        Product::query()->create([
-            'store_id' => $store->id,
-            'name' => 'HL Keys Product',
-            'slug' => 'hl-keys-'.Str::random(4),
-            'description' => null,
-            'base_price' => 8,
-            'sku' => 'HL-1',
-            'product_type' => 'physical',
-            'status' => true,
-            'meta' => ['custom_fields' => ['supplier' => 'Acme']],
-        ]);
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->get(route('products'))
-            ->assertOk()
-            ->assertSee('id="detail_key_1"', false)
-            ->assertSee('id="detail_key_2"', false)
-            ->assertSee('name="detail_key_1"', false)
-            ->assertSee('value="supplier"', false);
+            ->assertDontSee('id="catalog-cf-key-suggestions"', false)
+            ->assertDontSee('id="detail_key_1"', false)
+            ->assertDontSee('id="detail_key_2"', false)
+            ->assertDontSee('Advanced filters & table settings', false)
+            ->assertDontSee('>Table settings<', false);
     }
 
     public function test_reserved_custom_field_key_returns_validation_error(): void

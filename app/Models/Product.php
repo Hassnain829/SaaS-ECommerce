@@ -47,6 +47,11 @@ class Product extends Model
     protected static function booted(): void
     {
         static::deleting(function (Product $product): void {
+            // Soft archive must keep gallery files so restore works. Only permanent delete clears disk.
+            if (! $product->isForceDeleting()) {
+                return;
+            }
+
             // DB cascade removes product_images rows without model events; delete files here.
             $paths = $product->images()->pluck('image_path');
             foreach ($paths as $path) {

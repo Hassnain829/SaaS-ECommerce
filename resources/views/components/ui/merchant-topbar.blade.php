@@ -50,7 +50,7 @@
     </div>
 
     @if ($hasSearch)
-        <div class="relative order-3 w-full shrink-0 md:order-none md:w-44 lg:w-56 xl:w-72">
+        <div class="relative order-3 w-full shrink-0 md:order-none md:w-64 lg:w-80 xl:w-96">
             {{ $search }}
         </div>
     @endif

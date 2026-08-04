@@ -42,8 +42,8 @@ class MerchantTopbarTest extends TestCase
             ->getContent() ?: '';
 
         $this->assertStringContainsString('merchant-topbar', $html);
-        $this->assertStringContainsString('name="q"', $html);
-        $this->assertStringContainsString('Search products', $html);
+        $this->assertStringContainsString('id="products-filter-q"', $html);
+        $this->assertStringContainsString('Search by name, SKU, or details', $html);
         $this->assertStringContainsString('aria-label="Notifications"', $html);
         $this->assertStringContainsString('data-products-more-actions', $html);
         $this->assertMatchesRegularExpression('/<h1[^>]*>\s*Products\s*<\/h1>/', $html);

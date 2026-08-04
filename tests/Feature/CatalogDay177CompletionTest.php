@@ -108,7 +108,7 @@ class CatalogDay177CompletionTest extends TestCase
             ->assertDontSee('Save and continue in full editor', false);
     }
 
-    public function test_products_page_collapses_advanced_filters_and_table_settings(): void
+    public function test_products_page_does_not_show_advanced_filters_and_table_settings(): void
     {
         $owner = $this->merchantUser();
         $store = $this->makeStore($owner);
@@ -119,9 +119,9 @@ class CatalogDay177CompletionTest extends TestCase
             ->assertOk()
             ->getContent() ?: '';
 
-        $this->assertStringContainsString('id="products-advanced-filters-panel"', $html);
-        $this->assertStringContainsString('Advanced filters &amp; table settings', $html);
-        $this->assertStringContainsString('Table settings', $html);
+        $this->assertStringNotContainsString('id="products-advanced-filters-panel"', $html);
+        $this->assertStringNotContainsString('Advanced filters &amp; table settings', $html);
+        $this->assertStringNotContainsString('>Table settings<', $html);
         $this->assertStringNotContainsString('>Product list highlights<', $html);
     }
 

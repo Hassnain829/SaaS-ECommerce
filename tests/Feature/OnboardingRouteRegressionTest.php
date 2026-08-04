@@ -141,6 +141,22 @@ class OnboardingRouteRegressionTest extends TestCase
             'action' => 'destroyProductFromManagement',
         ],
         [
+            'name' => 'product.restore',
+            'uri' => 'product/{productId}/restore',
+            'methods' => ['POST'],
+            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:catalog.manage'],
+            'controller' => OnboardingController::class,
+            'action' => 'restoreProductFromManagement',
+        ],
+        [
+            'name' => 'product.force-destroy',
+            'uri' => 'product/{productId}/force',
+            'methods' => ['DELETE'],
+            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:catalog.manage'],
+            'controller' => OnboardingController::class,
+            'action' => 'forceDestroyProductFromManagement',
+        ],
+        [
             'name' => 'store.add-product',
             'uri' => 'store/{storeId}/add-product',
             'methods' => ['GET'],

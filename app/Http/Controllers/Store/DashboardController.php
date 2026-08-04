@@ -386,6 +386,10 @@ class DashboardController extends Controller
         }
 
         $search = trim((string) $request->query('q', ''));
+        $viewQuery = trim((string) $request->query('view', ''));
+        $catalogView = in_array($viewQuery, ['deleted', 'archived'], true) ? 'deleted' : 'active';
+        $perPageRaw = (int) $request->query('per_page', 25);
+        $perPage = in_array($perPageRaw, [10, 25, 50, 100], true) ? $perPageRaw : 25;
         $taxonomyCategoryQuery = $request->query('category');
         $taxonomyCategoryFilterId = null;
         if ($taxonomyCategoryQuery !== null && $taxonomyCategoryQuery !== '' && ctype_digit((string) $taxonomyCategoryQuery)) {
@@ -453,6 +457,10 @@ class DashboardController extends Controller
             ->withSum('variants', 'stock')
             ->withMax('variants', 'stock_alert');
 
+        if ($catalogView === 'deleted') {
+            $baseQuery->onlyTrashed();
+        }
+
         if ($search !== '') {
             $baseQuery->where(function ($query) use ($search) {
                 $query->where('name', 'like', '%'.$search.'%')
@@ -497,7 +505,8 @@ class DashboardController extends Controller
         if ($stockFilter === 'low') {
             $baseQuery->whereHas('variants', function ($query) {
                 $query->whereColumn('stock', '<=', 'stock_alert')
-                    ->where('stock', '>', 0);
+                    ->where('stock', '>', 0)
+                    ->where('stock_alert', '>', 0);
             });
         } elseif ($stockFilter === 'out') {
             $baseQuery->where(function ($query) {
@@ -581,23 +590,27 @@ class DashboardController extends Controller
             ->unique('id')
             ->count();
 
-        $products = $productsQuery->paginate(10)->withQueryString();
+        $products = $productsQuery->paginate($perPage)->withQueryString();
 
+        // All products matching the current filters (not capped) — used for "Select all matching".
         $bulkSelectableProductIds = (clone $baseQuery)
             ->orderByDesc('id')
-            ->limit(500)
             ->pluck('id')
             ->map(fn ($id): int => (int) $id)
             ->values()
             ->all();
+        $bulkMatchingCount = count($bulkSelectableProductIds);
+
+        $deletedCount = Product::onlyTrashed()
+            ->where('store_id', $selectedStore->id)
+            ->count();
 
         $totalProducts = $statsProducts->count();
-        $outOfStockCount = $statsProducts->filter(fn (Product $product) => (int) ($product->variants_sum_stock ?? 0) === 0)->count();
+        $outOfStockCount = $statsProducts->filter(function (Product $product): bool {
+            return \App\Support\ProductInventoryState::forProduct($product)['is_out'];
+        })->count();
         $lowStockCount = $statsProducts->filter(function (Product $product): bool {
-            $inventory = (int) ($product->variants_sum_stock ?? 0);
-            $alertLevel = (int) ($product->variants_max_stock_alert ?? ($product->meta['stock_alert'] ?? 0));
-
-            return $inventory > 0 && $inventory <= max($alertLevel, 0);
+            return \App\Support\ProductInventoryState::forProduct($product)['is_low'];
         })->count();
         $distinctProductTypeCount = $statsProducts->pluck('product_type')->filter()->unique()->count();
 
@@ -709,7 +722,11 @@ class DashboardController extends Controller
                 'attribute_term' => $attributeTermFilterId !== null ? (string) $attributeTermFilterId : '',
                 'cf_key' => $cfFilterActive ? $cfKey : '',
                 'cf_value' => $cfFilterActive ? $cfValue : '',
+                'view' => $catalogView,
+                'per_page' => $perPage,
             ],
+            'catalogView' => $catalogView,
+            'deletedCount' => $deletedCount,
             'productListDetailKeys' => $productListDetailKeys,
             'catalogCustomFieldKeyOptions' => $catalogCustomFieldKeyOptions,
             'stats' => [
@@ -720,6 +737,7 @@ class DashboardController extends Controller
                 'product_types_in_view' => $distinctProductTypeCount,
             ],
             'bulkSelectableProductIds' => $bulkSelectableProductIds,
+            'bulkMatchingCount' => $bulkMatchingCount,
         ]);
     }
 

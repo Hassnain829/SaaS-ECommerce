@@ -5,6 +5,7 @@ use App\Http\Controllers\Catalog\AttributeController;
 use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Catalog\ProductBulkController;
+use App\Http\Controllers\Catalog\ProductInlineController;
 use App\Http\Controllers\Catalog\ProductImportController;
 use App\Http\Controllers\Catalog\ProductWorkspaceController;
 use App\Http\Controllers\Catalog\ProductWorkspaceDataController;
@@ -73,6 +74,18 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/products/bulk', [ProductBulkController::class, 'handle'])
         ->middleware('store.permission:catalog.manage')
         ->name('products.bulk');
+    Route::delete('/products/{product}/categories/{category}', [ProductInlineController::class, 'detachCategory'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('products.inline.detach-category');
+    Route::patch('/products/{product}/inline-price', [ProductInlineController::class, 'updatePrice'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('products.inline.price');
+    Route::patch('/products/{product}/inline-stock', [ProductInlineController::class, 'updateStock'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('products.inline.stock');
+    Route::patch('/products/{product}/inline-variant-stocks', [ProductInlineController::class, 'updateVariantStocks'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('products.inline.variant-stocks');
 
     Route::post('/brands', [BrandController::class, 'store'])
         ->middleware('store.permission:catalog.manage')

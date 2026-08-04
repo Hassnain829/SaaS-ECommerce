@@ -45,11 +45,14 @@ Base class: `app/Http/Controllers/Controller.php`
 |------------|------------------------|
 | `ProductWorkspaceController` | `GET products/{id}`, `GET products/{id}/edit` → `product_workspace*.blade.php` |
 | `ProductWorkspaceDataController` | AJAX/data for workspace |
-| `ProductBulkController` | Bulk catalog actions |
+| `ProductInlineController` | List inline price/stock, batch option stocks, detach category (`products.inline.*`) |
+| `ProductBulkController` | Bulk catalog actions including soft-delete restore/force-delete; supports `product_ids_json` for large “select all matching” sets (cap ~20k) |
 | `ProductImportController` | Import upload/mapping/preview → `product_import/*` |
 | `BrandController`, `CategoryController`, `TagController`, `AttributeController` | Taxonomy CRUD modals |
 
-**Important:** Product **save** still goes through `Store/OnboardingController::updateProductFromManagement` via `routes/onboarding.php` (`PUT /product/{id}`). Edit UI is Catalog; save pipeline is Store (known bridge — future extraction target).
+**Important:** Product **save** still goes through `Store/OnboardingController::updateProductFromManagement` via `routes/onboarding.php` (`PUT /product/{id}`). Soft delete / restore / permanent delete also live on onboarding routes (`product.destroy`, `product.restore`, `product.force-destroy`). Edit UI is Catalog; save/delete pipeline is Store (known bridge — future extraction target).
+
+**Products list (2026-08-05):** Unified Search & filters panel, Products/Deleted view toggle (`?view=deleted`), soft-delete archive with restore/force-delete, merchant bulk chips, full filtered “Select all matching”, and inline price/stock with `__liveProductValuesById` sync into Edit popup. See `docs/handoffs/PRODUCT_STOCK_INVENTORY_UX_HANDOFF.md`.
 
 ### `Commerce/` — Orders, customers, fulfillment
 
