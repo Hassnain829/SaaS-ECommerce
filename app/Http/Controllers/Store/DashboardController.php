@@ -616,6 +616,12 @@ class DashboardController extends Controller
 
         $catalogTaxonomyCategories = $selectedStore->categories()
             ->where('status', 'active')
+            ->withCount(['products' => function ($query) use ($catalogView) {
+                // Match the Products / Deleted tab so counts reflect the list being filtered.
+                if ($catalogView === 'deleted') {
+                    $query->onlyTrashed();
+                }
+            }])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get(['id', 'name', 'parent_id']);

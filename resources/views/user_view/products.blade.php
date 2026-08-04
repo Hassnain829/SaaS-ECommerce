@@ -316,7 +316,9 @@
                         $catalogCategoryList = collect($catalogTaxonomyCategories ?? []);
                         $catalogBrandList = collect($catalogBrands ?? []);
                         $catalogTagList = collect($catalogTags ?? []);
-                        $activeCategoryLabel = $activeTaxonomyCategoryFilter?->name ?? 'Any category';
+                        $activeCategoryLabel = $activeTaxonomyCategoryFilter
+                            ? $activeTaxonomyCategoryFilter->name.' ('.(int) ($activeTaxonomyCategoryFilter->products_count ?? 0).')'
+                            : 'Any category';
                         $activeBrandLabel = $activeBrandFilter?->name ?? 'Any brand';
                         $activeTagLabel = $activeTagFilter?->name ?? 'Any tag';
                         $activeTypeLabel = ($filters['product_type'] ?? '') !== ''
@@ -411,8 +413,15 @@
                                         <button type="button" data-picker-option data-value="" data-label="Any category" class="flex w-full px-3 py-2 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] {{ ($filters['category'] ?? '') === '' ? 'bg-[#EEF4FF] text-[#0052CC]' : '' }}">Any category</button>
                                     </li>
                                     @foreach ($catalogCategoryList as $taxCat)
+                                        @php
+                                            $categoryProductCount = (int) ($taxCat->products_count ?? 0);
+                                            $categoryOptionLabel = $taxCat->name.' ('.$categoryProductCount.')';
+                                        @endphp
                                         <li>
-                                            <button type="button" data-picker-option data-value="{{ $taxCat->id }}" data-label="{{ $taxCat->name }}" class="flex w-full px-3 py-2 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] {{ (string) ($filters['category'] ?? '') === (string) $taxCat->id ? 'bg-[#E6F4EF] text-[#0A4335]' : '' }}">{{ $taxCat->name }}</button>
+                                            <button type="button" data-picker-option data-value="{{ $taxCat->id }}" data-label="{{ $categoryOptionLabel }}" class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] {{ (string) ($filters['category'] ?? '') === (string) $taxCat->id ? 'bg-[#E6F4EF] text-[#0A4335]' : '' }}">
+                                                <span class="min-w-0 truncate">{{ $taxCat->name }}</span>
+                                                <span class="shrink-0 tabular-nums text-xs font-semibold text-[#94A3B8]">{{ $categoryProductCount }}</span>
+                                            </button>
                                         </li>
                                     @endforeach
                                 </ul>
