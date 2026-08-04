@@ -55,3 +55,4 @@ tmp_*.php
 Thumbs.db
 Homestead.json
 Homestead.yaml
+/_cuba_inspect/

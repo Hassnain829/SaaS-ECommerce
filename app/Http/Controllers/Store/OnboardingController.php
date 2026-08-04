@@ -1469,11 +1469,22 @@ class OnboardingController extends Controller
                 ->withInput($request->except(['product_images']));
         }
 
+        $incomingVariants = $request->input('variants', []);
+        $defaultStockFromVariants = 0;
+        if (is_array($incomingVariants)) {
+            foreach ($incomingVariants as $variantRow) {
+                if (! is_array($variantRow)) {
+                    continue;
+                }
+                $defaultStockFromVariants += max(0, (int) ($variantRow['stock'] ?? 0));
+            }
+        }
+
         $normalizedVariants = $this->normalizeCustomVariants(
-            $request->input('variants', []),
+            $incomingVariants,
             $validated['variation_types'] ?? [],
             (float) $validated['base_price'],
-            0,
+            $defaultStockFromVariants,
             (int) $validated['stock_alert']
         );
 
@@ -1564,7 +1575,8 @@ class OnboardingController extends Controller
 
         $meta = $product->meta ?? [];
         unset($meta['image_path'], $meta['image_paths']);
-        $meta['default_stock'] = $meta['default_stock'] ?? 0;
+        $meta['default_stock'] = collect($validated['variants'] ?? [])
+            ->sum(static fn (array $row): int => max(0, (int) ($row['stock'] ?? 0)));
         $meta['stock_alert'] = (int) $validated['stock_alert'];
         if ($customProductTypeLabel !== null) {
             $meta['custom_product_type_label'] = $customProductTypeLabel;
