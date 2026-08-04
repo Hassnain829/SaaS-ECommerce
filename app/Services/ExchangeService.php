@@ -126,11 +126,22 @@ class ExchangeService
         if (in_array($order->status, [
             OrderLifecycle::ORDER_PENDING,
             OrderLifecycle::ORDER_CANCELLED,
-            OrderLifecycle::ORDER_REFUNDED,
         ], true)) {
             return [
                 'eligible' => false,
                 'reason' => 'This order cannot accept an exchange in its current state.',
+                'exchangeable_items' => $exchangeableItems,
+                'replacement_variants' => $replacementVariants,
+            ];
+        }
+
+        if (
+            $order->status === OrderLifecycle::ORDER_REFUNDED
+            || $order->payment_status === OrderLifecycle::PAYMENT_REFUNDED
+        ) {
+            return [
+                'eligible' => false,
+                'reason' => 'This order has been fully refunded and cannot be exchanged.',
                 'exchangeable_items' => $exchangeableItems,
                 'replacement_variants' => $replacementVariants,
             ];
@@ -145,10 +156,10 @@ class ExchangeService
             ];
         }
 
-        if ($replacementVariants->isEmpty()) {
+        if (! $this->hasDifferentPhysicalReplacementOption($exchangeableItems, $replacementVariants)) {
             return [
                 'eligible' => false,
-                'reason' => 'There are no exchangeable items left on this order.',
+                'reason' => 'No different active physical replacement product is available.',
                 'exchangeable_items' => $exchangeableItems,
                 'replacement_variants' => $replacementVariants,
             ];
@@ -167,17 +178,68 @@ class ExchangeService
         return $this->eligibilityForExchange($order, $store)['eligible'];
     }
 
-    public function assertOrderAcceptsExchange(Order $order): void
+    public function assertOrderAcceptsExchange(Order $order, ?Store $store = null): void
     {
+        $order->loadMissing(['items', 'exchanges.items', 'store']);
+        $store ??= $order->store;
+
         if (in_array($order->status, [
             OrderLifecycle::ORDER_PENDING,
             OrderLifecycle::ORDER_CANCELLED,
-            OrderLifecycle::ORDER_REFUNDED,
         ], true)) {
             throw ValidationException::withMessages([
                 'order' => 'This order cannot accept an exchange in its current state.',
             ]);
         }
+
+        if (
+            $order->status === OrderLifecycle::ORDER_REFUNDED
+            || $order->payment_status === OrderLifecycle::PAYMENT_REFUNDED
+        ) {
+            throw ValidationException::withMessages([
+                'order' => 'This order has been fully refunded and cannot be exchanged.',
+            ]);
+        }
+
+        $exchangeableItems = $this->exchangeableItems($order);
+        $replacementVariants = $store
+            ? $this->replacementVariantsForStore($store)
+            : collect();
+
+        // Quantity exhaustion stays field-level in createExchange so callers get `quantity` errors.
+        if (
+            $exchangeableItems->isNotEmpty()
+            && ! $this->hasDifferentPhysicalReplacementOption($exchangeableItems, $replacementVariants)
+        ) {
+            throw ValidationException::withMessages([
+                'order' => 'No different active physical replacement product is available.',
+            ]);
+        }
+    }
+
+    /**
+     * True when at least one exchangeable line has a different active physical replacement variant.
+     *
+     * @param  Collection<int, OrderItem>  $exchangeableItems
+     * @param  Collection<int, ProductVariant>  $replacementVariants
+     */
+    protected function hasDifferentPhysicalReplacementOption(Collection $exchangeableItems, Collection $replacementVariants): bool
+    {
+        if ($exchangeableItems->isEmpty() || $replacementVariants->isEmpty()) {
+            return false;
+        }
+
+        foreach ($exchangeableItems as $item) {
+            $originalVariantId = (int) ($item->product_variant_id ?? 0);
+
+            foreach ($replacementVariants as $variant) {
+                if ((int) $variant->id !== $originalVariantId) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -213,7 +275,7 @@ class ExchangeService
                 }
             }
 
-            $this->assertOrderAcceptsExchange($order);
+            $this->assertOrderAcceptsExchange($order, $order->store);
 
             $orderItemId = (int) ($payload['order_item_id'] ?? 0);
             $quantity = max(1, (int) ($payload['quantity'] ?? 1));

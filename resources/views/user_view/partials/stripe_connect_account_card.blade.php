@@ -111,7 +111,7 @@
         <div class="mt-4 flex flex-wrap gap-2">
             @if(! $account || $accountDisabled)
                 @if($modeConfig['connect_configured'] ?? false)
-                    <form method="POST" action="{{ $connectRoute }}">
+                    <form method="POST" action="{{ $connectRoute }}" data-turbo="false">
                         @csrf
                         <button @class([
                             'payments-btn payments-btn-primary' => $useConsole,
@@ -122,14 +122,14 @@
                     </form>
                 @endif
             @elseif($accountReady)
-                <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}">
+                <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}" data-turbo="false">
                     @csrf
                     <button @class([
                         'payments-btn payments-btn-secondary' => $useConsole,
                         'h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]' => ! $useConsole,
                     ])>{{ $refreshButtonLabel }}</button>
                 </form>
-                <form method="POST" action="{{ route('settings.payments.stripe.connect.disconnect', $account) }}" onsubmit="return confirm('Disable this Stripe {{ $isLive ? 'live' : 'test' }} account for this store? Existing orders stay unchanged.');">
+                <form method="POST" action="{{ route('settings.payments.stripe.connect.disconnect', $account) }}" data-turbo="false" onsubmit="return confirm('Disable this Stripe {{ $isLive ? 'live' : 'test' }} account for this store? Existing orders stay unchanged.');">
                     @csrf
                     <button @class([
                         'payments-btn payments-btn-danger' => $useConsole,
@@ -137,14 +137,14 @@
                     ])>Disconnect</button>
                 </form>
             @else
-                <form method="POST" action="{{ route('settings.payments.stripe.connect.refresh', $account) }}">
+                <form method="POST" action="{{ route('settings.payments.stripe.connect.refresh', $account) }}" data-turbo="false">
                     @csrf
                     <button @class([
                         'payments-btn payments-btn-primary' => $useConsole,
                         'h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover' => ! $useConsole,
                     ])>{{ $continueButtonLabel }}</button>
                 </form>
-                <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}">
+                <form method="POST" action="{{ route('settings.payments.stripe.connect.status', $account) }}" data-turbo="false">
                     @csrf
                     <button @class([
                         'payments-btn payments-btn-secondary' => $useConsole,

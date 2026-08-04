@@ -13,6 +13,7 @@ use App\Models\Exchange;
 use App\Models\InventoryReservation;
 use App\Models\Location;
 use App\Models\Order;
+use App\Models\OrderEvent;
 use App\Models\OrderReturn;
 use App\Models\PaymentIntent;
 use App\Models\Product;
@@ -1281,12 +1282,16 @@ class Phase7FinalCorrectionTest extends TestCase
         ] as $status) {
             $order->update(['status' => $status]);
 
-            $this->actingAs($owner)
+            $response = $this->actingAs($owner)
                 ->withSession(['current_store_id' => $store->id])
                 ->get(route('orderViewDetails', $order))
                 ->assertOk()
                 ->assertDontSeeText('Create exchange')
                 ->assertDontSee('name="order_item_id"', false);
+
+            if ($status === OrderLifecycle::ORDER_REFUNDED) {
+                $response->assertSeeText('This order has been fully refunded and cannot be exchanged.');
+            }
 
             $this->actingAs($owner)
                 ->withSession(['current_store_id' => $store->id])
@@ -1298,6 +1303,152 @@ class Phase7FinalCorrectionTest extends TestCase
                 ])
                 ->assertSessionHasErrors('order');
         }
+    }
+
+    public function test_payment_fully_refunded_blocks_exchange_even_when_order_status_is_not_refunded(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00');
+        [, $replacement] = $this->product($store, 'Payment Refund Alt', 'PRA', 16);
+
+        $order->update([
+            'status' => OrderLifecycle::ORDER_COMPLETED,
+            'payment_status' => OrderLifecycle::PAYMENT_REFUNDED,
+        ]);
+
+        $exchangeCount = Exchange::query()->count();
+        $reservationCount = InventoryReservation::query()->count();
+        $refundCount = Refund::query()->count();
+        $movementCount = StockMovement::query()->count();
+        $eventCount = OrderEvent::query()->where('order_id', $order->id)->count();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertDontSeeText('Create exchange')
+            ->assertDontSee('name="order_item_id"', false)
+            ->assertSeeText('This order has been fully refunded and cannot be exchanged.');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $replacement->id,
+                'idempotency_key' => 'ex-pay-refunded',
+            ])
+            ->assertSessionHasErrors('order');
+
+        $this->assertSame($exchangeCount, Exchange::query()->count());
+        $this->assertSame($reservationCount, InventoryReservation::query()->count());
+        $this->assertSame($refundCount, Refund::query()->count());
+        $this->assertSame($movementCount, StockMovement::query()->count());
+        $this->assertSame($eventCount, OrderEvent::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_partially_refunded_physical_order_remains_exchange_eligible(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00', quantity: 2);
+        [, $replacement] = $this->product($store, 'Partial Alt', 'PART-ALT', 18);
+
+        $order->update(['payment_status' => OrderLifecycle::PAYMENT_PARTIALLY_REFUNDED]);
+        $item->update(['refunded_quantity' => 1]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('Create exchange')
+            ->assertDontSeeText('This order has been fully refunded and cannot be exchanged.')
+            ->assertDontSeeText('No different active physical replacement product is available.');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $replacement->id,
+                'idempotency_key' => 'ex-partial-ok',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('exchanges', [
+            'order_id' => $order->id,
+            'idempotency_key' => 'ex-partial-ok',
+        ]);
+    }
+
+    public function test_only_original_variant_makes_exchange_ineligible(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00', quantity: 1);
+
+        $this->assertSame(
+            1,
+            ProductVariant::query()
+                ->whereHas('product', fn ($q) => $q->where('store_id', $store->id)->where('status', true))
+                ->count()
+        );
+
+        $exchangeCount = Exchange::query()->count();
+        $reservationCount = InventoryReservation::query()->count();
+        $refundCount = Refund::query()->count();
+        $movementCount = StockMovement::query()->count();
+        $eventCount = OrderEvent::query()->where('order_id', $order->id)->count();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertDontSeeText('Create exchange')
+            ->assertDontSee('name="order_item_id"', false)
+            ->assertSeeText('No different active physical replacement product is available.');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $item->product_variant_id,
+                'idempotency_key' => 'ex-same-only',
+            ])
+            ->assertSessionHasErrors('order');
+
+        $this->assertSame($exchangeCount, Exchange::query()->count());
+        $this->assertSame($reservationCount, InventoryReservation::query()->count());
+        $this->assertSame($refundCount, Refund::query()->count());
+        $this->assertSame($movementCount, StockMovement::query()->count());
+        $this->assertSame($eventCount, OrderEvent::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_different_active_physical_variant_keeps_exchange_available(): void
+    {
+        [$owner, $store, $order, $item] = $this->seedPaidOrder(grandTotal: '40.00', quantity: 1);
+        [, $replacement] = $this->product($store, 'Different Size', 'DIFF-S', 19);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orderViewDetails', $order))
+            ->assertOk()
+            ->assertSeeText('Create exchange')
+            ->assertDontSeeText('No different active physical replacement product is available.')
+            ->assertDontSeeText('This order has been fully refunded and cannot be exchanged.');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.exchanges.store', $order), [
+                'order_item_id' => $item->id,
+                'quantity' => 1,
+                'replacement_variant_id' => $replacement->id,
+                'idempotency_key' => 'ex-diff-ok',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('exchanges', [
+            'order_id' => $order->id,
+            'idempotency_key' => 'ex-diff-ok',
+        ]);
     }
 
     public function test_digital_and_service_items_hide_and_reject_exchanges(): void
@@ -1337,6 +1488,8 @@ class Phase7FinalCorrectionTest extends TestCase
             ->assertSeeText('After-sales service')
             ->assertSeeText('Record return')
             ->assertSeeText('Create exchange')
+            ->assertDontSeeText('This order has been fully refunded and cannot be exchanged.')
+            ->assertDontSeeText('No different active physical replacement product is available.')
             ->assertSee('name="order_item_id"', false)
             ->assertSee('value="'.$item->id.'"', false)
             ->assertSee('value="'.$replacement->id.'"', false);

@@ -14,6 +14,7 @@ Route::post('/onboarding-Step2-VariationsPopup', [OnboardingController::class, '
 Route::get('/onboarding-Step3-StoreReady', [OnboardingController::class, 'step3'])->name('onboarding_StoreReady');
 Route::post('/onboarding-Step3-StoreReady', [OnboardingController::class, 'completeStep3'])->name('onboarding_StoreReady.complete');
 Route::put('/store/{storeId}', [OnboardingController::class, 'updateStoreFromManagement'])->name('store.update');
+Route::patch('/store/{storeId}/lifecycle', [OnboardingController::class, 'updateStoreLifecycleFromManagement'])->name('store.lifecycle');
 Route::delete('/store/{storeId}', [OnboardingController::class, 'destroyStoreFromManagement'])->name('store.destroy');
 Route::post('/products', [OnboardingController::class, 'storeProductFromCurrentStore'])
     ->middleware('store.permission:catalog.manage')

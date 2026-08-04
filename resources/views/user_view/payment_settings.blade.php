@@ -3,10 +3,10 @@
 @section('title', 'Payments — '.config('app.name'))
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Payments" lead="Configure checkout processing and sales channels.">
+    <x-ui.merchant-topbar title="Payments" lead="Choose how this store takes payments.">
         <x-slot:actions>
-        <a href="{{ route('settings.taxes.index') }}" class="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">Checkout &amp; tax</a>
-    </x-slot:actions>
+            <a href="{{ route('settings.taxes.index') }}" class="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">Checkout &amp; tax</a>
+        </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection
 
@@ -15,104 +15,159 @@
     use App\Support\CheckoutMode;
 
     $checkoutMode = $checkoutMode ?? CheckoutMode::forStore($selectedStore);
-    $currentModeLabel = CheckoutMode::label($checkoutMode);
-    $connectStatus = $connectAccount?->status;
-    $requirementsDue = $connectAccount?->requirements_currently_due ?? [];
-    $connectReady = $activeConnectAccount !== null;
-    $hasConnectAccount = $connectAccount !== null;
-    $connectDisabled = $connectStatus === 'disabled';
-    $connectNeedsAction = $hasConnectAccount
-        && ! $connectDisabled
+    $isExternalMode = $checkoutMode === CheckoutMode::EXTERNAL;
+    $isPlatformMode = $checkoutMode === CheckoutMode::PLATFORM;
+
+    $testAccount = $testConnectAccount ?? null;
+    $liveAccount = $liveConnectAccount ?? null;
+    $testReady = (bool) ($testConnectReady ?? false);
+    $liveReady = (bool) ($liveConnectReady ?? false);
+
+    $testRequirementsDue = $testAccount?->requirements_currently_due ?? [];
+    $testDisabled = ($testAccount?->status ?? null) === 'disabled';
+    $testNeedsAction = $testAccount
+        && ! $testDisabled
         && (
-            $connectStatus === 'restricted'
-            || $connectAccount?->requirements_disabled_reason
-            || ! empty($requirementsDue)
+            ($testAccount->status ?? null) === 'restricted'
+            || $testAccount->requirements_disabled_reason
+            || ! empty($testRequirementsDue)
         );
-    $connectInProgress = $hasConnectAccount && ! $connectReady && ! $connectNeedsAction && ! $connectDisabled;
 
-    $stripeStatusLabel = 'Not connected';
-    if ($connectReady) {
-        $stripeStatusLabel = 'Connected';
-    } elseif ($connectNeedsAction) {
-        $stripeStatusLabel = 'Action required';
-    } elseif ($connectInProgress) {
-        $stripeStatusLabel = 'Setup in progress';
-    } elseif ($connectDisabled) {
-        $stripeStatusLabel = 'Disabled';
-    }
+    $connectReady = $activeConnectAccount !== null;
+    $canManagePayments = (bool) ($canManagePayments ?? false);
+    $initialView = $isPlatformMode ? 'platform' : 'external';
 
-    $platformStatusLabel = $connectReady
-        ? ($checkoutMode === CheckoutMode::PLATFORM ? 'Enabled' : 'Stripe connected')
-        : ($hasConnectAccount && ! $connectDisabled ? 'Setup required' : 'Not enabled');
-    $platformStatusDetail = $connectReady
-        ? 'Stripe connected'
-        : ($hasConnectAccount && ! $connectDisabled ? 'Continue Stripe setup' : 'Connect Stripe to use platform checkout');
+    $externalConfig = $externalChannelConfig ?? [];
+    $platformConfig = $platformChannelConfig ?? [];
+    $inventoryOwner = $externalInventoryOwner ?? 'platform';
+    $inventoryIsDashboard = $inventoryOwner !== 'external';
 
-    $initialStripePanel = ($platformPaymentMode ?? 'test') === 'live' ? 'live' : 'test';
+    $ownerLabel = static function (?string $owner): string {
+        return ($owner ?? '') === 'platform' ? 'Dashboard' : 'Your website';
+    };
 @endphp
 
 <div
-    class="settings-workspace-fluid settings-page payments-console"
-    x-data="paymentsConsole(
-        @js($initialStripePanel),
-        @js($selectedStore->id),
-        @js($canManagePayments ?? false),
-        @js($liveConnectReady ?? false)
-    )"
+    class="settings-workspace-fluid settings-page payments-studio"
+    x-data="paymentsConsole({
+        initialView: @js($initialView),
+        checkoutMode: @js($checkoutMode),
+        storeId: @js($selectedStore->id),
+        canManage: @js($canManagePayments),
+        liveReady: @js($liveReady),
+    })"
 >
     @include('user_view.partials.flash_success')
 
     @if ($errors->any())
-        <div class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
+        <div class="pay-alert pay-alert-error" role="alert">
             {{ $errors->first() }}
         </div>
     @endif
 
-    <div class="settings-status-strip">
-        <span class="settings-status-pill">Checkout mode <strong>{{ $currentModeLabel }}</strong></span>
-        <span @class([
-            'settings-status-pill',
-            'settings-status-pill-ready' => $connectReady,
-            'settings-status-pill-pending' => $connectNeedsAction || $connectInProgress,
-        ])>Stripe <strong>{{ $stripeStatusLabel }}</strong></span>
-        <span @class([
-            'settings-status-pill',
-            'settings-status-pill-ready' => $connectReady && $checkoutMode === CheckoutMode::PLATFORM,
-            'settings-status-pill-pending' => $connectReady && $checkoutMode !== CheckoutMode::PLATFORM,
-        ])>Platform checkout <strong>{{ $platformStatusLabel }}</strong></span>
+    {{-- Mode switcher --}}
+    <header class="pay-hero">
+        <h2 class="pay-hero-title">How does this store accept payments?</h2>
+        <p class="pay-hero-lede">Pick one checkout mode. You can switch later — this only changes where customers pay.</p>
+
+        <div class="pay-mode-switch" role="tablist" aria-label="Checkout mode">
+            <button
+                type="button"
+                role="tab"
+                id="tab-external"
+                class="pay-mode-tab"
+                :class="{ 'is-active': viewMode === 'external' }"
+                :aria-selected="viewMode === 'external'"
+                @click="switchTab('external')"
+            >
+                External checkout
+                <span class="pay-mode-tab-hint" x-show="isExternalCurrent" x-cloak>(current)</span>
+            </button>
+            <button
+                type="button"
+                role="tab"
+                id="tab-platform"
+                class="pay-mode-tab pay-mode-tab-stripe"
+                :class="{ 'is-active': viewMode === 'platform' }"
+                :aria-selected="viewMode === 'platform'"
+                @click="switchTab('platform')"
+            >
+                <x-brand.stripe-logo variant="badge" :size="22" />
+                Platform checkout
+                <span class="pay-mode-tab-hint" x-show="isPlatformCurrent" x-cloak>(current)</span>
+            </button>
+        </div>
+        <p class="pay-hero-note" x-show="viewingOtherMode" x-cloak>
+            You are previewing another mode. Use the switch button below to make it active for this store.
+        </p>
+    </header>
+
+    <div
+        id="content-external"
+        class="pay-panel space-y-5"
+        x-show="viewMode === 'external'"
+        @unless($isExternalMode) x-cloak @endunless
+        role="tabpanel"
+        aria-labelledby="tab-external"
+    >
+        @include('user_view.payments.partials.external_panel', [
+            'checkoutMode' => $checkoutMode,
+            'isExternalMode' => $isExternalMode,
+            'canManagePayments' => $canManagePayments,
+            'externalConfig' => $externalConfig,
+            'ownerLabel' => $ownerLabel,
+            'inventoryIsDashboard' => $inventoryIsDashboard,
+            'inventoryOwner' => $inventoryOwner,
+            'usesPlatformInventoryForExternal' => $usesPlatformInventoryForExternal ?? true,
+        ])
     </div>
 
-    @include('user_view.payments.partials.checkout_modes', [
-        'checkoutMode' => $checkoutMode,
-        'canManagePayments' => $canManagePayments ?? false,
-        'connectReady' => $connectReady,
-        'connectNeedsAction' => $connectNeedsAction,
-        'connectInProgress' => $connectInProgress,
-        'hasConnectAccount' => $hasConnectAccount,
-        'connectDisabled' => $connectDisabled,
-        'platformStatusLabel' => $platformStatusLabel,
-        'platformStatusDetail' => $platformStatusDetail,
-    ])
+    <div
+        id="content-platform"
+        class="pay-panel space-y-5"
+        x-show="viewMode === 'platform'"
+        @unless($isPlatformMode) x-cloak @endunless
+        role="tabpanel"
+        aria-labelledby="tab-platform"
+    >
+        @include('user_view.payments.partials.platform_panel', [
+            'checkoutMode' => $checkoutMode,
+            'isPlatformMode' => $isPlatformMode,
+            'canManagePayments' => $canManagePayments,
+            'connectReady' => $connectReady,
+            'testConnectAccount' => $testAccount,
+            'liveConnectAccount' => $liveAccount,
+            'testConnectReady' => $testReady,
+            'liveConnectReady' => $liveReady,
+            'testNeedsAction' => $testNeedsAction,
+            'stripeConfig' => $stripeConfig ?? [],
+            'platformConfig' => $platformConfig,
+            'ownerLabel' => $ownerLabel,
+            'platformPaymentMode' => $platformPaymentMode ?? 'test',
+        ])
+    </div>
 
-    @include('user_view.payments.partials.stripe_integration', [
-        'canManagePayments' => $canManagePayments ?? false,
-        'platformPaymentMode' => $platformPaymentMode ?? 'test',
-        'liveConnectReady' => $liveConnectReady ?? false,
-        'testConnectAccount' => $testConnectAccount ?? null,
-        'liveConnectAccount' => $liveConnectAccount ?? null,
-        'testConnectReady' => $testConnectReady ?? false,
-        'stripeConfig' => $stripeConfig ?? [],
-    ])
-
-    @include('user_view.payments.partials.ownership_inventory', [
-        'canManagePayments' => $canManagePayments ?? false,
-        'isExternalManaged' => $isExternalManaged ?? false,
-        'isPlatformManaged' => $isPlatformManaged ?? false,
-        'externalChannelConfig' => $externalChannelConfig ?? [],
-        'platformChannelConfig' => $platformChannelConfig ?? [],
-        'usesPlatformInventoryForExternal' => $usesPlatformInventoryForExternal ?? true,
-        'externalInventoryOwner' => $externalInventoryOwner ?? 'platform',
-    ])
+    {{-- Shared CTA --}}
+    <section class="pay-cta">
+        <div class="pay-cta-copy">
+            <h3 class="pay-cta-title">Keep selling from one place</h3>
+            <p class="pay-cta-lede" x-show="viewMode === 'external'" @unless($isExternalMode) x-cloak @endunless>
+                Your website takes payment. This dashboard still tracks orders, stock, and fulfillment for the store.
+            </p>
+            <p class="pay-cta-lede" x-show="viewMode === 'platform'" @unless($isPlatformMode) x-cloak @endunless>
+                Platform checkout creates paid orders here automatically after Stripe confirms payment.
+            </p>
+            <div class="pay-cta-actions">
+                <a href="{{ route('products') }}" class="pay-btn pay-btn-on-dark">Manage inventory</a>
+                <a href="{{ route('analytics') }}" class="pay-btn pay-btn-ghost-on-dark">View analytics</a>
+            </div>
+        </div>
+        <div class="pay-cta-art" aria-hidden="true">
+            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                <path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>
+            </svg>
+        </div>
+    </section>
 
     @if($showDeveloperDiagnostics ?? false)
         @include('user_view.payments.partials.developer_diagnostics', [

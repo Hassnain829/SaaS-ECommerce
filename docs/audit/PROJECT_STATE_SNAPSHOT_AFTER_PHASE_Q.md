@@ -159,7 +159,7 @@ Implemented:
 - payment intent refresh when shipping changes
 - external checkout shipping preservation
 
-Deferred:
+Deferred::
 
 - carrier APIs
 - live rates

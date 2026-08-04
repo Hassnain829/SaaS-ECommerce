@@ -39,14 +39,22 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->get(route('settings.payments.index'));
 
         $response->assertOk()
-            ->assertSeeText('Payments & Channels')
             ->assertSeeText('How does this store accept payments?')
             ->assertSeeText('External checkout')
             ->assertSeeText('Platform checkout')
-            ->assertSeeText('Current mode')
-            ->assertSeeText('External checkout')
-            ->assertSeeText('Connect Stripe')
+            ->assertSeeText('(current)')
+            ->assertSeeText('Active mode')
+            ->assertSeeText('What each system handles')
+            ->assertSeeText('Inventory for external orders')
+            ->assertSeeText('Edit')
+            ->assertSeeText('Stripe test account')
+            ->assertSeeText('Connect Stripe test account')
             ->assertDontSeeText('Platform checkout: Sandbox');
+
+        $html = $response->content();
+        $this->assertStringContainsString('id="tab-external"', $html);
+        $this->assertStringContainsString('id="tab-platform"', $html);
+        $this->assertStringContainsString('switchTab(', $html);
     }
 
     public function test_technical_stripe_details_are_not_in_main_mode_cards_but_exist_in_diagnostics(): void
@@ -59,20 +67,20 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->assertOk()
             ->content();
 
-        $mainCards = Str::between($html, '<section id="checkout-mode-cards"', '<section id="stripe-provider-card"');
+        $externalPanel = Str::between($html, 'id="content-external"', 'id="content-platform"');
 
-        $this->assertStringNotContainsString('Platform webhook', $mainCards);
-        $this->assertStringNotContainsString('Connect webhook', $mainCards);
-        $this->assertStringNotContainsString('Platform publishable key', $mainCards);
-        $this->assertStringNotContainsString('Platform secret key', $mainCards);
+        $this->assertStringNotContainsString('Platform webhook', $externalPanel);
+        $this->assertStringNotContainsString('Connect webhook', $externalPanel);
+        $this->assertStringNotContainsString('Platform publishable key', $externalPanel);
+        $this->assertStringNotContainsString('Platform secret key', $externalPanel);
+        $this->assertStringNotContainsString('STRIPE_TEST_SECRET', $externalPanel);
 
         $this->assertStringContainsString('Developer diagnostics', $html);
         $this->assertStringContainsString('STRIPE_TEST_KEY configured', $html);
         $this->assertStringContainsString('STRIPE_LIVE_SECRET configured', $html);
         $this->assertStringContainsString('Platform sandbox fallback', $html);
         $this->assertStringContainsString('Enabled for local/testing', $html);
-        $this->assertStringNotContainsString('STRIPE_TEST_SECRET', $mainCards);
-        $this->assertStringNotContainsString('Add the live Stripe keys', $mainCards);
+        $this->assertStringNotContainsString('Add the live Stripe keys', $externalPanel);
     }
 
     public function test_production_store_owner_does_not_see_developer_diagnostics(): void
@@ -166,9 +174,9 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.payments.index'))
             ->assertOk()
-            ->assertSeeText('Current mode')
-            ->assertSeeText('Platform checkout')
-            ->assertSeeText('Current mode');
+            ->assertSeeText('Platform checkout is active')
+            ->assertSeeText('Active mode')
+            ->assertSeeText('Stripe test account');
     }
 
     public function test_stripe_card_copy_is_connection_based_not_secret_key_setup(): void
@@ -180,7 +188,7 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->get(route('settings.payments.index'))
             ->assertOk()
             ->assertSeeText('Stripe')
-            ->assertSeeText('Connect separate Stripe test and live accounts for platform checkout through secure Stripe hosted onboarding.')
+            ->assertSeeText('Stripe test account')
             ->assertSeeText('You will connect through Stripe hosted onboarding')
             ->assertSeeText('No Stripe secret keys are entered here')
             ->assertDontSeeText('Paste your Stripe secret key')

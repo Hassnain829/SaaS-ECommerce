@@ -5,7 +5,7 @@
 @section('topbar')
     <x-ui.merchant-topbar title="Your stores" lead="Each store is its own workspace. Use the sidebar switcher to change the active store.">
         <x-slot:actions>
-            <button type="button" class="js-open-create-store-modal hidden sm:inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
+            <button type="button" class="js-open-create-store-modal hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/></svg>
                 <span>Create store</span>
             </button>
@@ -14,20 +14,154 @@
 @endsection
 
 @section('content')
-<div class="max-w-9xl mx-auto px-4 lg:px-0 space-y-8">
-    <!-- Tab Navigation -->
-    <div class="border-b border-[#C3C6D6]/30 overflow-x-auto">
-        <nav class="flex gap-8 min-w-max">
-            <button class="pb-4 border-b-2 border-[#003D9B] text-[#003D9B] font-bold text-sm">All Stores ({{ count($stores) }})</button>
-            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-inter font-medium text-sm">Live ({{ $stores->where('onboarding_completed', true)->count() }})</button>
-            <button class="pb-4 border-b-2 border-transparent text-[#434654] font-inter font-medium text-sm">Drafts ({{ $stores->where('onboarding_completed', false)->count() }})</button>
-        </nav>
+@php
+    $liveStoresCount = (int) ($liveStoresCount ?? $stores->where('onboarding_completed', true)->count());
+    $draftStoresCount = (int) ($draftStoresCount ?? $stores->where('onboarding_completed', false)->count());
+    $totalProducts = (int) ($totalProducts ?? $stores->sum(fn ($s) => (int) ($s->products_count ?? 0)));
+    $totalBrands = (int) ($totalBrands ?? $stores->sum(fn ($s) => (int) ($s->brands_count ?? 0)));
+    $activeStoreId = (int) ($activeStoreId ?? session('current_store_id'));
+    $recentActivity = $recentActivity ?? collect();
+    $draftStoreForNextStep = $draftStoreForNextStep ?? $stores->firstWhere('onboarding_completed', false);
+    $storeMetrics = $storeMetrics ?? [];
+
+    $sparklinePoints = static function (array $values): string {
+        $count = count($values);
+        if ($count === 0) {
+            return '0,15 100,15';
+        }
+        $max = max(0.0001, ...array_map('floatval', $values));
+        $points = [];
+        foreach ($values as $i => $value) {
+            $x = $count === 1 ? 0.0 : ($i / ($count - 1)) * 100;
+            $y = 26 - (((float) $value / $max) * 20);
+            $points[] = round($x, 1).','.round($y, 1);
+        }
+
+        return implode(' ', $points);
+    };
+@endphp
+
+<div
+    class="mx-auto max-w-9xl space-y-8 px-4 lg:px-0"
+    x-data="{
+        storeFilter: 'all',
+        sortBy: 'name',
+        search: '',
+        openMenu: null,
+        matches(el) {
+            const status = el.dataset.storeStatus || '';
+            const name = (el.dataset.storeName || '').toLowerCase();
+            const q = this.search.trim().toLowerCase();
+            const statusOk = this.storeFilter === 'all' || this.storeFilter === status;
+            const searchOk = !q || name.includes(q);
+            return statusOk && searchOk;
+        },
+        applySort() {
+            const grid = this.$refs.storeGrid;
+            if (!grid) return;
+            const cards = [...grid.querySelectorAll('.js-store-card')];
+            cards.sort((a, b) => {
+                if (this.sortBy === 'revenue') {
+                    return Number(b.dataset.revenue || 0) - Number(a.dataset.revenue || 0);
+                }
+                if (this.sortBy === 'products') {
+                    return Number(b.dataset.products || 0) - Number(a.dataset.products || 0);
+                }
+                return (a.dataset.storeName || '').localeCompare(b.dataset.storeName || '');
+            });
+            cards.forEach((card) => grid.appendChild(card));
+            const addCard = this.$refs.addStoreCard;
+            if (addCard) grid.appendChild(addCard);
+        }
+    }"
+    x-init="$watch('sortBy', () => applySort()); applySort()"
+    @click.outside="openMenu = null"
+>
+    {{-- Tabs + search/sort --}}
+    <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-4 border-b border-slate-200 sm:flex-row sm:items-end sm:justify-between">
+            <nav class="flex min-w-max gap-6 overflow-x-auto" role="tablist" aria-label="Filter stores">
+                <button
+                    type="button"
+                    role="tab"
+                    :aria-selected="storeFilter === 'all'"
+                    @click="storeFilter = 'all'"
+                    :class="storeFilter === 'all' ? 'border-brand text-brand font-bold' : 'border-transparent text-slate-500 font-medium hover:text-slate-800'"
+                    class="border-b-2 pb-3 text-sm transition"
+                >
+                    All Stores ({{ count($stores) }})
+                </button>
+                <button
+                    type="button"
+                    role="tab"
+                    :aria-selected="storeFilter === 'live'"
+                    @click="storeFilter = 'live'"
+                    :class="storeFilter === 'live' ? 'border-brand text-brand font-bold' : 'border-transparent text-slate-500 font-medium hover:text-slate-800'"
+                    class="border-b-2 pb-3 text-sm transition"
+                >
+                    Live ({{ $liveStoresCount }})
+                </button>
+                <button
+                    type="button"
+                    role="tab"
+                    :aria-selected="storeFilter === 'draft'"
+                    @click="storeFilter = 'draft'"
+                    :class="storeFilter === 'draft' ? 'border-brand text-brand font-bold' : 'border-transparent text-slate-500 font-medium hover:text-slate-800'"
+                    class="border-b-2 pb-3 text-sm transition"
+                >
+                    Drafts ({{ $draftStoresCount }})
+                </button>
+            </nav>
+
+            <div class="flex flex-wrap items-center gap-2 pb-2">
+                <label class="relative">
+                    <span class="sr-only">Search stores</span>
+                    <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+                    </svg>
+                    <input
+                        type="search"
+                        x-model.debounce.200ms="search"
+                        placeholder="Search stores…"
+                        class="h-9 w-44 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 sm:w-52"
+                    >
+                </label>
+                <label class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700">
+                    <svg class="h-4 w-4 text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path d="M3 3.75A.75.75 0 013.75 3h12.5a.75.75 0 01.53 1.28L12 9.06v5.69a.75.75 0 01-1.28.53l-2-2A.75.75 0 018.5 12.5V9.06L3.22 4.28A.75.75 0 013 3.75z"/>
+                    </svg>
+                    <span class="hidden sm:inline">Sort</span>
+                    <select x-model="sortBy" class="border-0 bg-transparent p-0 text-xs font-semibold text-slate-700 focus:ring-0">
+                        <option value="name">Name</option>
+                        <option value="revenue">7D revenue</option>
+                        <option value="products">Products</option>
+                    </select>
+                </label>
+            </div>
+        </div>
     </div>
 
-    <!-- Stores Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+    {{-- Store grid --}}
+    <div class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3" x-ref="storeGrid">
         @forelse ($stores as $store)
             @php
+                $isLive = (bool) $store->onboarding_completed;
+                $isActive = $activeStoreId === (int) $store->id;
+                $logoUrl = $store->logoPublicUrl();
+                $metrics = $storeMetrics[$store->id] ?? [
+                    'revenue_7d' => 0.0,
+                    'orders_7d' => 0,
+                    'orders_change_pct' => null,
+                    'sparkline' => array_fill(0, 7, 0.0),
+                    'health' => 'setup',
+                    'health_label' => 'Setup needed',
+                    'setup_ready_count' => 0,
+                    'setup_total' => 5,
+                    'setup_complete' => false,
+                ];
+                $sparkValues = array_map('floatval', $metrics['sparkline'] ?? []);
+                $sparkHasData = collect($sparkValues)->sum() > 0;
+                $changePct = $metrics['orders_change_pct'];
                 $storeActionPayload = [
                     'id' => $store->id,
                     'name' => $store->name,
@@ -38,225 +172,385 @@
                     'category' => $store->category,
                     'custom_category' => $store->settings['custom_category'] ?? '',
                     'business_models' => $store->settings['business_models'] ?? [],
-                    'logo_url' => $store->logoPublicUrl(),
+                    'logo_url' => $logoUrl,
                     'update_url' => route('store.update', ['storeId' => $store->id]),
                     'delete_url' => route('store.destroy', ['storeId' => $store->id]),
                 ];
             @endphp
-            <!-- Dynamic Store Card -->
-            <div class="rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
-                <div class="flex justify-between items-start">
-                    <div class="flex gap-4">
-                        <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-sm">
-                            @if ($store->logo)
-                                <img src="{{ asset('storage/'.$store->logo) }}" alt="{{ $store->name }} logo" class="h-full w-full object-contain p-1">
-                            @else
-                                <div class="flex h-full w-full items-center justify-center bg-[#DCE9FF]">
-                                    <svg width="21" height="18" viewBox="0 0 21 18" fill="none">
-                                        <path d="M4.48333 7.95L3.48333 8.5C3.25 8.63333 3 8.66667 2.73333 8.6C2.46667 8.53333 2.26667 8.38333 2.13333 8.15L0.133333 4.65C0 4.41667 -0.0333333 4.16667 0.0333333 3.9C0.1 3.63333 0.25 3.43333 0.483333 3.3L6.23333 0H7.98333C8.13333 0 8.25417 0.0458333 8.34583 0.1375C8.4375 0.229167 8.48333 0.35 8.48333 0.5V1C8.48333 1.55 8.67917 2.02083 9.07083 2.4125C9.4625 2.80417 9.93333 3 10.4833 3C11.0333 3 11.5042 2.80417 11.8958 2.4125C12.2875 2.02083 12.4833 1.55 12.4833 1V0.5C12.4833 0.35 12.5292 0.229167 12.6208 0.1375C12.7125 0.0458333 12.8333 0 12.9833 0H14.7333L20.4833 3.3C20.7167 3.43333 20.8667 3.63333 20.9333 3.9C21 4.16667 20.9667 4.41667 20.8333 4.65L18.8333 8.15C18.7 8.38333 18.5042 8.52917 18.2458 8.5875C17.9875 8.64583 17.7333 8.60833 17.4833 8.475L16.4833 7.975V17C16.4833 17.2833 16.3875 17.5208 16.1958 17.7125C16.0042 17.9042 15.7667 18 15.4833 18H5.48333C5.2 18 4.9625 17.9042 4.77083 17.7125C4.57917 17.5208 4.48333 17.2833 4.48333 17V7.95M6.48333 4.6V16H14.4833V4.6L17.5833 6.3L18.6333 4.55L14.3333 2.05C14.0833 2.9 13.6125 3.60417 12.9208 4.1625C12.2292 4.72083 11.4167 5 10.4833 5C9.55 5 8.7375 4.72083 8.04583 4.1625C7.35417 3.60417 6.88333 2.9 6.63333 2.05L2.33333 4.55L3.38333 6.3L6.48333 4.6Z" fill="#003D9B"/>
-                                    </svg>
+            <article
+                class="js-store-card group relative overflow-hidden rounded-xl border-2 bg-white shadow-sm transition hover:border-brand/40 {{ $isActive ? 'border-brand ring-4 ring-brand/5' : 'border-slate-200' }}"
+                data-store-status="{{ $isLive ? 'live' : 'draft' }}"
+                data-store-name="{{ $store->name }}"
+                data-revenue="{{ (float) ($metrics['revenue_7d'] ?? 0) }}"
+                data-products="{{ (int) ($store->products_count ?? 0) }}"
+                x-show="matches($el)"
+            >
+                <div class="p-5 sm:p-6">
+                    <div class="mb-4 flex items-start justify-between gap-3">
+                        <div class="flex min-w-0 gap-3">
+                            <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                @if ($logoUrl)
+                                    <img src="{{ $logoUrl }}" alt="{{ $store->name }} logo" class="h-full w-full object-contain p-1">
+                                @else
+                                    <span class="text-sm font-bold uppercase text-brand">{{ \Illuminate\Support\Str::substr($store->name, 0, 1) }}</span>
+                                @endif
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h3 class="truncate text-base font-semibold text-slate-900">{{ $store->name }}</h3>
+                                    @if ($isActive)
+                                        <span class="rounded bg-brand px-1.5 py-0.5 text-[10px] font-bold uppercase text-white" title="This is the store currently selected in your sidebar">Working here</span>
+                                    @endif
                                 </div>
+                                <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                    <span class="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">{{ ucfirst($store->category ?? 'General') }}</span>
+                                    @if ($isLive)
+                                        <span class="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Live
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span> Draft
+                                        </span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex shrink-0 flex-col items-end gap-2">
+                            <form method="POST" action="{{ route('current-store.update') }}">
+                                @csrf
+                                <input type="hidden" name="store_id" value="{{ $store->id }}">
+                                <input type="hidden" name="redirect_to" value="dashboard">
+                                <button
+                                    type="submit"
+                                    class="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-50 hover:text-brand"
+                                    title="{{ $isActive ? 'Open dashboard' : 'Switch to this store and open dashboard' }}"
+                                    aria-label="Open {{ $store->name }} dashboard"
+                                >
+                                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
+                                        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
+                                    </svg>
+                                </button>
+                            </form>
+                            @php
+                                $health = $metrics['health'] ?? 'setup';
+                                $healthClass = match ($health) {
+                                    'healthy' => 'border-emerald-200 bg-emerald-50 text-emerald-800',
+                                    'ready' => 'border-sky-200 bg-sky-50 text-sky-800',
+                                    default => 'border-amber-200 bg-amber-50 text-amber-900',
+                                };
+                                $setupReady = (int) ($metrics['setup_ready_count'] ?? 0);
+                                $setupTotal = (int) ($metrics['setup_total'] ?? 5);
+                                $healthTitle = $health === 'setup'
+                                    ? "Finish store setup ({$setupReady}/{$setupTotal}): catalog, location, tax, delivery, and payments"
+                                    : ($health === 'ready'
+                                        ? 'Major setup is complete. Waiting for recent orders.'
+                                        : 'Major setup is complete and this store has recent orders.');
+                            @endphp
+                            <span
+                                class="rounded-full border px-2 py-0.5 text-[10px] font-bold {{ $healthClass }}"
+                                title="{{ $healthTitle }}"
+                            >{{ $metrics['health_label'] ?? 'Setup needed' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 grid grid-cols-2 gap-4 border-y border-slate-100 py-4">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500">7D Revenue</p>
+                            <p class="mt-0.5 text-lg font-bold text-slate-900">{{ \App\Support\MoneyDisplay::format($metrics['revenue_7d'] ?? 0, $store->currency ?: 'USD') }}</p>
+                            <div class="mt-2">
+                                <svg
+                                    class="js-store-sparkline h-8 w-[100px] {{ $sparkHasData ? 'stroke-brand' : 'stroke-slate-300' }}"
+                                    viewBox="0 0 100 30"
+                                    fill="none"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    data-sparkline='@json($sparkValues)'
+                                    aria-hidden="true"
+                                >
+                                    @if ($sparkHasData)
+                                        <polyline points="{{ $sparklinePoints($sparkValues) }}"></polyline>
+                                    @else
+                                        <line x1="0" y1="15" x2="100" y2="15"></line>
+                                    @endif
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs font-medium text-slate-500">Orders (7D)</p>
+                            <p class="mt-0.5 text-lg font-bold text-slate-900">{{ number_format((int) ($metrics['orders_7d'] ?? 0)) }}</p>
+                            @if ($changePct === null)
+                                <p class="mt-1 text-xs font-bold text-slate-400">—</p>
+                            @elseif ($changePct > 0)
+                                <p class="mt-1 text-xs font-bold text-emerald-700">+{{ number_format($changePct, 1) }}%</p>
+                            @elseif ($changePct < 0)
+                                <p class="mt-1 text-xs font-bold text-red-600">{{ number_format($changePct, 1) }}%</p>
+                            @else
+                                <p class="mt-1 text-xs font-bold text-slate-500">0%</p>
                             @endif
                         </div>
-                        <div>
-                            <h3 class="font-inter font-medium text-[#0F172A]">{{ $store->name }}</h3>
-                            <div class="flex items-center gap-2 mt-1">
-                                <span class="px-2 py-0.5 bg-[#DCE9FF] text-[#434654] text-[10px] font-bold uppercase rounded-full">{{ ucfirst($store->category ?? 'General') }}</span>
-                                @if ($store->onboarding_completed)
-                                    <span class="flex items-center gap-1 px-2 py-0.5 bg-[#4EDEA3]/20 text-[#005236] text-[10px] font-bold uppercase rounded-full">
-                                        <span class="w-1.5 h-1.5 bg-[#4EDEA3] rounded-full"></span>
-                                        Live
-                                    </span>
+                    </div>
+
+                    <div class="mb-5 flex items-end justify-between gap-3">
+                        <div class="flex gap-5">
+                            <div>
+                                <p class="text-xs text-slate-500">Products</p>
+                                <p class="text-sm font-bold text-slate-900">{{ number_format((int) ($store->products_count ?? 0)) }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-slate-500">Brands</p>
+                                <p class="text-sm font-bold text-slate-900">{{ number_format((int) ($store->brands_count ?? 0)) }}</p>
+                            </div>
+                        </div>
+                        <p class="text-xs italic text-slate-400">Created {{ $store->created_at->format('M d, Y') }}</p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <a
+                            href="{{ route('store.products', ['storeId' => $store->id]) }}"
+                            class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand py-2.5 text-sm font-bold text-white transition hover:bg-brand-hover"
+                        >
+                            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M9.315 7.584C12.195 3.883 16.695 1.5 21.75 1.5a.75.75 0 01.75.75c0 5.056-2.383 9.555-6.084 12.436A6.75 6.75 0 019.75 22.5a.75.75 0 01-.75-.75v-4.131A15.838 15.838 0 016.382 15H2.25a.75.75 0 01-.75-.75 6.75 6.75 0 017.815-6.666zM15 6.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" clip-rule="evenodd"/>
+                                <path d="M5.26 17.242a.75.75 0 10-.897-1.203 5.243 5.243 0 00-2.05 5.022.75.75 0 00.625.627 5.243 5.243 0 005.022-2.051.75.75 0 10-1.202-.897 3.744 3.744 0 01-3.008 1.51c0-1.23.592-2.323 1.51-3.008z"/>
+                            </svg>
+                            Open catalog
+                        </a>
+                        <div class="relative">
+                            <button
+                                type="button"
+                                class="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+                                @click.stop="openMenu = openMenu === {{ $store->id }} ? null : {{ $store->id }}"
+                                :aria-expanded="openMenu === {{ $store->id }}"
+                                aria-haspopup="menu"
+                                title="More actions"
+                            >
+                                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                                </svg>
+                            </button>
+                            <div
+                                x-show="openMenu === {{ $store->id }}"
+                                x-cloak
+                                class="absolute bottom-12 right-0 z-20 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                                role="menu"
+                            >
+                                <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" class="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Add product</a>
+                                <button
+                                    type="button"
+                                    class="js-open-edit-store-modal block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                                    data-store='@json($storeActionPayload)'
+                                    role="menuitem"
+                                    @click="openMenu = null"
+                                >
+                                    Edit store
+                                </button>
+                                @if ($isLive)
+                                    <form method="POST" action="{{ route('store.lifecycle', ['storeId' => $store->id]) }}" role="none">
+                                        @csrf
+                                        @method('PATCH')
+                                        <input type="hidden" name="status" value="draft">
+                                        <button type="submit" class="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50" role="menuitem">
+                                            Move to draft
+                                        </button>
+                                    </form>
                                 @else
-                                    <span class="flex items-center gap-1 px-2 py-0.5 bg-[#C3C6D6]/30 text-[#434654] text-[10px] font-bold uppercase rounded-full">
-                                        <span class="w-1.5 h-1.5 bg-[#737685] rounded-full"></span>
-                                        Draft
-                                    </span>
+                                    <form method="POST" action="{{ route('store.lifecycle', ['storeId' => $store->id]) }}" role="none">
+                                        @csrf
+                                        @method('PATCH')
+                                        <input type="hidden" name="status" value="live">
+                                        <button type="submit" class="block w-full px-3 py-2 text-left text-sm font-semibold text-brand hover:bg-brand/5" role="menuitem">
+                                            Mark as live
+                                        </button>
+                                    </form>
                                 @endif
                             </div>
                         </div>
                     </div>
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" class="text-[#434654] cursor-pointer">
-                        <path d="M2 18C1.45 18 0.979167 17.8042 0.5875 17.4125C0.195833 17.0208 0 16.55 0 16V2C0 1.45 0.195833 0.979167 0.5875 0.5875C0.979167 0.195833 1.45 0 2 0H9V2H2V2V2V16V16V16H16V16V16V9H18V16C18 16.55 17.8042 17.0208 17.4125 17.4125C17.0208 17.8042 16.55 18 16 18H2ZM6.7 12.7L5.3 11.3L14.6 2H11V0H18V7H16V3.4L6.7 12.7Z" fill="currentColor"/>
-                    </svg>
                 </div>
-
-                <!-- Store Details -->
-                <div class="mt-4 border-y border-[#E2E8F0] py-4">
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center text-sm">
-                            <span class="text-[#64748B]">Slug</span>
-                            <span class="font-inter font-medium text-[#0F172A]">{{ $store->slug }}</span>
-                        </div>
-                        <div class="flex justify-between items-center text-sm">
-                            <span class="text-[#64748B]">Created</span>
-                            <span class="font-inter font-medium text-[#0F172A]">{{ $store->created_at->format('M d, Y') }}</span>
-                        </div>
-                        <div class="mt-3 flex flex-wrap gap-3 text-sm">
-                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-[#F8FAFC] px-2.5 py-1 font-medium text-[#0F172A] ring-1 ring-[#E2E8F0]">
-                                <span class="text-[#64748B] font-normal">Products</span>
-                                {{ (int) ($store->products_count ?? 0) }}
-                            </span>
-                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-[#F8FAFC] px-2.5 py-1 font-medium text-[#0F172A] ring-1 ring-[#E2E8F0]">
-                                <span class="text-[#64748B] font-normal">Brands</span>
-                                {{ (int) ($store->brands_count ?? 0) }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
-                    <a href="{{ route('store.products', ['storeId' => $store->id]) }}" class="flex-1 min-w-[8rem] rounded-lg bg-brand py-2.5 text-center text-sm font-bold text-white transition hover:bg-brand-hover">Open catalog</a>
-                    <a href="{{ route('store.add-product', ['storeId' => $store->id]) }}" title="Add product" class="inline-flex items-center justify-center rounded-lg border border-[#E2E8F0] p-2.5 hover:bg-gray-50 sm:shrink-0">
-                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                            <path d="M8 16H10V10H16V8H10V2H8V8H2V10H8V16Z" fill="#434654"/>
-                        </svg>
-                    </a>
-                    <button
-                        type="button"
-                        class="js-open-edit-store-modal inline-flex items-center justify-center rounded-lg border border-[#E2E8F0] p-2.5 hover:bg-gray-100"
-                        data-store='@json($storeActionPayload)'
-                        title="Edit Store"
-                    >
-                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                            <path d="M2 16H3.425L13.2 6.225L11.775 4.8L2 14.575V16ZM0 18V13.75L13.2 0.575C13.4 0.391667 13.6208 0.25 13.8625 0.15C14.1042 0.05 14.3583 0 14.625 0C14.8917 0 15.15 0.05 15.4 0.15C15.65 0.25 15.8667 0.4 16.05 0.6L17.425 2C17.625 2.18333 17.7708 2.4 17.8625 2.65C17.9542 2.9 18 3.15 18 3.4C18 3.66667 17.9542 3.92083 17.8625 4.1625C17.7708 4.40417 17.625 4.625 17.425 4.825L4.25 18H0Z" fill="#434654"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
+            </article>
         @empty
-            <!-- Empty State -->
-            <div class="lg:col-span-3 text-center py-12">
-                <div class="w-16 h-16 bg-[#DCE9FF] rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg width="28" height="24" viewBox="0 0 28 24" fill="none">
-                        <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#003D9B"/>
-                    </svg>
+            <div class="col-span-full rounded-xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
+                <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand/10 text-brand">
+                    <svg class="h-7 w-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h16v2H4V4zm1 4h14l1 12H4L5 8zm3 2v2h8v-2H8z"/></svg>
                 </div>
-                <h3 class="text-lg font-bold text-[#0B1C30] mb-2">No Stores Yet</h3>
-                <p class="text-[#434654] mb-6">Create your first store to get started</p>
-                <button type="button" class="js-open-create-store-modal inline-flex items-center gap-2 bg-brand text-white font-bold px-6 py-3 rounded-lg hover:bg-brand-hover transition">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/>
-                    </svg>
+                <h3 class="text-lg font-bold text-slate-900">No stores yet</h3>
+                <p class="mb-6 mt-2 text-sm text-slate-600">Create your first store to get started</p>
+                <button type="button" class="js-open-create-store-modal inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-3 text-sm font-bold text-white transition hover:bg-brand-hover">
                     Create First Store
                 </button>
             </div>
         @endforelse
 
-        <!-- Add Another Store Card (visible when stores exist) -->
         @if (count($stores) > 0)
-            <button type="button" class="js-open-create-store-modal border-2 border-dashed border-[#C3C6D6]/50 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-[#0052CC] hover:bg-[#F8FAFC] transition">
-                <div class="w-14 h-14 bg-[#DCE9FF] rounded-full flex items-center justify-center">
-                    <svg width="28" height="24" viewBox="0 0 28 24" fill="none">
-                        <path d="M21.25 23.75V20H17.5V17.5H21.25V13.75H23.75V17.5H27.5V20H23.75V23.75H21.25ZM1.25 20V12.5H0V10L1.25 3.75H20L21.25 10V12.5H20V16.25H17.5V12.5H12.5V20H1.25ZM3.75 17.5H10V12.5H3.75V17.5ZM2.5625 10H18.6875L17.9375 6.25H3.3125L2.5625 10ZM1.25 2.5V0H20V2.5H1.25Z" fill="#434654"/>
-                    </svg>
+            <div
+                class="col-span-full rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500"
+                x-show="![...$refs.storeGrid.querySelectorAll('.js-store-card')].some((el) => matches(el))"
+                x-cloak
+            >
+                <p>No stores match this filter or search.</p>
+            </div>
+
+            <button
+                type="button"
+                x-ref="addStoreCard"
+                class="js-open-create-store-modal flex min-h-[280px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-8 text-center transition hover:border-brand hover:bg-white"
+            >
+                <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm">
+                    <svg class="h-7 w-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
                 </div>
-                <h3 class="text-base font-bold text-[#0B1C30] mt-4">Add Another Store</h3>
-                <p class="text-xs text-[#434654] mt-1">Scale your business ecosystem</p>
+                <h3 class="text-base font-bold text-slate-900">Add Another Store</h3>
+                <p class="mt-1 max-w-[200px] text-xs text-slate-500">Scale your business ecosystem</p>
             </button>
         @endif
     </div>
 
-    <!-- Platform Overview + Recent Activity (two column layout) -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-6">
-        <!-- Left: workspace summary -->
-        <div class="lg:col-span-2 space-y-5">
-            <div class="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
-                <p class="text-xs font-semibold uppercase tracking-wider text-[#64748B]">Workspace summary</p>
-                <p class="mt-2 text-2xl font-medium text-[#0F172A]">{{ $stores->count() }} {{ Str::plural('store', $stores->count()) }}</p>
-                <div class="mt-4 flex flex-wrap gap-4 text-sm">
-                    <div>
-                        <span class="text-[#64748B]">Products (all stores)</span>
-                        <p class="text-lg font-semibold text-[#0F172A]">{{ number_format($stores->sum(fn ($s) => (int) ($s->products_count ?? 0))) }}</p>
-                    </div>
-                    <div>
-                        <span class="text-[#64748B]">Brands</span>
-                        <p class="text-lg font-semibold text-[#0F172A]">{{ number_format($stores->sum(fn ($s) => (int) ($s->brands_count ?? 0))) }}</p>
-                    </div>
+    {{-- Workspace summary + activity --}}
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div class="space-y-4 lg:col-span-2">
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div class="mb-6">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Workspace summary</p>
+                    <h3 class="mt-1 text-2xl font-bold text-slate-900">{{ $stores->count() }} {{ Str::plural('store', $stores->count()) }}</h3>
                 </div>
-                <p class="mt-3 text-xs text-[#64748B]">Counts reflect your memberships. Use a store card to open its catalog.</p>
-            </div>
 
-            <!-- Upgrade Banner -->
-            <div class="bg-brand/5 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-transparent">
-                <div class="flex items-start gap-3">
-                    <div class="w-10 h-10 bg-brand/10 rounded-full flex items-center justify-center">
-                        <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
-                            <path d="M3.6 7.99556L5.55 8.82056C5.78333 8.3539 6.025 7.9039 6.275 7.47056C6.525 7.03723 6.8 6.6039 7.1 6.17056L5.7 5.89556L3.6 7.99556ZM7.15 10.0706L10 12.8956C10.7 12.6289 11.45 12.2206 12.25 11.6706C13.05 11.1206 13.8 10.4956 14.5 9.79556C15.6667 8.6289 16.5792 7.33306 17.2375 5.90806C17.8958 4.48306 18.1833 3.17056 18.1 1.97056C16.9 1.88723 15.5833 2.17473 14.15 2.83306C12.7167 3.4914 11.4167 4.4039 10.25 5.57056C9.55 6.27056 8.925 7.02056 8.375 7.82056C7.825 8.62056 7.41667 9.37056 7.15 10.0706ZM11.6 8.44556C11.2167 8.06223 11.025 7.5914 11.025 7.03306C11.025 6.47473 11.2167 6.0039 11.6 5.62056C11.9833 5.23723 12.4583 5.04556 13.025 5.04556C13.5917 5.04556 14.0667 5.23723 14.45 5.62056C14.8333 6.0039 15.025 6.47473 15.025 7.03306C15.025 7.5914 14.8333 8.06223 14.45 8.44556C14.0667 8.8289 13.5917 9.02056 13.025 9.02056C12.4583 9.02056 11.9833 8.8289 11.6 8.44556ZM12.075 16.4706L14.175 14.3706L13.9 12.9706C13.4667 13.2706 13.0333 13.5414 12.6 13.7831C12.1667 14.0247 11.7167 14.2622 11.25 14.4956L12.075 16.4706ZM19.9 0.145565C20.2167 2.16223 20.0208 4.12473 19.3125 6.03306C18.6042 7.9414 17.3833 9.76223 15.65 11.4956L16.15 13.9706C16.2167 14.3039 16.2 14.6289 16.1 14.9456C16 15.2622 15.8333 15.5372 15.6 15.7706L11.4 19.9706L9.3 15.0456L5.025 10.7706L0.1 8.67056L4.275 4.47056C4.50833 4.23723 4.7875 4.07056 5.1125 3.97056C5.4375 3.87056 5.76667 3.8539 6.1 3.92056L8.575 4.42056C10.3083 2.68723 12.125 1.46223 14.025 0.745565C15.925 0.0288979 17.8833 -0.171102 19.9 0.145565ZM1.875 13.9456C2.45833 13.3622 3.17083 13.0664 4.0125 13.0581C4.85417 13.0497 5.56667 13.3372 6.15 13.9206C6.73333 14.5039 7.02083 15.2164 7.0125 16.0581C7.00417 16.8997 6.70833 17.6122 6.125 18.1956C5.70833 18.6122 5.0125 18.9706 4.0375 19.2706C3.0625 19.5706 1.71667 19.8372 0 20.0706C0.233333 18.3539 0.5 17.0081 0.8 16.0331C1.1 15.0581 1.45833 14.3622 1.875 13.9456ZM3.3 15.3456C3.13333 15.5122 2.96667 15.8164 2.8 16.2581C2.63333 16.6997 2.51667 17.1456 2.45 17.5956C2.9 17.5289 3.34583 17.4164 3.7875 17.2581C4.22917 17.0997 4.53333 16.9372 4.7 16.7706C4.9 16.5706 5.00833 16.3289 5.025 16.0456C5.04167 15.7622 4.95 15.5206 4.75 15.3206C4.55 15.1206 4.30833 15.0247 4.025 15.0331C3.74167 15.0414 3.5 15.1456 3.3 15.3456Z" fill="#003D9B"/>
-                        </svg>
+                <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div class="rounded-lg bg-slate-50 p-4">
+                        <p class="mb-1 text-xs text-slate-500">Total Products</p>
+                        <p class="text-base font-bold text-slate-900">{{ number_format($totalProducts) }}</p>
                     </div>
-                    <div>
-                        <h4 class="font-bold text-[#0B1C30]">Scale your platform</h4>
-                        <p class="text-xs text-[#434654]">Unlock advanced automation and priority support for your stores.</p>
+                    <div class="rounded-lg bg-slate-50 p-4">
+                        <p class="mb-1 text-xs text-slate-500">Total Brands</p>
+                        <p class="text-base font-bold text-slate-900">{{ number_format($totalBrands) }}</p>
+                    </div>
+                    <div class="rounded-lg border border-brand/10 bg-brand/5 p-4">
+                        <p class="mb-1 text-xs text-brand/80">Live Stores</p>
+                        <p class="text-base font-bold text-brand">{{ number_format($liveStoresCount) }}</p>
+                    </div>
+                    <div class="rounded-lg bg-slate-50 p-4">
+                        <p class="mb-1 text-xs text-slate-500">Draft Stores</p>
+                        <p class="text-base font-bold text-slate-900">{{ number_format($draftStoresCount) }}</p>
                     </div>
                 </div>
-                <button class="px-6 py-2 bg-brand text-white text-xs font-bold rounded-lg whitespace-nowrap">View Upgrade Options</button>
+
+                <div class="flex flex-col items-start justify-between gap-4 rounded-xl bg-slate-100 p-4 sm:flex-row sm:items-center">
+                    <div class="flex items-start gap-3">
+                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
+                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <div>
+                            @if ($stores->isEmpty())
+                                <p class="text-sm font-bold text-slate-900">Create your first store</p>
+                                <p class="text-xs text-slate-600">Set up a workspace for products, orders, and customers.</p>
+                            @elseif ($draftStoresCount > 0)
+                                <p class="text-sm font-bold text-slate-900">Finish store setup</p>
+                                <p class="text-xs text-slate-600">
+                                    {{ $draftStoresCount }} {{ Str::plural('draft store', $draftStoresCount) }} still need attention.
+                                    @if ($draftStoreForNextStep)
+                                        Continue with <span class="font-bold text-slate-900">{{ $draftStoreForNextStep->name }}</span>.
+                                    @endif
+                                </p>
+                            @else
+                                <p class="text-sm font-bold text-slate-900">Your stores are ready</p>
+                                <p class="text-xs text-slate-600">Open a catalog to add products, or review recent orders.</p>
+                            @endif
+                        </div>
+                    </div>
+                    @if ($stores->isEmpty())
+                        <button type="button" class="js-open-create-store-modal rounded-lg bg-brand px-5 py-2 text-xs font-bold text-white transition hover:bg-brand-hover">Create store</button>
+                    @elseif ($draftStoreForNextStep)
+                        <a href="{{ route('store.products', ['storeId' => $draftStoreForNextStep->id]) }}" class="rounded-lg bg-brand px-5 py-2 text-xs font-bold text-white transition hover:bg-brand-hover">Continue setup</a>
+                    @elseif ($activeStoreId > 0)
+                        <a href="{{ route('orders') }}" class="rounded-lg bg-brand px-5 py-2 text-xs font-bold text-white transition hover:bg-brand-hover">View orders</a>
+                    @else
+                        <button type="button" class="js-open-create-store-modal rounded-lg bg-brand px-5 py-2 text-xs font-bold text-white transition hover:bg-brand-hover">Add another store</button>
+                    @endif
+                </div>
             </div>
         </div>
 
-        <!-- Right: Recent Activity -->
-        <div class="bg-white rounded-xl shadow-sm border border-transparent p-5">
-            <div class="flex items-center gap-3 mb-4">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                    <path d="M9 18C6.7 18 4.69583 17.2375 2.9875 15.7125C1.27917 14.1875 0.3 12.2833 0.05 10H2.1C2.33333 11.7333 3.10417 13.1667 4.4125 14.3C5.72083 15.4333 7.25 16 9 16C10.95 16 12.6042 15.3208 13.9625 13.9625C15.3208 12.6042 16 10.95 16 9C16 7.05 15.3208 5.39583 13.9625 4.0375C12.6042 2.67917 10.95 2 9 2C7.85 2 6.775 2.26667 5.775 2.8C4.775 3.33333 3.93333 4.06667 3.25 5H6V7H0V1H2V3.35C2.85 2.28333 3.8875 1.45833 5.1125 0.875C6.3375 0.291667 7.63333 0 9 0C10.25 0 11.4208 0.2375 12.5125 0.7125C13.6042 1.1875 14.5542 1.82917 15.3625 2.6375C16.1708 3.44583 16.8125 4.39583 17.2875 5.4875C17.7625 6.57917 18 7.75 18 9C18 10.25 17.7625 11.4208 17.2875 12.5125C16.8125 13.6042 16.1708 14.5542 15.3625 15.3625C14.5542 16.1708 13.6042 16.8125 12.5125 17.2875C11.4208 17.7625 10.25 18 9 18ZM11.8 13.2L8 9.4V4H10V8.6L13.2 11.8L11.8 13.2Z" fill="#003D9B"/>
+        <div class="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="mb-5 flex items-center gap-2">
+                <svg class="h-5 w-5 text-brand" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .192.168.1.5.75h4a.75.75 0 000-1.5h-3.25V5z" clip-rule="evenodd"/>
                 </svg>
-                <h4 class="text-base font-bold text-[#0B1C30]">Recent Activity</h4>
+                <h3 class="text-base font-bold text-slate-900">Recent Activity</h3>
             </div>
 
-            <div class="space-y-4">
-                <!-- New Order -->
-                <div class="flex items-start gap-3">
-                    <div class="w-8 h-8 bg-[#4EDEA3]/20 rounded-full flex items-center justify-center">
-                        <svg width="10" height="12" viewBox="0 0 10 12" fill="none">
-                            <path d="M1.16667 11.6667C0.845833 11.6667 0.571181 11.5524 0.342708 11.324C0.114236 11.0955 0 10.8208 0 10.5V3.5C0 3.17917 0.114236 2.90451 0.342708 2.67604C0.571181 2.44757 0.845833 2.33333 1.16667 2.33333H2.33333C2.33333 1.69167 2.56181 1.14236 3.01875 0.685417C3.47569 0.228472 4.025 0 4.66667 0C5.30833 0 5.85764 0.228472 6.31458 0.685417C6.77153 1.14236 7 1.69167 7 2.33333H8.16667C8.4875 2.33333 8.76215 2.44757 8.99063 2.67604C9.2191 2.90451 9.33333 3.17917 9.33333 3.5V10.5C9.33333 10.8208 9.2191 11.0955 8.99063 11.324C8.76215 11.5524 8.4875 11.6667 8.16667 11.6667H1.16667ZM1.16667 10.5H8.16667V3.5H7V4.66667C7 4.83194 6.9441 4.97049 6.83229 5.08229C6.72049 5.1941 6.58194 5.25 6.41667 5.25C6.25139 5.25 6.11285 5.1941 6.00104 5.08229C5.88924 4.97049 5.83333 4.83194 5.83333 4.66667V3.5H3.5V4.66667C3.5 4.83194 3.4441 4.97049 3.33229 5.08229C3.22049 5.1941 3.08194 5.25 2.91667 5.25C2.75139 5.25 2.61285 5.1941 2.50104 5.08229C2.38924 4.97049 2.33333 4.83194 2.33333 4.66667V3.5H1.16667V10.5ZM3.5 2.33333H5.83333C5.83333 2.0125 5.7191 1.73785 5.49062 1.50937C5.26215 1.2809 4.9875 1.16667 4.66667 1.16667C4.34583 1.16667 4.07118 1.2809 3.84271 1.50937C3.61424 1.73785 3.5 2.0125 3.5 2.33333Z" fill="#005236"/>
-                        </svg>
+            <div class="flex-1 space-y-5">
+                @forelse ($recentActivity as $index => $event)
+                    @php
+                        $title = filled($event->title) ? $event->title : str_replace('_', ' ', ucfirst((string) $event->event_type));
+                        $storeName = $event->store?->name ?? 'Store';
+                        $description = filled($event->description) ? $event->description : null;
+                        $tone = match (true) {
+                            str_contains(strtolower((string) $event->event_type), 'fail') || str_contains(strtolower($title), 'fail') => 'error',
+                            str_contains(strtolower($title), 'order') || str_contains(strtolower((string) $event->event_type), 'order') => 'order',
+                            str_contains(strtolower($title), 'return') || str_contains(strtolower($title), 'refund') => 'neutral',
+                            default => 'info',
+                        };
+                        $isLast = $loop->last;
+                    @endphp
+                    <div class="flex gap-3">
+                        <div class="relative flex flex-col items-center">
+                            <div @class([
+                                'relative z-10 flex h-8 w-8 items-center justify-center rounded-full',
+                                'bg-red-100 text-red-700' => $tone === 'error',
+                                'bg-sky-100 text-sky-700' => $tone === 'order',
+                                'bg-brand/10 text-brand' => $tone === 'info',
+                                'bg-slate-100 text-slate-600' => $tone === 'neutral',
+                            ])>
+                                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    @if ($tone === 'error')
+                                        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                                    @elseif ($tone === 'order')
+                                        <path d="M1 1.75A.75.75 0 011.75 1h1.628a1.75 1.75 0 011.734 1.51L5.18 3.5H17.25a.75.75 0 01.73.93l-1.4 5.6a1.75 1.75 0 01-1.7 1.32H7.02l.12.49A1.75 1.75 0 018.86 13h7.39a.75.75 0 010 1.5H8.86a3.25 3.25 0 01-3.2-2.64L4.12 3.91a.25.25 0 00-.247-.216H1.75A.75.75 0 011 1.75zM6.5 17.5a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm8 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z"/>
+                                    @else
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd"/>
+                                    @endif
+                                </svg>
+                            </div>
+                            @unless ($isLast)
+                                <div class="mt-1 w-px flex-1 bg-slate-200" aria-hidden="true"></div>
+                            @endunless
+                        </div>
+                        <div class="min-w-0 pb-1">
+                            <p class="text-sm font-bold text-slate-900">{{ $title }}</p>
+                            <p class="text-xs text-slate-500">
+                                {{ $storeName }}
+                                @if ($description)
+                                    · {{ \Illuminate\Support\Str::limit($description, 72) }}
+                                @endif
+                            </p>
+                            <p class="mt-1 text-xs text-slate-400">{{ optional($event->created_at)->diffForHumans() }}</p>
+                        </div>
                     </div>
-                    <div>
-                        <div class="text-sm font-inter font-medium text-[#0B1C30]">New Order: #8942</div>
-                        <div class="text-xs text-[#434654]">Modern Marketplace • 2m ago</div>
+                @empty
+                    <div class="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-8 text-center">
+                        <p class="text-sm font-medium text-slate-900">No recent activity yet</p>
+                        <p class="mt-1 text-xs text-slate-500">Order updates across your stores will appear here.</p>
                     </div>
-                </div>
-                <!-- Theme Updated -->
-                <div class="flex items-start gap-3">
-                    <div class="w-8 h-8 bg-[#D5E3FC]/50 rounded-full flex items-center justify-center">
-                        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                            <path d="M5.25 10.5C4.52083 10.5 3.83785 10.3615 3.20104 10.0844C2.56424 9.80729 2.01007 9.43299 1.53854 8.96146C1.06701 8.48993 0.692708 7.93576 0.415625 7.29896C0.138542 6.66215 0 5.97917 0 5.25C0 4.52083 0.138542 3.83785 0.415625 3.20104C0.692708 2.56424 1.06701 2.01007 1.53854 1.53854C2.01007 1.06701 2.56424 0.692708 3.20104 0.415625C3.83785 0.138542 4.52083 0 5.25 0C6.04722 0 6.80312 0.170139 7.51771 0.510417C8.23229 0.850694 8.8375 1.33194 9.33333 1.95417V0.583333H10.5V4.08333H7V2.91667H8.60417C8.20556 2.37222 7.71458 1.94444 7.13125 1.63333C6.54792 1.32222 5.92083 1.16667 5.25 1.16667C4.1125 1.16667 3.14757 1.56285 2.35521 2.35521C1.56285 3.14757 1.16667 4.1125 1.16667 5.25C1.16667 6.3875 1.56285 7.35243 2.35521 8.14479C3.14757 8.93715 4.1125 9.33333 5.25 9.33333C6.27083 9.33333 7.16285 9.00278 7.92604 8.34167C8.68924 7.68056 9.13889 6.84444 9.275 5.83333H10.4708C10.325 7.16528 9.75382 8.27604 8.75729 9.16562C7.76076 10.0552 6.59167 10.5 5.25 10.5ZM6.88333 7.7L4.66667 5.48333V2.33333H5.83333V5.01667L7.7 6.88333L6.88333 7.7Z" fill="#57657A"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="text-sm font-inter font-medium text-[#0B1C30]">Theme Updated: V2.4</div>
-                        <div class="text-xs text-[#434654]">Electro Hub • 45m ago</div>
-                    </div>
-                </div>
-                <!-- New Domain Linked -->
-                <div class="flex items-start gap-3">
-                    <div class="w-8 h-8 bg-brand/20 rounded-full flex items-center justify-center">
-                        <svg width="11" height="12" viewBox="0 0 11 12" fill="none">
-                            <path d="M2.625 1.75C2.38194 1.75 2.17535 1.83507 2.00521 2.00521C1.83507 2.17535 1.75 2.38194 1.75 2.625C1.75 2.86806 1.83507 3.07465 2.00521 3.24479C2.17535 3.41493 2.38194 3.5 2.625 3.5C2.86806 3.5 3.07465 3.41493 3.24479 3.24479C3.41493 3.07465 3.5 2.86806 3.5 2.625C3.5 2.38194 3.41493 2.17535 3.24479 2.00521C3.07465 1.83507 2.86806 1.75 2.625 1.75ZM2.625 7.58333C2.38194 7.58333 2.17535 7.6684 2.00521 7.83854C1.83507 8.00868 1.75 8.21528 1.75 8.45833C1.75 8.70139 1.83507 8.90799 2.00521 9.07812C2.17535 9.24826 2.38194 9.33333 2.625 9.33333C2.86806 9.33333 3.07465 9.24826 3.24479 9.07812C3.41493 8.90799 3.5 8.70139 3.5 8.45833C3.5 8.21528 3.41493 8.00868 3.24479 7.83854C3.07465 7.6684 2.86806 7.58333 2.625 7.58333ZM0.583333 0H9.91667C10.0819 0 10.2205 0.0559028 10.3323 0.167708C10.4441 0.279514 10.5 0.418056 10.5 0.583333V4.66667C10.5 4.83194 10.4441 4.97049 10.3323 5.08229C10.2205 5.1941 10.0819 5.25 9.91667 5.25H0.583333C0.418056 5.25 0.279514 5.1941 0.167708 5.08229C0.0559028 4.97049 0 4.83194 0 4.66667V0.583333C0 0.418056 0.0559028 0.279514 0.167708 0.167708C0.279514 0.0559028 0.418056 0 0.583333 0ZM1.16667 1.16667V4.08333H9.33333V1.16667H1.16667ZM0.583333 5.83333H9.91667C10.0819 5.83333 10.2205 5.88924 10.3323 6.00104C10.4441 6.11285 10.5 6.25139 10.5 6.41667V10.5C10.5 10.6653 10.4441 10.8038 10.3323 10.9156C10.2205 11.0274 10.0819 11.0833 9.91667 11.0833H0.583333C0.418056 11.0833 0.279514 11.0274 0.167708 10.9156C0.0559028 10.8038 0 10.6653 0 10.5V6.41667C0 6.25139 0.0559028 6.11285 0.167708 6.00104C0.279514 5.88924 0.418056 5.83333 0.583333 5.83333ZM1.16667 7V9.91667H9.33333V7H1.16667Z" fill="#003D9B"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="text-sm font-inter font-medium text-[#0B1C30]">New Domain Linked</div>
-                        <div class="text-xs text-[#434654]">Organic Living • 2h ago</div>
-                    </div>
-                </div>
-                <!-- Inventory Alert -->
-                <div class="flex items-start gap-3">
-                    <div class="w-8 h-8 bg-[#FFDAD6]/50 rounded-full flex items-center justify-center">
-                        <svg width="13" height="12" viewBox="0 0 13 12" fill="none">
-                            <path d="M0 11.0833L6.41667 0L12.8333 11.0833H0ZM2.0125 9.91667H10.8208L6.41667 2.33333L2.0125 9.91667ZM6.41667 9.33333C6.58194 9.33333 6.72049 9.27743 6.83229 9.16562C6.9441 9.05382 7 8.91528 7 8.75C7 8.58472 6.9441 8.44618 6.83229 8.33438C6.72049 8.22257 6.58194 8.16667 6.41667 8.16667C6.25139 8.16667 6.11285 8.22257 6.00104 8.33438C5.88924 8.44618 5.83333 8.58472 5.83333 8.75C5.83333 8.91528 5.88924 9.05382 6.00104 9.16562C6.11285 9.27743 6.25139 9.33333 6.41667 9.33333ZM5.83333 7.58333H7V4.66667H5.83333V7.58333Z" fill="#93000A"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="text-sm font-inter font-medium text-[#0B1C30]">Inventory Alert: Low Stock</div>
-                        <div class="text-xs text-[#434654]">Modern Marketplace • 5h ago</div>
-                    </div>
-                </div>
+                @endforelse
             </div>
 
-            <div class="mt-5 pt-2 border-t border-[#C3C6D6]/10">
-                <button class="w-full py-2 border border-[#003D9B]/20 text-[#003D9B] text-sm font-bold rounded-lg">View All Activity</button>
+            <div class="mt-6">
+                @if ($activeStoreId > 0 && $stores->contains(fn ($s) => (int) $s->id === $activeStoreId))
+                    <a href="{{ route('orders') }}" class="block w-full rounded-lg border border-slate-200 py-2.5 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50">View All Activity</a>
+                @elseif ($stores->isNotEmpty())
+                    <form method="POST" action="{{ route('current-store.update') }}">
+                        @csrf
+                        <input type="hidden" name="store_id" value="{{ $stores->first()->id }}">
+                        <input type="hidden" name="redirect_to" value="orders">
+                        <button type="submit" class="w-full rounded-lg border border-slate-200 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50">View All Activity</button>
+                    </form>
+                @else
+                    <p class="text-center text-xs text-slate-500">Create a store to track order activity.</p>
+                @endif
             </div>
         </div>
     </div>
@@ -265,3 +559,46 @@
 @include('user_view.partials.store_create_modal')
 @include('user_view.partials.store_edit_modal')
 @endsection
+
+@push('scripts')
+<script>
+(() => {
+    const strokeSparkline = (svg) => {
+        const raw = svg.getAttribute('data-sparkline');
+        if (!raw) return;
+        let values;
+        try {
+            values = JSON.parse(raw);
+        } catch (e) {
+            return;
+        }
+        if (!Array.isArray(values) || values.length === 0) return;
+        const nums = values.map((v) => Number(v) || 0);
+        const max = Math.max(...nums, 0.0001);
+        const hasData = nums.some((v) => v > 0);
+        const points = nums.map((v, i) => {
+            const x = nums.length === 1 ? 0 : (i / (nums.length - 1)) * 100;
+            const y = hasData ? (26 - ((v / max) * 20)) : 15;
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+
+        svg.replaceChildren();
+        const ns = 'http://www.w3.org/2000/svg';
+        if (!hasData) {
+            const line = document.createElementNS(ns, 'line');
+            line.setAttribute('x1', '0');
+            line.setAttribute('y1', '15');
+            line.setAttribute('x2', '100');
+            line.setAttribute('y2', '15');
+            svg.appendChild(line);
+            return;
+        }
+        const poly = document.createElementNS(ns, 'polyline');
+        poly.setAttribute('points', points);
+        svg.appendChild(poly);
+    };
+
+    document.querySelectorAll('.js-store-sparkline').forEach(strokeSparkline);
+})();
+</script>
+@endpush

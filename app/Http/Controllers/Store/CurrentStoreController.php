@@ -16,6 +16,7 @@ class CurrentStoreController extends Controller
     {
         $validated = $request->validate([
             'store_id' => ['required', 'integer'],
+            'redirect_to' => ['nullable', 'string', 'in:dashboard,orders'],
         ]);
 
         $store = $request->user()
@@ -36,6 +37,14 @@ class CurrentStoreController extends Controller
                 'new_store_name' => $store->name,
             ]
         );
+
+        $redirectTo = $validated['redirect_to'] ?? null;
+        if ($redirectTo === 'dashboard') {
+            return redirect()->route('dashboard')->with('success', "Switched to store '{$store->name}'.");
+        }
+        if ($redirectTo === 'orders') {
+            return redirect()->route('orders')->with('success', "Switched to store '{$store->name}'.");
+        }
 
         return back()->with('success', "Switched to store '{$store->name}'.");
     }

@@ -861,6 +861,10 @@
                         <p class="mt-4 text-sm text-slate-500">{{ $returnEligibilityMessage }}</p>
                     @endif
 
+                    @if ($canManageOrders && ! $canCreateExchange && $exchangeEligibilityMessage)
+                        <p class="mt-4 text-sm text-slate-500">{{ $exchangeEligibilityMessage }}</p>
+                    @endif
+
                     @if ($canManageOrders && $canRecordReturn)
                         <form id="start-return-form" method="POST" action="{{ route('orders.returns.store', $order) }}" class="mt-5 hidden space-y-4 rounded-xl border border-stone-200 bg-stone-50/70 p-4">
                             @csrf
