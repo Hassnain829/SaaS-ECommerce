@@ -30,6 +30,12 @@ class CarrierAccountRegistrationSession extends Model
 
     public const STATUS_INVOICE_PENDING = 'invoice_pending';
 
+    public const STATUS_CREDENTIALS_ISSUED = 'credentials_issued';
+
+    public const STATUS_CHILD_OAUTH_VERIFYING = 'child_oauth_verifying';
+
+    public const STATUS_CHILD_OAUTH_FAILED = 'child_oauth_failed';
+
     public const STATUS_REGISTERED = 'registered';
 
     public const STATUS_FAILED = 'failed';
@@ -151,6 +157,7 @@ class CarrierAccountRegistrationSession extends Model
     {
         return ! in_array($this->status, [
             self::STATUS_REGISTERED,
+            self::STATUS_CHILD_OAUTH_FAILED,
             self::STATUS_FAILED,
             self::STATUS_LOCKED,
             self::STATUS_CANCELLED,
@@ -242,5 +249,22 @@ class CarrierAccountRegistrationSession extends Model
             'customer_key' => (string) $key,
             'customer_password' => (string) $password,
         ];
+    }
+
+    /**
+     * Clear session-level secrets that are no longer needed after CarrierAccount finalization.
+     * Preserves FedEx transaction id, sanitized summaries, error evidence, EULA metadata, and account link.
+     */
+    public function clearTransientFedExSecrets(): void
+    {
+        $this->forceFill([
+            'fedex_account_auth_token_encrypted' => null,
+            'account_auth_token_expires_at' => null,
+            'fedex_customer_key_encrypted' => null,
+            'fedex_customer_password_encrypted' => null,
+            'mfa_options_json' => null,
+            'mfa_destination_masked' => null,
+            'mfa_expires_at' => null,
+        ])->save();
     }
 }

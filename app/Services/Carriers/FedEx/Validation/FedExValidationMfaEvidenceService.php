@@ -406,6 +406,10 @@ class FedExValidationMfaEvidenceService
             $address['postal_code'] = (string) $address['registration_postal_code_raw'];
         }
 
+        if (! filled($address['provider_account_number'] ?? null) && filled($session->accountNumber())) {
+            $address['provider_account_number'] = $session->accountNumber();
+        }
+
         return $address;
     }
 
@@ -417,7 +421,7 @@ class FedExValidationMfaEvidenceService
         $registration = (array) data_get($account->settings, 'registration', []);
 
         return array_filter([
-            'provider_account_number' => $account->provider_account_number,
+            'provider_account_number' => $account->fedExAccountNumber(),
             'company_name' => $registration['company_name'] ?? $account->display_name,
             'contact_name' => $registration['contact_name'] ?? null,
             'email' => $registration['email'] ?? null,

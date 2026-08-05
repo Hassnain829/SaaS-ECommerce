@@ -25,7 +25,7 @@ class FedExShipPayloadFactory
         array $overrides = [],
     ): array {
         $fixture = array_replace_recursive($fixture, $overrides);
-        $accountNumber = (string) ($fixture['account_number'] ?? $account->provider_account_number ?? '');
+        $accountNumber = (string) ($fixture['account_number'] ?? $account->fedExAccountNumber() ?? '');
         $labelFormat = strtoupper(trim((string) ($labelFormat ?? $fixture['label_format'] ?? 'PDF')));
         $labelStockType = (string) ($fixture['label_stock_type'] ?? 'PAPER_4X6');
         $shipDate = (string) ($overrides['ship_date'] ?? $this->resolveShipDate($fixture));

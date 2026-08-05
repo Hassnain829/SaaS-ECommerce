@@ -429,7 +429,7 @@ class FedExShipValidationService
         $endpoint = $this->config->shipCancelPath($account->environment);
         $payload = [
             'accountNumber' => [
-                'value' => (string) $account->provider_account_number,
+                'value' => (string) ($account->fedExAccountNumber() ?? ''),
             ],
             'trackingNumber' => $trackingNumber,
         ];

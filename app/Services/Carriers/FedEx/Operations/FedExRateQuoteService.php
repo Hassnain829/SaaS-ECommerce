@@ -39,7 +39,7 @@ class FedExRateQuoteService
     ): array {
         $this->apiClient->assertMerchantCredentialsAccount($account);
 
-        if (! filled($account->provider_account_number)) {
+        if (! filled($account->fedExAccountNumber())) {
             $result = CarrierApiResult::failure(
                 message: 'FedEx account number is required before requesting a test quote.',
                 code: 'missing_account_number',
@@ -152,7 +152,7 @@ class FedExRateQuoteService
 
         $payload = [
             'accountNumber' => [
-                'value' => (string) $account->provider_account_number,
+                'value' => (string) ($account->fedExAccountNumber() ?? ''),
             ],
             'requestedShipment' => $requestedShipment,
         ];

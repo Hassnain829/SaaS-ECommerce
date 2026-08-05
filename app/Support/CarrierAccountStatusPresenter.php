@@ -165,7 +165,7 @@ final class CarrierAccountStatusPresenter
 
     public function maskedAccountNumberLabel(): ?string
     {
-        if (! $this->account->isFedEx() || ! filled($this->account->provider_account_number)) {
+        if (! $this->account->isFedEx() || $this->account->maskedAccountNumber() === '—') {
             return null;
         }
 

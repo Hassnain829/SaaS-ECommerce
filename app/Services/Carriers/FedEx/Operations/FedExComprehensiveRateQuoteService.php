@@ -35,7 +35,7 @@ class FedExComprehensiveRateQuoteService
         $endpoint = $this->config->comprehensiveRateQuotePath();
         $payload = $this->payloadFactory->build($account, $fixture, $shipDateStamp);
 
-        if (! filled($account->provider_account_number)) {
+        if (! filled($account->fedExAccountNumber())) {
             return new FedExComprehensiveRateResult(
                 successful: false,
                 httpStatus: null,

@@ -602,7 +602,7 @@ class FedExAccountRegistrationService
     public function registrationDetailsForAccount(CarrierAccount $account): array
     {
         return array_merge($account->registrationDetails(), [
-            'provider_account_number' => $account->provider_account_number
+            'provider_account_number' => $account->fedExAccountNumber()
                 ?: data_get($account->settings, 'registration.provider_account_number'),
             'residential' => (bool) data_get($account->settings, 'registration.residential', false),
         ]);
