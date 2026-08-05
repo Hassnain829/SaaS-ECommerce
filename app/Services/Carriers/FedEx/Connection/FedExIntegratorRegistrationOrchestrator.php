@@ -218,7 +218,9 @@ class FedExIntegratorRegistrationOrchestrator
             CarrierAccountRegistrationSession::STATUS_FAILED,
         ], true), 422);
 
-        $validation = $this->inputValidator->validate($input);
+        $validation = $this->inputValidator->validate($input, [
+            'environment' => $session->environment,
+        ]);
         if ($validation['errors'] !== []) {
             throw ValidationException::withMessages($validation['errors']);
         }

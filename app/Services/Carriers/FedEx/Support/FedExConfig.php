@@ -87,11 +87,112 @@ final class FedExConfig
 
     public function productionEnabled(): bool
     {
-        if (! filter_var(config('carriers.fedex.integrator_production_enabled', false), FILTER_VALIDATE_BOOL)) {
-            return false;
+        return $this->productionConfigurationErrors() === [];
+    }
+
+    /**
+     * ISO-2 countries allowed for live Model A merchant onboarding.
+     *
+     * @return list<string>
+     */
+    public function liveAllowedCountries(): array
+    {
+        $raw = (string) config('carriers.fedex.live_allowed_countries', 'US,CA');
+        $parts = preg_split('/[\s,]+/', strtoupper($raw)) ?: [];
+        $allowed = [];
+
+        foreach ($parts as $part) {
+            $code = trim((string) $part);
+            if ($code !== '' && preg_match('/^[A-Z]{2}$/', $code) && ! in_array($code, $allowed, true)) {
+                $allowed[] = $code;
+            }
         }
 
-        return $this->isConfigured(CarrierAccount::ENVIRONMENT_LIVE);
+        return $allowed;
+    }
+
+    public function isLiveCountryAllowed(string $countryCode): bool
+    {
+        return in_array(strtoupper(trim($countryCode)), $this->liveAllowedCountries(), true);
+    }
+
+    /**
+     * Human-readable blockers that prevent marking FedEx production ready.
+     * Does not enable production — Batch 7 / preflight only.
+     *
+     * @return list<string>
+     */
+    public function productionConfigurationErrors(): array
+    {
+        $errors = [];
+
+        if (! $this->isEnabled()) {
+            $errors[] = 'FEDEX_ENABLED must be true.';
+        }
+
+        if (! $this->modelAEnabled()) {
+            $errors[] = 'FEDEX_INTEGRATOR_MODEL_A_ENABLED must be true.';
+        }
+
+        if (! filter_var(config('carriers.fedex.integrator_production_enabled', false), FILTER_VALIDATE_BOOL)) {
+            $errors[] = 'FEDEX_INTEGRATOR_PRODUCTION_ENABLED must be true.';
+        }
+
+        if (! filled($this->parentClientId(CarrierAccount::ENVIRONMENT_LIVE))
+            || ! filled($this->parentClientSecret(CarrierAccount::ENVIRONMENT_LIVE))) {
+            $errors[] = 'FEDEX_LIVE_CLIENT_ID and FEDEX_LIVE_CLIENT_SECRET must be set.';
+        }
+
+        $liveBase = (string) config('carriers.fedex.live.base_url', '');
+        if ($liveBase !== 'https://apis.fedex.com') {
+            $errors[] = 'FEDEX_LIVE_BASE_URL must be https://apis.fedex.com.';
+        }
+
+        if ($this->modelBDeveloperFallbackEnabled()) {
+            $errors[] = 'Model B developer fallback must be disabled for production.';
+        }
+
+        if (filter_var(config('carriers.fedex.validation_mode_enabled', false), FILTER_VALIDATE_BOOL)) {
+            $errors[] = 'FEDEX_VALIDATION_MODE_ENABLED must be false for production.';
+        }
+
+        if (filter_var(config('carriers.fedex.sandbox_allow_platform_fallback', false), FILTER_VALIDATE_BOOL)) {
+            $errors[] = 'FEDEX_SANDBOX_ALLOW_PLATFORM_FALLBACK must be false for production.';
+        }
+
+        $rawCountries = trim((string) config('carriers.fedex.live_allowed_countries', 'US,CA'));
+        $configuredCountryTokens = $rawCountries === ''
+            ? []
+            : (preg_split('/[\s,]+/', strtoupper($rawCountries)) ?: []);
+        $countries = $this->liveAllowedCountries();
+
+        if ($configuredCountryTokens === [] || $countries === []) {
+            $errors[] = 'FEDEX_LIVE_ALLOWED_COUNTRIES must include at least one ISO-2 country.';
+        }
+
+        foreach ($configuredCountryTokens as $code) {
+            if (! preg_match('/^[A-Z]{2}$/', $code)) {
+                $errors[] = 'FEDEX_LIVE_ALLOWED_COUNTRIES contains an invalid ISO-2 code ('.$code.').';
+
+                continue;
+            }
+
+            if (! in_array($code, ['US', 'CA'], true)) {
+                $errors[] = 'Live-allowed countries are limited to US and CA (found '.$code.').';
+            }
+        }
+
+        return $errors;
+    }
+
+    public function assertProductionReady(): void
+    {
+        $errors = $this->productionConfigurationErrors();
+        if ($errors === []) {
+            return;
+        }
+
+        throw new \RuntimeException('FedEx production is not ready: '.implode(' ', $errors));
     }
 
     public function allowsIntegratorEnvironment(string $environment): bool

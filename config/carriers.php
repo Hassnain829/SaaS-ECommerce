@@ -10,6 +10,8 @@ return [
         'developer_mode_enabled' => filter_var(env('FEDEX_DEVELOPER_MODE_ENABLED', false), FILTER_VALIDATE_BOOL),
         'integrator_model_a_enabled' => filter_var(env('FEDEX_INTEGRATOR_MODEL_A_ENABLED', true), FILTER_VALIDATE_BOOL),
         'integrator_production_enabled' => filter_var(env('FEDEX_INTEGRATOR_PRODUCTION_ENABLED', false), FILTER_VALIDATE_BOOL),
+        // ISO-2 countries allowed for live Model A onboarding (comma-separated).
+        'live_allowed_countries' => env('FEDEX_LIVE_ALLOWED_COUNTRIES', 'US,CA'),
         'model_b_developer_fallback_enabled' => filter_var(env('FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED', false), FILTER_VALIDATE_BOOL),
         'validation_mode_enabled' => filter_var(env('FEDEX_VALIDATION_MODE_ENABLED', false), FILTER_VALIDATE_BOOL),
         // IntegratorUS07 dedicated Ground Economy / SmartPost account (workbook Test Account Numbers).

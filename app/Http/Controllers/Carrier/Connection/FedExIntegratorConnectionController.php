@@ -44,6 +44,7 @@ class FedExIntegratorConnectionController extends Controller
             'selectedStore' => $store,
             'locations' => $locations,
             'productionEnabled' => $config->productionEnabled(),
+            'defaultEnvironment' => CarrierAccount::ENVIRONMENT_SANDBOX,
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
         ]);
     }
@@ -66,7 +67,7 @@ class FedExIntegratorConnectionController extends Controller
             'environment' => ['nullable', Rule::in(['sandbox', 'live'])],
         ]);
 
-        $environment = $validated['environment'] ?? CarrierAccount::ENVIRONMENT_SANDBOX;
+        $environment = strtolower((string) ($validated['environment'] ?? CarrierAccount::ENVIRONMENT_SANDBOX));
         abort_unless($config->allowsIntegratorEnvironment($environment), 422);
 
         $session = $orchestrator->start(
@@ -206,6 +207,11 @@ class FedExIntegratorConnectionController extends Controller
             'session' => $session,
             'validationPrefill' => $config->validationModeEnabled() ? $fixtures->usValidationAccount() : null,
             'validationModeEnabled' => $config->validationModeEnabled(),
+            'countryOptions' => \App\Support\CarrierCountryOptions::fedExOptionsForContext($session->environment),
+            'defaultCountry' => \App\Support\CarrierCountryOptions::defaultFedExCountry(
+                $session->originLocation?->country_code
+                    ?? data_get($session->registrationAddress(), 'country_code')
+            ),
             'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
         ]);
     }
