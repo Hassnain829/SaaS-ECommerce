@@ -98,14 +98,16 @@ class FedExMerchantCredentialsOAuthService
     private function safeRequestSummary(CarrierAccount $account, string $environment): array
     {
         $clientId = (string) ($account->merchantFedExClientId() ?? '');
-        $accountNumber = (string) ($account->provider_account_number ?? '');
+        $accountNumber = (string) ($account->fedExAccountNumber() ?? '');
 
         return [
             'endpoint' => $this->config->oauthPath(),
             'environment' => $environment,
             'client_id_present' => $clientId !== '',
             'client_id_last4' => strlen($clientId) >= 4 ? substr($clientId, -4) : null,
-            'account_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
+            'account_last4' => filled($account->provider_account_last4)
+                ? (string) $account->provider_account_last4
+                : (strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null),
             'grant_type' => 'client_credentials',
             'credentials_mode' => 'merchant_developer',
         ];

@@ -61,7 +61,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
         }
 
         $account->loadMissing('store');
-        $accountNumber = (string) ($account->provider_account_number ?? '');
+        $accountNumber = (string) ($account->fedExAccountNumber() ?? '');
 
         $merchantEvent = $this->eventLogger->start(
             store: $account->store,
@@ -71,7 +71,9 @@ class FedExCarrierProvider implements CarrierProviderInterface
             requestSummary: [
                 'endpoint' => $this->config->oauthPath(),
                 'environment' => $account->environment,
-                'account_last4' => strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null,
+                'account_last4' => filled($account->provider_account_last4)
+                    ? (string) $account->provider_account_last4
+                    : (strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null),
                 'credentials_mode' => 'integrator_child',
             ],
             environment: $account->environment,
@@ -148,7 +150,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
             );
         }
 
-        if (! filled($account->provider_account_number)) {
+        if (! filled($account->fedExAccountNumber())) {
             return CarrierConnectionTestResult::failed(
                 'FedEx account number is required before testing the connection.',
                 'missing_account_number',
@@ -162,7 +164,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
         ];
 
         $clientId = (string) ($account->merchantFedExClientId() ?? '');
-        $accountNumber = (string) ($account->provider_account_number ?? '');
+        $accountNumber = (string) ($account->fedExAccountNumber() ?? '');
 
         $merchantEvent = $this->eventLogger->start(
             store: $account->store,

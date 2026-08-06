@@ -485,7 +485,7 @@ class FedExValidationWorkspaceController extends Controller
             return $masked;
         }
 
-        $number = (string) ($account->provider_account_number ?? '');
+        $number = (string) ($account->fedExAccountNumber() ?? '');
 
         return strlen($number) >= 4 ? '****'.substr($number, -4) : '****';
     }

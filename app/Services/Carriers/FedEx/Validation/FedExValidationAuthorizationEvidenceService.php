@@ -160,7 +160,11 @@ class FedExValidationAuthorizationEvidenceService
 
     private function accountLast4(CarrierAccount $account): ?string
     {
-        $accountNumber = (string) ($account->provider_account_number ?? '');
+        if (filled($account->provider_account_last4)) {
+            return (string) $account->provider_account_last4;
+        }
+
+        $accountNumber = (string) ($account->fedExAccountNumber() ?? '');
 
         return strlen($accountNumber) >= 4 ? substr($accountNumber, -4) : null;
     }

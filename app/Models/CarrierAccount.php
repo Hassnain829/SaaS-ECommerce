@@ -186,6 +186,7 @@ class CarrierAccount extends Model
         'connection_model',
         'fedex_integrator_account',
         'registration_session_id',
+        'fedex_active_store_key',
         'eula_accepted_at',
         'eula_version',
         'eula_document_hash',
@@ -202,6 +203,8 @@ class CarrierAccount extends Model
         'origin_validation_status',
         'origin_validation_summary',
         'provider_account_number',
+        'provider_account_number_encrypted',
+        'provider_account_last4',
         'status',
         'connection_status',
         'credentials_encrypted',
@@ -217,6 +220,7 @@ class CarrierAccount extends Model
 
     protected $casts = [
         'credentials_encrypted' => 'encrypted:array',
+        'provider_account_number_encrypted' => 'encrypted',
         'settings' => 'array',
         'capabilities' => 'array',
         'connection_context_json' => 'array',
@@ -230,6 +234,7 @@ class CarrierAccount extends Model
 
     protected $hidden = [
         'credentials_encrypted',
+        'provider_account_number_encrypted',
     ];
 
     public function store(): BelongsTo
@@ -639,8 +644,46 @@ class CarrierAccount extends Model
         ])->save();
     }
 
+    public static function fedExActiveStoreKeyFor(int $storeId, string $environment): string
+    {
+        return sprintf('store:%d:fedex:%s', $storeId, strtolower($environment));
+    }
+
+    public function setFedExAccountNumber(string $accountNumber): void
+    {
+        $digits = preg_replace('/\D+/', '', $accountNumber) ?? '';
+        $this->provider_account_number_encrypted = $digits !== '' ? $digits : null;
+        $this->provider_account_last4 = strlen($digits) >= 4 ? substr($digits, -4) : null;
+
+        if ($this->usesFedExIntegratorProvider() || (bool) $this->fedex_integrator_account) {
+            $this->provider_account_number = null;
+        }
+    }
+
+    public function fedExAccountNumber(): ?string
+    {
+        $encrypted = $this->provider_account_number_encrypted;
+        if (is_string($encrypted) && $encrypted !== '') {
+            return $encrypted;
+        }
+
+        $plaintext = (string) ($this->provider_account_number ?? '');
+
+        return $plaintext !== '' ? $plaintext : null;
+    }
+
     public function maskedAccountNumber(): string
     {
+        if (filled($this->provider_account_last4)) {
+            $last4 = (string) $this->provider_account_last4;
+            $full = $this->fedExAccountNumber();
+            $maskLength = ($full !== null && strlen($full) > 4)
+                ? strlen($full) - 4
+                : 5;
+
+            return str_repeat('*', max(1, $maskLength)).$last4;
+        }
+
         $number = (string) ($this->provider_account_number ?? '');
 
         if ($number === '') {
@@ -652,6 +695,31 @@ class CarrierAccount extends Model
         }
 
         return str_repeat('*', max(0, strlen($number) - 4)).substr($number, -4);
+    }
+
+    public function assignFedExActiveStoreKey(): void
+    {
+        if (! $this->usesFedExIntegratorProvider()) {
+            return;
+        }
+
+        $this->forceFill([
+            'fedex_active_store_key' => self::fedExActiveStoreKeyFor(
+                (int) $this->store_id,
+                (string) $this->environment,
+            ),
+        ])->save();
+    }
+
+    public function clearFedExActiveStoreKey(): void
+    {
+        if ($this->fedex_active_store_key === null) {
+            return;
+        }
+
+        $this->forceFill([
+            'fedex_active_store_key' => null,
+        ])->save();
     }
 
     /**

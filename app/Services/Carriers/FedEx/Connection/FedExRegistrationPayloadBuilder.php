@@ -16,7 +16,7 @@ final class FedExRegistrationPayloadBuilder
      */
     public function resolveAccountNumber(CarrierAccount $account, array $accountDetails): string
     {
-        $rawAccountNumber = $account->provider_account_number
+        $rawAccountNumber = $account->fedExAccountNumber()
             ?: data_get($account->settings, 'registration.provider_account_number')
             ?: data_get($accountDetails, 'provider_account_number')
             ?: data_get($accountDetails, 'account_number');

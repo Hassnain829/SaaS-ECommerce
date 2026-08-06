@@ -7,12 +7,12 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierAccountRegistrationSession;
 use App\Models\Location;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
+use App\Services\Carriers\FedEx\Connection\FedExConnectionFailurePresenter;
 use App\Services\Carriers\FedEx\Connection\FedExEulaService;
 use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceExporter;
-use App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +23,10 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FedExIntegratorConnectionController extends Controller
 {
+    public function __construct(
+        private readonly FedExConnectionFailurePresenter $failurePresenter,
+    ) {}
+
     public function start(Request $request, FedExConfig $config): View|RedirectResponse
     {
         $store = $this->resolveStore($request);
@@ -44,6 +48,7 @@ class FedExIntegratorConnectionController extends Controller
             'selectedStore' => $store,
             'locations' => $locations,
             'productionEnabled' => $config->productionEnabled(),
+            'defaultEnvironment' => CarrierAccount::ENVIRONMENT_SANDBOX,
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
         ]);
     }
@@ -66,7 +71,7 @@ class FedExIntegratorConnectionController extends Controller
             'environment' => ['nullable', Rule::in(['sandbox', 'live'])],
         ]);
 
-        $environment = $validated['environment'] ?? CarrierAccount::ENVIRONMENT_SANDBOX;
+        $environment = strtolower((string) ($validated['environment'] ?? CarrierAccount::ENVIRONMENT_SANDBOX));
         abort_unless($config->allowsIntegratorEnvironment($environment), 422);
 
         $session = $orchestrator->start(
@@ -206,6 +211,11 @@ class FedExIntegratorConnectionController extends Controller
             'session' => $session,
             'validationPrefill' => $config->validationModeEnabled() ? $fixtures->usValidationAccount() : null,
             'validationModeEnabled' => $config->validationModeEnabled(),
+            'countryOptions' => \App\Support\CarrierCountryOptions::fedExOptionsForContext($session->environment),
+            'defaultCountry' => \App\Support\CarrierCountryOptions::defaultFedExCountry(
+                $session->originLocation?->country_code
+                    ?? data_get($session->registrationAddress(), 'country_code')
+            ),
             'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
         ]);
     }
@@ -240,7 +250,7 @@ class FedExIntegratorConnectionController extends Controller
         }
 
         if ($session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED) {
-            return redirect()->route('settings.shipping.fedex-integrator.success', $session);
+            return $this->successRedirectOrRecovery($session);
         }
 
         return redirect()
@@ -255,7 +265,7 @@ class FedExIntegratorConnectionController extends Controller
         $this->resolveSessionForStore($request, $session);
 
         if ($session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED) {
-            return redirect()->route('settings.shipping.fedex-integrator.success', $session);
+            return $this->successRedirectOrRecovery($session);
         }
 
         if ($redirect = $this->mfaBlockedRedirect($session)) {
@@ -308,7 +318,7 @@ class FedExIntegratorConnectionController extends Controller
         $session = $orchestrator->verifyPin($session, $validated['pin']);
 
         if ($session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED) {
-            return redirect()->route('settings.shipping.fedex-integrator.success', $session);
+            return $this->successRedirectOrRecovery($session);
         }
 
         if ($redirect = $this->mfaBlockedRedirect($session)) {
@@ -338,7 +348,7 @@ class FedExIntegratorConnectionController extends Controller
         $session = $orchestrator->verifyInvoice($session, $validated);
 
         if ($session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED) {
-            return redirect()->route('settings.shipping.fedex-integrator.success', $session);
+            return $this->successRedirectOrRecovery($session);
         }
 
         if ($redirect = $this->mfaBlockedRedirect($session)) {
@@ -350,10 +360,14 @@ class FedExIntegratorConnectionController extends Controller
             ->withErrors(['invoice_number' => $this->customerFacingFailureMessage($session, 'Invoice verification failed.')]);
     }
 
-    public function success(Request $request, CarrierAccountRegistrationSession $session): View
+    public function success(Request $request, CarrierAccountRegistrationSession $session): View|RedirectResponse
     {
         $this->resolveSessionForStore($request, $session);
         $account = $session->carrierAccount;
+
+        if (! $this->hasVerifiedSuccessfulConnection($session)) {
+            return $this->recoveryRedirect($session);
+        }
 
         $directChildAuthorization =
             $session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED
@@ -440,6 +454,7 @@ class FedExIntegratorConnectionController extends Controller
     {
         if (! in_array($session->status, [
             CarrierAccountRegistrationSession::STATUS_FAILED,
+            CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
             CarrierAccountRegistrationSession::STATUS_LOCKED,
         ], true)) {
             return null;
@@ -455,13 +470,46 @@ class FedExIntegratorConnectionController extends Controller
         CarrierAccountRegistrationSession $session,
         string $fallback = 'FedEx verification could not continue. Start a new connection from Shipping & Delivery.',
     ): string {
-        if (in_array($session->status, [
-            CarrierAccountRegistrationSession::STATUS_FAILED,
-            CarrierAccountRegistrationSession::STATUS_LOCKED,
-        ], true)) {
-            return FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE;
+        return $session->last_error_message
+            ?: $this->failurePresenter->message(
+                $session,
+                $session->last_error_code,
+                $fallback,
+            );
+    }
+
+    private function successRedirectOrRecovery(
+        CarrierAccountRegistrationSession $session,
+    ): RedirectResponse {
+        if ($this->hasVerifiedSuccessfulConnection($session)) {
+            return redirect()->route('settings.shipping.fedex-integrator.success', $session);
         }
 
-        return (string) ($session->last_error_message ?: $fallback);
+        return $this->recoveryRedirect($session);
+    }
+
+    private function recoveryRedirect(
+        CarrierAccountRegistrationSession $session,
+    ): RedirectResponse {
+        return redirect()
+            ->route('settings.shipping.fedex-integrator.account', $session)
+            ->withErrors([
+                'registration' => $this->customerFacingFailureMessage(
+                    $session,
+                    'FedEx account verification is not complete. Review the connection details and try again.',
+                ),
+            ])
+            ->with('error_title', 'FedEx verification');
+    }
+
+    private function hasVerifiedSuccessfulConnection(
+        CarrierAccountRegistrationSession $session,
+    ): bool {
+        $account = $session->carrierAccount;
+
+        return $session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED
+            && $account !== null
+            && $account->isConnected()
+            && $account->hasLegacyFedExChildCredentials();
     }
 }

@@ -59,7 +59,7 @@ final class FedExComprehensiveRatePayloadFactory
 
         $payload = [
             'accountNumber' => [
-                'value' => (string) $account->provider_account_number,
+                'value' => (string) ($account->fedExAccountNumber() ?? ''),
             ],
             'rateRequestControlParameters' => [
                 'returnTransitTimes' => (bool) ($fixture['return_transit_times'] ?? true),

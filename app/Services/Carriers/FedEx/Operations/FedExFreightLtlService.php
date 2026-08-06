@@ -303,9 +303,10 @@ class FedExFreightLtlService
             'FEDEX_VALIDATION_US08_FREIGHT_ACCOUNT is required before running IntegratorUS08. Configure the dedicated Freight LTL account from the workbook.',
         );
 
-        $connectedLast4 = is_string($account->provider_account_number) && strlen((string) $account->provider_account_number) >= 4
-            ? substr((string) $account->provider_account_number, -4)
-            : null;
+        $fullNumber = (string) ($account->fedExAccountNumber() ?? '');
+        $connectedLast4 = filled($account->provider_account_last4)
+            ? (string) $account->provider_account_last4
+            : (strlen($fullNumber) >= 4 ? substr($fullNumber, -4) : null);
         $freightLast4 = strlen($freightAccount) >= 4 ? substr($freightAccount, -4) : null;
 
         // Freight account fields must all be the dedicated US08 freight account (not the parcel shipper account).

@@ -199,6 +199,36 @@ class ProductsListUxTest extends TestCase
             ->assertDontSeeText('Other Shirt');
     }
 
+    public function test_category_filter_shows_product_counts(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $category = \App\Models\Category::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Counted Cats',
+            'slug' => 'counted-cats-'.Str::random(4),
+            'status' => 'active',
+            'sort_order' => 1,
+        ]);
+        $first = $this->makeProduct($store, 'Cat Product One');
+        $second = $this->makeProduct($store, 'Cat Product Two');
+        $first->categories()->attach($category->id);
+        $second->categories()->attach($category->id);
+        $this->makeProduct($store, 'Uncategorized Product');
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products'))
+            ->assertOk()
+            ->getContent() ?: '';
+
+        $this->assertStringContainsString('Counted Cats', $html);
+        $this->assertStringContainsString('data-label="Counted Cats (2)"', $html);
+        $this->assertMatchesRegularExpression(
+            '/data-value="'.$category->id.'"[^>]*>[\s\S]*?Counted Cats[\s\S]*?>2</',
+            $html
+        );
+    }
+
     public function test_pagination_per_page_and_page_links_respect_query_string(): void
     {
         [$owner, $store] = $this->ownerStore();
