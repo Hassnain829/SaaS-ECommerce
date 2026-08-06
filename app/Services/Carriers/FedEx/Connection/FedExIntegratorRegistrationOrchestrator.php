@@ -600,8 +600,100 @@ class FedExIntegratorRegistrationOrchestrator
     }
 
     /**
-     * Transaction B: lock session + account, activate on OAuth success or mark failed.
-     * Assigns fedex_active_store_key only on successful activation. Never replaces an existing active account.
+     * Resume child OAuth only — never re-runs Credential Registration.
+     *
+     * Completed registered sessions (including successful reconnect) are idempotent no-ops
+     * when the incoming account owns the exact expected active key. Outgoing replacement
+     * state is intentionally not re-validated after registration completes.
+     */
+    public function resumeChildOAuthVerification(
+        Store $store,
+        CarrierAccountRegistrationSession $session,
+    ): CarrierAccountRegistrationSession {
+        abort_unless((int) $session->store_id === (int) $store->id, 404);
+        abort_unless(
+            $session->provider === CarrierAccountRegistrationSession::PROVIDER_FEDEX
+            && $session->connection_model === CarrierAccountRegistrationSession::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
+            404,
+        );
+
+        $resumable = [
+            CarrierAccountRegistrationSession::STATUS_CREDENTIALS_ISSUED,
+            CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_VERIFYING,
+            CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
+            CarrierAccountRegistrationSession::STATUS_REGISTERED,
+        ];
+        abort_unless(in_array($session->status, $resumable, true), 422);
+
+        $account = CarrierAccount::query()
+            ->whereKey((int) $session->carrier_account_id)
+            ->first();
+        abort_unless($account !== null, 422);
+        abort_unless((int) $session->carrier_account_id === (int) $account->id, 422);
+        abort_unless((int) $account->registration_session_id === (int) $session->id, 422);
+        abort_unless((int) $account->store_id === (int) $store->id, 404);
+        abort_unless((int) $account->store_id === (int) $session->store_id, 404);
+        abort_unless($account->usesFedExIntegratorProvider(), 404);
+        abort_unless($account->disconnected_at === null && $account->replaced_at === null, 422);
+        abort_unless(
+            strtolower((string) $account->environment) === strtolower((string) $session->environment),
+            422,
+        );
+
+        $expectedIncomingKey = CarrierAccount::fedExActiveStoreKeyFor(
+            (int) $store->id,
+            (string) $session->environment,
+        );
+
+        // Completed registration/reconnect: idempotent return before any outgoing checks or OAuth.
+        if ($session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED) {
+            abort_unless($account->isConnected(), 422);
+            abort_unless($account->fedex_active_store_key === $expectedIncomingKey, 422);
+
+            return $session->refresh();
+        }
+
+        abort_unless($account->hasLegacyFedExChildCredentials(), 422);
+
+        $replacingId = (int) ($session->replacing_carrier_account_id ?? 0);
+        if ($replacingId > 0) {
+            $outgoing = CarrierAccount::query()->whereKey($replacingId)->first();
+            abort_unless($outgoing !== null, 422);
+            abort_unless((int) $outgoing->store_id === (int) $store->id, 404);
+            abort_unless($outgoing->usesFedExIntegratorProvider(), 422);
+            abort_unless(
+                strtolower((string) $outgoing->environment) === strtolower((string) $session->environment),
+                422,
+            );
+            abort_unless($outgoing->fedex_active_store_key === $expectedIncomingKey, 422);
+            abort_unless($outgoing->disconnected_at === null && $outgoing->replaced_at === null, 422);
+            abort_unless((int) $outgoing->id !== (int) $account->id, 422);
+        }
+
+        $session->forceFill([
+            'status' => CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_VERIFYING,
+            'completed_at' => null,
+            'last_error_code' => null,
+            'last_error_message' => null,
+        ])->save();
+
+        $oauthCheck = $this->childOAuth->fetchTokenResult($account->refresh(), fresh: true);
+
+        $registrationResult = CarrierApiResult::success(
+            data: null,
+            requestSummary: is_array($session->request_summary_json) ? $session->request_summary_json : [],
+            responseSummary: is_array($session->response_summary_json) ? $session->response_summary_json : [],
+        );
+
+        $this->finalizeChildOAuthOutcome($session->refresh(), $account->refresh(), $registrationResult, $oauthCheck);
+
+        return $session->refresh();
+    }
+
+    /**
+     * Transaction B: lock session, then accounts in sorted ID order, activate or fail.
+     * Assigns fedex_active_store_key only on successful activation.
+     * Reconnect replacement is atomic; unique-key / activation failures roll back retirement.
      */
     private function finalizeChildOAuthOutcome(
         CarrierAccountRegistrationSession $session,
@@ -609,138 +701,223 @@ class FedExIntegratorRegistrationOrchestrator
         CarrierApiResult $registrationResult,
         CarrierApiResult $oauthCheck,
     ): CarrierAccount {
-        $finalAccount = DB::transaction(function () use ($session, $account, $oauthCheck): CarrierAccount {
-            /** @var CarrierAccountRegistrationSession $lockedSession */
-            $lockedSession = CarrierAccountRegistrationSession::query()
-                ->whereKey($session->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+        $outgoingTokenCacheKey = null;
 
-            /** @var CarrierAccount $lockedAccount */
-            $lockedAccount = CarrierAccount::query()
-                ->whereKey($account->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+        try {
+            $finalAccount = DB::transaction(function () use ($session, $account, $oauthCheck, &$outgoingTokenCacheKey): CarrierAccount {
+                /** @var CarrierAccountRegistrationSession $lockedSession */
+                $lockedSession = CarrierAccountRegistrationSession::query()
+                    ->whereKey($session->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
-            if ((int) $lockedSession->carrier_account_id !== (int) $lockedAccount->id
-                || (int) $lockedAccount->registration_session_id !== (int) $lockedSession->id
-            ) {
-                throw ValidationException::withMessages([
-                    'registration' => 'FedEx registration session and carrier account are out of sync.',
-                ]);
-            }
+                $incomingId = (int) ($lockedSession->carrier_account_id ?? 0);
+                $replacingId = (int) ($lockedSession->replacing_carrier_account_id ?? 0);
 
-            if (
-                $lockedSession->status === CarrierAccountRegistrationSession::STATUS_REGISTERED
-                && $lockedAccount->isConnected()
-                && filled($lockedAccount->fedex_active_store_key)
-            ) {
-                $lockedSession->clearTransientFedExSecrets();
+                if ($incomingId <= 0 || $incomingId !== (int) $account->id) {
+                    throw ValidationException::withMessages([
+                        'registration' => 'FedEx registration session and carrier account are out of sync.',
+                    ]);
+                }
+
+                if (
+                    $lockedSession->status === CarrierAccountRegistrationSession::STATUS_REGISTERED
+                ) {
+                    /** @var CarrierAccount $already */
+                    $already = CarrierAccount::query()
+                        ->whereKey($incomingId)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    if ($already->isConnected() && filled($already->fedex_active_store_key)) {
+                        if ((int) $already->registration_session_id !== (int) $lockedSession->id) {
+                            throw ValidationException::withMessages([
+                                'registration' => 'FedEx registration session and carrier account are out of sync.',
+                            ]);
+                        }
+                        $lockedSession->clearTransientFedExSecrets();
+
+                        return $already->refresh();
+                    }
+                }
+
+                $expectedStatuses = [
+                    CarrierAccountRegistrationSession::STATUS_CREDENTIALS_ISSUED,
+                    CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_VERIFYING,
+                    CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
+                ];
+                if (! in_array($lockedSession->status, $expectedStatuses, true)
+                    && $lockedSession->status !== CarrierAccountRegistrationSession::STATUS_REGISTERED
+                ) {
+                    throw ValidationException::withMessages([
+                        'registration' => 'FedEx registration session is not ready for child OAuth finalization.',
+                    ]);
+                }
+
+                if ($replacingId > 0) {
+                    if ($replacingId === $incomingId) {
+                        throw ValidationException::withMessages([
+                            'registration' => $this->failurePresenter->message(
+                                $lockedSession,
+                                'fedex_reconnect_same_account',
+                                'FedEx reconnect cannot replace an account with itself. Start reconnect again.',
+                            ),
+                        ]);
+                    }
+
+                    $sortedIds = [$incomingId, $replacingId];
+                    sort($sortedIds, SORT_NUMERIC);
+
+                    $lockedById = [];
+                    foreach ($sortedIds as $id) {
+                        $lockedById[$id] = CarrierAccount::query()
+                            ->whereKey($id)
+                            ->lockForUpdate()
+                            ->first();
+                    }
+
+                    $incoming = $lockedById[$incomingId] ?? null;
+                    $outgoing = $lockedById[$replacingId] ?? null;
+
+                    if ($incoming === null || $outgoing === null) {
+                        if ($incoming !== null) {
+                            $this->failIncomingReplacement(
+                                $lockedSession,
+                                $incoming,
+                                'fedex_reconnect_target_missing',
+                                'The FedEx account you are replacing is no longer available. Start reconnect again.',
+                            );
+
+                            return $incoming->refresh();
+                        }
+
+                        throw ValidationException::withMessages([
+                            'registration' => 'FedEx reconnect accounts are no longer available.',
+                        ]);
+                    }
+
+                    if ((int) $incoming->registration_session_id !== (int) $lockedSession->id
+                        || (int) $lockedSession->carrier_account_id !== (int) $incoming->id
+                    ) {
+                        throw ValidationException::withMessages([
+                            'registration' => 'FedEx registration session and carrier account are out of sync.',
+                        ]);
+                    }
+
+                    if (! $oauthCheck->success) {
+                        $this->markChildOAuthFailed($lockedSession, $incoming, $oauthCheck);
+                        $incoming->clearFedExActiveStoreKey();
+                        $lockedSession->clearTransientFedExSecrets();
+
+                        return $incoming->refresh();
+                    }
+
+                    $activeKey = CarrierAccount::fedExActiveStoreKeyFor(
+                        (int) $incoming->store_id,
+                        (string) $incoming->environment,
+                    );
+
+                    $this->assertAndApplyReconnectReplacement(
+                        $lockedSession,
+                        $incoming,
+                        $outgoing,
+                        $activeKey,
+                        $outgoingTokenCacheKey,
+                    );
+
+                    return $incoming->refresh();
+                }
+
+                /** @var CarrierAccount $lockedAccount */
+                $lockedAccount = CarrierAccount::query()
+                    ->whereKey($incomingId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ((int) $lockedAccount->registration_session_id !== (int) $lockedSession->id) {
+                    throw ValidationException::withMessages([
+                        'registration' => 'FedEx registration session and carrier account are out of sync.',
+                    ]);
+                }
+
+                if (! in_array($lockedSession->status, $expectedStatuses, true)) {
+                    throw ValidationException::withMessages([
+                        'registration' => 'FedEx registration session is not ready for child OAuth finalization.',
+                    ]);
+                }
+
+                if (! $oauthCheck->success) {
+                    $this->markChildOAuthFailed($lockedSession, $lockedAccount, $oauthCheck);
+                    $lockedAccount->clearFedExActiveStoreKey();
+                    $lockedSession->clearTransientFedExSecrets();
+
+                    return $lockedAccount->refresh();
+                }
+
+                $activeKey = CarrierAccount::fedExActiveStoreKeyFor(
+                    (int) $lockedAccount->store_id,
+                    (string) $lockedAccount->environment,
+                );
+
+                $existingActive = CarrierAccount::query()
+                    ->where('fedex_active_store_key', $activeKey)
+                    ->where('id', '!=', $lockedAccount->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existingActive !== null) {
+                    $message = $this->failurePresenter->message(
+                        $lockedSession,
+                        'fedex_active_account_exists',
+                        'A FedEx account is already active for this store and environment.',
+                    );
+                    $lockedAccount->markFailed($message, 'fedex_active_account_exists');
+                    $lockedAccount->clearFedExActiveStoreKey();
+                    $lockedSession->forceFill([
+                        'status' => CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
+                        'completed_at' => null,
+                        'last_error_code' => 'fedex_active_account_exists',
+                        'last_error_message' => $message,
+                    ])->save();
+                    $lockedSession->clearTransientFedExSecrets();
+
+                    return $lockedAccount->refresh();
+                }
+
+                $this->activateIncomingAccount($lockedAccount, $lockedSession, $activeKey, throwOnFailure: false);
 
                 return $lockedAccount->refresh();
-            }
+            });
+        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+            $this->markActivationConflictAfterRollback($session, $account);
 
-            $expectedStatuses = [
-                CarrierAccountRegistrationSession::STATUS_CREDENTIALS_ISSUED,
-                CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_VERIFYING,
-                CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
-            ];
-            if (! in_array($lockedSession->status, $expectedStatuses, true)) {
-                throw ValidationException::withMessages([
-                    'registration' => 'FedEx registration session is not ready for child OAuth finalization.',
-                ]);
-            }
-
-            if (! $oauthCheck->success) {
-                $this->markChildOAuthFailed($lockedSession, $lockedAccount, $oauthCheck);
-                $lockedAccount->clearFedExActiveStoreKey();
-                $lockedSession->clearTransientFedExSecrets();
-
-                return $lockedAccount->refresh();
-            }
-
-            $activeKey = CarrierAccount::fedExActiveStoreKeyFor(
-                (int) $lockedAccount->store_id,
-                (string) $lockedAccount->environment,
+            throw ValidationException::withMessages([
+                'registration' => $this->failurePresenter->message(
+                    $session->refresh(),
+                    'fedex_active_account_exists',
+                    'A FedEx account is already active for this store and environment.',
+                ),
+            ]);
+        } catch (FedExReplacementRollbackException $exception) {
+            $this->markActivationConflictAfterRollback(
+                $session,
+                $account,
+                $exception->errorCode,
+                $exception->fallbackMessage,
             );
-            $existingActive = CarrierAccount::query()
-                ->where('fedex_active_store_key', $activeKey)
-                ->where('id', '!=', $lockedAccount->id)
-                ->lockForUpdate()
-                ->first();
 
-            if ($existingActive !== null) {
-                $message = $this->failurePresenter->message(
-                    $lockedSession,
-                    'fedex_active_account_exists',
-                    'A FedEx account is already active for this store and environment.',
-                );
-                $lockedAccount->markFailed($message, 'fedex_active_account_exists');
-                $lockedAccount->clearFedExActiveStoreKey();
-                $lockedSession->forceFill([
-                    'status' => CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
-                    'completed_at' => null,
-                    'last_error_code' => 'fedex_active_account_exists',
-                    'last_error_message' => $message,
-                ])->save();
-                $lockedSession->clearTransientFedExSecrets();
+            throw ValidationException::withMessages([
+                'registration' => $this->failurePresenter->message(
+                    $session->refresh(),
+                    $exception->errorCode,
+                    $exception->fallbackMessage,
+                ),
+            ]);
+        }
 
-                return $lockedAccount->refresh();
-            }
-
-            $lockedAccount->markConnected($lockedAccount->capabilities ?? []);
-            $lockedAccount->refresh();
-
-            if (! $lockedAccount->isConnected() || ! $lockedAccount->hasLegacyFedExChildCredentials()) {
-                $message = $this->failurePresenter->message(
-                    $lockedSession,
-                    'child_oauth_activation_failed',
-                    'FedEx child OAuth succeeded but the account did not reach connected state.',
-                );
-                $lockedAccount->markFailed($message, 'child_oauth_activation_failed');
-                $lockedAccount->clearFedExActiveStoreKey();
-                $lockedSession->forceFill([
-                    'status' => CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
-                    'completed_at' => null,
-                    'last_error_code' => 'child_oauth_activation_failed',
-                    'last_error_message' => $message,
-                ])->save();
-                $lockedSession->clearTransientFedExSecrets();
-
-                return $lockedAccount->refresh();
-            }
-
-            try {
-                $lockedAccount->assignFedExActiveStoreKey();
-            } catch (\Illuminate\Database\UniqueConstraintViolationException) {
-                $message = $this->failurePresenter->message(
-                    $lockedSession,
-                    'fedex_active_account_exists',
-                    'A FedEx account is already active for this store and environment.',
-                );
-                $lockedAccount->markFailed($message, 'fedex_active_account_exists');
-                $lockedAccount->clearFedExActiveStoreKey();
-                $lockedSession->forceFill([
-                    'status' => CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
-                    'completed_at' => null,
-                    'last_error_code' => 'fedex_active_account_exists',
-                    'last_error_message' => $message,
-                ])->save();
-                $lockedSession->clearTransientFedExSecrets();
-
-                return $lockedAccount->refresh();
-            }
-
-            $lockedSession->forceFill([
-                'status' => CarrierAccountRegistrationSession::STATUS_REGISTERED,
-                'completed_at' => now(),
-                'last_error_code' => null,
-                'last_error_message' => null,
-            ])->save();
-            $lockedSession->clearTransientFedExSecrets();
-
-            return $lockedAccount->refresh();
-        });
+        if (is_string($outgoingTokenCacheKey) && $outgoingTokenCacheKey !== '') {
+            $this->childOAuth->clearTokenCacheKey($outgoingTokenCacheKey);
+        }
 
         $session->refresh();
         $store = $session->store;
@@ -764,6 +941,300 @@ class FedExIntegratorRegistrationOrchestrator
         $this->registrationEventLinker->linkSessionEventsToAccount($finalAccount, $session);
 
         return $finalAccount->refresh();
+    }
+
+    /**
+     * Incoming and outgoing accounts must already be locked in sorted ID order.
+     * All pairing / tenancy / credential / active-key checks run before any retirement mutation.
+     *
+     * @param-out string|null $outgoingTokenCacheKey
+     */
+    private function assertAndApplyReconnectReplacement(
+        CarrierAccountRegistrationSession $lockedSession,
+        CarrierAccount $incoming,
+        CarrierAccount $outgoing,
+        string $activeKey,
+        ?string &$outgoingTokenCacheKey,
+    ): void {
+        $failIncomingOnly = function (string $code, string $fallback) use ($lockedSession, $incoming): void {
+            $this->failIncomingReplacement($lockedSession, $incoming, $code, $fallback);
+        };
+
+        if ((int) $incoming->id === (int) $outgoing->id) {
+            $failIncomingOnly(
+                'fedex_reconnect_same_account',
+                'FedEx reconnect cannot replace an account with itself. Start reconnect again.',
+            );
+
+            return;
+        }
+
+        if (! $this->incomingReadyForActivation($lockedSession, $incoming, $activeKey)) {
+            return;
+        }
+
+        if (! $outgoing->usesFedExIntegratorProvider() || ! $incoming->usesFedExIntegratorProvider()) {
+            $failIncomingOnly('fedex_reconnect_model_mismatch', 'FedEx reconnect requires Model A accounts on both sides.');
+
+            return;
+        }
+
+        if ((int) $outgoing->store_id !== (int) $incoming->store_id
+            || (int) $outgoing->store_id !== (int) $lockedSession->store_id
+        ) {
+            $failIncomingOnly('fedex_reconnect_store_mismatch', 'FedEx reconnect accounts must belong to the same store.');
+
+            return;
+        }
+
+        if (strtolower((string) $outgoing->environment) !== strtolower((string) $incoming->environment)
+            || strtolower((string) $outgoing->environment) !== strtolower((string) $lockedSession->environment)
+        ) {
+            $failIncomingOnly('fedex_reconnect_environment_mismatch', 'FedEx reconnect accounts must use the same environment.');
+
+            return;
+        }
+
+        if ($outgoing->disconnected_at !== null || $outgoing->replaced_at !== null) {
+            $failIncomingOnly('fedex_reconnect_outgoing_inactive', 'The previous FedEx account is no longer active. Start reconnect again.');
+
+            return;
+        }
+
+        if ($outgoing->fedex_active_store_key !== $activeKey) {
+            $failIncomingOnly('fedex_reconnect_outgoing_key_mismatch', 'The previous FedEx account is not the active connection. Start reconnect again.');
+
+            return;
+        }
+
+        if ((int) ($lockedSession->replacing_carrier_account_id ?? 0) !== (int) $outgoing->id) {
+            $failIncomingOnly('fedex_reconnect_target_stale', 'This reconnect session no longer matches the active FedEx account. Start reconnect again.');
+
+            return;
+        }
+
+        $third = CarrierAccount::query()
+            ->where('fedex_active_store_key', $activeKey)
+            ->whereNotIn('id', [(int) $outgoing->id, (int) $incoming->id])
+            ->lockForUpdate()
+            ->first();
+
+        if ($third !== null) {
+            $failIncomingOnly('fedex_active_account_exists', 'Another FedEx account already holds the active connection for this store.');
+
+            return;
+        }
+
+        if ($outgoing->hasLegacyFedExChildCredentials()) {
+            $outgoingTokenCacheKey = $this->childOAuth->tokenCacheKey($outgoing);
+        }
+
+        // From this point, any failure must roll back the entire replacement transaction.
+        $this->retireReplacedAccount($outgoing, $incoming);
+        $this->activateIncomingAccount($incoming, $lockedSession, $activeKey, throwOnFailure: true);
+    }
+
+    /**
+     * Validates incoming account before any outgoing retirement. On failure, marks incoming only.
+     */
+    private function incomingReadyForActivation(
+        CarrierAccountRegistrationSession $lockedSession,
+        CarrierAccount $incoming,
+        string $activeKey,
+    ): bool {
+        $fail = function (string $code, string $fallback) use ($lockedSession, $incoming): void {
+            $this->failIncomingReplacement($lockedSession, $incoming, $code, $fallback);
+        };
+
+        if ($incoming->disconnected_at !== null) {
+            $fail('fedex_reconnect_incoming_disconnected', 'The new FedEx connection was disconnected before it could activate. Start reconnect again.');
+
+            return false;
+        }
+
+        if ($incoming->replaced_at !== null || $incoming->replaced_by_carrier_account_id !== null) {
+            $fail('fedex_reconnect_incoming_replaced', 'The new FedEx connection was already replaced. Start reconnect again.');
+
+            return false;
+        }
+
+        if (! $incoming->hasLegacyFedExChildCredentials()) {
+            $fail('child_credentials_missing', 'FedEx child credentials are missing on the new connection. Start reconnect again.');
+
+            return false;
+        }
+
+        if (filled($incoming->fedex_active_store_key)) {
+            $fail('fedex_reconnect_incoming_already_active', 'The new FedEx connection is already active. Refresh Shipping & Delivery.');
+
+            return false;
+        }
+
+        $allowedStatuses = [
+            CarrierAccount::CONNECTION_SETUP_REQUIRED,
+            CarrierAccount::CONNECTION_PENDING_VALIDATION,
+            CarrierAccount::CONNECTION_FAILED,
+            CarrierAccount::CONNECTION_NOT_CONNECTED,
+        ];
+        if (! in_array((string) $incoming->connection_status, $allowedStatuses, true)) {
+            $fail('fedex_reconnect_incoming_state', 'The new FedEx connection is not ready to activate. Start reconnect again.');
+
+            return false;
+        }
+
+        if (! $incoming->usesFedExIntegratorProvider()) {
+            $fail('fedex_reconnect_model_mismatch', 'FedEx reconnect requires Model A accounts on both sides.');
+
+            return false;
+        }
+
+        if ((int) $incoming->store_id !== (int) $lockedSession->store_id) {
+            $fail('fedex_reconnect_store_mismatch', 'FedEx reconnect accounts must belong to the same store.');
+
+            return false;
+        }
+
+        if (strtolower((string) $incoming->environment) !== strtolower((string) $lockedSession->environment)) {
+            $fail('fedex_reconnect_environment_mismatch', 'FedEx reconnect accounts must use the same environment.');
+
+            return false;
+        }
+
+        if ((int) $lockedSession->carrier_account_id !== (int) $incoming->id
+            || (int) $incoming->registration_session_id !== (int) $lockedSession->id
+        ) {
+            $fail('fedex_reconnect_session_pairing', 'FedEx registration session and carrier account are out of sync.');
+
+            return false;
+        }
+
+        // Ensure expected key format matches store/environment of the incoming account.
+        $expected = CarrierAccount::fedExActiveStoreKeyFor(
+            (int) $incoming->store_id,
+            (string) $incoming->environment,
+        );
+        if ($expected !== $activeKey) {
+            $fail('fedex_reconnect_key_mismatch', 'FedEx reconnect active key does not match this store. Start reconnect again.');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function activateIncomingAccount(
+        CarrierAccount $lockedAccount,
+        CarrierAccountRegistrationSession $lockedSession,
+        string $activeKey,
+        bool $throwOnFailure = false,
+    ): void {
+        $capabilities = is_array($lockedAccount->capabilities) ? $lockedAccount->capabilities : [];
+        $capabilities = array_merge($capabilities, [
+            'rates' => false,
+            'labels' => false,
+            'tracking' => false,
+            'pickup' => false,
+            'checkout_rates' => false,
+        ]);
+
+        $lockedAccount->markConnected($capabilities);
+        $lockedAccount->refresh();
+
+        if (! $lockedAccount->isConnected() || ! $lockedAccount->hasLegacyFedExChildCredentials()) {
+            if ($throwOnFailure) {
+                throw new FedExReplacementRollbackException(
+                    'child_oauth_activation_failed',
+                    'FedEx child OAuth succeeded but the account did not reach connected state.',
+                );
+            }
+
+            $message = $this->failurePresenter->message(
+                $lockedSession,
+                'child_oauth_activation_failed',
+                'FedEx child OAuth succeeded but the account did not reach connected state.',
+            );
+            $lockedAccount->markFailed($message, 'child_oauth_activation_failed');
+            $lockedAccount->clearFedExActiveStoreKey();
+            $lockedSession->forceFill([
+                'status' => CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
+                'completed_at' => null,
+                'last_error_code' => 'child_oauth_activation_failed',
+                'last_error_message' => $message,
+            ])->save();
+            $lockedSession->clearTransientFedExSecrets();
+
+            return;
+        }
+
+        $lockedAccount->forceFill([
+            'fedex_active_store_key' => $activeKey,
+            'enabled_for_checkout' => false,
+            'capabilities' => $capabilities,
+        ])->save();
+
+        $lockedSession->forceFill([
+            'status' => CarrierAccountRegistrationSession::STATUS_REGISTERED,
+            'completed_at' => now(),
+            'last_error_code' => null,
+            'last_error_message' => null,
+        ])->save();
+        $lockedSession->clearTransientFedExSecrets();
+    }
+
+    private function failIncomingReplacement(
+        CarrierAccountRegistrationSession $lockedSession,
+        CarrierAccount $lockedAccount,
+        string $code,
+        string $fallback,
+    ): void {
+        $message = $this->failurePresenter->message($lockedSession, $code, $fallback);
+        $lockedAccount->markFailed($message, $code);
+        $lockedAccount->clearFedExActiveStoreKey();
+        $lockedSession->forceFill([
+            'status' => CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
+            'completed_at' => null,
+            'last_error_code' => $code,
+            'last_error_message' => $message,
+        ])->save();
+        $lockedSession->clearTransientFedExSecrets();
+    }
+
+    private function markActivationConflictAfterRollback(
+        CarrierAccountRegistrationSession $session,
+        CarrierAccount $account,
+        string $code = 'fedex_active_account_exists',
+        string $fallback = 'A FedEx account is already active for this store and environment.',
+    ): void {
+        DB::transaction(function () use ($session, $account, $code, $fallback): void {
+            $lockedSession = CarrierAccountRegistrationSession::query()
+                ->whereKey($session->id)
+                ->lockForUpdate()
+                ->first();
+            $lockedAccount = CarrierAccount::query()
+                ->whereKey($account->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($lockedSession === null || $lockedAccount === null) {
+                return;
+            }
+
+            // Never mutate an account that still owns the active key after a rolled-back replacement.
+            if (filled($lockedAccount->fedex_active_store_key) && $lockedAccount->isConnected()) {
+                return;
+            }
+
+            $message = $this->failurePresenter->message($lockedSession, $code, $fallback);
+            $lockedAccount->markFailed($message, $code);
+            $lockedAccount->clearFedExActiveStoreKey();
+            $lockedSession->forceFill([
+                'status' => CarrierAccountRegistrationSession::STATUS_CHILD_OAUTH_FAILED,
+                'completed_at' => null,
+                'last_error_code' => $code,
+                'last_error_message' => $message,
+            ])->save();
+            $lockedSession->clearTransientFedExSecrets();
+        });
     }
 
     public function cancel(CarrierAccountRegistrationSession $session): void
@@ -829,6 +1300,34 @@ class FedExIntegratorRegistrationOrchestrator
             $result->requestSummary,
             $result->responseSummary,
         );
+    }
+
+    private function retireReplacedAccount(CarrierAccount $outgoing, CarrierAccount $incoming): void
+    {
+        $capabilities = is_array($outgoing->capabilities) ? $outgoing->capabilities : [];
+        $capabilities = array_merge($capabilities, [
+            'rates' => false,
+            'labels' => false,
+            'tracking' => false,
+            'pickup' => false,
+            'checkout_rates' => false,
+        ]);
+
+        $outgoing->forceFill([
+            'connection_status' => CarrierAccount::CONNECTION_DISABLED,
+            'status' => CarrierAccount::STATUS_DISABLED,
+            'enabled_for_checkout' => false,
+            'fedex_active_store_key' => null,
+            'credentials_encrypted' => null,
+            'provider_account_number_encrypted' => null,
+            'provider_account_number' => null,
+            'capabilities' => $capabilities,
+            'replaced_at' => now(),
+            'replaced_by_carrier_account_id' => $incoming->id,
+            'disconnected_at' => now(),
+            'last_error_code' => null,
+            'last_error_message' => null,
+        ])->save();
     }
 
     private function extractChildCredentials(?array $data): ?array

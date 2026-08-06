@@ -442,7 +442,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.shipping.carrier-accounts.fedex.test', $account))
+            ->post(route('settings.shipping.fedex-integrator.verify', $account))
             ->assertRedirect();
 
         $this->assertSame('csp_credentials', $oauthMode);

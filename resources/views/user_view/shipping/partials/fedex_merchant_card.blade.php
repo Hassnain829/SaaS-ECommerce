@@ -9,6 +9,7 @@
         'disabled' => 'disabled',
         default => 'needs_attention',
     };
+    $isModelA = $account->usesFedExIntegratorProvider();
 @endphp
 <x-ui.card class="overflow-hidden !p-0">
     <div class="border-b border-[color:var(--color-border)] px-5 py-4">
@@ -17,7 +18,7 @@
                 <p class="text-xs font-bold uppercase tracking-[1px] text-[color:var(--color-ink-muted)]">FedEx</p>
                 <h3 class="mt-1 text-lg font-semibold text-[color:var(--color-ink)]">{{ $account->display_name }}</h3>
                 <p class="mt-1 text-sm text-[color:var(--color-ink-muted)]">
-                    @if ($account->usesFedExIntegratorProvider())
+                    @if ($isModelA)
                         Your FedEx account is connected for this store. FedEx billing stays between you and FedEx.
                     @else
                         Connected with your FedEx developer account. FedEx billing stays between you and FedEx.
@@ -40,7 +41,7 @@
                 <dt class="text-xs font-semibold text-[color:var(--color-ink-muted)]">Account</dt>
                 <dd class="mt-0.5 font-medium text-[color:var(--color-ink)]">{{ $account->maskedAccountNumber() }}</dd>
             </div>
-            @if ($account->usesMerchantFedExDeveloperCredentials() && $account->hasMerchantFedExDeveloperCredentials())
+            @if (! $isModelA && $account->usesMerchantFedExDeveloperCredentials() && $account->hasMerchantFedExDeveloperCredentials())
                 <div>
                     <dt class="text-xs font-semibold text-[color:var(--color-ink-muted)]">API key</dt>
                     <dd class="mt-0.5 font-medium text-[color:var(--color-ink)]">{{ $account->maskedMerchantClientId() }}</dd>
@@ -78,26 +79,35 @@
 
         @if ($canManageShipping ?? false)
             <div class="flex flex-wrap gap-2 border-t border-[color:var(--color-border)] pt-4">
-                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test', $account) }}" class="shipping-submit-form">
-                    @csrf
-                    <x-ui.button type="submit" class="shipping-submit-btn">Run connection check</x-ui.button>
-                </form>
-                <x-ui.button
-                    variant="secondary"
-                    :href="$account->usesFedExIntegratorProvider() ? route('settings.shipping.fedex-integrator.start') : route('shipping.carriers.connect.show', 'fedex')"
-                >
-                    {{ $account->usesFedExIntegratorProvider() ? 'Reconnect FedEx' : 'Edit connection' }}
-                </x-ui.button>
-                @if ($account->connection_status !== 'disabled')
-                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}" onsubmit="return confirm('Disable this FedEx account?')">
+                @if ($isModelA)
+                    <x-ui.button
+                        variant="secondary"
+                        :href="route('settings.shipping.fedex-integrator.manage', $account)"
+                    >
+                        Manage FedEx
+                    </x-ui.button>
+                @else
+                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test', $account) }}" class="shipping-submit-form">
                         @csrf
-                        <x-ui.button type="submit" variant="danger">Disable</x-ui.button>
+                        <x-ui.button type="submit" class="shipping-submit-btn">Run connection check</x-ui.button>
                     </form>
+                    <x-ui.button
+                        variant="secondary"
+                        :href="route('shipping.carriers.connect.show', 'fedex')"
+                    >
+                        Edit connection
+                    </x-ui.button>
+                    @if ($account->connection_status !== 'disabled')
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}" onsubmit="return confirm('Disable this FedEx account?')">
+                            @csrf
+                            <x-ui.button type="submit" variant="danger">Disable</x-ui.button>
+                        </form>
+                    @endif
                 @endif
             </div>
         @endif
 
-        @if (! $account->usesFedExIntegratorProvider())
+        @if (! $isModelA)
             <details class="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] px-4 py-3 text-sm">
                 <summary class="cursor-pointer font-semibold text-[color:var(--color-ink)]">View technical details</summary>
                 <div class="mt-3 space-y-2 text-xs text-[color:var(--color-ink-secondary)]">

@@ -61,6 +61,7 @@ class CarrierAccountRegistrationSession extends Model
     protected $fillable = [
         'store_id',
         'carrier_account_id',
+        'replacing_carrier_account_id',
         'provider',
         'environment',
         'connection_model',
@@ -131,6 +132,11 @@ class CarrierAccountRegistrationSession extends Model
     public function carrierAccount(): BelongsTo
     {
         return $this->belongsTo(CarrierAccount::class);
+    }
+
+    public function replacingCarrierAccount(): BelongsTo
+    {
+        return $this->belongsTo(CarrierAccount::class, 'replacing_carrier_account_id');
     }
 
     public function originLocation(): BelongsTo

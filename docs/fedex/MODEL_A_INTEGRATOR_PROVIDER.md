@@ -1,6 +1,8 @@
 # FedEx Model A — Official Integrator Provider
 
-Phase **6C-4** implements FedEx Model A as the **primary merchant-facing** FedEx connection path. Model B (merchant FedEx Developer credentials) remains available only when `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=true`.
+Phase **6C-4** implemented FedEx Model A as the **primary merchant-facing** FedEx connection path. Phase **6C-5A** implementation is **complete** (state machine, US/CA, idempotency, manage/verify/resume/reconnect/disconnect, atomic reconnect, route isolation). Live credentials remain unset; production flag remains false; controlled live smoke is an ops step. Model B remains available only when `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=true` **and** `APP_ENV` is `local|testing`.
+
+See `docs/fedex/PHASE_6C_5A_LIVE_CONNECTION_HARDENING.md`. Checkout rates, labels, and tracking remain deferred (6C-5B–5E). Validation storage artifacts were intentionally removed (external backup); validation tooling cleanup is a future phase.
 
 ## Architecture
 
@@ -19,8 +21,9 @@ FedEx billing stays between the merchant and FedEx. The platform does not buy po
 4. **Account + address** → 9-digit account number + registration address
 5. **Registration API** → `/registration/v2/address/keysgeneration` using parent OAuth
 6. **MFA** (if required) → PIN / invoice steps via configurable endpoints
-7. **Success** → `CarrierAccount` created with `connection_model=integrator_provider`, encrypted child credentials
-8. **Connection check** → child OAuth only (not Model B developer credentials)
+7. **Child OAuth verify** → credentials stored first (`credentials_issued`), then fresh `csp_credentials` OAuth
+8. **Success** → `CarrierAccount` connected with `connection_model=integrator_provider`, encrypted child credentials + encrypted account number
+9. **Manage** → verify / reconnect / disconnect (`settings.shipping.fedex-integrator.manage`)
 
 ## Configuration (`config/carriers.php` / `.env`)
 
@@ -28,15 +31,18 @@ Key flags:
 
 - `FEDEX_DEFAULT_CONNECTION_MODEL=integrator_provider`
 - `FEDEX_INTEGRATOR_MODEL_A_ENABLED=true`
-- `FEDEX_INTEGRATOR_PRODUCTION_ENABLED=false` (gates live integrator onboarding)
+- `FEDEX_INTEGRATOR_PRODUCTION_ENABLED=false` (gates live integrator onboarding; keep false until preflight + protected live keys)
 - `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=false` (hides Model B wizard from merchants)
 - `FEDEX_MFA_PIN_GENERATION_PATH`, `FEDEX_MFA_PIN_VALIDATION_PATH`, `FEDEX_MFA_INVOICE_VALIDATION_PATH` — **must be filled from FedEx portal docs** before MFA can complete in production validation
 
+Preflight: `php artisan fedex:production-preflight` (never echoes secrets).
+
 ## Database
 
-- `carrier_account_registration_sessions` — full registration state machine
-- `carrier_accounts` — extended with `connection_model`, `fedex_integrator_account`, `registration_session_id`, `eula_*`, `capabilities_json`, `connection_context_json`
+- `carrier_account_registration_sessions` — full registration state machine (+ `replacing_carrier_account_id` for reconnect)
+- `carrier_accounts` — Model A fields plus `fedex_active_store_key`, encrypted account number/last4, `disconnected_at` / `replaced_at` / `replaced_by_carrier_account_id`
 - `fedex_validation_artifacts` (optional) — redacted evidence rows
+- Validation routes: `routes/fedex-validation.php` (local|testing only)
 
 ## MFA implementation note
 

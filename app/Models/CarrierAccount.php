@@ -215,6 +215,9 @@ class CarrierAccount extends Model
         'last_verified_at',
         'last_error_code',
         'last_error_message',
+        'disconnected_at',
+        'replaced_at',
+        'replaced_by_carrier_account_id',
         'created_by',
     ];
 
@@ -230,6 +233,8 @@ class CarrierAccount extends Model
         'last_verified_at' => 'datetime',
         'eula_accepted_at' => 'datetime',
         'usps_payment_verified_at' => 'datetime',
+        'disconnected_at' => 'datetime',
+        'replaced_at' => 'datetime',
     ];
 
     protected $hidden = [
@@ -280,6 +285,16 @@ class CarrierAccount extends Model
     public function latestRegistrationSession(): BelongsTo
     {
         return $this->belongsTo(CarrierAccountRegistrationSession::class, 'registration_session_id');
+    }
+
+    public function replacedByCarrierAccount(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'replaced_by_carrier_account_id');
+    }
+
+    public function replacedCarrierAccounts(): HasMany
+    {
+        return $this->hasMany(self::class, 'replaced_by_carrier_account_id');
     }
 
     public function isFedEx(): bool

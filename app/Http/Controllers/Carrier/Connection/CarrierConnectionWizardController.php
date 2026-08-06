@@ -257,6 +257,7 @@ class CarrierConnectionWizardController extends Controller
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
+        abort_unless(app(FedExConfig::class)->modelBRoutesEnabled(), 404);
         abort_unless(app(FedExConfig::class)->isEnabled(), 404);
 
         $validated = $request->validate([

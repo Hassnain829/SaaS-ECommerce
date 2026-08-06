@@ -70,7 +70,16 @@ class FedExIntegratorChildOAuthService
     public function clearTokenCache(CarrierAccount $account): void
     {
         $environment = $this->config->environment($account->environment);
-        Cache::forget($this->tokenCacheKey($account, $environment));
+        $this->clearTokenCacheKey($this->tokenCacheKey($account, $environment));
+    }
+
+    public function clearTokenCacheKey(string $cacheKey): void
+    {
+        if ($cacheKey === '') {
+            return;
+        }
+
+        Cache::forget($cacheKey);
     }
 
     public function tokenCacheKey(CarrierAccount $account, ?string $environment = null): string

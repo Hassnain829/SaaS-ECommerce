@@ -10,6 +10,7 @@ use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Carriers\FedEx\Connection\FedExConnectionFailurePresenter;
 use App\Services\Carriers\FedEx\Connection\FedExEulaService;
 use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
+use App\Services\Carriers\FedEx\Connection\FedExMerchantConnectionLifecycleService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
 use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceExporter;
@@ -385,6 +386,163 @@ class FedExIntegratorConnectionController extends Controller
         ]);
     }
 
+    public function manage(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExMerchantConnectionLifecycleService $lifecycle,
+        FedExConfig $config,
+    ): View|RedirectResponse {
+        $store = $this->resolveStore($request);
+        abort_unless($config->modelAEnabled(), 404);
+        $account = $this->resolveIntegratorAccount($store, $carrierAccount);
+
+        if ($account->disconnected_at !== null || $account->replaced_at !== null) {
+            return redirect()
+                ->route('settings.shipping.fedex-integrator.start')
+                ->withErrors(['registration' => 'This FedEx connection is no longer active. Start a new connection when you are ready.']);
+        }
+
+        $lifecycle->assertActiveManageableAccount($account);
+        $account->loadMissing([
+            'defaultOriginLocation',
+            'carrier',
+            'apiEvents' => fn ($query) => $query->latest('id')->limit(8),
+        ]);
+
+        $resumableSession = $lifecycle->findResumableSessionForAccount($account);
+
+        return view('user_view.fedex_integrator.manage', [
+            'selectedStore' => $store,
+            'account' => $account,
+            'presenter' => \App\Support\CarrierAccountStatusPresenter::for($account),
+            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'productionEnabled' => $config->productionEnabled(),
+            'resumableSession' => $resumableSession,
+        ]);
+    }
+
+    public function verify(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExMerchantConnectionLifecycleService $lifecycle,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $this->authorizeManage($request, $store);
+        $account = $this->resolveIntegratorAccount($store, $carrierAccount);
+
+        $result = $lifecycle->verify($account);
+
+        $securityLogRecorder->record($request, 'shipping.fedex_integrator.verify_requested', store: $store, metadata: [
+            'carrier_account_id' => $account->id,
+            'success' => $result->success,
+            'error_code' => $result->errorCode,
+        ]);
+
+        if ($result->success) {
+            return redirect()
+                ->route('settings.shipping.fedex-integrator.manage', $account)
+                ->with('success', 'FedEx connection verified successfully.');
+        }
+
+        return redirect()
+            ->route('settings.shipping.fedex-integrator.manage', $account)
+            ->withErrors(['registration' => $result->errorMessage ?? 'FedEx could not verify this connection.']);
+    }
+
+    public function resume(
+        Request $request,
+        CarrierAccountRegistrationSession $session,
+        FedExMerchantConnectionLifecycleService $lifecycle,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $this->authorizeManage($request, $store);
+        $session = $this->resolveSessionForStore($request, $session);
+
+        $session = $lifecycle->resumeChildOAuthVerification($store, $session);
+
+        $securityLogRecorder->record($request, 'shipping.fedex_integrator.resume_verification', store: $store, metadata: [
+            'registration_session_id' => $session->id,
+            'carrier_account_id' => $session->carrier_account_id,
+            'status' => $session->status,
+        ]);
+
+        if ($session->status === CarrierAccountRegistrationSession::STATUS_REGISTERED) {
+            return $this->successRedirectOrRecovery($session);
+        }
+
+        $accountId = (int) $session->carrier_account_id;
+        if ($accountId > 0) {
+            return redirect()
+                ->route('settings.shipping.fedex-integrator.manage', $accountId)
+                ->withErrors(['registration' => $session->last_error_message ?? 'FedEx verification could not be completed. You can try Resume verification again.']);
+        }
+
+        return redirect()
+            ->route('settings.shipping.fedex-integrator.account', $session)
+            ->withErrors(['registration' => $session->last_error_message ?? 'FedEx verification could not be completed.']);
+    }
+
+    public function reconnect(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExMerchantConnectionLifecycleService $lifecycle,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $this->authorizeManage($request, $store);
+        $account = $this->resolveIntegratorAccount($store, $carrierAccount);
+        $lifecycle->assertActiveManageableAccount($account);
+
+        $originLocationId = (int) (
+            $account->default_origin_location_id
+            ?? data_get($account->settings, 'default_origin_location_id')
+        );
+        abort_unless($originLocationId > 0, 422);
+
+        $session = $lifecycle->beginReconnect(
+            $store,
+            $request->user(),
+            $account,
+            $originLocationId,
+        );
+
+        $securityLogRecorder->record($request, 'shipping.fedex_integrator.reconnect_started', store: $store, metadata: [
+            'carrier_account_id' => $account->id,
+            'registration_session_id' => $session->id,
+            'environment' => $session->environment,
+        ]);
+
+        return redirect()->route('settings.shipping.fedex-integrator.eula', $session);
+    }
+
+    public function disconnect(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExMerchantConnectionLifecycleService $lifecycle,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $this->authorizeManage($request, $store);
+        $account = $this->resolveIntegratorAccount($store, $carrierAccount);
+
+        $result = $lifecycle->disconnect($account);
+
+        $securityLogRecorder->record($request, 'shipping.fedex_integrator.disconnected', store: $store, metadata: [
+            'carrier_account_id' => $account->id,
+            'environment' => $account->environment,
+            'account_last4' => $account->fresh()?->provider_account_last4,
+            'idempotent' => $result['idempotent'],
+        ]);
+
+        return redirect()
+            ->route('shippingAutomation', ['tab' => 'carriers'])
+            ->with('success', $result['idempotent']
+                ? 'FedEx account was already disconnected.'
+                : 'FedEx account disconnected. You can connect again anytime from Shipping & Delivery.');
+    }
+
     public function cancel(
         Request $request,
         CarrierAccountRegistrationSession $session,
@@ -435,6 +593,16 @@ class FedExIntegratorConnectionController extends Controller
         abort_unless($store, 404);
 
         return $store;
+    }
+
+    private function resolveIntegratorAccount(
+        \App\Models\Store $store,
+        CarrierAccount $carrierAccount,
+    ): CarrierAccount {
+        abort_unless((int) $carrierAccount->store_id === (int) $store->id, 404);
+        abort_unless($carrierAccount->usesFedExIntegratorProvider(), 404);
+
+        return $carrierAccount;
     }
 
     private function resolveSessionForStore(Request $request, CarrierAccountRegistrationSession $session): CarrierAccountRegistrationSession

@@ -890,12 +890,16 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->post(route('settings.shipping.carrier-accounts.fedex.test', $account))
             ->assertRedirect();
 
+        // Merchant shipping UI no longer surfaces legacy registration diagnostics.
+        // Debug export remains available only via isolated local/testing validation routes.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Legacy FedEx integrator registration diagnostic')
-            ->assertSeeText('Export legacy registration diagnostic');
+            ->assertDontSeeText('Legacy FedEx integrator registration diagnostic')
+            ->assertDontSeeText('Export legacy registration diagnostic');
+
+        $this->assertTrue(\Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.debug-payload'));
 
         $debugResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -983,11 +987,12 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
 
         $this->assertTrue((bool) data_get($account->settings, 'registration.residential'));
 
+        // Residential flag is persisted for registration payloads; merchant UI does not expose raw diagnostic copy.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Residential setting: true');
+            ->assertDontSeeText('Residential setting: true');
     }
 
     public function test_fedex_http_422_after_residential_omitted_marks_blocked_by_fedex_not_connected(): void

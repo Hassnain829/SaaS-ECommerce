@@ -79,6 +79,22 @@ final class FedExConfig
             || filter_var(config('carriers.fedex.developer_mode_enabled', false), FILTER_VALIDATE_BOOL);
     }
 
+    /**
+     * Model B / sandbox-platform-fallback tools are local|testing only, even when the flag is on.
+     */
+    public function modelBRoutesEnabled(): bool
+    {
+        return app()->environment(['local', 'testing']) && $this->modelBDeveloperFallbackEnabled();
+    }
+
+    /**
+     * Validation routes require local|testing AND FEDEX_VALIDATION_MODE_ENABLED.
+     */
+    public function validationRoutesEnabled(): bool
+    {
+        return $this->validationModeEnabled();
+    }
+
     public function validationModeEnabled(): bool
     {
         return filter_var(config('carriers.fedex.validation_mode_enabled', false), FILTER_VALIDATE_BOOL)

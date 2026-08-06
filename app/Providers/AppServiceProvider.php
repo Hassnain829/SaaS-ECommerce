@@ -54,6 +54,30 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(45)->by($id ? 'store:'.$id : $request->ip());
         });
 
+        RateLimiter::for('fedex-registration', function (Request $request): Limit {
+            $storeId = $request->attributes->get('currentStore')?->id;
+
+            return Limit::perMinute(10)->by($storeId ? 'fedex-reg:'.$storeId : 'fedex-reg:'.$request->ip());
+        });
+
+        RateLimiter::for('fedex-mfa-generation', function (Request $request): Limit {
+            $storeId = $request->attributes->get('currentStore')?->id;
+
+            return Limit::perMinute(8)->by($storeId ? 'fedex-mfa-gen:'.$storeId : 'fedex-mfa-gen:'.$request->ip());
+        });
+
+        RateLimiter::for('fedex-mfa-validation', function (Request $request): Limit {
+            $storeId = $request->attributes->get('currentStore')?->id;
+
+            return Limit::perMinute(12)->by($storeId ? 'fedex-mfa-val:'.$storeId : 'fedex-mfa-val:'.$request->ip());
+        });
+
+        RateLimiter::for('fedex-connection-check', function (Request $request): Limit {
+            $storeId = $request->attributes->get('currentStore')?->id;
+
+            return Limit::perMinute(20)->by($storeId ? 'fedex-check:'.$storeId : 'fedex-check:'.$request->ip());
+        });
+
         View::composer('components.ui.merchant-topbar', function ($view): void {
             $count = 0;
             $request = request();
