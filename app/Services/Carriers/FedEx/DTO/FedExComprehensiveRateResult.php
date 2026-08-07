@@ -7,6 +7,8 @@ final class FedExComprehensiveRateResult
     /**
      * @param  list<array<string, mixed>>  $availableRates
      * @param  list<array<string, mixed>>  $errors
+     * @param  list<array<string, mixed>>  $surcharges
+     * @param  list<array<string, mixed>>  $dutiesAndTaxes
      */
     public function __construct(
         public readonly bool $successful,
@@ -24,6 +26,11 @@ final class FedExComprehensiveRateResult
         public readonly ?int $eventId,
         public readonly ?string $fedexErrorCode = null,
         public readonly ?string $fedexErrorMessage = null,
+        public readonly ?int $transitDays = null,
+        public readonly ?string $deliveryDate = null,
+        public readonly array $surcharges = [],
+        public readonly array $dutiesAndTaxes = [],
+        public readonly ?string $merchantMessage = null,
     ) {}
 
     /**
@@ -40,6 +47,10 @@ final class FedExComprehensiveRateResult
             'amount' => $this->amount,
             'response_amount_path' => $this->responseAmountPath,
             'rates_found' => count($this->availableRates),
+            'transit_days' => $this->transitDays,
+            'delivery_date' => $this->deliveryDate,
+            'surcharge_count' => count($this->surcharges),
+            'duties_and_taxes_count' => count($this->dutiesAndTaxes),
             'access_state' => $this->accessState,
             'fedex_error_code' => $this->fedexErrorCode,
             'fedex_error_message' => $this->fedexErrorMessage,

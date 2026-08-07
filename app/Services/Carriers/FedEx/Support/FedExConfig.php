@@ -176,6 +176,10 @@ final class FedExConfig
             $errors[] = 'FEDEX_SANDBOX_ALLOW_PLATFORM_FALLBACK must be false for production.';
         }
 
+        if ($this->environment() !== CarrierAccount::ENVIRONMENT_LIVE) {
+            $errors[] = 'FEDEX_ENVIRONMENT must be live for production.';
+        }
+
         $rawCountries = trim((string) config('carriers.fedex.live_allowed_countries', 'US,CA'));
         $configuredCountryTokens = $rawCountries === ''
             ? []
@@ -219,7 +223,10 @@ final class FedExConfig
             return $this->productionEnabled();
         }
 
-        return $environment === CarrierAccount::ENVIRONMENT_SANDBOX && $this->modelAEnabled();
+        // Sandbox Model A ops are local/testing only — never production.
+        return $environment === CarrierAccount::ENVIRONMENT_SANDBOX
+            && $this->modelAEnabled()
+            && app()->environment(['local', 'testing']);
     }
 
     public function eulaVersion(): string

@@ -152,6 +152,17 @@ class FedExComprehensiveRateQuoteService
             eventId: data_get($apiResult->responseSummary, 'carrier_api_event_id') ? (int) data_get($apiResult->responseSummary, 'carrier_api_event_id') : null,
             fedexErrorCode: $classification['fedex_error_code'],
             fedexErrorMessage: $classification['fedex_error_message'],
+            transitDays: $parsed['transit_days'] ?? null,
+            deliveryDate: $parsed['delivery_date'] ?? null,
+            surcharges: $parsed['surcharges'] ?? [],
+            dutiesAndTaxes: $parsed['duties_and_taxes'] ?? [],
+            merchantMessage: $successful
+                ? null
+                : FedExSafeExceptionMapper::merchantMessage(
+                    $classification['fedex_error_code'] ?? $apiResult->errorCode,
+                    $classification['fedex_error_message'] ?? $apiResult->errorMessage,
+                    $httpStatus > 0 ? $httpStatus : null,
+                ),
         );
     }
 

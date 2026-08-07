@@ -51,6 +51,10 @@ Route::get('/logout', [DashboardController::class, 'logout'])
     ->middleware('auth')
     ->name('logout');
 
+Route::get('/t/{storeSlug}/fedex/{token}', [\App\Http\Controllers\Storefront\FedExPublicTrackingController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('public.fedex.tracking');
+
 Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
@@ -499,4 +503,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin-security', [AdminController::class, 'admin_settings_security'])->name('admin-security');
     Route::get('/admin-notifications', [AdminController::class, 'admin_settings_notifications'])->name('admin-notifications');
     Route::get('/admin-profile', [AdminController::class, 'admin_profile'])->name('admin-profile');
+    Route::get('/admin-fedex-diagnostics', [\App\Http\Controllers\Admin\FedExAdminDiagnosticsController::class, 'index'])
+        ->name('admin.fedex.diagnostics');
 });

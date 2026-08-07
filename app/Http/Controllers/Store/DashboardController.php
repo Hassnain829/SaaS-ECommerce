@@ -1005,6 +1005,24 @@ class DashboardController extends Controller
             'canCreateExchange' => $exchangeEligibility['eligible'],
             'exchangeEligibilityMessage' => $exchangeEligibility['reason'],
             'exchangeVariants' => $exchangeEligibility['replacement_variants'],
+            'fedExActiveAccount' => app(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::class)
+                ->resolveActiveModelAAccount($selectedStore),
+            'fedExTradeDocuments' => \App\Models\FedExTradeDocument::query()
+                ->where('store_id', $selectedStore->id)
+                ->where('order_id', $order->id)
+                ->orderByDesc('id')
+                ->limit(10)
+                ->get(['id', 'shipment_id', 'document_type', 'status', 'fedex_document_id', 'destination_country_code', 'uploaded_at', 'created_at']),
+            'fedExOrderApiEvents' => \App\Models\CarrierApiEvent::query()
+                ->where('store_id', $selectedStore->id)
+                ->where('provider', \App\Models\CarrierAccount::PROVIDER_FEDEX)
+                ->where(function ($q) use ($order): void {
+                    $q->where('response_summary->order_id', $order->id)
+                        ->orWhere('request_summary->order_id', $order->id);
+                })
+                ->orderByDesc('id')
+                ->limit(8)
+                ->get(['id', 'action', 'status', 'error_code', 'response_summary', 'created_at']),
         ]);
     }
 

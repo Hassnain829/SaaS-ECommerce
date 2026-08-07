@@ -28,6 +28,20 @@ class Shipment extends Model
 
     public const STATUS_CANCELLED = OrderLifecycle::SHIPMENT_CANCELLED;
 
+    public const DIRECTION_OUTBOUND = 'outbound';
+
+    public const DIRECTION_RETURN = 'return';
+
+    /** Statuses that reduce remaining shippable quantity (prevent over-shipment). */
+    public const STATUSES_RESERVED_AGAINST_ORDER = [
+        self::STATUS_PENDING,
+        self::STATUS_LABEL_CREATED,
+        self::STATUS_SHIPPED,
+        self::STATUS_IN_TRANSIT,
+        self::STATUS_DELIVERED,
+    ];
+
+    /** Statuses that count toward order fulfillment completion. */
     public const STATUSES_COUNTED_FOR_FULFILLMENT = [
         self::STATUS_SHIPPED,
         self::STATUS_IN_TRANSIT,
@@ -42,6 +56,7 @@ class Shipment extends Model
         'carrier_account_id',
         'shipping_method_id',
         'status',
+        'direction',
         'tracking_number',
         'tracking_url',
         'carrier_service',
@@ -97,5 +112,16 @@ class Shipment extends Model
     public function shippedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'shipped_by');
+    }
+
+    public function isReturn(): bool
+    {
+        return $this->direction === self::DIRECTION_RETURN
+            || (bool) data_get($this->metadata, 'fedex.return_shipment');
+    }
+
+    public function isOutbound(): bool
+    {
+        return ! $this->isReturn();
     }
 }

@@ -78,6 +78,12 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(20)->by($storeId ? 'fedex-check:'.$storeId : 'fedex-check:'.$request->ip());
         });
 
+        RateLimiter::for('fedex-ops', function (Request $request): Limit {
+            $storeId = $request->attributes->get('currentStore')?->id;
+
+            return Limit::perMinute(30)->by($storeId ? 'fedex-ops:'.$storeId : 'fedex-ops:'.$request->ip());
+        });
+
         View::composer('components.ui.merchant-topbar', function ($view): void {
             $count = 0;
             $request = request();

@@ -20,6 +20,7 @@
             'disabled' => 'disabled',
             default => 'needs_attention',
         };
+        $capLabel = fn (bool $ready): string => $ready ? 'ready' : 'not enabled';
     @endphp
     <div class="mx-auto max-w-[920px] space-y-6">
         @include('user_view.partials.flash_success')
@@ -80,25 +81,120 @@
                         {{ $account->last_error_message }}
                     </p>
                 @endif
-
-                @if ($account->connection_status === 'failed' && filled($account->fedex_active_store_key))
-                    <p class="mt-3 text-sm text-[#64748B]">
-                        Your previous active FedEx connection rules still apply. Use Reconnect to replace this account safely, or Disconnect to clear credentials.
-                    </p>
-                @endif
             </section>
 
             <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
                 <h3 class="text-lg font-semibold text-[#0F172A]">Capabilities</h3>
-                <p class="mt-2 text-sm text-[#64748B]">Checkout rates, labels, and tracking stay off until later production phases.</p>
+                <p class="mt-2 text-sm text-[#64748B]">Ready means both the platform flag and this account setting are on. Secrets and full account numbers are never shown.</p>
                 <ul class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[#64748B]">Rates: not enabled yet</li>
-                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[#64748B]">Labels: not enabled yet</li>
-                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[#64748B]">Tracking: not enabled yet</li>
-                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[#64748B]">Pickup: not enabled yet</li>
+                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 {{ ($opsCapabilities['address_validation'] ?? false) ? 'text-emerald-800' : 'text-[#64748B]' }}">
+                        Address validation: {{ $capLabel((bool) ($opsCapabilities['address_validation'] ?? false)) }}
+                    </li>
+                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 {{ ($opsCapabilities['service_availability'] ?? false) ? 'text-emerald-800' : 'text-[#64748B]' }}">
+                        Service availability: {{ $capLabel((bool) ($opsCapabilities['service_availability'] ?? false)) }}
+                    </li>
+                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 {{ ($opsCapabilities['negotiated_rates'] ?? false) ? 'text-emerald-800' : 'text-[#64748B]' }}">
+                        Negotiated rates: {{ $capLabel((bool) ($opsCapabilities['negotiated_rates'] ?? false)) }}
+                    </li>
+                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 {{ ($opsCapabilities['checkout_rates'] ?? false) ? 'text-emerald-800' : 'text-[#64748B]' }}">
+                        Checkout rates: {{ $capLabel((bool) ($opsCapabilities['checkout_rates'] ?? false)) }}
+                    </li>
+                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 {{ ($opsCapabilities['ship_labels'] ?? false) ? 'text-emerald-800' : 'text-[#64748B]' }}">
+                        Labels: {{ $capLabel((bool) ($opsCapabilities['ship_labels'] ?? false)) }}
+                    </li>
+                    <li class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 {{ ($opsCapabilities['tracking'] ?? false) ? 'text-emerald-800' : 'text-[#64748B]' }}">
+                        Tracking: {{ $capLabel((bool) ($opsCapabilities['tracking'] ?? false)) }}
+                    </li>
                 </ul>
+
+                @if ($canManageShipping ?? false)
+                    <form method="POST" action="{{ route('settings.shipping.fedex-integrator.capabilities', $account) }}" class="mt-4 space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                        @csrf
+                        <p class="text-sm font-semibold text-[#0F172A]">Account switches</p>
+                        <p class="text-xs text-[#64748B]">Platform must also enable checkout/labels/tracking before these switches take effect.</p>
+                        <label class="flex items-center gap-2 text-sm text-[#334155]">
+                            <input type="hidden" name="enabled_for_checkout" value="0">
+                            <input type="checkbox" name="enabled_for_checkout" value="1" @checked(old('enabled_for_checkout', $accountCapabilityToggles['enabled_for_checkout'] ?? false))>
+                            Allow checkout use
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-[#334155]">
+                            <input type="hidden" name="checkout_rates" value="0">
+                            <input type="checkbox" name="checkout_rates" value="1" @checked(old('checkout_rates', $accountCapabilityToggles['checkout_rates'] ?? false)) @disabled(!($globalFlags['checkout_rates'] ?? false))>
+                            Checkout rates
+                            @unless ($globalFlags['checkout_rates'] ?? false)
+                                <span class="text-xs text-[#94A3B8]">(platform off)</span>
+                            @endunless
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-[#334155]">
+                            <input type="hidden" name="labels" value="0">
+                            <input type="checkbox" name="labels" value="1" @checked(old('labels', $accountCapabilityToggles['labels'] ?? false)) @disabled(!($globalFlags['ship_labels'] ?? false))>
+                            Label purchase
+                            @unless ($globalFlags['ship_labels'] ?? false)
+                                <span class="text-xs text-[#94A3B8]">(platform off)</span>
+                            @endunless
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-[#334155]">
+                            <input type="hidden" name="tracking" value="0">
+                            <input type="checkbox" name="tracking" value="1" @checked(old('tracking', $accountCapabilityToggles['tracking'] ?? false)) @disabled(!($globalFlags['tracking'] ?? false))>
+                            Tracking
+                            @unless ($globalFlags['tracking'] ?? false)
+                                <span class="text-xs text-[#94A3B8]">(platform off)</span>
+                            @endunless
+                        </label>
+                        <button type="submit" class="inline-flex h-9 items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 text-xs font-semibold text-[#1D4ED8]">Save capability switches</button>
+                    </form>
+                @endif
             </section>
         </div>
+
+        @if (! empty($recentShipments) && count($recentShipments))
+            <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+                <h3 class="text-lg font-semibold text-[#0F172A]">Recent shipments</h3>
+                <p class="mt-1 text-sm text-[#64748B]">Tracking numbers are masked. Open the order to download labels or refresh tracking.</p>
+                <ul class="mt-3 divide-y divide-[#F1F5F9] text-sm">
+                    @foreach ($recentShipments as $shipment)
+                        <li class="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="font-medium text-[#0F172A]">{{ $shipment->shipment_number }}</p>
+                                <p class="text-xs text-[#64748B]">
+                                    ···{{ $shipment->tracking_number ? substr($shipment->tracking_number, -4) : '----' }}
+                                    · {{ str($shipment->status)->replace('_', ' ')->title() }}
+                                    · {{ optional($shipment->created_at)->timezone($selectedStore->timezone ?? 'UTC')->format('M j, Y g:i A') }}
+                                </p>
+                            </div>
+                            @if (filled(data_get($shipment->metadata, 'fedex.tracking.status_text')))
+                                <span class="text-xs text-[#64748B]">{{ data_get($shipment->metadata, 'fedex.tracking.status_text') }}</span>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            </section>
+        @endif
+
+        @if (! empty($recentApiEvents) && count($recentApiEvents))
+            <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+                <h3 class="text-lg font-semibold text-[#0F172A]">Recent FedEx activity</h3>
+                <p class="mt-1 text-sm text-[#64748B]">Safe summaries only — credentials and full account numbers are never shown.</p>
+                <ul class="mt-3 divide-y divide-[#F1F5F9] text-sm">
+                    @foreach ($recentApiEvents as $event)
+                        <li class="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="font-medium text-[#0F172A]">{{ str($event->action)->replace('_', ' ')->title() }}</p>
+                                <p class="text-xs text-[#64748B]">
+                                    {{ optional($event->created_at)->timezone($selectedStore->timezone ?? 'UTC')->format('M j, Y g:i A') }}
+                                    @if (filled(data_get($event->response_summary, 'fedex_transaction_id')))
+                                        · Ref {{ data_get($event->response_summary, 'fedex_transaction_id') }}
+                                    @endif
+                                </p>
+                            </div>
+                            <span class="text-xs font-semibold uppercase tracking-wide {{ $event->status === 'succeeded' ? 'text-emerald-700' : 'text-amber-700' }}">
+                                {{ str($event->status)->replace('_', ' ')->title() }}
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            </section>
+        @endif
 
         @if ($canManageShipping ?? false)
             <section class="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5">

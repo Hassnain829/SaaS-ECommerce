@@ -64,6 +64,7 @@ class CheckoutShippingService
             $destination,
             (string) $checkout->subtotal,
             (string) $checkout->currency_code,
+            $checkout,
         ))
             ->map(fn (array $option): ?array => $this->withFulfillmentRouting($checkout, $option, $destination))
             ->filter()
@@ -98,6 +99,7 @@ class CheckoutShippingService
                 $destination,
                 (string) $checkout->subtotal,
                 (string) $checkout->currency_code,
+                $checkout,
             );
 
             if (! $option) {

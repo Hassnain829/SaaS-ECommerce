@@ -1,8 +1,8 @@
 # FedEx Model A — Official Integrator Provider
 
-Phase **6C-4** implemented FedEx Model A as the **primary merchant-facing** FedEx connection path. Phase **6C-5A** implementation is **complete** (state machine, US/CA, idempotency, manage/verify/resume/reconnect/disconnect, atomic reconnect, route isolation). Live credentials remain unset; production flag remains false; controlled live smoke is an ops step. Model B remains available only when `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=true` **and** `APP_ENV` is `local|testing`.
+Phase **6C-4** implemented FedEx Model A as the **primary merchant-facing** FedEx connection path. Phase **6C-5A** implementation is **complete**. Phase **6C-5 Steps 1–4** add the shared production ops foundation, merchant address/service checks, and negotiated rates (order UI + gated checkout path). Live credentials remain unset; production flag remains false; controlled live smoke is an ops step. Labels/tracking remain deferred. Checkout rates require `FEDEX_CHECKOUT_RATES_ENABLED` plus account checkout capability. Model B remains available only when `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=true` **and** `APP_ENV` is `local|testing`.
 
-See `docs/fedex/PHASE_6C_5A_LIVE_CONNECTION_HARDENING.md`. Checkout rates, labels, and tracking remain deferred (6C-5B–5E). Validation storage artifacts were intentionally removed (external backup); validation tooling cleanup is a future phase.
+See `docs/fedex/PHASE_6C_5A_LIVE_CONNECTION_HARDENING.md` and `docs/fedex/PHASE_6C_5_STEP1_FOUNDATION_AUDIT.md`.
 
 ## Architecture
 

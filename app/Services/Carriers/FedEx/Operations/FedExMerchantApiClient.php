@@ -25,9 +25,17 @@ class FedExMerchantApiClient
         private readonly CarrierApiEventLogger $eventLogger,
     ) {}
 
-    public function assertFedExApiAccount(CarrierAccount $account): void
+    public function assertFedExApiAccount(CarrierAccount $account, ?Store $store = null): void
     {
         abort_unless($account->isFedEx(), 404);
+
+        if ($store !== null) {
+            abort_unless((int) $account->store_id === (int) $store->id, 404);
+        }
+
+        if ($account->usesSandboxPlatformFallback() || $account->isSandboxPlatformFallback()) {
+            abort(422, 'Platform FedEx credentials cannot be used for merchant shipping operations.');
+        }
 
         if ($account->usesFedExIntegratorProvider()) {
             abort_unless($account->hasLegacyFedExChildCredentials(), 422);
@@ -64,9 +72,14 @@ class FedExMerchantApiClient
         array $requestSummary,
         ?FedExValidationEventContext $context = null,
         array $headers = [],
+        ?string $customerTransactionId = null,
     ): CarrierApiResult {
-        $this->assertFedExApiAccount($account);
+        $this->assertFedExApiAccount($account, $store);
         $account->loadMissing('store');
+
+        if (filled($customerTransactionId)) {
+            $headers['x-customer-transaction-id'] = (string) $customerTransactionId;
+        }
 
         $environment = $this->config->environment($account->environment);
         $credentialsMode = $account->usesFedExIntegratorProvider() ? 'integrator_child' : 'merchant_developer';

@@ -40,6 +40,7 @@
         $isAdminBilling = request()->routeIs('admin-billing');
         $isAdminSettings = request()->routeIs('admin-settings') || request()->routeIs('admin-security') || request()->routeIs('admin-notifications');
         $isAdminProfile = request()->routeIs('admin-profile');
+        $isAdminFedExDiagnostics = request()->routeIs('admin.fedex.diagnostics');
     @endphp
 
     <nav id="adminNav" class="flex-1 space-y-0.5 overflow-y-auto px-3 py-2">
@@ -83,6 +84,13 @@
                 <path d="M2 5C2 3.89543 2.89543 3 4 3H16C17.1046 3 18 3.89543 18 5V15C18 16.1046 17.1046 17 16 17H4C2.89543 17 2 16.1046 2 15V5ZM4 7H16V5H4V7ZM4 11V15H16V11H4Z" fill="currentColor"/>
             </svg>
             <span class="text-sm {{ $isAdminBilling ? 'font-semibold' : 'font-medium' }}">Billing</span>
+        </a>
+
+        <a href="{{ route('admin.fedex.diagnostics') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150 {{ $isAdminFedExDiagnostics ? 'bg-white/10 text-white shadow-sm shadow-black/20' : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100' }}">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 2L12.5 7.5L18.5 8.2L14 12.4L15.2 18.3L10 15.4L4.8 18.3L6 12.4L1.5 8.2L7.5 7.5L10 2Z" fill="currentColor"/>
+            </svg>
+            <span class="text-sm {{ $isAdminFedExDiagnostics ? 'font-semibold' : 'font-medium' }}">FedEx ops</span>
         </a>
 
         <a href="{{ route('admin-settings') }}" class="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150 {{ $isAdminSettings ? 'bg-white/10 text-white shadow-sm shadow-black/20' : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100' }}">

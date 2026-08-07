@@ -411,6 +411,16 @@ class FedExIntegratorConnectionController extends Controller
 
         $resumableSession = $lifecycle->findResumableSessionForAccount($account);
 
+        $guard = app(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::class);
+        $caps = is_array($account->capabilities) ? $account->capabilities : [];
+
+        $recentShipments = \App\Models\Shipment::query()
+            ->where('store_id', $store->id)
+            ->where('carrier_account_id', $account->id)
+            ->orderByDesc('id')
+            ->limit(8)
+            ->get(['id', 'shipment_number', 'tracking_number', 'status', 'label_url', 'created_at', 'metadata']);
+
         return view('user_view.fedex_integrator.manage', [
             'selectedStore' => $store,
             'account' => $account,
@@ -418,7 +428,107 @@ class FedExIntegratorConnectionController extends Controller
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
             'productionEnabled' => $config->productionEnabled(),
             'resumableSession' => $resumableSession,
+            'opsCapabilities' => [
+                'address_validation' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_ADDRESS_VALIDATION),
+                'service_availability' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_SERVICE_AVAILABILITY),
+                'negotiated_rates' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_NEGOTIATED_RATES),
+                'checkout_rates' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_CHECKOUT_RATES)
+                    && (bool) $account->enabled_for_checkout
+                    && (bool) ($caps['checkout_rates'] ?? false),
+                'ship_labels' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_SHIP_LABELS)
+                    && (bool) ($caps['labels'] ?? $caps['ship_labels'] ?? false),
+                'tracking' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_TRACKING)
+                    && (bool) ($caps['tracking'] ?? false),
+            ],
+            'accountCapabilityToggles' => [
+                'checkout_rates' => (bool) ($caps['checkout_rates'] ?? false),
+                'labels' => (bool) ($caps['labels'] ?? $caps['ship_labels'] ?? false),
+                'tracking' => (bool) ($caps['tracking'] ?? false),
+                'enabled_for_checkout' => (bool) $account->enabled_for_checkout,
+            ],
+            'globalFlags' => [
+                'checkout_rates' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_CHECKOUT_RATES),
+                'ship_labels' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_SHIP_LABELS),
+                'tracking' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_TRACKING),
+            ],
+            'recentApiEvents' => $account->apiEvents,
+            'recentShipments' => $recentShipments,
         ]);
+    }
+
+    public function updateCapabilities(
+        Request $request,
+        CarrierAccount $carrierAccount,
+        FedExConfig $config,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $this->resolveStore($request);
+        $this->authorizeManage($request, $store);
+        abort_unless($config->modelAEnabled(), 404);
+        $account = $this->resolveIntegratorAccount($store, $carrierAccount);
+
+        $validated = $request->validate([
+            'enabled_for_checkout' => ['nullable', 'boolean'],
+            'checkout_rates' => ['nullable', 'boolean'],
+            'labels' => ['nullable', 'boolean'],
+            'tracking' => ['nullable', 'boolean'],
+        ]);
+
+        $lifecycle = app(\App\Services\Carriers\FedEx\Connection\FedExMerchantConnectionLifecycleService::class);
+        $lifecycle->assertActiveManageableAccount($account);
+
+        $guard = app(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::class);
+        $globalCheckout = $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_CHECKOUT_RATES);
+        $globalLabels = $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_SHIP_LABELS);
+        $globalTracking = $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_TRACKING);
+
+        $caps = is_array($account->capabilities) ? $account->capabilities : [];
+        $requestedCheckoutRates = (bool) ($validated['checkout_rates'] ?? false);
+        $requestedLabels = (bool) ($validated['labels'] ?? false);
+        $requestedTracking = (bool) ($validated['tracking'] ?? false);
+        $requestedEnabledForCheckout = (bool) ($validated['enabled_for_checkout'] ?? false);
+
+        if ($requestedCheckoutRates && ! $globalCheckout) {
+            return back()->withErrors([
+                'checkout_rates' => 'Checkout rates are disabled by the platform and cannot be enabled on this account yet.',
+            ]);
+        }
+        if ($requestedLabels && ! $globalLabels) {
+            return back()->withErrors([
+                'labels' => 'Label purchase is disabled by the platform and cannot be enabled on this account yet.',
+            ]);
+        }
+        if ($requestedTracking && ! $globalTracking) {
+            return back()->withErrors([
+                'tracking' => 'Tracking is disabled by the platform and cannot be enabled on this account yet.',
+            ]);
+        }
+
+        $caps['checkout_rates'] = $globalCheckout ? $requestedCheckoutRates : false;
+        $caps['labels'] = $globalLabels ? $requestedLabels : false;
+        $caps['tracking'] = $globalTracking ? $requestedTracking : false;
+
+        // Checkout enable requires both the global checkout flag and the account checkout_rates capability.
+        $enabledForCheckout = $globalCheckout && $caps['checkout_rates'] && $requestedEnabledForCheckout;
+
+        $account->forceFill([
+            'enabled_for_checkout' => $enabledForCheckout,
+            'capabilities' => $caps,
+        ])->save();
+
+        $securityLogRecorder->record($request, 'shipping.fedex_integrator.capabilities_updated', store: $store, metadata: [
+            'carrier_account_id' => $account->id,
+            'capabilities' => [
+                'checkout_rates' => $caps['checkout_rates'],
+                'labels' => $caps['labels'],
+                'tracking' => $caps['tracking'],
+                'enabled_for_checkout' => (bool) $account->enabled_for_checkout,
+            ],
+        ]);
+
+        return redirect()
+            ->route('settings.shipping.fedex-integrator.manage', $account)
+            ->with('success', 'FedEx account capabilities updated.');
     }
 
     public function verify(

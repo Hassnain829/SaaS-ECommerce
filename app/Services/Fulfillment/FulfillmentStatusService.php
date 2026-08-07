@@ -13,24 +13,27 @@ use App\Support\OrderLifecycle;
 class FulfillmentStatusService
 {
     /**
+     * Quantities still available to put on a new outbound shipment.
+     * Includes open labels / pending shipments so paid labels cannot double-consume.
+     *
      * @return array<int, int>
      */
     public function remainingQuantities(Order $order): array
     {
         $items = $order->items()->get(['id', 'quantity']);
-        $fulfilled = $this->fulfilledQuantities($items->pluck('id')->all());
+        $allocated = $this->allocatedOutboundQuantities($items->pluck('id')->all());
 
-        return $items->mapWithKeys(function (OrderItem $item) use ($fulfilled): array {
-            $shipped = (int) ($fulfilled[$item->id] ?? 0);
+        return $items->mapWithKeys(function (OrderItem $item) use ($allocated): array {
+            $used = (int) ($allocated[$item->id] ?? 0);
 
-            return [$item->id => max(0, (int) $item->quantity - $shipped)];
+            return [$item->id => max(0, (int) $item->quantity - $used)];
         })->all();
     }
 
     public function recalculateAndPersist(Order $order, ?User $actor = null, ?string $reason = null): string
     {
         $items = $order->items()->get();
-        $fulfilled = $this->fulfilledQuantities($items->pluck('id')->all());
+        $fulfilled = $this->fulfilledOutboundQuantities($items->pluck('id')->all());
 
         $totalQuantity = 0;
         $fulfilledQuantity = 0;
@@ -83,7 +86,32 @@ class FulfillmentStatusService
      * @param  list<int>  $orderItemIds
      * @return array<int, int>
      */
-    private function fulfilledQuantities(array $orderItemIds): array
+    private function allocatedOutboundQuantities(array $orderItemIds): array
+    {
+        return $this->sumOutboundShipmentItemQuantities(
+            $orderItemIds,
+            Shipment::STATUSES_RESERVED_AGAINST_ORDER,
+        );
+    }
+
+    /**
+     * @param  list<int>  $orderItemIds
+     * @return array<int, int>
+     */
+    private function fulfilledOutboundQuantities(array $orderItemIds): array
+    {
+        return $this->sumOutboundShipmentItemQuantities(
+            $orderItemIds,
+            Shipment::STATUSES_COUNTED_FOR_FULFILLMENT,
+        );
+    }
+
+    /**
+     * @param  list<int>  $orderItemIds
+     * @param  list<string>  $statuses
+     * @return array<int, int>
+     */
+    private function sumOutboundShipmentItemQuantities(array $orderItemIds, array $statuses): array
     {
         if ($orderItemIds === []) {
             return [];
@@ -92,8 +120,13 @@ class FulfillmentStatusService
         return ShipmentItem::query()
             ->selectRaw('order_item_id, SUM(quantity) as quantity')
             ->whereIn('order_item_id', $orderItemIds)
-            ->whereHas('shipment', function ($query): void {
-                $query->whereIn('status', Shipment::STATUSES_COUNTED_FOR_FULFILLMENT);
+            ->whereHas('shipment', function ($query) use ($statuses): void {
+                $query->whereIn('status', $statuses)
+                    ->where(function ($directionQuery): void {
+                        $directionQuery->where('direction', Shipment::DIRECTION_OUTBOUND)
+                            ->orWhereNull('direction')
+                            ->orWhere('direction', '');
+                    });
             })
             ->groupBy('order_item_id')
             ->pluck('quantity', 'order_item_id')

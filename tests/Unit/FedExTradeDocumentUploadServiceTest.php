@@ -226,6 +226,51 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_live_account_never_falls_back_to_sandbox_document_host(): void
+    {
+        config([
+            'carriers.fedex.document_api_live_base_url' => 'https://documentapi.prod.fedex.com',
+            'carriers.fedex.document_api_sandbox_base_url' => 'https://documentapitest.prod.fedex.com/sandbox',
+        ]);
+
+        $account = $this->makeAccountWithChildCredentials();
+        $account->forceFill(['environment' => CarrierAccount::ENVIRONMENT_LIVE])->save();
+
+        $oauth = \Mockery::mock(FedExIntegratorChildOAuthService::class);
+        $oauth->shouldReceive('fetchTokenResult')->andReturn(CarrierApiResult::success(
+            data: ['access_token' => 'live-doc-token', 'token_type' => 'bearer', 'expires_in' => 3600],
+            requestSummary: [],
+            responseSummary: ['http_status' => 200],
+        ));
+        $this->app->instance(FedExIntegratorChildOAuthService::class, $oauth);
+
+        Http::fake(function (Request $request) {
+            $this->assertStringStartsWith('https://documentapi.prod.fedex.com/', $request->url());
+            $this->assertStringNotContainsString('documentapitest', $request->url());
+
+            return Http::response([
+                'output' => ['meta' => ['docId' => 'LIVE-DOC-1']],
+            ], 201);
+        });
+
+        $prepared = app(FedExTradeDocumentUploadService::class)->prepareDocumentUpload([
+            'absolute_path' => $this->makeTempPdf(),
+            'filename' => 'commercial_invoice.pdf',
+        ]);
+        // Simulate the old bug: prepared payload stamped with sandbox host.
+        $prepared['endpoint_host'] = 'https://documentapitest.prod.fedex.com/sandbox';
+
+        $result = app(FedExTradeDocumentUploadService::class)->executePreparedUpload(
+            $account->store,
+            $account->fresh(),
+            $prepared,
+            allowLive: true,
+        );
+
+        $this->assertTrue($result['result']->success);
+        $this->assertSame('https://documentapi.prod.fedex.com', data_get($result['event']->request_summary, 'endpoint_host'));
+    }
+
     public function test_missing_repository_assets_block_prepare(): void
     {
         $path = base_path('resources/fedex-validation/us09/signature3.png');

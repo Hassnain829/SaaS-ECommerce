@@ -132,7 +132,18 @@ class FedExTradeDocumentUploadService
         $environment = $this->config->environment($account->environment);
         $credentialsMode = $account->usesFedExIntegratorProvider() ? 'integrator_child' : 'merchant_developer';
         $path = (string) ($prepared['endpoint_path'] ?? '');
-        $host = rtrim((string) ($prepared['endpoint_host'] ?? $this->documentApiSandboxBaseUrl()), '/');
+        $preparedHost = rtrim((string) ($prepared['endpoint_host'] ?? ''), '/');
+        $environmentHost = rtrim($this->config->documentApiBaseUrl($account->environment), '/');
+        // Never send a live merchant account to the sandbox document host.
+        $host = $preparedHost;
+        if ($host === ''
+            || (
+                $this->config->environment($account->environment) === 'live'
+                && str_contains(strtolower($host), 'documentapitest')
+            )
+        ) {
+            $host = $environmentHost;
+        }
         $url = $host.$path;
         $scenarioKey = (string) ($prepared['scenario_key'] ?? '');
         $caseKey = (string) ($prepared['case_key'] ?? '');

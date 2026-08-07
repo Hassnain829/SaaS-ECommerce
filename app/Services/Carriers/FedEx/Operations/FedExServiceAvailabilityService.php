@@ -18,6 +18,7 @@ class FedExServiceAvailabilityService
         private readonly FedExConfig $config,
         private readonly FedExMerchantApiClient $apiClient,
         private readonly CarrierOriginReadinessService $originReadiness,
+        private readonly FedExOperationGuard $guard,
     ) {}
 
     /**
@@ -31,8 +32,17 @@ class FedExServiceAvailabilityService
         array $destinationInput,
         ?string $shipDate = null,
         ?string $packagingType = null,
+        bool $enforceProductionGuard = false,
     ): array {
-        $this->apiClient->assertMerchantCredentialsAccount($account);
+        if ($enforceProductionGuard) {
+            $this->guard->assertAccountForOperation(
+                $store,
+                $account,
+                FedExOperationGuard::CAPABILITY_SERVICE_AVAILABILITY,
+            );
+        } else {
+            $this->apiClient->assertFedExApiAccount($account, $store);
+        }
 
         $readiness = $this->originReadiness->assessForFulfillmentOrigin(
             $originLocation,
@@ -55,16 +65,42 @@ class FedExServiceAvailabilityService
 
         $origin = $readiness->normalizedAddress;
         $destinationCountry = strtoupper(trim((string) ($destinationInput['country_code'] ?? 'US')));
+        $originCountry = strtoupper((string) ($origin['country_code'] ?? 'US'));
         $destinationPostal = trim((string) ($destinationInput['postal_code'] ?? ''));
         $destinationState = strtoupper(trim((string) ($destinationInput['state'] ?? ''))) ?: null;
         $destinationCity = trim((string) ($destinationInput['city'] ?? '')) ?: null;
         $endpoint = $this->config->serviceAvailabilityPath();
-        $shipDatestamp = $shipDate ?: now()->toDateString();
+        $shipDatestamp = $enforceProductionGuard
+            ? $this->guard->assertShipDate($shipDate)
+            : ($shipDate ?: now()->toDateString());
         $packagingType = $packagingType ?: 'YOUR_PACKAGING';
+
+        if ($enforceProductionGuard) {
+            $this->guard->assertOriginDestinationAllowed(
+                $originCountry,
+                $destinationCountry,
+                $account->environment,
+            );
+        }
+
+        $customerTransactionId = $this->guard->idempotencyKey(
+            $store,
+            $account,
+            'service_availability',
+            implode(':', [
+                $originCountry,
+                (string) ($origin['postal_code'] ?? ''),
+                $destinationCountry,
+                $destinationPostal,
+                $shipDatestamp,
+                $packagingType,
+            ]),
+        );
 
         $requestSummary = array_merge(
             $this->apiClient->baseRequestSummary($account, $endpoint),
             [
+                'operation' => $enforceProductionGuard ? 'merchant_service_availability' : 'diagnostic_service_availability',
                 'origin_country' => $origin['country_code'] ?? null,
                 'origin_state' => $origin['state'] ?? null,
                 'origin_postal_code' => $origin['postal_code'] ?? null,
@@ -75,6 +111,8 @@ class FedExServiceAvailabilityService
                 'ship_date' => $shipDatestamp,
                 'packaging_type' => $packagingType,
                 'origin_location_id' => $originLocation->id,
+                'customer_transaction_id' => $customerTransactionId,
+                'platform_fallback_used' => false,
             ],
         );
 
@@ -111,7 +149,10 @@ class FedExServiceAvailabilityService
             path: $endpoint,
             payload: $payload,
             requestSummary: $requestSummary,
-            context: new FedExValidationEventContext(scenarioKey: 'service_availability'),
+            context: $enforceProductionGuard
+                ? null
+                : new FedExValidationEventContext(scenarioKey: 'service_availability'),
+            customerTransactionId: $customerTransactionId,
         );
 
         $presentation = FedExMerchantCheckPresenter::serviceAvailability($result->data);
@@ -123,6 +164,20 @@ class FedExServiceAvailabilityService
             ]);
 
             $result = $result->copyWith(responseSummary: $responseSummary);
+        } elseif ($result->errorMessage) {
+            $result = CarrierApiResult::failure(
+                message: FedExSafeExceptionMapper::merchantMessage(
+                    $result->errorCode,
+                    $result->errorMessage,
+                    (int) data_get($result->responseSummary, 'http_status') ?: null,
+                ),
+                code: $result->errorCode,
+                requestId: $result->requestId,
+                durationMs: $result->durationMs,
+                requestSummary: $result->requestSummary,
+                responseSummary: $result->responseSummary,
+                evidence: $result->evidence,
+            );
         }
 
         return ['result' => $result, 'presentation' => $presentation];

@@ -179,18 +179,18 @@ class FedExHttpClient
                 );
             }
         } catch (Throwable) {
-            return CarrierApiResult::failure(
-                message: 'Unable to reach FedEx sandbox right now. Please try again.',
-                code: 'transport_error',
-                requestId: $requestId,
-                durationMs: (int) round((microtime(true) - $started) * 1000),
-                requestSummary: $summary,
-                responseSummary: [
-                    'http_status' => null,
-                    'fedex_transaction_id' => null,
-                    'customer_transaction_id' => $customerTransactionId,
-                ],
-            );
+                return CarrierApiResult::failure(
+                    message: 'Unable to reach FedEx right now. Please try again.',
+                    code: 'transport_error',
+                    requestId: $requestId,
+                    durationMs: (int) round((microtime(true) - $started) * 1000),
+                    requestSummary: $summary,
+                    responseSummary: [
+                        'http_status' => null,
+                        'fedex_transaction_id' => null,
+                        'customer_transaction_id' => $customerTransactionId,
+                    ],
+                );
         }
     }
 
@@ -261,7 +261,9 @@ class FedExHttpClient
             $headers['Content-Type'] = 'application/json';
         }
 
-        $request = Http::timeout(20)
+        $timeout = max(5, (int) config('carriers.fedex.http_timeout_seconds', 20));
+
+        $request = Http::timeout($timeout)
             ->acceptJson()
             ->withHeaders($headers);
 
@@ -415,19 +417,33 @@ class FedExHttpClient
     }
 
     /**
-     * Transient 502/503 retries apply only to parcel Ship paths — never Freight LTL or Consolidation.
+     * Transient 502/503 retries for safe / recoverable FedEx POSTs.
+     * Never retry Freight LTL or Consolidation (side-effecting / non-idempotent chains).
      */
     private function transientShipRetryAttempts(string $normalizedPath): int
     {
-        if (! str_contains($normalizedPath, '/ship/v1/shipments')) {
+        if (str_contains($normalizedPath, '/freight/') || str_contains($normalizedPath, '/consolidations')) {
             return 1;
         }
 
-        if (str_contains($normalizedPath, '/freight/')) {
+        // Never auto-retry Ship create/cancel at the HTTP layer — side-effecting; recover via idempotency locks.
+        if (str_contains($normalizedPath, '/ship/v1/')) {
             return 1;
         }
 
-        return 3;
+        // Address, availability, rates, and tracking are safe to retry with the same customer transaction id.
+        foreach ([
+            '/address/v1/',
+            '/availability/v1/',
+            '/rate/v1/',
+            '/track/v1/',
+        ] as $safePrefix) {
+            if (str_contains($normalizedPath, $safePrefix)) {
+                return max(1, (int) config('carriers.fedex.http_safe_retry_attempts', 2));
+            }
+        }
+
+        return 1;
     }
 
     /**

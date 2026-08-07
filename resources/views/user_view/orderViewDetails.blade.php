@@ -609,6 +609,8 @@
                         </div>
                     @endif
 
+                    @include('user_view.orders.partials.fedex_shipping_ops')
+
                     @if ($canManageOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
                         <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="space-y-4">
                             @csrf

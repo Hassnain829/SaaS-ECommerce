@@ -149,7 +149,7 @@ ALWAYS:
 
 ## ✅ CURRENT STATE (2026-07-28)
 
-Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integrator connectivity and validation tooling are implemented. **Phase 6C-5A implementation is complete** (lifecycle-safety pass green — see `docs/fedex/PHASE_6C_5A_LIVE_CONNECTION_HARDENING.md`). Live credentials remain unset; production flag remains false; controlled live smoke is an ops step; rates/labels/tracking/checkout stay disabled; 6C-5B–5E deferred. Validation storage artifacts were intentionally removed (external backup); validation tooling cleanup remains a future phase.
+Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integrator connectivity and validation tooling are implemented. **Phase 6C-5A implementation is complete**. **Steps 1–15 of unified Phase 6C-5 are implemented at code level** (integrity corrections + Step 13 focused suite + Step 14 preflight gates + Step 15 smoke checklist — see `docs/fedex/PHASE_6C_5_STEPS_13_15.md`). Live credentials remain unset; production/checkout/labels/tracking flags remain false by default. Step 16 (validation tooling cleanup) remains after live smoke acceptance.
 
 **Phase 5R (5R-0 through 5R-3) is complete.** **Phase 7 — Returns, Refunds, and Exchanges is COMPLETE (2026-07-28).** Current approved focus: Phase 9 Integration Foundation (and later portal phases). Do not reopen Phase 7 unless a production defect requires it.
 
@@ -330,7 +330,7 @@ Further large-file decomposition: `docs/REFACTORING_ROADMAP.md` (remaining defer
 
 **Model B / merchant developer credentials** is temporary developer fallback only (`FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED`). Do not treat Model B as the launch architecture.
 
-FedEx Model A connection hardening is implemented (Phase **6C-5A**). Checkout rates, production labels, and tracking sync remain deferred (6C-5B–5E). Keep `FEDEX_INTEGRATOR_PRODUCTION_ENABLED=false` until `fedex:production-preflight` passes on a protected environment.
+FedEx Model A connection hardening is implemented (Phase **6C-5A**). Steps **1–7** of Phase 6C-5 are implemented behind capability flags. Keep `FEDEX_INTEGRATOR_PRODUCTION_ENABLED=false` and checkout/ship/tracking flags false until focused tests and preflight pass on a protected environment.
 
 ---
 

@@ -14,6 +14,30 @@ return [
         'live_allowed_countries' => env('FEDEX_LIVE_ALLOWED_COUNTRIES', 'US,CA'),
         'model_b_developer_fallback_enabled' => filter_var(env('FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED', false), FILTER_VALIDATE_BOOL),
         'validation_mode_enabled' => filter_var(env('FEDEX_VALIDATION_MODE_ENABLED', false), FILTER_VALIDATE_BOOL),
+
+        // Phase 6C-5 Steps 2–4 production operation flags (sandbox Model A ok; live still needs productionEnabled()).
+        'ops_address_validation_enabled' => filter_var(env('FEDEX_OPS_ADDRESS_VALIDATION_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'ops_service_availability_enabled' => filter_var(env('FEDEX_OPS_SERVICE_AVAILABILITY_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'ops_negotiated_rates_enabled' => filter_var(env('FEDEX_OPS_NEGOTIATED_RATES_ENABLED', true), FILTER_VALIDATE_BOOL),
+        // Checkout live rates stay off until explicitly enabled (Step 4 wires path; Step 10 hardens).
+        'checkout_rates_enabled' => filter_var(env('FEDEX_CHECKOUT_RATES_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'ops_ship_labels_enabled' => filter_var(env('FEDEX_OPS_SHIP_LABELS_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'ops_tracking_enabled' => filter_var(env('FEDEX_OPS_TRACKING_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'label_storage_disk' => env('FEDEX_LABEL_STORAGE_DISK', 'local'),
+        'ops_max_ship_date_days' => (int) env('FEDEX_OPS_MAX_SHIP_DATE_DAYS', 10),
+        'http_timeout_seconds' => (int) env('FEDEX_HTTP_TIMEOUT_SECONDS', 20),
+        'http_safe_retry_attempts' => (int) env('FEDEX_HTTP_SAFE_RETRY_ATTEMPTS', 2),
+        'checkout_rate_cache_seconds' => (int) env('FEDEX_CHECKOUT_RATE_CACHE_SECONDS', 120),
+        'ops_rate_quote_ttl_seconds' => (int) env('FEDEX_OPS_RATE_QUOTE_TTL_SECONDS', 1800),
+        'checkout_max_package_lines' => (int) env('FEDEX_CHECKOUT_MAX_PACKAGE_LINES', 20),
+        'checkout_default_package' => [
+            'weight' => (float) env('FEDEX_CHECKOUT_DEFAULT_WEIGHT_LB', 1),
+            'weight_unit' => 'LB',
+            'length' => (float) env('FEDEX_CHECKOUT_DEFAULT_LENGTH_IN', 9),
+            'width' => (float) env('FEDEX_CHECKOUT_DEFAULT_WIDTH_IN', 6),
+            'height' => (float) env('FEDEX_CHECKOUT_DEFAULT_HEIGHT_IN', 2),
+            'dimension_unit' => 'IN',
+        ],
         // IntegratorUS07 dedicated Ground Economy / SmartPost account (workbook Test Account Numbers).
         'validation_us07_ground_economy_account' => env('FEDEX_VALIDATION_US07_GROUND_ECONOMY_ACCOUNT'),
         // IntegratorUS08 is archived / excluded from active Integrator validation by default.

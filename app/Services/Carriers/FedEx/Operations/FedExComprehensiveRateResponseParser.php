@@ -15,11 +15,19 @@ final class FedExComprehensiveRateResponseParser
      *     currency: ?string,
      *     amount: ?string,
      *     response_amount_path: ?string,
+     *     transit_days: ?int,
+     *     delivery_date: ?string,
+     *     surcharges: list<array{type:?string, description:?string, amount:?string, currency:?string}>,
+     *     duties_and_taxes: list<array<string, mixed>>,
      *     available_rates: list<array<string, mixed>>
      * }
      */
-    public function parse(?array $data, ?string $expectedServiceType = null, ?string $expectedRateType = 'ACCOUNT'): array
-    {
+    public function parse(
+        ?array $data,
+        ?string $expectedServiceType = null,
+        ?string $expectedRateType = 'ACCOUNT',
+        bool $allowFallbackToAnyRate = false,
+    ): array {
         $availableRates = [];
         $selected = null;
         $selectedPath = null;
@@ -33,6 +41,7 @@ final class FedExComprehensiveRateResponseParser
             $serviceName = app(FedExBrandComplianceService::class)->registeredDisplayName(
                 $this->stringValue($detail['serviceName'] ?? null) ?: $serviceType
             );
+            $transit = $this->extractTransit($detail);
 
             foreach ((array) ($detail['ratedShipmentDetails'] ?? []) as $ratedIndex => $rated) {
                 if (! is_array($rated)) {
@@ -44,6 +53,8 @@ final class FedExComprehensiveRateResponseParser
                     $rated['totalNetCharge'] ?? null,
                     data_get($rated, 'shipmentRateDetail.currency'),
                 );
+                $surcharges = $this->extractSurcharges($rated);
+                $duties = $this->extractDutiesAndTaxes($rated);
 
                 $entry = array_filter([
                     'service_type' => $serviceType,
@@ -51,6 +62,10 @@ final class FedExComprehensiveRateResponseParser
                     'rate_type' => $rateType,
                     'currency' => $currency,
                     'amount' => $amount,
+                    'transit_days' => $transit['transit_days'],
+                    'delivery_date' => $transit['delivery_date'],
+                    'surcharges' => $surcharges,
+                    'duties_and_taxes' => $duties,
                     'response_amount_path' => "output.rateReplyDetails[{$detailIndex}].ratedShipmentDetails[{$ratedIndex}].totalNetCharge",
                 ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
@@ -77,7 +92,8 @@ final class FedExComprehensiveRateResponseParser
             }
         }
 
-        if ($selected === null && $availableRates !== []) {
+        // Validation/diagnostics may fall back to any rate. Negotiated production paths must not.
+        if ($selected === null && $allowFallbackToAnyRate && $availableRates !== []) {
             $selected = $availableRates[0];
             $selectedPath = $selected['response_amount_path'] ?? null;
         }
@@ -89,8 +105,100 @@ final class FedExComprehensiveRateResponseParser
             'currency' => $selected['currency'] ?? null,
             'amount' => $selected['amount'] ?? null,
             'response_amount_path' => $selectedPath,
+            'transit_days' => isset($selected['transit_days']) ? (int) $selected['transit_days'] : null,
+            'delivery_date' => $selected['delivery_date'] ?? null,
+            'surcharges' => is_array($selected['surcharges'] ?? null) ? $selected['surcharges'] : [],
+            'duties_and_taxes' => is_array($selected['duties_and_taxes'] ?? null) ? $selected['duties_and_taxes'] : [],
             'available_rates' => $availableRates,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $detail
+     * @return array{transit_days: ?int, delivery_date: ?string}
+     */
+    private function extractTransit(array $detail): array
+    {
+        $commit = is_array($detail['commit'] ?? null) ? $detail['commit'] : [];
+        $days = data_get($commit, 'transitDays')
+            ?? data_get($commit, 'derivedDestinationDetail.transitDays')
+            ?? data_get($detail, 'operationalDetail.transitTime');
+
+        $delivery = data_get($commit, 'dateDetail.dayFormat')
+            ?? data_get($commit, 'dateDetail.dayCms')
+            ?? data_get($detail, 'deliveryTimestamp');
+
+        $transitDays = is_numeric($days) ? (int) $days : null;
+        if ($transitDays === null && is_string($days) && preg_match('/(\d+)/', $days, $m)) {
+            $transitDays = (int) $m[1];
+        }
+
+        return [
+            'transit_days' => $transitDays,
+            'delivery_date' => $this->stringValue($delivery),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $rated
+     * @return list<array{type:?string, description:?string, amount:?string, currency:?string}>
+     */
+    private function extractSurcharges(array $rated): array
+    {
+        $rows = [];
+        $list = data_get($rated, 'shipmentRateDetail.surCharges')
+            ?? data_get($rated, 'shipmentRateDetail.surcharges')
+            ?? [];
+
+        foreach ((array) $list as $surcharge) {
+            if (! is_array($surcharge)) {
+                continue;
+            }
+
+            [$amount, $currency] = $this->normalizeMoney(
+                $surcharge['amount'] ?? null,
+                $surcharge['currency'] ?? data_get($rated, 'shipmentRateDetail.currency'),
+            );
+
+            $rows[] = array_filter([
+                'type' => $this->stringValue($surcharge['type'] ?? $surcharge['surchargeType'] ?? null),
+                'description' => $this->stringValue($surcharge['description'] ?? null),
+                'amount' => $amount,
+                'currency' => $currency,
+            ], static fn (mixed $value): bool => $value !== null && $value !== '');
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $rated
+     * @return list<array<string, mixed>>
+     */
+    private function extractDutiesAndTaxes(array $rated): array
+    {
+        $rows = [];
+        foreach ((array) data_get($rated, 'shipmentRateDetail.totalDutiesAndTaxes', []) as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $rows[] = $entry;
+        }
+
+        $total = data_get($rated, 'totalDutiesTaxesAndFees')
+            ?? data_get($rated, 'shipmentRateDetail.totalDutiesAndTaxes');
+        if ($rows === [] && $total !== null) {
+            [$amount, $currency] = $this->normalizeMoney($total, data_get($rated, 'shipmentRateDetail.currency'));
+            if ($amount !== null) {
+                $rows[] = array_filter([
+                    'amount' => $amount,
+                    'currency' => $currency,
+                    'type' => 'DUTIES_AND_TAXES',
+                ]);
+            }
+        }
+
+        return $rows;
     }
 
     /**
