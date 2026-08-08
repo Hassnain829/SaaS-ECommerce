@@ -33,6 +33,15 @@ class FedExIntegratorConnectionController extends Controller
         $store = $this->resolveStore($request);
         abort_unless($config->modelAEnabled(), 404);
 
+        $intentKey = (string) $request->query('return_intent', '');
+        $capability = app(\App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::class);
+        if ($capability->resolveReturnIntent($intentKey) !== null) {
+            $request->session()->put(
+                \App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::SESSION_RETURN_INTENT,
+                $intentKey
+            );
+        }
+
         $locations = $store->locations()
             ->orderByDesc('is_default')
             ->orderBy('name')
@@ -383,6 +392,7 @@ class FedExIntegratorConnectionController extends Controller
             'account' => $account,
             'directChildAuthorization' => $directChildAuthorization,
             'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
+            'returnIntent' => $this->consumeReturnIntent($request),
         ]);
     }
 
@@ -414,12 +424,184 @@ class FedExIntegratorConnectionController extends Controller
         $guard = app(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::class);
         $caps = is_array($account->capabilities) ? $account->capabilities : [];
 
+        $lineageAccountIds = $this->fedExAccountLineageIds($store->id, $account);
+
         $recentShipments = \App\Models\Shipment::query()
             ->where('store_id', $store->id)
-            ->where('carrier_account_id', $account->id)
+            ->whereIn('carrier_account_id', $lineageAccountIds)
+            ->where(function ($query): void {
+                $query->whereNull('direction')
+                    ->orWhere('direction', '!=', \App\Models\Shipment::DIRECTION_RETURN);
+            })
+            ->with(['order:id,order_number,store_id'])
             ->orderByDesc('id')
             ->limit(8)
-            ->get(['id', 'shipment_number', 'tracking_number', 'status', 'label_url', 'created_at', 'metadata']);
+            ->get(['id', 'order_id', 'shipment_number', 'tracking_number', 'status', 'label_url', 'carrier_account_id', 'created_at', 'metadata', 'direction']);
+
+        $recentReturnShipments = \App\Models\Shipment::query()
+            ->where('store_id', $store->id)
+            ->whereIn('carrier_account_id', $lineageAccountIds)
+            ->where(function ($query): void {
+                $query->where('direction', \App\Models\Shipment::DIRECTION_RETURN)
+                    ->orWhere('metadata->fedex->return_shipment', true);
+            })
+            ->with(['order:id,order_number,store_id'])
+            ->orderByDesc('id')
+            ->limit(6)
+            ->get(['id', 'order_id', 'shipment_number', 'tracking_number', 'status', 'carrier_account_id', 'created_at', 'metadata', 'direction']);
+
+        $openReturnsNeedingLabels = \App\Models\OrderReturn::query()
+            ->where('store_id', $store->id)
+            ->where('status', \App\Support\ReturnLifecycle::STATUS_APPROVED)
+            ->count();
+
+        $fedExCheckoutMethods = \App\Models\ShippingMethod::query()
+            ->where('store_id', $store->id)
+            ->where('rate_type', \App\Models\ShippingMethod::RATE_CARRIER_CALCULATED_LATER)
+            ->whereIn('carrier_account_id', $lineageAccountIds)
+            ->where(function ($query): void {
+                $query->where('is_active', true)->orWhere('enabled_for_checkout', true);
+            })
+            ->with('shippingZone:id,name,store_id')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $checkoutPlatformOn = $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_CHECKOUT_RATES);
+        $checkoutAccountOn = (bool) $account->enabled_for_checkout && (bool) ($caps['checkout_rates'] ?? false);
+        $checkoutRatesEffective = $checkoutPlatformOn && $checkoutAccountOn && $fedExCheckoutMethods->isNotEmpty();
+
+        $recentApiEvents = $account->apiEvents;
+        $lastCheckoutRateSuccess = $this->latestSuccessfulEvent($recentApiEvents, [
+            \App\Models\CarrierApiEvent::ACTION_FEDEX_RATE_QUOTE,
+        ]);
+        $lastLabelSuccess = $this->latestSuccessfulEvent($recentApiEvents, [
+            \App\Models\CarrierApiEvent::ACTION_FEDEX_SHIP_CREATE_LABEL,
+        ]);
+        $lastTrackingSuccess = $this->latestSuccessfulEvent($recentApiEvents, [
+            \App\Models\CarrierApiEvent::ACTION_FEDEX_BASIC_INTEGRATED_VISIBILITY,
+        ]);
+
+        $checkoutRatesStatus = 'needs_setup';
+        $checkoutRatesDetail = 'Connect checkout options so customers can see FedEx prices.';
+        $checkoutRatesBadge = 'Needs setup';
+        if (! $checkoutPlatformOn) {
+            $checkoutRatesStatus = 'disabled';
+            $checkoutRatesDetail = 'Platform checkout rates are currently off.';
+            $checkoutRatesBadge = 'Disabled';
+        } elseif ($fedExCheckoutMethods->isEmpty()) {
+            $checkoutRatesStatus = 'needs_setup';
+            $checkoutRatesDetail = 'FedEx is connected, but no live-rate options are linked to a delivery area yet.';
+            $checkoutRatesBadge = 'Needs setup';
+        } elseif ($checkoutRatesEffective && $lastCheckoutRateSuccess) {
+            $checkoutRatesStatus = 'working';
+            $checkoutRatesDetail = 'Live FedEx rates are configured. Last successful quote '.$lastCheckoutRateSuccess->created_at?->diffForHumans().'.';
+            $checkoutRatesBadge = 'Working';
+        } elseif ($checkoutRatesEffective) {
+            $checkoutRatesStatus = 'active';
+            $checkoutRatesDetail = 'Live FedEx rates are configured for checkout.';
+            $checkoutRatesBadge = 'Enabled — not tested';
+        } elseif (! $checkoutAccountOn) {
+            $checkoutRatesStatus = 'needs_setup';
+            $checkoutRatesDetail = 'Checkout rate options exist, but checkout use is not enabled on this account.';
+            $checkoutRatesBadge = 'Needs setup';
+        }
+
+        $labelsPlatformOn = $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_SHIP_LABELS);
+        $labelsAccountOn = (bool) ($caps['labels'] ?? $caps['ship_labels'] ?? false);
+        $trackingPlatformOn = $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_TRACKING);
+        $trackingAccountOn = (bool) ($caps['tracking'] ?? false);
+
+        $labelsEnabled = $labelsPlatformOn && $labelsAccountOn;
+        $trackingEnabled = $trackingPlatformOn && $trackingAccountOn;
+
+        $labelsBadge = match (true) {
+            ! $labelsPlatformOn => 'Disabled',
+            ! $labelsAccountOn => 'Unavailable',
+            $lastLabelSuccess !== null => 'Working',
+            default => 'Enabled — not tested',
+        };
+        $labelsDetail = match (true) {
+            ! $labelsPlatformOn => 'Label purchase is off at the platform.',
+            ! $labelsAccountOn => 'Label purchase is not enabled on this account yet.',
+            $lastLabelSuccess !== null => 'Label purchase is enabled. Last successful label '.$lastLabelSuccess->created_at?->diffForHumans().'.',
+            default => 'Label purchase is enabled for this account.',
+        };
+
+        $trackingBadge = match (true) {
+            ! $trackingPlatformOn => 'Disabled',
+            ! $trackingAccountOn => 'Unavailable',
+            $lastTrackingSuccess !== null => 'Working',
+            default => 'Enabled — not tested',
+        };
+        $trackingDetail = match (true) {
+            ! $trackingPlatformOn => 'Tracking is off at the platform.',
+            ! $trackingAccountOn => 'Tracking is not enabled on this account yet.',
+            $lastTrackingSuccess !== null => 'Tracking updates are enabled. Last successful sync '.$lastTrackingSuccess->created_at?->diffForHumans().'.',
+            default => 'Tracking updates are enabled for this account.',
+        };
+
+        $readyToShipCount = \App\Models\Order::query()
+            ->where('store_id', $store->id)
+            ->whereIn('fulfillment_status', [
+                \App\Support\OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                \App\Support\OrderLifecycle::FULFILLMENT_PARTIAL,
+            ])
+            ->whereNotIn('status', [
+                \App\Models\Order::STATUS_CANCELLED,
+                \App\Models\Order::STATUS_REFUNDED,
+            ])
+            ->count();
+
+        $inTransitCount = \App\Models\Shipment::query()
+            ->where('store_id', $store->id)
+            ->whereIn('carrier_account_id', $lineageAccountIds)
+            ->whereIn('status', ['in_transit', 'shipped', 'label_created', 'pending'])
+            ->count();
+
+        $exceptionCount = \App\Models\Shipment::query()
+            ->where('store_id', $store->id)
+            ->whereIn('carrier_account_id', $lineageAccountIds)
+            ->whereIn('status', ['exception', 'failed', 'delivery_exception'])
+            ->count();
+
+        $deliveredCount = \App\Models\Shipment::query()
+            ->where('store_id', $store->id)
+            ->whereIn('carrier_account_id', $lineageAccountIds)
+            ->where('status', 'delivered')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->count();
+
+        $lineageAccounts = \App\Models\CarrierAccount::query()
+            ->where('store_id', $store->id)
+            ->whereIn('id', $lineageAccountIds)
+            ->where('id', '!=', $account->id)
+            ->orderByDesc('replaced_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $primaryNextAction = match (true) {
+            filled($account->last_error_message) && in_array($account->connection_status, ['failed', 'blocked_by_fedex'], true) => [
+                'label' => 'Verify connection',
+                'href' => null,
+                'form' => 'verify',
+            ],
+            in_array($checkoutRatesStatus, ['needs_setup'], true) => [
+                'label' => 'Manage checkout shipping',
+                'href' => route('settings.delivery.setup.delivery-option'),
+                'form' => null,
+            ],
+            $labelsEnabled && $readyToShipCount > 0 => [
+                'label' => 'Ship an order',
+                'href' => route('orders'),
+                'form' => null,
+            ],
+            default => [
+                'label' => 'Verify connection',
+                'href' => null,
+                'form' => 'verify',
+            ],
+        };
 
         return view('user_view.fedex_integrator.manage', [
             'selectedStore' => $store,
@@ -432,13 +614,9 @@ class FedExIntegratorConnectionController extends Controller
                 'address_validation' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_ADDRESS_VALIDATION),
                 'service_availability' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_SERVICE_AVAILABILITY),
                 'negotiated_rates' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_NEGOTIATED_RATES),
-                'checkout_rates' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_CHECKOUT_RATES)
-                    && (bool) $account->enabled_for_checkout
-                    && (bool) ($caps['checkout_rates'] ?? false),
-                'ship_labels' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_SHIP_LABELS)
-                    && (bool) ($caps['labels'] ?? $caps['ship_labels'] ?? false),
-                'tracking' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_TRACKING)
-                    && (bool) ($caps['tracking'] ?? false),
+                'checkout_rates' => $checkoutRatesEffective,
+                'ship_labels' => $labelsEnabled,
+                'tracking' => $trackingEnabled,
             ],
             'accountCapabilityToggles' => [
                 'checkout_rates' => (bool) ($caps['checkout_rates'] ?? false),
@@ -447,13 +625,83 @@ class FedExIntegratorConnectionController extends Controller
                 'enabled_for_checkout' => (bool) $account->enabled_for_checkout,
             ],
             'globalFlags' => [
-                'checkout_rates' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_CHECKOUT_RATES),
-                'ship_labels' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_SHIP_LABELS),
-                'tracking' => $guard->capabilityEnabled(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::CAPABILITY_TRACKING),
+                'checkout_rates' => $checkoutPlatformOn,
+                'ship_labels' => $labelsPlatformOn,
+                'tracking' => $trackingPlatformOn,
             ],
-            'recentApiEvents' => $account->apiEvents,
+            'recentApiEvents' => $recentApiEvents,
             'recentShipments' => $recentShipments,
+            'recentReturnShipments' => $recentReturnShipments,
+            'openReturnsNeedingLabels' => $openReturnsNeedingLabels,
+            'checkoutRatesStatus' => $checkoutRatesStatus,
+            'checkoutRatesDetail' => $checkoutRatesDetail,
+            'checkoutRatesBadge' => $checkoutRatesBadge,
+            'fedExCheckoutMethods' => $fedExCheckoutMethods,
+            'readyToShipCount' => $readyToShipCount,
+            'inTransitCount' => $inTransitCount,
+            'exceptionCount' => $exceptionCount,
+            'deliveredCount' => $deliveredCount,
+            'primaryNextAction' => $primaryNextAction,
+            'labelsEnabled' => $labelsEnabled,
+            'trackingEnabled' => $trackingEnabled,
+            'labelsBadge' => $labelsBadge,
+            'labelsDetail' => $labelsDetail,
+            'trackingBadge' => $trackingBadge,
+            'trackingDetail' => $trackingDetail,
+            'lineageAccounts' => $lineageAccounts,
         ]);
+    }
+
+    /**
+     * @param  iterable<int, \App\Models\CarrierApiEvent>  $events
+     * @param  list<string>  $actions
+     */
+    private function latestSuccessfulEvent(iterable $events, array $actions): ?\App\Models\CarrierApiEvent
+    {
+        foreach ($events as $event) {
+            if (($event->status ?? null) !== 'succeeded') {
+                continue;
+            }
+            if (in_array((string) $event->action, $actions, true)) {
+                return $event;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function fedExAccountLineageIds(int $storeId, CarrierAccount $account): array
+    {
+        $ids = collect([(int) $account->id]);
+
+        $changed = true;
+        while ($changed) {
+            $changed = false;
+            $predecessors = CarrierAccount::query()
+                ->where('store_id', $storeId)
+                ->whereIn('replaced_by_carrier_account_id', $ids->all())
+                ->pluck('id');
+            foreach ($predecessors as $id) {
+                if (! $ids->contains((int) $id)) {
+                    $ids->push((int) $id);
+                    $changed = true;
+                }
+            }
+        }
+
+        $cursor = $account->replaced_by_carrier_account_id;
+        $guard = 0;
+        while ($cursor && $guard < 20) {
+            $ids->push((int) $cursor);
+            $next = CarrierAccount::query()->where('store_id', $storeId)->whereKey($cursor)->first();
+            $cursor = $next?->replaced_by_carrier_account_id;
+            $guard++;
+        }
+
+        return $ids->unique()->values()->all();
     }
 
     public function updateCapabilities(
@@ -789,5 +1037,18 @@ class FedExIntegratorConnectionController extends Controller
             && $account !== null
             && $account->isConnected()
             && $account->hasLegacyFedExChildCredentials();
+    }
+
+    /**
+     * @return array{key: string, label: string, route: string, params?: array<string, mixed>}|null
+     */
+    private function consumeReturnIntent(Request $request): ?array
+    {
+        $capability = app(\App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::class);
+        $key = $request->session()->pull(
+            \App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::SESSION_RETURN_INTENT
+        );
+
+        return $capability->resolveReturnIntent(is_string($key) ? $key : null);
     }
 }

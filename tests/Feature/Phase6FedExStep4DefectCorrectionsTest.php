@@ -393,20 +393,37 @@ class Phase6FedExStep4DefectCorrectionsTest extends TestCase
 
     public function test_package_builder_fingerprint_changes_with_quantity(): void
     {
-        $checkoutOne = new \App\Models\Checkout();
+        $store = Store::query()->create([
+            'user_id' => User::factory()->create([
+                'email' => 'pkg-builder-owner@example.test',
+                'role_id' => Role::firstOrCreate(['name' => 'user'])->id,
+            ])->id,
+            'name' => 'Package Builder Store',
+            'slug' => 'package-builder-store-'.Str::lower(Str::random(6)),
+            'currency' => 'USD',
+            'timezone' => 'UTC',
+        ]);
+
+        $checkoutOne = new \App\Models\Checkout(['store_id' => $store->id]);
+        $checkoutOne->setRelation('store', $store);
         $itemOne = new \App\Models\CheckoutItem([
             'id' => 1,
             'quantity' => 1,
             'product_variant_id' => 10,
+            'product_name' => 'Sample product',
+            'product_type_snapshot' => 'physical',
         ]);
         $checkoutOne->setRelation('items', collect([$itemOne]));
         $one = app(FedExCheckoutPackageBuilder::class)->buildFromCheckout($checkoutOne);
 
-        $checkoutThree = new \App\Models\Checkout();
+        $checkoutThree = new \App\Models\Checkout(['store_id' => $store->id]);
+        $checkoutThree->setRelation('store', $store);
         $itemThree = new \App\Models\CheckoutItem([
             'id' => 1,
             'quantity' => 3,
             'product_variant_id' => 10,
+            'product_name' => 'Sample product',
+            'product_type_snapshot' => 'physical',
         ]);
         $checkoutThree->setRelation('items', collect([$itemThree]));
         $three = app(FedExCheckoutPackageBuilder::class)->buildFromCheckout($checkoutThree);
@@ -414,7 +431,10 @@ class Phase6FedExStep4DefectCorrectionsTest extends TestCase
         $this->assertNotSame($one['fingerprint'], $three['fingerprint']);
         $this->assertSame(1, $one['total_quantity']);
         $this->assertSame(3, $three['total_quantity']);
-        $this->assertCount(3, $three['packages']);
+        $this->assertFalse($one['ready']);
+        $this->assertFalse($three['ready']);
+        $this->assertSame('missing_weights', $one['reason']);
+        $this->assertSame([], $three['packages']);
     }
 
     /**

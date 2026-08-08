@@ -6,12 +6,18 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderAddress;
 use App\Models\Store;
+use App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Builds fixture-shaped ship payloads for production merchant Ship API calls.
  */
 final class FedExProductionShipRequestBuilder
 {
+    public function __construct(
+        private readonly FedExHandoffTypeResolver $handoffTypeResolver,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $input
      * @return array<string, mixed>
@@ -31,10 +37,25 @@ final class FedExProductionShipRequestBuilder
 
         $isReturn = ! empty($input['return_shipment']);
 
+        $shipperPhone = trim((string) ($origin->phone ?: ($input['shipper_phone'] ?? '')));
+        $recipientPhone = trim((string) ($recipient->phone ?: ($input['recipient_phone'] ?? '')));
+
+        if ($shipperPhone === '') {
+            throw ValidationException::withMessages([
+                'shipper_phone' => 'Add a phone number for the ship-from location before creating a FedEx label.',
+            ]);
+        }
+
+        if ($recipientPhone === '') {
+            throw ValidationException::withMessages([
+                'recipient_phone' => 'Add a customer phone number before creating a FedEx label.',
+            ]);
+        }
+
         $merchantParty = [
             'person_name' => (string) ($input['shipper_name'] ?? $store->name ?? 'Shipper'),
             'company_name' => (string) ($origin->name ?: $store->name),
-            'phone' => (string) ($origin->phone ?: ($input['shipper_phone'] ?? '9015550100')),
+            'phone' => $shipperPhone,
             'street_lines' => array_values(array_filter([
                 $origin->address_line1,
                 $origin->address_line2,
@@ -48,15 +69,19 @@ final class FedExProductionShipRequestBuilder
         $customerParty = [
             'person_name' => (string) ($recipient->name ?: 'Recipient'),
             'company_name' => $recipient->company,
-            'phone' => (string) ($recipient->phone ?: ($input['recipient_phone'] ?? '9015550199')),
+            'phone' => $recipientPhone,
             'street_lines' => array_values(array_filter([
-                $recipient->address_line1,
-                $recipient->address_line2,
+                data_get($input, 'destination_override.address_line1') ?: $recipient->address_line1,
+                data_get($input, 'destination_override.address_line2') ?: $recipient->address_line2,
             ])),
-            'city' => $recipient->city,
-            'state' => $recipient->province_code ?: $recipient->state,
-            'postal_code' => $recipient->postal_code,
-            'country_code' => strtoupper((string) ($recipient->country_code ?: 'US')),
+            'city' => data_get($input, 'destination_override.city') ?: $recipient->city,
+            'state' => data_get($input, 'destination_override.state')
+                ?: ($recipient->province_code ?: $recipient->state),
+            'postal_code' => data_get($input, 'destination_override.postal_code') ?: $recipient->postal_code,
+            'country_code' => strtoupper((string) (
+                data_get($input, 'destination_override.country_code')
+                ?: ($recipient->country_code ?: 'US')
+            )),
             'residential' => (bool) ($input['residential'] ?? false),
         ];
 
@@ -84,7 +109,10 @@ final class FedExProductionShipRequestBuilder
             'packaging_type' => strtoupper((string) ($input['packaging_type'] ?? 'YOUR_PACKAGING')),
             'label_format' => $labelFormat,
             'label_stock_type' => (string) ($input['label_stock_type'] ?? 'PAPER_4X6'),
-            'pickup_type' => (string) ($input['pickup_type'] ?? 'USE_SCHEDULED_PICKUP'),
+            'pickup_type' => $this->handoffTypeResolver->resolve(
+                $store,
+                isset($input['pickup_type']) ? (string) $input['pickup_type'] : null,
+            ),
             'ship_date' => (string) ($input['ship_date'] ?? now()->toDateString()),
             'shipper' => $shipper,
             'recipient' => $recipientParty,
@@ -168,14 +196,9 @@ final class FedExProductionShipRequestBuilder
     private function normalizePackages(mixed $packages): array
     {
         if (! is_array($packages) || $packages === []) {
-            return [[
-                'weight' => 1,
-                'weight_unit' => 'LB',
-                'length' => 9,
-                'width' => 6,
-                'height' => 2,
-                'dimension_unit' => 'IN',
-            ]];
+            throw ValidationException::withMessages([
+                'packages' => 'Add at least one package with weight and dimensions before creating a FedEx label.',
+            ]);
         }
 
         if (! array_is_list($packages)) {
@@ -187,24 +210,44 @@ final class FedExProductionShipRequestBuilder
             if (! is_array($package)) {
                 continue;
             }
+
+            $weight = $package['weight'] ?? null;
+            $length = $package['length'] ?? null;
+            $width = $package['width'] ?? null;
+            $height = $package['height'] ?? null;
+
+            if (! is_numeric($weight) || (float) $weight <= 0) {
+                throw ValidationException::withMessages([
+                    "packages.{$index}.weight" => 'Each package needs a weight greater than zero.',
+                ]);
+            }
+
+            if (! is_numeric($length) || (float) $length <= 0
+                || ! is_numeric($width) || (float) $width <= 0
+                || ! is_numeric($height) || (float) $height <= 0
+            ) {
+                throw ValidationException::withMessages([
+                    "packages.{$index}.dimensions" => 'Each package needs length, width, and height.',
+                ]);
+            }
+
             $normalized[] = [
                 'sequence_number' => (int) ($package['sequence_number'] ?? ($index + 1)),
-                'weight' => max(0.01, (float) ($package['weight'] ?? 1)),
+                'weight' => max(0.01, (float) $weight),
                 'weight_unit' => strtoupper((string) ($package['weight_unit'] ?? 'LB')),
-                'length' => max(1.0, (float) ($package['length'] ?? 9)),
-                'width' => max(1.0, (float) ($package['width'] ?? 6)),
-                'height' => max(1.0, (float) ($package['height'] ?? 2)),
+                'length' => max(1.0, (float) $length),
+                'width' => max(1.0, (float) $width),
+                'height' => max(1.0, (float) $height),
                 'dimension_unit' => strtoupper((string) ($package['dimension_unit'] ?? 'IN')),
             ];
         }
 
-        return $normalized !== [] ? $normalized : [[
-            'weight' => 1,
-            'weight_unit' => 'LB',
-            'length' => 9,
-            'width' => 6,
-            'height' => 2,
-            'dimension_unit' => 'IN',
-        ]];
+        if ($normalized === []) {
+            throw ValidationException::withMessages([
+                'packages' => 'Add at least one package with weight and dimensions before creating a FedEx label.',
+            ]);
+        }
+
+        return $normalized;
     }
 }

@@ -74,6 +74,67 @@ class FedExMerchantApiClient
         array $headers = [],
         ?string $customerTransactionId = null,
     ): CarrierApiResult {
+        return $this->sendJson(
+            method: 'post',
+            store: $store,
+            account: $account,
+            action: $action,
+            path: $path,
+            payload: $payload,
+            requestSummary: $requestSummary,
+            context: $context,
+            headers: $headers,
+            customerTransactionId: $customerTransactionId,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $requestSummary
+     * @param  array<string, string>  $headers
+     */
+    public function putJson(
+        Store $store,
+        CarrierAccount $account,
+        string $action,
+        string $path,
+        array $payload,
+        array $requestSummary,
+        ?FedExValidationEventContext $context = null,
+        array $headers = [],
+        ?string $customerTransactionId = null,
+    ): CarrierApiResult {
+        return $this->sendJson(
+            method: 'put',
+            store: $store,
+            account: $account,
+            action: $action,
+            path: $path,
+            payload: $payload,
+            requestSummary: $requestSummary,
+            context: $context,
+            headers: $headers,
+            customerTransactionId: $customerTransactionId,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $requestSummary
+     * @param  array<string, string>  $headers
+     */
+    private function sendJson(
+        string $method,
+        Store $store,
+        CarrierAccount $account,
+        string $action,
+        string $path,
+        array $payload,
+        array $requestSummary,
+        ?FedExValidationEventContext $context = null,
+        array $headers = [],
+        ?string $customerTransactionId = null,
+    ): CarrierApiResult {
         $this->assertFedExApiAccount($account, $store);
         $account->loadMissing('store');
 
@@ -129,13 +190,27 @@ class FedExMerchantApiClient
             context: $context,
         );
 
-        $apiResult = $this->httpClient->postJson(
-            environment: $environment,
-            path: $path,
-            payload: $payload,
-            headers: $headers,
-            bearerToken: $accessToken,
-            requestSummary: $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken, $credentialsMode),
+        $dispatch = $method === 'put'
+            ? fn (string $token, array $summary): CarrierApiResult => $this->httpClient->putJson(
+                environment: $environment,
+                path: $path,
+                payload: $payload,
+                headers: $headers,
+                bearerToken: $token,
+                requestSummary: $summary,
+            )
+            : fn (string $token, array $summary): CarrierApiResult => $this->httpClient->postJson(
+                environment: $environment,
+                path: $path,
+                payload: $payload,
+                headers: $headers,
+                bearerToken: $token,
+                requestSummary: $summary,
+            );
+
+        $apiResult = $dispatch(
+            $accessToken,
+            $this->authenticatedRequestSummary($account, $environment, $requestSummary, $accessToken, $credentialsMode),
         );
 
         if ($this->isUnauthorized($apiResult)) {
@@ -201,14 +276,7 @@ class FedExMerchantApiClient
                 $credentialsMode,
             );
 
-            $apiResult = $this->httpClient->postJson(
-                environment: $environment,
-                path: $path,
-                payload: $payload,
-                headers: $headers,
-                bearerToken: $refreshedToken,
-                requestSummary: $retrySummary,
-            );
+            $apiResult = $dispatch($refreshedToken, $retrySummary);
 
             if ($this->isUnauthorized($apiResult)) {
                 $apiResult = CarrierApiResult::failure(

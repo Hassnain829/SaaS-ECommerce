@@ -161,12 +161,24 @@ class DeliveryOptionInputNormalizer
      */
     public function mergePreservedMethodFields(ShippingMethod $existing, array $attributes): array
     {
-        return array_merge($attributes, [
+        $merged = array_merge($attributes, [
             'code' => $existing->code,
             'description' => $existing->description,
             'min_order_amount' => $existing->min_order_amount,
             'max_order_amount' => $existing->max_order_amount,
             'sort_order' => $existing->sort_order,
         ]);
+
+        // Never silently downgrade a FedEx live-rate method to flat/free/manual.
+        if ($existing->isFedExLiveRateMethod()) {
+            $merged['rate_type'] = ShippingMethod::RATE_CARRIER_CALCULATED_LATER;
+            $merged['carrier_account_id'] = $existing->carrier_account_id;
+            $merged['carrier_service_code'] = $existing->carrier_service_code;
+            $merged['carrier_service_name'] = $existing->carrier_service_name;
+            $merged['flat_rate'] = 0;
+            $merged['free_over_amount'] = null;
+        }
+
+        return $merged;
     }
 }

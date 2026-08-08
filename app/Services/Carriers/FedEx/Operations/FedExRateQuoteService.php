@@ -12,6 +12,7 @@ use App\Services\Carriers\FedEx\Auth\FedExAuthorizationClassifier;
 use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 use App\Services\Carriers\FedEx\Presenters\FedExMerchantCheckPresenter;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver;
 
 class FedExRateQuoteService
 {
@@ -19,6 +20,7 @@ class FedExRateQuoteService
         private readonly FedExConfig $config,
         private readonly FedExMerchantApiClient $apiClient,
         private readonly CarrierOriginReadinessService $originReadiness,
+        private readonly FedExHandoffTypeResolver $handoffTypeResolver,
     ) {}
 
     /**
@@ -129,7 +131,7 @@ class FedExRateQuoteService
                     'residential' => $residential,
                 ]),
             ],
-            'pickupType' => 'DROPOFF_AT_FEDEX_LOCATION',
+            'pickupType' => $this->handoffTypeResolver->resolve($store),
             'packagingType' => $packagingType,
             'rateRequestType' => ['ACCOUNT', 'LIST'],
             'shipDateStamp' => $shipDatestamp,

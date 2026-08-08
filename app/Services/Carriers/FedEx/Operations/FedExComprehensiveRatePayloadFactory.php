@@ -4,9 +4,14 @@ namespace App\Services\Carriers\FedEx\Operations;
 
 use App\Models\CarrierAccount;
 use App\Services\Carriers\FedEx\DTO\FedExShipmentRateRequest;
+use App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver;
 
 final class FedExComprehensiveRatePayloadFactory
 {
+    public function __construct(
+        private readonly FedExHandoffTypeResolver $handoffTypeResolver,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $fixture
      * @return array<string, mixed>
@@ -45,7 +50,10 @@ final class FedExComprehensiveRatePayloadFactory
         );
 
         $request = $request->withPickupAndRateOptions(
-            pickupType: (string) ($fixture['pickup_type'] ?? 'DROPOFF_AT_FEDEX_LOCATION'),
+            pickupType: $this->handoffTypeResolver->resolve(
+                null,
+                isset($fixture['pickup_type']) ? (string) $fixture['pickup_type'] : null,
+            ),
             rateRequestTypes: array_values((array) ($fixture['rate_request_types'] ?? ['ACCOUNT', 'LIST'])),
             returnTransitTimes: (bool) ($fixture['return_transit_times'] ?? true),
             carrierCodes: filled($fixture['carrier_codes'] ?? null) ? array_values((array) $fixture['carrier_codes']) : null,

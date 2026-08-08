@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Services\Channels\ChannelOwnershipService;
+use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
@@ -57,6 +58,7 @@ class ExternalOrderSyncService
         private readonly FulfillmentOriginRouter $originRouter,
         private readonly \App\Services\Coupons\CouponService $couponService,
         private readonly CommerceNotificationEmitter $commerceNotifications,
+        private readonly ShippingWeightResolver $shippingWeightResolver,
     ) {}
 
     /**
@@ -245,6 +247,7 @@ class ExternalOrderSyncService
                     'discount_amount' => $lineDiscount,
                     'tax_amount' => $this->money('0', $currencyCode),
                     'total' => $lineTotal,
+                    'weight_snapshot' => $this->shippingWeightResolver->resolveSnapshot($product, $variant),
                     'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
                 ]);
             }

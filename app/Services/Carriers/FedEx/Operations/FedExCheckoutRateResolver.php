@@ -76,8 +76,9 @@ final class FedExCheckoutRateResolver
         $checkoutCurrency = strtoupper(trim($checkoutCurrency));
         $shipDate = $shipDate ?: now()->toDateString();
         $residentialFlag = $residential ?? (array_key_exists('residential', $destination) ? (bool) $destination['residential'] : null);
-        $serviceType = data_get($method->meta, 'fedex_service_type')
-            ?? $method->getAttribute('carrier_service_code');
+        $serviceType = filled($method->carrier_service_code)
+            ? (string) $method->carrier_service_code
+            : (data_get($method->getAttributes(), 'meta.fedex_service_type') ?: null);
 
         $packageFingerprint = hash('sha256', json_encode($packages) ?: '');
         $cacheSeconds = max(30, (int) config('carriers.fedex.checkout_rate_cache_seconds', 120));

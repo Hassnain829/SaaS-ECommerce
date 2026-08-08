@@ -443,7 +443,7 @@ class FedExShipValidationService
         );
 
         $result = FedExAuthorizationClassifier::applyBlockedClassification(
-            $this->apiClient->postJson(
+            $this->apiClient->putJson(
                 store: $store,
                 account: $account,
                 action: CarrierApiEvent::ACTION_FEDEX_SHIP_CANCEL,

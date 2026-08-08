@@ -16,6 +16,7 @@ use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Checkout\FinancialTotalsInvariantService;
 use App\Services\Coupons\CouponService;
+use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\Money\DecimalString;
@@ -36,6 +37,7 @@ class CheckoutConversionService
         private readonly CouponService $couponService,
         private readonly FinancialTotalsInvariantService $financialTotalsInvariantService,
         private readonly CommerceNotificationEmitter $commerceNotifications,
+        private readonly ShippingWeightResolver $shippingWeightResolver,
     ) {}
 
     public function handleSucceededPayment(PaymentWebhookResult $result): ?Order
@@ -192,6 +194,7 @@ class CheckoutConversionService
                 }
 
                 foreach ($checkout->items as $item) {
+                    $item->loadMissing(['variant.product', 'product']);
                     $order->items()->create([
                         'product_id' => $item->product_id,
                         'product_variant_id' => $item->product_variant_id,
@@ -205,6 +208,10 @@ class CheckoutConversionService
                         'discount_amount' => $item->discount_amount,
                         'tax_amount' => $item->tax_amount,
                         'total' => $item->total,
+                        'weight_snapshot' => $this->shippingWeightResolver->resolveSnapshot(
+                            $item->variant?->product ?? $item->product,
+                            $item->variant,
+                        ),
                         'sku_snapshot' => $item->sku_snapshot,
                         'product_slug_snapshot' => $item->product_slug_snapshot,
                         'brand_name_snapshot' => $item->brand_name_snapshot,

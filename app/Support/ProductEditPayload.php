@@ -34,6 +34,8 @@ final class ProductEditPayload
             'product_type' => 'physical',
             'custom_product_type' => '',
             'is_taxable' => $taxable,
+            'requires_shipping' => true,
+            'shipping_weight' => '',
             'brand_id' => null,
             'tag_ids' => [],
             'category_ids' => [],
@@ -135,6 +137,10 @@ final class ProductEditPayload
             'product_type' => $product->product_type,
             'custom_product_type' => trim((string) (($product->meta['custom_product_type_label'] ?? ''))),
             'is_taxable' => (bool) $product->is_taxable,
+            'requires_shipping' => (bool) $product->requires_shipping,
+            'shipping_weight' => isset($product->meta['shipping_weight']) && is_numeric($product->meta['shipping_weight'])
+                ? (string) $product->meta['shipping_weight']
+                : '',
             'brand_id' => $product->brand_id,
             'tag_ids' => $product->tags->pluck('id')->values()->all(),
             'category_ids' => $product->categories->pluck('id')->values()->all(),
@@ -260,6 +266,12 @@ final class ProductEditPayload
 
         if (array_key_exists('is_taxable', $old)) {
             $base['is_taxable'] = (bool) $old['is_taxable'];
+        }
+
+        if (array_key_exists('shipping_weight', $old)) {
+            $base['shipping_weight'] = $old['shipping_weight'] === null || $old['shipping_weight'] === ''
+                ? ''
+                : (string) $old['shipping_weight'];
         }
 
         if (array_key_exists('brand_id', $old)) {

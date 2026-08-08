@@ -8,6 +8,7 @@ use App\Models\Shipment;
 use App\Services\Fulfillment\ShipmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class ShipmentController extends Controller
 {
@@ -41,6 +42,7 @@ class ShipmentController extends Controller
     public function updateTracking(Request $request, Shipment $shipment, ShipmentService $shipmentService): RedirectResponse
     {
         $this->authorizeShipment($request, $shipment);
+        $this->rejectIfFedExManaged($shipment);
 
         $validated = $request->validate([
             'tracking_number' => ['nullable', 'string', 'max:120'],
@@ -59,6 +61,7 @@ class ShipmentController extends Controller
     public function markShipped(Request $request, Shipment $shipment, ShipmentService $shipmentService): RedirectResponse
     {
         $this->authorizeShipment($request, $shipment);
+        $this->rejectIfFedExManaged($shipment);
         $shipmentService->markShipped($shipment, $request->user(), $request);
 
         return back()
@@ -69,6 +72,7 @@ class ShipmentController extends Controller
     public function markDelivered(Request $request, Shipment $shipment, ShipmentService $shipmentService): RedirectResponse
     {
         $this->authorizeShipment($request, $shipment);
+        $this->rejectIfFedExManaged($shipment);
         $shipmentService->markDelivered($shipment, $request->user(), $request);
 
         return back()
@@ -79,6 +83,7 @@ class ShipmentController extends Controller
     public function markFailed(Request $request, Shipment $shipment, ShipmentService $shipmentService): RedirectResponse
     {
         $this->authorizeShipment($request, $shipment);
+        $this->rejectIfFedExManaged($shipment);
         $shipmentService->markFailed($shipment, $request->user(), $request);
 
         return back()
@@ -89,6 +94,7 @@ class ShipmentController extends Controller
     public function cancel(Request $request, Shipment $shipment, ShipmentService $shipmentService): RedirectResponse
     {
         $this->authorizeShipment($request, $shipment);
+        $this->rejectIfFedExManaged($shipment);
         $shipmentService->cancelShipment($shipment, $request->user(), $request);
 
         return back()
@@ -100,5 +106,16 @@ class ShipmentController extends Controller
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $shipment->store_id === (int) $store->id, 404);
+    }
+
+    private function rejectIfFedExManaged(Shipment $shipment): void
+    {
+        $shipment->loadMissing('carrierAccount');
+
+        if ($shipment->isFedExManagedShipment()) {
+            throw ValidationException::withMessages([
+                'shipment' => 'Use FedEx shipment actions for this shipment. Generic tracking and status changes are not available.',
+            ]);
+        }
     }
 }

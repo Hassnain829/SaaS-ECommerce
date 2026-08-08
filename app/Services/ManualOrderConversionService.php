@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Checkout\CheckoutTotalsService;
 use App\Services\Coupons\CouponService;
+use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Notifications\CommerceNotificationEmitter;
@@ -28,6 +29,7 @@ class ManualOrderConversionService
         private readonly CustomerMetricsService $customerMetricsService,
         private readonly CouponService $couponService,
         private readonly CommerceNotificationEmitter $commerceNotifications,
+        private readonly ShippingWeightResolver $shippingWeightResolver,
     ) {}
 
     public function convert(DraftOrder $draft, Store $store, User $actor): Order
@@ -246,6 +248,7 @@ class ManualOrderConversionService
                     'discount_amount' => $lineDiscount,
                     'tax_amount' => $isCalculatedTax ? $item->tax_amount : 0,
                     'total' => $itemTotal,
+                    'weight_snapshot' => $this->shippingWeightResolver->resolveSnapshot($variant->product, $variant),
                     'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
                     'meta' => $couponDiscount ? [
                         'coupon' => [

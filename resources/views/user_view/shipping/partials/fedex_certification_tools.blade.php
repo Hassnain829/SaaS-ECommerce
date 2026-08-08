@@ -1,5 +1,8 @@
 {{-- Certification / FedEx approval tools — Advanced only. Not day-to-day delivery setup. --}}
-@if (($fedExConfig->validationModeEnabled() ?? false) && ($fedExAccounts ?? collect())->isNotEmpty())
+@if (($loadFedExValidationTools ?? false)
+    && ($fedExConfig->validationModeEnabled() ?? false)
+    && ($fedExAccounts ?? collect())->isNotEmpty()
+    && \Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.validation'))
     <x-ui.disclosure summary="FedEx approval tools" class="mt-4">
         <x-ui.operator-banner title="Certification tools" class="mb-4">
             These tools prepare a FedEx approval package. They are not required to finish everyday delivery setup.
@@ -18,9 +21,11 @@
                                 <x-ui.button variant="secondary" :href="route('settings.shipping.carrier-accounts.fedex.validation', $account)">
                                     Open FedEx approval tools
                                 </x-ui.button>
-                                <x-ui.button variant="ghost" :href="route('settings.shipping.carrier-accounts.fedex.capabilities', [$account, 'evidence_mode' => 1])">
-                                    Branding evidence page
-                                </x-ui.button>
+                                @if (\Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.capabilities'))
+                                    <x-ui.button variant="ghost" :href="route('settings.shipping.carrier-accounts.fedex.capabilities', [$account, 'evidence_mode' => 1])">
+                                        Branding evidence page
+                                    </x-ui.button>
+                                @endif
                             </div>
                         </div>
 

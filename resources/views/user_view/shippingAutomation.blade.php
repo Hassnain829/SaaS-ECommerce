@@ -25,16 +25,16 @@
         'flat' => 'Fixed price',
         'free' => 'Free',
         'manual' => 'Manual price',
-        'carrier_calculated_later' => 'Carrier calculated later',
+        'carrier_calculated_later' => 'Live carrier rates',
     ];
     $statusBadge = fn (bool $active) => $active ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#F1F5F9] text-[#64748B]';
     $deliverySetup = $deliverySetup ?? [];
     $advancedTab = request('tab');
-    $openAdvanced = in_array($advancedTab, ['advanced', 'providers', 'areas', 'options', 'ship-from', 'zones', 'methods', 'carriers', 'locations'], true);
+    $openAdvanced = in_array($advancedTab, ['advanced', 'providers', 'areas', 'options', 'ship-from', 'zones', 'methods', 'carriers', 'locations', 'packages'], true);
 @endphp
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Delivery" lead="Configure delivery areas, options, locations, and providers.">
+    <x-ui.merchant-topbar title="Delivery" lead="Set up shipping for checkout, then manage areas, options, and carriers.">
     </x-ui.merchant-topbar>
 @endsection
 

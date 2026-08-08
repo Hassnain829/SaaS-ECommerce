@@ -1,0 +1,27 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('shipping_methods', function (Blueprint $table): void {
+            // Multiple NULLs remain allowed for manual/fixed methods; FedEx live rows with a
+            // service code cannot duplicate the same store/zone/account/service combination.
+            $table->unique(
+                ['store_id', 'shipping_zone_id', 'carrier_account_id', 'carrier_service_code'],
+                'shipping_methods_fedex_checkout_unique'
+            );
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('shipping_methods', function (Blueprint $table): void {
+            $table->dropUnique('shipping_methods_fedex_checkout_unique');
+        });
+    }
+};

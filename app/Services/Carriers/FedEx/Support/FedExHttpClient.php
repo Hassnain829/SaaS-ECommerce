@@ -57,6 +57,31 @@ class FedExHttpClient
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, string>  $headers
+     */
+    public function putJson(
+        string $environment,
+        string $path,
+        array $payload,
+        array $headers = [],
+        ?string $bearerToken = null,
+        ?array $requestSummary = null,
+    ): CarrierApiResult {
+        return $this->request(
+            'put',
+            $environment,
+            $path,
+            $payload,
+            $headers,
+            false,
+            false,
+            self::normalizeBearerToken($bearerToken),
+            $requestSummary,
+        );
+    }
+
     public static function normalizeBearerToken(?string $token): ?string
     {
         if ($token === null) {
@@ -115,9 +140,16 @@ class FedExHttpClient
                 $request = $this->baseRequest($outboundHeaders, $bearerToken, $retry, $asForm);
 
                 /** @var Response $response */
-                $response = $asForm
-                    ? $request->asForm()->post($url, $payload)
-                    : $request->post($url, $payload);
+                if ($asForm) {
+                    $response = $request->asForm()->post($url, $payload);
+                } else {
+                    $response = match (strtolower($method)) {
+                        'put' => $request->put($url, $payload),
+                        'patch' => $request->patch($url, $payload),
+                        'delete' => $request->delete($url, $payload),
+                        default => $request->post($url, $payload),
+                    };
+                }
 
                 $durationMs = (int) round((microtime(true) - $started) * 1000);
                 $json = $response->json();

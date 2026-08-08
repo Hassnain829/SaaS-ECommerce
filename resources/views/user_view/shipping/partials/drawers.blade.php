@@ -125,16 +125,22 @@
                         <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Delivery provider account</span>
                             <select name="carrier_account_id" id="method-field-carrier" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
                                 <option value="">Use manual delivery (recommended for flat rate)</option>
-                                @foreach ($carrierAccounts as $account)<option value="{{ $account->id }}">{{ $account->display_name }} ({{ $account->carrier?->name ?? $account->provider }})</option>@endforeach
+                                @foreach ($carrierAccounts as $account)
+                                    @continue($account->isFedEx() && $account->usesFedExIntegratorProvider())
+                                    <option value="{{ $account->id }}">{{ $account->display_name }} ({{ $account->carrier?->name ?? $account->provider }})</option>
+                                @endforeach
                             </select>
                         </label>
-                        <p id="method-carrier-note" class="text-xs text-[#64748B]">Flat-rate options without a carrier account use your store manual delivery provider automatically.</p>
+                        <p id="method-carrier-note" class="text-xs text-[#64748B]">Flat-rate options without a carrier account use your store manual delivery provider automatically. FedEx live rates are configured in Checkout Shipping.</p>
                         <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Full rate type (advanced)</span>
                             <select id="method-field-rate-type-advanced" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
-                                @foreach ($rateTypes as $rateType)<option value="{{ $rateType }}">{{ $rateLabels[$rateType] ?? $rateType }}</option>@endforeach
+                                @foreach ($rateTypes as $rateType)
+                                    @continue($rateType === \App\Models\ShippingMethod::RATE_CARRIER_CALCULATED_LATER)
+                                    <option value="{{ $rateType }}">{{ $rateLabels[$rateType] ?? $rateType }}</option>
+                                @endforeach
                             </select>
                         </label>
-                        <p id="method-rate-carrier-note" class="hidden text-xs text-amber-800">Carrier-calculated rates are not enabled in this phase. Use flat rate or free shipping.</p>
+                        <p class="text-xs text-amber-800">FedEx live checkout rates are managed from <a href="{{ route('settings.delivery.setup.delivery-option') }}" class="font-semibold underline">Checkout Shipping</a>, not this drawer.</p>
                         <div class="grid grid-cols-2 gap-3">
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Min order</span><input name="min_order_amount" id="method-field-min-order" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>
                             <label class="block space-y-1"><span class="text-xs font-semibold text-[#64748B]">Max order</span><input name="max_order_amount" id="method-field-max-order" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm"></label>

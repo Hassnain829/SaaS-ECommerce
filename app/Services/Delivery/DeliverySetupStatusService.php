@@ -4,12 +4,14 @@ namespace App\Services\Delivery;
 
 use App\Models\CarrierAccount;
 use App\Models\Location;
+use App\Models\Product;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\TaxSetting;
 use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class DeliverySetupStatusService
 {
@@ -54,6 +56,7 @@ class DeliverySetupStatusService
         $this->assessDeliveryAreas($activeZones, $healthItems);
         $this->assessDeliveryOptions($shippingMethods, $activeMethods, $checkoutMethods, $carrierAccounts, $healthItems);
         $this->assessDeliveryProviders($carrierAccounts, $healthItems);
+        $this->assessPackageAndProductReadiness($store, $shippingMethods, $healthItems);
 
         $blocking = collect($healthItems)->contains(fn (array $item): bool => ($item['severity'] ?? '') === 'error');
         $configurationReady = $this->hasConfigurationReadyCheckoutOption($checkoutMethods, $activeZones, $carrierAccounts);
@@ -307,10 +310,36 @@ class DeliverySetupStatusService
                     id: 'delivery_option_provider_required_'.$method->id,
                     label: 'Delivery provider',
                     severity: 'error',
-                    message: '"'.$method->name.'" needs a delivery provider for carrier-calculated pricing.',
-                    actionLabel: 'Open advanced delivery settings',
-                    actionTab: 'providers',
+                    message: '"'.$method->name.'" uses carrier pricing but has no delivery provider linked.',
+                    actionLabel: 'Fix provider',
+                    actionTab: 'options',
                 );
+            }
+
+            if ($method->rate_type === ShippingMethod::RATE_CARRIER_CALCULATED_LATER && $method->carrier_account_id !== null) {
+                $account = $carrierAccounts->firstWhere('id', $method->carrier_account_id);
+                if ($account !== null && $account->isManualProvider()) {
+                    $healthItems[] = $this->healthItem(
+                        id: 'delivery_option_manual_carrier_pricing_'.$method->id,
+                        label: 'Delivery provider',
+                        severity: 'error',
+                        message: 'Checkout method uses carrier pricing but is still linked to Manual Delivery.',
+                        actionLabel: 'Fix provider',
+                        actionHref: route('settings.delivery.setup.delivery-option'),
+                    );
+                } elseif ($account !== null
+                    && $account->isFedEx()
+                    && $account->usesFedExIntegratorProvider()
+                    && ! (bool) config('carriers.fedex.checkout_rates_enabled', false)) {
+                    $healthItems[] = $this->healthItem(
+                        id: 'fedex_checkout_platform_off_'.$method->id,
+                        label: 'FedEx checkout rates',
+                        severity: 'warning',
+                        message: 'FedEx checkout rates are off at the platform. Saved options will show live prices once checkout rates are enabled.',
+                        actionLabel: 'Open FedEx Center',
+                        actionHref: route('settings.shipping.fedex-integrator.manage', $account),
+                    );
+                }
             }
 
             if ($method->carrier_account_id !== null) {
@@ -327,6 +356,89 @@ class DeliverySetupStatusService
                 }
             }
         }
+
+        $this->assessFedExCheckoutBinding($shippingMethods, $carrierAccounts, $healthItems);
+    }
+
+    /**
+     * @param  Collection<int, ShippingMethod>  $shippingMethods
+     * @param  Collection<int, CarrierAccount>  $carrierAccounts
+     * @param  list<array<string, mixed>>  $healthItems
+     */
+    private function assessFedExCheckoutBinding(
+        Collection $shippingMethods,
+        Collection $carrierAccounts,
+        array &$healthItems,
+    ): void {
+        $fedExAccounts = $carrierAccounts->filter(
+            fn (CarrierAccount $account): bool => $account->isFedEx()
+                && $account->usesFedExIntegratorProvider()
+                && $account->disconnected_at === null
+                && $account->replaced_at === null
+                && $account->status === CarrierAccount::STATUS_ENABLED
+        );
+
+        if ($fedExAccounts->isEmpty()) {
+            return;
+        }
+
+        $account = $fedExAccounts->first();
+        $caps = is_array($account?->capabilities) ? $account->capabilities : [];
+        $platformOn = (bool) config('carriers.fedex.checkout_rates_enabled', false);
+        $accountCheckoutOn = (bool) ($account?->enabled_for_checkout) && (bool) ($caps['checkout_rates'] ?? false);
+
+        $candidateMethods = $shippingMethods->filter(
+            fn (ShippingMethod $method): bool => $method->isFedExLiveRateMethod()
+                && ($method->is_active || $method->enabled_for_checkout)
+        );
+
+        if ($candidateMethods->isEmpty()) {
+            $zones = $shippingMethods->pluck('shippingZone')->filter()->unique('id');
+            $areaName = $zones->first()?->name ?? 'your delivery area';
+            $healthItems[] = $this->healthItem(
+                id: 'fedex_connected_no_live_rates',
+                label: 'FedEx checkout rates',
+                severity: 'warning',
+                message: 'FedEx is connected, but no FedEx live-rate option is linked to '.$areaName.'.',
+                actionLabel: 'Configure checkout shipping',
+                actionHref: route('settings.delivery.setup.delivery-option'),
+            );
+
+            return;
+        }
+
+        if (! $platformOn) {
+            $healthItems[] = $this->healthItem(
+                id: 'fedex_checkout_platform_off',
+                label: 'FedEx checkout rates',
+                severity: 'warning',
+                message: 'FedEx checkout rates are not currently available on this platform.',
+                actionLabel: 'Open FedEx Center',
+                actionHref: $account ? route('settings.shipping.fedex-integrator.manage', $account) : route('settings.delivery.setup.delivery-option'),
+            );
+        } elseif (! $accountCheckoutOn) {
+            $healthItems[] = $this->healthItem(
+                id: 'fedex_checkout_account_capability_off',
+                label: 'FedEx checkout rates',
+                severity: 'warning',
+                message: 'FedEx is connected, but checkout rates are not enabled for this account yet.',
+                actionLabel: 'Configure checkout shipping',
+                actionHref: route('settings.delivery.setup.delivery-option'),
+            );
+        }
+
+        foreach ($candidateMethods as $method) {
+            if ($method->carrier_service_code === null || trim((string) $method->carrier_service_code) === '') {
+                $healthItems[] = $this->healthItem(
+                    id: 'fedex_method_missing_service_'.$method->id,
+                    label: 'FedEx services',
+                    severity: 'error',
+                    message: '"'.$method->name.'" is missing a FedEx service selection.',
+                    actionLabel: 'Select FedEx services',
+                    actionHref: route('settings.delivery.setup.delivery-option'),
+                );
+            }
+        }
     }
 
     /**
@@ -335,18 +447,59 @@ class DeliverySetupStatusService
      */
     private function assessDeliveryProviders(Collection $carrierAccounts, array &$healthItems): void
     {
-        $manualAccounts = $carrierAccounts->filter(
-            fn (CarrierAccount $account): bool => $account->isManualProvider() && $account->status === CarrierAccount::STATUS_ENABLED
+        // Manual delivery is optional; only warn when a fixed/manual checkout method
+        // points at a missing or disabled manual provider (handled in assessDeliveryOptions).
+    }
+
+    /**
+     * @param  Collection<int, ShippingMethod>  $shippingMethods
+     * @param  list<array<string, mixed>>  $healthItems
+     */
+    private function assessPackageAndProductReadiness(Store $store, Collection $shippingMethods, array &$healthItems): void
+    {
+        $hasFedExLive = $shippingMethods->contains(
+            fn (ShippingMethod $method): bool => $method->isFedExLiveRateMethod()
+                && ($method->is_active || $method->enabled_for_checkout)
         );
 
-        if ($manualAccounts->isEmpty()) {
+        if (! $hasFedExLive) {
+            return;
+        }
+
+        if (Schema::hasTable('shipping_package_presets')) {
+            $defaultPreset = app(StoreShippingPreferences::class)->defaultPackagePreset($store);
+            if (! $defaultPreset) {
+                $healthItems[] = $this->healthItem(
+                    id: 'default_package_missing',
+                    label: 'Default package',
+                    severity: 'warning',
+                    message: 'Add a default shipping package before FedEx live rates can use real dimensions.',
+                    actionLabel: 'Add a default package',
+                    actionTab: 'packages',
+                );
+            }
+        }
+
+        $weightResolver = app(ShippingWeightResolver::class);
+        $missingWeightCount = Product::query()
+            ->where('store_id', $store->id)
+            ->where('requires_shipping', true)
+            ->where('status', true)
+            ->limit(200)
+            ->get(['id', 'name', 'meta'])
+            ->filter(fn (Product $product): bool => $weightResolver->resolve($product) === null)
+            ->count();
+
+        if ($missingWeightCount > 0) {
             $healthItems[] = $this->healthItem(
-                id: 'manual_provider_missing',
-                label: 'Manual delivery provider',
+                id: 'products_missing_shipping_weight',
+                label: 'Product shipping weight',
                 severity: 'warning',
-                message: 'No manual delivery provider is enabled yet. Flat-rate options still work, but provider setup may be needed later.',
-                actionLabel: 'Open advanced delivery settings',
-                actionTab: 'providers',
+                message: $missingWeightCount === 1
+                    ? '1 product is missing shipping weight. FedEx live rates stay hidden for carts that include it.'
+                    : $missingWeightCount.' products are missing shipping weight. FedEx live rates stay hidden for carts that include them.',
+                actionLabel: 'Review products',
+                actionHref: route('products'),
             );
         }
     }
@@ -441,26 +594,41 @@ class DeliverySetupStatusService
      */
     private function deliveryProvidersSummary(Collection $carrierAccounts): array
     {
-        $connected = $carrierAccounts->filter(
-            fn (CarrierAccount $account): bool => $account->isConnected() || ($account->isManualProvider() && $account->status === CarrierAccount::STATUS_ENABLED)
+        $fedEx = $carrierAccounts->first(
+            fn (CarrierAccount $account): bool => $account->isFedEx()
+                && $account->usesFedExIntegratorProvider()
+                && $account->disconnected_at === null
+                && $account->replaced_at === null
+                && ($account->isConnected() || $account->status === CarrierAccount::STATUS_ENABLED)
         );
 
-        if ($connected->isEmpty()) {
+        if ($fedEx) {
             return [
-                'status' => 'optional',
-                'title' => 'Manual delivery',
-                'detail' => 'Optional until you connect FedEx, USPS, or another provider.',
-                'count' => 0,
+                'status' => 'complete',
+                'title' => 'FedEx connected',
+                'detail' => 'Manual Delivery remains available as a fixed-price or fallback option.',
+                'count' => $carrierAccounts->count(),
             ];
         }
 
-        $manual = $connected->first(fn (CarrierAccount $account): bool => $account->isManualProvider());
+        $manual = $carrierAccounts->first(
+            fn (CarrierAccount $account): bool => $account->isManualProvider() && $account->status === CarrierAccount::STATUS_ENABLED
+        );
+
+        if ($manual) {
+            return [
+                'status' => 'optional',
+                'title' => 'Manual Delivery',
+                'detail' => 'Fixed or free shipping. Connect FedEx when you want live rates and labels.',
+                'count' => 1,
+            ];
+        }
 
         return [
-            'status' => 'complete',
-            'title' => $manual?->display_name ?? $connected->first()?->display_name ?? 'Delivery provider',
-            'detail' => $connected->count().' provider(s) connected',
-            'count' => $connected->count(),
+            'status' => 'optional',
+            'title' => 'Manual delivery',
+            'detail' => 'Optional until you connect FedEx or another provider.',
+            'count' => 0,
         ];
     }
 

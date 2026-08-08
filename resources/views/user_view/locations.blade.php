@@ -113,6 +113,11 @@
                                 <span class="text-xs font-semibold text-[#64748B]">Postal/ZIP code</span>
                                 <input name="postal_code" value="{{ old('postal_code') }}" placeholder="75002" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
                             </label>
+                            <label class="space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Phone</span>
+                                <input name="phone" type="tel" value="{{ old('phone') }}" placeholder="Required for FedEx labels" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                <span class="text-[11px] text-[#94A3B8]">Used as the ship-from phone on carrier labels.</span>
+                            </label>
                             <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155] sm:col-span-2">
                                 <input type="hidden" name="fulfills_online_orders" value="0">
                                 <input type="checkbox" name="fulfills_online_orders" value="1" @checked(old('fulfills_online_orders', '1'))>
@@ -279,6 +284,11 @@
                                                     <label class="space-y-1">
                                                         <span class="text-xs font-semibold text-[#64748B]">Postal/ZIP code</span>
                                                         <input name="postal_code" value="{{ old('name') === $location->name ? old('postal_code', $location->postal_code) : $location->postal_code }}" placeholder="75002" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                                    </label>
+                                                    <label class="space-y-1">
+                                                        <span class="text-xs font-semibold text-[#64748B]">Phone</span>
+                                                        <input name="phone" type="tel" value="{{ old('name') === $location->name ? old('phone', $location->phone) : $location->phone }}" placeholder="Required for FedEx labels" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
+                                                        <span class="text-[11px] text-[#94A3B8]">Used as the ship-from phone on carrier labels.</span>
                                                     </label>
                                                     <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#334155] sm:col-span-2">
                                                         <input type="hidden" name="fulfills_online_orders" value="0">

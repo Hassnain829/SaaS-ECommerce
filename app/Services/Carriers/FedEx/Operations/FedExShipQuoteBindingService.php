@@ -32,6 +32,7 @@ final class FedExShipQuoteBindingService
         string $originCountry = 'US',
         ?bool $residential = null,
         ?string $shipDate = null,
+        ?string $pickupType = null,
     ): CarrierRateQuote {
         $quote = CarrierRateQuote::query()
             ->whereKey($quoteId)
@@ -145,6 +146,15 @@ final class FedExShipQuoteBindingService
             if (filled($quoteShipDate) && (string) $quoteShipDate !== (string) $shipDate) {
                 throw ValidationException::withMessages([
                     'carrier_rate_quote_id' => 'The quoted ship date does not match this label request. Get fresh rates.',
+                ]);
+            }
+        }
+
+        if (filled($pickupType)) {
+            $quotePickup = strtoupper((string) data_get($quote->request_summary, 'pickup_type', ''));
+            if ($quotePickup !== '' && $quotePickup !== strtoupper(trim($pickupType))) {
+                throw ValidationException::withMessages([
+                    'carrier_rate_quote_id' => 'Handoff preference no longer matches the selected rate. Get fresh rates.',
                 ]);
             }
         }

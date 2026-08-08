@@ -45,6 +45,20 @@ class ShipmentService
             $carrierAccount = $this->storeScopedModel(CarrierAccount::class, $order->store_id, $payload['carrier_account_id'] ?? null, 'carrier_account_id');
             $shippingMethod = $this->storeScopedModel(ShippingMethod::class, $order->store_id, $payload['shipping_method_id'] ?? null, 'shipping_method_id');
 
+            if ($carrierAccount instanceof CarrierAccount
+                && $carrierAccount->isFedEx()
+                && $carrierAccount->usesFedExIntegratorProvider()) {
+                throw ValidationException::withMessages([
+                    'carrier_account_id' => 'Use the Ship with FedEx flow for this FedEx account instead of creating a manual shipment.',
+                ]);
+            }
+
+            if ($shippingMethod instanceof ShippingMethod && $shippingMethod->isFedExLiveRateMethod()) {
+                throw ValidationException::withMessages([
+                    'shipping_method_id' => 'Use Ship with FedEx for this FedEx delivery method.',
+                ]);
+            }
+
             if ($shippingMethod && $carrierAccount && $shippingMethod->carrier_account_id && (int) $shippingMethod->carrier_account_id !== (int) $carrierAccount->id) {
                 throw ValidationException::withMessages([
                     'shipping_method_id' => 'Choose a delivery method that belongs to the selected carrier account.',
@@ -146,6 +160,8 @@ class ShipmentService
      */
     public function updateTracking(Shipment $shipment, array $payload, ?User $actor = null, ?Request $request = null): Shipment
     {
+        $this->rejectFedExManagedMutation($shipment);
+
         return DB::transaction(function () use ($shipment, $payload, $actor, $request): Shipment {
             $shipment = Shipment::query()->whereKey($shipment->id)->lockForUpdate()->firstOrFail();
             $order = $shipment->order()->lockForUpdate()->firstOrFail();
@@ -222,6 +238,8 @@ class ShipmentService
 
     private function changeStatus(Shipment $shipment, string $status, ?User $actor = null, ?Request $request = null): Shipment
     {
+        $this->rejectFedExManagedMutation($shipment);
+
         return DB::transaction(function () use ($shipment, $status, $actor, $request): Shipment {
             $shipment = Shipment::query()->whereKey($shipment->id)->lockForUpdate()->firstOrFail();
             $order = $shipment->order()->lockForUpdate()->firstOrFail();
@@ -383,6 +401,17 @@ class ShipmentService
         }
 
         return $lines;
+    }
+
+    private function rejectFedExManagedMutation(Shipment $shipment): void
+    {
+        $shipment->loadMissing('carrierAccount');
+
+        if ($shipment->isFedExManagedShipment()) {
+            throw ValidationException::withMessages([
+                'shipment' => 'Use FedEx shipment actions for this shipment. Generic tracking and status changes are not available.',
+            ]);
+        }
     }
 
     private function validateStatusTransition(string $from, string $to): void

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
+use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
+use App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog;
 use App\Services\Delivery\DeliveryAddressDiagnosticService;
 use App\Services\Delivery\DeliveryAreaInputNormalizer;
 use App\Services\Delivery\DeliverySetupStatusService;
@@ -119,6 +122,63 @@ class DeliverySetupWizardController extends Controller
             ]];
         })->all();
 
+        $fedExAccount = app(FedExOperationGuard::class)->resolveActiveModelAAccount($store);
+        $fedExConnected = $fedExAccount instanceof CarrierAccount;
+        $zoneId = $selectedZone?->id;
+        $fedExMethodsInZone = $methods->filter(function (ShippingMethod $method) use ($zoneId, $fedExAccount): bool {
+            if (! $method->isFedExLiveRateMethod()) {
+                return false;
+            }
+            if ($zoneId && (int) $method->shipping_zone_id !== (int) $zoneId) {
+                return false;
+            }
+            if ($fedExAccount && (int) $method->carrier_account_id !== (int) $fedExAccount->id) {
+                return false;
+            }
+
+            return true;
+        });
+        $manualInZone = $methods->first(function (ShippingMethod $method) use ($zoneId): bool {
+            if ($method->isFedExLiveRateMethod()) {
+                return false;
+            }
+            if ($zoneId && (int) $method->shipping_zone_id !== (int) $zoneId) {
+                return false;
+            }
+
+            return in_array($method->rate_type, [
+                ShippingMethod::RATE_FLAT,
+                ShippingMethod::RATE_FREE,
+                ShippingMethod::RATE_MANUAL,
+            ], true);
+        });
+
+        $checkoutShippingMode = 'fixed';
+        if ($fedExMethodsInZone->isNotEmpty() && $manualInZone) {
+            $checkoutShippingMode = 'both';
+        } elseif ($fedExMethodsInZone->isNotEmpty()) {
+            $checkoutShippingMode = 'fedex_live';
+        }
+
+        $selectedFedExServices = $fedExMethodsInZone
+            ->filter(fn (ShippingMethod $m): bool => $m->is_active || $m->enabled_for_checkout)
+            ->pluck('carrier_service_code')
+            ->filter()
+            ->map(fn ($code) => strtoupper((string) $code))
+            ->unique()
+            ->values()
+            ->all();
+        if ($selectedFedExServices === []) {
+            $selectedFedExServices = ['FEDEX_GROUND', 'GROUND_HOME_DELIVERY'];
+        }
+
+        if ($manualInZone && ! $selectedMethod?->isFedExLiveRateMethod()) {
+            $selectedMethod = $manualInZone;
+            $priceMode = $manualInZone->rate_type === ShippingMethod::RATE_FREE
+                ? 'free'
+                : ((float) ($manualInZone->free_over_amount ?? 0) > 0 ? 'free_over' : 'fixed');
+        }
+
         return view('user_view.delivery.setup.delivery-option', $this->wizardContext($request, $store, $taxConfiguration, [
             'step' => 3,
             'shippingZones' => $store->shippingZones()->where('is_active', true)->orderBy('name')->get(),
@@ -128,6 +188,12 @@ class DeliverySetupWizardController extends Controller
             'selectedMethod' => $selectedMethod,
             'priceMode' => $priceMode,
             'flagMismatch' => $selectedMethod !== null && $selectedMethod->is_active !== $selectedMethod->enabled_for_checkout,
+            'fedExConnected' => $fedExConnected,
+            'fedExAccount' => $fedExAccount,
+            'fedExCheckoutRatesPlatformEnabled' => (bool) config('carriers.fedex.checkout_rates_enabled', false),
+            'fedExServices' => FedExCheckoutServiceCatalog::services(),
+            'checkoutShippingMode' => $checkoutShippingMode,
+            'selectedFedExServices' => $selectedFedExServices,
         ]));
     }
 
@@ -158,12 +224,41 @@ class DeliverySetupWizardController extends Controller
             $deliverySetup['delivery_options'] = $deliverySetupStatus->summarizeDeliveryOption($selectedMethod);
         }
 
+        $fedExAccount = app(FedExOperationGuard::class)->resolveActiveModelAAccount($store);
+        $zoneMethods = $selectedZone
+            ? $methods->where('shipping_zone_id', $selectedZone->id)
+            : collect();
+        $fedExZoneMethods = $zoneMethods->filter(fn (ShippingMethod $m): bool => $m->isFedExLiveRateMethod() && ($m->is_active || $m->enabled_for_checkout));
+        $manualZoneMethod = $zoneMethods->first(fn (ShippingMethod $m): bool => ! $m->isFedExLiveRateMethod() && ($m->is_active || $m->enabled_for_checkout));
+
+        $checkoutModeLabel = 'Fixed or free shipping';
+        $checkoutModeDetail = $selectedMethod?->name ?? ($manualZoneMethod?->name ?? 'Not configured');
+        if ($fedExZoneMethods->isNotEmpty() && $manualZoneMethod) {
+            $checkoutModeLabel = 'FedEx live rates + fallback';
+            $services = $fedExZoneMethods->pluck('carrier_service_name')->filter()->implode(', ');
+            $checkoutModeDetail = ($services !== '' ? $services : 'FedEx services')
+                .' · Fallback: '.$manualZoneMethod->name;
+        } elseif ($fedExZoneMethods->isNotEmpty()) {
+            $checkoutModeLabel = 'FedEx live rates';
+            $checkoutModeDetail = $fedExZoneMethods->pluck('carrier_service_name')->filter()->implode(', ') ?: 'FedEx services configured';
+        }
+
+        $maskedAccount = null;
+        if ($fedExAccount instanceof CarrierAccount) {
+            $masked = $fedExAccount->maskedAccountNumber();
+            $maskedAccount = $masked !== '' ? $masked : (string) ($fedExAccount->display_name ?? 'FedEx account');
+        }
+
         return view('user_view.delivery.setup.review', $this->wizardContext($request, $store, $taxConfiguration, [
             'step' => 4,
             'deliverySetup' => $deliverySetup,
             'selectedLocation' => $selectedLocation,
             'selectedZone' => $selectedZone,
             'selectedMethod' => $selectedMethod,
+            'checkoutModeLabel' => $checkoutModeLabel,
+            'checkoutModeDetail' => $checkoutModeDetail,
+            'fedExAccountMasked' => $maskedAccount,
+            'fedExCheckoutRatesPlatformEnabled' => (bool) config('carriers.fedex.checkout_rates_enabled', false),
         ]));
     }
 
@@ -211,7 +306,21 @@ class DeliverySetupWizardController extends Controller
                 'region_code' => ['nullable', 'string', 'max:32'],
                 'postal_code' => ['nullable', 'string', 'max:40'],
                 'order_subtotal' => ['nullable', 'numeric', 'min:0'],
+                'package_preset_id' => ['nullable', 'integer'],
+                'package_weight' => ['nullable', 'numeric', 'min:0.01'],
+                'package_weight_unit' => ['nullable', 'string', 'max:8'],
+                'package_length' => ['nullable', 'numeric', 'min:0.01'],
+                'package_width' => ['nullable', 'numeric', 'min:0.01'],
+                'package_height' => ['nullable', 'numeric', 'min:0.01'],
+                'package_dimension_unit' => ['nullable', 'string', 'max:8'],
             ]);
+
+            if (! empty($validated['package_preset_id'])) {
+                $presetExists = $store->shippingPackagePresets()
+                    ->whereKey((int) $validated['package_preset_id'])
+                    ->exists();
+                abort_unless($presetExists, 404);
+            }
 
             $result = $diagnostic->diagnose(
                 $store,
@@ -219,14 +328,42 @@ class DeliverySetupWizardController extends Controller
                 $validated['region_code'] ?? null,
                 $validated['postal_code'] ?? null,
                 (float) ($validated['order_subtotal'] ?? 0),
+                [
+                    'package_preset_id' => isset($validated['package_preset_id']) ? (int) $validated['package_preset_id'] : null,
+                    'weight' => isset($validated['package_weight']) ? (float) $validated['package_weight'] : null,
+                    'weight_unit' => $validated['package_weight_unit'] ?? null,
+                    'length' => isset($validated['package_length']) ? (float) $validated['package_length'] : null,
+                    'width' => isset($validated['package_width']) ? (float) $validated['package_width'] : null,
+                    'height' => isset($validated['package_height']) ? (float) $validated['package_height'] : null,
+                    'dimension_unit' => $validated['package_dimension_unit'] ?? null,
+                ],
             );
         }
+
+        $packagePresets = $store->shippingPackagePresets()
+            ->active()
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
 
         return view('user_view.delivery.test-address', [
             'selectedStore' => $store,
             'countries' => TaxCountryCatalog::all(),
             'result' => $result,
-            'input' => $request->old() ?: $request->only(['country_code', 'region_code', 'postal_code', 'order_subtotal']),
+            'packagePresets' => $packagePresets,
+            'input' => $request->old() ?: $request->only([
+                'country_code',
+                'region_code',
+                'postal_code',
+                'order_subtotal',
+                'package_preset_id',
+                'package_weight',
+                'package_weight_unit',
+                'package_length',
+                'package_width',
+                'package_height',
+                'package_dimension_unit',
+            ]),
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
         ]);
     }

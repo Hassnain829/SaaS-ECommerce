@@ -35,9 +35,15 @@
             <article class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <p class="text-xs font-bold uppercase tracking-wide text-[#64748B]">Checkout delivery option</p>
-                        <p class="mt-2 text-sm font-semibold text-[#0F172A]">{{ $setup['delivery_options']['title'] ?? 'Not configured' }}</p>
-                        <p class="mt-1 text-sm text-[#64748B]">{{ $setup['delivery_options']['detail'] ?? '' }}</p>
+                        <p class="text-xs font-bold uppercase tracking-wide text-[#64748B]">Checkout shipping</p>
+                        <p class="mt-2 text-sm font-semibold text-[#0F172A]">{{ $checkoutModeLabel ?? ($setup['delivery_options']['title'] ?? 'Not configured') }}</p>
+                        <p class="mt-1 text-sm text-[#64748B]">{{ $checkoutModeDetail ?? ($setup['delivery_options']['detail'] ?? '') }}</p>
+                        @if (! empty($fedExAccountMasked))
+                            <p class="mt-2 text-xs text-[#64748B]">FedEx account: {{ $fedExAccountMasked }}</p>
+                        @endif
+                        @if (! empty($fedExAccountMasked) && ! ($fedExCheckoutRatesPlatformEnabled ?? false))
+                            <p class="mt-2 text-xs text-amber-800">Platform checkout rates are currently off. Saved FedEx options will show live prices once checkout rates are enabled.</p>
+                        @endif
                     </div>
                     <a href="{{ route('settings.delivery.setup.delivery-option') }}" class="text-sm font-semibold text-[#1D4ED8]">Edit</a>
                 </div>
@@ -62,7 +68,7 @@
         @endif
 
         <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#F1F5F9] pt-4">
-            <a href="{{ route('settings.delivery.test-address') }}" class="text-sm font-semibold text-[#1D4ED8]">Test a customer address</a>
+            <a href="{{ route('settings.delivery.test-address') }}" class="text-sm font-semibold text-[#1D4ED8]">Test checkout shipping</a>
             <form method="POST" action="{{ route('settings.delivery.setup.finish') }}">
                 @csrf
                 <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Finish delivery setup</button>

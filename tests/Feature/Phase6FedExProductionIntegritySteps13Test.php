@@ -442,7 +442,7 @@ class Phase6FedExProductionIntegritySteps13Test extends TestCase
         $this->assertSame(0, (int) $remaining[$item->id]);
     }
 
-    public function test_return_label_requires_explicit_items(): void
+    public function test_return_label_requires_order_return_id(): void
     {
         [$store, $account, $location, $order] = $this->readyOrder('Return Items Required');
 

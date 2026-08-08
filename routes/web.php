@@ -17,6 +17,7 @@ use App\Http\Controllers\Commerce\OrderController;
 use App\Http\Controllers\Commerce\RefundController;
 use App\Http\Controllers\Commerce\ReturnController;
 use App\Http\Controllers\Commerce\ShipmentController;
+use App\Http\Controllers\Commerce\ShipmentsIndexController;
 use App\Http\Controllers\Settings\DeliverySetupWizardController;
 use App\Http\Controllers\Settings\DeveloperStorefrontSettingsController;
 use App\Http\Controllers\Settings\CouponController;
@@ -134,6 +135,7 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         ->middleware('store.permission:catalog.manage')
         ->name('catalog.attributes.terms.store');
     Route::get('/orders', [DashboardController::class, 'orders'])->name('orders');
+    Route::get('/shipments', [ShipmentsIndexController::class, 'index'])->name('shipments.index');
     Route::get('/orders/create', [DraftOrderController::class, 'create'])
         ->middleware('store.permission:orders.manage')
         ->name('orders.create');
@@ -416,6 +418,21 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::delete('/settings/shipping/methods/{shippingMethod}', [ShippingSettingsController::class, 'destroyMethod'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.methods.destroy');
+    Route::post('/settings/shipping/package-presets', [ShippingSettingsController::class, 'storePackagePreset'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.package-presets.store');
+    Route::patch('/settings/shipping/package-presets/{shippingPackagePreset}', [ShippingSettingsController::class, 'updatePackagePreset'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.package-presets.update');
+    Route::delete('/settings/shipping/package-presets/{shippingPackagePreset}', [ShippingSettingsController::class, 'destroyPackagePreset'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.package-presets.destroy');
+    Route::post('/settings/shipping/package-presets/{shippingPackagePreset}/default', [ShippingSettingsController::class, 'setDefaultPackagePreset'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.package-presets.default');
+    Route::patch('/settings/shipping/preferences', [ShippingSettingsController::class, 'updateShippingPreferences'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.preferences.update');
     Route::get('/security', [DashboardController::class, 'security'])
         ->middleware('store.permission:security.view')
         ->name('security');

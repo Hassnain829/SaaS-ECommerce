@@ -233,6 +233,7 @@ class OnboardingController extends Controller
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
             'is_taxable' => ['nullable', 'boolean'],
+            'shipping_weight' => ['nullable', 'numeric', 'min:0.01'],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -314,6 +315,9 @@ class OnboardingController extends Controller
                     'stock_alert' => $validated['stock_alert'],
                     'onboarding_created' => true,
                     'custom_product_type_label' => $customProductTypeLabel,
+                    ...((isset($validated['shipping_weight']) && is_numeric($validated['shipping_weight']) && (float) $validated['shipping_weight'] > 0)
+                        ? ['shipping_weight' => round((float) $validated['shipping_weight'], 3)]
+                        : []),
                 ],
             ];
 
@@ -1492,6 +1496,7 @@ class OnboardingController extends Controller
             'attribute_terms.*' => ['nullable', 'array'],
             'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
             'is_taxable' => ['nullable', 'boolean'],
+            'shipping_weight' => ['nullable', 'numeric', 'min:0.01'],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -1635,6 +1640,14 @@ class OnboardingController extends Controller
             $meta['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
                 $validated['custom_fields'] ?? []
             );
+        }
+
+        if (array_key_exists('shipping_weight', $validated)) {
+            if ($validated['shipping_weight'] === null || $validated['shipping_weight'] === '') {
+                unset($meta['shipping_weight']);
+            } elseif (is_numeric($validated['shipping_weight']) && (float) $validated['shipping_weight'] > 0) {
+                $meta['shipping_weight'] = round((float) $validated['shipping_weight'], 3);
+            }
         }
 
         $retainedPaths = collect($validated['existing_image_paths'] ?? [])
@@ -2142,6 +2155,7 @@ class OnboardingController extends Controller
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
             'is_taxable' => ['nullable', 'boolean'],
+            'shipping_weight' => ['nullable', 'numeric', 'min:0.01'],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -2279,6 +2293,9 @@ class OnboardingController extends Controller
                 $productMeta['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
                     $validated['custom_fields'] ?? []
                 );
+            }
+            if (isset($validated['shipping_weight']) && is_numeric($validated['shipping_weight']) && (float) $validated['shipping_weight'] > 0) {
+                $productMeta['shipping_weight'] = round((float) $validated['shipping_weight'], 3);
             }
             $productPayload = [
                 'name' => $validated['name'],

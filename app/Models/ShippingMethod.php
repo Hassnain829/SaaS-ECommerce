@@ -30,6 +30,8 @@ class ShippingMethod extends Model
         'store_id',
         'shipping_zone_id',
         'carrier_account_id',
+        'carrier_service_code',
+        'carrier_service_name',
         'name',
         'code',
         'description',
@@ -71,6 +73,26 @@ class ShippingMethod extends Model
     public function carrierAccount(): BelongsTo
     {
         return $this->belongsTo(CarrierAccount::class);
+    }
+
+    public function isCarrierCalculated(): bool
+    {
+        return $this->rate_type === self::RATE_CARRIER_CALCULATED_LATER;
+    }
+
+    public function isFedExLiveRateMethod(): bool
+    {
+        if (! $this->isCarrierCalculated()) {
+            return false;
+        }
+
+        $account = $this->relationLoaded('carrierAccount')
+            ? $this->carrierAccount
+            : $this->carrierAccount()->first();
+
+        return $account instanceof CarrierAccount
+            && $account->isFedEx()
+            && $account->usesFedExIntegratorProvider();
     }
 
     public function shipments(): HasMany

@@ -986,13 +986,17 @@ class DashboardController extends Controller
                     \App\Models\CarrierAccount::STATUS_INTERNAL_ONLY,
                 ])
                 ->orderBy('display_name')
-                ->get(),
+                ->get()
+                ->reject(fn ($account) => $account->isFedEx() && $account->usesFedExIntegratorProvider())
+                ->values(),
             'shippingMethods' => $selectedStore->shippingMethods()
                 ->with(['shippingZone', 'carrierAccount.carrier'])
                 ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('name')
-                ->get(),
+                ->get()
+                ->reject(fn ($method) => method_exists($method, 'isFedExLiveRateMethod') && $method->isFedExLiveRateMethod())
+                ->values(),
             'remainingFulfillmentQuantities' => app(FulfillmentStatusService::class)->remainingQuantities($order),
             'returnReasons' => $returnService->activeReasonsForStore($selectedStore),
             'remainingReturnableQuantities' => $returnService->remainingReturnableQuantities($order),
@@ -1007,6 +1011,14 @@ class DashboardController extends Controller
             'exchangeVariants' => $exchangeEligibility['replacement_variants'],
             'fedExActiveAccount' => app(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::class)
                 ->resolveActiveModelAAccount($selectedStore),
+            'shippingPackagePresets' => \Illuminate\Support\Facades\Schema::hasTable('shipping_package_presets')
+                ? $selectedStore->shippingPackagePresets()
+                    ->where('is_active', true)
+                    ->orderByDesc('is_default')
+                    ->orderBy('name')
+                    ->get()
+                : collect(),
+            'shippingPreferences' => app(\App\Services\Delivery\StoreShippingPreferences::class)->get($selectedStore),
             'fedExTradeDocuments' => \App\Models\FedExTradeDocument::query()
                 ->where('store_id', $selectedStore->id)
                 ->where('order_id', $order->id)

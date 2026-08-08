@@ -74,6 +74,10 @@
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4 2h12a1 1 0 011 1v14l-3-2-3 2-3-2-3 2-3-2V3a1 1 0 011-1zm2 4v2h8V6H6zm0 4v2h5v-2H6z"/></svg>
                 <span>Orders</span>
             </a>
+            <a href="{{ route('shipments.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('shipments.index', 'shipments.*')])>
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 4l7-2 7 2v5.5c0 3.6-2.4 6.9-7 8.5-4.6-1.6-7-4.9-7-8.5V4zm7 1.2L5 6.3v3.2c0 2.4 1.5 4.6 5 5.8 3.5-1.2 5-3.4 5-5.8V6.3l-5-1.1z"/></svg>
+                <span>Shipments</span>
+            </a>
             <a href="{{ route('products') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('products', 'products.*', 'catalog.attributes.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 4h14v2H3V4zm0 5h14v2H3V9zm0 5h10v2H3v-2z"/></svg>
                 <span>Products</span>

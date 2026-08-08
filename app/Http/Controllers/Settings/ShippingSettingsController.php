@@ -8,6 +8,7 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Location;
 use App\Models\ShippingMethod;
+use App\Models\ShippingPackagePreset;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
@@ -19,11 +20,13 @@ use App\Services\Delivery\DeliveryAreaInputNormalizer;
 use App\Services\Delivery\DeliveryOptionInputNormalizer;
 use App\Services\Delivery\DeliverySetupStatusService;
 use App\Services\Delivery\ManualDeliveryProviderResolver;
+use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\SecurityLogRecorder;
 use App\Services\Tax\TaxConfigurationService;
 use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -81,6 +84,14 @@ class ShippingSettingsController extends Controller
             ->orderBy('name')
             ->get();
 
+        $packagePresets = $store->shippingPackagePresets()
+            ->orderByDesc('is_default')
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get();
+
+        $shippingPreferences = app(StoreShippingPreferences::class)->get($store);
+
         $taxSetting = $taxConfiguration->settingsForStore($store);
 
         $deliverySetup = $deliverySetupStatus->assess(
@@ -92,15 +103,39 @@ class ShippingSettingsController extends Controller
             $taxSetting,
         );
 
-        $fedExValidationStatusByAccountId = ($fedExAccounts = $store->carrierAccounts()
+        $fedExAccounts = $store->carrierAccounts()
             ->where('provider', CarrierAccount::PROVIDER_FEDEX)
             ->with('carrier')
             ->orderByDesc('updated_at')
-            ->get())
-            ->mapWithKeys(fn (CarrierAccount $account): array => [
-                $account->id => $fedExValidationStatus->capabilityMatrix($store, $account),
-            ])
-            ->all();
+            ->get();
+
+        $loadFedExValidationTools = $this->shouldLoadFedExValidationTools($request, $fedExConfig);
+
+        $fedExValidationStatusByAccountId = [];
+        $fedExShipTestCases = [];
+        $fedExQuickTestActions = [];
+        $fedExBaselineAvailable = false;
+        $fedExApiEvents = collect();
+        $fedExStepDiagnostics = [];
+        $fedExRegistrationRequestDiagnostics = [];
+
+        if ($loadFedExValidationTools) {
+            $fedExValidationStatusByAccountId = $fedExAccounts
+                ->mapWithKeys(fn (CarrierAccount $account): array => [
+                    $account->id => $fedExValidationStatus->capabilityMatrix($store, $account),
+                ])
+                ->all();
+            $fedExShipTestCases = app(\App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService::class)->fixtures();
+            $fedExQuickTestActions = app(\App\Services\Carriers\FedEx\Validation\FedExValidationQuickTestPresets::class)->quickActions();
+            $fedExBaselineAvailable = app(\App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService::class)->baselineAvailable();
+            $fedExApiEvents = $store->carrierApiEvents()
+                ->where('provider', CarrierAccount::PROVIDER_FEDEX)
+                ->latest('id')
+                ->limit(8)
+                ->get();
+            $fedExStepDiagnostics = $this->fedExLatestStepDiagnostics($store);
+            $fedExRegistrationRequestDiagnostics = $this->fedExRegistrationRequestDiagnostics($store);
+        }
 
         return view('user_view.shippingAutomation', [
             'selectedStore' => $store,
@@ -115,23 +150,20 @@ class ShippingSettingsController extends Controller
             'taxSetting' => $taxSetting,
             'fedExCarrier' => Carrier::query()->where('code', 'fedex')->first(),
             'fedExAccounts' => $fedExAccounts,
-            'fedExApiEvents' => $store->carrierApiEvents()
-                ->where('provider', CarrierAccount::PROVIDER_FEDEX)
-                ->latest('id')
-                ->limit(8)
-                ->get(),
+            'fedExApiEvents' => $fedExApiEvents,
             'fedExPlatformConfigured' => $fedExConfig->isConfigured(),
             'fedExEnabled' => $fedExConfig->isEnabled(),
             'fedExConfig' => $fedExConfig,
             'fedExRegistrationPath' => $fedExConfig->accountRegistrationPath(CarrierAccount::ENVIRONMENT_SANDBOX),
             'fedExRegistrationResidentialMode' => $fedExConfig->accountRegistrationResidentialMode(),
-            'fedExStepDiagnostics' => $this->fedExLatestStepDiagnostics($store),
-            'fedExRegistrationRequestDiagnostics' => $this->fedExRegistrationRequestDiagnostics($store),
+            'fedExStepDiagnostics' => $fedExStepDiagnostics,
+            'fedExRegistrationRequestDiagnostics' => $fedExRegistrationRequestDiagnostics,
             'fedExValidationStatusByAccountId' => $fedExValidationStatusByAccountId,
-            'fedExShipTestCases' => app(\App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService::class)->fixtures(),
-            'fedExQuickTestActions' => app(\App\Services\Carriers\FedEx\Validation\FedExValidationQuickTestPresets::class)->quickActions(),
-            'fedExBaselineAvailable' => app(\App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService::class)->baselineAvailable(),
+            'fedExShipTestCases' => $fedExShipTestCases,
+            'fedExQuickTestActions' => $fedExQuickTestActions,
+            'fedExBaselineAvailable' => $fedExBaselineAvailable,
             'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
+            'loadFedExValidationTools' => $loadFedExValidationTools,
             'uspsCarrier' => Carrier::query()->where('code', 'usps')->first(),
             'uspsMerchantAccounts' => $store->carrierAccounts()
                 ->where('provider', CarrierAccount::PROVIDER_USPS)
@@ -165,13 +197,18 @@ class ShippingSettingsController extends Controller
             'uspsStepDiagnostics' => $this->uspsLatestStepDiagnostics($store),
             'shippingZones' => $shippingZones,
             'shippingMethods' => $shippingMethods,
+            'packagePresets' => $packagePresets,
+            'shippingPreferences' => $shippingPreferences,
             'locations' => $locations,
             'originReadinessByLocationId' => $originReadinessByLocationId,
             'hasCarrierReadyOrigin' => $hasCarrierReadyOrigin,
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
             'connectionTypes' => CarrierAccount::CONNECTION_TYPES,
             'carrierAccountStatuses' => CarrierAccount::STATUSES,
-            'rateTypes' => ShippingMethod::RATE_TYPES,
+            'rateTypes' => array_values(array_filter(
+                ShippingMethod::RATE_TYPES,
+                fn (string $type): bool => $type !== ShippingMethod::RATE_CARRIER_CALCULATED_LATER
+            )),
             'countries' => TaxCountryCatalog::all(),
         ]);
     }
@@ -356,6 +393,8 @@ class ShippingSettingsController extends Controller
         abort_unless($store, 404);
 
         $validated = $this->validateMethod($request, $store->id);
+        $this->assertAdvancedMethodNotFedExLive($store, $validated);
+
         $validated = $optionNormalizer->applyPricingMode($request->input('delivery_price_mode'), $validated);
         $optionNormalizer->assertValidPricingAndDays((string) $request->input('delivery_price_mode', 'fixed'), $validated);
         $validated = $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: true);
@@ -393,7 +432,17 @@ class ShippingSettingsController extends Controller
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $shippingMethod->store_id === (int) $store->id, 404);
 
+        if ($shippingMethod->isFedExLiveRateMethod()) {
+            return redirect()
+                ->route('settings.delivery.setup.delivery-option')
+                ->withErrors([
+                    'rate_type' => 'Manage FedEx live services from Checkout Shipping.',
+                ]);
+        }
+
         $validated = $this->validateMethod($request, $store->id);
+        $this->assertAdvancedMethodNotFedExLive($store, $validated);
+
         $validated = $optionNormalizer->applyPricingMode($request->input('delivery_price_mode'), $validated);
         $optionNormalizer->assertValidPricingAndDays((string) $request->input('delivery_price_mode', 'fixed'), $validated);
         $validated = $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: false, existing: $shippingMethod);
@@ -443,6 +492,207 @@ class ShippingSettingsController extends Controller
         return back()
             ->with('success', 'Delivery method removed.')
             ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function storePackagePreset(
+        Request $request,
+        SecurityLogRecorder $securityLogRecorder,
+        StoreShippingPreferences $shippingPreferences,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $validated = $this->validatePackagePreset($request);
+        $makeDefault = (bool) ($validated['is_default'] ?? false);
+
+        $preset = DB::transaction(function () use ($store, $validated, $makeDefault, $shippingPreferences): ShippingPackagePreset {
+            if ($makeDefault) {
+                $store->shippingPackagePresets()->where('is_default', true)->update(['is_default' => false]);
+            }
+
+            $preset = $store->shippingPackagePresets()->create([
+                ...$validated,
+                'weight_unit' => strtoupper((string) ($validated['weight_unit'] ?? 'LB')),
+                'dimension_unit' => strtoupper((string) ($validated['dimension_unit'] ?? 'IN')),
+                'is_default' => $makeDefault,
+                'is_active' => (bool) ($validated['is_active'] ?? true),
+            ]);
+
+            if ($makeDefault) {
+                $shippingPreferences->update($store, ['default_package_preset_id' => $preset->id]);
+            }
+
+            return $preset;
+        });
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.package_preset_created',
+            store: $store,
+            metadata: ['shipping_package_preset_id' => $preset->id, 'name' => $preset->name]
+        );
+
+        return back()
+            ->with('success', 'Package size saved.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function updatePackagePreset(
+        Request $request,
+        ShippingPackagePreset $shippingPackagePreset,
+        SecurityLogRecorder $securityLogRecorder,
+        StoreShippingPreferences $shippingPreferences,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $shippingPackagePreset->store_id === (int) $store->id, 404);
+
+        $validated = $this->validatePackagePreset($request);
+        $makeDefault = (bool) ($validated['is_default'] ?? false);
+
+        DB::transaction(function () use ($store, $shippingPackagePreset, $validated, $makeDefault, $shippingPreferences): void {
+            if ($makeDefault) {
+                $store->shippingPackagePresets()
+                    ->where('is_default', true)
+                    ->where('id', '!=', $shippingPackagePreset->id)
+                    ->update(['is_default' => false]);
+            }
+
+            $shippingPackagePreset->update([
+                ...$validated,
+                'weight_unit' => strtoupper((string) ($validated['weight_unit'] ?? 'LB')),
+                'dimension_unit' => strtoupper((string) ($validated['dimension_unit'] ?? 'IN')),
+                'is_default' => $makeDefault,
+                'is_active' => (bool) ($validated['is_active'] ?? false),
+            ]);
+
+            if ($makeDefault) {
+                $shippingPreferences->update($store, ['default_package_preset_id' => $shippingPackagePreset->id]);
+            } elseif ((int) ($shippingPreferences->get($store)['default_package_preset_id'] ?? 0) === (int) $shippingPackagePreset->id) {
+                $shippingPreferences->update($store, ['default_package_preset_id' => null]);
+            }
+        });
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.package_preset_updated',
+            store: $store,
+            metadata: ['shipping_package_preset_id' => $shippingPackagePreset->id, 'name' => $shippingPackagePreset->name]
+        );
+
+        return back()
+            ->with('success', 'Package size updated.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function destroyPackagePreset(
+        Request $request,
+        ShippingPackagePreset $shippingPackagePreset,
+        SecurityLogRecorder $securityLogRecorder,
+        StoreShippingPreferences $shippingPreferences,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $shippingPackagePreset->store_id === (int) $store->id, 404);
+
+        $presetId = (int) $shippingPackagePreset->id;
+        $shippingPackagePreset->delete();
+
+        if ((int) ($shippingPreferences->get($store)['default_package_preset_id'] ?? 0) === $presetId) {
+            $shippingPreferences->update($store, ['default_package_preset_id' => null]);
+        }
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.package_preset_deleted',
+            store: $store,
+            metadata: ['shipping_package_preset_id' => $presetId, 'name' => $shippingPackagePreset->name]
+        );
+
+        return back()
+            ->with('success', 'Package size removed.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function setDefaultPackagePreset(
+        Request $request,
+        ShippingPackagePreset $shippingPackagePreset,
+        SecurityLogRecorder $securityLogRecorder,
+        StoreShippingPreferences $shippingPreferences,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $shippingPackagePreset->store_id === (int) $store->id, 404);
+
+        DB::transaction(function () use ($store, $shippingPackagePreset, $shippingPreferences): void {
+            $store->shippingPackagePresets()->where('is_default', true)->update(['is_default' => false]);
+            $shippingPackagePreset->update([
+                'is_default' => true,
+                'is_active' => true,
+            ]);
+            $shippingPreferences->update($store, ['default_package_preset_id' => $shippingPackagePreset->id]);
+        });
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.package_preset_default_set',
+            store: $store,
+            metadata: ['shipping_package_preset_id' => $shippingPackagePreset->id, 'name' => $shippingPackagePreset->name]
+        );
+
+        return back()
+            ->with('success', 'Default package size updated.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function updateShippingPreferences(
+        Request $request,
+        StoreShippingPreferences $shippingPreferences,
+        SecurityLogRecorder $securityLogRecorder,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $validated = $request->validate([
+            'default_label_format' => ['nullable', 'string', Rule::in(StoreShippingPreferences::LABEL_FORMATS)],
+            'default_handoff_type' => ['nullable', 'string', Rule::in(StoreShippingPreferences::HANDOFF_TYPES)],
+            'default_signature_option' => ['nullable', 'string', Rule::in(StoreShippingPreferences::SIGNATURE_OPTIONS)],
+            'saturday_delivery_default' => ['nullable', 'boolean'],
+        ]);
+
+        $shippingPreferences->update($store, [
+            'default_label_format' => $validated['default_label_format'] ?? 'PDF',
+            'default_handoff_type' => $validated['default_handoff_type'] ?? StoreShippingPreferences::HANDOFF_USE_SCHEDULED_PICKUP,
+            'default_signature_option' => $validated['default_signature_option'] ?? null,
+            'saturday_delivery_default' => $request->boolean('saturday_delivery_default'),
+        ]);
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.preferences_updated',
+            store: $store,
+            metadata: ['keys' => array_keys($validated)]
+        );
+
+        return back()
+            ->with('success', 'Shipping defaults saved.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validatePackagePreset(Request $request): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'weight_value' => ['nullable', 'numeric', 'min:0.01'],
+            'weight_unit' => ['nullable', 'string', 'max:8'],
+            'length' => ['required', 'numeric', 'min:0.01'],
+            'width' => ['required', 'numeric', 'min:0.01'],
+            'height' => ['required', 'numeric', 'min:0.01'],
+            'dimension_unit' => ['nullable', 'string', 'max:8'],
+            'package_type' => ['nullable', 'string', 'max:64'],
+            'is_default' => ['nullable', 'boolean'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
     }
 
     /**
@@ -513,14 +763,103 @@ class ShippingSettingsController extends Controller
         ?int $existingCarrierAccountId = null,
     ): ?int {
         if (! empty($validated['carrier_account_id'])) {
-            return (int) $validated['carrier_account_id'];
+            $accountId = (int) $validated['carrier_account_id'];
+            if (($validated['rate_type'] ?? null) === ShippingMethod::RATE_CARRIER_CALCULATED_LATER) {
+                $account = \App\Models\CarrierAccount::query()
+                    ->where('store_id', $store->id)
+                    ->whereKey($accountId)
+                    ->first();
+                if (! $account || ! $account->isFedEx() || ! $account->usesFedExIntegratorProvider()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'carrier_account_id' => 'Live carrier pricing requires a connected FedEx account.',
+                    ]);
+                }
+            }
+
+            return $accountId;
         }
 
         if (($validated['rate_type'] ?? null) === ShippingMethod::RATE_CARRIER_CALCULATED_LATER) {
-            return $existingCarrierAccountId;
+            if ($existingCarrierAccountId) {
+                $existing = \App\Models\CarrierAccount::query()
+                    ->where('store_id', $store->id)
+                    ->whereKey($existingCarrierAccountId)
+                    ->first();
+                if ($existing && $existing->isFedEx() && $existing->usesFedExIntegratorProvider()) {
+                    return $existingCarrierAccountId;
+                }
+            }
+
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'carrier_account_id' => 'Select a connected FedEx account for live carrier pricing.',
+            ]);
         }
 
         return $manualProviderResolver->resolveForStore($store, $actor)->id;
+    }
+
+    /**
+     * Advanced drawers may only manage flat/free/manual methods — not FedEx live rates.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function assertAdvancedMethodNotFedExLive(Store $store, array $validated): void
+    {
+        $rateType = (string) ($validated['rate_type'] ?? '');
+        if ($rateType === ShippingMethod::RATE_CARRIER_CALCULATED_LATER) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'rate_type' => 'Manage FedEx live services from Checkout Shipping.',
+            ]);
+        }
+
+        $accountId = (int) ($validated['carrier_account_id'] ?? 0);
+        if ($accountId <= 0) {
+            return;
+        }
+
+        $account = CarrierAccount::query()
+            ->where('store_id', $store->id)
+            ->whereKey($accountId)
+            ->first();
+
+        if ($account && $account->isFedEx() && $account->usesFedExIntegratorProvider()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'carrier_account_id' => 'Manage FedEx live services from Checkout Shipping.',
+            ]);
+        }
+    }
+
+    /**
+     * Validation/certification fixtures are expensive — load only when Advanced/validation context asks for them.
+     */
+    private function shouldLoadFedExValidationTools(Request $request, FedExConfig $fedExConfig): bool
+    {
+        if (! $fedExConfig->validationModeEnabled()) {
+            return false;
+        }
+
+        if (! app()->environment(['local', 'testing'])) {
+            return false;
+        }
+
+        if ($request->boolean('fedex_validation') || $request->session()->has('fedex_test_result')) {
+            return true;
+        }
+
+        $tab = strtolower(trim((string) $request->query('tab', '')));
+
+        return in_array($tab, [
+            'advanced',
+            'providers',
+            'carriers',
+            'areas',
+            'options',
+            'ship-from',
+            'zones',
+            'methods',
+            'locations',
+            'packages',
+        ], true);
     }
 
     /**

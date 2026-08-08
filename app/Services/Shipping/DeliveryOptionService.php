@@ -232,6 +232,10 @@ class DeliveryOptionService
         }
 
         $packageBuild = $this->fedExCheckoutPackages->buildFromCheckout($checkout);
+        if (! ($packageBuild['ready'] ?? false) || ($packageBuild['packages'] ?? []) === []) {
+            // Missing product weights or store package defaults — hide FedEx live rates safely.
+            return null;
+        }
 
         return $this->fedExCheckoutRates->resolve(
             store: $checkout->store,

@@ -4,7 +4,7 @@
     $steps = [
         1 => ['label' => 'Ship from', 'route' => 'settings.delivery.setup.ship-from'],
         2 => ['label' => 'Deliver to', 'route' => 'settings.delivery.setup.deliver-to'],
-        3 => ['label' => 'Delivery option', 'route' => 'settings.delivery.setup.delivery-option'],
+        3 => ['label' => 'Checkout shipping', 'route' => 'settings.delivery.setup.delivery-option'],
         4 => ['label' => 'Review', 'route' => 'settings.delivery.setup.review'],
     ];
 @endphp

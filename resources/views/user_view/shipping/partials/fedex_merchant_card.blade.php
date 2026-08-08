@@ -72,8 +72,23 @@
         @endif
 
         <div class="flex flex-wrap gap-2">
-            @foreach (['Rates not enabled yet', 'Labels not enabled yet', 'Tracking not enabled yet'] as $chip)
-                <x-ui.badge>{{ $chip }}</x-ui.badge>
+            @php
+                $caps = is_array($account->capabilities) ? $account->capabilities : [];
+                $checkoutOn = (bool) config('carriers.fedex.checkout_rates_enabled', false)
+                    && (bool) $account->enabled_for_checkout
+                    && (bool) ($caps['checkout_rates'] ?? false);
+                $labelsOn = (bool) config('carriers.fedex.ops_ship_labels_enabled', false)
+                    && (bool) ($caps['labels'] ?? $caps['ship_labels'] ?? false);
+                $trackingOn = (bool) config('carriers.fedex.ops_tracking_enabled', false)
+                    && (bool) ($caps['tracking'] ?? false);
+                $statusChips = [
+                    [$checkoutOn ? 'Checkout rates on' : 'Checkout rates need setup', $checkoutOn ? 'success' : 'warning'],
+                    [$labelsOn ? 'Labels on' : 'Labels not enabled', $labelsOn ? 'success' : 'warning'],
+                    [$trackingOn ? 'Tracking on' : 'Tracking not enabled', $trackingOn ? 'success' : 'warning'],
+                ];
+            @endphp
+            @foreach ($statusChips as [$chip, $tone])
+                <x-ui.badge :tone="$tone">{{ $chip }}</x-ui.badge>
             @endforeach
         </div>
 
@@ -84,13 +99,15 @@
                         variant="secondary"
                         :href="route('settings.shipping.fedex-integrator.manage', $account)"
                     >
-                        Manage FedEx
+                        Open FedEx Center
                     </x-ui.button>
                 @else
-                    <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test', $account) }}" class="shipping-submit-form">
-                        @csrf
-                        <x-ui.button type="submit" class="shipping-submit-btn">Run connection check</x-ui.button>
-                    </form>
+                    @if (\Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.test'))
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.fedex.test', $account) }}" class="shipping-submit-form">
+                            @csrf
+                            <x-ui.button type="submit" class="shipping-submit-btn">Run connection check</x-ui.button>
+                        </form>
+                    @endif
                     <x-ui.button
                         variant="secondary"
                         :href="route('shipping.carriers.connect.show', 'fedex')"

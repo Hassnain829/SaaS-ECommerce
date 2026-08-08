@@ -51,6 +51,7 @@ class Shipment extends Model
     protected $fillable = [
         'store_id',
         'order_id',
+        'order_return_id',
         'shipment_number',
         'origin_location_id',
         'carrier_account_id',
@@ -89,9 +90,19 @@ class Shipment extends Model
         return $this->belongsTo(Order::class);
     }
 
+    public function orderReturn(): BelongsTo
+    {
+        return $this->belongsTo(OrderReturn::class, 'order_return_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(ShipmentItem::class);
+    }
+
+    public function packages(): HasMany
+    {
+        return $this->hasMany(ShipmentPackage::class);
     }
 
     public function originLocation(): BelongsTo
@@ -123,5 +134,67 @@ class Shipment extends Model
     public function isOutbound(): bool
     {
         return ! $this->isReturn();
+    }
+
+    /**
+     * True when this shipment belongs to FedEx Model A ops (not merely "has a tracking number").
+     */
+    public function isFedExManagedShipment(?CarrierAccount $preferredAccount = null): bool
+    {
+        if (filled(data_get($this->metadata, 'fedex'))) {
+            return true;
+        }
+
+        if ($preferredAccount instanceof CarrierAccount
+            && (int) $this->carrier_account_id === (int) $preferredAccount->id
+            && $preferredAccount->isFedEx()
+            && $preferredAccount->usesFedExIntegratorProvider()) {
+            return true;
+        }
+
+        $account = $this->relationLoaded('carrierAccount')
+            ? $this->carrierAccount
+            : $this->carrierAccount()->first();
+
+        return $account instanceof CarrierAccount
+            && $account->isFedEx()
+            && $account->usesFedExIntegratorProvider();
+    }
+
+    /**
+     * Ensure a customer-safe public tracking token exists for FedEx-managed shipments with tracking.
+     */
+    public function ensureFedExPublicTrackingToken(): ?string
+    {
+        if (! filled($this->tracking_number) || ! $this->isFedExManagedShipment()) {
+            return data_get($this->metadata, 'fedex.public_tracking_token');
+        }
+
+        $existing = data_get($this->metadata, 'fedex.public_tracking_token');
+        if (filled($existing)) {
+            return (string) $existing;
+        }
+
+        $token = bin2hex(random_bytes(16));
+        $meta = is_array($this->metadata) ? $this->metadata : [];
+        $fedex = is_array($meta['fedex'] ?? null) ? $meta['fedex'] : [];
+        $fedex['public_tracking_token'] = $token;
+        $meta['fedex'] = $fedex;
+        $this->forceFill(['metadata' => $meta])->save();
+
+        return $token;
+    }
+
+    public function publicFedExTrackingUrl(?string $storeSlug): ?string
+    {
+        $token = data_get($this->metadata, 'fedex.public_tracking_token');
+        if (! filled($token) || ! filled($storeSlug) || ! \Illuminate\Support\Facades\Route::has('public.fedex.tracking')) {
+            return null;
+        }
+
+        return route('public.fedex.tracking', [
+            'storeSlug' => $storeSlug,
+            'token' => $token,
+        ]);
     }
 }

@@ -205,6 +205,11 @@ class Store extends Model
         return $this->hasMany(ShippingMethod::class);
     }
 
+    public function shippingPackagePresets(): HasMany
+    {
+        return $this->hasMany(ShippingPackagePreset::class);
+    }
+
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class);

@@ -27,6 +27,11 @@ class MerchantDeliveryUiAlignmentTest extends TestCase
             'carriers.fedex.integrator_model_a_enabled' => true,
             'carriers.fedex.validation_mode_enabled' => true,
         ]);
+
+        if (! \Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.validation')) {
+            require base_path('routes/fedex-validation.php');
+            \Illuminate\Support\Facades\Route::getRoutes()->refreshNameLookups();
+        }
     }
 
     public function test_delivery_home_hides_certification_jargon_from_default_overview(): void

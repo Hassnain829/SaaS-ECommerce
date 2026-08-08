@@ -2,15 +2,19 @@
 
 namespace App\Services\Delivery;
 
+use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
+use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
+use App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog;
 use App\Services\Inventory\DefaultLocationService;
 use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +25,7 @@ class DeliveryWizardPersistenceService
         private readonly DeliveryAreaInputNormalizer $areaNormalizer,
         private readonly DeliveryOptionInputNormalizer $optionNormalizer,
         private readonly ManualDeliveryProviderResolver $manualProviderResolver,
+        private readonly FedExOperationGuard $fedExGuard,
     ) {}
 
     public function saveShipFrom(Request $request, Store $store, ?User $actor = null): Location
@@ -146,12 +151,40 @@ class DeliveryWizardPersistenceService
 
     public function saveDeliveryOption(Request $request, Store $store, ?User $actor = null): ShippingMethod
     {
+        $mode = (string) $request->input('checkout_shipping_mode', 'fixed');
+        if (! in_array($mode, ['fedex_live', 'fixed', 'both'], true)) {
+            $mode = 'fixed';
+        }
+
+        if (in_array($mode, ['fedex_live', 'both'], true)) {
+            $platformOn = app(\App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::class)
+                ->platformCheckoutRatesEnabled();
+            if (! $platformOn) {
+                throw ValidationException::withMessages([
+                    'checkout_shipping_mode' => 'FedEx checkout rates are not currently available on this platform. Use fixed or free shipping, or try again later.',
+                ]);
+            }
+
+            return $this->saveFedExAwareCheckoutOptions($request, $store, $actor, $mode);
+        }
+
+        return $this->saveFixedDeliveryOption($request, $store, $actor);
+    }
+
+    private function saveFixedDeliveryOption(Request $request, Store $store, ?User $actor): ShippingMethod
+    {
         $methodId = $request->integer('shipping_method_id');
         $existing = $methodId > 0
             ? $store->shippingMethods()->whereKey($methodId)->first()
             : null;
 
         abort_unless($methodId <= 0 || $existing !== null, 404);
+
+        if ($existing !== null && $existing->isFedExLiveRateMethod()) {
+            throw ValidationException::withMessages([
+                'checkout_shipping_mode' => 'This option uses FedEx live rates. Choose FedEx live rates (or FedEx + fallback) to edit it, or create a new fixed option.',
+            ]);
+        }
 
         $validated = $request->validate([
             'shipping_method_id' => ['nullable', 'integer'],
@@ -192,6 +225,8 @@ class DeliveryWizardPersistenceService
             'enabled_for_checkout' => (bool) ($validated['enabled_for_checkout'] ?? false),
             'is_active' => (bool) ($validated['is_active'] ?? false),
             'carrier_account_id' => $carrierAccountId,
+            'carrier_service_code' => null,
+            'carrier_service_name' => null,
         ];
 
         if ($existing !== null) {
@@ -205,6 +240,187 @@ class DeliveryWizardPersistenceService
             'code' => $this->optionNormalizer->uniqueMethodCode($store->id, $validated['name']),
             'sort_order' => 0,
         ]);
+    }
+
+    private function saveFedExAwareCheckoutOptions(
+        Request $request,
+        Store $store,
+        ?User $actor,
+        string $mode,
+    ): ShippingMethod {
+        $account = $this->fedExGuard->resolveActiveModelAAccount($store);
+        if (! $account instanceof CarrierAccount) {
+            throw ValidationException::withMessages([
+                'checkout_shipping_mode' => 'Connect FedEx before offering live FedEx rates at checkout.',
+            ]);
+        }
+
+        $allowedCodes = FedExCheckoutServiceCatalog::codes();
+        $validated = $request->validate([
+            'shipping_zone_id' => [
+                'required',
+                'integer',
+                Rule::exists('shipping_zones', 'id')->where('store_id', $store->id),
+            ],
+            'fedex_services' => ['required', 'array', 'min:1'],
+            'fedex_services.*' => ['string', Rule::in($allowedCodes)],
+            'available_to_customers' => ['nullable', 'boolean'],
+            'fallback_name' => ['nullable', 'string', 'max:120'],
+            'delivery_price_mode' => ['nullable', Rule::in(['fixed', 'free', 'free_over'])],
+            'flat_rate' => ['nullable', 'numeric', 'min:0'],
+            'free_over_amount' => ['nullable', 'numeric', 'min:0'],
+            'estimated_min_days' => ['nullable', 'integer', 'min:0', 'max:365'],
+            'estimated_max_days' => ['nullable', 'integer', 'min:0', 'max:365'],
+        ]);
+
+        $zoneId = (int) $validated['shipping_zone_id'];
+        $selectedServices = array_values(array_unique(array_map('strtoupper', $validated['fedex_services'])));
+        $available = $request->boolean('available_to_customers', true);
+
+        $primary = DB::transaction(function () use (
+            $store,
+            $actor,
+            $account,
+            $zoneId,
+            $selectedServices,
+            $available,
+            $mode,
+            $request,
+            $validated,
+        ): ShippingMethod {
+            $existingFedEx = $store->shippingMethods()
+                ->where('shipping_zone_id', $zoneId)
+                ->where('rate_type', ShippingMethod::RATE_CARRIER_CALCULATED_LATER)
+                ->where('carrier_account_id', $account->id)
+                ->get();
+
+            $keptIds = [];
+            $primary = null;
+            $sort = 0;
+
+            foreach ($selectedServices as $code) {
+                $name = FedExCheckoutServiceCatalog::nameFor($code);
+                $match = $existingFedEx->first(fn (ShippingMethod $m): bool => strtoupper((string) $m->carrier_service_code) === $code);
+
+                $payload = [
+                    'shipping_zone_id' => $zoneId,
+                    'carrier_account_id' => $account->id,
+                    'carrier_service_code' => $code,
+                    'carrier_service_name' => $name,
+                    'name' => $name,
+                    'delivery_speed_label' => $name,
+                    'rate_type' => ShippingMethod::RATE_CARRIER_CALCULATED_LATER,
+                    'flat_rate' => 0,
+                    'free_over_amount' => null,
+                    'enabled_for_checkout' => $available,
+                    'is_active' => $available,
+                    'sort_order' => $sort++,
+                ];
+
+                if ($match) {
+                    $match->update($payload);
+                    $method = $match->fresh();
+                } else {
+                    $method = $store->shippingMethods()->create([
+                        ...$payload,
+                        'code' => $this->optionNormalizer->uniqueMethodCode($store->id, $name),
+                    ]);
+                }
+
+                $keptIds[] = $method->id;
+                $primary ??= $method;
+            }
+
+            foreach ($existingFedEx as $stale) {
+                if (! in_array($stale->id, $keptIds, true)) {
+                    $stale->forceFill([
+                        'is_active' => false,
+                        'enabled_for_checkout' => false,
+                    ])->save();
+                }
+            }
+
+            if ($mode === 'both') {
+                $this->upsertManualFallback($request, $store, $actor, $zoneId, $validated, $available);
+            }
+
+            $this->enableFedExCheckoutCapabilities($account);
+
+            return $primary ?? $existingFedEx->first() ?? throw ValidationException::withMessages([
+                'fedex_services' => 'Select at least one FedEx service.',
+            ]);
+        });
+
+        return $primary;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function upsertManualFallback(
+        Request $request,
+        Store $store,
+        ?User $actor,
+        int $zoneId,
+        array $validated,
+        bool $available,
+    ): ShippingMethod {
+        $priceMode = (string) ($validated['delivery_price_mode'] ?? 'fixed');
+        $pricing = $this->optionNormalizer->applyPricingMode($priceMode, [
+            'flat_rate' => $validated['flat_rate'] ?? 5,
+            'free_over_amount' => $validated['free_over_amount'] ?? null,
+        ]);
+        $this->optionNormalizer->assertValidPricingAndDays($priceMode, array_merge($validated, $pricing));
+
+        $manualAccountId = $this->manualProviderResolver->resolveForStore($store, $actor)->id;
+        $name = filled($validated['fallback_name'] ?? null)
+            ? (string) $validated['fallback_name']
+            : 'Standard delivery';
+
+        $existing = $store->shippingMethods()
+            ->where('shipping_zone_id', $zoneId)
+            ->whereIn('rate_type', [ShippingMethod::RATE_FLAT, ShippingMethod::RATE_FREE, ShippingMethod::RATE_MANUAL])
+            ->where(function ($query) use ($manualAccountId): void {
+                $query->where('carrier_account_id', $manualAccountId)
+                    ->orWhereNull('carrier_account_id');
+            })
+            ->whereNull('carrier_service_code')
+            ->orderBy('id')
+            ->first();
+
+        $payload = [
+            'shipping_zone_id' => $zoneId,
+            'carrier_account_id' => $manualAccountId,
+            'carrier_service_code' => null,
+            'carrier_service_name' => null,
+            'name' => $name,
+            'delivery_speed_label' => $name,
+            'rate_type' => $pricing['rate_type'],
+            'flat_rate' => $pricing['flat_rate'] ?? 0,
+            'free_over_amount' => $pricing['free_over_amount'] ?? null,
+            'estimated_min_days' => $validated['estimated_min_days'] ?? null,
+            'estimated_max_days' => $validated['estimated_max_days'] ?? null,
+            'enabled_for_checkout' => $available,
+            'is_active' => $available,
+            'sort_order' => 100,
+        ];
+
+        if ($existing) {
+            $existing->update($payload);
+
+            return $existing->fresh();
+        }
+
+        return $store->shippingMethods()->create([
+            ...$payload,
+            'code' => $this->optionNormalizer->uniqueMethodCode($store->id, $name),
+        ]);
+    }
+
+    private function enableFedExCheckoutCapabilities(CarrierAccount $account): void
+    {
+        app(\App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::class)
+            ->enableAccountCheckoutRatesIfAllowed($account);
     }
 
     public function isLegacyZone(ShippingZone $zone): bool
@@ -221,14 +437,10 @@ class DeliveryWizardPersistenceService
             return '';
         }
 
-        $catalog = TaxCountryCatalog::regionsFor($countryCode);
-        if (isset($catalog[$token])) {
-            return $token;
-        }
-
-        foreach ($catalog as $code => $label) {
-            if (strtoupper($label) === $token) {
-                return $code;
+        $regions = TaxCountryCatalog::regionsFor($countryCode);
+        foreach ($regions as $code => $label) {
+            if ($token === strtoupper((string) $code) || $token === strtoupper((string) $label)) {
+                return (string) $code;
             }
         }
 

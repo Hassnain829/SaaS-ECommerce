@@ -20,7 +20,7 @@ final class FedExShipmentRateRequest
         public readonly array $recipient,
         public readonly array $packages,
         public readonly string $shipDate,
-        public readonly string $pickupType = 'DROPOFF_AT_FEDEX_LOCATION',
+        public readonly string $pickupType = 'USE_SCHEDULED_PICKUP',
         public readonly string $packagingType = 'YOUR_PACKAGING',
         public readonly ?string $serviceType = null,
         public readonly array $rateRequestTypes = ['ACCOUNT', 'LIST'],

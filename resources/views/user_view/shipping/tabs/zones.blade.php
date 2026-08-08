@@ -5,10 +5,13 @@
     <div class="flex flex-col gap-3 border-b border-[#F1F5F9] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold text-[#0F172A]">Delivery areas</h2>
-            <p class="mt-1 text-sm text-[#64748B]">Define where customers can receive delivery. Delivery options match the customer address to a delivery area.</p>
+            <p class="mt-1 text-sm text-[#64748B]">Where customers can receive orders. Checkout options are matched to the customer address using these areas.</p>
         </div>
         @if ($canManageShipping)
-            <button type="button" data-open-drawer="zone-add" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Add delivery area</button>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('settings.delivery.setup.deliver-to') }}" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Guided setup</a>
+                <button type="button" data-open-drawer="zone-add" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Add delivery area</button>
+            </div>
         @endif
     </div>
 

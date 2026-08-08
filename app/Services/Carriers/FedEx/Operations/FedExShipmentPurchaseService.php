@@ -82,8 +82,53 @@ final class FedExShipmentPurchaseService
         $recipient = $order->addresses->firstWhere('type', 'shipping') ?? $order->addresses->first();
         abort_unless($recipient, 422, 'This order does not have a shipping address.');
 
+        // Hydrate authoritative package/context from the bound quote before fixture build.
+        $preloadedQuote = null;
+        $quoteIdEarly = (int) ($input['carrier_rate_quote_id'] ?? 0);
+        if ($quoteIdEarly > 0 && ! (bool) ($input['return_shipment'] ?? false)) {
+            $preloadedQuote = CarrierRateQuote::query()
+                ->where('store_id', $store->id)
+                ->where('order_id', $order->id)
+                ->whereKey($quoteIdEarly)
+                ->with('package')
+                ->first();
+
+            if ($preloadedQuote?->package) {
+                $pkg = $preloadedQuote->package;
+                $input['packages'] = [[
+                    'weight' => (float) $pkg->weight_value,
+                    'weight_unit' => strtoupper((string) ($pkg->weight_unit ?: 'LB')),
+                    'length' => (float) $pkg->length,
+                    'width' => (float) $pkg->width,
+                    'height' => (float) $pkg->height,
+                    'dimension_unit' => strtoupper((string) ($pkg->dimension_unit ?: 'IN')),
+                ]];
+                $input['shipment_package_id'] = $pkg->id;
+            } elseif (is_array(data_get($preloadedQuote?->request_summary, 'packages'))) {
+                $input['packages'] = data_get($preloadedQuote->request_summary, 'packages');
+            }
+
+            if (! array_key_exists('pickup_type', $input) || ! filled($input['pickup_type'] ?? null)) {
+                $input['pickup_type'] = data_get($preloadedQuote?->request_summary, 'pickup_type');
+            }
+            if (! array_key_exists('residential', $input) && array_key_exists('destination_residential', (array) ($preloadedQuote?->request_summary ?? []))) {
+                $input['residential'] = (bool) data_get($preloadedQuote->request_summary, 'destination_residential');
+            }
+            if (! filled($input['ship_date'] ?? null) && filled(data_get($preloadedQuote?->request_summary, 'ship_date'))) {
+                $input['ship_date'] = (string) data_get($preloadedQuote->request_summary, 'ship_date');
+            }
+
+            $corrected = data_get($preloadedQuote?->request_summary, 'destination_address');
+            if (is_array($corrected) && filled($corrected['address_line1'] ?? null)) {
+                $input['destination_override'] = $corrected;
+            }
+        }
+
         $originCountry = strtoupper((string) ($origin->country_code ?: 'US'));
-        $destinationCountry = strtoupper((string) ($recipient->country_code ?: 'US'));
+        $destinationCountry = strtoupper((string) (
+            data_get($input, 'destination_override.country_code')
+            ?: ($recipient->country_code ?: 'US')
+        ));
         $this->guard->assertOriginDestinationAllowed($originCountry, $destinationCountry, $account->environment);
         $shipDate = $this->guard->assertShipDate($input['ship_date'] ?? null);
 
@@ -119,12 +164,16 @@ final class FedExShipmentPurchaseService
                 quoteId: $quoteId,
                 serviceType: (string) ($fixture['service_type'] ?? $input['service_type'] ?? ''),
                 packages: $fixture['packages'] ?? [],
-                destinationPostal: (string) ($recipient->postal_code ?? ''),
+                destinationPostal: (string) (
+                    data_get($input, 'destination_override.postal_code')
+                    ?: ($recipient->postal_code ?? '')
+                ),
                 destinationCountry: $destinationCountry,
                 currency: strtoupper((string) ($order->currency_code ?: 'USD')),
                 originCountry: $originCountry,
                 residential: array_key_exists('residential', $input) ? (bool) $input['residential'] : null,
                 shipDate: $shipDate,
+                pickupType: isset($input['pickup_type']) ? (string) $input['pickup_type'] : null,
             );
 
             // Force service/amount from the bound quote — never trust free-typed service alone.
@@ -162,6 +211,7 @@ final class FedExShipmentPurchaseService
                 (bool) ($input['residential'] ?? false),
             ],
             'return' => $isReturn,
+            'order_return_id' => $isReturn ? ($input['order_return_id'] ?? null) : null,
             'customs' => $customs,
             'items' => $shipmentItems,
             'quote_id' => $boundQuote?->id,
@@ -230,6 +280,7 @@ final class FedExShipmentPurchaseService
                 $shipment = Shipment::query()->create([
                     'store_id' => $store->id,
                     'order_id' => $order->id,
+                    'order_return_id' => $isReturn ? ($input['order_return_id'] ?? null) : null,
                     'shipment_number' => $this->shipmentNumberGenerator->generate($store),
                     'origin_location_id' => $origin->id,
                     'carrier_account_id' => $account->id,
@@ -253,6 +304,7 @@ final class FedExShipmentPurchaseService
                             'label_format' => $fixture['label_format'] ?? 'PDF',
                             'return_shipment' => $isReturn,
                             'direction' => $isReturn ? Shipment::DIRECTION_RETURN : Shipment::DIRECTION_OUTBOUND,
+                            'order_return_id' => $isReturn ? ($input['order_return_id'] ?? null) : null,
                             'carrier_rate_quote_id' => $boundQuote?->id,
                             'fedex_trade_document_id' => $boundTradeDocument?->id,
                             'etd_document_id' => $input['etd_document_id'] ?? null,
@@ -607,13 +659,37 @@ final class FedExShipmentPurchaseService
 
             foreach ($usableLabels as $sequence => $label) {
                 $packageIndex = max(0, ((int) $sequence) - 1);
+                $existingPackageId = (int) ($input['shipment_package_id'] ?? $boundQuote?->package_id ?? 0);
+
+                if ($existingPackageId > 0 && (int) $sequence === 1) {
+                    $existing = ShipmentPackage::query()
+                        ->where('store_id', $store->id)
+                        ->where('order_id', $order->id)
+                        ->whereKey($existingPackageId)
+                        ->first();
+                    if ($existing) {
+                        $existing->forceFill([
+                            'shipment_id' => $reservedShipment->id,
+                            'origin_location_id' => $origin->id,
+                            'metadata' => array_merge(is_array($existing->metadata) ? $existing->metadata : [], [
+                                'fedex_tracking_number' => $label['tracking_number'] ?? null,
+                                'package_sequence' => (int) $sequence,
+                            ]),
+                        ])->save();
+                        if ($boundQuote instanceof CarrierRateQuote && ! $boundQuote->package_id) {
+                            $boundQuote->forceFill(['package_id' => $existing->id])->save();
+                        }
+                        continue;
+                    }
+                }
+
                 ShipmentPackage::query()->create([
                     'store_id' => $store->id,
                     'shipment_id' => $reservedShipment->id,
                     'order_id' => $order->id,
                     'origin_location_id' => $origin->id,
                     'name' => 'Package '.$sequence,
-                    'weight_value' => data_get($fixture, 'packages.'.$packageIndex.'.weight', 1),
+                    'weight_value' => data_get($fixture, 'packages.'.$packageIndex.'.weight'),
                     'weight_unit' => data_get($fixture, 'packages.'.$packageIndex.'.weight_unit', 'LB'),
                     'length' => data_get($fixture, 'packages.'.$packageIndex.'.length'),
                     'width' => data_get($fixture, 'packages.'.$packageIndex.'.width'),

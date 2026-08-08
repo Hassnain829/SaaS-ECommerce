@@ -51,6 +51,8 @@ class FedExNegotiatedRateService
         ?string $packagingType = null,
         ?int $orderId = null,
         bool $forCheckout = false,
+        ?int $shipmentPackageId = null,
+        ?string $pickupType = null,
     ): array {
         $capability = $forCheckout
             ? FedExOperationGuard::CAPABILITY_CHECKOUT_RATES
@@ -91,6 +93,48 @@ class FedExNegotiatedRateService
             ? $packageInput
             : [$packageInput];
 
+        $normalizedPackages = [];
+        foreach ($packages as $index => $package) {
+            if (! is_array($package)) {
+                continue;
+            }
+            $weight = $package['weight'] ?? null;
+            if (! is_numeric($weight) || (float) $weight <= 0) {
+                return $this->failedLocal(
+                    'package_weight_required',
+                    'Each package needs a weight greater than zero before FedEx rates can be requested.',
+                );
+            }
+            if (! is_numeric($package['length'] ?? null) || (float) $package['length'] <= 0
+                || ! is_numeric($package['width'] ?? null) || (float) $package['width'] <= 0
+                || ! is_numeric($package['height'] ?? null) || (float) $package['height'] <= 0
+            ) {
+                return $this->failedLocal(
+                    'package_dimensions_required',
+                    'Each package needs length, width, and height before FedEx rates can be requested.',
+                );
+            }
+
+            $normalizedPackages[] = [
+                'weight' => (float) $weight,
+                'weight_unit' => strtoupper((string) ($package['weight_unit'] ?? 'LB')),
+                'length' => (float) $package['length'],
+                'width' => (float) $package['width'],
+                'height' => (float) $package['height'],
+                'dimension_unit' => strtoupper((string) ($package['dimension_unit'] ?? 'IN')),
+            ];
+        }
+
+        if ($normalizedPackages === []) {
+            return $this->failedLocal(
+                'package_required',
+                'Choose a package before requesting FedEx rates.',
+            );
+        }
+
+        $resolvedPickup = app(\App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver::class)
+            ->resolve($store, $pickupType);
+
         $request = new FedExShipmentRateRequest(
             shipper: [
                 'postal_code' => $origin['postal_code'] ?? null,
@@ -107,20 +151,13 @@ class FedExNegotiatedRateService
                 'address_line1' => $destinationInput['address_line1'] ?? $destinationInput['street'] ?? null,
                 'address_line2' => $destinationInput['address_line2'] ?? null,
             ],
-            packages: array_values(array_map(static function (array $package): array {
-                return [
-                    'weight' => $package['weight'] ?? 1,
-                    'weight_unit' => $package['weight_unit'] ?? 'LB',
-                    'length' => $package['length'] ?? null,
-                    'width' => $package['width'] ?? null,
-                    'height' => $package['height'] ?? null,
-                    'dimension_unit' => $package['dimension_unit'] ?? 'IN',
-                ];
-            }, $packages)),
+            packages: $normalizedPackages,
             shipDate: $shipDateStamp,
+            pickupType: $resolvedPickup,
             packagingType: strtoupper(trim((string) ($packagingType ?? $packageInput['packaging_type'] ?? 'YOUR_PACKAGING'))),
             serviceType: filled($serviceType) ? strtoupper(trim($serviceType)) : null,
             orderId: $orderId,
+            shipmentPackageId: $shipmentPackageId,
             idempotencySubject: implode(':', array_filter([
                 $forCheckout ? 'checkout' : 'merchant',
                 (string) ($orderId ?? ''),
@@ -129,6 +166,8 @@ class FedExNegotiatedRateService
                 trim((string) ($destinationInput['postal_code'] ?? '')),
                 $shipDateStamp,
                 (string) ($serviceType ?? 'ALL'),
+                (string) ($shipmentPackageId ?? ''),
+                $resolvedPickup,
             ])),
         );
 
@@ -182,6 +221,7 @@ class FedExNegotiatedRateService
                 'package_count' => count($request->packages),
                 'packages' => $request->packages,
                 'package_fingerprint' => app(FedExShipQuoteBindingService::class)->packageFingerprint($request->packages),
+                'pickup_type' => $request->pickupType,
                 'rate_request_types' => $request->rateRequestTypes,
                 'return_transit_times' => $request->returnTransitTimes,
                 'order_id' => $request->orderId,

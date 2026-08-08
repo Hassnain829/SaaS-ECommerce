@@ -7,8 +7,6 @@ use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Delivery\DeliveryAddressDiagnosticService;
-use App\Services\Shipping\DeliveryOptionService;
-use App\Services\Shipping\ShippingZoneMatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -55,7 +53,7 @@ class DeliveryAddressDiagnosticServiceTest extends TestCase
             'sort_order' => 1,
         ]);
 
-        $service = new DeliveryAddressDiagnosticService(new ShippingZoneMatcher, new DeliveryOptionService(new ShippingZoneMatcher));
+        $service = app(DeliveryAddressDiagnosticService::class);
 
         $result = $service->diagnose($store, 'US', 'TX', '75002', 25);
 
@@ -66,6 +64,24 @@ class DeliveryAddressDiagnosticServiceTest extends TestCase
         $this->assertSame('available', $available['status']);
         $this->assertSame('unavailable', $blocked['status']);
         $this->assertSame('minimum_order_not_met', $blocked['reason_code']);
+        $this->assertArrayHasKey('package', $result);
+        $this->assertFalse($result['package']['ready']);
+    }
+
+    public function test_diagnose_reports_missing_package_for_fedex_without_inventing_defaults(): void
+    {
+        $store = $this->store();
+        $service = app(DeliveryAddressDiagnosticService::class);
+        $result = $service->diagnose($store, 'US', 'TX', '75002', 25, []);
+
+        $this->assertFalse($result['package']['ready']);
+        $this->assertContains($result['package']['reason'], [
+            'missing_package_preset',
+            'missing_weight',
+            'missing_dimensions',
+            'preset_incomplete',
+        ]);
+        $this->assertSame([], $result['package']['packages']);
     }
 
     private function store(): Store

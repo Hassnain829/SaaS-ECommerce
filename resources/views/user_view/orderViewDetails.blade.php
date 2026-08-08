@@ -611,7 +611,107 @@
 
                     @include('user_view.orders.partials.fedex_shipping_ops')
 
+                    @php
+                        $fedExPrimaryFulfillment = ($fedExActiveAccount ?? null)
+                            && ($canManageOrders ?? false)
+                            && ! ($isOrderExternallyManaged ?? false)
+                            && (
+                                filter_var(config('carriers.fedex.ops_ship_labels_enabled', false), FILTER_VALIDATE_BOOL)
+                                || filter_var(config('carriers.fedex.ops_negotiated_rates_enabled', false), FILTER_VALIDATE_BOOL)
+                            );
+                    @endphp
+
                     @if ($canManageOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
+                        @if ($fedExPrimaryFulfillment)
+                            <details class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4">
+                                <summary class="cursor-pointer text-sm font-semibold text-slate-700">Record a manual shipment</summary>
+                                <p class="mt-2 text-xs leading-relaxed text-slate-500">Use this only when you need to record a non-FedEx shipment (outside carrier, already labeled elsewhere, or fixed tracking).</p>
+                                <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="mt-4 space-y-4">
+                                    @csrf
+                                    @if ($routedOriginLocationId || $pickupLocationName)
+                                        <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs leading-relaxed text-indigo-900">
+                                            Fulfillment origin selected by service area routing{{ $routedOriginLocationId ? ': '.($fulfillmentLocations->firstWhere('id', $routedOriginLocationId)?->name ?? data_get($fulfillmentRouting, 'origin_name', 'Selected location')) : '' }}.
+                                            @if ($pickupLocationName)
+                                                Pickup location selected: {{ $pickupLocationName }}.
+                                            @endif
+                                            You can override the ship-from location before creating the shipment.
+                                        </div>
+                                    @endif
+                                    <div>
+                                        <label class="mb-2 block text-sm font-semibold text-slate-700">Ship from</label>
+                                        <select name="origin_location_id" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                                            <option value="">No location selected</option>
+                                            @foreach ($fulfillmentLocations as $location)
+                                                <option value="{{ $location->id }}" @selected((string) old('origin_location_id', $routedOriginLocationId ?: '') === (string) $location->id)>{{ $location->name }}{{ $location->is_default ? ' (default)' : '' }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="mb-2 block text-sm font-semibold text-slate-700">Carrier</label>
+                                        <select name="carrier_account_id" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                                            <option value="">No carrier selected</option>
+                                            @foreach ($carrierAccounts as $account)
+                                                @continue($account->isFedEx() && $account->usesFedExIntegratorProvider())
+                                                <option value="{{ $account->id }}">{{ $account->display_name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="mb-2 block text-sm font-semibold text-slate-700">Delivery method</label>
+                                        <select name="shipping_method_id" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                                            <option value="">No delivery method selected</option>
+                                            @foreach ($shippingMethods as $method)
+                                                <option value="{{ $method->id }}">{{ $method->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
+                                        @foreach ($order->items as $item)
+                                            @php $remaining = (int) ($remainingFulfillmentQuantities[$item->id] ?? 0); @endphp
+                                            @if ($remaining > 0)
+                                                <label class="flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm">
+                                                    <span class="min-w-0">
+                                                        <span class="block truncate font-medium text-slate-800">{{ $item->product_name }}</span>
+                                                        <span class="text-xs text-slate-500">{{ $remaining }} remaining</span>
+                                                    </span>
+                                                    <input name="items[{{ $item->id }}]" type="number" min="0" max="{{ $remaining }}" value="{{ $remaining }}" class="h-9 w-20 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm">
+                                                </label>
+                                            @endif
+                                        @endforeach
+                                    </div>
+                                    <div>
+                                        <label class="mb-2 block text-sm font-semibold text-slate-700">Tracking Number</label>
+                                        <input name="tracking_number" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" placeholder="Enter tracking #">
+                                    </div>
+                                    <div>
+                                        <label class="mb-2 block text-sm font-semibold text-slate-700">Tracking link</label>
+                                        <input name="tracking_url" type="url" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20" placeholder="https://">
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <label class="space-y-1">
+                                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Packages</span>
+                                            <input name="package_count" type="number" min="1" value="1" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        </label>
+                                        <label class="space-y-1">
+                                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Weight</span>
+                                            <input name="package_weight" type="number" min="0" step="0.001" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        </label>
+                                        <label class="space-y-1">
+                                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</span>
+                                            <input name="shipping_cost" type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+                                        </label>
+                                    </div>
+                                    <label class="space-y-1">
+                                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Internal note</span>
+                                        <textarea name="note" rows="2" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional"></textarea>
+                                    </label>
+                                    <button type="submit" class="w-full rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50">
+                                        Record manual shipment
+                                    </button>
+                                </form>
+                            </details>
+                        @else
                         <form method="POST" action="{{ route('orders.shipments.store', $order) }}" class="space-y-4">
                             @csrf
                             @if ($routedOriginLocationId || $pickupLocationName)
@@ -637,6 +737,7 @@
                                 <select name="carrier_account_id" class="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
                                     <option value="">No carrier selected</option>
                                     @foreach ($carrierAccounts as $account)
+                                        @continue($account->isFedEx() && $account->usesFedExIntegratorProvider())
                                         <option value="{{ $account->id }}">{{ $account->display_name }}</option>
                                     @endforeach
                                 </select>
@@ -695,6 +796,7 @@
                                 Create shipment
                             </button>
                         </form>
+                        @endif
                     @elseif ($canManageOrders && $remainingTotal === 0 && ! $isOrderExternallyManaged)
                         <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                             All items on this order are fulfilled.
@@ -738,6 +840,7 @@
                             @php
                                 $isExternalShipment = data_get($shipment->metadata, 'source') === 'external';
                                 $externalShipmentCarrier = data_get($shipment->metadata, 'carrier_name');
+                                $isFedExManagedShipment = $shipment->isFedExManagedShipment($fedExActiveAccount ?? null);
                             @endphp
                             <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
@@ -746,6 +849,8 @@
                                         <p class="mt-1 text-sm text-slate-600">
                                             @if ($isExternalShipment)
                                                 {{ $externalShipmentCarrier ?: 'External carrier' }} · Synced from external storefront
+                                            @elseif ($isFedExManagedShipment)
+                                                FedEx · Manage with FedEx shipment actions above
                                             @else
                                                 {{ $shipment->carrierAccount?->display_name ?? 'No carrier account' }}{{ $shipment->shippingMethod ? ' | '.$shipment->shippingMethod->name : '' }}
                                             @endif
@@ -772,7 +877,7 @@
                                     </div>
                                 @endif
 
-                                @if ($canManageOrders && ! $isExternalShipment)
+                                @if ($canManageOrders && ! $isExternalShipment && ! $isFedExManagedShipment)
                                     <form method="POST" action="{{ route('shipments.tracking.update', $shipment) }}" class="mt-4 grid gap-2">
                                         @csrf
                                         @method('PATCH')
@@ -1029,6 +1134,15 @@
                             <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Returns</h4>
                             <p class="mt-1 text-xs text-slate-500">Goods coming back to your store</p>
                         </div>
+                        @php
+                            $canCreateFedExReturnLabel = ($fedExActiveAccount ?? null)
+                                && ($canManageOrders ?? false)
+                                && ! ($isOrderExternallyManaged ?? false)
+                                && filter_var(config('carriers.fedex.ops_ship_labels_enabled', false), FILTER_VALIDATE_BOOL);
+                            $returnPackagePreset = $canCreateFedExReturnLabel
+                                ? app(\App\Services\Delivery\StoreShippingPreferences::class)->defaultPackagePreset($selectedStore)
+                                : null;
+                        @endphp
                         @forelse ($order->returns as $return)
                             <div class="rounded-xl border border-stone-200 bg-white p-4">
                                 <div class="flex flex-wrap items-start justify-between gap-3">
@@ -1066,6 +1180,67 @@
                                         @if (\App\Support\ReturnLifecycle::canTransition($return->status, \App\Support\ReturnLifecycle::STATUS_APPROVED))
                                             <form method="POST" action="{{ route('returns.approve', $return) }}">@csrf<button type="submit" class="inline-flex h-9 items-center rounded-xl bg-brand px-3 text-xs font-semibold text-white">Approve</button></form>
                                             <form method="POST" action="{{ route('returns.reject', $return) }}">@csrf<button type="submit" class="inline-flex h-9 items-center rounded-xl border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Reject</button></form>
+                                        @endif
+                                        @php
+                                            $showFedExReturnLabel = $canCreateFedExReturnLabel
+                                                && $return->status === \App\Support\ReturnLifecycle::STATUS_APPROVED;
+                                        @endphp
+                                        @if ($showFedExReturnLabel)
+                                            <form method="POST" action="{{ route('orders.fedex.return-label', $order) }}" class="w-full space-y-3 rounded-xl border border-[#BFDBFE] bg-[#F8FBFF] p-3">
+                                                @csrf
+                                                <input type="hidden" name="carrier_account_id" value="{{ $fedExActiveAccount->id }}">
+                                                <input type="hidden" name="order_return_id" value="{{ $return->id }}">
+                                                <div>
+                                                    <p class="text-sm font-semibold text-[#0F172A]">Create FedEx return label</p>
+                                                    <p class="mt-1 text-xs leading-5 text-[#64748B]">
+                                                        Uses the approved return items.
+                                                        @if ($return->tracking_reference)
+                                                            Current tracking: {{ $return->tracking_reference }}
+                                                        @endif
+                                                    </p>
+                                                </div>
+                                                @error('fedex_return')
+                                                    <p class="text-xs text-red-700">{{ $message }}</p>
+                                                @enderror
+                                                @error('order_return_id')
+                                                    <p class="text-xs text-red-700">{{ $message }}</p>
+                                                @enderror
+                                                @error('packages')
+                                                    <p class="text-xs text-red-700">{{ $message }}</p>
+                                                @enderror
+                                                <label class="block text-xs font-medium text-slate-700">Return to
+                                                    <select name="origin_location_id" required class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
+                                                        @foreach ($fulfillmentLocations as $location)
+                                                            <option value="{{ $location->id }}" @selected((string) old('origin_location_id') === (string) $location->id)>{{ $location->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </label>
+                                                <label class="block text-xs font-medium text-slate-700">Service
+                                                    <select name="service_type" required class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
+                                                        @foreach (\App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog::services() as $service)
+                                                            <option value="{{ $service['code'] }}" @selected((string) old('service_type', 'FEDEX_GROUND') === $service['code'])>{{ $service['name'] }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </label>
+                                                <div class="grid gap-2 sm:grid-cols-4">
+                                                    <label class="text-xs font-medium text-slate-700">Weight (lb)
+                                                        <input type="number" step="0.01" min="0.01" name="weight" value="{{ old('weight', $returnPackagePreset?->weight_value) }}" class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm" placeholder="Required">
+                                                    </label>
+                                                    <label class="text-xs font-medium text-slate-700">Length
+                                                        <input type="number" step="0.01" min="1" name="length" value="{{ old('length', $returnPackagePreset?->length) }}" class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm" placeholder="in">
+                                                    </label>
+                                                    <label class="text-xs font-medium text-slate-700">Width
+                                                        <input type="number" step="0.01" min="1" name="width" value="{{ old('width', $returnPackagePreset?->width) }}" class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm" placeholder="in">
+                                                    </label>
+                                                    <label class="text-xs font-medium text-slate-700">Height
+                                                        <input type="number" step="0.01" min="1" name="height" value="{{ old('height', $returnPackagePreset?->height) }}" class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm" placeholder="in">
+                                                    </label>
+                                                </div>
+                                                <p class="text-[11px] leading-4 text-slate-500">
+                                                    Package details are required unless a default package is set in Shipping settings.
+                                                </p>
+                                                <button type="submit" class="inline-flex h-9 items-center rounded-xl bg-brand px-3 text-xs font-semibold text-white">Create FedEx return label</button>
+                                            </form>
                                         @endif
                                         @if (\App\Support\ReturnLifecycle::canTransition($return->status, \App\Support\ReturnLifecycle::STATUS_RECEIVED))
                                             <form method="POST" action="{{ route('returns.receive', $return) }}" class="w-full space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-3">

@@ -10,6 +10,7 @@ use App\Models\Shipment;
 use App\Services\Carriers\FedEx\Operations\FedExAddressValidationService;
 use App\Services\Carriers\FedEx\Operations\FedExNegotiatedRateService;
 use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
+use App\Services\Carriers\FedEx\Operations\FedExOrderPackageSnapshotService;
 use App\Services\Carriers\FedEx\Operations\FedExOrderTrackingSyncService;
 use App\Services\Carriers\FedEx\Operations\FedExProductionEtdUploadService;
 use App\Services\Carriers\FedEx\Operations\FedExReturnLabelService;
@@ -140,6 +141,9 @@ class FedExMerchantOperationsController extends Controller
         Request $request,
         Order $order,
         FedExNegotiatedRateService $rates,
+        FedExAddressValidationService $addressValidation,
+        FedExOrderPackageSnapshotService $packageSnapshots,
+        \App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver $handoffResolver,
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless((int) $order->store_id === (int) $store->id, 404);
@@ -149,65 +153,208 @@ class FedExMerchantOperationsController extends Controller
         $validated = $request->validate([
             'origin_location_id' => ['required', 'integer'],
             'ship_date' => ['nullable', 'date_format:Y-m-d'],
-            'service_type' => ['nullable', 'string', 'max:60'],
-            'packaging_type' => ['nullable', 'string', 'max:40'],
             'residential' => ['nullable', 'boolean'],
+            'pickup_type' => ['nullable', 'string', 'max:40'],
+            'package_source' => ['nullable', 'in:preset,custom'],
+            'shipping_package_preset_id' => ['nullable', 'integer'],
             'weight' => ['nullable', 'numeric', 'min:0.01', 'max:150'],
             'length' => ['nullable', 'numeric', 'min:1', 'max:108'],
             'width' => ['nullable', 'numeric', 'min:1', 'max:108'],
             'height' => ['nullable', 'numeric', 'min:1', 'max:108'],
+            'weight_unit' => ['nullable', 'string', 'max:8'],
+            'dimension_unit' => ['nullable', 'string', 'max:8'],
+            'recipient_phone' => ['nullable', 'string', 'max:40'],
+            'address_choice' => ['nullable', 'in:entered,suggested'],
+            'suggested_address_line1' => ['nullable', 'string', 'max:100'],
+            'suggested_address_line2' => ['nullable', 'string', 'max:100'],
+            'suggested_city' => ['nullable', 'string', 'max:80'],
+            'suggested_state' => ['nullable', 'string', 'max:10'],
+            'suggested_postal_code' => ['nullable', 'string', 'max:20'],
+            'suggested_country_code' => ['nullable', 'string', 'size:2'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.selected' => ['nullable', 'boolean'],
+            'items.*.order_item_id' => ['required', 'integer'],
+            'items.*.quantity' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        $selectedItems = collect($validated['items'] ?? [])
+            ->filter(function (array $row): bool {
+                if (array_key_exists('selected', $row) && ! filter_var($row['selected'], FILTER_VALIDATE_BOOL)) {
+                    return false;
+                }
+
+                return (int) ($row['quantity'] ?? 0) > 0;
+            })
+            ->values()
+            ->all();
+
+        if ($selectedItems === []) {
+            return back()->withErrors([
+                'items' => 'Choose at least one order item before requesting FedEx options.',
+            ])->withInput();
+        }
 
         $origin = Location::query()
             ->where('store_id', $store->id)
             ->whereKey($validated['origin_location_id'])
             ->firstOrFail();
 
+        if (! filled(trim((string) $origin->phone))) {
+            return back()->withErrors([
+                'origin_location_id' => $origin->name.' needs a phone number before FedEx can create a label.',
+            ])->withInput();
+        }
+
         $shipping = $order->addresses->firstWhere('type', 'shipping') ?? $order->addresses->first();
         abort_unless($shipping, 422, 'This order does not have a shipping address.');
 
-        $defaults = (array) config('carriers.fedex.checkout_default_package', []);
-        $package = [
-            'weight' => $validated['weight'] ?? ($defaults['weight'] ?? 1),
-            'weight_unit' => 'LB',
-            'length' => $validated['length'] ?? ($defaults['length'] ?? 9),
-            'width' => $validated['width'] ?? ($defaults['width'] ?? 6),
-            'height' => $validated['height'] ?? ($defaults['height'] ?? 2),
-            'dimension_unit' => 'IN',
+        $recipientPhone = trim((string) ($validated['recipient_phone'] ?? $shipping->phone ?? ''));
+        if ($recipientPhone === '') {
+            return back()->withErrors([
+                'recipient_phone' => 'Add a recipient phone number before requesting FedEx options.',
+            ])->withInput();
+        }
+
+        if ($recipientPhone !== (string) ($shipping->phone ?? '')) {
+            $shipping->forceFill(['phone' => $recipientPhone])->save();
+        }
+
+        $enteredDestination = [
+            'address_line1' => $shipping->address_line1,
+            'address_line2' => $shipping->address_line2,
+            'city' => $shipping->city,
+            'state' => $shipping->province_code ?: $shipping->state,
+            'postal_code' => $shipping->postal_code,
+            'country_code' => strtoupper((string) ($shipping->country_code ?? 'US')),
         ];
+
+        $addressOutcome = $addressValidation->validateAddress(
+            $store,
+            $account,
+            $enteredDestination,
+            enforceProductionGuard: true,
+        );
+
+        $suggestions = is_array($addressOutcome['suggestions'] ?? null) ? $addressOutcome['suggestions'] : [];
+        $primarySuggestion = is_array($suggestions[0] ?? null) ? $suggestions[0] : null;
+        $addressChoice = (string) ($validated['address_choice'] ?? 'entered');
+
+        $destination = $enteredDestination;
+        if ($addressChoice === 'suggested') {
+            $destination = [
+                'address_line1' => $validated['suggested_address_line1']
+                    ?? data_get($primarySuggestion, 'address_line1')
+                    ?? $enteredDestination['address_line1'],
+                'address_line2' => $validated['suggested_address_line2']
+                    ?? data_get($primarySuggestion, 'address_line2')
+                    ?? $enteredDestination['address_line2'],
+                'city' => $validated['suggested_city']
+                    ?? data_get($primarySuggestion, 'city')
+                    ?? $enteredDestination['city'],
+                'state' => $validated['suggested_state']
+                    ?? data_get($primarySuggestion, 'state')
+                    ?? $enteredDestination['state'],
+                'postal_code' => $validated['suggested_postal_code']
+                    ?? data_get($primarySuggestion, 'postal_code')
+                    ?? $enteredDestination['postal_code'],
+                'country_code' => strtoupper((string) (
+                    $validated['suggested_country_code']
+                    ?? data_get($primarySuggestion, 'country_code')
+                    ?? $enteredDestination['country_code']
+                )),
+            ];
+        }
+
+        $pickupType = $handoffResolver->resolve($store, $validated['pickup_type'] ?? null);
+        $package = $packageSnapshots->createFromOrderInput(
+            store: $store,
+            order: $order,
+            originLocationId: (int) $origin->id,
+            input: $validated,
+            actor: $request->user(),
+        );
+        $packageLines = $packageSnapshots->toRatePackages($package);
+
+        $residential = array_key_exists('residential', $validated)
+            ? (bool) $validated['residential']
+            : null;
 
         $outcome = $rates->quoteForOriginDestination(
             store: $store,
             account: $account,
             originLocation: $origin,
-            destinationInput: [
-                'country_code' => $shipping->country_code ?? 'US',
-                'postal_code' => $shipping->postal_code,
-                'state' => $shipping->province_code ?: $shipping->state,
-                'city' => $shipping->city,
-                'address_line1' => $shipping->address_line1,
-                'address_line2' => $shipping->address_line2,
-            ],
-            packageInput: $package,
+            destinationInput: $destination,
+            packageInput: $packageLines,
             shipDate: $validated['ship_date'] ?? null,
-            serviceType: $validated['service_type'] ?? null,
-            residential: array_key_exists('residential', $validated) ? (bool) $validated['residential'] : null,
-            packagingType: $validated['packaging_type'] ?? 'YOUR_PACKAGING',
+            serviceType: null,
+            residential: $residential,
+            packagingType: $package->package_type ?: 'YOUR_PACKAGING',
             orderId: $order->id,
             forCheckout: false,
+            shipmentPackageId: $package->id,
+            pickupType: $pickupType,
         );
 
         if (! $outcome['result']->successful) {
             return back()->withErrors([
                 'fedex_rates' => $outcome['result']->merchantMessage
-                    ?? 'FedEx could not return negotiated rates for this shipment.',
-            ])->withInput();
+                    ?? 'FedEx could not return shipping options for this shipment.',
+            ])->withInput()->with([
+                'fedex_address_review' => [
+                    'order_id' => $order->id,
+                    'suggestions' => $suggestions,
+                    'entered' => $enteredDestination,
+                    'choice' => $addressChoice,
+                    'messages' => $addressOutcome['presentation']['messages'] ?? [],
+                    'warnings' => $addressOutcome['presentation']['warnings'] ?? [],
+                ],
+            ]);
+        }
+
+        // Persist destination snapshot onto each quote for label purchase.
+        if ($outcome['quote_ids'] !== []) {
+            \App\Models\CarrierRateQuote::query()
+                ->where('store_id', $store->id)
+                ->whereIn('id', $outcome['quote_ids'])
+                ->get()
+                ->each(function (\App\Models\CarrierRateQuote $quote) use ($destination, $addressChoice, $pickupType, $selectedItems): void {
+                    $summary = is_array($quote->request_summary) ? $quote->request_summary : [];
+                    $summary['destination_address'] = $destination;
+                    $summary['address_choice'] = $addressChoice;
+                    $summary['pickup_type'] = $pickupType;
+                    $summary['selected_items'] = $selectedItems;
+                    $quote->forceFill(['request_summary' => $summary])->save();
+                });
         }
 
         return back()->with([
-            'success' => 'FedEx negotiated rates are ready. Choose a service before creating a label.',
+            'success' => 'FedEx shipping options are ready. Choose a service, then buy the label.',
+            'fedex_address_review' => [
+                'order_id' => $order->id,
+                'suggestions' => $suggestions,
+                'entered' => $enteredDestination,
+                'choice' => $addressChoice,
+                'active_destination' => $destination,
+                'messages' => $addressOutcome['presentation']['messages'] ?? [],
+                'warnings' => $addressOutcome['presentation']['warnings'] ?? [],
+            ],
             'fedex_rate_quotes' => [
                 'order_id' => $order->id,
+                'shipment_package_id' => $package->id,
+                'package_summary' => [
+                    'name' => $package->name,
+                    'weight' => (float) $package->weight_value,
+                    'weight_unit' => $package->weight_unit,
+                    'length' => (float) $package->length,
+                    'width' => (float) $package->width,
+                    'height' => (float) $package->height,
+                    'dimension_unit' => $package->dimension_unit,
+                ],
+                'pickup_type' => $pickupType,
+                'origin_location_id' => $origin->id,
+                'ship_date' => $validated['ship_date'] ?? null,
+                'residential' => $residential,
+                'selected_items' => $selectedItems,
                 'rates' => collect($outcome['rates'])->values()->map(function (array $rate, int $index) use ($outcome): array {
                     $rate['quote_id'] = $outcome['quote_ids'][$index] ?? null;
 
@@ -215,17 +362,6 @@ class FedExMerchantOperationsController extends Controller
                 })->all(),
                 'quote_ids' => $outcome['quote_ids'],
                 'transaction_id' => $outcome['result']->transactionId,
-                'selected' => [
-                    'service_type' => $outcome['result']->serviceType,
-                    'service_name' => $outcome['result']->serviceName,
-                    'amount' => $outcome['result']->amount,
-                    'currency' => $outcome['result']->currency,
-                    'rate_type' => $outcome['result']->rateType,
-                    'transit_days' => $outcome['result']->transitDays,
-                    'delivery_date' => $outcome['result']->deliveryDate,
-                    'surcharges' => $outcome['result']->surcharges,
-                    'quote_id' => $outcome['quote_ids'][0] ?? null,
-                ],
             ],
         ]);
     }
@@ -252,11 +388,8 @@ class FedExMerchantOperationsController extends Controller
             'shipping_reference' => ['nullable', 'string', 'max:40'],
             'email_notification' => ['nullable', 'email', 'max:120'],
             'declared_value_amount' => ['nullable', 'numeric', 'min:0'],
-            'weight' => ['nullable', 'numeric', 'min:0.01'],
-            'length' => ['nullable', 'numeric', 'min:1'],
-            'width' => ['nullable', 'numeric', 'min:1'],
-            'height' => ['nullable', 'numeric', 'min:1'],
-            'packages' => ['nullable', 'array'],
+            'recipient_phone' => ['nullable', 'string', 'max:40'],
+            'pickup_type' => ['nullable', 'string', 'max:40'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.selected' => ['nullable', 'boolean'],
             'items.*.order_item_id' => ['required', 'integer'],
@@ -331,25 +464,54 @@ class FedExMerchantOperationsController extends Controller
             ->where('store_id', $store->id)
             ->where('order_id', $order->id)
             ->whereKey($validated['carrier_rate_quote_id'])
+            ->with('package')
             ->firstOrFail();
+
+        if (! $quote->package && ! is_array(data_get($quote->request_summary, 'packages'))) {
+            return back()->withErrors([
+                'carrier_rate_quote_id' => 'That rate is missing package details. Get fresh FedEx shipping options.',
+            ])->withInput();
+        }
 
         $validated['service_type'] = (string) ($quote->service_code ?: ($validated['service_type'] ?? 'FEDEX_GROUND'));
 
-        $packages = $validated['packages'] ?? [[
-            'weight' => $validated['weight'] ?? 1,
-            'length' => $validated['length'] ?? 9,
-            'width' => $validated['width'] ?? 6,
-            'height' => $validated['height'] ?? 2,
-            'weight_unit' => 'LB',
-            'dimension_unit' => 'IN',
-        ]];
+        if ($quote->package) {
+            $validated['packages'] = [[
+                'weight' => (float) $quote->package->weight_value,
+                'weight_unit' => strtoupper((string) ($quote->package->weight_unit ?: 'LB')),
+                'length' => (float) $quote->package->length,
+                'width' => (float) $quote->package->width,
+                'height' => (float) $quote->package->height,
+                'dimension_unit' => strtoupper((string) ($quote->package->dimension_unit ?: 'IN')),
+            ]];
+            $validated['shipment_package_id'] = $quote->package->id;
+        } else {
+            $validated['packages'] = data_get($quote->request_summary, 'packages');
+        }
+
+        if (! array_key_exists('pickup_type', $validated) || ! filled($validated['pickup_type'] ?? null)) {
+            $validated['pickup_type'] = data_get($quote->request_summary, 'pickup_type');
+        }
+        if (! array_key_exists('residential', $validated) && array_key_exists('destination_residential', (array) ($quote->request_summary ?? []))) {
+            $validated['residential'] = (bool) data_get($quote->request_summary, 'destination_residential');
+        }
+        if (! filled($validated['ship_date'] ?? null) && filled(data_get($quote->request_summary, 'ship_date'))) {
+            $validated['ship_date'] = (string) data_get($quote->request_summary, 'ship_date');
+        }
+
+        $shipping = $order->addresses->firstWhere('type', 'shipping') ?? $order->addresses->first();
+        $recipientPhone = trim((string) ($validated['recipient_phone'] ?? $shipping?->phone ?? ''));
+        if ($recipientPhone !== '' && $shipping && $recipientPhone !== (string) ($shipping->phone ?? '')) {
+            $shipping->forceFill(['phone' => $recipientPhone])->save();
+        }
+        $validated['recipient_phone'] = $recipientPhone;
 
         $outcome = $purchase->purchase(
             store: $store,
             order: $order,
             account: $account,
             origin: $origin,
-            input: array_merge($validated, ['packages' => $packages]),
+            input: $validated,
             actor: $request->user(),
         );
 
@@ -381,6 +543,7 @@ class FedExMerchantOperationsController extends Controller
 
         $account = $this->resolveAccount($store, $request);
         $validated = $request->validate([
+            'order_return_id' => ['required', 'integer'],
             'origin_location_id' => ['required', 'integer'],
             'service_type' => ['required', 'string', 'max:40'],
             'label_format' => ['nullable', 'in:PDF,PNG,ZPL'],
@@ -388,27 +551,23 @@ class FedExMerchantOperationsController extends Controller
             'length' => ['nullable', 'numeric', 'min:1'],
             'width' => ['nullable', 'numeric', 'min:1'],
             'height' => ['nullable', 'numeric', 'min:1'],
-            'items' => ['required', 'array', 'min:1'],
+            'items' => ['nullable', 'array'],
             'items.*.selected' => ['nullable', 'boolean'],
-            'items.*.order_item_id' => ['required', 'integer'],
+            'items.*.order_item_id' => ['required_with:items', 'integer'],
             'items.*.quantity' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $validated['items'] = collect($validated['items'] ?? [])
-            ->filter(function (array $row): bool {
-                if (array_key_exists('selected', $row) && ! filter_var($row['selected'], FILTER_VALIDATE_BOOL)) {
-                    return false;
-                }
+        if (isset($validated['items']) && is_array($validated['items'])) {
+            $validated['items'] = collect($validated['items'])
+                ->filter(function (array $row): bool {
+                    if (array_key_exists('selected', $row) && ! filter_var($row['selected'], FILTER_VALIDATE_BOOL)) {
+                        return false;
+                    }
 
-                return (int) ($row['quantity'] ?? 0) > 0;
-            })
-            ->values()
-            ->all();
-
-        if ($validated['items'] === []) {
-            return back()->withErrors([
-                'items' => 'Choose at least one order item for the return label.',
-            ])->withInput();
+                    return (int) ($row['quantity'] ?? 0) > 0;
+                })
+                ->values()
+                ->all();
         }
 
         $origin = Location::query()
@@ -416,19 +575,32 @@ class FedExMerchantOperationsController extends Controller
             ->whereKey($validated['origin_location_id'])
             ->firstOrFail();
 
+        $packages = null;
+        if (
+            isset($validated['weight'], $validated['length'], $validated['width'], $validated['height'])
+            && is_numeric($validated['weight'])
+            && is_numeric($validated['length'])
+            && is_numeric($validated['width'])
+            && is_numeric($validated['height'])
+        ) {
+            $packages = [[
+                'weight' => (float) $validated['weight'],
+                'length' => (float) $validated['length'],
+                'width' => (float) $validated['width'],
+                'height' => (float) $validated['height'],
+                'weight_unit' => 'LB',
+                'dimension_unit' => 'IN',
+            ]];
+        }
+
         $outcome = $returns->createReturnLabel(
             store: $store,
             order: $order,
             account: $account,
             origin: $origin,
-            input: array_merge($validated, [
-                'packages' => [[
-                    'weight' => $validated['weight'] ?? 1,
-                    'length' => $validated['length'] ?? 9,
-                    'width' => $validated['width'] ?? 6,
-                    'height' => $validated['height'] ?? 2,
-                ]],
-            ]),
+            input: array_filter(array_merge($validated, [
+                'packages' => $packages,
+            ]), static fn ($value) => $value !== null),
             actor: $request->user(),
         );
 

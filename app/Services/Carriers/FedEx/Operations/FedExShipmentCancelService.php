@@ -134,7 +134,7 @@ final class FedExShipmentCancelService
             );
 
             $result = FedExAuthorizationClassifier::applyBlockedClassification(
-                $this->apiClient->postJson(
+                $this->apiClient->putJson(
                     store: $store,
                     account: $account,
                     action: CarrierApiEvent::ACTION_FEDEX_SHIP_CANCEL,
@@ -153,7 +153,7 @@ final class FedExShipmentCancelService
                 IdempotencyKey::query()->updateOrCreate(
                     ['store_id' => $store->id, 'key' => $idempotencyKey],
                     [
-                        'request_method' => 'POST',
+                        'request_method' => 'PUT',
                         'request_path' => $endpoint,
                         'request_hash' => hash('sha256', $trackingNumber),
                         'response_code' => $httpStatus > 0 ? $httpStatus : 422,
@@ -190,7 +190,7 @@ final class FedExShipmentCancelService
             IdempotencyKey::query()->updateOrCreate(
                 ['store_id' => $store->id, 'key' => $idempotencyKey],
                 [
-                    'request_method' => 'POST',
+                    'request_method' => 'PUT',
                     'request_path' => $endpoint,
                     'request_hash' => hash('sha256', $trackingNumber),
                     'response_code' => 200,
@@ -340,7 +340,7 @@ final class FedExShipmentCancelService
         IdempotencyKey::query()->updateOrCreate(
             ['store_id' => $store->id, 'key' => $idempotencyKey],
             [
-                'request_method' => 'POST',
+                'request_method' => 'PUT',
                 'request_path' => '/ship/v1/shipments/cancel',
                 'request_hash' => hash('sha256', $trackingNumber),
                 'response_code' => 102,

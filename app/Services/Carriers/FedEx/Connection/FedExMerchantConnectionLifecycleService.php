@@ -80,16 +80,13 @@ final class FedExMerchantConnectionLifecycleService
         }
 
         if ($result->success) {
-            $capabilities = $this->disabledCapabilities($account);
+            // Preserve merchant-enabled capabilities; verify only refreshes connection health.
             $account->forceFill([
                 'connection_status' => CarrierAccount::CONNECTION_CONNECTED,
                 'status' => CarrierAccount::STATUS_ENABLED,
                 'last_verified_at' => now(),
                 'last_error_code' => null,
                 'last_error_message' => null,
-                'capabilities' => $capabilities,
-                'enabled_for_checkout' => false,
-                // Preserve the existing key; do not re-assign.
             ])->save();
 
             return $result;
