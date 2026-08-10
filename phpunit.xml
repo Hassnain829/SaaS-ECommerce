@@ -35,5 +35,6 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED" value="true"/>
     </php>
 </phpunit>

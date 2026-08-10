@@ -422,7 +422,7 @@ class FedExHttpClient
             return 'FedEx blocked Comprehensive Rates for this sandbox child credential. Review the sanitized response. If the request payload is complete, confirm Comprehensive Rates project access with FedEx support.';
         }
 
-        // Preserve the exact FedEx 403 code/message for Ship / Freight / Consolidation paths.
+        // Preserve the exact FedEx 403 code/message for Ship paths.
         // Do not remap every /ship/v1/* 403 into a generic "Ship API entitlement" claim.
         if ($httpStatus === 403 && str_contains($path, '/ship/v1/')) {
             $fedexMessage = trim($defaultMessage);
@@ -442,7 +442,7 @@ class FedExHttpClient
         }
 
         if ($httpStatus >= 500 && str_contains($path, '/ship/v1/')) {
-            return 'FedEx Ship sandbox returned a temporary server error (HTTP '.$httpStatus.'). This is usually a FedEx-side outage or gateway issue, not a local payload defect. Wait a few minutes and retry the same locked test case. If it persists, check FedEx Developer Portal API Status or contact FedEx support with the transaction ID.';
+            return 'FedEx Ship returned a temporary server error (HTTP '.$httpStatus.'). The shipment may not have completed. Check whether a tracking number or shipment was created before trying the normal shipment action again. If it persists, contact FedEx support with the transaction ID.';
         }
 
         return $defaultMessage;
@@ -450,14 +450,10 @@ class FedExHttpClient
 
     /**
      * Transient 502/503 retries for safe / recoverable FedEx POSTs.
-     * Never retry Freight LTL or Consolidation (side-effecting / non-idempotent chains).
+     * Never auto-retry Ship create/cancel at the HTTP layer — side-effecting; recover via idempotency locks.
      */
     private function transientShipRetryAttempts(string $normalizedPath): int
     {
-        if (str_contains($normalizedPath, '/freight/') || str_contains($normalizedPath, '/consolidations')) {
-            return 1;
-        }
-
         // Never auto-retry Ship create/cancel at the HTTP layer — side-effecting; recover via idempotency locks.
         if (str_contains($normalizedPath, '/ship/v1/')) {
             return 1;

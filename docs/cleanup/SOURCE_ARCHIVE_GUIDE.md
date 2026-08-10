@@ -44,7 +44,7 @@ Default output directory:
 - `vendor/`
 - `node_modules/` (root and `dev-test-storefront/`)
 - runtime log/cache/session/view **contents**
-- generated files under `storage/app/fedex-validation/` and `storage/app/usps-validation/`
+- generated files under `storage/app/usps-validation/`
 - generated archives under `storage/app/source-archives/`
 - local sqlite databases
 - IDE/tooling folders marked `export-ignore` in `.gitattributes`

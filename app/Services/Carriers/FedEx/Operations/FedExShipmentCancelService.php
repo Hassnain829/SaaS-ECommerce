@@ -10,7 +10,7 @@ use App\Models\Shipment;
 use App\Models\Store;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExAuthorizationClassifier;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Fulfillment\FulfillmentStatusService;
 use Illuminate\Support\Facades\Cache;
@@ -141,7 +141,7 @@ final class FedExShipmentCancelService
                     path: $endpoint,
                     payload: $payload,
                     requestSummary: $requestSummary,
-                    context: new FedExValidationEventContext(scenarioKey: 'production_ship_cancel'),
+                    context: new FedExApiEventContext(scenarioKey: 'production_ship_cancel'),
                     customerTransactionId: $idempotencyKey,
                 ),
                 $endpoint,

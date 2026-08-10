@@ -64,7 +64,7 @@ php artisan test
 - **`docs/SECURITY_HARDENING.md`** — image download SSRF controls and API throttle / webhook notes.  
 - **`docs/RELEASE_CHECKLIST.md`** — pre-release checks (no `vendor/`, no `.env`, CI green).
 
-Do not commit: `.env`, `vendor/`, `node_modules/`, `database/*.sqlite`, `storage/logs/*.log`, `bootstrap/cache/*.php`, `.phpunit.cache/`, or generated carrier validation trees under `storage/app/fedex-validation/` and `storage/app/usps-validation/`.
+Do not commit: `.env`, `vendor/`, `node_modules/`, `database/*.sqlite`, `storage/logs/*.log`, `bootstrap/cache/*.php`, `.phpunit.cache/`, or generated carrier validation trees under `storage/app/usps-validation/`.
 
 ## Project hygiene commands (CLEAN-1 / CLEAN-1A)
 

@@ -6,7 +6,7 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Presenters\FedExMerchantCheckPresenter;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 
@@ -128,7 +128,7 @@ class FedExAddressValidationService
             requestSummary: $requestSummary,
             context: $enforceProductionGuard
                 ? null
-                : new FedExValidationEventContext(scenarioKey: 'address_validation'),
+                : new FedExApiEventContext(scenarioKey: 'address_validation'),
             customerTransactionId: $customerTransactionId,
         );
 

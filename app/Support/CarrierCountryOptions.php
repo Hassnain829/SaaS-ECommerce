@@ -22,20 +22,6 @@ final class CarrierCountryOptions
     }
 
     /**
-     * Sandbox validation countries (includes Sweden for integrator validation only).
-     *
-     * @return array<string, string> ISO-2 => merchant label
-     */
-    public static function fedExValidationOptions(): array
-    {
-        return [
-            'US' => 'United States',
-            'CA' => 'Canada',
-            'SE' => 'Sweden — validation only',
-        ];
-    }
-
-    /**
      * Default options for merchant FedEx UI (production scope).
      *
      * @return array<string, string> ISO-2 => merchant label
@@ -48,10 +34,9 @@ final class CarrierCountryOptions
     /**
      * @return array<string, string>
      */
-    public static function fedExOptionsForContext(?string $environment = null, ?bool $validationMode = null): array
+    public static function fedExOptionsForContext(?string $environment = null): array
     {
         $environment = strtolower((string) ($environment ?? CarrierAccount::ENVIRONMENT_SANDBOX));
-        $validationMode ??= app(FedExConfig::class)->validationModeEnabled();
 
         if ($environment === CarrierAccount::ENVIRONMENT_LIVE) {
             $allowed = app(FedExConfig::class)->liveAllowedCountries();
@@ -64,7 +49,7 @@ final class CarrierCountryOptions
             );
         }
 
-        return $validationMode ? self::fedExValidationOptions() : self::fedExProductionOptions();
+        return self::fedExProductionOptions();
     }
 
     public static function defaultFedExCountry(?string $originCountryCode = null): string
@@ -88,14 +73,13 @@ final class CarrierCountryOptions
     public static function isAllowedFedExRegistrationCountry(
         ?string $countryCode,
         ?string $environment = null,
-        ?bool $validationMode = null,
     ): bool {
         $code = strtoupper(trim((string) $countryCode));
         if ($code === '') {
             return false;
         }
 
-        return array_key_exists($code, self::fedExOptionsForContext($environment, $validationMode));
+        return array_key_exists($code, self::fedExOptionsForContext($environment));
     }
 
     /**

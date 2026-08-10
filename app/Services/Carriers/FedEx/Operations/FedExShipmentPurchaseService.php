@@ -16,7 +16,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExAuthorizationClassifier;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Fulfillment\FulfillmentStatusService;
 use App\Services\ShipmentNumberGenerator;
@@ -504,7 +504,7 @@ final class FedExShipmentPurchaseService
                 path: $endpoint,
                 payload: $payload,
                 requestSummary: $requestSummary,
-                context: new FedExValidationEventContext(scenarioKey: 'production_ship_create'),
+                context: new FedExApiEventContext(scenarioKey: 'production_ship_create'),
                 customerTransactionId: $idempotencyKey,
             ),
             $endpoint,

@@ -8,7 +8,7 @@ use App\Models\Location;
 use App\Models\Store;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Presenters\FedExMerchantCheckPresenter;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 
@@ -199,7 +199,7 @@ class FedExServiceAvailabilityService
             requestSummary: $requestSummary,
             context: $enforceProductionGuard
                 ? null
-                : new FedExValidationEventContext(scenarioKey: 'service_availability'),
+                : new FedExApiEventContext(scenarioKey: 'service_availability'),
             customerTransactionId: $customerTransactionId,
         );
 

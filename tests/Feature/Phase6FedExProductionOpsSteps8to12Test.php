@@ -8,6 +8,8 @@ use App\Models\FedExTradeDocument;
 use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderAddress;
+use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
@@ -111,8 +113,8 @@ class Phase6FedExProductionOpsSteps8to12Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.shipping.fedex-integrator.manage', $account))
             ->assertOk()
-            ->assertSeeText('Account switches')
-            ->assertSeeText('Capabilities')
+            ->assertSeeText('FedEx Center')
+            ->assertSeeText('Checkout rates')
             ->getContent();
 
         $this->assertStringNotContainsString('child-secret-key-should-hide', $html);
@@ -140,13 +142,9 @@ class Phase6FedExProductionOpsSteps8to12Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('orderViewDetails', $order))
             ->assertOk()
-            ->assertSeeText('FedEx shipping checks')
-            ->assertSeeText('1. Validate address')
-            ->assertSeeText('3. Negotiated rates')
-            ->assertSeeText('4. Create FedEx label')
-            ->assertSeeText('Customs / trade document')
-            ->assertSeeText('Trade documents and API status')
-            ->assertSeeText('Commercial Invoice')
+            ->assertSeeText('Guided shipping flow')
+            ->assertSeeText('Get FedEx shipping options')
+            ->assertSeeText('1. Items')
             ->assertDontSee('child-key-a', false)
             ->assertDontSeeText('700257037');
     }
@@ -169,14 +167,23 @@ class Phase6FedExProductionOpsSteps8to12Test extends TestCase
             ->assertForbidden();
 
         $this->actingAs($admin)
-            ->get(route('admin.fedex.diagnostics'))
+            ->get(route('admin.fedex.index'))
             ->assertOk()
-            ->assertSeeText('FedEx operations diagnostics')
+            ->assertSeeText('FedEx')
             ->assertSeeText('Platform flags')
-            ->assertSeeText('Uncertain / processing ship operations')
-            ->assertSeeText('ETD documents')
+            ->assertSeeText('Recent successful API events')
             ->assertDontSee('customer_password', false)
             ->assertDontSee('client_secret', false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.fedex.index', ['tab' => 'shipments']))
+            ->assertOk()
+            ->assertSeeText('Uncertain / processing ship operations');
+
+        $this->actingAs($admin)
+            ->get(route('admin.fedex.index', ['tab' => 'trade-documents']))
+            ->assertOk()
+            ->assertSeeText('Trade documents');
     }
 
     public function test_production_ops_flags_default_off_in_env_example(): void
@@ -281,6 +288,29 @@ class Phase6FedExProductionOpsSteps8to12Test extends TestCase
             'country' => 'United States',
         ]);
 
-        return $order->fresh(['addresses', 'shipments']);
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Ops Order Item',
+            'slug' => 'ops-order-'.Str::random(6),
+            'base_price' => 20,
+            'sku' => 'OPO-'.Str::random(4),
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => [],
+        ]);
+
+        OrderItem::query()->create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => 'Ops Order Item',
+            'quantity' => 1,
+            'unit_price' => 20,
+            'subtotal' => 20,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'total' => 20,
+        ]);
+
+        return $order->fresh(['addresses', 'shipments', 'items']);
     }
 }

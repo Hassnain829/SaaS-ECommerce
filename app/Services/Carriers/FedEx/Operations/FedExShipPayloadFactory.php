@@ -3,13 +3,11 @@
 namespace App\Services\Carriers\FedEx\Operations;
 
 use App\Models\CarrierAccount;
-use App\Services\Carriers\FedEx\Validation\FedExShipFixtureResolver;
-use App\Services\Carriers\FedEx\Validation\Payload\FedExCustomsClearanceBuilder;
+use App\Services\Carriers\FedEx\Operations\Payload\FedExCustomsClearanceBuilder;
 
 class FedExShipPayloadFactory
 {
     public function __construct(
-        private readonly FedExShipFixtureResolver $fixtureResolver,
         private readonly FedExCustomsClearanceBuilder $customsClearanceBuilder,
     ) {}
 
@@ -129,17 +127,7 @@ class FedExShipPayloadFactory
             return null;
         }
 
-        $payload = $services;
-
-        if (($fixture['home_delivery_premium_delivery_date_strategy'] ?? null) === 'one_week_after_ship_date') {
-            $detail = $payload['homeDeliveryPremiumDetail'] ?? [];
-            if (is_array($detail) && ! isset($detail['deliveryDate'])) {
-                $detail['deliveryDate'] = $this->fixtureResolver->homeDeliveryPremiumDeliveryDate($shipDate);
-                $payload['homeDeliveryPremiumDetail'] = $detail;
-            }
-        }
-
-        return $payload;
+        return $services;
     }
 
     /**
@@ -562,12 +550,8 @@ class FedExShipPayloadFactory
      */
     private function resolveShipDate(array $fixture): string
     {
-        if (($fixture['ship_date_strategy'] ?? null) === 'next_valid_friday') {
-            return $this->fixtureResolver->nextValidFriday();
-        }
-
-        if (($fixture['ship_date_strategy'] ?? null) === 'saturday_delivery_friday') {
-            return (string) ($overrides['ship_date'] ?? $this->fixtureResolver->nextSaturdayDeliveryFriday());
+        if (filled($fixture['ship_date'] ?? null)) {
+            return (string) $fixture['ship_date'];
         }
 
         return now()->toDateString();

@@ -33,7 +33,7 @@ class ProjectHygieneCommandsTest extends TestCase
         $this->assertTrue(collect($plan['files'] ?? [])->every(
             fn (string $path): bool => ! str_starts_with($path, 'vendor/')
                 && ! str_starts_with($path, 'node_modules/')
-                && ! str_starts_with($path, 'storage/app/fedex-validation/')
+                && ! str_starts_with($path, 'storage/app/usps-validation/')
         ));
 
         foreach (['app/', 'config/', 'database/', 'resources/', 'routes/', 'tests/', 'docs/'] as $prefix) {
@@ -105,10 +105,10 @@ class ProjectHygieneCommandsTest extends TestCase
             );
 
             $this->assertFalse(
-                collect($entries)->contains(fn (string $entry): bool => str_starts_with($entry, 'storage/app/fedex-validation/')
+                collect($entries)->contains(fn (string $entry): bool => str_starts_with($entry, 'storage/app/usps-validation/')
                     && ! str_ends_with($entry, '.gitignore')
                     && ! str_ends_with($entry, '/')),
-                'Generated FedEx validation evidence must not appear in archive',
+                'Generated USPS validation evidence must not appear in archive',
             );
         } finally {
             if (is_file($tempArchive)) {
@@ -252,21 +252,21 @@ class ProjectHygieneCommandsTest extends TestCase
         $guard->assertWithinProject('/outside/project/path');
     }
 
-    public function test_carrier_validation_cleanup_preserves_label_and_upload_paths(): void
+    public function test_carrier_validation_cleanup_targets_only_safe_temp_paths(): void
     {
         $this->withCleanupSandbox(function (string $root): void {
-            $labelDir = $root.'/storage/app/fedex-validation/99/labels';
-            $uploadDir = $root.'/storage/app/fedex-validation/99/uploads';
-            File::ensureDirectoryExists($labelDir);
-            File::ensureDirectoryExists($uploadDir);
-            File::put($labelDir.'/label.pdf', '%PDF-test');
-            File::put($uploadDir.'/scan.pdf', '%PDF-test');
+            $uspsStaging = $root.'/storage/app/usps-validation/99/staging';
+            $tmpDiag = $root.'/storage/app/tmp-fedex-diagnostic-99';
+            File::ensureDirectoryExists($uspsStaging);
+            File::ensureDirectoryExists($tmpDiag);
+            File::put($uspsStaging.'/scan.pdf', '%PDF-test');
+            File::put($tmpDiag.'/note.txt', 'temp');
 
             $targets = collect((new ProjectCleanupService(ProjectPathGuard::forProject($root)))->targets('carrier-validation'))
                 ->pluck('path');
 
-            $this->assertFalse($targets->contains(fn (string $path): bool => str_contains($path, '/labels/')));
-            $this->assertFalse($targets->contains(fn (string $path): bool => str_contains($path, '/uploads/')));
+            $this->assertTrue($targets->contains(fn (string $path): bool => str_contains($path, 'tmp-fedex-diagnostic')));
+            $this->assertFalse($targets->contains(fn (string $path): bool => str_contains($path, 'fedex-validation')));
         });
     }
 

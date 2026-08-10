@@ -24,7 +24,6 @@ final class RetentionTestSandbox
         return [
             'storage/logs',
             'storage/app/source-archives',
-            'storage/app/fedex-validation',
             'storage/app/usps-validation',
             'storage/framework/cache/data',
             'storage/framework/views',

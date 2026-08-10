@@ -25,7 +25,6 @@ class FedExProductionPreflightCommand extends Command
             'Model A enabled' => $config->modelAEnabled(),
             'FEDEX_ENVIRONMENT=live' => $config->environment() === 'live',
             'Model B developer fallback off' => ! $config->modelBDeveloperFallbackEnabled(),
-            'Validation mode off' => ! $config->validationModeEnabled(),
             'Live base URL is production APIs host' => $this->liveBaseUrlLooksSafe($config),
             'Live parent client id present' => filled(config('carriers.fedex.live.client_id')),
             'Live parent client secret present' => filled(config('carriers.fedex.live.client_secret')),

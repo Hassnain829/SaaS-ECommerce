@@ -2,7 +2,7 @@
 
 namespace App\Services\Carriers\FedEx\Operations;
 
-use App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService;
+use App\Services\Carriers\FedEx\Support\Branding\FedExBrandComplianceService;
 
 final class FedExComprehensiveRateResponseParser
 {

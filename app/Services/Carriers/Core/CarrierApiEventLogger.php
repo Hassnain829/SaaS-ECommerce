@@ -6,14 +6,14 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
-use App\Services\Carriers\FedEx\Validation\FedExSensitiveFieldClassifier;
-use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceSanitizer;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
+use App\Services\Carriers\FedEx\Support\Security\FedExApiPayloadSanitizer;
+use App\Services\Carriers\FedEx\Support\Security\FedExSensitiveFieldClassifier;
 
 class CarrierApiEventLogger
 {
     public function __construct(
-        private readonly FedExValidationEvidenceSanitizer $sanitizer,
+        private readonly FedExApiPayloadSanitizer $sanitizer,
     ) {}
 
     /**
@@ -26,7 +26,7 @@ class CarrierApiEventLogger
         ?CarrierAccount $account = null,
         ?array $requestSummary = null,
         string $environment = 'sandbox',
-        ?FedExValidationEventContext $context = null,
+        ?FedExApiEventContext $context = null,
     ): CarrierApiEvent {
         return CarrierApiEvent::query()->create(array_merge([
             'store_id' => $store->id,

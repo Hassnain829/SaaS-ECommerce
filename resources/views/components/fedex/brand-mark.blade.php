@@ -7,7 +7,7 @@
 ])
 
 @php
-    $brand = app(\App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService::class);
+    $brand = app(\App\Services\Carriers\FedEx\Support\Branding\FedExBrandComplianceService::class);
     $logoPath = $brand->logoPublicPath();
     $sizeClass = match ($size) {
         'sm' => 'fedex-brand-logo--sm',

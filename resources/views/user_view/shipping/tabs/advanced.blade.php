@@ -81,7 +81,6 @@
             <div class="delivery-advanced-body">
                 <section data-advanced-section="providers" class="scroll-mt-24">
                     @include('user_view.shipping.tabs.carriers')
-                    @include('user_view.shipping.partials.fedex_certification_tools')
                 </section>
             </div>
         </details>

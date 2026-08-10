@@ -40,7 +40,6 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
             'carriers.fedex.sandbox.client_secret' => 'parent-secret',
             'carriers.fedex.model_b_developer_fallback_enabled' => false,
             'carriers.fedex.developer_mode_enabled' => false,
-            'carriers.fedex.validation_mode_enabled' => false,
             'carriers.fedex.integrator_production_enabled' => false,
         ]);
     }

@@ -14,7 +14,7 @@ use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorParentOAuthService;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Support\FedExShipperPhoneResolver;
 use Illuminate\Support\Facades\DB;
@@ -73,40 +73,6 @@ class FedExIntegratorRegistrationOrchestrator
             'purpose' => CarrierAccountRegistrationSession::PURPOSE_CONNECTION,
             'status' => CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED,
             'origin_location_id' => $location->id,
-            'eula_version' => $this->eulaService->version(),
-            'created_by' => $user->id,
-        ]);
-    }
-
-    public function beginValidationEulaReview(
-        Store $store,
-        User $user,
-        CarrierAccount $account,
-    ): CarrierAccountRegistrationSession {
-        abort_unless((int) $account->store_id === (int) $store->id, 404);
-        abort_unless($account->isFedEx(), 404);
-
-        $existing = CarrierAccountRegistrationSession::query()
-            ->where('store_id', $store->id)
-            ->where('carrier_account_id', $account->id)
-            ->where('purpose', CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA)
-            ->where('status', CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED)
-            ->latest('id')
-            ->first();
-
-        if ($existing !== null) {
-            return $existing;
-        }
-
-        return CarrierAccountRegistrationSession::query()->create([
-            'store_id' => $store->id,
-            'carrier_account_id' => $account->id,
-            'provider' => CarrierAccountRegistrationSession::PROVIDER_FEDEX,
-            'environment' => $account->environment,
-            'connection_model' => CarrierAccountRegistrationSession::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
-            'purpose' => CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA,
-            'status' => CarrierAccountRegistrationSession::STATUS_EULA_REQUIRED,
-            'origin_location_id' => $account->default_origin_location_id,
             'eula_version' => $this->eulaService->version(),
             'created_by' => $user->id,
         ]);
@@ -186,24 +152,7 @@ class FedExIntegratorRegistrationOrchestrator
             'eula_read_acknowledged_at' => $acceptedAt,
         ])->save();
 
-        if ($session->purpose === CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA
-            && $session->carrier_account_id !== null) {
-            $this->copyEulaAcceptanceToCarrierAccount($session);
-        }
-
         return $session->refresh();
-    }
-
-    public function copyEulaAcceptanceToCarrierAccount(CarrierAccountRegistrationSession $session): void
-    {
-        $account = $session->carrierAccount;
-        abort_unless($account !== null, 422);
-
-        $account->forceFill([
-            'eula_accepted_at' => $session->eula_accepted_at,
-            'eula_version' => $session->eula_version,
-            'eula_document_hash' => $session->eula_document_hash,
-        ])->save();
     }
 
     /**
@@ -935,7 +884,7 @@ class FedExIntegratorRegistrationOrchestrator
                 'registration_session_id' => $session->id,
             ]),
             environment: $session->environment,
-            context: new FedExValidationEventContext(
+            context: new FedExApiEventContext(
                 registrationSessionId: $session->id,
                 scenarioKey: CarrierApiEvent::SCENARIO_REGISTRATION_CHILD_CREDENTIALS,
             ),

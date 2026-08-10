@@ -6,7 +6,8 @@ Use this before tagging a release or merging to production branches.
 
 - [ ] No tracked `.env`, real API keys, or tokens (only `*.example` templates).
 - [ ] No tracked `vendor/`, `node_modules/`, `database/*.sqlite`, `storage/logs/*.log`, `bootstrap/cache/*.php`, or `.phpunit.cache/`.
-- [ ] No tracked carrier validation artifacts under `storage/app/fedex-validation/` or `storage/app/usps-validation/`.
+- [ ] No tracked carrier validation artifacts under `storage/app/usps-validation/`.
+- [ ] Confirm `storage/app/fedex-validation/` is absent (FedEx certification storage retired).
 - [ ] Run `php artisan project:hygiene-report` and review potential leak paths before packaging.
 - [ ] For source ZIP deliveries, use `php artisan project:source-archive --dry-run` then `php artisan project:source-archive` (Git required; see `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md`).
 - [ ] Verify generated ZIP excludes `.env` but includes `.env.example` and Laravel writable-directory `.gitignore` placeholders.

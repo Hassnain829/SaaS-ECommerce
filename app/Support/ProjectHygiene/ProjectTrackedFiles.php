@@ -97,7 +97,6 @@ final class ProjectTrackedFiles
             'storage/framework/sessions/.gitignore',
             'storage/framework/views/.gitignore',
             'storage/app/.gitignore',
-            'storage/app/fedex-validation/.gitignore',
             'storage/app/usps-validation/.gitignore',
             'storage/app/source-archives/.gitignore',
             'dev-test-storefront/.env.example',

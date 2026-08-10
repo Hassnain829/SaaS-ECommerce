@@ -879,7 +879,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
         $this->assertStringNotContainsString('fedex-test-access-token', json_encode($registrationEvent->response_summary));
     }
 
-    public function test_fedex_debug_panel_and_export_only_appear_in_local_testing(): void
+    public function test_fedex_debug_panel_hidden_from_merchant_shipping_ui(): void
     {
         [$owner, $store] = $this->ownerStore('FedEx Debug Panel Store');
         $account = $this->createFedExAccount($store);
@@ -891,7 +891,6 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertRedirect();
 
         // Merchant shipping UI no longer surfaces legacy registration diagnostics.
-        // Debug export remains available only via isolated local/testing validation routes.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
@@ -899,27 +898,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertDontSeeText('Legacy FedEx integrator registration diagnostic')
             ->assertDontSeeText('Export legacy registration diagnostic');
 
-        $this->assertTrue(\Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.debug-payload'));
-
-        $debugResponse = $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->get(route('settings.shipping.carrier-accounts.fedex.debug-payload', $account))
-            ->assertOk()
-            ->assertJsonFragment(['account_last4' => '7240', 'country_code' => 'US'])
-            ->assertJsonStructure([
-                'exported_at',
-                'carrier',
-                'endpoint',
-                'account_last4',
-                'country_code',
-                'state_code',
-                'postal_code',
-                'note',
-                'oauth_note',
-            ]);
-
-        $this->assertArrayNotHasKey('accountNumber', $debugResponse->json());
-        $this->assertArrayNotHasKey('customerName', $debugResponse->json());
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.debug-payload'));
     }
 
     public function test_legacy_fedex_store_rejects_invalid_country_un(): void
@@ -936,19 +915,6 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertSessionHasErrors(['country_code']);
 
         Http::assertNothingSent();
-    }
-
-    public function test_fedex_debug_payload_is_blocked_outside_local_testing(): void
-    {
-        [$owner, $store] = $this->ownerStore('FedEx Debug Block Store');
-        $account = $this->createFedExAccount($store);
-
-        $this->app['env'] = 'production';
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->get(route('settings.shipping.carrier-accounts.fedex.debug-payload', $account))
-            ->assertNotFound();
     }
 
     public function test_debug_registration_payload_helper_only_works_in_local_testing(): void
@@ -1044,36 +1010,9 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
         $this->assertSame('omit', data_get($registrationEvent->request_summary, 'residential_mode'));
     }
 
-    public function test_production_cannot_enable_sandbox_platform_fallback(): void
+    public function test_sandbox_platform_fallback_route_is_fully_retired(): void
     {
-        [$owner, $store] = $this->ownerStore('FedEx Fallback Production Block');
-        $account = $this->createFedExAccount($store);
-
-        $this->app['env'] = 'production';
-        config(['carriers.fedex.sandbox_allow_platform_fallback' => true]);
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback', $account))
-            ->assertNotFound();
-    }
-
-    public function test_local_testing_can_enable_sandbox_platform_fallback_when_env_flag_true(): void
-    {
-        [$owner, $store] = $this->ownerStore('FedEx Fallback Enable Store');
-        $account = $this->createFedExAccount($store);
-
-        config(['carriers.fedex.sandbox_allow_platform_fallback' => true]);
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback', $account))
-            ->assertRedirect()
-            ->assertSessionHas('success');
-
-        $account->refresh();
-
-        $this->assertTrue($account->usesSandboxPlatformFallback());
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback'));
     }
 
     public function test_sandbox_platform_fallback_uses_platform_oauth_only_without_child_credentials(): void

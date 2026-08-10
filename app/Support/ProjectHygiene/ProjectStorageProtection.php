@@ -20,7 +20,6 @@ final class ProjectStorageProtection
 
     /** @var list<string> */
     private const PROTECTED_FILENAME_PATTERNS = [
-        '/^fedex-validation-final-.*\.zip$/i',
     ];
 
     public function __construct(

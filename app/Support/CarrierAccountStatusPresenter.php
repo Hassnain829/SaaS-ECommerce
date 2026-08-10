@@ -58,7 +58,7 @@ final class CarrierAccountStatusPresenter
                 ? 'Connected for testing'
                 : 'Connected for rates',
             CarrierAccount::CONNECTION_SETUP_REQUIRED, CarrierAccount::CONNECTION_NOT_CONNECTED => 'Setup required',
-            CarrierAccount::CONNECTION_PENDING_VALIDATION => 'Pending validation',
+            CarrierAccount::CONNECTION_PENDING_VALIDATION => 'Pending verification',
             CarrierAccount::CONNECTION_FAILED => 'Setup required',
             CarrierAccount::CONNECTION_BLOCKED_BY_FEDEX => 'Carrier support required',
             CarrierAccount::CONNECTION_SANDBOX_PLATFORM_FALLBACK => 'Connected for testing',

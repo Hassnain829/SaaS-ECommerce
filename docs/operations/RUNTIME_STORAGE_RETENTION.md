@@ -10,19 +10,21 @@ Model A / Integrator Provider carrier architecture is unchanged. This system man
 |----------|-------------------|-------------------|-------------|
 | **cache** | `bootstrap/cache/*.php`, `storage/framework/cache/data/*`, compiled views, PHPUnit cache | 24 hours | Yes (with `--force`) |
 | **logs** | `storage/logs/*.log` (not active log) | 30 days | Yes |
-| **validation-temp** | FedEx staging dirs, diagnostic ZIPs, USPS `staging/` | 14 days | Yes |
+| **validation-temp** | USPS `staging/` dirs | 14 days | Yes |
 | **source-archives** | `storage/app/source-archives/E_COMMERCE_OFFICE-source-*.zip` | Keep latest 5 + max 30 days | Yes |
 | **test-artifacts** | `.phpunit.cache/*`, `.phpunit.result.cache` | 24 hours | Yes |
 
 ### Never auto-deleted (protected)
 
 - Git-tracked files and `.gitignore` placeholders
-- `fedex-validation-final-*.zip` (canonical submissions)
+- Production FedEx labels/ETD under `storage/app/fedex/`
 - Paths under `/labels/`, `/uploads/`, `/00_documents/`, `/printed_scans/`
 - Directories/files marked with `.protected` or `evidence-manifest.json`
 - Merchant uploads (`storage/app/public/`, `storage/app/private/`)
 - Unrelated ZIPs outside the source-archive naming pattern
 - Database `carrier_api_events` and all business tables
+
+FedEx Integrator certification storage (`storage/app/fedex-validation/`) is retired and must not be reintroduced.
 
 ## Configuration
 
@@ -72,8 +74,6 @@ Place either file in the directory to protect:
 
 - `.protected` — simple marker (empty file is fine)
 - `evidence-manifest.json` — structured manifest (also protects tree)
-
-Final FedEx submission ZIPs matching `fedex-validation-final-*.zip` are protected by default without a marker.
 
 ## Scheduler
 

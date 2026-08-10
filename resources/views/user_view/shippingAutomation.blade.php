@@ -6,7 +6,7 @@
     $connectionStatusLabels = [
         'not_connected' => 'Not connected',
         'setup_required' => 'Setup required',
-        'pending_validation' => 'Pending validation',
+        'pending_validation' => 'Pending verification',
         'connected' => 'Connected',
         'failed' => 'Failed',
         'blocked_by_fedex' => 'Carrier support required',

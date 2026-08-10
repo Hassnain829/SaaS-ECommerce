@@ -12,7 +12,6 @@ use App\Models\ShippingPackagePreset;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
-use App\Services\Carriers\FedEx\Presenters\FedExValidationStatusPresenter;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\USPS\Support\USPSConfig;
 use App\Services\Channels\ChannelOwnershipService;
@@ -36,7 +35,6 @@ class ShippingSettingsController extends Controller
         Request $request,
         ChannelOwnershipService $channelOwnership,
         FedExConfig $fedExConfig,
-        FedExValidationStatusPresenter $fedExValidationStatus,
         USPSConfig $uspsConfig,
         CarrierOriginReadinessService $originReadiness,
         DeliverySetupStatusService $deliverySetupStatus,
@@ -109,34 +107,6 @@ class ShippingSettingsController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
-        $loadFedExValidationTools = $this->shouldLoadFedExValidationTools($request, $fedExConfig);
-
-        $fedExValidationStatusByAccountId = [];
-        $fedExShipTestCases = [];
-        $fedExQuickTestActions = [];
-        $fedExBaselineAvailable = false;
-        $fedExApiEvents = collect();
-        $fedExStepDiagnostics = [];
-        $fedExRegistrationRequestDiagnostics = [];
-
-        if ($loadFedExValidationTools) {
-            $fedExValidationStatusByAccountId = $fedExAccounts
-                ->mapWithKeys(fn (CarrierAccount $account): array => [
-                    $account->id => $fedExValidationStatus->capabilityMatrix($store, $account),
-                ])
-                ->all();
-            $fedExShipTestCases = app(\App\Services\Carriers\FedEx\Validation\FedExShipTestCaseFixtureService::class)->fixtures();
-            $fedExQuickTestActions = app(\App\Services\Carriers\FedEx\Validation\FedExValidationQuickTestPresets::class)->quickActions();
-            $fedExBaselineAvailable = app(\App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService::class)->baselineAvailable();
-            $fedExApiEvents = $store->carrierApiEvents()
-                ->where('provider', CarrierAccount::PROVIDER_FEDEX)
-                ->latest('id')
-                ->limit(8)
-                ->get();
-            $fedExStepDiagnostics = $this->fedExLatestStepDiagnostics($store);
-            $fedExRegistrationRequestDiagnostics = $this->fedExRegistrationRequestDiagnostics($store);
-        }
-
         return view('user_view.shippingAutomation', [
             'selectedStore' => $store,
             'isExternalManaged' => $channelOwnership->isExternalManaged($store),
@@ -150,20 +120,12 @@ class ShippingSettingsController extends Controller
             'taxSetting' => $taxSetting,
             'fedExCarrier' => Carrier::query()->where('code', 'fedex')->first(),
             'fedExAccounts' => $fedExAccounts,
-            'fedExApiEvents' => $fedExApiEvents,
             'fedExPlatformConfigured' => $fedExConfig->isConfigured(),
             'fedExEnabled' => $fedExConfig->isEnabled(),
             'fedExConfig' => $fedExConfig,
             'fedExRegistrationPath' => $fedExConfig->accountRegistrationPath(CarrierAccount::ENVIRONMENT_SANDBOX),
             'fedExRegistrationResidentialMode' => $fedExConfig->accountRegistrationResidentialMode(),
-            'fedExStepDiagnostics' => $fedExStepDiagnostics,
-            'fedExRegistrationRequestDiagnostics' => $fedExRegistrationRequestDiagnostics,
-            'fedExValidationStatusByAccountId' => $fedExValidationStatusByAccountId,
-            'fedExShipTestCases' => $fedExShipTestCases,
-            'fedExQuickTestActions' => $fedExQuickTestActions,
-            'fedExBaselineAvailable' => $fedExBaselineAvailable,
             'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
-            'loadFedExValidationTools' => $loadFedExValidationTools,
             'uspsCarrier' => Carrier::query()->where('code', 'usps')->first(),
             'uspsMerchantAccounts' => $store->carrierAccounts()
                 ->where('provider', CarrierAccount::PROVIDER_USPS)
@@ -830,39 +792,6 @@ class ShippingSettingsController extends Controller
     }
 
     /**
-     * Validation/certification fixtures are expensive — load only when Advanced/validation context asks for them.
-     */
-    private function shouldLoadFedExValidationTools(Request $request, FedExConfig $fedExConfig): bool
-    {
-        if (! $fedExConfig->validationModeEnabled()) {
-            return false;
-        }
-
-        if (! app()->environment(['local', 'testing'])) {
-            return false;
-        }
-
-        if ($request->boolean('fedex_validation') || $request->session()->has('fedex_test_result')) {
-            return true;
-        }
-
-        $tab = strtolower(trim((string) $request->query('tab', '')));
-
-        return in_array($tab, [
-            'advanced',
-            'providers',
-            'carriers',
-            'areas',
-            'options',
-            'ship-from',
-            'zones',
-            'methods',
-            'locations',
-            'packages',
-        ], true);
-    }
-
-    /**
      * @return list<string>|null
      */
     private function listFromInput(mixed $value, bool $uppercase = false): ?array
@@ -921,78 +850,6 @@ class ShippingSettingsController extends Controller
                     'error_message' => $event->error_message,
                 ];
             }
-        }
-
-        return $diagnostics;
-    }
-
-    private function fedExLatestStepDiagnostics(\App\Models\Store $store): array
-    {
-        $actions = [
-            CarrierApiEvent::ACTION_PLATFORM_OAUTH_TOKEN,
-            CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION,
-            CarrierApiEvent::ACTION_MERCHANT_OAUTH_TOKEN,
-        ];
-
-        $accountIds = $store->carrierAccounts()
-            ->where('provider', CarrierAccount::PROVIDER_FEDEX)
-            ->pluck('id');
-
-        $diagnostics = [];
-
-        foreach ($accountIds as $accountId) {
-            foreach ($actions as $action) {
-                $event = CarrierApiEvent::query()
-                    ->where('store_id', $store->id)
-                    ->where('carrier_account_id', $accountId)
-                    ->where('action', $action)
-                    ->latest('id')
-                    ->first();
-
-                if ($event === null) {
-                    continue;
-                }
-
-                $diagnostics[$accountId][$action] = [
-                    'status' => $event->status,
-                    'endpoint' => data_get($event->request_summary, 'endpoint'),
-                    'http_status' => data_get($event->response_summary, 'http_status'),
-                    'error_message' => $event->error_message,
-                ];
-            }
-        }
-
-        return $diagnostics;
-    }
-
-    /**
-     * @return array<int, array{request: array<string, mixed>, response: array<string, mixed>, error_message: ?string}>
-     */
-    private function fedExRegistrationRequestDiagnostics(\App\Models\Store $store): array
-    {
-        $accountIds = $store->carrierAccounts()
-            ->where('provider', CarrierAccount::PROVIDER_FEDEX)
-            ->pluck('id');
-
-        $diagnostics = [];
-
-        foreach ($accountIds as $accountId) {
-            $event = CarrierApiEvent::query()
-                ->where('store_id', $store->id)
-                ->where('carrier_account_id', $accountId)
-                ->where('action', CarrierApiEvent::ACTION_ACCOUNT_REGISTRATION)
-                ->latest('id')
-                ->first();
-
-            if ($event === null) {
-                continue;
-            }
-
-            $diagnostics[$accountId] = [
-                'request' => is_array($event->request_summary) ? $event->request_summary : [],
-                'response' => is_array($event->response_summary) ? $event->response_summary : [],
-                'error_message' => $event->error_message,
-            ];
         }
 
         return $diagnostics;

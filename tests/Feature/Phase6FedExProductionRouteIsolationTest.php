@@ -24,18 +24,11 @@ class Phase6FedExProductionRouteIsolationTest extends TestCase
         $this->seed(CarrierSeeder::class);
     }
 
-    public function test_validation_routes_gate_uses_fedex_config_method(): void
+    public function test_validation_routes_are_fully_retired(): void
     {
-        $source = file_get_contents(base_path('routes/carriers.php'));
-        $this->assertStringContainsString('validationRoutesEnabled()', $source);
-        $this->assertStringNotContainsString("app()->environment(['local', 'testing'])", $source);
+        $this->assertFileDoesNotExist(base_path('routes/fedex-validation.php'));
 
-        config(['carriers.fedex.validation_mode_enabled' => false]);
-        $this->assertFalse(app(FedExConfig::class)->validationRoutesEnabled());
-
-        config(['carriers.fedex.validation_mode_enabled' => true]);
-        $this->assertTrue(app()->environment('testing'));
-        $this->assertTrue(app(FedExConfig::class)->validationRoutesEnabled());
+        $this->assertFalse(Route::has('settings.shipping.carrier-accounts.fedex.validation'));
     }
 
     public function test_model_b_routes_gate_uses_fedex_config_method(): void
@@ -106,7 +99,7 @@ class Phase6FedExProductionRouteIsolationTest extends TestCase
 
     public function test_route_files_have_no_utf8_bom(): void
     {
-        foreach (['routes/carriers.php', 'routes/fedex-validation.php', 'routes/fedex.php', 'routes/usps.php'] as $relative) {
+        foreach (['routes/carriers.php', 'routes/fedex.php', 'routes/usps.php'] as $relative) {
             $bytes = file_get_contents(base_path($relative), false, null, 0, 3);
             $this->assertNotSame("\xEF\xBB\xBF", $bytes, $relative.' still has BOM');
         }
@@ -116,7 +109,6 @@ class Phase6FedExProductionRouteIsolationTest extends TestCase
     {
         $names = $this->routeNamesFromArtisanChildProcess([
             'APP_ENV' => 'production',
-            'FEDEX_VALIDATION_MODE_ENABLED' => 'true',
             'FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED' => 'true',
             'FEDEX_DEVELOPER_MODE_ENABLED' => 'true',
         ]);
@@ -124,32 +116,22 @@ class Phase6FedExProductionRouteIsolationTest extends TestCase
         $this->assertModelALifecycleRoutesPresent($names);
         $this->assertFalse(
             $names->contains(fn (string $name) => str_contains($name, 'fedex.validation')),
-            'Validation routes must not boot in production even when validation flag is true'
+            'Validation routes must not boot in production'
         );
         $this->assertFalse($names->contains('settings.shipping.carrier-accounts.fedex.store'));
         $this->assertFalse($names->contains('settings.shipping.carrier-accounts.fedex.test'));
         $this->assertFalse($names->contains('settings.shipping.carrier-accounts.fedex.registration.update'));
     }
 
-    public function test_testing_child_process_validation_routes_follow_flag(): void
+    public function test_testing_child_process_validation_routes_never_boot(): void
     {
         $absent = $this->routeNamesFromArtisanChildProcess([
             'APP_ENV' => 'testing',
-            'FEDEX_VALIDATION_MODE_ENABLED' => 'false',
             'FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED' => 'false',
             'FEDEX_DEVELOPER_MODE_ENABLED' => 'false',
         ]);
         $this->assertModelALifecycleRoutesPresent($absent);
         $this->assertFalse($absent->contains(fn (string $name) => str_contains($name, 'fedex.validation')));
-
-        $present = $this->routeNamesFromArtisanChildProcess([
-            'APP_ENV' => 'testing',
-            'FEDEX_VALIDATION_MODE_ENABLED' => 'true',
-            'FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED' => 'false',
-            'FEDEX_DEVELOPER_MODE_ENABLED' => 'false',
-        ]);
-        $this->assertModelALifecycleRoutesPresent($present);
-        $this->assertTrue($present->contains('settings.shipping.carrier-accounts.fedex.validation'));
     }
 
     /**

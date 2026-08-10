@@ -14,9 +14,6 @@ class CarrierRouteRegressionTest extends TestCase
     private const CARRIER_ROUTE_NAMES = [
         'shipping.carriers.connect.index',
         'settings.shipping.fedex-integrator.start',
-        'settings.shipping.carrier-accounts.fedex.validation',
-        'settings.shipping.carrier-accounts.fedex.validation.run.address',
-        'settings.shipping.carrier-accounts.fedex.test-address',
         'settings.shipping.carrier-accounts.usps.test',
         'settings.shipping.carrier-accounts.store',
     ];
@@ -25,10 +22,21 @@ class CarrierRouteRegressionTest extends TestCase
     private const CARRIER_CONTROLLER_ROUTES = [
         'shipping.carriers.connect.index' => 'App\\Http\\Controllers\\Carrier\\Connection\\CarrierConnectionWizardController',
         'settings.shipping.fedex-integrator.start' => 'App\\Http\\Controllers\\Carrier\\Connection\\FedExIntegratorConnectionController',
-        'settings.shipping.carrier-accounts.fedex.validation' => 'App\\Http\\Controllers\\Carrier\\Validation\\FedExValidationWorkspaceController',
-        'settings.shipping.carrier-accounts.fedex.validation.run.address' => 'App\\Http\\Controllers\\Carrier\\Validation\\FedExValidationRunController',
-        'settings.shipping.carrier-accounts.fedex.test-address' => 'App\\Http\\Controllers\\Carrier\\Operations\\FedExCarrierTestController',
     ];
+
+    public function test_fedex_validation_certification_routes_are_fully_retired(): void
+    {
+        foreach ([
+            'settings.shipping.carrier-accounts.fedex.validation',
+            'settings.shipping.carrier-accounts.fedex.validation.run.address',
+            'settings.shipping.carrier-accounts.fedex.test-address',
+        ] as $retiredRouteName) {
+            $this->assertNull(
+                Route::getRoutes()->getByName($retiredRouteName),
+                "Retired validation route still registered: {$retiredRouteName}"
+            );
+        }
+    }
 
     public function test_key_carrier_routes_remain_registered_after_clean_2_extraction(): void
     {

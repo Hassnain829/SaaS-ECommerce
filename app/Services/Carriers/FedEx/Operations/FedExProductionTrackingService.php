@@ -8,7 +8,7 @@ use App\Models\Shipment;
 use App\Models\Store;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExAuthorizationClassifier;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 
 /**
@@ -91,7 +91,7 @@ final class FedExProductionTrackingService
                 path: $endpoint,
                 payload: $payload,
                 requestSummary: $requestSummary,
-                context: new FedExValidationEventContext(scenarioKey: 'production_tracking'),
+                context: new FedExApiEventContext(scenarioKey: 'production_tracking'),
                 customerTransactionId: $customerTxn,
             ),
             $endpoint,

@@ -2,14 +2,7 @@
 
 This document records **internal extraction boundaries** introduced during CLEAN-4. Public HTTP contracts, carrier behavior, import outcomes, and merchant UX are unchanged.
 
-## FedEx carrier test presentation
-
-| Layer | Class | Responsibility |
-|-------|-------|----------------|
-| HTTP / auth / validation | `App\Http\Controllers\Carrier\Operations\FedExCarrierTestController` | Request validation, store/account resolution, service calls, security logging |
-| Redirect + flash contract | `App\Services\Carriers\FedEx\Presenters\FedExCarrierTestResponsePresenter` | `fedex_test_result` session shape, success/warning/failure messaging, authorization-blocked support summary |
-
-**Preserved:** route names, middleware, redirects to `shippingAutomation?tab=carriers`, session keys, error flash titles.
+FedEx Integrator certification / validation workspace controllers and presenters have been **removed** and are not part of the current architecture. See `docs/architecture/CARRIER_CODE_STRUCTURE.md` and `docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md`.
 
 ## FedEx account registration payload
 
@@ -44,11 +37,10 @@ This document records **internal extraction boundaries** introduced during CLEAN
 
 **Preserved:** all route names, URIs, middleware, controller@action bindings.
 
-## Overlap decisions (unchanged)
+## Overlap decisions
 
-CLEAN-4 did **not** merge these pairs — responsibilities and callers differ:
+Remaining FedEx layered seam:
 
-- `FedExCarrierTestController` (merchant validation tools) vs `FedExValidationRunController` (validation workspace runs)
 - `FedExAccountRegistrationService` vs connection wizard controllers (HTTP vs API orchestration)
 
 See `docs/architecture/CARRIER_CODE_STRUCTURE.md` for carrier folder layout.

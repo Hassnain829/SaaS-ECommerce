@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Carrier\Connection\CarrierConnectionWizardController;
 use App\Http\Controllers\Settings\ShippingSettingsController;
-use App\Services\Carriers\FedEx\Support\FedExConfig;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -12,8 +11,6 @@ use Illuminate\Support\Facades\Route;
 |
 | FedEx merchant routes: routes/fedex.php
 | USPS merchant routes: routes/usps.php
-| FedEx validation / sandbox developer tools: routes/fedex-validation.php
-| (loaded only when FedExConfig::validationRoutesEnabled() is true)
 |
 | Specific carrier connect paths must register before connect/{carrier}.
 |
@@ -25,10 +22,6 @@ Route::get('/settings/shipping/carriers/connect', [CarrierConnectionWizardContro
 
 require __DIR__.'/fedex.php';
 require __DIR__.'/usps.php';
-
-if (app(FedExConfig::class)->validationRoutesEnabled()) {
-    require __DIR__.'/fedex-validation.php';
-}
 
 Route::get('/settings/shipping/carriers/connect/{carrier}', [CarrierConnectionWizardController::class, 'show'])
     ->middleware('store.permission:settings.manage')

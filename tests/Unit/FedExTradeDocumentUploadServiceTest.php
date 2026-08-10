@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\Store;
@@ -11,13 +12,11 @@ use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use App\Services\Carriers\FedEx\Operations\FedExTradeDocumentUploadPayloadFactory;
 use App\Services\Carriers\FedEx\Operations\FedExTradeDocumentUploadService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
-use App\Services\Carriers\FedEx\Validation\FedExUs09EtdFixtureService;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use Tests\Support\FedExUs09TempAssetFactory;
 use Tests\TestCase;
 
 class FedExTradeDocumentUploadServiceTest extends TestCase
@@ -30,62 +29,42 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
         $this->seed(CarrierSeeder::class);
         config([
             'carriers.fedex.document_api_sandbox_base_url' => 'https://documentapitest.prod.fedex.com/sandbox',
-            'carriers.fedex.trade_documents_upload_image_path' => '/documents/v1/lhsimages/upload',
             'carriers.fedex.trade_documents_upload_document_path' => '/documents/v1/etds/upload',
         ]);
     }
 
-    public function test_confirmed_upload_paths_and_content_types(): void
+    public function test_confirmed_document_upload_path_and_content_type(): void
     {
         $config = app(FedExConfig::class);
         $service = app(FedExTradeDocumentUploadService::class);
-        $letterhead = $this->makeTempPng(50, 20);
-        $pdf = $this->makeTempPdf();
+        $factory = app(FedExTradeDocumentUploadPayloadFactory::class);
 
         $this->assertSame('https://documentapitest.prod.fedex.com/sandbox', $config->documentApiBaseUrl('sandbox'));
-        $this->assertSame('/documents/v1/lhsimages/upload', $service->imageUploadPath());
         $this->assertSame('/documents/v1/etds/upload', $service->documentUploadPath());
 
-        $image = $service->prepareImageUpload('letterhead', [
-            'absolute_path' => $letterhead,
-            'filename' => 'signature3.png',
-        ]);
-        $document = $service->prepareDocumentUpload([
-            'absolute_path' => $pdf,
-            'filename' => 'commercial_invoice.pdf',
+        $document = $factory->buildDocumentUpload([
+            'upload' => [
+                'absolute_path' => $this->makeTempPdf(),
+                'filename' => 'commercial_invoice.pdf',
+                'ship_document_type' => 'COMMERCIAL_INVOICE',
+                'workflow_name' => 'ETDPreShipment',
+                'origin_country_code' => 'US',
+                'destination_country_code' => 'CA',
+                'carrier_code' => 'FDXE',
+            ],
         ]);
 
-        $this->assertSame('multipart/form-data', $image['content_type']);
         $this->assertSame('multipart/form-data', $document['content_type']);
-        $this->assertSame(['document', 'attachment'], data_get($image, 'redacted_multipart.field_order'));
         $this->assertSame(['document', 'attachment'], data_get($document, 'redacted_multipart.field_order'));
         $this->assertSame('FDXE', data_get($document, 'redacted_multipart.document.carrierCode'));
-        $this->assertSame('upload_us09_image_letterhead', $image['scenario_key']);
-        $this->assertSame('upload_us09_document', $document['scenario_key']);
+        $this->assertSame('[OMITTED_BINARY]', data_get($document, 'redacted_multipart.attachment.bytes'));
     }
 
-    public function test_rejects_placeholder_one_by_one_png_and_tiny_pdf(): void
+    public function test_rejects_tiny_pdf(): void
     {
         $factory = app(FedExTradeDocumentUploadPayloadFactory::class);
-        $oneByOne = $this->makeTempPng(1, 1);
-        $tinyPdf = sys_get_temp_dir().DIRECTORY_SEPARATOR.'us09-tiny-'.Str::random(6).'.pdf';
+        $tinyPdf = sys_get_temp_dir().DIRECTORY_SEPARATOR.'etd-tiny-'.Str::random(6).'.pdf';
         file_put_contents($tinyPdf, '%PDF-1.4 tiny %%EOF');
-
-        try {
-            $factory->buildImageUpload([
-                'upload' => [
-                    'absolute_path' => $oneByOne,
-                    'filename' => 'signature3.png',
-                    'image_type' => 'LETTERHEAD',
-                    'image_index' => 'IMAGE_1',
-                    'reference_id' => 'x',
-                    'workflow_name' => 'LetterheadSignature',
-                ],
-            ]);
-            $this->fail('1x1 PNG should be rejected');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
-            $this->assertSame(422, $e->getStatusCode());
-        }
 
         try {
             $factory->buildDocumentUpload([
@@ -93,7 +72,7 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
                     'absolute_path' => $tinyPdf,
                     'filename' => 'commercial_invoice.pdf',
                     'ship_document_type' => 'COMMERCIAL_INVOICE',
-                    'workflow_name' => 'ETDPreshipment',
+                    'workflow_name' => 'ETDPreShipment',
                     'origin_country_code' => 'US',
                     'destination_country_code' => 'IT',
                     'carrier_code' => 'FDXE',
@@ -103,52 +82,22 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
-
-        $validImage = $factory->buildImageUpload([
-            'upload' => [
-                'absolute_path' => $this->makeTempPng(80, 20),
-                'filename' => 'signature3.png',
-                'image_type' => 'LETTERHEAD',
-                'image_index' => 'IMAGE_1',
-                'reference_id' => 'x',
-                'workflow_name' => 'LetterheadSignature',
-            ],
-        ]);
-        $validPdf = $factory->buildDocumentUpload([
-            'upload' => [
-                'absolute_path' => $this->makeTempPdf(),
-                'filename' => 'commercial_invoice.pdf',
-                'ship_document_type' => 'COMMERCIAL_INVOICE',
-                'workflow_name' => 'ETDPreshipment',
-                'origin_country_code' => 'US',
-                'destination_country_code' => 'IT',
-                'carrier_code' => 'FDXE',
-            ],
-        ]);
-        $this->assertSame('[OMITTED_BINARY]', data_get($validImage, 'redacted_multipart.attachment.bytes'));
-        $this->assertSame('[OMITTED_BINARY]', data_get($validPdf, 'redacted_multipart.attachment.bytes'));
     }
 
-    public function test_execute_parses_image_index_and_doc_id_with_http_fake(): void
+    public function test_execute_parses_doc_id_with_http_fake(): void
     {
         $account = $this->makeAccountWithChildCredentials();
         $this->mock(FedExIntegratorChildOAuthService::class, function ($mock) {
             $mock->shouldReceive('fetchTokenResult')->andReturn(CarrierApiResult::success([
-                'access_token' => 'test-access-token-us09',
-                'expires_in' => 3600,
+                'access_token' => 'test-access-token-etd',
                 'token_type' => 'bearer',
-            ]));
+                'expires_in' => 3600,
+            ], requestSummary: [], responseSummary: ['http_status' => 200]));
         });
 
         $capturedBodies = [];
         Http::fake(function (Request $request) use (&$capturedBodies) {
             $capturedBodies[] = $request->body();
-            $url = $request->url();
-            if (str_contains($url, '/documents/v1/lhsimages/upload')) {
-                return Http::response([
-                    'output' => ['meta' => ['imageIndex' => 'IMAGE_1']],
-                ], 200, ['x-customer-transaction-id' => 'txn-image-1']);
-            }
 
             return Http::response([
                 'output' => [
@@ -163,39 +112,27 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
         });
 
         $service = app(FedExTradeDocumentUploadService::class);
-        $imagePrepared = $service->prepareImageUpload('letterhead', [
-            'absolute_path' => $this->makeTempPng(60, 15),
-            'filename' => 'signature3.png',
-        ]);
-        $imageResult = $service->executePreparedUpload($account->store, $account, $imagePrepared, allowLive: true);
-
-        $this->assertTrue($imageResult['result']->success);
-        $this->assertSame('IMAGE_1', $imageResult['returned_image_index']);
-        $this->assertNotNull($imageResult['event']);
-        $this->assertSame(CarrierApiEvent::ACTION_FEDEX_TRADE_DOCUMENTS_UPLOAD, $imageResult['event']->action);
-        $this->assertSame('upload_us09_image_letterhead', $imageResult['event']->scenario_key);
-        $this->assertSame('[OMITTED_BINARY]', data_get($imageResult['event']->request_body_encrypted, 'attachment.bytes'));
-        $encodedEvent = json_encode($imageResult['event']->request_body_encrypted).json_encode($imageResult['event']->request_summary);
-        $this->assertStringNotContainsString('test-access-token-us09', $encodedEvent);
-        $this->assertStringNotContainsString('Bearer test-access-token', $encodedEvent);
-
-        $docPrepared = $service->prepareDocumentUpload([
+        $docPrepared = $this->prepareDocumentUpload([
             'absolute_path' => $this->makeTempPdf(),
             'filename' => 'commercial_invoice.pdf',
         ]);
         $docResult = $service->executePreparedUpload($account->store, $account, $docPrepared, allowLive: true);
         $this->assertTrue($docResult['result']->success);
         $this->assertSame('DOCID1234567890', $docResult['returned_document_id']);
-        $this->assertSame('upload_us09_document', $docResult['event']->scenario_key);
+        $this->assertSame('production_commercial_invoice', $docResult['event']->scenario_key);
+        $this->assertSame(CarrierApiEvent::ACTION_FEDEX_TRADE_DOCUMENTS_UPLOAD, $docResult['event']->action);
         $masked = (string) data_get($docResult['event']->request_summary, 'returned_document_id', '');
         $this->assertNotSame('DOCID1234567890', $masked);
         $this->assertTrue($masked === '' || str_contains(strtoupper($masked), 'REDACTED'));
         $this->assertSame(
             'DOCID1234567890',
-            \App\Services\Carriers\FedEx\Operations\FedExTradeDocumentUploadService::resolveStoredDocumentId($docResult['event'])
+            FedExTradeDocumentUploadService::resolveStoredDocumentId($docResult['event'])
         );
         $this->assertSame('[REDACTED]', data_get($docResult['event']->response_body_encrypted, 'output.meta.docId'));
         $this->assertSame('DOCID1234567890', data_get($docResult['event']->response_body_encrypted, '_operator_secrets.document_id'));
+
+        $encodedEvent = json_encode($docResult['event']->request_body_encrypted).json_encode($docResult['event']->request_summary);
+        $this->assertStringNotContainsString('test-access-token-etd', $encodedEvent);
 
         $this->assertNotEmpty($capturedBodies);
         foreach ($capturedBodies as $body) {
@@ -211,9 +148,9 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
     {
         $account = $this->makeAccountWithChildCredentials();
         Http::fake();
-        $prepared = app(FedExTradeDocumentUploadService::class)->prepareImageUpload('letterhead', [
-            'absolute_path' => $this->makeTempPng(40, 10),
-            'filename' => 'signature3.png',
+        $prepared = $this->prepareDocumentUpload([
+            'absolute_path' => $this->makeTempPdf(),
+            'filename' => 'commercial_invoice.pdf',
         ]);
 
         try {
@@ -253,11 +190,10 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
             ], 201);
         });
 
-        $prepared = app(FedExTradeDocumentUploadService::class)->prepareDocumentUpload([
+        $prepared = $this->prepareDocumentUpload([
             'absolute_path' => $this->makeTempPdf(),
             'filename' => 'commercial_invoice.pdf',
         ]);
-        // Simulate the old bug: prepared payload stamped with sandbox host.
         $prepared['endpoint_host'] = 'https://documentapitest.prod.fedex.com/sandbox';
 
         $result = app(FedExTradeDocumentUploadService::class)->executePreparedUpload(
@@ -271,63 +207,100 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
         $this->assertSame('https://documentapi.prod.fedex.com', data_get($result['event']->request_summary, 'endpoint_host'));
     }
 
-    public function test_missing_repository_assets_block_prepare(): void
+    public function test_production_etd_upload_rejects_non_authoritative_relative_file_paths(): void
     {
-        $path = base_path('resources/fedex-validation/us09/signature3.png');
-        $backup = null;
-        if (is_file($path)) {
-            $backup = $path.'.testbak';
-            rename($path, $backup);
-        }
+        $factory = app(FedExTradeDocumentUploadPayloadFactory::class);
 
         try {
-            app(FedExTradeDocumentUploadService::class)->prepareImageUpload('letterhead');
-            $this->fail('Missing repository letterhead asset should block prepare.');
+            $factory->buildDocumentUpload([
+                'upload' => [
+                    'relative_path' => 'resources/some-fixture/commercial_invoice.pdf',
+                    'filename' => 'commercial_invoice.pdf',
+                    'ship_document_type' => 'COMMERCIAL_INVOICE',
+                    'workflow_name' => 'ETDPreShipment',
+                    'origin_country_code' => 'US',
+                    'destination_country_code' => 'CA',
+                ],
+            ]);
+            $this->fail('Relative fixture paths must be rejected.');
         } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
-        } finally {
-            if (is_string($backup) && is_file($backup)) {
-                rename($backup, $path);
-            }
         }
     }
 
-    private function makeTempPng(int $width, int $height): string
+    /**
+     * @param  array<string, mixed>  $upload
+     * @return array<string, mixed>
+     */
+    private function prepareDocumentUpload(array $upload): array
     {
-        return FedExUs09TempAssetFactory::png($width, $height);
+        $built = app(FedExTradeDocumentUploadPayloadFactory::class)->buildDocumentUpload([
+            'upload' => array_merge([
+                'ship_document_type' => 'COMMERCIAL_INVOICE',
+                'workflow_name' => 'ETDPreShipment',
+                'origin_country_code' => 'US',
+                'destination_country_code' => 'CA',
+                'carrier_code' => 'FDXE',
+            ], $upload),
+        ]);
+
+        $host = app(FedExTradeDocumentUploadService::class)->documentApiSandboxBaseUrl();
+
+        return [
+            'case_key' => 'production_etd',
+            'upload_mode' => 'document',
+            'scenario_key' => 'production_commercial_invoice',
+            'endpoint_host' => $host,
+            'endpoint_path' => (string) $built['endpoint_path'],
+            'content_type' => (string) $built['content_type'],
+            'document_type' => 'COMMERCIAL_INVOICE',
+            'original_filename' => (string) ($built['attachment']['filename'] ?? ''),
+            'mime_type' => (string) ($built['attachment']['mime_type'] ?? ''),
+            'document_json' => $built['document_json'],
+            'attachment_absolute_path' => (string) ($built['attachment']['absolute_path'] ?? ''),
+            'redacted_multipart' => $built['redacted_multipart'],
+            'request_summary' => [
+                'case_key' => 'production_etd',
+                'upload_mode' => 'document',
+                'scenario_key' => 'production_commercial_invoice',
+            ],
+        ];
     }
 
-    private function makeTempPdf(): string
+    private function makeTempPdf(int $minBytes = 1200): string
     {
-        return FedExUs09TempAssetFactory::pdf();
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'etd-pdf-'.bin2hex(random_bytes(4)).'.pdf';
+        $padding = str_repeat('Commercial invoice content for FedEx ETD upload. ', max(1, (int) ceil($minBytes / 50)));
+        file_put_contents($path, "%PDF-1.4\n1 0 obj<<>>endobj\nstream\n{$padding}\nendstream\n%%EOF\n");
+
+        return $path;
     }
 
     private function makeAccountWithChildCredentials(): CarrierAccount
     {
         $owner = User::factory()->create();
         $store = Store::query()->create([
-            'name' => 'US09 Upload Store',
-            'slug' => 'us09-upload-'.Str::random(6),
             'user_id' => $owner->id,
+            'name' => 'ETD Upload Store',
+            'slug' => 'etd-upload-'.Str::lower(Str::random(6)),
         ]);
-        $fedEx = \App\Models\Carrier::query()->where('code', 'fedex')->firstOrFail();
 
-        $account = CarrierAccount::query()->create([
+        $account = CarrierAccount::query()->create(array_merge([
             'store_id' => $store->id,
-            'carrier_id' => $fedEx->id,
+            'carrier_id' => Carrier::query()->where('code', 'fedex')->value('id'),
             'provider' => CarrierAccount::PROVIDER_FEDEX,
+            'display_name' => 'FedEx ETD',
             'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
-            'connection_model' => CarrierAccount::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
-            'connection_type' => 'manual',
-            'status' => 'enabled',
+            'status' => CarrierAccount::STATUS_ENABLED,
+            'connection_status' => CarrierAccount::CONNECTION_CONNECTED,
             'provider_account_number' => '700257037',
-            'display_name' => 'US09 Upload Account',
-            'created_by' => $owner->id,
-        ]);
+        ], CarrierAccount::ownershipAttributesForFedExIntegratorProvider()));
+
         $account->setCredentials([
-            'customer_key' => 'child-key-us09-upload',
-            'customer_password' => 'child-secret-us09-upload',
+            'customer_key' => 'child-key',
+            'customer_password' => 'child-secret',
         ]);
+        $account->setFedExAccountNumber('700257037');
         $account->save();
 
         return $account->fresh();

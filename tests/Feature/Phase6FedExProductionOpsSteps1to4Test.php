@@ -9,6 +9,8 @@ use App\Models\CarrierRateQuote;
 use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderAddress;
+use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
@@ -156,12 +158,25 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             ], 200),
         ]);
 
+        $item = $order->items()->firstOrFail();
+
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('orders.fedex.rates', $order), [
                 'carrier_account_id' => $account->id,
                 'origin_location_id' => $location->id,
+                'package_source' => 'custom',
                 'weight' => 2,
+                'length' => 10,
+                'width' => 8,
+                'height' => 4,
+                'weight_unit' => 'LB',
+                'dimension_unit' => 'IN',
+                'items' => [[
+                    'selected' => '1',
+                    'order_item_id' => $item->id,
+                    'quantity' => 1,
+                ]],
             ])
             ->assertRedirect()
             ->assertSessionHas('fedex_rate_quotes');
@@ -234,6 +249,24 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             'capabilities' => array_merge((array) $account->capabilities, ['checkout_rates' => true]),
         ])->save();
         config(['carriers.fedex.checkout_rates_enabled' => true]);
+
+        $preset = \App\Models\ShippingPackagePreset::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Default box',
+            'length' => 10,
+            'width' => 8,
+            'height' => 4,
+            'dimension_unit' => 'IN',
+            'weight_value' => 1,
+            'weight_unit' => 'LB',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+            'default_package_preset_id' => $preset->id,
+            'weight_unit' => 'LB',
+        ]);
+        $store->refresh();
 
         $zone = ShippingZone::query()->create([
             'store_id' => $store->id,
@@ -348,7 +381,7 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
 
         $liveOptions = app(DeliveryOptionService::class)->optionsFor(
             $store,
-            ['country_code' => 'US', 'postal_code' => '38116', 'state' => 'TN', 'city' => 'Memphis'],
+            ['country_code' => 'US', 'postal_code' => '38116', 'state' => 'TN', 'city' => 'Memphis', 'phone' => '+19015550999'],
             '50.00',
             'USD',
             $checkout->fresh(['items', 'store']),
@@ -369,11 +402,11 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.shipping.fedex-integrator.manage', $account))
             ->assertOk()
-            ->assertSeeText('Address validation: ready')
-            ->assertSeeText('Negotiated rates: ready')
-            ->assertSeeText('Checkout rates: not enabled')
-            ->assertSeeText('Labels: not enabled')
-            ->assertSeeText('Tracking: not enabled');
+            ->assertSeeText('FedEx Center')
+            ->assertSeeText('Checkout rates')
+            ->assertSeeText('Shipping & labels')
+            ->assertSeeText('Tracking')
+            ->assertSeeText('Not ready');
     }
 
     /**
@@ -391,6 +424,7 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             'state' => 'TN',
             'postal_code' => '38017',
             'country_code' => 'US',
+            'phone' => '+19015550100',
             'is_default' => true,
             'is_active' => true,
             'fulfills_online_orders' => true,
@@ -453,9 +487,33 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             'postal_code' => '38116',
             'country_code' => 'US',
             'country' => 'United States',
+            'phone' => '+19015550999',
         ]);
 
-        return $order->fresh('addresses');
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Ops Rate Item',
+            'slug' => 'ops-rate-'.Str::random(6),
+            'base_price' => 20,
+            'sku' => 'OPS-'.Str::random(4),
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => [],
+        ]);
+
+        OrderItem::query()->create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => 'Ops Rate Item',
+            'quantity' => 1,
+            'unit_price' => 20,
+            'subtotal' => 20,
+            'discount_amount' => 0,
+            'tax_amount' => 0,
+            'total' => 20,
+        ]);
+
+        return $order->fresh(['addresses', 'items']);
     }
 
     /**

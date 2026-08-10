@@ -87,20 +87,6 @@ final class FedExConfig
         return app()->environment(['local', 'testing']) && $this->modelBDeveloperFallbackEnabled();
     }
 
-    /**
-     * Validation routes require local|testing AND FEDEX_VALIDATION_MODE_ENABLED.
-     */
-    public function validationRoutesEnabled(): bool
-    {
-        return $this->validationModeEnabled();
-    }
-
-    public function validationModeEnabled(): bool
-    {
-        return filter_var(config('carriers.fedex.validation_mode_enabled', false), FILTER_VALIDATE_BOOL)
-            && app()->environment(['local', 'testing']);
-    }
-
     public function productionEnabled(): bool
     {
         return $this->productionConfigurationErrors() === [];
@@ -166,10 +152,6 @@ final class FedExConfig
 
         if ($this->modelBDeveloperFallbackEnabled()) {
             $errors[] = 'Model B developer fallback must be disabled for production.';
-        }
-
-        if (filter_var(config('carriers.fedex.validation_mode_enabled', false), FILTER_VALIDATE_BOOL)) {
-            $errors[] = 'FEDEX_VALIDATION_MODE_ENABLED must be false for production.';
         }
 
         if (filter_var(config('carriers.fedex.sandbox_allow_platform_fallback', false), FILTER_VALIDATE_BOOL)) {
@@ -284,92 +266,6 @@ final class FedExConfig
         return (string) config('carriers.fedex.ship_create_path', '/ship/v1/shipments');
     }
 
-    public function shipValidatePath(?string $environment = null): string
-    {
-        return (string) config('carriers.fedex.ship_validate_path', '/ship/v1/shipments/packages/validate');
-    }
-
-    public function freightLtlShipPath(?string $environment = null): string
-    {
-        return (string) config('carriers.fedex.freight_ltl_ship_path', '/ship/v1/freight/shipments');
-    }
-
-    public function validationUs08Enabled(): bool
-    {
-        return filter_var(config('carriers.fedex.validation_us08_enabled', false), FILTER_VALIDATE_BOOL);
-    }
-
-    public function freightLtlApiEnabled(): bool
-    {
-        return filter_var(config('carriers.fedex.freight_ltl_api_enabled', false), FILTER_VALIDATE_BOOL);
-    }
-
-    public function us08LiveRunEnabled(): bool
-    {
-        return $this->validationUs08Enabled() && $this->freightLtlApiEnabled();
-    }
-
-    public function freightLtlApiDisabledMessage(): string
-    {
-        return $this->us08ExclusionNote();
-    }
-
-    /**
-     * Canonical exclusion note for IntegratorUS08 in workspace, preflight, and export reports.
-     */
-    public function us08ExclusionNote(): string
-    {
-        return 'IntegratorUS08 Freight LTL is excluded because Freight LTL is not a supported capability of this application and is no longer available through the current FedEx Developer Portal project.';
-    }
-
-    public function validationUs10Enabled(): bool
-    {
-        return filter_var(config('carriers.fedex.validation_us10_enabled', false), FILTER_VALIDATE_BOOL);
-    }
-
-    public function us10LiveRunEnabled(): bool
-    {
-        return $this->validationUs10Enabled();
-    }
-
-    /**
-     * Canonical exclusion note for IntegratorUS10 in workspace, preflight, and export reports.
-     */
-    public function us10ExclusionNote(): string
-    {
-        return 'IntegratorUS10 Consolidation / IPD is excluded because Consolidation API is not a supported capability of this application and was not included in the current FedEx Developer Portal project.';
-    }
-
-    public function validationUs10ConsolidationAccount(): string
-    {
-        return trim((string) config('carriers.fedex.validation_us10_consolidation_account', ''));
-    }
-
-    public function validationUs10ShipperTin(): string
-    {
-        return trim((string) config('carriers.fedex.validation_us10_shipper_tin', ''));
-    }
-
-    public function consolidationCreatePath(): string
-    {
-        return (string) config('carriers.fedex.consolidation_create_path', '/ship/v1/consolidations');
-    }
-
-    public function consolidationShipmentPath(): string
-    {
-        return (string) config('carriers.fedex.consolidation_shipment_path', '/ship/v1/consolidations/shipments');
-    }
-
-    public function consolidationConfirmPath(): string
-    {
-        return (string) config('carriers.fedex.consolidation_confirm_path', '/ship/v1/consolidations/confirmations');
-    }
-
-    public function consolidationConfirmResultsPath(): string
-    {
-        return (string) config('carriers.fedex.consolidation_confirm_results_path', '/ship/v1/consolidations/confirmationresults');
-    }
-
     public function documentApiBaseUrl(?string $environment = null): string
     {
         $environment = $this->environment($environment);
@@ -382,11 +278,6 @@ final class FedExConfig
                 ? 'https://documentapi.prod.fedex.com'
                 : 'https://documentapitest.prod.fedex.com/sandbox'
         ), '/');
-    }
-
-    public function tradeDocumentsUploadImagePath(): string
-    {
-        return (string) config('carriers.fedex.trade_documents_upload_image_path', '/documents/v1/lhsimages/upload');
     }
 
     public function tradeDocumentsUploadDocumentPath(): string
@@ -406,52 +297,9 @@ final class FedExConfig
         return $path !== '' ? $path : null;
     }
 
-    public function tradeDocumentsUploadPath(): ?string
-    {
-        $path = (string) config('carriers.fedex.trade_documents_upload_path', '');
-
-        return $path !== '' ? $path : null;
-    }
-
-    public function shipEvidenceEnabled(): bool
-    {
-        return filter_var(config('carriers.fedex.ship_evidence_enabled', false), FILTER_VALIDATE_BOOL);
-    }
-
-    public function shipSandboxLabelGenerationEnabled(): bool
-    {
-        return filter_var(config('carriers.fedex.ship_sandbox_label_generation_enabled', false), FILTER_VALIDATE_BOOL);
-    }
-
     public function allowsShipLabelGeneration(?string $environment = null): bool
     {
-        $environment = $this->environment($environment);
-
-        if ($environment === CarrierAccount::ENVIRONMENT_LIVE) {
-            return $this->productionEnabled() && $this->shipEvidenceEnabled();
-        }
-
-        return $this->shipSandboxLabelGenerationEnabled() || $this->shipEvidenceEnabled();
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function testCaseBaselinePaths(): array
-    {
-        $paths = config('carriers.fedex.test_case_baseline_paths', []);
-
-        return is_array($paths) ? array_values(array_filter($paths, 'is_string')) : [];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function validationSwedenFixtureConfig(): array
-    {
-        $config = config('carriers.fedex.validation.sweden', []);
-
-        return is_array($config) ? $config : [];
+        return filter_var(config('carriers.fedex.ops_ship_labels_enabled', false), FILTER_VALIDATE_BOOL);
     }
 
     public function oauthPath(): string

@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CarrierApiEvent extends Model
 {
@@ -38,10 +37,6 @@ class CarrierApiEvent extends Model
 
     public const SCENARIO_AUTHORIZATION_CHILD = 'authorization_child';
 
-    public const SCENARIO_REGISTRATION_SWEDEN_PASSTHROUGH_ADDRESS = 'registration_sweden_passthrough_address';
-
-    public const SCENARIO_AUTHORIZATION_SWEDEN_PASSTHROUGH_CHILD = 'authorization_sweden_passthrough_child';
-
     public const ACTION_TEST_CONNECTION = 'test_connection';
 
     public const ACTION_ADDRESS_VALIDATION = 'address_validation';
@@ -54,19 +49,13 @@ class CarrierApiEvent extends Model
 
     public const ACTION_FEDEX_RATE_QUOTE = 'fedex_rate_quote';
 
-    public const ACTION_FEDEX_SHIP_VALIDATE = 'fedex_ship_validate';
-
     public const ACTION_FEDEX_SHIP_CREATE_LABEL = 'fedex_ship_create_label';
 
     public const ACTION_FEDEX_SHIP_CANCEL = 'fedex_ship_cancel';
 
-    public const ACTION_FEDEX_SHIP_EVIDENCE_EXPORT = 'fedex_ship_evidence_export';
-
     public const ACTION_FEDEX_BASIC_INTEGRATED_VISIBILITY = 'fedex_basic_integrated_visibility';
 
     public const ACTION_FEDEX_TRADE_DOCUMENTS_UPLOAD = 'fedex_trade_documents_upload';
-
-    public const ACTION_FEDEX_CONSOLIDATION = 'fedex_consolidation';
 
     public const SCENARIO_REGISTRATION_ADDRESS = 'registration_address_validation';
 
@@ -151,11 +140,6 @@ class CarrierApiEvent extends Model
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);
-    }
-
-    public function validationArtifacts(): HasMany
-    {
-        return $this->hasMany(FedExValidationArtifact::class, 'carrier_api_event_id');
     }
 
     public function hasCompleteEvidence(): bool

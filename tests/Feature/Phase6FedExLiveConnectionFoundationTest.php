@@ -87,10 +87,9 @@ class Phase6FedExLiveConnectionFoundationTest extends TestCase
     public function test_production_country_options_include_us_and_canada_not_sweden(): void
     {
         $this->assertSame(['US', 'CA'], array_keys(CarrierCountryOptions::fedExProductionOptions()));
-        $this->assertArrayHasKey('SE', CarrierCountryOptions::fedExValidationOptions());
         $this->assertTrue(CarrierCountryOptions::isAllowedFedExCountry('CA'));
-        $this->assertFalse(CarrierCountryOptions::isAllowedFedExRegistrationCountry('SE', 'live', false));
-        $this->assertTrue(CarrierCountryOptions::isAllowedFedExRegistrationCountry('SE', 'sandbox', true));
+        $this->assertFalse(CarrierCountryOptions::isAllowedFedExRegistrationCountry('SE', 'live'));
+        $this->assertFalse(CarrierCountryOptions::isAllowedFedExRegistrationCountry('SE', 'sandbox'));
     }
 
     public function test_registration_validator_rejects_invalid_us_state(): void
@@ -101,7 +100,7 @@ class Phase6FedExLiveConnectionFoundationTest extends TestCase
                 'country_code' => 'US',
                 'postal_code' => '78701',
             ]),
-            ['environment' => 'sandbox', 'validation_mode' => false]
+            ['environment' => 'sandbox']
         );
 
         $this->assertArrayHasKey('state', $result['errors']);
@@ -116,7 +115,7 @@ class Phase6FedExLiveConnectionFoundationTest extends TestCase
                 // D is forbidden in Canadian postal-code letter positions.
                 'postal_code' => 'D1D 1D1',
             ]),
-            ['environment' => 'sandbox', 'validation_mode' => false]
+            ['environment' => 'sandbox']
         );
 
         $this->assertArrayHasKey('state', $result['errors']);
@@ -131,7 +130,7 @@ class Phase6FedExLiveConnectionFoundationTest extends TestCase
             'state' => 'ON',
             'postal_code' => 'M5H2N2',
             'country_code' => 'CA',
-        ]), ['environment' => 'sandbox', 'validation_mode' => false]);
+        ]), ['environment' => 'sandbox']);
 
         $this->assertSame([], $canada['errors']);
         $this->assertSame('CA', $canada['normalized']['country_code']);
@@ -140,7 +139,7 @@ class Phase6FedExLiveConnectionFoundationTest extends TestCase
         $this->assertSame('M5H2N2', $canada['normalized']['registration_postal_code_raw']);
     }
 
-    public function test_registration_validator_rejects_sweden_outside_validation_mode(): void
+    public function test_registration_validator_rejects_sweden(): void
     {
         $validator = app(FedExRegistrationInputValidator::class);
 
@@ -148,7 +147,7 @@ class Phase6FedExLiveConnectionFoundationTest extends TestCase
             'state' => 'AB',
             'postal_code' => '11122',
             'country_code' => 'SE',
-        ]), ['environment' => 'live', 'validation_mode' => true]);
+        ]), ['environment' => 'live']);
 
         $this->assertArrayHasKey('country_code', $sweden['errors']);
     }
@@ -166,7 +165,6 @@ class Phase6FedExLiveConnectionFoundationTest extends TestCase
             'non-exact live base URL' => ['carriers.fedex.live.base_url' => 'https://apis.fedex.com/'],
             'Model B fallback enabled' => ['carriers.fedex.model_b_developer_fallback_enabled' => true],
             'developer mode enabled' => ['carriers.fedex.developer_mode_enabled' => true],
-            'validation mode enabled' => ['carriers.fedex.validation_mode_enabled' => true],
             'sandbox fallback enabled' => ['carriers.fedex.sandbox_allow_platform_fallback' => true],
             'live countries blank' => ['carriers.fedex.live_allowed_countries' => ''],
             'live countries malformed' => ['carriers.fedex.live_allowed_countries' => '@@'],
@@ -276,7 +274,6 @@ class Phase6FedExLiveConnectionFoundationTest extends TestCase
             'carriers.fedex.live.base_url' => 'https://apis.fedex.com',
             'carriers.fedex.model_b_developer_fallback_enabled' => false,
             'carriers.fedex.developer_mode_enabled' => false,
-            'carriers.fedex.validation_mode_enabled' => false,
             'carriers.fedex.sandbox_allow_platform_fallback' => false,
             'carriers.fedex.live_allowed_countries' => 'US,CA',
         ]);

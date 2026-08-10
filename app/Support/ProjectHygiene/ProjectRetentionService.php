@@ -233,19 +233,6 @@ final class ProjectRetentionService
         $cutoff = $this->daysCutoff($olderThanDaysOverride ?? (int) config('project_retention.validation_temp_days', 14));
         $entries = [];
 
-        $stagingPattern = $this->globPath($root.'/storage/app/fedex-validation/*/*/FedEx_Integrator_Validation_BaasPlatformFedExSandbox');
-        foreach (glob($stagingPattern, GLOB_ONLYDIR) ?: [] as $directory) {
-            $entries[] = $this->evaluateDirectory($directory, 'validation-temp', $cutoff, 'FedEx validation staging workspace');
-        }
-
-        foreach (glob($this->globPath($root.'/storage/app/fedex-validation/*/*/fedex-validation-diagnostic-*.zip')) ?: [] as $file) {
-            $entries[] = $this->evaluateFile($file, 'validation-temp', $cutoff, 'FedEx diagnostic validation ZIP');
-        }
-
-        foreach (glob($this->globPath($root.'/storage/app/fedex-validation/*/*/fedex-validation-bundle-*.zip')) ?: [] as $file) {
-            $entries[] = $this->evaluateFile($file, 'validation-temp', $cutoff, 'Legacy FedEx validation bundle ZIP');
-        }
-
         if (is_dir($root.'/storage/app/usps-validation')) {
             $finder = (new Finder)->in($root.'/storage/app/usps-validation')->directories()->name('staging');
             foreach ($finder as $directory) {

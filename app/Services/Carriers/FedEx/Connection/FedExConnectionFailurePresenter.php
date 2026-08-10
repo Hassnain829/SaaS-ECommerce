@@ -2,17 +2,10 @@
 
 namespace App\Services\Carriers\FedEx\Connection;
 
-use App\Models\CarrierAccount;
 use App\Models\CarrierAccountRegistrationSession;
-use App\Services\Carriers\FedEx\Support\FedExConfig;
-use App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport;
 
 final class FedExConnectionFailurePresenter
 {
-    public function __construct(
-        private readonly FedExConfig $config,
-    ) {}
-
     public function message(
         CarrierAccountRegistrationSession $session,
         ?string $code = null,
@@ -20,11 +13,6 @@ final class FedExConnectionFailurePresenter
     ): string {
         $code = strtolower(trim((string) ($code ?? $session->last_error_code)));
         $technicalMessage = strtolower(trim((string) $technicalMessage));
-
-        if ($this->isSwedenValidationPassthroughFailure($session, $code)) {
-            return FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE;
-        }
-
         $haystack = $code.' '.$technicalMessage;
 
         if ($this->containsAny($haystack, [
@@ -102,16 +90,6 @@ final class FedExConnectionFailurePresenter
         }
 
         return 'FedEx could not complete the account connection. Check the account details and try again.';
-    }
-
-    private function isSwedenValidationPassthroughFailure(
-        CarrierAccountRegistrationSession $session,
-        string $code,
-    ): bool {
-        return $session->environment === CarrierAccount::ENVIRONMENT_SANDBOX
-            && $this->config->validationModeEnabled()
-            && strtoupper((string) data_get($session->registrationAddress(), 'country_code')) === 'SE'
-            && in_array($code, FedExValidationSwedenPassthroughSupport::failureCodes(), true);
     }
 
     /**

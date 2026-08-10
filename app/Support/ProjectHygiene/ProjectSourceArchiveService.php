@@ -17,7 +17,6 @@ final class ProjectSourceArchiveService
         'storage/framework/cache/',
         'storage/framework/sessions/',
         'storage/framework/views/',
-        'storage/app/fedex-validation/',
         'storage/app/usps-validation/',
         'storage/app/source-archives/',
         'bootstrap/cache/',
@@ -232,7 +231,7 @@ final class ProjectSourceArchiveService
         }
 
         if (str_ends_with($relativePath, '.log')
-            || (str_ends_with($relativePath, '.zip') && str_contains($relativePath, 'fedex-validation'))) {
+            || (str_ends_with($relativePath, '.zip') && str_contains($relativePath, 'usps-validation'))) {
             return true;
         }
 
@@ -253,7 +252,7 @@ final class ProjectSourceArchiveService
             'vendor/',
             'node_modules/ (root and dev-test-storefront/)',
             'runtime storage contents (logs, cache, sessions, compiled views)',
-            'generated carrier validation evidence (fedex-validation/, usps-validation/)',
+            'generated carrier validation evidence (usps-validation/)',
             'bootstrap/cache runtime files (placeholders preserved via export-ignore exceptions)',
             'local sqlite database files',
             'local archive outputs',

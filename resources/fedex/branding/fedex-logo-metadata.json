@@ -1,0 +1,10 @@
+{
+  "source": "fedex_supplied",
+  "filename": "fedex-unified-logo.svg",
+  "public_path": "assets/carriers/fedex/fedex-unified-logo.svg",
+  "sha256": "b41090407d0618be138ee75262ec38fa37a105131de5d698e8116e9bca818646",
+  "mime_type": "image/svg+xml",
+  "display_purpose": "Merchant-facing FedEx brand mark",
+  "intrinsic_width": 453,
+  "intrinsic_height": 222
+}

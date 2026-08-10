@@ -5,7 +5,6 @@ namespace Tests\Unit;
 use App\Models\CarrierAccount;
 use App\Models\CarrierAccountRegistrationSession;
 use App\Services\Carriers\FedEx\Connection\FedExConnectionFailurePresenter;
-use App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport;
 use Tests\TestCase;
 
 class FedExConnectionFailurePresenterTest extends TestCase
@@ -29,34 +28,7 @@ class FedExConnectionFailurePresenterTest extends TestCase
             $message = $presenter->message($session, $code, $technicalMessage);
 
             $this->assertStringContainsString($expected, $message, (string) $code);
-            $this->assertNotSame(FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE, $message);
         }
-    }
-
-    public function test_sweden_passthrough_copy_is_limited_to_its_sandbox_validation_scenario(): void
-    {
-        config(['carriers.fedex.validation_mode_enabled' => true]);
-        $presenter = app(FedExConnectionFailurePresenter::class);
-
-        $sandboxSweden = $this->registrationSession(CarrierAccount::ENVIRONMENT_SANDBOX, 'SE');
-        $this->assertSame(
-            FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
-            $presenter->message(
-                $sandboxSweden,
-                'sweden_passthrough_transport_error',
-                'Transport error',
-            )
-        );
-
-        $liveSweden = $this->registrationSession(CarrierAccount::ENVIRONMENT_LIVE, 'SE');
-        $this->assertNotSame(
-            FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
-            $presenter->message(
-                $liveSweden,
-                'sweden_passthrough_transport_error',
-                'Transport error',
-            )
-        );
     }
 
     private function registrationSession(

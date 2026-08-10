@@ -8,7 +8,7 @@ use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\Core\CarrierApiEventLogger;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Support\FedExHttpClient;
 use RuntimeException;
@@ -77,7 +77,7 @@ class FedExAccountRegistrationService
             account: $account,
             requestSummary: $requestSummary,
             environment: $environment,
-            context: new FedExValidationEventContext(
+            context: new FedExApiEventContext(
                 registrationSessionId: $account->registration_session_id,
                 scenarioKey: CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS,
             ),
@@ -330,7 +330,7 @@ class FedExAccountRegistrationService
             account: $account,
             requestSummary: $requestSummary,
             environment: $environment,
-            context: new FedExValidationEventContext(
+            context: new FedExApiEventContext(
                 registrationSessionId: $session?->id,
                 scenarioKey: CarrierApiEvent::SCENARIO_REGISTRATION_ADDRESS,
             ),
@@ -409,7 +409,7 @@ class FedExAccountRegistrationService
             account: $carrierAccount,
             requestSummary: $requestSummary,
             environment: $environment,
-            context: new FedExValidationEventContext(
+            context: new FedExApiEventContext(
                 registrationSessionId: $session->id,
                 scenarioKey: $scenarioKey,
                 mfaMethod: $mfaMethod,
@@ -623,7 +623,7 @@ class FedExAccountRegistrationService
             }
 
             if (($error['code'] ?? null) === 'SESSION.EXPIRED.ERROR') {
-                return 'FedEx account authorization expired. The validation workspace refreshed authorization automatically — run invoice validation again if this persists.';
+                return 'FedEx authorization expired before account verification completed. Retry the verification step from your FedEx connection.';
             }
         }
 

@@ -36,8 +36,6 @@
 !/storage/framework/sessions/.gitignore
 /storage/framework/views/*
 !/storage/framework/views/.gitignore
-/storage/app/fedex-validation/*
-!/storage/app/fedex-validation/.gitignore
 /storage/app/usps-validation/*
 !/storage/app/usps-validation/.gitignore
 /storage/app/source-archives/*

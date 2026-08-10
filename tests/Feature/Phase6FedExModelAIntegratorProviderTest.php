@@ -13,11 +13,9 @@ use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\TestCase;
-use ZipArchive;
 
 class Phase6FedExModelAIntegratorProviderTest extends TestCase
 {
@@ -173,8 +171,9 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.shipping.fedex-integrator.success', $session))
             ->assertOk()
-            ->assertSeeText('Direct Child Authorization completed')
-            ->assertSeeText('PIN, SMS, phone, and invoice verification were skipped');
+            ->assertSeeText('FedEx connected')
+            ->assertSeeText('Connection completed')
+            ->assertSeeText('Your FedEx account was verified successfully.');
 
         $this->assertTrue(data_get($session->response_summary_json, 'credential_key_detected'));
         $this->assertTrue(data_get($session->response_summary_json, 'credential_secret_detected'));
@@ -268,7 +267,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $this->assertNull($session->childCredentials());
         $this->assertFalse((bool) data_get($session->response_summary_json, 'child_oauth_verification.success'));
         $this->assertNotSame(
-            \App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
+            'We are unable to process this request. Please try again later or call FedEx Customer Service and ask for technical support.',
             $session->last_error_message,
         );
 
@@ -477,7 +476,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $this->assertSame('fedex-reg-txn-fail', $session->fedex_transaction_id);
         $this->assertStringContainsString('account name or address', (string) $session->last_error_message);
         $this->assertNotSame(
-            \App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
+            'We are unable to process this request. Please try again later or call FedEx Customer Service and ask for technical support.',
             $session->last_error_message,
         );
         $this->assertStringContainsString(
@@ -610,7 +609,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $this->assertSame('account_auth_token_missing', $session->last_error_code);
         $this->assertStringContainsString('platform administrator', (string) $session->last_error_message);
         $this->assertNotSame(
-            \App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
+            'We are unable to process this request. Please try again later or call FedEx Customer Service and ask for technical support.',
             $session->last_error_message,
         );
         $this->assertStringContainsString(
@@ -915,7 +914,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $this->assertSame('registration_incomplete', $session->last_error_code);
         $this->assertStringContainsString('could not complete', (string) $session->last_error_message);
         $this->assertNotSame(
-            \App\Services\Carriers\FedEx\Validation\FedExValidationSwedenPassthroughSupport::FAILURE_MESSAGE,
+            'We are unable to process this request. Please try again later or call FedEx Customer Service and ask for technical support.',
             $session->last_error_message,
         );
         $this->assertStringContainsString(
@@ -946,31 +945,6 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.shipping.fedex-integrator.account.submit', $session), $this->accountPayload('700257037'))
             ->assertStatus(410);
-    }
-
-    public function test_fedex_validation_evidence_export_creates_zip_with_redacted_json(): void
-    {
-        config(['carriers.fedex.validation_mode_enabled' => true]);
-        [$owner, $store, $account] = $this->integratorAccountFixture('FedEx Export Store');
-
-        $response = $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->get(route('settings.shipping.carrier-accounts.fedex.validation-export', $account));
-
-        $response->assertOk();
-        $zipPath = $response->baseResponse->getFile()->getPathname();
-        $this->assertTrue(File::exists($zipPath));
-
-        $zip = new ZipArchive;
-        $zip->open($zipPath);
-        $readme = $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/README.md');
-        $preflight = $zip->getFromName('FedEx_Integrator_Validation_BaasPlatformFedExSandbox/preflight-report.json');
-        $zip->close();
-
-        $this->assertStringContainsString('FedEx Integrator Validation Evidence Bundle', (string) $readme);
-        $this->assertStringContainsString('INCOMPLETE', (string) $readme);
-        $this->assertStringNotContainsString('child-secret', (string) $readme);
-        $this->assertSame('1.0', json_decode((string) $preflight, true)['schema_version'] ?? null);
     }
 
     public function test_live_mode_disabled_unless_production_flag_and_credentials_exist(): void

@@ -180,7 +180,7 @@ class ProjectRetentionCommandsTest extends TestCase
         });
     }
 
-    public function test_validation_temp_staging_expires_but_canonical_and_uploads_survive(): void
+    public function test_validation_temp_usps_staging_expires(): void
     {
         $this->withRetentionSandbox(function (string $root, ProjectRetentionService $service): void {
             config([
@@ -188,26 +188,10 @@ class ProjectRetentionCommandsTest extends TestCase
                 'project_retention.validation_temp_days' => 1,
             ]);
 
-            $storeId = 88001;
-            $timestamp = '20260101_120000';
-            $staging = $root."/storage/app/fedex-validation/{$storeId}/{$timestamp}/FedEx_Integrator_Validation_BaasPlatformFedExSandbox";
-            $finalZip = $root."/storage/app/fedex-validation/{$storeId}/{$timestamp}/fedex-validation-final-{$storeId}-{$timestamp}.zip";
-            $diagnosticZip = $root."/storage/app/fedex-validation/{$storeId}/{$timestamp}/fedex-validation-diagnostic-{$storeId}-{$timestamp}.zip";
-            $label = $root."/storage/app/fedex-validation/{$storeId}/labels/retention-label.pdf";
-            $upload = $root."/storage/app/fedex-validation/{$storeId}/uploads/retention-scan.pdf";
-
+            $staging = $root.'/storage/app/usps-validation/88001/staging';
             File::ensureDirectoryExists($staging);
             File::put($staging.'/README.md', 'staging');
-            File::put($finalZip, 'final');
-            File::put($diagnosticZip, 'diagnostic');
-            File::ensureDirectoryExists(dirname($label));
-            File::ensureDirectoryExists(dirname($upload));
-            File::put($label, '%PDF');
-            File::put($upload, '%PDF');
-
-            foreach ([$staging, $finalZip, $diagnosticZip] as $path) {
-                $this->makeOld($path, 5);
-            }
+            $this->makeOld($staging, 5);
             clearstatcache();
 
             $beforeEvents = CarrierApiEvent::count();
@@ -215,10 +199,6 @@ class ProjectRetentionCommandsTest extends TestCase
             $service->run(force: true, dryRun: false, categories: ['validation-temp']);
 
             $this->assertFalse(is_dir($staging));
-            $this->assertFileDoesNotExist($diagnosticZip);
-            $this->assertFileExists($finalZip);
-            $this->assertFileExists($label);
-            $this->assertFileExists($upload);
             $this->assertSame($beforeEvents, CarrierApiEvent::count());
         });
     }
@@ -231,16 +211,15 @@ class ProjectRetentionCommandsTest extends TestCase
                 'project_retention.validation_temp_days' => 0,
             ]);
 
-            $dir = $root.'/storage/app/fedex-validation/88002/20260102_120000';
+            $dir = $root.'/storage/app/usps-validation/88002/staging';
             File::ensureDirectoryExists($dir);
             File::put($dir.'/.protected', '1');
-            $diagnostic = $dir.'/fedex-validation-diagnostic-88002-20260102_120000.zip';
-            File::put($diagnostic, 'diag');
-            $this->makeOld($diagnostic, 30);
+            File::put($dir.'/scan.pdf', 'diag');
+            $this->makeOld($dir.'/scan.pdf', 30);
 
             $result = $service->run(force: true, dryRun: false, categories: ['validation-temp']);
 
-            $this->assertFileExists($diagnostic);
+            $this->assertDirectoryExists($dir);
             $this->assertSame([], $result['deleted']);
         });
     }

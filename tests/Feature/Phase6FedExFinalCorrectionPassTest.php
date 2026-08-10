@@ -40,7 +40,6 @@ class Phase6FedExFinalCorrectionPassTest extends TestCase
             'carriers.fedex.sandbox.client_secret' => 'parent-secret',
             'carriers.fedex.model_b_developer_fallback_enabled' => false,
             'carriers.fedex.developer_mode_enabled' => false,
-            'carriers.fedex.validation_mode_enabled' => false,
             'carriers.fedex.integrator_production_enabled' => false,
         ]);
     }
@@ -149,21 +148,15 @@ class Phase6FedExFinalCorrectionPassTest extends TestCase
         $this->assertStringContainsString('modelBRoutesEnabled()', $source);
     }
 
-    public function test_validation_routes_gated_by_config_method(): void
+    public function test_validation_routes_are_fully_retired(): void
     {
-        config(['carriers.fedex.validation_mode_enabled' => false]);
-        $this->assertFalse(app(FedExConfig::class)->validationRoutesEnabled());
-
-        config(['carriers.fedex.validation_mode_enabled' => true]);
-        $this->assertTrue(app(FedExConfig::class)->validationRoutesEnabled());
-
-        $source = file_get_contents(base_path('routes/carriers.php'));
-        $this->assertStringContainsString('validationRoutesEnabled()', $source);
+        $this->assertFalse(Route::has('settings.shipping.carrier-accounts.fedex.validation'));
+        $this->assertFileDoesNotExist(base_path('routes/fedex-validation.php'));
     }
 
     public function test_route_files_have_no_utf8_bom(): void
     {
-        foreach (['routes/carriers.php', 'routes/fedex-validation.php'] as $relative) {
+        foreach (['routes/carriers.php', 'routes/fedex.php'] as $relative) {
             $bytes = file_get_contents(base_path($relative), false, null, 0, 3);
             $this->assertNotSame("\xEF\xBB\xBF", $bytes, $relative.' still has BOM');
         }
@@ -177,7 +170,6 @@ class Phase6FedExFinalCorrectionPassTest extends TestCase
             'carriers.fedex.integrator_production_enabled' => false,
             'carriers.fedex.model_b_developer_fallback_enabled' => true,
             'carriers.fedex.developer_mode_enabled' => true,
-            'carriers.fedex.validation_mode_enabled' => true,
         ]);
 
         $exit = Artisan::call('fedex:production-preflight');
@@ -193,10 +185,10 @@ class Phase6FedExFinalCorrectionPassTest extends TestCase
     {
         config([
             'carriers.fedex.enabled' => true,
+            'carriers.fedex.environment' => 'live',
             'carriers.fedex.integrator_model_a_enabled' => true,
             'carriers.fedex.model_b_developer_fallback_enabled' => false,
             'carriers.fedex.developer_mode_enabled' => false,
-            'carriers.fedex.validation_mode_enabled' => false,
             'carriers.fedex.sandbox_allow_platform_fallback' => false,
             'carriers.fedex.integrator_production_enabled' => true,
             'carriers.fedex.live.base_url' => 'https://apis.fedex.com',

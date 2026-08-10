@@ -10,24 +10,19 @@ use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use App\Services\Carriers\FedEx\Auth\FedExMerchantCredentialsOAuthService;
 use App\Services\Carriers\FedEx\DTO\FedExApiEvidenceData;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Support\FedExHttpClient;
-use App\Services\Carriers\FedEx\Validation\FedExUs09EtdFixtureService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 /**
- * US09 Trade Documents Upload (image + document).
- *
- * Live multipart execution is gated behind allowLive=false by default.
+ * Production Trade Documents Upload multipart execution (commercial invoice / ETD document only).
  */
 class FedExTradeDocumentUploadService
 {
     public function __construct(
         private readonly FedExConfig $config,
-        private readonly FedExTradeDocumentUploadPayloadFactory $payloadFactory,
-        private readonly FedExUs09EtdFixtureService $us09Fixtures,
         private readonly FedExIntegratorChildOAuthService $integratorChildOAuthService,
         private readonly FedExMerchantCredentialsOAuthService $merchantOAuthService,
         private readonly CarrierApiEventLogger $eventLogger,
@@ -35,86 +30,13 @@ class FedExTradeDocumentUploadService
     ) {}
 
     /**
-     * @param  array<string, mixed>  $uploadOverrides
-     * @return array<string, mixed>
-     */
-    public function prepareImageUpload(string $role = 'letterhead', array $uploadOverrides = []): array
-    {
-        $fixture = $this->us09Fixtures->fixture('IntegratorUS09_IMAGE');
-        abort_unless(($fixture['etd_mode'] ?? '') === 'image', 422, 'Not an IntegratorUS09 image case.');
-
-        $role = strtolower($role);
-        abort_unless(in_array($role, ['letterhead', 'signature'], true), 422, 'US09 image role must be letterhead or signature.');
-
-        if ($role === 'signature') {
-            $secondary = $fixture['upload']['secondary'] ?? null;
-            abort_unless(is_array($secondary), 422, 'US09 signature image upload is not configured.');
-            $fixture['upload'] = array_merge($fixture['upload'], $secondary, ['mode' => 'image']);
-        }
-
-        if ($uploadOverrides !== []) {
-            $fixture['upload'] = array_merge($fixture['upload'], $uploadOverrides);
-        }
-
-        $built = $this->payloadFactory->buildImageUpload($fixture);
-        $upload = $fixture['upload'];
-        $scenarioKey = (string) ($upload['upload_scenario_key'] ?? (
-            $role === 'signature'
-                ? FedExUs09EtdFixtureService::UPLOAD_SCENARIO_SIGNATURE
-                : FedExUs09EtdFixtureService::UPLOAD_SCENARIO_LETTERHEAD
-        ));
-
-        return $this->packagePrepared(
-            caseKey: 'IntegratorUS09_IMAGE',
-            uploadMode: 'image',
-            scenarioKey: $scenarioKey,
-            built: $built,
-            documentType: null,
-            imageType: (string) ($upload['image_type'] ?? ''),
-            imageIndex: (string) ($upload['image_index'] ?? ''),
-            originalFilename: (string) ($built['attachment']['filename'] ?? ''),
-            mimeType: (string) ($built['attachment']['mime_type'] ?? ''),
-        );
-    }
-
-    /**
-     * @param  array<string, mixed>  $uploadOverrides
-     * @return array<string, mixed>
-     */
-    public function prepareDocumentUpload(array $uploadOverrides = []): array
-    {
-        $fixture = $this->us09Fixtures->fixture('IntegratorUS09_DOCUMENT');
-        abort_unless(($fixture['etd_mode'] ?? '') === 'document', 422, 'Not an IntegratorUS09 document case.');
-
-        if ($uploadOverrides !== []) {
-            $fixture['upload'] = array_merge($fixture['upload'], $uploadOverrides);
-        }
-
-        $built = $this->payloadFactory->buildDocumentUpload($fixture);
-        $upload = $fixture['upload'];
-
-        return $this->packagePrepared(
-            caseKey: 'IntegratorUS09_DOCUMENT',
-            uploadMode: 'document',
-            scenarioKey: (string) ($upload['upload_scenario_key'] ?? FedExUs09EtdFixtureService::UPLOAD_SCENARIO_DOCUMENT),
-            built: $built,
-            documentType: (string) ($upload['ship_document_type'] ?? ''),
-            imageType: null,
-            imageIndex: null,
-            originalFilename: (string) ($built['attachment']['filename'] ?? ''),
-            mimeType: (string) ($built['attachment']['mime_type'] ?? ''),
-        );
-    }
-
-    /**
-     * Execute a prepared multipart upload. Default allowLive=false blocks before any network I/O.
+     * Execute a prepared multipart document upload. Default allowLive=false blocks before any network I/O.
      *
      * @param  array<string, mixed>  $prepared
      * @return array{
      *   result: CarrierApiResult,
      *   event: CarrierApiEvent|null,
      *   returned_document_id: string|null,
-     *   returned_image_index: string|null,
      *   prepared: array<string, mixed>
      * }
      */
@@ -124,7 +46,7 @@ class FedExTradeDocumentUploadService
         array $prepared,
         bool $allowLive = false,
     ): array {
-        abort_unless($allowLive, 422, 'US09 Trade Documents upload is deferred until the final evidence run. Local prepare-only mode is active.');
+        abort_unless($allowLive, 422, 'Trade document upload is blocked until live execution is explicitly allowed.');
 
         $this->apiClient->assertFedExApiAccount($account);
         $account->loadMissing('store');
@@ -147,22 +69,19 @@ class FedExTradeDocumentUploadService
         $url = $host.$path;
         $scenarioKey = (string) ($prepared['scenario_key'] ?? '');
         $caseKey = (string) ($prepared['case_key'] ?? '');
-        $requestedImageIndex = (string) ($prepared['image_index'] ?? '');
         $documentJson = $prepared['document_json'] ?? null;
         $attachmentPath = (string) ($prepared['attachment_absolute_path'] ?? '');
         $filename = (string) ($prepared['original_filename'] ?? 'attachment');
         $mimeType = (string) ($prepared['mime_type'] ?? 'application/octet-stream');
 
-        abort_unless(is_array($documentJson), 422, 'Prepared US09 upload is missing document JSON.');
-        abort_unless($attachmentPath !== '' && is_file($attachmentPath), 422, 'Prepared US09 upload is missing attachment file.');
+        abort_unless(is_array($documentJson), 422, 'Prepared trade document upload is missing document JSON.');
+        abort_unless($attachmentPath !== '' && is_file($attachmentPath), 422, 'Prepared trade document upload is missing attachment file.');
 
         $requestSummary = array_merge($prepared['request_summary'] ?? [], [
             'case_key' => $caseKey,
-            'upload_mode' => $prepared['upload_mode'] ?? null,
+            'upload_mode' => 'document',
             'scenario_key' => $scenarioKey,
             'document_type' => $prepared['document_type'] ?? null,
-            'image_type' => $prepared['image_type'] ?? null,
-            'image_index' => $requestedImageIndex !== '' ? $requestedImageIndex : null,
             'original_filename' => $filename,
             'mime_type' => $mimeType,
             'size_bytes' => (int) filesize($attachmentPath),
@@ -200,7 +119,6 @@ class FedExTradeDocumentUploadService
                 'result' => $failed,
                 'event' => null,
                 'returned_document_id' => null,
-                'returned_image_index' => null,
                 'prepared' => $prepared,
             ];
         }
@@ -217,7 +135,6 @@ class FedExTradeDocumentUploadService
                 'result' => $failed,
                 'event' => null,
                 'returned_document_id' => null,
-                'returned_image_index' => null,
                 'prepared' => $prepared,
             ];
         }
@@ -230,7 +147,7 @@ class FedExTradeDocumentUploadService
             account: $account,
             requestSummary: $requestSummary,
             environment: $account->environment,
-            context: new FedExValidationEventContext(
+            context: new FedExApiEventContext(
                 scenarioKey: $scenarioKey,
                 testCaseKey: $caseKey,
             ),
@@ -262,32 +179,16 @@ class FedExTradeDocumentUploadService
             ?: $response->header('x-customer-transaction-id')
             ?: $customerTransactionId;
 
-        $returnedImageIndex = $this->extractImageIndex($responseBody);
         $returnedDocumentId = $this->extractDocumentId($responseBody);
 
-        $uploadMode = (string) ($prepared['upload_mode'] ?? '');
         $success = $response->successful();
         $errorMessage = null;
         $errorCode = null;
 
-        if ($success && $uploadMode === 'image') {
-            if ($returnedImageIndex === null || $returnedImageIndex === '') {
-                $success = false;
-                $errorCode = 'us09_image_index_missing';
-                $errorMessage = 'FedEx image upload succeeded but did not return imageIndex.';
-            } elseif ($requestedImageIndex !== '' && strtoupper($returnedImageIndex) !== strtoupper($requestedImageIndex)) {
-                $success = false;
-                $errorCode = 'us09_image_index_mismatch';
-                $errorMessage = 'FedEx returned imageIndex '.$returnedImageIndex.' but '.$requestedImageIndex.' was requested.';
-            }
-        }
-
-        if ($success && $uploadMode === 'document') {
-            if ($returnedDocumentId === null || $returnedDocumentId === '') {
-                $success = false;
-                $errorCode = 'us09_document_id_missing';
-                $errorMessage = 'FedEx document upload succeeded but did not return docId.';
-            }
+        if ($success && ($returnedDocumentId === null || $returnedDocumentId === '')) {
+            $success = false;
+            $errorCode = 'document_id_missing';
+            $errorMessage = 'FedEx document upload succeeded but did not return docId.';
         }
 
         if (! $success && $errorMessage === null) {
@@ -298,11 +199,10 @@ class FedExTradeDocumentUploadService
         $responseSummary = array_filter([
             'http_status' => $response->status(),
             'fedex_transaction_id' => $fedexTransactionId,
-            'returned_image_index' => $returnedImageIndex,
             'returned_document_id' => $returnedDocumentId !== null
                 ? '[REDACTED_ID_LAST4:'.substr($returnedDocumentId, -4).']'
                 : null,
-            'upload_mode' => $uploadMode,
+            'upload_mode' => 'document',
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         $evidence = new FedExApiEvidenceData(
@@ -333,7 +233,6 @@ class FedExTradeDocumentUploadService
         $result = $success
             ? CarrierApiResult::success(
                 data: [
-                    'returned_image_index' => $returnedImageIndex,
                     'returned_document_id_present' => $returnedDocumentId !== null,
                 ],
                 requestId: $customerTransactionId,
@@ -341,7 +240,6 @@ class FedExTradeDocumentUploadService
                 requestSummary: array_merge($requestSummary, [
                     'http_status' => $response->status(),
                     'fedex_transaction_id' => $fedexTransactionId,
-                    'returned_image_index' => $returnedImageIndex,
                     'returned_document_id' => $returnedDocumentId !== null
                         ? '[REDACTED_ID_LAST4:'.substr($returnedDocumentId, -4).']'
                         : null,
@@ -374,7 +272,6 @@ class FedExTradeDocumentUploadService
             'result' => $result,
             'event' => $completedEvent,
             'returned_document_id' => $returnedDocumentId,
-            'returned_image_index' => $returnedImageIndex,
             'prepared' => $prepared,
         ];
     }
@@ -399,11 +296,6 @@ class FedExTradeDocumentUploadService
         ])->save();
     }
 
-    public function imageUploadPath(): string
-    {
-        return $this->config->tradeDocumentsUploadImagePath();
-    }
-
     public function documentUploadPath(): string
     {
         return $this->config->tradeDocumentsUploadDocumentPath();
@@ -415,85 +307,10 @@ class FedExTradeDocumentUploadService
     }
 
     /**
-     * @param  array<string, mixed>  $built
-     * @return array<string, mixed>
-     */
-    private function packagePrepared(
-        string $caseKey,
-        string $uploadMode,
-        string $scenarioKey,
-        array $built,
-        ?string $documentType,
-        ?string $imageType,
-        ?string $imageIndex,
-        string $originalFilename,
-        string $mimeType,
-    ): array {
-        $path = (string) $built['endpoint_path'];
-        $host = $this->documentApiSandboxBaseUrl();
-
-        $summary = array_filter([
-            'case_key' => $caseKey,
-            'upload_mode' => $uploadMode,
-            'scenario_key' => $scenarioKey,
-            'document_type' => $documentType,
-            'image_type' => $imageType,
-            'image_index' => $imageIndex,
-            'original_filename' => $originalFilename,
-            'mime_type' => $mimeType,
-            'endpoint_host' => $host,
-            'endpoint_path' => $path,
-            'content_type' => (string) $built['content_type'],
-            'field_order' => ['document', 'attachment'],
-            'size_bytes' => (int) ($built['attachment']['size_bytes'] ?? 0),
-        ], static fn (mixed $value): bool => $value !== null && $value !== '');
-
-        return [
-            'case_key' => $caseKey,
-            'upload_mode' => $uploadMode,
-            'scenario_key' => $scenarioKey,
-            'endpoint_host' => $host,
-            'endpoint_path' => $path,
-            'content_type' => (string) $built['content_type'],
-            'document_type' => $documentType,
-            'image_type' => $imageType,
-            'image_index' => $imageIndex,
-            'original_filename' => $originalFilename,
-            'mime_type' => $mimeType,
-            'document_json' => $built['document_json'],
-            'attachment_absolute_path' => (string) ($built['attachment']['absolute_path'] ?? ''),
-            'redacted_multipart' => $built['redacted_multipart'],
-            'request_summary' => $summary,
-        ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $body
-     */
-    private function extractImageIndex(array $body): ?string
-    {
-        $candidates = [
-            data_get($body, 'output.meta.imageIndex'),
-            data_get($body, 'meta.imageIndex'),
-            data_get($body, 'output.imageIndex'),
-            data_get($body, 'imageIndex'),
-        ];
-
-        foreach ($candidates as $candidate) {
-            if (filled($candidate)) {
-                return (string) $candidate;
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * @param  array<string, mixed>  $body
      */
     private function extractDocumentId(array $body): ?string
     {
-        // FedEx Trade Documents Upload commonly returns docId under output.meta.docId (HTTP 200/201).
         $candidates = [
             data_get($body, 'output.meta.docId'),
             data_get($body, 'meta.docId'),
@@ -524,7 +341,7 @@ class FedExTradeDocumentUploadService
     {
         $redacted = $body;
 
-        foreach (['docId', 'documentId', 'imageId'] as $key) {
+        foreach (['docId', 'documentId'] as $key) {
             if (isset($redacted[$key]) && is_string($redacted[$key])) {
                 $redacted[$key] = '[REDACTED]';
             }

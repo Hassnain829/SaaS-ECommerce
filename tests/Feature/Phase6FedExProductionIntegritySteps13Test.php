@@ -352,7 +352,6 @@ class Phase6FedExProductionIntegritySteps13Test extends TestCase
             'carriers.fedex.live.client_secret' => 'live-client-secret',
             'carriers.fedex.live.base_url' => 'https://apis.fedex.com',
             'carriers.fedex.model_b_developer_fallback_enabled' => false,
-            'carriers.fedex.validation_mode_enabled' => false,
             'carriers.fedex.sandbox_allow_platform_fallback' => false,
             'carriers.fedex.live_allowed_countries' => 'US,CA',
             'carriers.fedex.mfa_pin_generation_path' => '/registration/v2/customerauthentication/pin/generation',

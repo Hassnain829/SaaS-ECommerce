@@ -10,8 +10,12 @@ final class ProjectCleanupService
 {
     /** @var list<string> */
     public const PROTECTED_RELATIVE_PATHS = [
-        'storage/app/fedex-validation',
         'storage/app/usps-validation',
+    ];
+
+    /** Temporary leftover FedEx diagnostic extract dirs — cleanup-safe. */
+    public const CLEANUP_SAFE_GLOB_PATTERNS = [
+        'storage/app/tmp-fedex-diagnostic-*',
     ];
 
     /** @var list<string> */
@@ -29,7 +33,6 @@ final class ProjectCleanupService
         'storage/framework/sessions/.gitignore',
         'storage/framework/views/.gitignore',
         'storage/app/.gitignore',
-        'storage/app/fedex-validation/.gitignore',
         'storage/app/usps-validation/.gitignore',
         'storage/app/source-archives/.gitignore',
     ];
@@ -221,19 +224,6 @@ final class ProjectCleanupService
         $root = $this->paths->projectRoot();
         $targets = [];
 
-        $stagingPattern = $root.'/storage/app/fedex-validation/*/*/FedEx_Integrator_Validation_BaasPlatformFedExSandbox';
-        foreach (glob($stagingPattern, GLOB_ONLYDIR) ?: [] as $directory) {
-            if ($this->isProtectedPath($directory) || $this->directoryContainsProtectedEntries($directory)) {
-                continue;
-            }
-
-            $targets[] = [
-                'path' => $directory,
-                'category' => 'carrier-validation',
-                'reason' => 'Temporary FedEx validation bundle staging directory',
-            ];
-        }
-
         $uspsStaging = $root.'/storage/app/usps-validation/**/staging';
         foreach (glob(str_replace('/**/', '/*/', $uspsStaging), GLOB_ONLYDIR) ?: [] as $directory) {
             if ($this->directoryContainsProtectedEntries($directory)) {
@@ -244,6 +234,14 @@ final class ProjectCleanupService
                 'path' => $directory,
                 'category' => 'carrier-validation',
                 'reason' => 'Temporary USPS validation staging directory',
+            ];
+        }
+
+        foreach (glob($root.'/storage/app/tmp-fedex-diagnostic-*', GLOB_ONLYDIR) ?: [] as $directory) {
+            $targets[] = [
+                'path' => $directory,
+                'category' => 'carrier-validation',
+                'reason' => 'Temporary FedEx diagnostic extraction directory',
             ];
         }
 

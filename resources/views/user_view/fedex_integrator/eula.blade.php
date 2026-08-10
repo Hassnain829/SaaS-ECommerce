@@ -143,11 +143,7 @@
         <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm fedex-eula-print-area">
             <div class="fedex-eula-no-print">
                 <h2 class="text-xl font-semibold text-[#0F172A]">
-                    @if ($validationEulaReview ?? false)
-                        FedEx validation — Hosted End User License Agreement
-                    @else
-                        Step 2 — FedEx End User License Agreement
-                    @endif
+                    Step 2 — FedEx End User License Agreement
                 </h2>
             </div>
 

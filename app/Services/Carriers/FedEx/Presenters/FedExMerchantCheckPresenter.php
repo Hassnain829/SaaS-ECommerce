@@ -3,7 +3,7 @@
 namespace App\Services\Carriers\FedEx\Presenters;
 
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
-use App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService;
+use App\Services\Carriers\FedEx\Support\Branding\FedExBrandComplianceService;
 
 final class FedExMerchantCheckPresenter
 {
@@ -57,7 +57,7 @@ final class FedExMerchantCheckPresenter
         $ignoredCountryCodes = self::collectIgnoredCountryCodes($ignored);
 
         if ($ignored !== []) {
-            $warnings[] = 'FedEx returned a suggestion outside the requested country; ignored for validation evidence.';
+            $warnings[] = 'FedEx returned a suggestion outside the requested country; ignored.';
         }
 
         if ($resolved === [] && $ignored !== []) {
@@ -626,40 +626,6 @@ final class FedExMerchantCheckPresenter
             'tracking_samples' => self::dedupeStrings($trackingSamples),
             'label_document_types' => self::dedupeStrings($labelFormats),
             'label_payload_redacted' => true,
-        ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $fixture
-     * @return array<string, mixed>
-     */
-    public static function shipValidation(CarrierApiResult $result, array $fixture, string $testCaseKey): array
-    {
-        return [
-            'test_case' => $testCaseKey,
-            'test_case_label' => $fixture['label'] ?? $testCaseKey,
-            'service_type' => $fixture['service_type'] ?? null,
-            'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
-            'validated' => $result->success,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    public static function shipLabel(
-        CarrierApiResult $result,
-        ?\App\Models\FedExValidationArtifact $artifact,
-        string $testCaseKey,
-        string $labelFormat,
-    ): array {
-        return [
-            'test_case' => $testCaseKey,
-            'label_format' => strtoupper($labelFormat),
-            'authorization_blocked' => $result->errorCode === 'fedex_authorization_blocked',
-            'label_saved' => $artifact !== null,
-            'artifact_label' => $artifact?->label,
-            'artifact_type' => $artifact?->artifact_type,
         ];
     }
 

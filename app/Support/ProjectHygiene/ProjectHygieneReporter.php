@@ -37,7 +37,6 @@ final class ProjectHygieneReporter
             'storage_logs' => $root.'/storage/logs',
             'storage_framework_cache' => $root.'/storage/framework/cache',
             'storage_framework_views' => $root.'/storage/framework/views',
-            'fedex_validation' => $root.'/storage/app/fedex-validation',
             'usps_validation' => $root.'/storage/app/usps-validation',
             'bootstrap_cache' => $root.'/bootstrap/cache',
             'phpunit_cache' => $root.'/.phpunit.cache',

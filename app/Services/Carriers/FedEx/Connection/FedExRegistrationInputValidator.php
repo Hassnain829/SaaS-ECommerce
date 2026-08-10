@@ -4,7 +4,6 @@ namespace App\Services\Carriers\FedEx\Connection;
 
 use App\Models\CarrierAccount;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
-use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Support\CarrierCountryOptions;
 use Illuminate\Validation\ValidationException;
 
@@ -18,17 +17,15 @@ class FedExRegistrationInputValidator
         'UNITED STATES',
         'UNITED STATES OF AMERICA',
         'CANADA',
-        'SWEDEN',
     ];
 
     public function __construct(
         private readonly CarrierOriginReadinessService $originReadiness,
-        private readonly FedExConfig $fedExConfig,
     ) {}
 
     /**
      * @param  array<string, mixed>  $input
-     * @param  array{environment?: string, validation_mode?: bool}  $context
+     * @param  array{environment?: string}  $context
      * @return array{normalized: array<string, mixed>, errors: array<string, string>}
      */
     public function validate(array $input, array $context = []): array
@@ -36,9 +33,6 @@ class FedExRegistrationInputValidator
         $errors = [];
         $normalized = $input;
         $environment = strtolower((string) ($context['environment'] ?? CarrierAccount::ENVIRONMENT_SANDBOX));
-        $validationMode = array_key_exists('validation_mode', $context)
-            ? (bool) $context['validation_mode']
-            : $this->fedExConfig->validationModeEnabled();
 
         $accountNumber = preg_replace('/\D+/', '', (string) ($input['provider_account_number'] ?? '')) ?? '';
         if ($accountNumber === '' || strlen($accountNumber) !== 9) {
@@ -49,7 +43,6 @@ class FedExRegistrationInputValidator
         $country = $this->resolveCountryCode(
             $input['country_code'] ?? null,
             $environment,
-            $validationMode,
             $errors
         );
         if ($country !== null) {
@@ -135,7 +128,7 @@ class FedExRegistrationInputValidator
 
     /**
      * @param  array<string, mixed>  $input
-     * @param  array{environment?: string, validation_mode?: bool}  $context
+     * @param  array{environment?: string}  $context
      * @return array<string, mixed>
      */
     public function validateOrFail(array $input, array $context = []): array
@@ -155,7 +148,6 @@ class FedExRegistrationInputValidator
     private function resolveCountryCode(
         mixed $value,
         string $environment,
-        bool $validationMode,
         array &$errors,
     ): ?string {
         $raw = strtoupper(trim(str_replace('.', '', (string) ($value ?? ''))));
@@ -175,12 +167,8 @@ class FedExRegistrationInputValidator
         $normalized = $this->originReadiness->normalizeCountryCode($raw);
 
         if ($normalized === null
-            || ! CarrierCountryOptions::isAllowedFedExRegistrationCountry($normalized, $environment, $validationMode)) {
-            if ($normalized === 'SE' && ($environment === CarrierAccount::ENVIRONMENT_LIVE || ! $validationMode)) {
-                $errors['country_code'] = 'Sweden is supported for FedEx sandbox validation only.';
-            } else {
-                $errors['country_code'] = 'Choose United States or Canada as the FedEx account country.';
-            }
+            || ! CarrierCountryOptions::isAllowedFedExRegistrationCountry($normalized, $environment)) {
+            $errors['country_code'] = 'Choose United States or Canada as the FedEx account country.';
 
             return null;
         }

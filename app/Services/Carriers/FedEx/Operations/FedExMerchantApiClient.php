@@ -9,7 +9,7 @@ use App\Services\Carriers\Core\CarrierApiEventLogger;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use App\Services\Carriers\FedEx\Auth\FedExMerchantCredentialsOAuthService;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Support\FedExHttpClient;
 
@@ -70,7 +70,7 @@ class FedExMerchantApiClient
         string $path,
         array $payload,
         array $requestSummary,
-        ?FedExValidationEventContext $context = null,
+        ?FedExApiEventContext $context = null,
         array $headers = [],
         ?string $customerTransactionId = null,
     ): CarrierApiResult {
@@ -100,7 +100,7 @@ class FedExMerchantApiClient
         string $path,
         array $payload,
         array $requestSummary,
-        ?FedExValidationEventContext $context = null,
+        ?FedExApiEventContext $context = null,
         array $headers = [],
         ?string $customerTransactionId = null,
     ): CarrierApiResult {
@@ -131,7 +131,7 @@ class FedExMerchantApiClient
         string $path,
         array $payload,
         array $requestSummary,
-        ?FedExValidationEventContext $context = null,
+        ?FedExApiEventContext $context = null,
         array $headers = [],
         ?string $customerTransactionId = null,
     ): CarrierApiResult {

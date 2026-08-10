@@ -7,7 +7,7 @@ use App\Models\CarrierApiEvent;
 use App\Models\Store;
 use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExAuthorizationClassifier;
-use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
+use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Presenters\FedExMerchantCheckPresenter;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 
@@ -66,7 +66,7 @@ class FedExBasicIntegratedVisibilityService
                 path: $endpoint,
                 payload: $payload,
                 requestSummary: $requestSummary,
-                context: new FedExValidationEventContext(scenarioKey: 'basic_integrated_visibility'),
+                context: new FedExApiEventContext(scenarioKey: 'basic_integrated_visibility'),
             ),
             $endpoint,
         );

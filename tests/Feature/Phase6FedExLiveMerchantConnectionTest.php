@@ -43,7 +43,7 @@ class Phase6FedExLiveMerchantConnectionTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.shipping.fedex-integrator.manage', $account))
             ->assertOk()
-            ->assertSeeText('Manage FedEx connection')
+            ->assertSeeText('FedEx Center')
             ->assertSeeText($account->maskedAccountNumber())
             ->assertSeeText('Verify connection')
             ->assertSeeText('Reconnect FedEx')

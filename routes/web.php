@@ -520,6 +520,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin-security', [AdminController::class, 'admin_settings_security'])->name('admin-security');
     Route::get('/admin-notifications', [AdminController::class, 'admin_settings_notifications'])->name('admin-notifications');
     Route::get('/admin-profile', [AdminController::class, 'admin_profile'])->name('admin-profile');
-    Route::get('/admin-fedex-diagnostics', [\App\Http\Controllers\Admin\FedExAdminDiagnosticsController::class, 'index'])
+    Route::get('/admin-fedex', [\App\Http\Controllers\Admin\FedExAdminDiagnosticsController::class, 'index'])
+        ->name('admin.fedex.index');
+    Route::get('/admin-fedex-diagnostics', [\App\Http\Controllers\Admin\FedExAdminDiagnosticsController::class, 'diagnosticsRedirect'])
         ->name('admin.fedex.diagnostics');
 });

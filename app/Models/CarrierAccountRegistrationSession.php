@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CarrierAccountRegistrationSession extends Model
 {
@@ -55,8 +54,6 @@ class CarrierAccountRegistrationSession extends Model
     public const MFA_NONE = 'none';
 
     public const PURPOSE_CONNECTION = 'connection';
-
-    public const PURPOSE_VALIDATION_EULA = 'validation_eula';
 
     protected $fillable = [
         'store_id',
@@ -152,11 +149,6 @@ class CarrierAccountRegistrationSession extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function validationArtifacts(): HasMany
-    {
-        return $this->hasMany(FedExValidationArtifact::class, 'registration_session_id');
     }
 
     public function isActive(): bool

@@ -48,8 +48,6 @@ storage/framework/sessions/.gitignore -export-ignore
 storage/framework/views/* export-ignore
 storage/framework/views/.gitignore -export-ignore
 
-storage/app/fedex-validation/** export-ignore
-storage/app/fedex-validation/.gitignore -export-ignore
 
 storage/app/usps-validation/** export-ignore
 storage/app/usps-validation/.gitignore -export-ignore

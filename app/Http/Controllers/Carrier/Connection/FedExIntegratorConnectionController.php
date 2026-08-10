@@ -12,8 +12,6 @@ use App\Services\Carriers\FedEx\Connection\FedExEulaService;
 use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
 use App\Services\Carriers\FedEx\Connection\FedExMerchantConnectionLifecycleService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
-use App\Services\Carriers\FedEx\Validation\FedExTestCaseFixtureService;
-use App\Services\Carriers\FedEx\Validation\FedExValidationEvidenceExporter;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -120,7 +118,6 @@ class FedExIntegratorConnectionController extends Controller
                 && filled($session->eula_document_hash)
                 && $documentHash !== null
                 && hash_equals($documentHash, (string) $session->eula_document_hash),
-            'validationEulaReview' => $session->purpose === CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA,
             'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
         ]);
     }
@@ -202,25 +199,16 @@ class FedExIntegratorConnectionController extends Controller
             'accepted_by_user_id' => $request->user()?->id,
         ]);
 
-        if ($session->purpose === CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA
-            && $session->carrierAccount !== null) {
-            return redirect()
-                ->route('settings.shipping.carrier-accounts.fedex.validation', $session->carrierAccount)
-                ->with('success', 'FedEx End User License Agreement accepted for this validation account.');
-        }
-
         return redirect()->route('settings.shipping.fedex-integrator.account', $session);
     }
 
-    public function showAccount(Request $request, CarrierAccountRegistrationSession $session, FedExConfig $config, FedExTestCaseFixtureService $fixtures): View
+    public function showAccount(Request $request, CarrierAccountRegistrationSession $session): View
     {
         $this->resolveSessionForStore($request, $session);
 
         return view('user_view.fedex_integrator.account', [
             'selectedStore' => $session->store,
             'session' => $session,
-            'validationPrefill' => $config->validationModeEnabled() ? $fixtures->usValidationAccount() : null,
-            'validationModeEnabled' => $config->validationModeEnabled(),
             'countryOptions' => \App\Support\CarrierCountryOptions::fedExOptionsForContext($session->environment),
             'defaultCountry' => \App\Support\CarrierCountryOptions::defaultFedExCountry(
                 $session->originLocation?->country_code
@@ -911,38 +899,9 @@ class FedExIntegratorConnectionController extends Controller
 
         $orchestrator->cancel($session);
 
-        if ($session->purpose === CarrierAccountRegistrationSession::PURPOSE_VALIDATION_EULA
-            && $session->carrierAccount !== null) {
-            return redirect()
-                ->route('settings.shipping.carrier-accounts.fedex.validation', $session->carrierAccount)
-                ->with('success', 'FedEx EULA review was cancelled.');
-        }
-
         return redirect()
             ->route('shippingAutomation', ['tab' => 'carriers'])
             ->with('success', 'FedEx connection setup was cancelled.');
-    }
-
-    public function exportValidation(
-        Request $request,
-        CarrierAccount $carrierAccount,
-        FedExValidationEvidenceExporter $exporter,
-        FedExConfig $config,
-    ): BinaryFileResponse {
-        $store = $this->resolveStore($request);
-        abort_unless((int) $carrierAccount->store_id === (int) $store->id, 404);
-        abort_unless($carrierAccount->isFedEx(), 404);
-        abort_unless($config->validationModeEnabled(), 403);
-
-        $zipPath = $exporter->export(
-            store: $store,
-            account: $carrierAccount,
-            session: $carrierAccount->latestRegistrationSession,
-            region: (string) $request->query('region', 'US'),
-            environment: $carrierAccount->environment,
-        );
-
-        return response()->download($zipPath, basename($zipPath));
     }
 
     private function resolveStore(Request $request): \App\Models\Store
