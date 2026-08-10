@@ -8,6 +8,8 @@ use App\Models\Order;
 use App\Models\OrderReturn;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog;
+use App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver;
 use App\Services\Delivery\StoreShippingPreferences;
 use App\Support\ReturnLifecycle;
 use Illuminate\Validation\ValidationException;
@@ -21,6 +23,8 @@ final class FedExReturnLabelService
     public function __construct(
         private readonly FedExShipmentPurchaseService $purchaseService,
         private readonly StoreShippingPreferences $shippingPreferences,
+        private readonly FedExServiceAvailabilityService $serviceAvailability,
+        private readonly FedExHandoffTypeResolver $handoffTypeResolver,
     ) {}
 
     /**
@@ -41,6 +45,18 @@ final class FedExReturnLabelService
         $input['return_shipment'] = true;
         $input['items'] = $this->resolveReturnItems($orderReturn, $input);
         $input['packages'] = $this->resolvePackages($store, $input);
+        $input['pickup_type'] = $this->handoffTypeResolver->resolve(
+            $store,
+            isset($input['pickup_type']) ? (string) $input['pickup_type'] : null,
+        );
+        $input['service_type'] = $this->resolveReturnServiceType(
+            store: $store,
+            order: $order,
+            account: $account,
+            origin: $origin,
+            requestedServiceType: isset($input['service_type']) ? (string) $input['service_type'] : null,
+            pickupType: (string) $input['pickup_type'],
+        );
 
         $outcome = $this->purchaseService->purchase(
             store: $store,
@@ -61,7 +77,91 @@ final class FedExReturnLabelService
             ])->save();
         }
 
+        if (($outcome['state'] ?? null) === FedExShipmentPurchaseService::STATE_SUCCEEDED) {
+            $outcome['resolved_service_type'] = $input['service_type'];
+            $outcome['resolved_service_name'] = FedExCheckoutServiceCatalog::nameFor((string) $input['service_type']);
+        }
+
         return $outcome;
+    }
+
+    /**
+     * Prefer merchant selection when available; otherwise platform default.
+     * Validates against Service Availability in the actual return direction:
+     * customer (origin) → merchant warehouse (destination).
+     */
+    private function resolveReturnServiceType(
+        Store $store,
+        Order $order,
+        CarrierAccount $account,
+        Location $origin,
+        ?string $requestedServiceType,
+        ?string $pickupType = null,
+    ): string {
+        $requested = strtoupper(trim((string) $requestedServiceType));
+        $default = FedExCheckoutServiceCatalog::defaultReturnServiceCode();
+        $candidate = $requested !== '' ? $requested : $default;
+
+        $shipping = $order->addresses->firstWhere('type', 'shipping') ?? $order->addresses->first();
+        if (! $shipping) {
+            return $candidate;
+        }
+
+        // Return Ship swaps parties: customer ships to merchant warehouse.
+        $customerOrigin = [
+            'country_code' => $shipping->country_code ?? 'US',
+            'postal_code' => $shipping->postal_code,
+            'state' => $shipping->province_code ?: $shipping->state,
+            'city' => $shipping->city,
+        ];
+        $merchantDestination = [
+            'country_code' => $origin->country_code ?? 'US',
+            'postal_code' => $origin->postal_code,
+            'state' => $origin->state,
+            'city' => $origin->city,
+        ];
+
+        try {
+            $outcome = $this->serviceAvailability->checkAvailability(
+                store: $store,
+                account: $account,
+                originLocation: $origin,
+                destinationInput: $merchantDestination,
+                packagingType: 'YOUR_PACKAGING',
+                enforceProductionGuard: true,
+                pickupType: $pickupType,
+                originAddressOverride: $customerOrigin,
+            );
+        } catch (\Throwable) {
+            return $candidate;
+        }
+
+        if (! ($outcome['result']->success ?? false)) {
+            return $candidate;
+        }
+
+        $available = array_map('strtoupper', $outcome['service_types'] ?? []);
+        if ($available === []) {
+            return $candidate;
+        }
+
+        if (in_array($candidate, $available, true)) {
+            return $candidate;
+        }
+
+        if (in_array($default, $available, true)) {
+            return $default;
+        }
+
+        foreach (FedExCheckoutServiceCatalog::codes() as $code) {
+            if (in_array($code, $available, true)) {
+                return $code;
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'service_type' => 'FedEx does not currently offer a supported return service for this route. Try again later or contact support.',
+        ]);
     }
 
     /**
@@ -245,7 +345,7 @@ final class FedExReturnLabelService
         }
 
         throw ValidationException::withMessages([
-            'packages' => 'Enter package weight and dimensions, or set a default package under Shipping settings.',
+            'packages' => 'Choose a package before requesting FedEx rates, or set a default package under Shipping settings.',
         ]);
     }
 

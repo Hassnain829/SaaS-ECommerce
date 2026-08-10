@@ -29,7 +29,14 @@
     $shippingAddress = $order->addresses->firstWhere('type', 'shipping') ?? $order->addresses->first();
     $recipientPhonePrefill = old('recipient_phone', $shippingAddress->phone ?? '');
     $routedOriginLocationId = (int) data_get($order->meta ?? [], 'fulfillment_routing.origin_location_id', 0);
-    $selectedOriginId = (int) old('origin_location_id', $routedOriginLocationId ?: 0);
+    $ratedOriginLocationId = 0;
+    if (is_array($rateQuotes) && (int) ($rateQuotes['order_id'] ?? 0) === (int) $order->id) {
+        $ratedOriginLocationId = (int) ($rateQuotes['origin_location_id'] ?? 0);
+    }
+    $selectedOriginId = (int) old(
+        'origin_location_id',
+        $ratedOriginLocationId ?: ($routedOriginLocationId ?: 0)
+    );
     $selectedOrigin = collect($fulfillmentLocations ?? [])->firstWhere('id', $selectedOriginId)
         ?? collect($fulfillmentLocations ?? [])->firstWhere('is_default', true)
         ?? collect($fulfillmentLocations ?? [])->first();
@@ -53,6 +60,7 @@
         || $errors->has('items')
         || $errors->has('package_source')
         || $errors->has('weight');
+    // After rates exist, prefer the rated/bound warehouse so Customs & documents match the quote.
     $originCountry = strtoupper((string) ($selectedOrigin->country_code ?? 'US'));
     $destinationCountry = strtoupper((string) ($shippingAddress->country_code ?? ''));
     $needsCustoms = $originCountry !== '' && $destinationCountry !== '' && $originCountry !== $destinationCountry;
@@ -484,10 +492,15 @@
                                 @enderror
 
                                 @if ($needsCustoms)
-                                    <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                                        <p class="text-xs font-semibold text-amber-950">Customs ({{ $originCountry }} → {{ $destinationCountry }})</p>
-                                        <p class="mt-1 text-[11px] leading-4 text-amber-800">Customs details apply to the items selected above when you buy the label.</p>
-                                        <div class="mt-2 space-y-2" data-fedex-buy-customs>
+                                    <div class="mt-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                        <div>
+                                            <p class="text-xs font-semibold text-amber-950">Customs &amp; documents</p>
+                                            <p class="mt-1 text-[11px] leading-4 text-amber-800">
+                                                This shipment crosses an international border ({{ $originCountry }} → {{ $destinationCountry }}). Complete the customs information required for FedEx.
+                                            </p>
+                                        </div>
+
+                                        <div class="space-y-2" data-fedex-buy-customs>
                                             @foreach ($order->items as $itemIndex => $item)
                                                 @php $remainingQty = (int) ($remainingFulfillmentQuantities[$item->id] ?? $item->quantity); @endphp
                                                 @if ($remainingQty > 0)
@@ -495,7 +508,7 @@
                                                         <p class="text-xs font-medium text-[#0F172A]">{{ $item->product_name ?? ('Item #'.$item->id) }}</p>
                                                         <input type="hidden" name="customs_clearance[commodities][{{ $itemIndex }}][order_item_id]" value="{{ $item->id }}">
                                                         <input type="hidden" name="customs_clearance[commodities][{{ $itemIndex }}][quantity]" value="{{ old('customs_clearance.commodities.'.$itemIndex.'.quantity', old('items.'.$itemIndex.'.quantity', $remainingQty)) }}" data-buy-customs-qty data-item-index="{{ $itemIndex }}">
-                                                        <label class="mt-1 block text-[11px] font-semibold text-amber-900">Customs description</label>
+                                                        <label class="mt-1 block text-[11px] font-semibold text-amber-900">Description</label>
                                                         <input type="text" name="customs_clearance[commodities][{{ $itemIndex }}][description]" value="{{ old('customs_clearance.commodities.'.$itemIndex.'.description', $item->product_name) }}" maxlength="450" class="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-sm">
                                                         <div class="mt-1 grid grid-cols-2 gap-2">
                                                             <div>
@@ -523,7 +536,8 @@
                                                 @endif
                                             @endforeach
                                         </div>
-                                        <div class="mt-2 grid grid-cols-2 gap-2">
+
+                                        <div class="grid grid-cols-2 gap-2">
                                             <div>
                                                 <label class="block text-[11px] font-semibold text-amber-900">Duties payer</label>
                                                 <select name="customs_clearance[duties_payment_type]" class="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-sm">
@@ -538,21 +552,42 @@
                                                 <input type="hidden" name="customs_clearance[total_customs_value][currency]" value="{{ old('customs_clearance.total_customs_value.currency', $order->currency_code ?: 'USD') }}">
                                             </div>
                                         </div>
-                                    </div>
-                                @endif
 
-                                @if (! empty($fedExTradeDocuments) && count($fedExTradeDocuments))
-                                    <label class="mt-3 block text-xs font-semibold text-[#64748B]">Trade document (international)</label>
-                                    <select name="fedex_trade_document_id" class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2.5 py-2 text-sm">
-                                        <option value="">None</option>
-                                        @foreach ($fedExTradeDocuments as $doc)
-                                            @if ($doc->status === 'uploaded' && filled($doc->fedex_document_id))
-                                                <option value="{{ $doc->id }}" @selected((string) old('fedex_trade_document_id') === (string) $doc->id)>
-                                                    {{ str($doc->document_type)->replace('_', ' ')->title() }} · {{ $doc->destination_country_code }}
-                                                </option>
+                                        <div>
+                                            <label class="block text-[11px] font-semibold text-amber-900">Reason for export</label>
+                                            <select name="customs_clearance[commercial_invoice][shipment_purpose]" class="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-sm">
+                                                @php $exportPurpose = old('customs_clearance.commercial_invoice.shipment_purpose', 'SOLD'); @endphp
+                                                <option value="SOLD" @selected($exportPurpose === 'SOLD')>Sold</option>
+                                                <option value="GIFT" @selected($exportPurpose === 'GIFT')>Gift</option>
+                                                <option value="SAMPLE" @selected($exportPurpose === 'SAMPLE')>Sample</option>
+                                                <option value="RETURN_AND_REPAIR" @selected($exportPurpose === 'RETURN_AND_REPAIR')>Return / repair</option>
+                                                <option value="NOT_SOLD" @selected($exportPurpose === 'NOT_SOLD')>Not sold</option>
+                                            </select>
+                                        </div>
+
+                                        @php
+                                            $readyTradeDocs = collect($fedExTradeDocuments ?? [])
+                                                ->filter(fn ($doc) => $doc->status === 'uploaded' && filled($doc->fedex_document_id));
+                                            $selectedTradeDocId = (string) old('fedex_trade_document_id', session('fedex_trade_document_id', ''));
+                                        @endphp
+                                        <div class="rounded-lg border border-amber-200 bg-white p-2">
+                                            <p class="text-xs font-semibold text-amber-950">Commercial Invoice</p>
+                                            <p class="mt-1 text-[11px] leading-4 text-amber-800">Upload or attach the customs document before buying the label.</p>
+                                            @if ($readyTradeDocs->isNotEmpty())
+                                                <label class="mt-2 block text-[11px] font-semibold text-amber-900">Attach uploaded document</label>
+                                                <select name="fedex_trade_document_id" class="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-sm">
+                                                    <option value="">None</option>
+                                                    @foreach ($readyTradeDocs as $doc)
+                                                        <option value="{{ $doc->id }}" @selected($selectedTradeDocId === (string) $doc->id)>
+                                                            {{ str($doc->document_type)->replace('_', ' ')->title() }} · Ready ✓
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            @else
+                                                <p class="mt-2 text-[11px] text-amber-800">No commercial invoice uploaded yet. Use the upload form below, then buy the label.</p>
                                             @endif
-                                        @endforeach
-                                    </select>
+                                        </div>
+                                    </div>
                                 @endif
 
                                 <div class="mt-3 grid gap-3 sm:grid-cols-2">
@@ -715,13 +750,17 @@
             </div>
         @endif
 
-        @if ($opsShipLabelsEnabled)
+        @if ($opsShipLabelsEnabled && $needsCustoms)
             <div class="mt-4 grid gap-3 lg:grid-cols-2">
                 <form method="POST" action="{{ route('orders.fedex.etd.upload', $order) }}" enctype="multipart/form-data" class="rounded-xl border border-[#E2E8F0] bg-white p-4">
                     @csrf
                     <input type="hidden" name="carrier_account_id" value="{{ $fedExAccount->id }}">
-                    <p class="text-sm font-semibold text-[#0F172A]">Customs / trade document</p>
-                    <p class="mt-1 text-xs leading-5 text-[#64748B]">Upload a commercial invoice PDF for international electronic trade documents. Destination country is required.</p>
+                    <input type="hidden" name="origin_country_code" value="{{ $originCountry ?: 'US' }}">
+                    <input type="hidden" name="destination_country_code" value="{{ $destinationCountry }}">
+                    <p class="text-sm font-semibold text-[#0F172A]">Upload customs document</p>
+                    <p class="mt-1 text-xs leading-5 text-[#64748B]">
+                        Upload a commercial invoice PDF for this international shipment ({{ $originCountry }} → {{ $destinationCountry }}).
+                    </p>
                     @error('fedex_etd')
                         <p class="mt-2 text-xs text-red-700">{{ $message }}</p>
                     @enderror
@@ -731,18 +770,8 @@
                     @error('destination_country_code')
                         <p class="mt-2 text-xs text-red-700">{{ $message }}</p>
                     @enderror
-                    <label class="mt-2 block text-xs font-semibold text-[#64748B]">PDF document</label>
+                    <label class="mt-2 block text-xs font-semibold text-[#64748B]">Commercial Invoice (PDF)</label>
                     <input type="file" name="document" accept="application/pdf,.pdf" required class="mt-1 w-full text-sm">
-                    <div class="mt-2 grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="block text-xs font-semibold text-[#64748B]">Origin</label>
-                            <input type="text" name="origin_country_code" maxlength="2" value="{{ old('origin_country_code', $originCountry ?: 'US') }}" class="mt-1 w-full rounded-lg border border-stone-200 px-2.5 py-2 text-sm uppercase" placeholder="US">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-[#64748B]">Destination</label>
-                            <input type="text" name="destination_country_code" maxlength="2" value="{{ old('destination_country_code', $destinationCountry) }}" required class="mt-1 w-full rounded-lg border border-stone-200 px-2.5 py-2 text-sm uppercase" placeholder="CA">
-                        </div>
-                    </div>
                     @if ($orderFedExShipments->isNotEmpty())
                         <label class="mt-2 block text-xs font-semibold text-[#64748B]">Link to shipment (optional)</label>
                         <select name="shipment_id" class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2.5 py-2 text-sm">
@@ -752,25 +781,28 @@
                             @endforeach
                         </select>
                     @endif
-                    <button type="submit" class="mt-3 inline-flex h-9 items-center rounded-lg border border-[#E2E8F0] bg-white px-3 text-xs font-semibold text-[#334155]">Upload trade document</button>
+                    <button type="submit" class="mt-3 inline-flex h-9 items-center rounded-lg border border-[#E2E8F0] bg-white px-3 text-xs font-semibold text-[#334155]">Upload document</button>
                 </form>
 
                 <div class="rounded-xl border border-[#E2E8F0] bg-white p-4">
-                    <p class="text-sm font-semibold text-[#0F172A]">Trade documents and API status</p>
+                    <p class="text-sm font-semibold text-[#0F172A]">Customs documents</p>
                     <ul class="mt-3 space-y-2 text-sm">
                         @forelse (($fedExTradeDocuments ?? collect()) as $doc)
                             <li class="rounded-lg border border-[#F1F5F9] px-3 py-2">
                                 <span class="font-medium text-[#0F172A]">{{ str($doc->document_type)->replace('_', ' ')->title() }}</span>
-                                <span class="ml-2 text-xs uppercase tracking-wide text-[#64748B]">{{ $doc->status }}</span>
+                                @if ($doc->status === 'uploaded' && filled($doc->fedex_document_id))
+                                    <span class="ml-2 text-xs font-semibold text-emerald-700">Ready ✓</span>
+                                @elseif ($doc->status === 'failed')
+                                    <span class="ml-2 text-xs uppercase tracking-wide text-red-600">Needs attention</span>
+                                @else
+                                    <span class="ml-2 text-xs uppercase tracking-wide text-[#64748B]">{{ $doc->status }}</span>
+                                @endif
                                 <p class="mt-1 text-xs text-[#64748B]">
-                                    {{ $doc->destination_country_code ?: '—' }}
-                                    @if ($doc->fedex_document_id)
-                                        · FedEx doc ···{{ substr($doc->fedex_document_id, -6) }}
-                                    @endif
+                                    {{ $doc->origin_country_code ?: '—' }} → {{ $doc->destination_country_code ?: '—' }}
                                 </p>
                             </li>
                         @empty
-                            <li class="text-xs text-[#94A3B8]">No trade documents uploaded for this order yet.</li>
+                            <li class="text-xs text-[#94A3B8]">No customs documents uploaded for this order yet.</li>
                         @endforelse
                     </ul>
                     @if (! empty($fedExOrderApiEvents) && count($fedExOrderApiEvents))

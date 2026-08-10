@@ -48,6 +48,13 @@ final class FedExBrandComplianceService
         'FEDEX MEDIUM BOX' => 'FedEx® Medium Box',
         'FEDEX_PAK' => 'FedEx® Pak',
         'FEDEX PAK' => 'FedEx® Pak',
+        'FEDEX_INTERNATIONAL_PRIORITY' => 'FedEx International Priority®',
+        'FEDEX INTERNATIONAL PRIORITY' => 'FedEx International Priority®',
+        'INTERNATIONAL_PRIORITY' => 'FedEx International Priority®',
+        'INTERNATIONAL_ECONOMY' => 'FedEx International Economy®',
+        'FEDEX INTERNATIONAL ECONOMY' => 'FedEx International Economy®',
+        'GROUND_HOME_DELIVERY' => 'FedEx Home Delivery®',
+        'FEDEX HOME DELIVERY' => 'FedEx Home Delivery®',
     ];
 
     /**

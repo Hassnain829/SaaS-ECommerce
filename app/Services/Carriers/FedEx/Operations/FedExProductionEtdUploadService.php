@@ -96,7 +96,7 @@ final class FedExProductionEtdUploadService
                 'upload' => [
                     'mode' => 'document',
                     'ship_document_type' => 'COMMERCIAL_INVOICE',
-                    'workflow_name' => 'ETDPreshipment',
+                    'workflow_name' => 'ETDPreShipment',
                     'absolute_path' => $absolute,
                     'filename' => pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION) === 'pdf'
                         ? $file->getClientOriginalName()
@@ -145,11 +145,7 @@ final class FedExProductionEtdUploadService
                     'document' => $record->fresh(),
                     'document_id' => null,
                     'result_success' => false,
-                    'merchant_message' => FedExSafeExceptionMapper::merchantMessage(
-                        $executed['result']->errorCode ?? 'etd_failed',
-                        $executed['result']->errorMessage ?? 'FedEx trade document upload failed.',
-                        (int) data_get($executed['result']->responseSummary ?? [], 'http_status') ?: null,
-                    ),
+                    'merchant_message' => 'We couldn\'t prepare the customs document for FedEx. Review the document and try again.',
                     'prepared' => [
                         'fedex_trade_document_id' => $record->id,
                     ],
@@ -182,7 +178,7 @@ final class FedExProductionEtdUploadService
                 'document' => $record->fresh(),
                 'document_id' => (string) $documentId,
                 'result_success' => true,
-                'merchant_message' => 'Commercial invoice uploaded to FedEx for electronic trade documents.',
+                'merchant_message' => 'Commercial Invoice Ready ✓',
                 'prepared' => [
                     'fedex_trade_document_id' => $record->id,
                     'document_id' => (string) $documentId,
@@ -194,6 +190,32 @@ final class FedExProductionEtdUploadService
             $this->cleanupFailedUpload($record);
             throw $e;
         }
+    }
+
+    /**
+     * Reuse a still-valid uploaded commercial invoice for the same order/account/route context.
+     */
+    public function findReusableCommercialInvoice(
+        Store $store,
+        CarrierAccount $account,
+        Order $order,
+        string $originCountry,
+        string $destinationCountry,
+    ): ?FedExTradeDocument {
+        abort_unless((int) $order->store_id === (int) $store->id, 404);
+
+        return FedExTradeDocument::query()
+            ->where('store_id', $store->id)
+            ->where('order_id', $order->id)
+            ->where('carrier_account_id', $account->id)
+            ->where('document_type', 'COMMERCIAL_INVOICE')
+            ->where('status', FedExTradeDocument::STATUS_UPLOADED)
+            ->where('origin_country_code', strtoupper($originCountry))
+            ->where('destination_country_code', strtoupper($destinationCountry))
+            ->whereNotNull('fedex_document_id')
+            ->whereNull('shipment_id')
+            ->latest('id')
+            ->first();
     }
 
     private function cleanupFailedUpload(FedExTradeDocument $record): void

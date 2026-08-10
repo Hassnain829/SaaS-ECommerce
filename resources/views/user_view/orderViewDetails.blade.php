@@ -1215,13 +1215,16 @@
                                                         @endforeach
                                                     </select>
                                                 </label>
-                                                <label class="block text-xs font-medium text-slate-700">Service
-                                                    <select name="service_type" required class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
+                                                <label class="block text-xs font-medium text-slate-700">Return service
+                                                    <select name="service_type" class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
                                                         @foreach (\App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog::services() as $service)
-                                                            <option value="{{ $service['code'] }}" @selected((string) old('service_type', 'FEDEX_GROUND') === $service['code'])>{{ $service['name'] }}</option>
+                                                            <option value="{{ $service['code'] }}" @selected((string) old('service_type', \App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog::defaultReturnServiceCode()) === $service['code'])>{{ $service['name'] }}</option>
                                                         @endforeach
                                                     </select>
                                                 </label>
+                                                <p class="text-[11px] leading-4 text-slate-500">
+                                                    FedEx confirms whether the selected return service is available for this route before creating the label.
+                                                </p>
                                                 <div class="grid gap-2 sm:grid-cols-4">
                                                     <label class="text-xs font-medium text-slate-700">Weight (lb)
                                                         <input type="number" step="0.01" min="0.01" name="weight" value="{{ old('weight', $returnPackagePreset?->weight_value) }}" class="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm" placeholder="Required">

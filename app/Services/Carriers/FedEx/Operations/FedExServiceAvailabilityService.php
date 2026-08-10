@@ -23,7 +23,9 @@ class FedExServiceAvailabilityService
 
     /**
      * @param  array<string, mixed>  $destinationInput
-     * @return array{result: CarrierApiResult, presentation: array<string, mixed>}
+     * @param  array<string, mixed>|null  $originAddressOverride  When set, use this shipper address instead of the Location readiness address
+     *                                                           (required for return flows: customer → merchant).
+     * @return array{result: CarrierApiResult, presentation: array<string, mixed>, service_types: list<string>}
      */
     public function checkAvailability(
         Store $store,
@@ -33,6 +35,8 @@ class FedExServiceAvailabilityService
         ?string $shipDate = null,
         ?string $packagingType = null,
         bool $enforceProductionGuard = false,
+        ?string $pickupType = null,
+        ?array $originAddressOverride = null,
     ): array {
         if ($enforceProductionGuard) {
             $this->guard->assertAccountForOperation(
@@ -44,26 +48,58 @@ class FedExServiceAvailabilityService
             $this->apiClient->assertFedExApiAccount($account, $store);
         }
 
-        $readiness = $this->originReadiness->assessForFulfillmentOrigin(
-            $originLocation,
-            CarrierOriginReadinessService::CARRIER_GENERIC,
-        );
+        if ($originAddressOverride !== null) {
+            $origin = [
+                'postal_code' => trim((string) ($originAddressOverride['postal_code'] ?? '')),
+                'country_code' => strtoupper(trim((string) ($originAddressOverride['country_code'] ?? 'US'))),
+                'city' => trim((string) ($originAddressOverride['city'] ?? '')) ?: null,
+                'state' => strtoupper(trim((string) ($originAddressOverride['state'] ?? ''))) ?: null,
+            ];
 
-        if (! $readiness->ready) {
-            $result = CarrierApiResult::failure(
-                message: $readiness->merchantMessage,
-                code: 'origin_not_ready',
-                requestSummary: [
-                    'endpoint' => $this->config->serviceAvailabilityPath(),
-                    'local_validation' => true,
-                    'origin_status' => $readiness->status,
-                ],
+            if ($origin['postal_code'] === '' || $origin['country_code'] === '') {
+                $result = CarrierApiResult::failure(
+                    message: 'A complete origin address is required to check FedEx service options.',
+                    code: 'origin_not_ready',
+                    requestSummary: [
+                        'endpoint' => $this->config->serviceAvailabilityPath(),
+                        'local_validation' => true,
+                        'origin_status' => 'override_incomplete',
+                    ],
+                );
+
+                return [
+                    'result' => $result,
+                    'presentation' => FedExMerchantCheckPresenter::serviceAvailability(null),
+                    'service_types' => [],
+                ];
+            }
+        } else {
+            $readiness = $this->originReadiness->assessForFulfillmentOrigin(
+                $originLocation,
+                CarrierOriginReadinessService::CARRIER_GENERIC,
             );
 
-            return ['result' => $result, 'presentation' => FedExMerchantCheckPresenter::serviceAvailability(null)];
+            if (! $readiness->ready) {
+                $result = CarrierApiResult::failure(
+                    message: $readiness->merchantMessage,
+                    code: 'origin_not_ready',
+                    requestSummary: [
+                        'endpoint' => $this->config->serviceAvailabilityPath(),
+                        'local_validation' => true,
+                        'origin_status' => $readiness->status,
+                    ],
+                );
+
+                return [
+                    'result' => $result,
+                    'presentation' => FedExMerchantCheckPresenter::serviceAvailability(null),
+                    'service_types' => [],
+                ];
+            }
+
+            $origin = $readiness->normalizedAddress;
         }
 
-        $origin = $readiness->normalizedAddress;
         $destinationCountry = strtoupper(trim((string) ($destinationInput['country_code'] ?? 'US')));
         $originCountry = strtoupper((string) ($origin['country_code'] ?? 'US'));
         $destinationPostal = trim((string) ($destinationInput['postal_code'] ?? ''));
@@ -74,6 +110,9 @@ class FedExServiceAvailabilityService
             ? $this->guard->assertShipDate($shipDate)
             : ($shipDate ?: now()->toDateString());
         $packagingType = $packagingType ?: 'YOUR_PACKAGING';
+        $resolvedPickupType = filled($pickupType)
+            ? strtoupper(trim((string) $pickupType))
+            : null;
 
         if ($enforceProductionGuard) {
             $this->guard->assertOriginDestinationAllowed(
@@ -94,6 +133,8 @@ class FedExServiceAvailabilityService
                 $destinationPostal,
                 $shipDatestamp,
                 $packagingType,
+                $resolvedPickupType ?: 'pickup:default',
+                $originAddressOverride !== null ? 'origin:override' : 'origin:location',
             ]),
         );
 
@@ -110,35 +151,42 @@ class FedExServiceAvailabilityService
                 'destination_postal_code' => $destinationPostal ?: null,
                 'ship_date' => $shipDatestamp,
                 'packaging_type' => $packagingType,
+                'pickup_type' => $resolvedPickupType,
                 'origin_location_id' => $originLocation->id,
                 'customer_transaction_id' => $customerTransactionId,
                 'platform_fallback_used' => false,
             ],
         );
 
-        $payload = [
-            'requestedShipment' => [
-                'shipper' => [
+        $requestedShipment = [
+            'shipper' => [
+                'address' => array_filter([
+                    'postalCode' => $origin['postal_code'] ?? null,
+                    'countryCode' => $origin['country_code'] ?? null,
+                    'city' => $origin['city'] ?? null,
+                    'stateOrProvinceCode' => $origin['state'] ?? null,
+                ]),
+            ],
+            'recipients' => [
+                [
                     'address' => array_filter([
-                        'postalCode' => $origin['postal_code'] ?? null,
-                        'countryCode' => $origin['country_code'] ?? null,
-                        'city' => $origin['city'] ?? null,
-                        'stateOrProvinceCode' => $origin['state'] ?? null,
+                        'postalCode' => $destinationPostal ?: null,
+                        'countryCode' => $destinationCountry,
+                        'stateOrProvinceCode' => $destinationState,
+                        'city' => $destinationCity,
                     ]),
                 ],
-                'recipients' => [
-                    [
-                        'address' => array_filter([
-                            'postalCode' => $destinationPostal ?: null,
-                            'countryCode' => $destinationCountry,
-                            'stateOrProvinceCode' => $destinationState,
-                            'city' => $destinationCity,
-                        ]),
-                    ],
-                ],
-                'shipDatestamp' => $shipDatestamp,
-                'packagingType' => $packagingType,
             ],
+            'shipDatestamp' => $shipDatestamp,
+            'packagingType' => $packagingType,
+        ];
+
+        if ($resolvedPickupType !== null && $resolvedPickupType !== '') {
+            $requestedShipment['pickupType'] = $resolvedPickupType;
+        }
+
+        $payload = [
+            'requestedShipment' => $requestedShipment,
             'carrierCodes' => ['FDXE', 'FDXG'],
         ];
 
@@ -156,11 +204,13 @@ class FedExServiceAvailabilityService
         );
 
         $presentation = FedExMerchantCheckPresenter::serviceAvailability($result->data);
+        $serviceTypes = self::serviceTypesFromPresentation($presentation);
 
         if ($result->success) {
             $responseSummary = array_merge($result->responseSummary ?? [], [
                 'service_count' => $presentation['service_count'],
                 'package_type_count' => $presentation['package_type_count'],
+                'service_types' => $serviceTypes,
             ]);
 
             $result = $result->copyWith(responseSummary: $responseSummary);
@@ -180,6 +230,72 @@ class FedExServiceAvailabilityService
             );
         }
 
-        return ['result' => $result, 'presentation' => $presentation];
+        return [
+            'result' => $result,
+            'presentation' => $presentation,
+            'service_types' => $serviceTypes,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $presentation
+     * @return list<string>
+     */
+    public static function serviceTypesFromPresentation(array $presentation): array
+    {
+        $types = [];
+        foreach ((array) ($presentation['services'] ?? []) as $service) {
+            if (! is_array($service)) {
+                continue;
+            }
+            $code = strtoupper(trim((string) ($service['service_type'] ?? '')));
+            if ($code !== '' && ! in_array($code, $types, true)) {
+                $types[] = $code;
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * Soft intersection used by merchant shipping-options orchestration.
+     * Rates remain the pricing source of truth — empty intersections keep original rates.
+     *
+     * @param  list<array<string, mixed>>  $rates
+     * @param  list<int|null>  $quoteIds
+     * @param  list<string>  $availableServiceTypes
+     * @return array{rates: list<array<string, mixed>>, quote_ids: list<int|null>}
+     */
+    public static function intersectRatesWithAvailability(array $rates, array $quoteIds, array $availableServiceTypes): array
+    {
+        $allowed = array_values(array_unique(array_map(
+            static fn (string $code): string => strtoupper(trim($code)),
+            array_filter($availableServiceTypes, static fn ($code): bool => filled($code)),
+        )));
+
+        if ($allowed === [] || $rates === []) {
+            return ['rates' => $rates, 'quote_ids' => $quoteIds];
+        }
+
+        $filteredRates = [];
+        $filteredQuoteIds = [];
+
+        foreach ($rates as $index => $rate) {
+            if (! is_array($rate)) {
+                continue;
+            }
+            $serviceType = strtoupper(trim((string) ($rate['service_type'] ?? '')));
+            if ($serviceType === '' || ! in_array($serviceType, $allowed, true)) {
+                continue;
+            }
+            $filteredRates[] = $rate;
+            $filteredQuoteIds[] = $quoteIds[$index] ?? null;
+        }
+
+        if ($filteredRates === []) {
+            return ['rates' => $rates, 'quote_ids' => $quoteIds];
+        }
+
+        return ['rates' => $filteredRates, 'quote_ids' => $filteredQuoteIds];
     }
 }

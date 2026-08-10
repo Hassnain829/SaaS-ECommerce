@@ -144,6 +144,7 @@ class FedExMerchantOperationsController extends Controller
         Order $order,
         FedExNegotiatedRateService $rates,
         FedExAddressValidationService $addressValidation,
+        FedExServiceAvailabilityService $availability,
         FedExOrderPackageSnapshotService $packageSnapshots,
         \App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver $handoffResolver,
     ): RedirectResponse {
@@ -282,6 +283,35 @@ class FedExMerchantOperationsController extends Controller
             ? (bool) $validated['residential']
             : null;
 
+        // Internal orchestration: Address Validation (above) → Service Availability → ACCOUNT rates.
+        // Service Availability enhances filtering; rates remain the pricing source of truth.
+        $availableServiceTypes = [];
+        $availabilityChecked = false;
+        try {
+            $availabilityOutcome = $availability->checkAvailability(
+                store: $store,
+                account: $account,
+                originLocation: $origin,
+                destinationInput: [
+                    'country_code' => $destination['country_code'] ?? 'US',
+                    'postal_code' => $destination['postal_code'] ?? null,
+                    'state' => $destination['state'] ?? null,
+                    'city' => $destination['city'] ?? null,
+                ],
+                shipDate: $validated['ship_date'] ?? null,
+                packagingType: $package->package_type ?: 'YOUR_PACKAGING',
+                enforceProductionGuard: true,
+                pickupType: $pickupType,
+            );
+            $availabilityChecked = (bool) ($availabilityOutcome['result']->success ?? false);
+            if ($availabilityChecked) {
+                $availableServiceTypes = $availabilityOutcome['service_types'] ?? [];
+            }
+        } catch (\Throwable) {
+            $availabilityChecked = false;
+            $availableServiceTypes = [];
+        }
+
         $outcome = $rates->quoteForOriginDestination(
             store: $store,
             account: $account,
@@ -314,18 +344,34 @@ class FedExMerchantOperationsController extends Controller
             ]);
         }
 
+        $ratesList = is_array($outcome['rates'] ?? null) ? $outcome['rates'] : [];
+        $quoteIds = is_array($outcome['quote_ids'] ?? null) ? $outcome['quote_ids'] : [];
+        if ($availabilityChecked && $availableServiceTypes !== []) {
+            $intersected = FedExServiceAvailabilityService::intersectRatesWithAvailability(
+                $ratesList,
+                $quoteIds,
+                $availableServiceTypes,
+            );
+            $ratesList = $intersected['rates'];
+            $quoteIds = $intersected['quote_ids'];
+        }
+
         // Persist destination snapshot onto each quote for label purchase.
-        if ($outcome['quote_ids'] !== []) {
+        if ($quoteIds !== []) {
             \App\Models\CarrierRateQuote::query()
                 ->where('store_id', $store->id)
-                ->whereIn('id', $outcome['quote_ids'])
+                ->whereIn('id', array_values(array_filter($quoteIds)))
                 ->get()
-                ->each(function (\App\Models\CarrierRateQuote $quote) use ($destination, $addressChoice, $pickupType, $selectedItems): void {
+                ->each(function (\App\Models\CarrierRateQuote $quote) use ($destination, $addressChoice, $pickupType, $selectedItems, $availabilityChecked, $availableServiceTypes): void {
                     $summary = is_array($quote->request_summary) ? $quote->request_summary : [];
                     $summary['destination_address'] = $destination;
                     $summary['address_choice'] = $addressChoice;
                     $summary['pickup_type'] = $pickupType;
                     $summary['selected_items'] = $selectedItems;
+                    $summary['service_availability_checked'] = $availabilityChecked;
+                    if ($availabilityChecked) {
+                        $summary['available_service_types'] = $availableServiceTypes;
+                    }
                     $quote->forceFill(['request_summary' => $summary])->save();
                 });
         }
@@ -358,12 +404,13 @@ class FedExMerchantOperationsController extends Controller
                 'ship_date' => $validated['ship_date'] ?? null,
                 'residential' => $residential,
                 'selected_items' => $selectedItems,
-                'rates' => collect($outcome['rates'])->values()->map(function (array $rate, int $index) use ($outcome): array {
-                    $rate['quote_id'] = $outcome['quote_ids'][$index] ?? null;
+                'service_availability_checked' => $availabilityChecked,
+                'rates' => collect($ratesList)->values()->map(function (array $rate, int $index) use ($quoteIds): array {
+                    $rate['quote_id'] = $quoteIds[$index] ?? null;
 
                     return $rate;
                 })->all(),
-                'quote_ids' => $outcome['quote_ids'],
+                'quote_ids' => $quoteIds,
                 'transaction_id' => $outcome['result']->transactionId,
             ],
         ]);
@@ -401,6 +448,7 @@ class FedExMerchantOperationsController extends Controller
             'customs_clearance.duties_payment_type' => ['nullable', 'string', 'max:40'],
             'customs_clearance.total_customs_value.amount' => ['nullable', 'numeric', 'min:0.01'],
             'customs_clearance.total_customs_value.currency' => ['nullable', 'string', 'size:3'],
+            'customs_clearance.commercial_invoice.shipment_purpose' => ['nullable', 'string', 'max:40'],
             'customs_clearance.commodities' => ['nullable', 'array'],
             'customs_clearance.commodities.*.order_item_id' => ['nullable', 'integer'],
             'customs_clearance.commodities.*.description' => ['nullable', 'string', 'max:450'],
@@ -548,7 +596,7 @@ class FedExMerchantOperationsController extends Controller
         $validated = $request->validate([
             'order_return_id' => ['required', 'integer'],
             'origin_location_id' => ['required', 'integer'],
-            'service_type' => ['required', 'string', 'max:40'],
+            'service_type' => ['nullable', 'string', 'max:40'],
             'label_format' => ['nullable', 'in:PDF,PNG,ZPL'],
             'weight' => ['nullable', 'numeric', 'min:0.01'],
             'length' => ['nullable', 'numeric', 'min:1'],
@@ -611,7 +659,9 @@ class FedExMerchantOperationsController extends Controller
             return back()->withErrors(['fedex_return' => $outcome['merchant_message']])->withInput();
         }
 
-        return back()->with('success', 'FedEx return label created.');
+        return back()->with('success', 'FedEx return label created'
+            .(! empty($outcome['resolved_service_name']) ? ' · '.$outcome['resolved_service_name'] : '')
+            .'.');
     }
 
     public function cancelShipment(
@@ -723,11 +773,14 @@ class FedExMerchantOperationsController extends Controller
         );
 
         if (! $outcome['result_success']) {
-            return back()->withErrors(['fedex_etd' => $outcome['merchant_message']]);
+            return back()->withErrors([
+                'fedex_etd' => $outcome['merchant_message']
+                    ?: 'We couldn\'t prepare the customs document for FedEx. Review the document and try again.',
+            ]);
         }
 
         return back()->with([
-            'success' => $outcome['merchant_message'],
+            'success' => $outcome['merchant_message'] ?: 'Commercial Invoice Ready ✓',
             'fedex_etd_document_id' => $outcome['document_id'],
             'fedex_trade_document_id' => $outcome['document']?->id,
         ]);

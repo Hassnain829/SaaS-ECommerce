@@ -174,6 +174,8 @@ final class FedExProductionShipRequestBuilder
             $fixture['customs_clearance'] = $input['customs_clearance'];
         }
 
+        // Pre-shipment ETD only: attach the FedEx documentId from Trade Documents Upload.
+        // Do not mix POST_SHIPMENT_UPLOAD_REQUESTED / documentReference into this path.
         if (! empty($input['etd_enabled']) && filled($input['etd_document_id'] ?? null)) {
             $fixture['shipment_special_services'] = array_merge(
                 $fixture['shipment_special_services'] ?? [],
@@ -183,10 +185,9 @@ final class FedExProductionShipRequestBuilder
                         ['ELECTRONIC_TRADE_DOCUMENTS'],
                     ))),
                     'etdDetail' => [
-                        'attributes' => ['POST_SHIPMENT_UPLOAD_REQUESTED'],
                         'attachedDocuments' => [[
-                            'documentType' => 'COMMERCIAL_INVOICE',
-                            'documentReference' => (string) $input['etd_document_id'],
+                            'documentType' => strtoupper((string) ($input['etd_document_type'] ?? 'COMMERCIAL_INVOICE')),
+                            'documentId' => (string) $input['etd_document_id'],
                         ]],
                     ],
                 ],

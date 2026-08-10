@@ -27,6 +27,7 @@ final class FedExCustomsValidationService
             'total_customs_value.amount' => ['required', 'numeric', 'min:0.01'],
             'total_customs_value.currency' => ['required', 'string', 'size:3'],
             'duties_payment_type' => ['nullable', 'string', 'max:40'],
+            'commercial_invoice.shipment_purpose' => ['nullable', 'string', 'max:40'],
             'commodities' => ['required', 'array', 'min:1'],
             'commodities.*.description' => ['required', 'string', 'max:450'],
             'commodities.*.quantity' => ['required', 'numeric', 'min:1'],
@@ -78,9 +79,13 @@ final class FedExCustomsValidationService
             ],
             'duties_payment_type' => strtoupper((string) ($data['duties_payment_type'] ?? 'SENDER')),
             'commodities' => $commodities,
-            'commercial_invoice' => is_array($customsClearance['commercial_invoice'] ?? null)
-                ? $customsClearance['commercial_invoice']
-                : ['shipment_purpose' => 'SOLD'],
+            'commercial_invoice' => [
+                'shipment_purpose' => strtoupper((string) (
+                    data_get($data, 'commercial_invoice.shipment_purpose')
+                    ?: data_get($customsClearance, 'commercial_invoice.shipment_purpose')
+                    ?: 'SOLD'
+                )),
+            ],
         ];
 
         return ['ok' => true, 'errors' => [], 'normalized' => $normalized];

@@ -44,12 +44,61 @@ final class FedExCheckoutPackageBuilder
         $weightUnit = $prefs['weight_unit'] ?: 'LB';
         $defaultPreset = $this->shippingPreferences->defaultPackagePreset($store);
 
+        // Production MVP packing: one FedEx package = sum(item weight × qty) + default preset dimensions.
+        // Do not invent one package per unit. Optional ships_separately keeps those units separate.
+        if (! $defaultPreset instanceof ShippingPackagePreset || ! $defaultPreset->hasCompleteDimensions()) {
+            $fingerprintParts = [];
+            $missingWeights = [];
+            $totalQuantity = 0;
+            $physicalItemCount = 0;
+
+            foreach ($checkout->items as $item) {
+                $variant = $item->variant;
+                $product = $variant?->product ?? $item->product;
+                if (! $this->itemRequiresShipping($item, $product)) {
+                    continue;
+                }
+                $qty = max(1, (int) ($item->quantity ?? 1));
+                $totalQuantity += $qty;
+                $physicalItemCount++;
+                $unitWeight = $this->resolveWeight($item, $variant, $product);
+                $label = $this->itemLabel($item, $product);
+                if ($unitWeight === null) {
+                    $missingWeights[] = $label;
+                }
+                $fingerprintParts[] = implode(':', [
+                    (string) ($item->product_variant_id ?? $item->variant_id ?? $item->product_id ?? $item->id),
+                    (string) $qty,
+                    $unitWeight === null ? 'missing-weight' : number_format($unitWeight, 3, '.', ''),
+                    'missing-dims',
+                ]);
+            }
+
+            if ($physicalItemCount === 0) {
+                return $this->notReady(['empty-cart'], $checkout->items->count(), 0, [], 'empty_cart');
+            }
+
+            if ($missingWeights !== []) {
+                return $this->notReady($fingerprintParts, $physicalItemCount, $totalQuantity, array_values(array_unique($missingWeights)), 'missing_weights');
+            }
+
+            return $this->notReady($fingerprintParts, $physicalItemCount, $totalQuantity, [], 'missing_default_package');
+        }
+
+        $presetDims = [
+            'length' => max(1.0, (float) $defaultPreset->length),
+            'width' => max(1.0, (float) $defaultPreset->width),
+            'height' => max(1.0, (float) $defaultPreset->height),
+            'dimension_unit' => strtoupper((string) ($defaultPreset->dimension_unit ?: 'IN')),
+        ];
+
         $packages = [];
         $fingerprintParts = [];
         $missingWeights = [];
         $totalQuantity = 0;
         $physicalItemCount = 0;
-        $missingPackagePreset = false;
+        $aggregatedWeight = 0.0;
+        $hasAggregatedItems = false;
 
         /** @var Collection<int, mixed> $items */
         $items = $checkout->items;
@@ -72,37 +121,38 @@ final class FedExCheckoutPackageBuilder
                 $missingWeights[] = $label;
             }
 
-            $dims = $this->resolveDimensions($item, $variant, $product, $defaultPreset);
-            if ($dims === null) {
-                $missingPackagePreset = true;
-            }
+            $shipsSeparately = $this->itemShipsSeparately($item, $variant, $product);
 
             $fingerprintParts[] = implode(':', [
                 (string) ($item->product_variant_id ?? $item->variant_id ?? $item->product_id ?? $item->id),
                 (string) $qty,
                 $unitWeight === null ? 'missing-weight' : number_format($unitWeight, 3, '.', ''),
-                $dims === null
-                    ? 'missing-dims'
-                    : implode('x', [
-                        number_format($dims['length'], 2, '.', ''),
-                        number_format($dims['width'], 2, '.', ''),
-                        number_format($dims['height'], 2, '.', ''),
-                    ]),
+                implode('x', [
+                    number_format($presetDims['length'], 2, '.', ''),
+                    number_format($presetDims['width'], 2, '.', ''),
+                    number_format($presetDims['height'], 2, '.', ''),
+                ]),
+                $shipsSeparately ? 'separate' : 'agg',
             ]);
 
-            if ($unitWeight === null || $dims === null) {
+            if ($unitWeight === null) {
                 continue;
             }
 
-            for ($i = 0; $i < $qty; $i++) {
-                $packages[] = [
-                    'weight' => $unitWeight,
-                    'weight_unit' => $weightUnit,
-                    'length' => $dims['length'],
-                    'width' => $dims['width'],
-                    'height' => $dims['height'],
-                    'dimension_unit' => $dims['dimension_unit'],
-                ];
+            if ($shipsSeparately) {
+                for ($i = 0; $i < $qty; $i++) {
+                    $packages[] = [
+                        'weight' => $unitWeight,
+                        'weight_unit' => $weightUnit,
+                        'length' => $presetDims['length'],
+                        'width' => $presetDims['width'],
+                        'height' => $presetDims['height'],
+                        'dimension_unit' => $presetDims['dimension_unit'],
+                    ];
+                }
+            } else {
+                $aggregatedWeight += $unitWeight * $qty;
+                $hasAggregatedItems = true;
             }
         }
 
@@ -126,7 +176,18 @@ final class FedExCheckoutPackageBuilder
             );
         }
 
-        if ($missingPackagePreset || $packages === []) {
+        if ($hasAggregatedItems) {
+            $packages[] = [
+                'weight' => max(0.01, $aggregatedWeight),
+                'weight_unit' => $weightUnit,
+                'length' => $presetDims['length'],
+                'width' => $presetDims['width'],
+                'height' => $presetDims['height'],
+                'dimension_unit' => $presetDims['dimension_unit'],
+            ];
+        }
+
+        if ($packages === []) {
             return $this->notReady(
                 fingerprintParts: $fingerprintParts,
                 itemCount: $physicalItemCount,
@@ -136,22 +197,19 @@ final class FedExCheckoutPackageBuilder
             );
         }
 
+        $fingerprintParts[] = 'pack-policy:aggregate-v1';
+        $fingerprintParts[] = 'preset:'.(string) $defaultPreset->id;
+
         $maxPackages = max(1, (int) config('carriers.fedex.checkout_max_package_lines', 20));
         if (count($packages) > $maxPackages) {
-            $kept = array_slice($packages, 0, $maxPackages - 1);
-            $overflow = array_slice($packages, $maxPackages - 1);
-            $overflowWeight = array_sum(array_map(static fn (array $p): float => (float) $p['weight'], $overflow));
-            $template = $kept[count($kept) - 1] ?? $packages[0];
-            $kept[] = [
-                'weight' => max(0.01, $overflowWeight),
-                'weight_unit' => $template['weight_unit'],
-                'length' => $template['length'],
-                'width' => $template['width'],
-                'height' => $template['height'],
-                'dimension_unit' => $template['dimension_unit'],
-            ];
-            $packages = $kept;
-            $fingerprintParts[] = 'capped:'.$maxPackages;
+            // Never merge ships_separately overflow into a fake combined package.
+            return $this->notReady(
+                fingerprintParts: array_merge($fingerprintParts, ['too-many-packages:'.count($packages)]),
+                itemCount: $physicalItemCount,
+                totalQuantity: $totalQuantity,
+                missingWeights: [],
+                reason: 'too_many_packages',
+            );
         }
 
         return [
@@ -386,62 +444,25 @@ final class FedExCheckoutPackageBuilder
     }
 
     /**
-     * @return array{length: float, width: float, height: float, dimension_unit: string}|null
+     * Forward-compatible opt-out from cart aggregation. Not required for MVP, but honored when set.
      */
-    private function resolveDimensions(
-        mixed $item,
-        mixed $variant,
-        mixed $product,
-        ?ShippingPackagePreset $defaultPreset,
-    ): ?array {
-        $length = $this->firstPositive([
-            data_get($item, 'length'),
-            data_get($variant, 'meta.length'),
-            data_get($product, 'meta.length'),
-        ]);
-        $width = $this->firstPositive([
-            data_get($item, 'width'),
-            data_get($variant, 'meta.width'),
-            data_get($product, 'meta.width'),
-        ]);
-        $height = $this->firstPositive([
-            data_get($item, 'height'),
-            data_get($variant, 'meta.height'),
-            data_get($product, 'meta.height'),
-        ]);
-
-        if ($length !== null && $width !== null && $height !== null) {
-            return [
-                'length' => $length,
-                'width' => $width,
-                'height' => $height,
-                'dimension_unit' => 'IN',
-            ];
-        }
-
-        if ($defaultPreset && $defaultPreset->hasCompleteDimensions()) {
-            return [
-                'length' => max(1.0, (float) $defaultPreset->length),
-                'width' => max(1.0, (float) $defaultPreset->width),
-                'height' => max(1.0, (float) $defaultPreset->height),
-                'dimension_unit' => strtoupper((string) ($defaultPreset->dimension_unit ?: 'IN')),
-            ];
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  list<mixed>  $candidates
-     */
-    private function firstPositive(array $candidates): ?float
+    private function itemShipsSeparately(mixed $item, mixed $variant, mixed $product): bool
     {
-        foreach ($candidates as $candidate) {
-            if (is_numeric($candidate) && (float) $candidate > 0) {
-                return max(1.0, (float) $candidate);
+        foreach ([
+            data_get($item, 'ships_separately'),
+            data_get($item, 'meta.ships_separately'),
+            data_get($item, 'metadata.ships_separately'),
+            data_get($variant, 'meta.ships_separately'),
+            data_get($product, 'meta.ships_separately'),
+            data_get($product, 'ships_separately'),
+        ] as $candidate) {
+            if ($candidate === null || $candidate === '') {
+                continue;
             }
+
+            return filter_var($candidate, FILTER_VALIDATE_BOOL);
         }
 
-        return null;
+        return false;
     }
 }

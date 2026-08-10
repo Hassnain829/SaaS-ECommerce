@@ -9,7 +9,7 @@ use App\Services\Carriers\FedEx\Validation\FedExBrandComplianceService;
  */
 final class FedExCapabilityRegistry
 {
-    public const VERSION = '2026-07-14-package8-v2';
+    public const VERSION = '2026-08-10-live-production-finalization';
 
     public const STATUS_PRODUCTION_ENABLED = 'production_enabled';
 
@@ -41,10 +41,27 @@ final class FedExCapabilityRegistry
             $this->service('FEDEX_EXPRESS_SAVER', self::STATUS_PRODUCTION_CONDITIONAL, ['US'], [$condition]),
             $this->service(
                 'FEDEX_INTERNATIONAL_PRIORITY',
+                self::STATUS_PRODUCTION_CONDITIONAL,
+                ['US', 'CA'],
+                [
+                    $condition,
+                    'Available for supported cross-border routes (including US ↔ Canada) when Service Availability and ACCOUNT rates allow it.',
+                ],
+            ),
+            $this->service(
+                'INTERNATIONAL_ECONOMY',
+                self::STATUS_PRODUCTION_CONDITIONAL,
+                ['US', 'CA'],
+                [
+                    $condition,
+                    'Shown only when FedEx returns an ACCOUNT rate for the route.',
+                ],
+            ),
+            $this->service(
+                'INTERNATIONAL_FIRST',
                 self::STATUS_VALIDATION_ONLY,
-                ['CA'],
-                ['Canada validation cases only in current release.'],
-                'FedEx International Priority',
+                ['US', 'CA'],
+                ['Not yet enabled for merchant production checkout/label purchase in this release.'],
             ),
         ];
     }

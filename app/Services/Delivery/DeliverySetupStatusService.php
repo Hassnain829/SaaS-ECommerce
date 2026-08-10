@@ -473,7 +473,7 @@ class DeliverySetupStatusService
                     id: 'default_package_missing',
                     label: 'Default package',
                     severity: 'warning',
-                    message: 'Add a default shipping package before FedEx live rates can use real dimensions.',
+                    message: 'Set a default shipping package before FedEx live rates can use real dimensions.',
                     actionLabel: 'Add a default package',
                     actionTab: 'packages',
                 );

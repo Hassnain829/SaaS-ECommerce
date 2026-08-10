@@ -102,7 +102,7 @@ class FedExTradeDocumentUploadPayloadFactory
         $this->assertAllowedDocument($path, $filename, $detectedMime);
 
         $documentJson = [
-            'workflowName' => (string) ($upload['workflow_name'] ?? 'ETDPreshipment'),
+            'workflowName' => (string) ($upload['workflow_name'] ?? 'ETDPreShipment'),
             'name' => $filename,
             'contentType' => $detectedMime,
             'meta' => [

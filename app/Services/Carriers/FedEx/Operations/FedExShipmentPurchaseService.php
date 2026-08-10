@@ -144,10 +144,12 @@ final class FedExShipmentPurchaseService
 
         $input['ship_date'] = $shipDate;
         $isReturn = (bool) ($input['return_shipment'] ?? false);
-        $fixture = $this->requestBuilder->buildFixture($store, $order, $origin, $recipient, $input, $account);
 
+        // Resolve all authoritative inputs (quote service + ETD documentId) BEFORE building the Ship fixture.
+        // Building the fixture first caused selected Trade Documents to never reach the Ship API payload.
         $boundQuote = null;
         $boundTradeDocument = null;
+
         if (! $isReturn) {
             $quoteId = (int) ($input['carrier_rate_quote_id'] ?? 0);
             if ($quoteId <= 0) {
@@ -156,6 +158,34 @@ final class FedExShipmentPurchaseService
                 ]);
             }
 
+            if ($preloadedQuote) {
+                $input['service_type'] = (string) $preloadedQuote->service_code;
+                $input['shipping_cost'] = $preloadedQuote->amount;
+                $input['carrier_rate_quote_id'] = $preloadedQuote->id;
+            }
+        }
+
+        if (! $isReturn && $originCountry !== $destinationCountry) {
+            $tradeDocumentId = (int) ($input['fedex_trade_document_id'] ?? 0);
+            if ($tradeDocumentId > 0) {
+                $boundTradeDocument = $this->quoteBinding->assertValidTradeDocumentForPurchase(
+                    store: $store,
+                    order: $order,
+                    account: $account,
+                    tradeDocumentId: $tradeDocumentId,
+                    originCountry: $originCountry,
+                    destinationCountry: $destinationCountry,
+                );
+                $input['etd_document_id'] = $boundTradeDocument->fedex_document_id;
+                $input['etd_document_type'] = strtoupper((string) ($boundTradeDocument->document_type ?: 'COMMERCIAL_INVOICE'));
+                $input['etd_enabled'] = true;
+            }
+        }
+
+        $fixture = $this->requestBuilder->buildFixture($store, $order, $origin, $recipient, $input, $account);
+
+        if (! $isReturn) {
+            $quoteId = (int) ($input['carrier_rate_quote_id'] ?? 0);
             $boundQuote = $this->quoteBinding->assertValidQuoteForPurchase(
                 store: $store,
                 order: $order,
@@ -181,22 +211,6 @@ final class FedExShipmentPurchaseService
             $input['service_type'] = (string) $boundQuote->service_code;
             $input['shipping_cost'] = $boundQuote->amount;
             $input['carrier_rate_quote_id'] = $boundQuote->id;
-        }
-
-        if ($originCountry !== $destinationCountry) {
-            $tradeDocumentId = (int) ($input['fedex_trade_document_id'] ?? 0);
-            if ($tradeDocumentId > 0) {
-                $boundTradeDocument = $this->quoteBinding->assertValidTradeDocumentForPurchase(
-                    store: $store,
-                    order: $order,
-                    account: $account,
-                    tradeDocumentId: $tradeDocumentId,
-                    originCountry: $originCountry,
-                    destinationCountry: $destinationCountry,
-                );
-                $input['etd_document_id'] = $boundTradeDocument->fedex_document_id;
-                $input['etd_enabled'] = true;
-            }
         }
 
         $shipmentItems = $this->resolveShipmentItems($order, $input, $isReturn);
