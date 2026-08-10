@@ -2,11 +2,13 @@
 
 namespace App\Services\Carriers\FedEx\Operations;
 
+use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderAddress;
 use App\Models\Store;
 use App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver;
+use App\Services\Carriers\FedEx\Support\FedExShipperPhoneResolver;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -16,6 +18,7 @@ final class FedExProductionShipRequestBuilder
 {
     public function __construct(
         private readonly FedExHandoffTypeResolver $handoffTypeResolver,
+        private readonly FedExShipperPhoneResolver $shipperPhoneResolver,
     ) {}
 
     /**
@@ -28,6 +31,7 @@ final class FedExProductionShipRequestBuilder
         Location $origin,
         OrderAddress $recipient,
         array $input,
+        ?CarrierAccount $account = null,
     ): array {
         $packages = $this->normalizePackages($input['packages'] ?? []);
         $labelFormat = strtoupper((string) ($input['label_format'] ?? 'PDF'));
@@ -37,12 +41,15 @@ final class FedExProductionShipRequestBuilder
 
         $isReturn = ! empty($input['return_shipment']);
 
-        $shipperPhone = trim((string) ($origin->phone ?: ($input['shipper_phone'] ?? '')));
+        $shipperPhone = trim((string) ($input['shipper_phone'] ?? ''));
+        if ($shipperPhone === '') {
+            $shipperPhone = $this->shipperPhoneResolver->resolveAndBackfill($origin, $account);
+        }
         $recipientPhone = trim((string) ($recipient->phone ?: ($input['recipient_phone'] ?? '')));
 
         if ($shipperPhone === '') {
             throw ValidationException::withMessages([
-                'shipper_phone' => 'Add a phone number for the ship-from location before creating a FedEx label.',
+                'shipper_phone' => 'Add a phone number on the ship-from location (or during FedEx connect) before creating a FedEx label.',
             ]);
         }
 

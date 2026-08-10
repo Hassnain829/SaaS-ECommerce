@@ -33,7 +33,14 @@
     $selectedOrigin = collect($fulfillmentLocations ?? [])->firstWhere('id', $selectedOriginId)
         ?? collect($fulfillmentLocations ?? [])->firstWhere('is_default', true)
         ?? collect($fulfillmentLocations ?? [])->first();
-    $originMissingPhone = $selectedOrigin && blank($selectedOrigin->phone);
+    $fedExConnectPhone = trim((string) data_get($fedExAccount?->registrationDetails() ?? [], 'phone', ''));
+    if ($fedExConnectPhone === '' && $fedExAccount?->registrationSession) {
+        $fedExConnectPhone = trim((string) data_get($fedExAccount->registrationSession->registrationAddress(), 'phone', ''));
+    }
+    $originMissingPhone = $selectedOrigin
+        && blank($selectedOrigin->phone)
+        && $fedExConnectPhone === '';
+    $recipientPhoneBound = filled(trim((string) $recipientPhonePrefill));
     $guidedOpen = old('carrier_rate_quote_id')
         || old('package_source')
         || old('recipient_phone')
@@ -101,7 +108,10 @@
 
         @if ($originMissingPhone && $selectedOrigin)
             <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                <p class="font-semibold">{{ $selectedOrigin->name }} needs a phone number before FedEx can create a label.</p>
+                <p class="font-semibold">{{ $selectedOrigin->name }} still needs a phone number for FedEx labels.</p>
+                <p class="mt-1 text-sm leading-5 text-amber-900/90">
+                    Add a phone when connecting FedEx, or set one on the location.
+                </p>
                 <a href="{{ route('settings.locations.index') }}" class="mt-1 inline-flex text-sm font-semibold text-[#1D4ED8] underline-offset-2 hover:underline">
                     Edit location
                 </a>
@@ -318,16 +328,24 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-[#64748B]">Recipient phone</label>
-                            <input
-                                type="text"
-                                name="recipient_phone"
-                                value="{{ $recipientPhonePrefill }}"
-                                maxlength="60"
-                                placeholder="Required for FedEx labels"
-                                class="mt-1 w-full rounded-lg border border-stone-200 px-2.5 py-2 text-sm"
-                                data-recipient-phone
-                            >
+                            @if ($recipientPhoneBound)
+                                <input type="hidden" name="recipient_phone" value="{{ $recipientPhonePrefill }}" data-recipient-phone>
+                                <p class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-2.5 py-2 text-[11px] text-[#64748B]">
+                                    Customer phone is already on this order — no need to enter it again.
+                                </p>
+                            @else
+                                <label class="block text-xs font-semibold text-[#64748B]">Customer (recipient) phone</label>
+                                <input
+                                    type="text"
+                                    name="recipient_phone"
+                                    value="{{ $recipientPhonePrefill }}"
+                                    maxlength="60"
+                                    placeholder="Phone for the delivery address"
+                                    class="mt-1 w-full rounded-lg border border-stone-200 px-2.5 py-2 text-sm"
+                                    data-recipient-phone
+                                >
+                                <p class="mt-1 text-[11px] text-[#94A3B8]">Buyer phone for delivery — separate from your FedEx account phone.</p>
+                            @endif
                         </div>
                     </div>
                     <label class="mt-3 inline-flex items-center gap-2 text-xs text-[#475569]">
@@ -579,7 +597,7 @@
                                     Buy label
                                 </button>
                                 @if ($originMissingPhone)
-                                    <p class="mt-2 text-xs text-amber-800">Add a phone number to the ship-from location before buying a label.</p>
+                                    <p class="mt-2 text-xs text-amber-800">Add a phone on the ship-from location or when connecting FedEx before buying a label.</p>
                                 @endif
                             </form>
                         @else

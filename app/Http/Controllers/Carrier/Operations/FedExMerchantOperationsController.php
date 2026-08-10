@@ -18,6 +18,7 @@ use App\Services\Carriers\FedEx\Operations\FedExServiceAvailabilityService;
 use App\Services\Carriers\FedEx\Operations\FedExShipmentCancelService;
 use App\Services\Carriers\FedEx\Operations\FedExShipmentPurchaseService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Support\FedExShipperPhoneResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -28,6 +29,7 @@ class FedExMerchantOperationsController extends Controller
     public function __construct(
         private readonly FedExConfig $config,
         private readonly FedExOperationGuard $guard,
+        private readonly FedExShipperPhoneResolver $shipperPhoneResolver,
     ) {}
 
     public function validateOrderAddress(
@@ -199,9 +201,10 @@ class FedExMerchantOperationsController extends Controller
             ->whereKey($validated['origin_location_id'])
             ->firstOrFail();
 
-        if (! filled(trim((string) $origin->phone))) {
+        $shipperPhone = $this->shipperPhoneResolver->resolveAndBackfill($origin, $account);
+        if ($shipperPhone === '') {
             return back()->withErrors([
-                'origin_location_id' => $origin->name.' needs a phone number before FedEx can create a label.',
+                'origin_location_id' => $origin->name.' needs a phone number before FedEx can create a label. Add it on the location, or include it when connecting FedEx.',
             ])->withInput();
         }
 

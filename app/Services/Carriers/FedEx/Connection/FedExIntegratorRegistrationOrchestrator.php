@@ -16,6 +16,7 @@ use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorParentOAuthService;
 use App\Services\Carriers\FedEx\DTO\FedExValidationEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Support\FedExShipperPhoneResolver;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -575,6 +576,8 @@ class FedExIntegratorRegistrationOrchestrator
                 'carrier_account_id' => $account->id,
                 'status' => CarrierAccountRegistrationSession::STATUS_CREDENTIALS_ISSUED,
             ]))->save();
+
+            $this->backfillOriginLocationPhoneFromRegistration($lockedSession, $account);
 
             if (! $account->refresh()->hasLegacyFedExChildCredentials()) {
                 $message = $this->failurePresenter->message(
@@ -1348,6 +1351,28 @@ class FedExIntegratorRegistrationOrchestrator
         }
 
         return $registration;
+    }
+
+    private function backfillOriginLocationPhoneFromRegistration(
+        CarrierAccountRegistrationSession $session,
+        CarrierAccount $account,
+    ): void {
+        $locationId = (int) ($session->origin_location_id ?: $account->default_origin_location_id);
+        if ($locationId <= 0) {
+            return;
+        }
+
+        $location = Location::query()
+            ->where('store_id', $session->store_id)
+            ->whereKey($locationId)
+            ->first();
+
+        if ($location === null) {
+            return;
+        }
+
+        app(FedExShipperPhoneResolver::class)
+            ->resolveAndBackfill($location, $account);
     }
 
     private function resolveMfaDestinationMasked(CarrierAccountRegistrationSession $session, string $method): ?string

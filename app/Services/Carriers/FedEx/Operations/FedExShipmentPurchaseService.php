@@ -144,7 +144,7 @@ final class FedExShipmentPurchaseService
 
         $input['ship_date'] = $shipDate;
         $isReturn = (bool) ($input['return_shipment'] ?? false);
-        $fixture = $this->requestBuilder->buildFixture($store, $order, $origin, $recipient, $input);
+        $fixture = $this->requestBuilder->buildFixture($store, $order, $origin, $recipient, $input, $account);
 
         $boundQuote = null;
         $boundTradeDocument = null;

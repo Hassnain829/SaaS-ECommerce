@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\Location;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
+use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
+use App\Services\Carriers\FedEx\Support\FedExShipperPhoneResolver;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
 use App\Support\StorePermission;
@@ -19,6 +21,8 @@ class LocationController extends Controller
 {
     public function __construct(
         private readonly CarrierOriginReadinessService $originReadiness,
+        private readonly FedExOperationGuard $fedExGuard,
+        private readonly FedExShipperPhoneResolver $shipperPhoneResolver,
     ) {}
 
     public function index(Request $request): View
@@ -41,6 +45,9 @@ class LocationController extends Controller
             ])
             ->all();
 
+        $fedExAccount = $this->fedExGuard->resolveActiveModelAAccount($store);
+        $fedExConnectPhone = $this->shipperPhoneResolver->fromAccount($fedExAccount);
+
         return view('user_view.locations', [
             'selectedStore' => $store,
             'locations' => $locations,
@@ -48,6 +55,7 @@ class LocationController extends Controller
             'countries' => TaxCountryCatalog::all(),
             'canManageLocations' => $request->user()?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE) ?? false,
             'originReadinessByLocationId' => $originReadinessByLocationId,
+            'fedExConnectPhone' => $fedExConnectPhone,
         ]);
     }
 
