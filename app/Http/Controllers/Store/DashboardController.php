@@ -125,7 +125,11 @@ class DashboardController extends Controller
         $user?->forceFill(['last_login_at' => now()])->save();
         app(SecurityLogRecorder::class)->record($request, 'login', user: $user);
 
-        return $this->redirectByRole();
+        $defaultHome = $user?->role?->name === 'admin'
+            ? route('admin-dashboard')
+            : route('dashboard');
+
+        return redirect()->intended($defaultHome);
     }
 
     public function storeRegistration(Request $request): RedirectResponse
@@ -134,6 +138,7 @@ class DashboardController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'confirmed', 'min:8'],
+            'terms' => ['accepted'],
         ]);
 
         $userRole = Role::query()->where('name', 'user')->first();
@@ -154,7 +159,20 @@ class DashboardController extends Controller
         $request->session()->regenerate();
         app(SecurityLogRecorder::class)->record($request, 'account_registered', user: $user);
 
-        return redirect()->route('onboarding-StoreDetails-1');
+        $status = 'Account created. Check your email for a verification link before you continue.';
+
+        try {
+            // sendNow so SMTP failures stay inside this try/catch even when the notification is queueable
+            // and the sync driver uses after-commit dispatch.
+            $user->notifyNow(new \App\Notifications\QueuedVerifyEmail);
+        } catch (\Throwable $exception) {
+            report($exception);
+            $status = 'Account created. We could not send the verification email yet. Use Resend on the next screen.';
+        }
+
+        return redirect()
+            ->route('verification.notice')
+            ->with('status', $status);
     }
 
     public function logout(Request $request): RedirectResponse
@@ -1299,6 +1317,7 @@ class DashboardController extends Controller
         return view('user_view.generalSettings', [
             'selectedStore' => $selectedStore,
             'defaultLocation' => $defaultLocation,
+            'stores' => $selectedStore ? collect([$selectedStore]) : collect(),
         ]);
     }
 

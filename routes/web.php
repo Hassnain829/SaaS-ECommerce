@@ -1,6 +1,11 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Auth\EmailVerificationNotificationController;
+use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\Catalog\AttributeController;
 use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryController;
@@ -18,6 +23,7 @@ use App\Http\Controllers\Commerce\RefundController;
 use App\Http\Controllers\Commerce\ReturnController;
 use App\Http\Controllers\Commerce\ShipmentController;
 use App\Http\Controllers\Commerce\ShipmentsIndexController;
+use App\Http\Controllers\LegalPageController;
 use App\Http\Controllers\Settings\DeliverySetupWizardController;
 use App\Http\Controllers\Settings\DeveloperStorefrontSettingsController;
 use App\Http\Controllers\Settings\CouponController;
@@ -46,12 +52,37 @@ Route::middleware('guest')->group(function () {
     Route::post('/signin', [DashboardController::class, 'authenticate'])->name('signin.attempt');
     Route::get('/register', [DashboardController::class, 'register'])->name('register');
     Route::post('/register', [DashboardController::class, 'storeRegistration'])->name('register.store');
+
+    Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])
+        ->middleware('throttle:6,1')
+        ->name('password.request');
+    Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('password.email');
+    Route::get('/reset-password/{token}', [NewPasswordController::class, 'create'])
+        ->middleware('throttle:6,1')
+        ->name('password.reset');
+    Route::post('/reset-password', [NewPasswordController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('password.store');
 });
 
-Route::get('/logout', [DashboardController::class, 'logout'])
+Route::get('/terms', [LegalPageController::class, 'terms'])->name('legal.terms');
+Route::get('/privacy', [LegalPageController::class, 'privacy'])->name('legal.privacy');
+
+Route::post('/logout', [DashboardController::class, 'logout'])
     ->middleware('auth')
     ->name('logout');
 
+Route::middleware('auth')->group(function () {
+    Route::get('/email/verify', EmailVerificationPromptController::class)->name('verification.notice');
+    Route::get('/email/verify/{id}/{hash}', VerifyEmailController::class)
+        ->middleware(['signed', 'throttle:6,1'])
+        ->name('verification.verify');
+    Route::post('/email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('verification.send');
+});
 Route::get('/t/{storeSlug}/fedex/{token}', [\App\Http\Controllers\Storefront\FedExPublicTrackingController::class, 'show'])
     ->middleware('throttle:60,1')
     ->name('public.fedex.tracking');

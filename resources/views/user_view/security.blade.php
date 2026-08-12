@@ -171,6 +171,11 @@
             <span class="mt-2 inline-flex rounded-full px-3 py-1 text-xs font-bold {{ auth()->user()->email_verified_at ? 'bg-[#D1FAE5] text-[#047857]' : 'bg-[#FEF3C7] text-[#B45309]' }}">
               {{ auth()->user()->email_verified_at ? 'Verified' : 'Needs verification' }}
             </span>
+            @unless (auth()->user()->email_verified_at)
+              <div class="mt-3">
+                <a href="{{ route('verification.notice') }}" class="inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] px-4 text-sm font-semibold text-[#334155] hover:bg-[#F8FAFC]">Open verification</a>
+              </div>
+            @endunless
           </div>
           <hr class="border-[#E2E8F0]">
           <div>

@@ -165,6 +165,7 @@
                 $storeActionPayload = [
                     'id' => $store->id,
                     'name' => $store->name,
+                    'contact_email' => $store->settings['contact_email'] ?? '',
                     'primary_market' => $store->settings['primary_market'] ?? 'Global Market',
                     'currency' => $store->currency,
                     'timezone' => $store->timezone,
@@ -175,6 +176,7 @@
                     'logo_url' => $logoUrl,
                     'update_url' => route('store.update', ['storeId' => $store->id]),
                     'delete_url' => route('store.destroy', ['storeId' => $store->id]),
+                    'redirect_to' => 'store-management',
                 ];
             @endphp
             <article

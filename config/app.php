@@ -123,4 +123,19 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Trusted Hosts
+    |--------------------------------------------------------------------------
+    |
+    | Hosts allowed when generating absolute URLs for signed auth flows such as
+    | password reset and email verification. Comma-separated in APP_TRUSTED_HOSTS.
+    |
+    */
+
+    'trusted_hosts' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('APP_TRUSTED_HOSTS', ''))
+    ))),
+
 ];

@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name').' — Admin')</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -114,12 +115,15 @@
                 <div class="text-xs {{ $isAdminProfile ? 'text-indigo-300' : 'text-zinc-500' }}">Administrator</div>
             </div>
         </a>
-        <a href="{{ route('logout') }}" class="flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-950/35 p-2.5 text-sm font-semibold text-rose-200 transition-colors hover:bg-rose-950/55">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M6 14C4.33333 14 2.91667 13.4167 1.75 12.25C0.583333 11.0833 0 9.66667 0 8C0 6.33333 0.583333 4.91667 1.75 3.75C2.91667 2.58333 4.33333 2 6 2H9V4H6C4.9 4 3.95833 4.39167 3.175 5.175C2.39167 5.95833 2 6.9 2 8C2 9.1 2.39167 10.0417 3.175 10.825C3.95833 11.6083 4.9 12 6 12H9V14H6ZM11 11L9.625 9.55L11.175 8H5V6H11.175L9.625 4.45L11 3L15 7L11 11Z" fill="currentColor"/>
-            </svg>
-            <span>Logout</span>
-        </a>
+        <form method="POST" action="{{ route('logout') }}" data-turbo="false" class="flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-950/35 p-2.5 text-sm font-semibold text-rose-200 transition-colors hover:bg-rose-950/55">
+            @csrf
+            <button type="submit" class="inline-flex items-center justify-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 14C4.33333 14 2.91667 13.4167 1.75 12.25C0.583333 11.0833 0 9.66667 0 8C0 6.33333 0.583333 4.91667 1.75 3.75C2.91667 2.58333 4.33333 2 6 2H9V4H6C4.9 4 3.95833 4.39167 3.175 5.175C2.39167 5.95833 2 6.9 2 8C2 9.1 2.39167 10.0417 3.175 10.825C3.95833 11.6083 4.9 12 6 12H9V14H6ZM11 11L9.625 9.55L11.175 8H5V6H11.175L9.625 4.45L11 3L15 7L11 11Z" fill="currentColor"/>
+                </svg>
+                <span>Logout</span>
+            </button>
+        </form>
     </div>
 </aside>
 
@@ -142,6 +146,7 @@
 
     function initTopbarProfileMenu(profileSettingsUrl, logoutUrl) {
       var headers = document.querySelectorAll('header');
+      var csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
       headers.forEach(function (header) {
         var avatar = header.querySelector('div.rounded-full.overflow-hidden');
         if (!avatar) return;
@@ -163,7 +168,10 @@
         menu.className = 'profileMenu hidden absolute right-0 mt-2 w-44 rounded-xl border border-stone-200 bg-white py-1 shadow-lg shadow-stone-900/15 z-50';
         menu.innerHTML =
           '<a href=\"' + profileSettingsUrl + '\" class=\"block px-4 py-2 text-sm text-stone-800 hover:bg-stone-50\">Profile Settings</a>' +
-          '<a href=\"' + logoutUrl + '\" class=\"block px-4 py-2 text-sm text-rose-700 hover:bg-rose-50\">Logout</a>';
+          '<form method=\"POST\" action=\"' + logoutUrl + '\" data-turbo=\"false\">' +
+          '<input type=\"hidden\" name=\"_token\" value=\"' + csrfToken + '\">' +
+          '<button type=\"submit\" class=\"block w-full px-4 py-2 text-left text-sm text-rose-700 hover:bg-rose-50\">Logout</button>' +
+          '</form>';
 
         wrapper.appendChild(trigger);
         wrapper.appendChild(menu);

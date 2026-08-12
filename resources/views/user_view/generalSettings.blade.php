@@ -8,16 +8,45 @@
     $primaryMarket = $settings['primary_market'] ?? 'Global Market';
     $businessModels = collect($settings['business_models'] ?? [])->filter()->values();
     $categoryLabel = $settings['custom_category'] ?? $store?->category ?? 'General';
-    $contactEmail = $store?->user?->email ?? auth()->user()?->email ?? 'Not set';
+    $contactEmail = trim((string) ($settings['contact_email'] ?? ''));
+    $contactEmailDisplay = $contactEmail !== '' ? $contactEmail : 'Not set';
     $defaultLocationAddress = $defaultLocation
         ? collect([$defaultLocation->address_line1, $defaultLocation->city, $defaultLocation->state, $defaultLocation->postal_code, $defaultLocation->country_code])->filter()->implode(', ')
         : null;
     $canManageStoreSettings = $store && (auth()->user()?->hasStorePermission($store, \App\Support\StorePermission::SETTINGS_MANAGE) ?? false);
     $storeInitial = $store ? \Illuminate\Support\Str::of($store->name)->trim()->substr(0, 1)->upper() : '?';
+    $stores = $stores ?? ($store ? collect([$store]) : collect());
+    $storeActionPayload = $store ? [
+        'id' => $store->id,
+        'name' => $store->name,
+        'contact_email' => $settings['contact_email'] ?? '',
+        'primary_market' => $primaryMarket,
+        'currency' => $store->currency,
+        'timezone' => $store->timezone,
+        'address' => $store->address,
+        'category' => $store->category,
+        'custom_category' => $settings['custom_category'] ?? '',
+        'business_models' => $settings['business_models'] ?? [],
+        'logo_url' => $store->logoPublicUrl(),
+        'update_url' => route('store.update', ['storeId' => $store->id]),
+        'delete_url' => route('store.destroy', ['storeId' => $store->id]),
+        'redirect_to' => 'generalSettings',
+    ] : null;
 @endphp
 
 @section('topbar')
     <x-ui.merchant-topbar title="General settings" lead="Store identity, defaults, and operational preferences.">
+        <x-slot:actions>
+            @if ($canManageStoreSettings && $storeActionPayload)
+                <button
+                    type="button"
+                    class="js-open-edit-store-modal inline-flex items-center rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover"
+                    data-store='@json($storeActionPayload)'
+                >
+                    Edit store
+                </button>
+            @endif
+        </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection
 
@@ -32,10 +61,27 @@
                 <a href="{{ route('store-management') }}" class="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Open store management</a>
             </section>
         @else
+            <section class="rounded-xl border border-[#DBEAFE] bg-[#EFF6FF] px-5 py-4 text-sm text-[#1E3A8A]">
+                Default currency and timezone apply to future activity and reports. Past orders keep the currency, totals, and timestamps they were saved with.
+            </section>
+
             <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                <div class="border-b border-[#F1F5F9] px-5 py-4">
-                    <h2 class="text-2xl">Store Profile</h2>
-                    <p class="text-sm text-[#64748B]">Public identity and appearance of your storefront.</p>
+                <div class="flex flex-col gap-3 border-b border-[#F1F5F9] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="text-2xl">Store Profile</h2>
+                        <p class="text-sm text-[#64748B]">Public identity and appearance of your storefront.</p>
+                    </div>
+                    @if ($canManageStoreSettings && $storeActionPayload)
+                        <button
+                            type="button"
+                            class="js-open-edit-store-modal inline-flex h-10 items-center justify-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]"
+                            data-store='@json($storeActionPayload)'
+                        >
+                            Edit store
+                        </button>
+                    @elseif (! $canManageStoreSettings)
+                        <p class="text-xs font-semibold uppercase tracking-[0.06em] text-[#94A3B8]">Read-only for your role</p>
+                    @endif
                 </div>
                 <div class="p-5 space-y-6">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-[128px_minmax(0,1fr)]">
@@ -57,8 +103,8 @@
                                     <input value="{{ $store->name }}" readonly class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
                                 </label>
                                 <label class="space-y-1.5">
-                                    <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Contact Email</span>
-                                    <input value="{{ $contactEmail }}" readonly class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
+                                    <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Store contact email</span>
+                                    <input value="{{ $contactEmailDisplay }}" readonly class="w-full h-10 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
                                 </label>
                             </div>
                             <label class="block space-y-1.5">
@@ -70,20 +116,23 @@
 
                     <hr class="border-[#F1F5F9]">
                     <div>
-                        <h3 class="mb-3 text-sm font-bold uppercase tracking-[0.7px]">Branding</h3>
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <h3 class="text-sm font-bold uppercase tracking-[0.7px]">Branding colors</h3>
+                            <span class="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[#64748B]">Read-only fact</span>
+                        </div>
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div class="flex items-center gap-4 rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
                                 <div class="rounded-lg border border-[#E2E8F0] bg-white p-2"><div class="h-6 w-7 rounded-[2px] bg-brand"></div></div>
                                 <div>
                                     <p class="font-semibold">Primary color</p>
-                                    <p class="text-xs text-[#64748B]">Current dashboard action color. Branding controls will be editable later.</p>
+                                    <p class="text-xs text-[#64748B]">Current dashboard action color used across this workspace.</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-4 rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
                                 <div class="rounded-lg border border-[#E2E8F0] bg-white p-2"><div class="h-6 w-7 rounded-[2px] bg-[#0F172A]"></div></div>
                                 <div>
                                     <p class="font-semibold">Secondary color</p>
-                                    <p class="text-xs text-[#64748B]">Current navigation and text accent. Branding controls will be editable later.</p>
+                                    <p class="text-xs text-[#64748B]">Current navigation and text accent used across this workspace.</p>
                                 </div>
                             </div>
                         </div>
@@ -100,17 +149,17 @@
                     <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
                         <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Default store currency</p>
                         <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $store->currency ?? 'USD' }}</p>
-                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.</p>
+                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">Base currency for future dashboard totals and default pricing. Historical orders keep their saved currency and totals.</p>
                     </div>
                     <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
                         <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Default store timezone</p>
                         <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $store->timezone ?? 'UTC' }}</p>
-                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">This timezone is used for dashboard dates, reports, and store operations. Location-specific cutoff times can be added later when fulfillment is enabled.</p>
+                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">Used for future dashboard dates and store operations. Past order timestamps stay unchanged.</p>
                     </div>
                     <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
                         <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Primary market</p>
                         <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $primaryMarket }}</p>
-                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">This is your default selling region. Full multi-market selling, regional currencies, and price lists will be added later.</p>
+                        <p class="mt-3 text-sm leading-relaxed text-[#64748B]">Default selling region for this store. Change it from the store editor when you have permission.</p>
                     </div>
                 </div>
             </section>
@@ -118,7 +167,7 @@
             <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
                 <div class="border-b border-[#F1F5F9] px-5 py-4">
                     <h2 class="text-2xl">Business Configuration</h2>
-                    <p class="text-sm text-[#64748B]">Operational status, store type, inventory location, and future fulfillment preview.</p>
+                    <p class="text-sm text-[#64748B]">Operational status, store type, inventory location, delivery, and payments.</p>
                 </div>
                 <div class="grid grid-cols-1 gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
                     <div class="space-y-5">
@@ -189,6 +238,8 @@
                     </div>
                 </div>
             </section>
+
+            @include('user_view.partials.store_edit_modal')
         @endunless
     </div>
 @endsection

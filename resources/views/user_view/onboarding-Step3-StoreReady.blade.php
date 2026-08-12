@@ -114,10 +114,13 @@
                     <p class="text-sm font-semibold text-[#0F172A]">Suggested next steps</p>
                     <ul class="mt-3 space-y-2 text-sm text-[#475569]">
                         <li><a href="{{ route('products.create') }}" class="font-semibold text-[#0052CC] hover:underline">Add products</a> in the product workspace</li>
-                        <li><a href="{{ route('products.import.create') }}" class="font-semibold text-[#0052CC] hover:underline">Import a catalog</a> when you have a file ready</li>
+                        <li><a href="{{ route('products') }}" class="font-semibold text-[#0052CC] hover:underline">Review inventory</a> on your product catalog</li>
                         <li><a href="{{ route('shippingAutomation') }}" class="font-semibold text-[#0052CC] hover:underline">Configure delivery</a> for checkout</li>
-                        <li><a href="{{ route('developer-storefront.settings') }}" class="font-semibold text-[#0052CC] hover:underline">Connect a selling channel</a> when ready</li>
                         <li><a href="{{ route('team-members.index') }}" class="font-semibold text-[#0052CC] hover:underline">Invite a teammate</a></li>
+                        <li>
+                            <span class="font-semibold text-[#0F172A]">Connect a selling channel</span>
+                            <span class="text-[#64748B]"> when the production connected-channel feature becomes available. The developer test storefront is not a required setup step.</span>
+                        </li>
                     </ul>
                 </div>
 

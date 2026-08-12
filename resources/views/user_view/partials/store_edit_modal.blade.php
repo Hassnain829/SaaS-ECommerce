@@ -1,5 +1,7 @@
 @php
+    $stores = $stores ?? collect();
     $editStoreHasErrors = $errors->has('name')
+        || $errors->has('contact_email')
         || $errors->has('primary_market')
         || $errors->has('address')
         || $errors->has('currency')
@@ -13,6 +15,7 @@
     $fallbackEditStore = $fallbackEditStoreRecord ? [
         'id' => (int) old('_edit_store_id'),
         'name' => old('name', $fallbackEditStoreRecord->name),
+        'contact_email' => old('contact_email', $fallbackEditStoreRecord->settings['contact_email'] ?? ''),
         'primary_market' => old('primary_market', $fallbackEditStoreRecord->settings['primary_market'] ?? 'Global Market'),
         'currency' => old('currency', $fallbackEditStoreRecord->currency),
         'timezone' => old('timezone', $fallbackEditStoreRecord->timezone),
@@ -23,6 +26,7 @@
         'logo_url' => $fallbackEditStoreRecord->logoPublicUrl(),
         'update_url' => route('store.update', ['storeId' => (int) old('_edit_store_id')]),
         'delete_url' => route('store.destroy', ['storeId' => (int) old('_edit_store_id')]),
+        'redirect_to' => old('redirect_to', ''),
     ] : null;
 @endphp
 
@@ -57,6 +61,11 @@
                 <input type="hidden" name="_open_edit_store_modal" value="1">
                 <input type="hidden" name="_edit_store_id" id="edit_store_id" value="{{ old('_edit_store_id', '') }}">
                 <input type="hidden" name="category" id="editStoreCategoryInput" value="{{ old('category', '') }}">
+                <input type="hidden" name="redirect_to" id="edit_store_redirect_to" value="{{ old('redirect_to', '') }}">
+
+                <div class="rounded-lg border border-[#DBEAFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
+                    Changing default currency or timezone affects future store activity and reports. Past orders and financial records keep the values they were saved with.
+                </div>
 
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div>
@@ -64,13 +73,25 @@
                         <input id="edit_store_name" name="name" type="text" value="{{ old('name', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:border-[#0052CC] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
                     </div>
                     <div>
+                        <label for="edit_contact_email" class="mb-2 block text-sm font-medium text-[#334155]">Store contact email</label>
+                        <input id="edit_contact_email" name="contact_email" type="email" value="{{ old('contact_email', '') }}" placeholder="ops@example.com" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:border-[#0052CC] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Optional store contact address. This is separate from your personal login email.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div>
                         <label for="edit_primary_market" class="mb-2 block text-sm font-medium text-[#334155]">Primary market</label>
                         <select id="edit_primary_market" name="primary_market" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                             @foreach (['Global Market', 'North America', 'Europe', 'Middle East', 'South Asia'] as $market)
                                 <option value="{{ $market }}">{{ $market }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your default selling region. Full multi-market selling, regional currencies, and price lists will be added later.</p>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Default selling region for this store.</p>
+                    </div>
+                    <div>
+                        <label for="edit_address" class="mb-2 block text-sm font-medium text-[#334155]">Business Address</label>
+                        <textarea id="edit_address" name="address" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ old('address', '') }}</textarea>
                     </div>
                 </div>
 
@@ -82,7 +103,7 @@
                                 <option value="{{ $currency }}">{{ $currency }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This is your store's base currency for dashboard totals and default pricing. Market-specific currencies will be added later.</p>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Used for future dashboard totals and default pricing. Does not rewrite past orders.</p>
                     </div>
                     <div>
                         <label for="edit_timezone" class="mb-2 block text-sm font-medium text-[#334155]">Default store timezone</label>
@@ -91,13 +112,8 @@
                                 <option value="{{ $timezone }}">{{ $timezone }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">This timezone is used for dashboard dates, reports, and store operations. Location-specific cutoff times can be added later when fulfillment is enabled.</p>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Used for future dates and reporting. Historical order timestamps stay as saved.</p>
                     </div>
-                </div>
-
-                <div>
-                    <label for="edit_address" class="mb-2 block text-sm font-medium text-[#334155]">Business Address</label>
-                    <textarea id="edit_address" name="address" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ old('address', '') }}</textarea>
                 </div>
 
                 <div>
@@ -209,10 +225,12 @@
         const deleteStoreForm = document.getElementById('deleteStoreForm');
         const editStoreIdInput = document.getElementById('edit_store_id');
         const editStoreName = document.getElementById('edit_store_name');
+        const editContactEmail = document.getElementById('edit_contact_email');
         const editPrimaryMarket = document.getElementById('edit_primary_market');
         const editCurrency = document.getElementById('edit_currency');
         const editTimezone = document.getElementById('edit_timezone');
         const editAddress = document.getElementById('edit_address');
+        const editRedirectTo = document.getElementById('edit_store_redirect_to');
         const editCategoryInput = document.getElementById('editStoreCategoryInput');
         const editCustomCategory = document.getElementById('edit_custom_category');
         const deleteStoreName = document.getElementById('deleteStoreName');
@@ -241,11 +259,17 @@
             editStoreForm.action = store.update_url;
             deleteStoreForm.action = store.delete_url;
             editStoreName.value = store.name || '';
+            if (editContactEmail) {
+                editContactEmail.value = store.contact_email || '';
+            }
             editPrimaryMarket.value = store.primary_market || 'Global Market';
             editCurrency.value = store.currency || 'USD';
             editTimezone.value = store.timezone || 'UTC';
             editAddress.value = store.address || '';
             editCustomCategory.value = store.custom_category || '';
+            if (editRedirectTo) {
+                editRedirectTo.value = store.redirect_to || '';
+            }
             setActiveCategory(store.category || 'physical');
 
             [...editStoreForm.querySelectorAll('input[name="business_models[]"]')].forEach((input) => {

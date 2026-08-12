@@ -159,7 +159,7 @@
                 <div id="sidebar-store-label" class="truncate text-[11px] text-ink-muted">{{ optional($currentStore)->name ?? 'Profile' }}</div>
             </div>
         </a>
-        <a href="{{ route('logout') }}" class="sidebar-footer-logout mt-1.5" data-turbo="false">Sign out</a>
+        <x-secure-logout class="mt-1.5" />
     </div>
 </aside>
 
@@ -171,6 +171,15 @@
     @endif
 
     <div class="merchant-app ui-page-enter flex-1 space-y-5 overflow-y-auto p-4 lg:p-6">
+        @auth
+            @if (auth()->user() instanceof \Illuminate\Contracts\Auth\MustVerifyEmail && ! auth()->user()->hasVerifiedEmail())
+                <div class="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
+                    Your email is not verified yet.
+                    <a href="{{ route('verification.notice') }}" class="font-semibold underline">Verify now</a>
+                    or resend the link from that page.
+                </div>
+            @endif
+        @endauth
         @yield('content')
     </div>
 </main>

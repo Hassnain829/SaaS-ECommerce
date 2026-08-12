@@ -371,4 +371,34 @@ document.addEventListener('turbo:fetch-request-error', () => {
     document.documentElement.classList.remove('turbo-loading', 'turbo-frame-loading');
 });
 
+document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (! (target instanceof Element)) {
+        return;
+    }
+
+    const toggle = target.closest('[data-password-toggle]');
+    if (! (toggle instanceof HTMLElement)) {
+        return;
+    }
+
+    const inputId = toggle.getAttribute('data-password-toggle');
+    if (! inputId) {
+        return;
+    }
+
+    const input = document.getElementById(inputId);
+    if (! (input instanceof HTMLInputElement)) {
+        return;
+    }
+
+    const showing = input.type === 'text';
+    input.type = showing ? 'password' : 'text';
+    toggle.setAttribute('aria-pressed', showing ? 'false' : 'true');
+    toggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+    if (toggle.childElementCount === 0) {
+        toggle.textContent = showing ? 'Show' : 'Hide';
+    }
+});
+
 Alpine.start();

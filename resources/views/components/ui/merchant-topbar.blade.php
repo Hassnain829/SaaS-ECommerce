@@ -110,7 +110,10 @@
                 role="menu"
             >
                 <a href="{{ route('profileSettings') }}" class="block px-3.5 py-2 text-sm text-ink hover:bg-surface-muted" role="menuitem">Profile settings</a>
-                <a href="{{ route('logout') }}" class="block px-3.5 py-2 text-sm text-danger hover:bg-danger-soft" role="menuitem">Sign out</a>
+                <form method="POST" action="{{ route('logout') }}" data-turbo="false" role="none">
+                    @csrf
+                    <button type="submit" class="block w-full px-3.5 py-2 text-left text-sm text-danger hover:bg-danger-soft" role="menuitem">Sign out</button>
+                </form>
             </div>
         </div>
     </div>

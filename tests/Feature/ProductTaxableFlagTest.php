@@ -503,7 +503,7 @@ CSV;
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
-            ->get(route('onboarding-Step2-AddProductVariations'))
+            ->get(route('products.create'))
             ->assertOk()
             ->assertSee('Charge tax on this product', false)
             ->assertSee('Store default:', false)
@@ -538,13 +538,16 @@ CSV;
             ->withSession([
                 'current_store_id' => $store->id,
                 'onboarding_store_id' => $store->id,
-                'onboarding_product_id' => $product->id,
             ])
-            ->get(route('onboarding-Step2-AddProductVariations'))
+            ->get(route('products.edit', $product))
             ->assertOk()
+            ->assertSee('edit_product_is_taxable', false)
             ->getContent();
 
-        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', true);
+        $this->assertTrue(
+            str_contains($html, '"is_taxable":true') || str_contains($html, '"is_taxable": true'),
+            'Expected workspace edit payload to mark the product as taxable.'
+        );
     }
 
     public function test_onboarding_edit_renders_actual_taxable_false(): void
@@ -558,13 +561,16 @@ CSV;
             ->withSession([
                 'current_store_id' => $store->id,
                 'onboarding_store_id' => $store->id,
-                'onboarding_product_id' => $product->id,
             ])
-            ->get(route('onboarding-Step2-AddProductVariations'))
+            ->get(route('products.edit', $product))
             ->assertOk()
+            ->assertSee('edit_product_is_taxable', false)
             ->getContent();
 
-        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', false);
+        $this->assertTrue(
+            str_contains($html, '"is_taxable":false') || str_contains($html, '"is_taxable": false'),
+            'Expected workspace edit payload to mark the product as non-taxable.'
+        );
     }
 
     public function test_onboarding_edit_explicit_true_persists(): void
@@ -656,22 +662,14 @@ CSV;
         $store = $this->store($owner, 'Onboarding Old False Store');
         $store->taxSetting->update(['default_product_taxable' => true]);
 
-        $response = $this->actingAs($owner)
+        $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
-            ->from(route('onboarding-Step2-AddProductVariations'))
+            ->from(route('products.create'))
             ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingProductPayload('', 'ONBOARD-OLD-FALSE') + [
                 'is_taxable' => '0',
-            ]);
-
-        $response->assertSessionHasErrors('name');
-
-        $html = $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
-            ->get($response->headers->get('Location'))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', false);
+            ])
+            ->assertSessionHasErrors('name')
+            ->assertSessionHas('_old_input.is_taxable', '0');
     }
 
     public function test_onboarding_create_validation_failure_preserves_checked_taxable(): void
@@ -680,22 +678,14 @@ CSV;
         $store = $this->store($owner, 'Onboarding Old True Store');
         $store->taxSetting->update(['default_product_taxable' => false]);
 
-        $response = $this->actingAs($owner)
+        $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
-            ->from(route('onboarding-Step2-AddProductVariations'))
+            ->from(route('products.create'))
             ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingProductPayload('', 'ONBOARD-OLD-TRUE') + [
                 'is_taxable' => '1',
-            ]);
-
-        $response->assertSessionHasErrors('name');
-
-        $html = $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
-            ->get($response->headers->get('Location'))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', true);
+            ])
+            ->assertSessionHasErrors('name')
+            ->assertSessionHas('_old_input.is_taxable', '1');
     }
 
     public function test_onboarding_edit_validation_failure_preserves_unchecked_taxable_change(): void
@@ -704,31 +694,19 @@ CSV;
         $store = $this->store($owner, 'Onboarding Edit Old False Store');
         $product = $this->product($store, ['is_taxable' => true, 'sku' => 'ONBOARD-EDIT-OLD-FALSE']);
 
-        $response = $this->actingAs($owner)
+        $this->actingAs($owner)
             ->withSession([
                 'current_store_id' => $store->id,
                 'onboarding_store_id' => $store->id,
                 'onboarding_product_id' => $product->id,
             ])
-            ->from(route('onboarding-Step2-AddProductVariations'))
+            ->from(route('products.edit', $product))
             ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingEditPayload($product, [
                 'name' => '',
                 'is_taxable' => '0',
-            ]));
-
-        $response->assertSessionHasErrors('name');
-
-        $html = $this->actingAs($owner)
-            ->withSession([
-                'current_store_id' => $store->id,
-                'onboarding_store_id' => $store->id,
-                'onboarding_product_id' => $product->id,
-            ])
-            ->get($response->headers->get('Location'))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', false);
+            ]))
+            ->assertSessionHasErrors('name')
+            ->assertSessionHas('_old_input.is_taxable', '0');
     }
 
     public function test_onboarding_edit_validation_failure_preserves_checked_taxable_change(): void
@@ -737,31 +715,19 @@ CSV;
         $store = $this->store($owner, 'Onboarding Edit Old True Store');
         $product = $this->product($store, ['is_taxable' => false, 'sku' => 'ONBOARD-EDIT-OLD-TRUE']);
 
-        $response = $this->actingAs($owner)
+        $this->actingAs($owner)
             ->withSession([
                 'current_store_id' => $store->id,
                 'onboarding_store_id' => $store->id,
                 'onboarding_product_id' => $product->id,
             ])
-            ->from(route('onboarding-Step2-AddProductVariations'))
+            ->from(route('products.edit', $product))
             ->post(route('onboarding-Step2-AddProductVariations.store'), $this->onboardingEditPayload($product, [
                 'name' => '',
                 'is_taxable' => '1',
-            ]));
-
-        $response->assertSessionHasErrors('name');
-
-        $html = $this->actingAs($owner)
-            ->withSession([
-                'current_store_id' => $store->id,
-                'onboarding_store_id' => $store->id,
-                'onboarding_product_id' => $product->id,
-            ])
-            ->get($response->headers->get('Location'))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertProductTaxableCheckboxChecked($html, 'onboarding-product-is-taxable', true);
+            ]))
+            ->assertSessionHasErrors('name')
+            ->assertSessionHas('_old_input.is_taxable', '1');
     }
 
     private function attach(Store $store, User $user, string $role): void

@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\StorePermission;
 use App\Support\StorePermissionResolver;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
@@ -165,5 +165,17 @@ class User extends Authenticatable
     public function canManageSettings(Store|int|null $store): bool
     {
         return $this->hasStorePermission($store, StorePermission::SETTINGS_MANAGE);
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        // Auth mail must not depend on a queue worker being online.
+        $this->notifyNow(new \App\Notifications\QueuedVerifyEmail);
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        // Auth mail must not depend on a queue worker being online.
+        $this->notifyNow(new \App\Notifications\QueuedResetPassword($token));
     }
 }

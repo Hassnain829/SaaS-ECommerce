@@ -176,15 +176,11 @@ class OnboardingController extends Controller
             $draft = array_merge($this->mapProductToDraft($sessionProduct), ['mode' => 'edit']);
         }
 
+        // Show the onboarding product form when requested (?add_product=1), on
+        // validation errors, or when continuing an in-progress draft.
         return view('user_view.onboarding-Step2-AddProductVariations', [
-            'store' => $store,
+            'store' => $store->loadMissing('products'),
             'draft' => $draft,
-            'brands' => $store->brands()->orderBy('sort_order')->orderBy('name')->get(),
-            'tags' => $store->tags()->orderBy('sort_order')->orderBy('name')->get(),
-            'productCategories' => $store->categories()->where('status', 'active')->orderBy('sort_order')->orderBy('name')->get(),
-            'productTypes' => ['physical', 'digital', 'service', 'subscription', 'virtual'],
-            'variationInputTypes' => ['select', 'radio', 'checkbox'],
-            'taxSetting' => $store->taxSetting,
         ]);
     }
 
@@ -1286,6 +1282,7 @@ class OnboardingController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
+            'contact_email' => ['nullable', 'email', 'max:255'],
             'primary_market' => ['required', 'string', 'max:80'],
             'address' => ['nullable', 'string', 'max:1000'],
             'currency' => ['required', 'string', 'max:8'],
@@ -1295,6 +1292,7 @@ class OnboardingController extends Controller
             'business_models.*' => ['string', 'max:80'],
             'custom_category' => ['nullable', 'string', 'max:80', 'required_without:category'],
             'store_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,svg', 'max:2048'],
+            'redirect_to' => ['nullable', 'string', 'in:generalSettings,store-management'],
         ]);
 
         $normalizedCategory = $validated['category'] ?? null;
@@ -1307,6 +1305,15 @@ class OnboardingController extends Controller
             $logoPath = $request->file('store_logo')->store('store-logos', 'public');
         }
 
+        $contactEmail = isset($validated['contact_email'])
+            ? trim((string) $validated['contact_email'])
+            : null;
+        if ($contactEmail === '') {
+            $contactEmail = null;
+        }
+
+        // Operational defaults (currency/timezone) apply to future activity only.
+        // Historical order totals, currencies, timestamps, and snapshots are not rewritten.
         $store->update([
             'name' => $validated['name'],
             'logo' => $logoPath,
@@ -1318,6 +1325,7 @@ class OnboardingController extends Controller
                 'primary_market' => $validated['primary_market'],
                 'business_models' => $validated['business_models'] ?? [],
                 'custom_category' => $validated['custom_category'] ?? null,
+                'contact_email' => $contactEmail,
             ]),
         ]);
 
@@ -1337,11 +1345,15 @@ class OnboardingController extends Controller
             metadata: ['store_id' => $store->id]
         );
 
+        $redirectRoute = ($validated['redirect_to'] ?? null) === 'generalSettings'
+            ? 'generalSettings'
+            : 'store-management';
+
         return redirect()
-            ->route('store-management')
+            ->route($redirectRoute)
             ->with('success', "Store '{$store->name}' updated successfully.")
             ->with('success_title', 'Store updated')
-            ->with('success_meta', 'Changes are now live');
+            ->with('success_meta', 'Future activity uses these defaults. Past orders stay unchanged.');
     }
 
     public function updateStoreLifecycleFromManagement(Request $request, $storeId): RedirectResponse
@@ -2555,6 +2567,17 @@ class OnboardingController extends Controller
         );
 
         if ($isFullWorkspaceCreate) {
+            if (! $store->onboarding_completed) {
+                $request->session()->put('onboarding_last_product_id', $newProductId);
+                $request->session()->put('onboarding_product_id', $newProductId);
+
+                return redirect()
+                    ->route('onboarding_StoreReady')
+                    ->with('success', "Product '{$validated['name']}' was created.")
+                    ->with('success_title', 'Product created')
+                    ->with('success_meta', 'Continue setup when you are ready');
+            }
+
             return redirect()
                 ->route('products.show', ['product' => $newProductId])
                 ->with('success', "Product '{$validated['name']}' was created.")

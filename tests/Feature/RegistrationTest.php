@@ -20,9 +20,10 @@ class RegistrationTest extends TestCase
             'email' => 'merchant@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
+            'terms' => '1',
         ]);
 
-        $response->assertRedirect(route('onboarding-StoreDetails-1'));
+        $response->assertRedirect(route('verification.notice'));
 
         $this->assertDatabaseHas('users', [
             'name' => 'New Merchant',
@@ -40,6 +41,7 @@ class RegistrationTest extends TestCase
             'email' => 'rolecheck@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
+            'terms' => '1',
         ]);
 
         $user = User::where('email', 'rolecheck@example.com')->firstOrFail();
@@ -57,6 +59,7 @@ class RegistrationTest extends TestCase
             'email' => 'authed@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
+            'terms' => '1',
         ]);
 
         $this->assertAuthenticated();
@@ -79,6 +82,7 @@ class RegistrationTest extends TestCase
             'email' => 'existing@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
+            'terms' => '1',
         ]);
 
         $response->assertRedirect(route('register'));
@@ -96,6 +100,7 @@ class RegistrationTest extends TestCase
             'email' => 'noconfirm@example.com',
             'password' => 'password123',
             'password_confirmation' => 'different-password',
+            'terms' => '1',
         ]);
 
         $response->assertRedirect(route('register'));

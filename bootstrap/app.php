@@ -31,6 +31,23 @@ return Application::configure(basePath: dirname(__DIR__))
             RecordUserSession::class,
         ]);
 
+        // Password-reset and verification absolute URLs must only trust configured hosts.
+        $middleware->trustHosts(at: function (): array {
+            $configured = array_values(array_filter(array_map(
+                static fn ($host) => is_string($host) ? trim($host) : '',
+                (array) config('app.trusted_hosts', [])
+            )));
+
+            $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
+
+            return array_values(array_unique(array_filter([
+                is_string($appHost) ? $appHost : null,
+                'localhost',
+                '127.0.0.1',
+                ...$configured,
+            ])));
+        });
+
         $middleware->redirectGuestsTo(fn () => route('signin'));
         $middleware->redirectUsersTo(function ($request) {
             $user = $request->user();

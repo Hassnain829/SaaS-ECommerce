@@ -160,13 +160,15 @@ class MerchantReadinessBatch1Test extends TestCase
         [$owner, $store] = $this->ownerStore();
 
         $html = $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
+            ->withSession(['current_store_id' => $store->id, 'onboarding_store_id' => $store->id])
             ->get(route('onboarding-Step2-AddProductVariations'))
             ->assertOk()
             ->getContent() ?: '';
 
         $this->assertStringContainsString(route('products.import.create'), $html);
+        $this->assertStringContainsString(route('onboarding-Step2-AddProductVariations', ['add_product' => 1]), $html);
         $this->assertStringNotContainsString('Upload CSV', $html);
+        $this->assertStringNotContainsString('id="product-onboarding-form"', $html);
     }
 
     /**

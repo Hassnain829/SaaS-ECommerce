@@ -1,0 +1,18 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\View\View;
+
+class LegalPageController extends Controller
+{
+    public function terms(): View
+    {
+        return view('legal.terms');
+    }
+
+    public function privacy(): View
+    {
+        return view('legal.privacy');
+    }
+}

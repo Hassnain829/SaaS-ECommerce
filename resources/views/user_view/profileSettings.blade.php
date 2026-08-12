@@ -43,7 +43,10 @@
         </div>
       </div>
 
-      <a href="{{ route('logout') }}" class="text-[#BA1A1A] font-semibold self-start lg:self-center">Logout</a>
+      <form method="POST" action="{{ route('logout') }}" data-turbo="false" class="self-start lg:self-center">
+        @csrf
+        <button type="submit" class="text-[#BA1A1A] font-semibold">Logout</button>
+      </form>
     </div>
   </section>
 
@@ -131,6 +134,9 @@
           <div>
             <p class="font-semibold text-[#0F172A]">Email verification</p>
             <p class="text-[#64748B]">{{ $profileUser->email_verified_at ? 'Verified '.$profileUser->email_verified_at->diffForHumans() : 'Verification is pending.' }}</p>
+            @unless ($profileUser->email_verified_at)
+              <a href="{{ route('verification.notice') }}" class="mt-2 inline-flex text-sm font-semibold text-[#0052CC] hover:underline">Verify email</a>
+            @endunless
           </div>
           <div>
             <p class="font-semibold text-[#0F172A]">Last sign-in</p>

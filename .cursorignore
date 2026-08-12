@@ -1,6 +1,5 @@
 # Historical docs and heavy runtime trees - not current agent instructions
 docs/archive/**
-storage/**
 vendor/**
 node_modules/**
 dev-test-storefront/node_modules/**
