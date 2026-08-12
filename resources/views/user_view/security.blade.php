@@ -5,7 +5,7 @@
 @section('topbar')
     <x-ui.merchant-topbar title="Security" lead="Sessions and recent account activity.">
         <x-slot:actions>
-            <a href="{{ route('profileSettings') }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Profile settings</a>
+            <a href="{{ route('generalSettings', ['tab' => 'account']) }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Your account</a>
         </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection
@@ -181,7 +181,7 @@
           <div>
             <p class="font-semibold text-[#0F172A]">Password</p>
             <p class="text-[#64748B]">Change it from your profile settings when a teammate leaves or you suspect exposure.</p>
-            <a href="{{ route('profileSettings') }}#password" class="mt-3 inline-flex h-10 px-4 rounded-lg bg-brand text-white font-semibold items-center justify-center">Change password</a>
+            <a href="{{ route('generalSettings', ['tab' => 'account']) }}#password" class="mt-3 inline-flex h-10 px-4 rounded-lg bg-brand text-white font-semibold items-center justify-center">Change password</a>
           </div>
           <hr class="border-[#E2E8F0]">
           <div>

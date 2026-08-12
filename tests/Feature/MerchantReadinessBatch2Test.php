@@ -31,7 +31,9 @@ class MerchantReadinessBatch2Test extends TestCase
             ->assertOk()
             ->assertSeeText('Edit store')
             ->assertDontSeeText('editable later')
-            ->assertSeeText('Read-only fact');
+            ->assertSeeText('Store Profile')
+            ->assertDontSeeText('Read-only fact')
+            ->assertDontSeeText('Branding colors');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -420,6 +422,28 @@ class MerchantReadinessBatch2Test extends TestCase
             ->assertOk()
             ->assertDontSeeText('Edit store')
             ->assertSeeText('Read-only for your role');
+    }
+
+    public function test_settings_account_tab_shows_profile_and_password_forms(): void
+    {
+        [$owner, $store] = $this->ownerStore('Account Tab Store');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('generalSettings', ['tab' => 'account']))
+            ->assertOk()
+            ->assertSeeText('Your account')
+            ->assertSeeText('Personal information')
+            ->assertSeeText('Password')
+            ->assertSeeText('Store access')
+            ->assertSee('id="profileForm"', false)
+            ->assertSee('id="password"', false)
+            ->assertDontSeeText('Edit store');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('profileSettings'))
+            ->assertRedirect(route('generalSettings', ['tab' => 'account']));
     }
 
     /**

@@ -1308,16 +1308,24 @@ class DashboardController extends Controller
     {
         $selectedStore = $request->attributes->get('currentStore');
         $defaultLocation = null;
+        $user = $request->user();
 
         if ($selectedStore) {
             $defaultLocation = app(DefaultLocationService::class)
-                ->ensureFromStoreDefaults($selectedStore, $request->user());
+                ->ensureFromStoreDefaults($selectedStore, $user);
         }
+
+        $settingsTab = $request->query('tab') === 'account' ? 'account' : 'store';
 
         return view('user_view.generalSettings', [
             'selectedStore' => $selectedStore,
             'defaultLocation' => $defaultLocation,
             'stores' => $selectedStore ? collect([$selectedStore]) : collect(),
+            'profileUser' => $user,
+            'memberStores' => $user
+                ? $user->memberStores()->orderBy('stores.name')->get()
+                : collect(),
+            'settingsTab' => $settingsTab,
         ]);
     }
 
@@ -1386,18 +1394,9 @@ class DashboardController extends Controller
             ->with('success_title', 'Session revoked');
     }
 
-    public function profileSettings(Request $request)
+    public function profileSettings(Request $request): RedirectResponse
     {
-        $user = $request->user();
-        $stores = $user->memberStores()
-            ->orderBy('stores.name')
-            ->get();
-
-        return view('user_view.profileSettings', [
-            'profileUser' => $user,
-            'memberStores' => $stores,
-            'selectedStore' => $request->attributes->get('currentStore'),
-        ]);
+        return redirect()->route('generalSettings', ['tab' => 'account']);
     }
 
     public function updateProfile(Request $request): RedirectResponse
@@ -1439,7 +1438,8 @@ class DashboardController extends Controller
             metadata: ['email_changed' => $oldEmail !== $validated['email']]
         );
 
-        return back()
+        return redirect()
+            ->route('generalSettings', ['tab' => 'account'])
             ->with('success', 'Profile updated.')
             ->with('success_title', 'Account saved');
     }
@@ -1460,7 +1460,8 @@ class DashboardController extends Controller
 
         app(SecurityLogRecorder::class)->record($request, 'password_changed');
 
-        return back()
+        return redirect()
+            ->to(route('generalSettings', ['tab' => 'account']).'#password')
             ->with('success', 'Password changed.')
             ->with('success_title', 'Account secured');
     }

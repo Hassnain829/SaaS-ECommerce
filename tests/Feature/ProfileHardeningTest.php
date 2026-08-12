@@ -34,7 +34,7 @@ class ProfileHardeningTest extends TestCase
                 ),
             ]);
 
-        $response->assertRedirect();
+        $response->assertRedirect(route('generalSettings', ['tab' => 'account']));
 
         $user->refresh();
         $this->assertSame('Updated Merchant', $user->name);
@@ -63,7 +63,7 @@ class ProfileHardeningTest extends TestCase
                 'password' => 'new-strong-password',
                 'password_confirmation' => 'new-strong-password',
             ])
-            ->assertRedirect();
+            ->assertRedirect(route('generalSettings', ['tab' => 'account']).'#password');
 
         $this->assertTrue(Hash::check('new-strong-password', $user->fresh()->password));
         $this->assertDatabaseHas('security_logs', [
@@ -107,14 +107,21 @@ class ProfileHardeningTest extends TestCase
         $store = $this->store($user, 'Real Profile Store');
         $this->attach($store, $user, Store::ROLE_MANAGER);
 
+        $this->actingAs($user)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('profileSettings'))
+            ->assertRedirect(route('generalSettings', ['tab' => 'account']));
+
         $response = $this->actingAs($user)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('profileSettings'));
+            ->get(route('generalSettings', ['tab' => 'account']));
 
         $response->assertOk();
         $response->assertSeeText($user->name);
         $response->assertSeeText('real-profile@example.com');
         $response->assertSeeText('Real Profile Store');
+        $response->assertSeeText('Personal information');
+        $response->assertSeeText('Password');
         $response->assertDontSeeText('Alex Rivers');
     }
 

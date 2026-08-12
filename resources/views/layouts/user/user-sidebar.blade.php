@@ -146,7 +146,7 @@
         $sidebarInitial = $sidebarUser ? \Illuminate\Support\Str::of($sidebarUser->name)->trim()->substr(0, 1)->upper() : '?';
     @endphp
     <div class="sidebar-footer shrink-0 border-t border-border p-2.5">
-        <a href="{{ route('profileSettings') }}" @class(['sidebar-footer-profile', 'sidebar-footer-profile-active' => request()->routeIs('profileSettings')])>
+        <a href="{{ route('generalSettings', ['tab' => 'account']) }}" @class(['sidebar-footer-profile', 'sidebar-footer-profile-active' => request()->routeIs('generalSettings') && request('tab') === 'account'])>
             <div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-muted text-xs font-semibold text-ink ring-1 ring-border">
                 @if ($sidebarUser?->avatar)
                     <img src="{{ asset('storage/'.$sidebarUser->avatar) }}" alt="" class="h-full w-full object-cover">
