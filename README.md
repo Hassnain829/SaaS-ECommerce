@@ -4,16 +4,16 @@ Multi-store merchant dashboard and APIs for catalog, imports, inventory, orders,
 
 ## Tech stack
 
-- **Backend:** PHP 8.2+, Laravel 12  
-- **Merchant UI:** Blade, Tailwind CSS, Vite 7  
-- **Developer simulator:** React 19 + Vite (`dev-test-storefront`)  
+- **Backend:** PHP 8.2+, Laravel 12
+- **Merchant UI:** Blade, Tailwind CSS, Vite 7
+- **Developer simulator:** React 19 + Vite (`dev-test-storefront`)
 - **Payments:** Stripe (PHP SDK + webhooks)
 
 ## PHP extensions
 
 Required for day-to-day development and CI:
 
-- `ctype`, `curl`, `dom`, `fileinfo`, `mbstring`, `openssl`, `pdo`, `tokenizer`, `xml`, `xmlwriter`  
+- `ctype`, `curl`, `dom`, `fileinfo`, `mbstring`, `openssl`, `pdo`, `tokenizer`, `xml`, `xmlwriter`
 - SQLite (`pdo_sqlite`) for the default test suite, **or** MySQL client extensions if you use MySQL locally.
 
 ## Node.js
@@ -51,6 +51,8 @@ php artisan test
 
 `phpunit.xml` pins testing env (`APP_KEY`, in-memory SQLite, sync queues). See `docs/LOCAL_SETUP.md` if you use `php artisan migrate:fresh --env=testing` with a file-based DB.
 
+Do not claim the full suite is green without a successful run.
+
 ## Build commands
 
 | Location | Command |
@@ -60,13 +62,13 @@ php artisan test
 
 ## Security & release hygiene
 
-- **`SECURITY_ROTATION_REQUIRED.md`** — what to rotate after a leak.  
-- **`docs/SECURITY_HARDENING.md`** — image download SSRF controls and API throttle / webhook notes.  
-- **`docs/RELEASE_CHECKLIST.md`** — pre-release checks (no `vendor/`, no `.env`, CI green).
+- **`SECURITY_ROTATION_REQUIRED.md`** — what to rotate after a leak.
+- **`docs/operations/SECURITY_HARDENING.md`** — image download SSRF controls and API throttle / webhook notes.
+- **`docs/operations/RELEASE_CHECKLIST.md`** — pre-release checks (no `vendor/`, no `.env`, CI green).
 
 Do not commit: `.env`, `vendor/`, `node_modules/`, `database/*.sqlite`, `storage/logs/*.log`, `bootstrap/cache/*.php`, `.phpunit.cache/`, or generated carrier validation trees under `storage/app/usps-validation/`.
 
-## Project hygiene commands (CLEAN-1 / CLEAN-1A)
+## Project hygiene commands
 
 Non-destructive repository maintenance — does not change merchant or carrier business logic:
 
@@ -81,7 +83,7 @@ php artisan project:retention --dry-run      # age-based retention preview (defa
 php artisan project:retention --force          # requires PROJECT_RETENTION_ENABLED=true; blocked against real worktree in tests
 ```
 
-See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md`, `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`, `docs/operations/RUNTIME_STORAGE_RETENTION.md`, and `docs/cleanup/CLEAN_3A_RETENTION_TEST_ISOLATION_REPORT.md`.
+See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md` and `docs/operations/RUNTIME_STORAGE_RETENTION.md`.
 
 ## Troubleshooting
 
@@ -92,12 +94,14 @@ See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md`, `docs/cleanup/PROJECT_CLEANUP_MASTER
 | Vite / API 419 or session issues | Session driver and `APP_URL` must match how you open the app (host + port). |
 | Developer storefront 401 | `VITE_STOREFRONT_TOKEN` must match the token issued in the merchant dashboard; restart Vite after changing `.env`. |
 
-## Further reading
+## Start here (documentation)
 
-- **[docs/architecture/CARRIER_CODE_STRUCTURE.md](docs/architecture/CARRIER_CODE_STRUCTURE.md)** — carrier folder layout after CLEAN-2.
-- **[docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md](docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md)** — CLEAN-1 through CLEAN-4 hygiene (see [CLEAN-4 report](docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md)).
-- **[docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md](docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md)** — platform/external/draft calculation audit (5R-0).
-- **[docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md](docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md)** — tax foundation plan (5R-1 complete). See **[Batch B final report](docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md)**.
-- **[docs/architecture/REFACTORING_BOUNDARIES.md](docs/architecture/REFACTORING_BOUNDARIES.md)** — internal extraction boundaries from CLEAN-4.
-- **[docs/REFACTORING_ROADMAP.md](docs/REFACTORING_ROADMAP.md)** — remaining large-file refactor candidates.
-- **`ENTERPRISE_PROJECT_CONTEXT.md`** / **`ENTERPRISE_ROADMAP_2026.md`** — product scope and build order.
+1. **[docs/current/PROJECT_STATE.md](docs/current/PROJECT_STATE.md)** — current project state
+2. **[docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md](docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md)** — merchant readiness P0
+3. **[docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md](docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md)** — FedEx Model A architecture
+4. **[docs/architecture/CARRIER_CODE_STRUCTURE.md](docs/architecture/CARRIER_CODE_STRUCTURE.md)** — carrier folder layout
+5. **[docs/architecture/REFACTORING_ROADMAP.md](docs/architecture/REFACTORING_ROADMAP.md)** — deferred internal extractions
+6. **[docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md](docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)** — Phase 9 plan (approved; not complete)
+7. **[docs/README.md](docs/README.md)** — full documentation index
+
+Historical phase/audit reports live under `docs/archive/` and are not current instructions.

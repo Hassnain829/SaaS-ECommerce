@@ -45,7 +45,7 @@ See `config/project_retention.php` and `.env.example`.
 
 ## Testing destructive runs
 
-In `APP_ENV=testing`, `--force` requires a marked sandbox outside the repository (`.retention-test-sandbox`). Forced retention/cleanup against `base_path()` or `storage_path()` is rejected before any file scan or deletion. See `docs/cleanup/CLEAN_3A_RETENTION_TEST_ISOLATION_REPORT.md`.
+In `APP_ENV=testing`, `--force` requires a marked sandbox outside the repository (`.retention-test-sandbox`). Forced retention/cleanup against `base_path()` or `storage_path()` is rejected before any file scan or deletion. See `docs/archive/cleanup/CLEAN_3A_RETENTION_TEST_ISOLATION_REPORT.md`.
 
 ## Commands
 
@@ -112,6 +112,6 @@ Retention is **not** a backup system. Canonical evidence and merchant uploads mu
 
 ## Related docs
 
-- `docs/cleanup/CLEAN_3_RUNTIME_STORAGE_RETENTION_REPORT.md`
-- `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`
+- `docs/archive/cleanup/CLEAN_3_RUNTIME_STORAGE_RETENTION_REPORT.md`
+- `docs/archive/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`
 - `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md`

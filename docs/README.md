@@ -1,29 +1,34 @@
 # Documentation Index
 
-Runtime application code lives in `app/`, `routes/`, `resources/`, and `database/`. This folder holds **plans, reports, and audits**.
+Runtime application code lives in `app/`, `routes/`, `resources/`, and `database/`. This folder holds **current state, readiness scope, architecture, operations, and plans**. Historical completion reports live under `archive/` and are **not** authoritative.
 
-## Start here
+## Start here (active order)
 
-1. [`canonical/README.md`](canonical/README.md) — links to root enterprise docs + `PROJECT_STRUCTURE.md`
-2. [`architecture/`](architecture/) — code structure, refactoring boundaries, carrier layout
-3. [`ux/`](ux/) — merchant UX plans and delivery sign-off
+1. [`current/PROJECT_STATE.md`](current/PROJECT_STATE.md) — volatile current project state
+2. [`handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`](handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md) — release-readiness P0
+3. [`canonical/README.md`](canonical/README.md) — root enterprise docs index
+4. [`architecture/`](architecture/) — carrier structure and refactoring boundaries
+5. [`operations/`](operations/) — security, release, retention
+6. [`plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md) — approved Phase 9 plan (**not complete**)
+
+Also useful:
+
+- [`fedex/MODEL_A_INTEGRATOR_PROVIDER.md`](fedex/MODEL_A_INTEGRATOR_PROVIDER.md) — FedEx Model A architecture
+- [`cleanup/CLEANUP_DECISION_LOG.md`](cleanup/CLEANUP_DECISION_LOG.md) — hygiene decisions
+- [`LOCAL_SETUP.md`](LOCAL_SETUP.md) — local environment setup
 
 ## Folder guide
 
 | Folder | What it contains |
 |--------|------------------|
-| `canonical/` | Pointers to authoritative root markdown files |
-| `phases/` | Phase completion reports (`PHASE_*_REPORT.md`) |
+| `current/` | Authoritative volatile project state |
+| `handoffs/` | Active readiness / handoff documents |
+| `canonical/` | Pointers to root enterprise docs |
 | `architecture/` | Structural docs for controllers, carriers, refactoring |
-| `ux/` | UX simplification batches and acceptance |
-| `handoffs/` | Active colleague handoffs — **products list + stock/inventory UX (2026-08-05):** [`PRODUCT_STOCK_INVENTORY_UX_HANDOFF.md`](handoffs/PRODUCT_STOCK_INVENTORY_UX_HANDOFF.md) (filters/search UI, soft delete, bulk select-all, inline stock, live Edit sync) |
-| `cleanup/` | CLEAN-1–4 hygiene and retention reports |
-| `implementation/` | Tax/checkout slice implementation reports |
-| `audit/` | QA gap reports, risk register, command outputs |
-| `fedex/` | FedEx integrator and validation documentation |
-| `operations/` | Local setup, security hardening, release checklist |
-| `reports/` | Standalone hardening/support reports |
-| `plans/` | Approved execution plans (not root canonical) — **Phase 9:** [`PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md) |
-| `archive/` | Notes on deprecated agent context files |
+| `cleanup/` | Active cleanup decision log + source archive guide |
+| `fedex/` | Active FedEx Model A documentation |
+| `operations/` | Security hardening, release checklist, retention |
+| `plans/` | Approved execution plans (Phase 9) |
+| `archive/` | Historical reports only — **non-authoritative**; excluded from Cursor and source exports |
 
-Phase report paths use `docs/phases/PHASE_*.md` (moved from `docs/` root on 2026-07-03).
+Do not treat `docs/archive/**` as current instructions. Prefer source code and `docs/current/PROJECT_STATE.md` on conflict.

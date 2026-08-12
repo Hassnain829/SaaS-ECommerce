@@ -71,11 +71,11 @@ The project already has a strong base in these areas:
 - Stripe platform checkout and Stripe Connect foundation
 - External checkout synchronization (developer storefront prototype)
 - Security logs and user sessions
-- FedEx Model A connectivity and validation workspace
+- FedEx Model A connectivity and gated US/CA production operations (certification/validation workspace retired)
 - USPS public API foundation
 - Developer storefront API prototype
 - Returns, refunds, restock, and exchanges (Phase 7)
-- **CLEAN-1 through CLEAN-4** — repository hygiene, carrier organization, runtime retention, test isolation, and controlled refactoring (see `docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md`)
+- **CLEAN-1 through CLEAN-4** — repository hygiene, carrier organization, runtime retention, test isolation, and controlled refactoring (see historical `docs/archive/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md`)
 
 ### 1.2 Partially implemented
 
@@ -1034,17 +1034,17 @@ Fields:
 
 - `id`
 - `store_id`
-- `provider`  
+- `provider`
   Examples: `stripe`, `external`, `manual`, `paypal`, `shopify`, `woocommerce`
-- `mode`  
+- `mode`
   Examples: `test`, `live`
-- `connection_type`  
+- `connection_type`
   Examples: `platform`, `connect`, `external_reference`, `manual`
 - `display_name`
-- `status`  
+- `status`
   Examples: `active`, `inactive`, `pending`, `restricted`, `revoked`
 - `is_default`
-- `provider_account_id` nullable  
+- `provider_account_id` nullable
   Example: Stripe connected account ID
 - `credentials_encrypted` nullable
 - `capabilities` json nullable
@@ -1968,16 +1968,16 @@ Implemented/required behavior:
 
 Customer/store-owner wording must say "nearest eligible fulfillment location", "best eligible origin", "fulfillment origin", "service area routing", or "stock-aware routing". Do not claim distance-based routing until 6C-0B exists.
 
-**Phase Q Step 3 gate (2026-05-24):** QA-001 external dedup and QA-007 routing hardening tests complete (`docs/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`).
+**Phase Q Step 3 gate (2026-05-24):** QA-001 external dedup and QA-007 routing hardening tests complete (historical: `docs/archive/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`).
 
-**Phase Q Step 3C (2026-05-24):** External order creation requires `external_order_id` or `external_order_number`; `Idempotency-Key` alone is rejected. QA audit bundle/gap/risk files archived under `docs/audit/`.
+**Phase Q Step 3C (2026-05-24):** External order creation requires `external_order_id` or `external_order_number`; `Idempotency-Key` alone is rejected. QA audit snapshots live under historical `docs/archive/audit/`.
 
 **Phase 6C-1A (2026-06-04):** FedEx sandbox connection foundation complete (provider architecture, registration, OAuth test, encrypted credentials, API event logs, merchant UI). FedEx Credential Registration may remain blocked pending FedEx support.
 
-**Phase 6C-1B-USPS (2026-06-02):** USPS public API foundation — platform OAuth, address validation, domestic test rate quotes, package builder, safe API event logs. Uses platform USPS credentials from `.env`. **Not implemented:** labels, EPS/payment authorization, pickup, production live mode, checkout live rates. See `docs/phases/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`.
+**Phase 6C-1B-USPS (2026-06-02):** USPS public API foundation — platform OAuth, address validation, domestic test rate quotes, package builder, safe API event logs. Uses platform USPS credentials from `.env`. **Not implemented:** labels, EPS/payment authorization, pickup, production live mode, checkout live rates. See historical `docs/archive/phases/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`. Current USPS status: `docs/current/PROJECT_STATE.md`.
 
 
-**Phase 6C-2B — FedEx Merchant Credentials Mode (historical / developer fallback):** Implemented earlier as a merchant-owned Developer API credential path. **Not the primary architecture.** Normal merchant onboarding uses Model A (Phase 6C-4). Model B remains behind `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED` for developer testing only. See `docs/phases/PHASE_6C_2B_FEDEX_MERCHANT_CREDENTIALS_MODE_REPORT.md`.
+**Phase 6C-2B — FedEx Merchant Credentials Mode (historical / developer fallback):** Implemented earlier as a merchant-owned Developer API credential path. **Not the primary architecture.** Normal merchant onboarding uses Model A (Phase 6C-4). Model B remains behind `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED` for developer testing only. See historical `docs/archive/phases/PHASE_6C_2B_FEDEX_MERCHANT_CREDENTIALS_MODE_REPORT.md`.
 
 **FedEx Credential Registration decision:** FedEx Credential Registration (`/registration/v2/address/keysgeneration`) was tested and hardened, but FedEx continued returning HTTP 422 `INVALID.INPUT.EXCEPTION`. FedEx email confirmed production keys require the Integrator Validation process. Therefore Credential Registration is not the normal merchant setup path right now.
 
@@ -2139,79 +2139,47 @@ Implement roadmap Sprint 4: carriers, carrier accounts, shipping rules, shipment
 - Carrier API failures are visible and retryable.
 
 ---
-# CURRENT EXECUTION ROADMAP — CARRIER-INDEPENDENT PORTAL COMPLETION
+# CURRENT EXECUTION ROADMAP — MERCHANT READINESS THEN PORTAL COMPLETION
 
-**Effective date:** 2026-06-24
-**Status:** Active after CLEAN-1 through CLEAN-4
-**Primary objective:** Continue completing the merchant portal while FedEx, USPS, UPS, DHL, and other production carrier approvals or entitlements remain pending.
+**Effective date:** 2026-08-12
+**Status:** Active
+**Primary objective:** Complete merchant-facing readiness truth/gating and suite recovery before Phase 9 connected-channel foundation. Volatile status: `docs/current/PROJECT_STATE.md`. Release P0: `docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`.
 
 ---
 
 ## Why this execution roadmap exists
 
-The platform already has:
+The platform already has substantial commerce and catalog foundations, FedEx Model A production connectivity (US/CA, capability-gated), USPS foundation code, and CLEAN-1 through CLEAN-4 hygiene.
 
-* store onboarding and current-store scoping;
-* catalog, products, variants, images, categories, brands, and tags;
-* product import, retry, custom fields, and unmapped-data preservation;
-* multi-location inventory and inventory reservations;
-* customers, orders, addresses, and order events;
-* manual fulfillment and shipments;
-* shipping zones and checkout delivery methods;
-* Stripe platform checkout and Stripe Connect foundation;
-* external checkout synchronization;
-* security logs and user sessions;
-* FedEx Model A connectivity and validation tooling;
-* USPS public API foundation;
-* repository cleanup CLEAN-1 through CLEAN-4.
-
-Production carrier capabilities remain dependent on external approvals and entitlements.
-
-Carrier delays must not block the remaining merchant-platform work.
+Carrier expansion beyond the locked FedEx/USPS/DHL status in `docs/current/PROJECT_STATE.md` must not block merchant readiness work.
 
 ---
 
-## Carrier work temporarily frozen
+## Carrier expansion deferred from readiness gate
 
-Do not start or expand these capabilities until the relevant carrier approval, entitlement, credentials, and capability proof are available:
+Do not expand additional carriers (UPS, new couriers) or claim USPS/DHL production readiness beyond `docs/current/PROJECT_STATE.md`.
 
-* production carrier rate quotes;
-* production label purchase;
-* label void/refund APIs;
-* pickup scheduling;
-* live tracking synchronization;
-* carrier-specific shipment background jobs;
-* FedEx production activation;
-* UPS integration;
-* DHL integration;
-* USPS merchant-owned production labels or EPS payment flows;
-* carrier-specific return labels;
-* checkout live carrier-calculated rates.
+Existing manual fulfillment, shipping zones, delivery methods, shipment records, manual tracking, FedEx Model A gated production ops, and carrier-neutral order flows must remain as implemented.
 
-Existing manual fulfillment, shipping zones, delivery methods, shipment records, manual tracking, and carrier-neutral order flows must remain operational.
-
-Model A / Official Integrator Provider remains the primary courier architecture where supported.
+Model A / Official Integrator Provider remains the primary FedEx architecture. Certification/validation workspace remains retired.
 
 ---
 
 # EXECUTION ORDER
 
-The numbered domain phases in this roadmap remain canonical, but implementation will follow the priority order below.
+The numbered domain phases in this roadmap remain historical canon, but **active implementation** follows this priority:
 
-| Priority | Workstream                                                | Dependency on carrier approval                        |
-| -------- | --------------------------------------------------------- | ----------------------------------------------------- |
-| 1        | Foundation Gate — authorization and baseline verification | None                                                  |
-| 2        | Phase 5R — tax, coupons, and checkout totals              | None — **Complete**                                   |
-| 3        | Phase 7 — returns, refunds, and exchanges                 | None — **Complete (2026-07-28)**                       |
-| 4        | Phase 9 — API keys, idempotency, outbox, and webhooks     | None                                                  |
-| 5        | Phase 11 — notifications and communication                | None — **Complete (2026-07-29)**                       |
-| 6        | Phase 10 — SaaS plans, subscriptions, and billing         | None                                                  |
-| 7        | Phase 14 — observability and reliability                  | None                                                  |
-| 8        | Phase 13 — performance and scale                          | None                                                  |
-| 9        | Phase 8 — Markets, B2B, catalogs, and price lists         | None                                                  |
-| 10       | Phase 12 — platform admin operations                      | Deferred until merchant portal foundations are stable |
+| Priority | Workstream | Notes |
+| -------- | ---------- | ----- |
+| 1 | Merchant readiness truth/gating, product workspace, settings | P0 — readiness review |
+| 2 | Onboarding / auth / legal recovery | Readiness review |
+| 3 | Full-suite recovery and acceptance | Evidence required; no suite-green claims without a successful run |
+| 4 | Phase 9 — API keys, idempotency, outbox, and webhooks | Approved plan; **not complete** |
+| 5 | Later platform phases (billing, markets, admin, observability) | After Phase 9 foundations |
 
-Do not skip a phase acceptance gate merely because the next UI appears easier to build.
+Completed and not to reopen without a production defect: Phase 5R, Phase 7, Phase 11 notification foundation.
+
+Do not skip an acceptance gate merely because the next UI appears easier to build.
 
 ---
 
@@ -2278,7 +2246,7 @@ This is the immediate next implementation phase.
 
 ## Phase 5R-0 — Current calculation audit
 
-**Status: Completed (2026-06-24).** Audit report: `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
+**Status: Completed (2026-06-24).** Audit report: `docs/archive/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
 
 Findings summary:
 
@@ -2300,7 +2268,7 @@ Findings summary:
 
 ## Phase 5R-1 — Tax settings and tax calculation foundation
 
-**Status: Complete — Phase 5R-1 tax foundation is implemented and verified through Batch B.** Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`. Reports: `docs/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_1B_TAX_SETTINGS_UI_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_2_TAX_CALCULATOR_REPORT.md`, `docs/implementation/PHASE_5R_1_SLICE_3_CHECKOUT_TOTALS_REPORT.md`, `docs/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md`, `docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`.
+**Status: Complete — Phase 5R-1 tax foundation is implemented and verified through Batch B.** Plan: `docs/archive/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`. Reports: `docs/archive/implementation/PHASE_5R_1_SLICE_1A_TAX_SCHEMA_REPORT.md`, `docs/archive/implementation/PHASE_5R_1_SLICE_1B_TAX_SETTINGS_UI_REPORT.md`, `docs/archive/implementation/PHASE_5R_1_SLICE_2_TAX_CALCULATOR_REPORT.md`, `docs/archive/implementation/PHASE_5R_1_SLICE_3_CHECKOUT_TOTALS_REPORT.md`, `docs/archive/implementation/PHASE_5R_1_BATCH_A_FINANCIAL_PIPELINE_REPORT.md`, `docs/archive/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`.
 
 ### Build
 
@@ -2421,7 +2389,7 @@ Cover:
 
 ## Phase 5R-3 — Checkout and order totals hardening
 
-**Status: Complete — 2026-07-23.** Decimal-string / BCMath / `CurrencyPrecision` hardening for platform checkout invariants, PaymentIntent sync, draft coupon-before-tax, external total preservation, and platform-coupon line discount allocation. Report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`. Verification: `tests/Feature/Phase5R3TotalsHardeningTest.php`, `tests/Feature/Phase5RTaxMigrationRoundTripTest.php`. **Phase 5R (5R-0 through 5R-3) is complete.**
+**Status: Complete — 2026-07-23.** Decimal-string / BCMath / `CurrencyPrecision` hardening for platform checkout invariants, PaymentIntent sync, draft coupon-before-tax, external total preservation, and platform-coupon line discount allocation. Report: `docs/archive/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`. Verification: `tests/Feature/Phase5R3TotalsHardeningTest.php`, `tests/Feature/Phase5RTaxMigrationRoundTripTest.php`. **Phase 5R (5R-0 through 5R-3) is complete.**
 
 ### Goal
 
@@ -3637,43 +3605,41 @@ Before public beta:
 
 # Recommended Immediate Next Sprint
 
-The previous stabilization, commerce-core, multi-location inventory, manual fulfillment, checkout, carrier foundation, and CLEAN-1 through CLEAN-4 work is already implemented.
-
-The active implementation sequence is now defined in:
-
-`# CURRENT EXECUTION ROADMAP — CARRIER-INDEPENDENT PORTAL COMPLETION`
+Volatile status: `docs/current/PROJECT_STATE.md`.
+Active P0: `docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`.
 
 Immediate work:
 
-1. ~~Phase 5R-0 — Current Calculation Audit.~~ **Completed 2026-06-24** (`docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`).
-2. ~~Phase 5R-1 — Tax Settings and Tax Calculation Foundation.~~ **Completed 2026-06-25** (`docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`).
-3. ~~Phase 5R-2 — Coupons and Discount Rules.~~ **Completed 2026-07-22** (`tests/Feature/Phase5R2CouponTest.php`).
-4. ~~Phase 5R-3 — Checkout and Order Totals Hardening.~~ **Completed 2026-07-23** (`docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`).
-5. ~~Phase 7 — Returns, Refunds, and Exchanges.~~ **Completed 2026-07-28** (Phase 7 four-suite gate: 54 passed / 0 failed; related regressions: 39 passed / 0 failed).
-6. Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks.
-7. ~~Phase 11 — Notifications.~~ **Completed 2026-07-29** (`docs/phases/PHASE_11_NOTIFICATIONS_REPORT.md`; focused notifications: 30 passed; Phase 7 gate: 54 passed; repository full suite still has five known unrelated Phase 5/6 failures).
-8. Phase 10 — SaaS Billing.
-9. Phase 14 and Phase 13 — Observability, Reliability, Performance, and Scale.
-10. Phase 8 — Markets and B2B.
-11. Phase 12 — Platform Admin.
+1. Merchant readiness truth/gating, product workspace (`products.edit`), and settings corrections.
+2. Onboarding / auth / legal recovery.
+3. Full-suite recovery and acceptance (evidence required).
+4. Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks (**approved plan; not complete**).
+5. Later platform phases (billing, markets, admin, observability).
 
-Carrier-specific production rates, labels, pickup, tracking synchronization, and new courier integrations remain frozen until their capability-specific approval and entitlement gates pass.
+Completed and not to reopen without a production defect:
+
+* Phase 5R-0 through 5R-3 (historical reports under `docs/archive/`)
+* Phase 7 — Returns, Refunds, and Exchanges
+* Phase 11 — Notifications foundation (historical report under `docs/archive/phases/`)
+
+Extra carrier expansion is deferred from the readiness gate. FedEx/USPS/DHL status is authoritative only in `docs/current/PROJECT_STATE.md`.
 
 ---
 
 # AI Coding Task Template
 
-Use this prompt template when asking Cursor/Codex/Anti-Gravity to implement any roadmap item:
+Use this prompt template when asking Cursor/Codex to implement any roadmap item:
 
 ```md
 I am implementing: [Roadmap Phase + Task]
 
 Read first:
+- docs/current/PROJECT_STATE.md
+- docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md
 - ENTERPRISE_PROJECT_CONTEXT.md
 - ENTERPRISE_ROADMAP_2026.md
-- PROJECT-CONTEXT.txt
-- ROADMAP.txt
-- Updated ERD similar to Shopify.txt
+- docs/architecture/CARRIER_CODE_STRUCTURE.md (when carrier-related)
+- PROJECT_STRUCTURE.md
 
 Rules:
 - Preserve current-store scoping.
@@ -3683,6 +3649,7 @@ Rules:
 - Add migrations/models/services/tests where needed.
 - Add seed data only if useful for demo/testing.
 - Use merchant-friendly wording.
+- Do not treat docs/archive/** as current instructions.
 
 Inspect before coding:
 - routes/web.php
@@ -3701,7 +3668,7 @@ Return:
 5. tests added/updated
 6. commands run
 7. what remains deferred
-8. final sign-off status
+8. final sign-off status (evidence-based)
 ```
 
 ---
@@ -3754,7 +3721,7 @@ Document the distinction between Locations, Markets, Currency, and Timezone in:
 
 - `ENTERPRISE_PROJECT_CONTEXT.md`
 - `ENTERPRISE_ROADMAP_2026.md`
-- `docs/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
+- `docs/archive/phases/PHASE_3_ENTERPRISE_INVENTORY_REPORT.md`
 
 ## 3.5.5 Future guardrails
 

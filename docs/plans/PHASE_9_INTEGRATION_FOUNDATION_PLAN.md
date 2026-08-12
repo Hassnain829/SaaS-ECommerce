@@ -1,14 +1,16 @@
 # Phase 9 — Integration Foundation Plan
 
-> **Status:** Approved execution plan / not started in code  
-> **Last updated:** 2026-07-04  
-> **Authority:** This is the **approved Phase 9 execution plan** for goals, vision, current baseline, and batch order. It is **not** a root canonical document. On conflict, root canonical docs win: `ENTERPRISE_PROJECT_CONTEXT.md`, `ENTERPRISE_ROADMAP_2026.md`, `PROJECT_BRAIN.md`, `PROJECT_STRUCTURE.md`, and `AGENTS.md`.
+> **Status:** Approved execution plan / not started in code
+> **Last updated:** 2026-08-12
+> **Authority:** This is the **approved Phase 9 execution plan** for goals, vision, current baseline, and batch order. It is **not** a root canonical document. On conflict, prefer `docs/current/PROJECT_STATE.md`, then root canonical docs: `ENTERPRISE_PROJECT_CONTEXT.md`, `ENTERPRISE_ROADMAP_2026.md`, `PROJECT_BRAIN.md`, `PROJECT_STRUCTURE.md`, and `AGENTS.md`.
 
 External source document (audit basis): `PHASE_9_ENTERPRISE_INTEGRATION_ARCHITECTURE_GUIDE.md` (kept outside the repo; this file is the project-bound execution plan aligned to actual code).
 
 ### Working rule for every batch
 
 Implement one bounded batch at a time. After each batch, run tests, show changed files and `git diff --stat`, then stop for manual review. The project owner handles all commits and pushes.
+
+Merchant readiness P0 and full-suite recovery precede Phase 9 unless explicitly reprioritized. Extra carrier work is not Phase 9 readiness scope. The cohesive Phase 9 connected-channel product is **not complete**.
 
 ---
 
@@ -32,7 +34,7 @@ The SaaS remains the **operational commerce backend** — catalog, inventory, or
 1. **Extend existing `/api/v1` and domain services** — do not build a competing integration stack.
 2. **Store-scoped everything** — never trust `store_id` from request body; resolve store from API key (merchant routes) or provider signature context (provider callbacks).
 3. **Merchant-friendly Integrations UX** — plain language, not JSON/HMAC jargon in primary flows.
-4. **No fake APIs** — do not expose scopes or buttons for endpoints that do not exist (returns/refunds wait for Phase 7).
+4. **No fake APIs** — do not expose scopes or buttons for endpoints that do not exist.
 5. **No secret keys in browser JS** — `dev-test-storefront` stays a simulator; production custom sites use server-side keys.
 6. **Business commit + outbox in one transaction** — remote HTTP only after commit via queues.
 7. **Do not change legacy `/api/developer-storefront/*` response shapes** before contract tests and simulator migration.
@@ -41,34 +43,45 @@ The SaaS remains the **operational commerce backend** — catalog, inventory, or
 
 ## 2. Explicit reprioritization and phase ownership
 
-Phase 9 is being started by **explicit reprioritization** while **Phase 5R-2**, **Phase 5R-3**, and **Phase 7** remain incomplete.
+Phase 9 remains **approved but not complete**. **Phase 5R is complete. Phase 7 is complete. Phase 11 notification foundation is complete.** Current status authority: `docs/current/PROJECT_STATE.md`.
 
-| Phase | Ownership |
-|-------|-----------|
-| **Phase 5R-2** | Coupons |
-| **Phase 5R-3** | Checkout/order totals hardening |
-| **Phase 7** | Returns / refunds / exchanges |
-| **Phase 8** | Markets / B2B |
-| **Phase 9** | Integration foundation (this plan) |
-| **Phase 10** | SaaS billing / subscriptions |
+Merchant readiness P0 (`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`) and suite recovery precede Phase 9 unless explicitly reprioritized.
 
-### Constraints while incomplete phases remain open
+| Phase | Ownership / status |
+|-------|--------------------|
+| **Phase 5R** | Complete (tax, coupons, totals) |
+| **Phase 7** | Complete (returns / refunds / exchanges) |
+| **Phase 11** | Notification foundation complete |
+| **Phase 8** | Markets / B2B (later) |
+| **Phase 9** | Integration foundation (this plan — **not complete**) |
+| **Phase 10** | SaaS billing / subscriptions (later) |
 
-- **Do not expose return/refund APIs or scopes** until Phase 7 is implemented.
-- **Do not freeze coupon payloads prematurely** — Phase 5R-2 owns coupons; Phase 9 must not lock discount/coupon shapes in public contracts before 5R-2.
-- Phase 5R-3 may still change checkout/order totals behavior; document impact in 9-0 and avoid over-freezing totals fields that 5R-3 will harden.
+### Current baseline truth (2026-08-12)
+
+- A broad hashed per-store developer token exists (prototype).
+- Some idempotency foundations exist for external orders/shipments and carrier operations.
+- Scoped API keys/credential lifecycle, transactional outbox, webhook subscriptions/delivery history, connection health, and merchant connected-sites hub remain incomplete.
+- Do not expose secret keys in browser JavaScript.
+- No new carrier implementation belongs in Phase 9.
+
+### Constraints
+
+- Return/refund API scopes may be designed only after confirming Phase 7 domain contracts in current code.
+- Coupon and totals public shapes should follow completed Phase 5R behavior; do not invent parallel contracts.
+- Extra carrier expansion is **not** Phase 9 readiness scope.
+- Do not mark Phase 9 started or complete unless current code satisfies its acceptance criteria.
 
 ### What Phase 9 is not
 
 | Not Phase 9 | Belongs to |
 |-------------|------------|
-| Coupons / discount rules | Phase 5R-2 |
-| Checkout/order totals hardening | Phase 5R-3 |
-| Returns / refunds / exchanges APIs | Phase 7 |
+| Coupons / discount rules | Phase 5R-2 (complete) |
+| Checkout/order totals hardening | Phase 5R-3 (complete) |
+| Returns / refunds / exchanges APIs | Phase 7 (complete) |
 | Markets / B2B | Phase 8 |
 | SaaS billing / subscriptions | Phase 10 |
 | Full automation builder | Phase 9E (after 9A–9D stable) |
-| Production live carrier labels (DHL/UPS) | Carrier roadmap / approvals |
+| Production live carrier labels (DHL/UPS) / extra carriers | Carrier roadmap / approvals — not readiness P0 |
 | Replacing `dev-test-storefront` as the final storefront product | Never — it is a test simulator |
 
 ---
@@ -294,6 +307,8 @@ Prefer granular scopes (`orders.create`, `inventory.adjust`) over coarse roadmap
 
 Implement one bounded batch at a time. After each batch, run tests, show changed files and `git diff --stat`, then stop for manual review. The project owner handles all commits and pushes.
 
+Merchant readiness P0 and full-suite recovery precede Phase 9 unless explicitly reprioritized. Extra carrier work is not Phase 9 readiness scope. The cohesive Phase 9 connected-channel product is **not complete**.
+
 | Batch | Focus | Gate |
 |-------|-------|------|
 | **9-0** | Contracts, characterization tests, architecture docs (ownership, capability matrix, event catalog, dependency audit) | No schema until tests lock current behavior |
@@ -307,21 +322,21 @@ Implement one bounded batch at a time. After each batch, run tests, show changed
 
 ### Suggested internal slices within 9A (still one review stop per slice if large)
 
-1. `api_keys` schema, issuer, revoker, security logs  
-2. `AuthenticateApiKey`, scopes, per-key rate limits, stable errors + request ID  
-3. API resources/DTOs, response envelope (merchant v1 only; do not change legacy shapes yet)  
-4. Read APIs (store, orders, customers, inventory, shipments), cursor/`updated_since`  
-5. Settings → Integrations UI and legacy-token migration path  
+1. `api_keys` schema, issuer, revoker, security logs
+2. `AuthenticateApiKey`, scopes, per-key rate limits, stable errors + request ID
+3. API resources/DTOs, response envelope (merchant v1 only; do not change legacy shapes yet)
+4. Read APIs (store, orders, customers, inventory, shipments), cursor/`updated_since`
+5. Settings → Integrations UI and legacy-token migration path
 
 ### Merchant UX target
 
 **Settings → Integrations**
 
-- Overview  
-- API keys (test/live, scopes, revoke/rotate, one-time secret copy)  
-- Webhooks (subscriptions, test event, delivery history)  
-- Connected websites (Woo/Shopify/custom)  
-- Sync activity  
+- Overview
+- API keys (test/live, scopes, revoke/rotate, one-time secret copy)
+- Webhooks (subscriptions, test event, delivery history)
+- Connected websites (Woo/Shopify/custom)
+- Sync activity
 
 Evolve from current `developer_storefront` page; keep route aliases during migration.
 
@@ -345,16 +360,16 @@ Evolve from current `developer_storefront` page; keep route aliases during migra
 
 Must cover:
 
-- catalog v1 list/detail  
-- **legacy API response contracts** (`/api/developer-storefront/*`) — shapes must not drift  
-- **both legacy and v1 order paths**  
-- external order/shipment: **external identity vs idempotency** (identity required; idempotency is replay protection only)  
-- platform checkout golden path  
-- **duplicate Stripe events** → single order / safe 2xx  
-- **cross-store isolation** and **request `store_id` override** rejection (body/query cannot switch store)  
-- **secret/header log redaction** (no full secrets or `Authorization` headers in logs)  
-- **rollback without partial order/inventory state** (failed sync leaves no half-created order or stock movement)  
-- rate-limit baseline  
+- catalog v1 list/detail
+- **legacy API response contracts** (`/api/developer-storefront/*`) — shapes must not drift
+- **both legacy and v1 order paths**
+- external order/shipment: **external identity vs idempotency** (identity required; idempotency is replay protection only)
+- platform checkout golden path
+- **duplicate Stripe events** → single order / safe 2xx
+- **cross-store isolation** and **request `store_id` override** rejection (body/query cannot switch store)
+- **secret/header log redaction** (no full secrets or `Authorization` headers in logs)
+- **rollback without partial order/inventory state** (failed sync leaves no half-created order or stock movement)
+- rate-limit baseline
 
 JSON fixtures under `tests/fixtures/api/v1/` or `tests/Support/Integrations/`.
 
@@ -410,32 +425,32 @@ After 9-0: run tests, show changed files and `git diff --stat`, stop for manual 
 
 ### Core foundation (9A–9D)
 
-- [ ] Multiple scoped test/live API keys per store  
-- [ ] Raw secret shown once; only secret hash stored  
-- [ ] Revocation, expiry, last-used audit  
-- [ ] Secrets and `Authorization` headers never logged  
-- [ ] Third-party credentials encrypted (not hashed)  
-- [ ] Per-key rate limits and audit identity  
-- [ ] Stable API resources, errors, request IDs on merchant `/api/v1`  
-- [ ] Provider callbacks use signature verify + `provider_webhook_events` (not API keys)  
-- [ ] Existing routes migrated without commerce regression  
-- [ ] Atomic client idempotency on public writes  
-- [ ] Transactional outbox at service boundaries (`outbox_events`)  
-- [ ] Signed outbound webhooks with separate delivery/attempt tables  
-- [ ] Queue recovery and retention  
-- [ ] Store-isolation and `store_id` override rejection coverage  
-- [ ] OpenAPI + webhook verification docs  
+- [ ] Multiple scoped test/live API keys per store
+- [ ] Raw secret shown once; only secret hash stored
+- [ ] Revocation, expiry, last-used audit
+- [ ] Secrets and `Authorization` headers never logged
+- [ ] Third-party credentials encrypted (not hashed)
+- [ ] Per-key rate limits and audit identity
+- [ ] Stable API resources, errors, request IDs on merchant `/api/v1`
+- [ ] Provider callbacks use signature verify + `provider_webhook_events` (not API keys)
+- [ ] Existing routes migrated without commerce regression
+- [ ] Atomic client idempotency on public writes
+- [ ] Transactional outbox at service boundaries (`outbox_events`)
+- [ ] Signed outbound webhooks with separate delivery/attempt tables
+- [ ] Queue recovery and retention
+- [ ] Store-isolation and `store_id` override rejection coverage
+- [ ] OpenAPI + webhook verification docs
 
 ### Website connectivity (9F–9G)
 
-- [ ] Shared connections, resource links, sync runs, reconciliation  
-- [ ] Custom website reference integration works end-to-end  
-- [ ] Encrypted third-party credentials  
-- [ ] Chunked initial import + incremental sync  
-- [ ] WooCommerce for agreed capabilities  
-- [ ] Shopify for agreed capabilities  
-- [ ] WordPress limited to defined connector plugin contract  
-- [ ] Source of truth explicit; conflicts visible and recoverable  
+- [ ] Shared connections, resource links, sync runs, reconciliation
+- [ ] Custom website reference integration works end-to-end
+- [ ] Encrypted third-party credentials
+- [ ] Chunked initial import + incremental sync
+- [ ] WooCommerce for agreed capabilities
+- [ ] Shopify for agreed capabilities
+- [ ] WordPress limited to defined connector plugin contract
+- [ ] Source of truth explicit; conflicts visible and recoverable
 
 Until both groups pass, the project has an **integration foundation in progress**, not a finished connectivity outcome.
 
@@ -443,22 +458,22 @@ Until both groups pass, the project has an **integration foundation in progress*
 
 ## 15. Things not to do
 
-1. Keep one token per store as production auth.  
-2. Store raw API secrets in the database.  
-3. Put secret keys in browser JavaScript.  
-4. Trust request `store_id`.  
-5. Expose `catalog.write` or connector product push before shared product persistence extraction from `Store\OnboardingController`.  
-6. Copy idempotency logic into new controllers.  
-7. Call remote APIs inside business transactions.  
-8. Build Shopify/Woo before API keys + idempotency + outbox.  
-9. Promise universal WordPress support without a plugin/schema.  
-10. Expose return/refund APIs or scopes before Phase 7.  
-11. Freeze coupon payloads before Phase 5R-2.  
-12. Change legacy `/api/developer-storefront/*` response shapes before contract tests and simulator migration.  
-13. Use merchant API keys for Stripe/provider callbacks.  
-14. Merge `outbox_events`, webhook tables, and `provider_webhook_events`.  
-15. Remove legacy routes in the same batch as replacements.  
-16. Mark Phase 9 done because a settings page exists.  
+1. Keep one token per store as production auth.
+2. Store raw API secrets in the database.
+3. Put secret keys in browser JavaScript.
+4. Trust request `store_id`.
+5. Expose `catalog.write` or connector product push before shared product persistence extraction from `Store\OnboardingController`.
+6. Copy idempotency logic into new controllers.
+7. Call remote APIs inside business transactions.
+8. Build Shopify/Woo before API keys + idempotency + outbox.
+9. Promise universal WordPress support without a plugin/schema.
+10. Expose return/refund APIs or scopes before Phase 7.
+11. Freeze coupon payloads before Phase 5R-2.
+12. Change legacy `/api/developer-storefront/*` response shapes before contract tests and simulator migration.
+13. Use merchant API keys for Stripe/provider callbacks.
+14. Merge `outbox_events`, webhook tables, and `provider_webhook_events`.
+15. Remove legacy routes in the same batch as replacements.
+16. Mark Phase 9 done because a settings page exists.
 17. Commit or push without owner approval — owner handles all commits and pushes.
 
 ---
@@ -490,7 +505,7 @@ Until both groups pass, the project has an **integration foundation in progress*
 | `PROJECT_BRAIN.md` | Condensed project memory |
 | `PROJECT_STRUCTURE.md` | Folder and controller map |
 | `docs/architecture/REFACTORING_BOUNDARIES.md` | Product save / controller extraction debt |
-| `docs/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md` | External sync origin |
+| historical `docs/archive/phases/PHASE_5_EXTERNAL_CHECKOUT_SYNC_REPORT.md` | External sync origin |
 | External guide | `PHASE_9_ENTERPRISE_INTEGRATION_ARCHITECTURE_GUIDE.md` (full detail) |
 | This file | **Approved Phase 9 execution plan** (not root canonical) |
 

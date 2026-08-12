@@ -2,7 +2,7 @@
 
 Phase **6C-4** implemented FedEx Model A as the **primary merchant-facing** FedEx connection path. Phase **6C-5** production ops (address validation, service availability, negotiated rates, ship/labels, tracking, ETD) are live behind capability flags.
 
-See `docs/fedex/PHASE_6C_5A_LIVE_CONNECTION_HARDENING.md` and `docs/fedex/PHASE_6C_5_STEP1_FOUNDATION_AUDIT.md` for historical hardening notes.
+See `docs/archive/fedex/PHASE_6C_5A_LIVE_CONNECTION_HARDENING.md` and `docs/archive/fedex/PHASE_6C_5_STEP1_FOUNDATION_AUDIT.md` for historical hardening notes.
 
 ## Architecture
 

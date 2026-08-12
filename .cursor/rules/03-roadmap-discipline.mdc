@@ -1,44 +1,29 @@
 ---
-description: Roadmap order, day boundaries, and implementation discipline
+description: Roadmap order, readiness priority, and implementation discipline
 alwaysApply: true
 ---
 
 # Roadmap Discipline
 
-Follow the enterprise roadmap strictly.
+Follow the enterprise roadmap, but treat volatile status as authoritative in `docs/current/PROJECT_STATE.md`.
 
-## Current roadmap state
+## Current priority
 
-Completed:
-- Sprint 1 foundation
-- Sprint 2 catalog core
-- Day 12 import core
-- Day 13 import enhancements
-- Day 14 product detail workspace (functional, still may need UX polish)
+1. **P0 — Senior merchant readiness** (`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`)
+2. Full-suite recovery and acceptance testing (evidence required)
+3. Phase 9 connected-channel foundation after readiness blockers (approved plan; not complete)
+4. Later platform phases only after the above
 
-Current priority:
-1. Day 15 — Variant System Upgrade
-2. Day 16 — Variant Import
-3. Day 17 — Custom Fields Usability
-4. Day 18 — Product UX Completion
+## Deferred until readiness and external approval gates permit
 
-Later:
-- Day 19–24 Commerce
-- Day 25–29 Fulfillment
-- Day 30–34 Billing
-- Day 35–40 Integrations and Security
+- Additional carrier expansion
+- SaaS subscription/billing expansion
+- Payment expansion beyond current foundations
 
-## Rule for implementation
+## Claims discipline
 
-Do not solve future-day scope prematurely unless explicitly asked.
+Do not make unsupported “complete,” “live,” or “production-ready” claims. Prefer truthful gating or hiding of unfinished surfaces.
 
-Example:
-- Day 15 should prepare Day 16, not fully implement Day 16
-- Day 17 should improve custom-fields usability, not redesign import
-- Day 18 should polish product UX, not jump into orders
+## Testing discipline
 
-## Sign-off rule
-
-When asked to verify completion:
-- distinguish core functional completion vs sign-off readiness
-- do not mark a day done if major merchant workflow residue remains
+Use focused tests during implementation. Require a successful full-suite run with evidence before sign-off. Do not treat `docs/archive/**` as current instructions.

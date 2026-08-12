@@ -1,355 +1,77 @@
-# 🧠 PROJECT BRAIN — BaaS Core (Full System Brain)
+# PROJECT BRAIN — Condensed system memory
+
+Short operating memory for agents. Volatile status: **`docs/current/PROJECT_STATE.md`**. Release P0: **`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`**.
 
 ---
 
-## 🧭 What we are building
+## What we are building
 
-We are building an **enterprise-ready multi-tenant SaaS ecommerce platform**
+Enterprise multi-tenant SaaS ecommerce operations platform: simpler and clearer than Shopify/WooCommerce-style complexity, while remaining production-grade.
 
-Target:
-- Shopify alternative
-- WooCommerce alternative
-- Amazon Seller-style system
-
-BUT:
-
-👉 simpler  
-👉 more intuitive  
-👉 less frustrating  
-👉 more scalable  
+Golden rule: if the merchant is confused, the system is wrong.
 
 ---
 
-## 🎯 Core Vision
+## Architecture principles
 
-Most platforms fail because:
-- too complex
-- too many steps
-- unclear data
-- weak variant handling
-- poor import systems
-
-Our platform must:
-
-- reduce merchant confusion
-- reduce clicks
-- reduce thinking effort
-- increase visibility
-- increase control
+1. **Multi-store SaaS (strict)** — every tenant entity belongs to a store; use current-store context everywhere.
+2. **Hybrid data model** — core fields in tables; flexible mapped fields in `meta.custom_fields`; unmapped import extras in `meta.import_extra`.
+3. **Import → Normalize → Store → Expose → Manage** — imported data must be usable in UI, not only stored.
+4. **Workspace-first UX** — core editing uses dedicated workspaces (canonical product edit: `products.edit`), not modal/list bridge flows.
+5. **No hacks** — direct routes, stable UX, no temporary redirects that become permanent.
 
 ---
 
-## 🧠 Golden Rule
+## Current priority (2026-08-12)
 
-👉 If the merchant feels confused → system is wrong  
-👉 If developer uses shortcut → system will break later  
+1. Merchant readiness truth/gating, product workspace, and settings corrections (`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`)
+2. Onboarding / auth / legal recovery
+3. Full-suite recovery and acceptance (do not claim green without evidence)
+4. Phase 9 connected-channel foundation (approved plan; **not complete**)
+5. Later platform phases (billing, markets, admin, observability)
 
----
-
-# 🏗️ SYSTEM ARCHITECTURE PRINCIPLES
-
----
-
-## 1. Multi-store SaaS (STRICT)
-
-- every entity belongs to a store
-- no cross-store access
-- use current.store everywhere
+**Deferred from readiness gate:** additional carriers, SaaS subscription expansion, payment expansion.
 
 ---
 
-## 2. Hybrid Data Model
+## Carrier connectivity (locked)
 
-| Type | Storage |
-|------|--------|
-| Core data | tables |
-| Flexible fields | meta.custom_fields |
-| Extra import data | meta.import_extra |
-
----
-
-## 3. Import → Product → UX pipeline
-
-Import → Normalize → Store → Expose → Manage
-
-👉 data must NOT just be stored  
-👉 it must be usable in UI
+- Merchants own carrier accounts and pay postage/carrier charges.
+- Platform provides connectivity only — never the postage payer.
+- **FedEx Model A** primary; US/CA production approval complete; production ops behind capability gates; certification/validation workspace **removed**.
+- **Model B** developer fallback only.
+- **USPS / DHL** status: see `docs/current/PROJECT_STATE.md` — do not invent readiness.
+- Details: `docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md`, `docs/architecture/CARRIER_CODE_STRUCTURE.md`
 
 ---
 
-## 4. Workspace-first UX
+## Completed foundations (high level)
 
-Core entities must have real workspaces:
+Catalog/import/variants, commerce core, multi-location inventory, manual fulfillment, checkout delivery, Stripe foundations, external checkout sync prototype, Phase 5R tax/coupons/totals, Phase 7 returns/refunds/exchanges, Phase 11 notifications foundation, CLEAN-1–4 hygiene, FedEx Model A production connectivity (gated), USPS public API foundation.
 
-- Product workspace
-- Order workspace (future)
-- Customer workspace (future)
-
-NOT:
-- modal-only
-- list-based editing
+Historical phase/completion reports live under `docs/archive/` and are **not** current instructions.
 
 ---
 
-## 5. No Hacks Rule
+## Inventory (inspected 2026-08-12)
 
-NEVER:
-- modal/list bridge flows
-- redirect loops
-- temporary fixes
-
-ALWAYS:
-- direct flows
-- clean routes
-- stable UX
+Models 73 · Migrations 93 · Services 159 · Feature tests 122 · Unit tests 32 · Blade views 151
 
 ---
 
-# 🚀 DEVELOPMENT ROADMAP (FULL)
-
----
-
-## ✅ Sprint 1 — SaaS Foundation
-
-- store system
-- roles & permissions
-- current.store middleware
-
----
-
-## ✅ Sprint 2 — Catalog Core
-
-- products
-- brands
-- tags
-- categories
-- product_images
-- product_categories pivot
-- stock movements
-
----
-
-## ✅ Day 12 — Bulk Import
-
-- CSV/XLSX parsing
-- mapping system
-- validation
-- queue processing
-
----
-
-## ✅ Day 13 — Import Enhancements
-
-- progress tracking
-- error handling
-- retry system
-- row-level debugging
-
----
-
-## ✅ CURRENT STATE (2026-07-28)
-
-Repository cleanup **CLEAN-1 through CLEAN-4 is complete.** FedEx Model A integrator connectivity and validation tooling are implemented. **Phase 6C-5A implementation is complete**. **Steps 1–15 of unified Phase 6C-5 are implemented at code level** (integrity corrections + Step 13 focused suite + Step 14 preflight gates + Step 15 smoke checklist — see `docs/fedex/PHASE_6C_5_STEPS_13_15.md`). Live credentials remain unset; production/checkout/labels/tracking flags remain false by default. Step 16 (validation tooling cleanup) remains after live smoke acceptance.
-
-**Phase 5R (5R-0 through 5R-3) is complete.** **Phase 7 — Returns, Refunds, and Exchanges is COMPLETE (2026-07-28).** Current approved focus: Phase 9 Integration Foundation (and later portal phases). Do not reopen Phase 7 unless a production defect requires it.
-
-### Phase 7 (returns, refunds, exchanges) — complete
-
-Functionally complete:
-
-- Store-scoped return request, approval, rejection, receipt, completion and cancellation
-- Return reasons and item quantity eligibility
-- Full, partial, item, shipping, shipping-tax, tax and other refund adjustments
-- Platform/provider and externally processed refund routing
-- Provider result verification for amount, currency, mode and account
-- Safe pending, failed, uncertain and mismatched refund reconciliation
-- Refund allocation locking, idempotency and terminal retry attempts
-- Sellable return restocking through InventoryAdjustmentService and TYPE_RETURN_RESTOCK
-- Non-sellable/damaged inventory protection
-- Exchanges with replacement reservation, collection, price-difference refunds, completion, cancellation and interrupted-completion recovery
-- Customer total_spent calculated net of successful refunds
-- Store isolation, orders.manage authorization, security logs and order events
-
-Verification (Phase 7 gate only; entire project suite not claimed green): Phase 7 four-suite gate 54 passed / 0 failed; related payment/order/inventory/customer regressions 39 passed / 0 failed; `composer validate --strict` valid; root and storefront builds passed; `git diff --check` clean.
-
-### Phase 5R (calculation and tax) — complete
-
-- **5R-0 (completed 2026-06-24):** Current calculation audit — `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`
-- **5R-1 (complete 2026-06-25):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator`, platform checkout tax, shipping recalculation, PaymentIntent synchronization, conversion invariant, order tax snapshots, product taxable defaults, draft/manual calculated tax, and external preservation — final report: `docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`
-- **5R-2 (complete 2026-07-22):** Store-scoped coupons (fixed/percentage, min/max, dates, usage limits, product/category eligibility), checkout apply/remove + mid-checkout item/address revalidation, draft-order apply + convert redeem, external opt-in platform coupons, abandoned-checkout reservation release — covered by `tests/Feature/Phase5R2CouponTest.php`
-- **5R-3 (complete 2026-07-23):** Checkout/order totals hardening — `FinancialTotalsInvariantService`, decimal-safe PI/conversion/external coupon line paths, `checkout.totals_mismatch` audit outside rolled-back conversion TX — report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`
-
-### Implemented foundations
-
-- Sprint 1–2 catalog and store SaaS foundation
-- Day 12–18 catalog import, product workspace, variants, variant import, custom fields, product UX polish
-- Commerce core: customers, orders, order items, addresses
-- Multi-location inventory and inventory reservations
-- Manual fulfillment and shipments
-- Checkout delivery methods
-- Stripe platform checkout and Stripe Connect foundation
-- External checkout synchronization (developer storefront prototype)
-- Coupons and discount rules (Phase 5R-2)
-- Checkout/order totals hardening (Phase 5R-3)
-- Returns, refunds, restock, and exchanges (Phase 7)
-- Security logs and user sessions
-- FedEx Model A connectivity and validation workspace
-- USPS public API foundation
-- CLEAN-1 through CLEAN-4 repository hygiene and controlled refactoring
-- Notifications and communication (Phase 11 — **Complete 2026-07-29**; in-app center, preferences, merchant/customer email, commit-isolated dispatch, retryable delivery, interrupted-worker recovery; report: `docs/phases/PHASE_11_NOTIFICATIONS_REPORT.md`. Repository full suite still has five known unrelated Phase 5/6 failures — Phase 11 does not claim suite-green.)
-
-### Partial or pending
-
-- Shipping rules and async carrier production jobs
-- Production carrier approvals and live carrier rates/labels/tracking
-- API keys/scopes, webhooks, event outbox — **approved execution plan (not root canonical):** `docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`
-- SaaS billing and subscriptions
-- Markets and B2B
-- Observability
-- Platform admin operations
-
----
-
-# 💡 CORE SYSTEM RULES
-
----
-
-## Product System
-
-Must support:
-- simple products
-- variant products
-- service products
-- digital products
-
----
-
-## Variant System
-
-Must:
-- be easy to understand
-- show option groups clearly
-- show combinations clearly
-- avoid duplicates
-- link images correctly
-
----
-
-## Import System
-
-Must:
-- handle messy data
-- preserve unknown columns
-- allow custom mapping
-- scale to 10k+ products
-
----
-
-## UX System
-
-Must:
-- avoid confusion
-- avoid technical wording
-- guide the user
-- show progress clearly
-
----
-
-# 🚫 WHAT WE AVOID
-
----
-
-## UX mistakes
-
-- too many buttons
-- confusing flows
-- hidden data
-- technical language
-
----
-
-## Architecture mistakes
-
-- cross-store leaks
-- DB misuse
-- storing images in DB
-- mixing structured + unstructured data
-
----
-
-## Product mistakes
-
-- incomplete features
-- partial flows
-- “it works technically” but bad UX
-
----
-
-# 🧠 DECISION FRAMEWORK
-
----
-
-Before implementing anything:
-
-Ask:
-
-1. Is this easier for merchant?
-2. Is this scalable?
-3. Is this consistent?
-4. Is this future-proof?
-5. Is this clean?
-
-If NO → rethink
-
----
-
-# 🧹 Repository hygiene (CLEAN-1 through CLEAN-4)
-
-CLEAN-1/1A add safe archive/cleanup tooling. **CLEAN-2** reorganizes carrier code. **CLEAN-3** adds age-based runtime retention. **CLEAN-3A** enforces marked sandboxes for destructive tests and blocks `--force` against the real worktree in testing. **CLEAN-4** extracts four internal boundaries (FedEx test presenter, registration payload builder, import row mapper, onboarding routes) with characterization tests and no behavior change.
-
-Carrier layout reference: `docs/architecture/CARRIER_CODE_STRUCTURE.md`
-Refactoring boundaries: `docs/architecture/REFACTORING_BOUNDARIES.md`
-Retention reference: `docs/operations/RUNTIME_STORAGE_RETENTION.md`
-
-Commands:
+## Repository hygiene
 
 - `php artisan project:hygiene-report`
-- `php artisan project:cleanup` — dry-run runtime cleanup (never deletes Git-tracked files)
-- `php artisan project:source-archive` — export-safe source ZIP (**Git required**, uses worktree `.gitattributes`)
-- `php artisan project:retention` — conservative age-based retention (dry-run default; `--force` requires `PROJECT_RETENTION_ENABLED=true`)
+- `php artisan project:cleanup` (dry-run default; never deletes Git-tracked files)
+- `php artisan project:source-archive` (Git required)
+- `php artisan project:retention` (dry-run default)
 
-Docs: `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`, `docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md`
-
-Further large-file decomposition: `docs/REFACTORING_ROADMAP.md` (remaining deferred targets).
+References: `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md`, `docs/operations/RUNTIME_STORAGE_RETENTION.md`, `docs/architecture/REFACTORING_BOUNDARIES.md`, `docs/architecture/REFACTORING_ROADMAP.md`
 
 ---
 
-# 🚚 Carrier connectivity architecture (locked)
+## Decision framework
 
-**Model A / Official Integrator Provider** is primary for FedEx and future couriers where supported. Platform owns integrator credentials; merchants connect merchant-owned courier accounts through onboarding.
+Before implementing: easier for merchant? scalable? consistent? future-proof? clean? If no → rethink.
 
-**Model B / merchant developer credentials** is temporary developer fallback only (`FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED`). Do not treat Model B as the launch architecture.
-
-FedEx Model A connection hardening is implemented (Phase **6C-5A**). Steps **1–7** of Phase 6C-5 are implemented behind capability flags. Keep `FEDEX_INTEGRATOR_PRODUCTION_ENABLED=false` and checkout/ship/tracking flags false until focused tests and preflight pass on a protected environment.
-
----
-
-# 🔥 FINAL GOAL
-
----
-
-Build a platform where:
-
-- merchants WANT to switch
-- managing products is EASY
-- variants are SIMPLE
-- imports are TRUSTED
-- workflows are CLEAR
-- system is SCALABLE
-
----
-
-## ⚡ FINAL LINE
-
-👉 If merchant struggles → we failed  
-👉 If system is hacky → it will collapse later
+Final line: if merchants struggle, we failed; if the system is hacky, it will collapse later.

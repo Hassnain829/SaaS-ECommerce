@@ -1,8 +1,8 @@
 # PROJECT_STRUCTURE.md — Codebase Map for Cursor Agents
 
-> **Read this first** when navigating the repository. Canonical product rules remain in `ENTERPRISE_PROJECT_CONTEXT.md` and `ENTERPRISE_ROADMAP_2026.md`. This file explains **where code lives** and **how layers connect**.
+> **Read this first** when navigating the repository. Volatile status: `docs/current/PROJECT_STATE.md`. Product rules: `ENTERPRISE_PROJECT_CONTEXT.md`. Build order: `ENTERPRISE_ROADMAP_2026.md`.
 
-Last reorganized: 2026-07-03 (controller domain folders + docs/phases).
+Last updated: 2026-08-12 (documentation cleanup; inspected inventory).
 
 ---
 
@@ -15,7 +15,7 @@ routes/ + Middleware
             → Models/ + database/migrations/
         → resources/views/
 tests/ validate Services + HTTP flows
-docs/ = reports & plans (not runtime code)
+docs/ = active plans + ops + current state (archive = history only)
 dev-test-storefront/ = local API/checkout simulator (not production storefront)
 ```
 
@@ -28,10 +28,14 @@ Every tenant operation must pass **`EnsureCurrentStore`** middleware and scope q
 | File | Purpose |
 |------|---------|
 | `routes/web.php` | Merchant dashboard (catalog, commerce, settings, delivery) |
-| `routes/onboarding.php` | Onboarding steps + **product save** (`PUT /product/{id}`) — included from `web.php` |
-| `routes/carriers.php` | Carrier connect wizard, FedEx integrator, validation workspace — included from `web.php` |
+| `routes/onboarding.php` | Onboarding steps + product save pipeline — included from `web.php` |
+| `routes/carriers.php` | Carrier connect wizard shell — included from `web.php` |
+| `routes/fedex.php` | FedEx Model A integrator + production merchant ops |
+| `routes/usps.php` | USPS merchant connection / foundation routes |
 | `routes/api.php` | Developer/catalog/checkout/external sync APIs + Stripe webhooks |
 | `routes/console.php` | Scheduled Artisan commands |
+
+There is **no** `routes/fedex-validation.php`. FedEx certification/validation routes are removed.
 
 ---
 
@@ -43,111 +47,83 @@ Base class: `app/Http/Controllers/Controller.php`
 
 | Controller | Primary routes / views |
 |------------|------------------------|
-| `ProductWorkspaceController` | `GET products/{id}`, `GET products/{id}/edit` → `product_workspace*.blade.php` |
+| `ProductWorkspaceController` | `GET products/{id}`, `GET products/{id}/edit` → product workspace |
 | `ProductWorkspaceDataController` | AJAX/data for workspace |
-| `ProductInlineController` | List inline price/stock, batch option stocks, detach category (`products.inline.*`) |
-| `ProductBulkController` | Bulk catalog actions including soft-delete restore/force-delete; supports `product_ids_json` for large “select all matching” sets (cap ~20k) |
-| `ProductImportController` | Import upload/mapping/preview → `product_import/*` |
-| `BrandController`, `CategoryController`, `TagController`, `AttributeController` | Taxonomy CRUD modals |
+| `ProductInlineController` | List inline price/stock (`products.inline.*`) |
+| `ProductBulkController` | Bulk catalog actions including soft-delete restore/force-delete |
+| `ProductImportController` | Import upload/mapping/preview |
+| `BrandController`, `CategoryController`, `TagController`, `AttributeController` | Taxonomy CRUD |
 
-**Important:** Product **save** still goes through `Store/OnboardingController::updateProductFromManagement` via `routes/onboarding.php` (`PUT /product/{id}`). Soft delete / restore / permanent delete also live on onboarding routes (`product.destroy`, `product.restore`, `product.force-destroy`). Edit UI is Catalog; save/delete pipeline is Store (known bridge — future extraction target).
+**Canonical product edit path:** `products.edit` (product workspace). Product list Edit must route to that workspace — not a list-page Edit modal as the primary workflow.
 
-**Products list (2026-08-05):** Unified Search & filters panel, Products/Deleted view toggle (`?view=deleted`), soft-delete archive with restore/force-delete, merchant bulk chips, full filtered “Select all matching”, and inline price/stock with `__liveProductValuesById` sync into Edit popup. See `docs/handoffs/PRODUCT_STOCK_INVENTORY_UX_HANDOFF.md`.
+**Product save bridge (known debt):** save still goes through `Store\OnboardingController::updateProductFromManagement` via `routes/onboarding.php` (`PUT /product/{id}`). Soft delete / restore / permanent delete also live on onboarding routes.
 
 ### `Commerce/` — Orders, customers, fulfillment
 
 | Controller | Views / flows |
 |------------|---------------|
-| `OrderController` | `orders`, `orderViewDetails` |
+| `OrderController` | orders, order detail |
 | `DraftOrderController` | Draft order create/edit |
-| `CustomerController` | `customers`, customer profile |
+| `CustomerController` | customers, customer profile |
 | `ShipmentController` | Manual shipments |
 
 ### `Settings/` — Store configuration
 
-| Controller | Surface |
-|------------|---------|
-| `TaxSettingsController` | `settings/taxes.blade.php` |
-| `PaymentSettingsController` | `payment_settings.blade.php` |
-| `LocationController` | `locations.blade.php` |
-| `ShippingSettingsController` | `shippingAutomation.blade.php` + shipping tabs |
-| `DeliverySetupWizardController` | `delivery/setup/*` wizard |
-| `DeveloperStorefrontSettingsController` | Dev API token management |
-| `TeamMemberController` | Team invites & roles |
+Tax, payments, locations, shipping/delivery, developer storefront token, team members.
 
 ### `Store/` — Shell, auth, onboarding
 
-| Controller | Surface |
-|------------|---------|
-| `DashboardController` | Dashboard, product list, sign-in/register, many list shells |
-| `CurrentStoreController` | Switch active store |
-| `OnboardingController` | Onboarding steps + product CRUD save pipeline |
+Dashboard, current-store switch, onboarding + product CRUD save pipeline.
 
-### `Admin/` — Platform admin (mostly view shells)
+### `Admin/` — Platform admin
 
-| Controller | Surface |
-|------------|---------|
-| `AdminController` | `admin_view/*` |
+Admin shells and FedEx admin diagnostics (`Admin\FedExAdminDiagnosticsController`).
 
-### `Api/` — External integrations (Bearer dev token unless webhook)
+### `Api/` — External integrations
 
-| Controller | Prefix |
-|------------|--------|
-| `CatalogApiV1Controller` | `/api/v1/catalog/*` |
-| `DeveloperStorefrontCatalogController` | `/api/developer-storefront/*` (legacy) |
-| `PlatformCheckoutController` | `/api/v1/checkout/*` |
-| `ExternalOrderSyncController`, `ExternalShipmentSyncController` | `/api/v1/external/*` |
-| `StripeWebhookController`, `StripeConnectWebhookController` | `/api/webhooks/stripe/*` |
+Catalog API, developer storefront catalog, platform checkout, external order/shipment sync, Stripe webhooks.
 
-### `Carrier/` — Already organized (CLEAN-2)
+### `Carrier/` — Connection + operations only
 
 ```
 Carrier/
 ├── Connection/   # Connect wizard, FedEx integrator Model A
-├── Operations/   # Merchant carrier tests
-└── Validation/   # FedEx validation workspace, runs, exports
+└── Operations/   # Merchant carrier production ops
 ```
+
+There is **no** `Carrier/Validation` namespace. FedEx certification controllers are removed.
 
 ---
 
 ## 4. Services (Business Logic)
 
-Controllers should delegate here. **~149 service classes** under `app/Services/`:
+**159 service classes** under `app/Services/` (inspected 2026-08-12).
 
 | Folder | Responsibility |
 |--------|----------------|
 | `Catalog/` | Product import pipeline, variant finalizer, image download |
 | `Checkout/` | Checkout totals, conversion, shipping selection |
-| `Delivery/` | Setup wizard persistence, readiness assessment, input normalizers |
+| `Delivery/` | Setup wizard persistence, readiness assessment |
 | `Shipping/` | Zones, delivery options, checkout shipping |
 | `Tax/` | Tax configuration, calculator |
 | `Payments/` | Stripe Connect, payment provider manager |
 | `Inventory/` | Locations sync, reservations, availability |
 | `Fulfillment/` | Shipments, origin routing |
 | `Carriers/Core/` | Provider interface, connection wizard |
-| `Carriers/FedEx/` | Largest subtree — connection, validation, operations |
-| `Carriers/USPS/` | OAuth, rate quotes |
+| `Carriers/FedEx/` | Connection, operations, presenters, support (no `Validation/`) |
+| `Carriers/USPS/` | OAuth, rate quotes foundation |
 
 Support helpers: `app/Support/` (permissions, product payloads, stock recorder, project hygiene).
+
+FedEx certification code under `Services/Carriers/FedEx/Validation` is **removed**. Keep old create/drop migrations in migration history.
 
 ---
 
 ## 5. Models & Database
 
-**63 Eloquent models** in `app/Models/`. **73 migrations** in `database/migrations/`.
+**73 Eloquent models** in `app/Models/`. **93 migrations** in `database/migrations/` (inspected 2026-08-12).
 
-Core relationships:
-
-```
-Store
- ├── products → product_variants → product_images
- ├── customers → orders → order_items → shipments
- ├── checkouts → (converts to) orders
- ├── locations → inventory_levels → stock_movements
- ├── shipping_zones → shipping_methods
- ├── carrier_accounts → carrier
- └── tax_settings → tax_rates
-```
+Old FedEx validation/certification **create** migrations remain for history; a later drop migration removes those tables when present. Do not delete historical migrations merely because filenames contain `validation`.
 
 All tenant reads/writes must verify `store_id` ownership.
 
@@ -155,61 +131,41 @@ All tenant reads/writes must verify `store_id` ownership.
 
 ## 6. Views (`resources/views/`)
 
-| Path | Purpose |
-|------|---------|
-| `layouts/user/` | Sidebar, main merchant layout |
-| `components/geo/` | Country/region/postal selects |
-| `user_view/` | Merchant UI (primary) |
-| `user_view/product_import/` | Import wizard |
-| `user_view/delivery/setup/` | Delivery setup wizard |
-| `user_view/shipping/` | Delivery hub tabs |
-| `user_view/fedex_integrator/` | FedEx Model A connect flow |
-| `user_view/carrier_connection_wizard/` | Carrier selection cards |
-| `user_view/onboarding-Step*.blade.php` | Onboarding (legacy naming) |
-| `admin_view/` | Platform admin placeholders |
+**151 Blade views** (inspected 2026-08-12).
 
-View names are **not** renamed yet (cosmetic deferred). Controllers above map to these paths.
+Primary merchant UI under `resources/views/user_view/`. FedEx Model A under `user_view/fedex_integrator/`. Admin FedEx under `admin/fedex/`.
 
 ---
 
 ## 7. Tests
 
-| Folder | Count | Role |
-|--------|-------|------|
-| `tests/Feature/` | Majority | HTTP/integration (Phase*, Delivery*, Product*) |
-| `tests/Unit/` | Services, normalizers | Isolated logic |
-| `tests/Support/` | Helpers | Shared test utilities |
+| Folder | Count (inspected) | Role |
+|--------|------------------:|------|
+| `tests/Feature/` | 122 | HTTP/integration |
+| `tests/Unit/` | 32 | Isolated logic |
+| `tests/Support/` | helpers | Shared utilities |
 
-Run full suite: `php artisan test` (expect ~1191+ passing).
+Keep `tests/Feature/FedExCertificationSystemRemovedTest.php` — isolation guard for removed certification system.
+
+Do not claim the full suite is green without a successful run.
 
 ---
 
 ## 8. Documentation Layout (`docs/`)
 
-| Folder | Contents | Canonical? |
-|--------|----------|------------|
-| `docs/canonical/` | Pointers to root enterprise docs | Index only |
-| `docs/phases/` | `PHASE_*_REPORT.md` completion reports | Historical proof |
-| `docs/architecture/` | `REFACTORING_BOUNDARIES`, `CARRIER_CODE_STRUCTURE` | **Yes — structure reference** |
-| `docs/ux/` | Delivery UX batches, acceptance reports | Active UX reference |
-| `docs/cleanup/` | CLEAN-1 through CLEAN-4 reports | Hygiene history |
-| `docs/implementation/` | Slice/batch implementation reports (includes Phase 5R-3 totals hardening) | Historical |
-| `docs/audit/` | QA gap/risk/command outputs | Audit snapshots |
-| `docs/fedex/` | FedEx integrator docs, baselines | Carrier reference |
-| `docs/operations/` | Local setup, retention, release checklist | Ops reference |
-| `docs/reports/` | Standalone hardening/support reports | Historical |
-| `docs/plans/` | Implementation plans | Planning |
-| `docs/archive/` | Notes on deprecated `.agents/rules/` | Archive index |
+| Folder | Contents | Authority |
+|--------|----------|-----------|
+| `docs/current/` | `PROJECT_STATE.md` | **Volatile current state** |
+| `docs/handoffs/` | Active readiness review | Release-readiness scope |
+| `docs/canonical/` | Pointers to root enterprise docs | Index |
+| `docs/architecture/` | Carrier structure, refactoring boundaries/roadmap | Structure reference |
+| `docs/cleanup/` | Decision log + source archive guide | Active ops hygiene |
+| `docs/fedex/` | `MODEL_A_INTEGRATOR_PROVIDER.md` | Active FedEx architecture |
+| `docs/operations/` | Setup, security, release, retention | Ops reference |
+| `docs/plans/` | Phase 9 plan (approved, not complete) | Planning |
+| `docs/archive/` | Historical phases/audits/reports | **Historical only** |
 
-**Root canonical docs (always win on conflict):**
-
-- `ENTERPRISE_PROJECT_CONTEXT.md`
-- `ENTERPRISE_ROADMAP_2026.md`
-- `PROJECT_BRAIN.md`
-- `AGENTS.md`
-- `PROJECT_STRUCTURE.md` (this file)
-
-**Deprecated / historical only:** `.agents/rules/*.txt` — do not treat as source of truth.
+**Root docs:** `ENTERPRISE_PROJECT_CONTEXT.md`, `ENTERPRISE_ROADMAP_2026.md`, `PROJECT_BRAIN.md`, `AGENTS.md`, `PROJECT_STRUCTURE.md`, `README.md`, `SECURITY_ROTATION_REQUIRED.md`.
 
 ---
 
@@ -218,38 +174,36 @@ Run full suite: `php artisan test` (expect ~1191+ passing).
 | Path | Action |
 |------|--------|
 | `dev-test-storefront/` | Keep — API/checkout test simulator |
-| `storage/` | Runtime only — never commit compiled views/logs |
+| `storage/` | Runtime only |
 | `vendor/`, `node_modules/` | Dependencies |
-| `tmp_*.php` | **Do not commit** — gitignored |
-| `docs/QA_REMEDIATION_REPORT.docx` | Generated artifact — optional delete |
+| `docs/archive/` | Historical; ignored by Cursor; export-ignored from source archives |
 
 ---
 
-## 10. Typical Request Flows (Quick Reference)
+## 10. Typical Request Flows
 
 ### Product edit
-`GET /products/{id}/edit` → `Catalog\ProductWorkspaceController@edit` → Blade  
+`GET /products/{id}/edit` (`products.edit`) → `Catalog\ProductWorkspaceController@edit` → workspace Blade
 `PUT /product/{id}` → `Store\OnboardingController@updateProductFromManagement` → DB
 
 ### Delivery setup
-`GET /settings/delivery/setup` → `Settings\DeliverySetupWizardController` → `Services/Delivery/*` → zones/methods/locations
+`GET /settings/delivery/setup` → `Settings\DeliverySetupWizardController` → `Services/Delivery/*`
 
 ### Carrier connect
-`GET /settings/shipping/carriers/connect` → `Carrier\Connection\CarrierConnectionWizardController` → FedEx/USPS services → `carrier_accounts`
+`GET /settings/shipping/carriers/connect` → `Carrier\Connection\*` → FedEx/USPS services → `carrier_accounts`
 
 ### Platform checkout (external)
-`POST /api/v1/checkout` → `Api\PlatformCheckoutController` → `CheckoutService` → Stripe + `CheckoutShippingService` → order conversion
+`POST /api/v1/checkout` → `Api\PlatformCheckoutController` → checkout + shipping services
 
 ---
 
-## 11. Known Structural Debt (Not Bugs)
+## 11. Known Structural Debt
 
 Documented in `docs/architecture/REFACTORING_BOUNDARIES.md`:
 
 - Fat controllers: `Store\OnboardingController`, `Store\DashboardController`, `Settings\ShippingSettingsController`
 - Dual product save pipeline (Catalog edit + Store save)
 - Settings spread across multiple controllers/views
-- Onboarding routes mixed into production `web.php` group
 
 Future extractions must keep route names and behavior unchanged; add characterization tests first.
 
@@ -257,18 +211,16 @@ Future extractions must keep route names and behavior unchanged; add characteriz
 
 ## 12. When Adding New Code
 
-1. Pick the **domain folder** (Catalog, Commerce, Settings, Store, Api, Carrier).
+1. Pick the domain folder (Catalog, Commerce, Settings, Store, Api, Carrier).
 2. Put business logic in `app/Services/{Domain}/`, not in controllers.
 3. Scope every query to the current store.
 4. Add Feature tests for HTTP flows; Unit tests for services.
-5. Update this file only when **folder layout** changes — not for every new class.
+5. Update this file only when **folder layout** changes.
 
 ---
 
 ## 13. Phase 9 (Integration Foundation)
 
-Approved Phase 9 execution plan (goals, baseline, batch order, do-not-do list). **Not** a root canonical document — root enterprise docs remain authoritative on conflict:
+Approved plan: [`docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)
 
-**[`docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)**
-
-Status: not started in code. First batch when explicitly instructed: **9-0** (contract tests + architecture docs only).
+Status: **not complete**. Merchant readiness P0 and suite recovery precede Phase 9 unless explicitly reprioritized. See `docs/current/PROJECT_STATE.md`.

@@ -1,14 +1,40 @@
-# Archive Notes
+# Archive Policy
 
-## `.agents/rules/` (deprecated context)
+docs/archive/** holds **immutable historical evidence**: phase completion reports, audits, implementation slices, UX delivery records, cleanup reports, and older FedEx implementation notes.
 
-Files under [`.agents/rules/`](../../.agents/rules/) (e.g. `ROADMAP.txt`, `PROJECT-CONTEXT.txt`, day-specific cursor notes) are **retained for history only**.
+## Rules
 
-On any conflict, use:
+* Archived reports may describe earlier implementation states, flags, blockers, or architecture.
+* Their old status statements are **not** current instructions.
+* They must never override current source code or active documentation.
+* Cursor must ignore this archive (see .cursorignore).
+* Source ZIP exports exclude this archive (see .gitattributes export-ignore).
+* Files should not be moved back into active docs without explicit review.
+* Old links inside archived snapshots may still reference their original pre-move paths.
+* Git history preserves deletions and moves, including deleted .agents content.
 
-- `ENTERPRISE_PROJECT_CONTEXT.md`
-- `ENTERPRISE_ROADMAP_2026.md`
-- `PROJECT_STRUCTURE.md`
-- `.cursor/rules/*.mdc`
+## Authority
 
-Do not delete `.agents/rules/` without an explicit cleanup task — some older reports reference them.
+Prefer this order on conflict:
+
+1. Current source code, migrations, routes, configuration, and tests
+2. docs/current/PROJECT_STATE.md
+3. Active handoffs, architecture, FedEx Model A docs, and root canonical documents
+4. Active plans
+5. This archive — historical only
+
+## Subdirectories
+
+| Folder | Purpose |
+|--------|---------|
+| phases/ | Phase completion reports |
+| implementation/ | Slice/batch implementation reports |
+|
+eports/ | Standalone historical reports |
+| ux/ | Historical UX delivery/acceptance records |
+| udit/ | QA snapshots and gap registers |
+| cleanup/ | CLEAN-1–4 historical reports and master plan |
+|
+edex/ | Historical FedEx implementation notes |
+| handoffs/ | Obsolete handoffs |
+| plans/ | Completed/superseded plans |

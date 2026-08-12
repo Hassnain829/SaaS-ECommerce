@@ -1,139 +1,76 @@
 # AGENTS.md — Enterprise SaaS E-Commerce Project Instructions
 
+## Project identity
 
-## Developer Storefront Clarification
+This repository is a **Laravel Blade multi-store SaaS commerce platform**. It is the merchant operations backend for catalog, inventory, orders, customers, fulfillment connectivity, and future billing/integrations — not a simple single-store webshop.
 
-`dev-test-storefront` is not the final storefront product. It is a local testing simulator used to prove that external websites can fetch products from this SaaS platform and send orders/customers back into the merchant dashboard.
+`dev-test-storefront` is a local testing simulator for catalog/order APIs. It is **not** the final production connected-channel product.
 
-The final product goal is to support merchants who already have Shopify, WooCommerce, WordPress, custom websites, mobile apps, or other selling channels. The SaaS platform acts as the central commerce backend for catalog, inventory, orders, customers, and future fulfillment.
+## Canonical read order
 
-Do not overbuild the dev storefront during catalog phases. Keep it functional for testing catalog API and order creation only. Full production API keys, scopes, webhooks, idempotency, and external integration management belong to the later API/integrations roadmap phase.
+1. `AGENTS.md` (this file)
+2. `docs/current/PROJECT_STATE.md`
+3. `docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`
+4. `ENTERPRISE_PROJECT_CONTEXT.md`
+5. `ENTERPRISE_ROADMAP_2026.md`
+6. `PROJECT_BRAIN.md`
+7. `PROJECT_STRUCTURE.md`
+8. Relevant active architecture / operations / plan docs
+9. `.cursor/rules/*.mdc`
 
-## Project Identity
+Implementation truth is always current source code, migrations, routes, configuration, and tests. Historical docs under `docs/archive/` are evidence only and are **not** implementation authority.
 
-This project is a Laravel Blade multi-store SaaS e-commerce platform.
+## Non-negotiable rules
 
-It is not a simple webshop.
+### Store scoping
 
-The long-term goal is to build a merchant-friendly enterprise commerce operating system that can compete with Shopify, WooCommerce, and Amazon Seller Central in capability, while being easier and less frustrating for merchants to use.
-
-The platform must support:
-
-- multi-store SaaS tenancy
-- merchant storefront/API connection
-- large catalog management
-- product imports
-- variants and option groups
-- custom fields and imported data preservation
-- inventory tracking
-- orders and customers
-- fulfillment and shipping
-- payments and refunds
-- returns and exchanges
-- SaaS billing
-- integrations, API keys, webhooks, automation
-- security logs, permissions, and enterprise auditability
-
----
-
-## Canonical Project Files
-
-Before implementing any task, always read these files first:
-
-1. `ENTERPRISE_PROJECT_CONTEXT.md`
-2. `ENTERPRISE_ROADMAP_2026.md`
-3. `PROJECT_BRAIN.md`
-4. `PROJECT_STRUCTURE.md` — codebase folder map, controller domains, docs layout
-5. `.cursor/rules/*` if present
-
-Historical context only (do not follow on conflict): `.agents/rules/*.txt` and day-specific notes in that folder.
-
-The canonical source of truth is:
-
-- `ENTERPRISE_PROJECT_CONTEXT.md` for product vision, architecture rules, and development principles.
-- `ENTERPRISE_ROADMAP_2026.md` for build order, implementation phases, tests, and acceptance criteria.
-- `PROJECT_STRUCTURE.md` for where code lives and how layers connect.
-
----
-
-## Core Product Philosophy
-
-Every feature must answer this question:
-
-> Does this make merchant life easier?
-
-If the answer is no, the implementation is wrong.
-
-The product must:
-
-- simplify complexity
-- reduce merchant effort
-- make imports understandable
-- make variants easier to manage
-- make inventory clear
-- make orders/customers actionable
-- avoid technical wording in merchant UI
-- expose important data clearly
-- preserve unknown imported data safely
-- remain flexible for many store types
-
-Avoid merchant-facing terms such as:
-
-- JSON
-- payload
-- schema
-- pivot
-- raw meta
-- internal object
-
-Use merchant-friendly terms such as:
-
-- Additional details
-- Imported data
-- Product options
-- Variants
-- Inventory
-- Store settings
-- Customer information
-- Order activity
-
----
-
-## Non-Negotiable Architecture Rules
-
-### 1. Store Scoping Is Mandatory
-
-Every tenant-owned entity must be scoped to the current store.
-
-Never allow cross-store leakage.
-
-Store-scoped examples:
-
-- products
-- variants
-- images
-- categories
-- brands
-- tags
-- imports
-- customers
-- customer addresses
-- orders
-- order items
-- order addresses
-- stock movements
-- API keys
-- webhooks
-- notifications
-- settings
-
-Every query must be checked for store safety.
-
-Do not use unscoped model queries in merchant-facing controllers.
+Every tenant read/write must resolve the **current store** and verify ownership (`store_id` or equivalent). Never trust raw IDs without same-store checks. Cross-store access must deny or 404.
 
 Bad:
 
 ```php
 Product::find($id);
-Order::find($id);
-Customer::find($id);
+```
+
+Good:
+
+```php
+Product::query()
+    ->where('store_id', $currentStore->id)
+    ->whereKey($id)
+    ->firstOrFail();
+```
+
+### Authorization
+
+Preserve owner / manager / staff role restrictions. Do not weaken permissions.
+
+### Truthful merchant UI
+
+Do not ship fake claims, demo metrics presented as real, dead links, or inactive controls in normal merchant navigation. Unsupported scope must be hidden or clearly gated — not implied as live.
+
+### Product editing
+
+Canonical product editing is the product workspace (`products.edit`). Product list Edit must route there. Do not treat a list-page Edit modal as the primary product edit workflow.
+
+### Carrier billing
+
+Merchants connect **merchant-owned** carrier accounts and pay their own postage/carrier charges. The SaaS platform provides connectivity and must **not** become the postage payer. Do not ask normal merchants to paste carrier developer secrets when an official authorization model exists.
+
+### FedEx / USPS / DHL
+
+Follow `docs/current/PROJECT_STATE.md` and `docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md`.
+
+- FedEx **Model A** is primary; certification/validation workspace is **retired** — do not reintroduce it.
+- Model B is developer fallback only.
+- USPS platform/Label Provider approval remains pending; do not claim general merchant-owned production labels are live.
+- DHL production integration is not implemented.
+- Additional carrier expansion is outside the current readiness gate.
+
+### Testing and sign-off
+
+Use focused tests during implementation. Before release sign-off, require full-suite verification with evidence. Do not claim the suite is green without a successful run. Do not describe the project as live-ready until readiness P0 acceptance gates and the full-suite gate pass.
+
+## Merchant-facing language
+
+Prefer merchant-friendly wording (product options, variants, inventory, additional details). Avoid exposing developer jargon (payload, schema, pivot, raw meta) in primary UI.

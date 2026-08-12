@@ -143,30 +143,31 @@ Important existing models:
 - Stripe platform checkout and Stripe Connect foundation
 - External checkout synchronization (developer storefront prototype)
 - Security logs and user sessions
-- FedEx Model A connectivity, registration, MFA evidence, and validation workspace
-- USPS public API foundation
+- FedEx Model A connectivity, registration, MFA, and gated production operations (US/CA approval; certification/validation workspace removed)
+- USPS public API foundation (production merchant labels pending platform approval — see `docs/current/PROJECT_STATE.md`)
 - CLEAN-1 through CLEAN-4 repository hygiene, carrier organization, retention, and controlled refactoring
-- Notifications and communication (Phase 11 — **Complete 2026-07-29**; in-app center, preferences, merchant/customer email, commit-isolated dispatch, retryable delivery, interrupted-worker recovery; report: `docs/phases/PHASE_11_NOTIFICATIONS_REPORT.md`. Repository full suite still has five known unrelated Phase 5/6 failures — Phase 11 does not claim suite-green.)
+- Notifications and communication (Phase 11 — **Complete 2026-07-29**; historical report: `docs/archive/phases/PHASE_11_NOTIFICATIONS_REPORT.md`. Do not claim full-suite green without current evidence.)
 
 ### Partial areas
 
 - RBAC/permissions granularity beyond store roles
-- Tax, coupons, and totals hardening complete (**Phase 5R-0 through 5R-3**; report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`)
-- Refunds, returns, and exchanges
+- Tax, coupons, and totals hardening complete (**Phase 5R-0 through 5R-3**; report: `docs/archive/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`)
+- Refunds, returns, and exchanges (**Phase 7 complete**)
 - Shipping rules and async carrier production jobs
-- Production carrier approvals and live carrier operation (rates, labels, tracking in production)
-- API keys/scopes, webhooks, and event outbox
+- Other-carrier production readiness (USPS platform approval pending; DHL deferred)
+- API keys/scopes, webhooks, and event outbox (**Phase 9 approved plan; not complete**)
 - SaaS billing and subscriptions
 - Markets and B2B
 - Observability
 - Platform admin operations
-- Product and dashboard UX polish (ongoing)
+- Merchant readiness truth/gating and product UX polish (**current P0** — `docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`)
 
 ### Missing or not yet production-ready
 
 - Full enterprise integrations surface (scoped API keys, webhook delivery, idempotency outbox)
 - SaaS monetization (plans, invoices, payment methods for the platform itself)
 - Production-grade observability and platform admin tooling
+- Public-beta merchant readiness (see readiness review and `docs/current/PROJECT_STATE.md`)
 
 ---
 
@@ -1007,16 +1008,20 @@ The platform should eventually decide which location can fulfill the order based
 
 Phase 6C-0A implements the first routing layer: nearest eligible fulfillment origin routing based on configured service areas, stock availability, pickup eligibility, and store-owner priority. It is not physical distance routing. Do not describe it as geocoded or mile/km based; optional coordinate/geocoding-based routing belongs to a later phase.
 
-**Phase Q Step 3 (2026-05-24):** Must-fix QA hardening completed — external order sync dedup and 6C-0A routing negative/edge tests expanded. See `docs/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`.
+**Phase Q Step 3 (2026-05-24):** Must-fix QA hardening completed — external order sync dedup and 6C-0A routing negative/edge tests expanded. Historical report: `docs/archive/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`.
 
-**Phase Q Step 3C (2026-05-24):** Strict external order identity — `external_order_id` or `external_order_number` is **required** for external order creation; `Idempotency-Key` is optional replay protection only and cannot be the sole identity. QA audit artifacts live under `docs/audit/`.
+**Phase Q Step 3C (2026-05-24):** Strict external order identity — `external_order_id` or `external_order_number` is **required** for external order creation; `Idempotency-Key` is optional replay protection only and cannot be the sole identity. Historical QA snapshots live under `docs/archive/audit/`.
 
-**Phase 6C-1A (2026-06-04):** FedEx sandbox carrier connection foundation — provider-neutral carrier interface, encrypted merchant credentials, Account Registration + OAuth test connection, carrier API event logs, Shipping & Delivery UI. **Not implemented:** labels, checkout live rates, tracking sync, live/production FedEx. See `docs/phases/PHASE_6C_1A_FEDEX_SANDBOX_CARRIER_FOUNDATION_REPORT.md`.
+**Phase 6C-1A (2026-06-04):** FedEx sandbox carrier connection foundation — historical report: `docs/archive/phases/PHASE_6C_1A_FEDEX_SANDBOX_CARRIER_FOUNDATION_REPORT.md`. Current FedEx production status: `docs/current/PROJECT_STATE.md`.
 
-**Phase 6C-1B-USPS:** USPS public API OAuth, address validation, and domestic test rate quotes using platform USPS credentials. Does not buy labels, authorize EPS payments, schedule pickups, or enable production live labels. Merchant-owned label purchase remains deferred. See `docs/phases/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`.
+**Phase 6C-1B-USPS:** USPS public API foundation — historical report: `docs/archive/phases/PHASE_6C_1B_USPS_PUBLIC_API_FOUNDATION_REPORT.md`. Current USPS status: `docs/current/PROJECT_STATE.md`.
 
 
 ## FedEx Carrier Strategy — Model A Primary (Integrator Provider)
+
+### Current status authority
+
+Volatile carrier and release status lives in `docs/current/PROJECT_STATE.md`. Current merchant release readiness scope lives in `docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`.
 
 ### Current FedEx decision
 
@@ -1031,9 +1036,9 @@ This means:
 * OAuth for merchant operations uses child `csp_credentials` grants;
 * FedEx billing remains between the merchant and FedEx;
 * the SaaS platform does not pay FedEx charges;
-* labels, pickup, tracking sync, and checkout live FedEx rates remain gated until each capability is proven and FedEx validation/production enablement completes.
+* production rate, shipment/label, tracking, address/service, and ETD operations are implemented and remain behind capability/account gates.
 
-Canonical implementation reference: `docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md` (Phase 6C-4).
+Canonical implementation reference: `docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md`.
 
 ### Model B — developer fallback only
 
@@ -1043,11 +1048,13 @@ It remains available only when `FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=true` f
 
 Do not document or implement Model B as the default merchant path.
 
-### FedEx validation and production enablement
+### FedEx production enablement (US / Canada)
 
-Model A registration, MFA, sandbox transaction evidence, and validation package export are implemented. FedEx integrator validation approval and production credential verification remain in progress (Phase 6C-5 direction).
+FedEx final approval is complete for the **US and Canada only**. Production merchant connection and production operations are implemented behind capability/account gates.
 
-Historical phase reports (for example 6C-2B) describe earlier Model B work and are retained for audit; canonical context and roadmap files reflect Model A as primary.
+The old Integrator certification/validation workspace, routes, services, views, storage tree, and certification tables are **retired/removed**. Do **not** reintroduce that tooling or instruct agents to complete/submit validation packages.
+
+FedEx approval does **not** apply to USPS, DHL, UPS, or other carriers. Historical phase reports under `docs/archive/` are immutable audit records only.
 
 ### Merchant billing rule
 
@@ -1060,34 +1067,23 @@ Regardless of Model A or Model B fallback:
 
 ### What not to do yet
 
-Do not enable production shipping capabilities until FedEx validation and capability proofs are complete:
-
-* FedEx labels (production);
-* FedEx pickup;
-* FedEx tracking sync;
-* checkout live FedEx rates;
-* UPS;
-* DHL;
-* USPS merchant-owned labels.
-
-Current next practical direction:
-
-1. Complete FedEx integrator validation evidence and submission (Phase 6C-5).
-2. Confirm MFA endpoint paths and production child-credential behavior.
-3. Keep Model B fallback disabled in normal merchant onboarding.
-4. Continue carrier-neutral platform work while courier approvals are pending.
+* Do not restore FedEx certification/validation workspace code or routes.
+* Do not treat Model B as normal merchant onboarding.
+* Do not claim FedEx approval covers USPS, DHL, UPS, or other carriers.
+* Do not invent USPS/DHL production readiness — follow `docs/current/PROJECT_STATE.md`.
+* Additional carrier expansion is outside the current merchant readiness gate.
 
 ### Repository hygiene (CLEAN-1 through CLEAN-4)
 
-CLEAN-1 through CLEAN-3 add export-safe archives, cleanup, carrier code organization, and runtime retention. **CLEAN-3A** adds testing-only destructive root guards and marked sandboxes so automated tests cannot delete real worktree storage. **CLEAN-4** performs controlled internal extractions (FedEx test presenter, registration payload builder, import row mapper, onboarding routes) with characterization tests and no merchant or carrier behavior changes. See `docs/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md` and `docs/architecture/REFACTORING_BOUNDARIES.md`.
+CLEAN-1 through CLEAN-3 add export-safe archives, cleanup, carrier code organization, and runtime retention. **CLEAN-3A** adds testing-only destructive root guards and marked sandboxes so automated tests cannot delete real worktree storage. **CLEAN-4** performs controlled internal extractions with characterization tests and no merchant or carrier behavior changes. See `docs/archive/cleanup/CLEAN_4_CONTROLLED_REFACTORING_REPORT.md` and `docs/architecture/REFACTORING_BOUNDARIES.md`.
 
 ### Phase 5R — Calculation audit, tax, coupons, and totals hardening (complete 2026-07-23)
 
-- **5R-0 (completed):** Current calculation audit — platform, external, and draft/manual totals paths documented; duplicate grand-total and `amountMinor()` implementations identified. Report: `docs/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
-- **5R-1 (complete 2026-06-25):** Tax schema, settings UI, `CurrencyPrecision`, `TaxCalculator`, platform checkout create tax, shipping recalculation, PaymentIntent synchronization, conversion invariant, order tax snapshots, product taxable defaults, draft/manual calculated tax, and external checkout preservation are implemented. Plan: `docs/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`; final report: `docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`.
+- **5R-0 (completed):** Current calculation audit — `docs/archive/audit/PHASE_5R_0_CURRENT_CALCULATION_AUDIT.md`.
+- **5R-1 (complete 2026-06-25):** Tax foundation — plan: `docs/archive/plans/PHASE_5R_1_TAX_FOUNDATION_IMPLEMENTATION_PLAN.md`; final report: `docs/archive/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`.
 - **5R-2 (complete 2026-07-22):** Store-scoped coupons and discount rules — `tests/Feature/Phase5R2CouponTest.php`.
-- **5R-3 (complete 2026-07-23):** Checkout/order totals hardening — `FinancialTotalsInvariantService`, decimal-safe conversion/PI/external coupon lines, mismatch audit outside rolled-back TX. Report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`.
-- **Carrier production work remains frozen** pending approvals. **Model A** remains primary courier architecture.
+- **5R-3 (complete 2026-07-23):** Checkout/order totals hardening — `docs/archive/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`.
+- **Model A** remains primary FedEx architecture. Other carriers remain separately gated.
 
 
 ### Scenario 3 — Multiple separate stores

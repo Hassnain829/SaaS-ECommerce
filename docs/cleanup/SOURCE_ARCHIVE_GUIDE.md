@@ -82,4 +82,8 @@ php artisan project:cleanup
 php artisan project:cleanup --force --category=cache
 ```
 
-See also: `docs/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`
+See also: `docs/archive/cleanup/PROJECT_CLEANUP_MASTER_PLAN.md`
+
+Historical cleanup reports live under `docs/archive/cleanup/`. Active decision log: `docs/cleanup/CLEANUP_DECISION_LOG.md`.
+
+`docs/archive/**` is excluded from Cursor context (`.cursorignore`) and from `git archive` exports (`.gitattributes` `export-ignore`).

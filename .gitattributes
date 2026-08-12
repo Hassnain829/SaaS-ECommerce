@@ -9,11 +9,11 @@
 /.github export-ignore
 /.git export-ignore
 /.cursor export-ignore
-/.agents export-ignore
 /.phpunit.cache export-ignore
 /.phpunit.result.cache export-ignore
 /.vscode export-ignore
 /.idea export-ignore
+/docs/archive export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
 

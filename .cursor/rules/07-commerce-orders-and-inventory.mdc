@@ -5,30 +5,30 @@ alwaysApply: true
 
 # Commerce, Orders, and Inventory
 
-From Day 19 onward, commerce becomes the core operational layer.
+Customers, orders, inventory, fulfillment, returns, refunds, and exchanges already have implemented foundations. Preserve them.
 
 ## Customers
 
 Customer records must be:
+
 - store-scoped
 - real, queryable, and editable
 - usable by orders and addresses
 
+Customer name/email/phone editing is a current readiness gap. Do not leave core identity fields uneditable in merchant workflows without an explicit readiness exception.
+
 ## Orders
 
 Orders must be:
+
 - store-scoped
 - product/variant aware
 - snapshot-safe
 - operationally understandable
 
-Order detail should surface:
-- line items
-- variant details
-- totals
-- statuses
-- customer data
-- fulfillment state
+Keep order, payment, fulfillment, shipment, return, and refund statuses separate and understandable.
+
+Order detail should surface line items, variant details, totals, statuses, customer data, and fulfillment state.
 
 ## Inventory
 
@@ -38,9 +38,9 @@ All stock-affecting actions must preserve the stock movements architecture.
 
 Never rely only on a raw integer without auditability.
 
-## Rule for future work
+## Ongoing work rule
 
-As commerce features are implemented:
-- do not break existing product/variant/inventory rules
-- do not bypass stock movement recording
-- do not create order flows that ignore variant structure
+- Do not regress existing domain behavior
+- Do not bypass stock movement recording
+- Do not create order flows that ignore variant structure
+- Follow readiness P0 before expanding excluded billing/payment scope

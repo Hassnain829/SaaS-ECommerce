@@ -1,4 +1,4 @@
-# Release checklist
+﻿# Release checklist
 
 Use this before tagging a release or merging to production branches.
 
@@ -13,15 +13,15 @@ Use this before tagging a release or merging to production branches.
 - [ ] Verify generated ZIP excludes `.env` but includes `.env.example` and Laravel writable-directory `.gitignore` placeholders.
 - [ ] `project:cleanup --force` must never be run against canonical validation evidence; it cannot delete Git-tracked files.
 - [ ] Review `php artisan project:retention --dry-run` before enabling scheduled or forced retention (`docs/operations/RUNTIME_STORAGE_RETENTION.md`).
-- [ ] Destructive retention/cleanup tests must use marked sandboxes only (`docs/cleanup/CLEAN_3A_RETENTION_TEST_ISOLATION_REPORT.md`).
+- [ ] Destructive retention/cleanup tests must use marked sandboxes only (`docs/archive/cleanup/CLEAN_3A_RETENTION_TEST_ISOLATION_REPORT.md`).
 - [ ] `PROJECT_RETENTION_SCHEDULE_FORCE` remains `false` unless operations explicitly approves destructive scheduled pruning.
 - [ ] Carrier routes remain registered after `routes/carriers.php` extraction (`tests/Feature/CarrierRouteRegressionTest.php`).
 - [ ] `composer validate --strict` passes.
 - [ ] `php artisan test` passes locally (same PHP extensions as CI: `dom`, `mbstring`, `xml`, `xmlwriter`, plus `pdo_sqlite` for the default test suite).
 - [ ] Phase 5R checkout/tax regression filters pass (`ProductTaxableFlagTest`, `DraftTax`, `Phase5ExternalCheckoutSyncTest`, `PlatformCheckoutTaxTest`, `CheckoutPaymentInvariantTest`, `Phase4DraftOrderTest`, `Phase6CheckoutDeliveryMethodsTest`).
-- [ ] Phase 5R-1 tax foundation is complete and documented (`docs/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`).
+- [ ] Phase 5R-1 tax foundation is complete and documented (`docs/archive/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`).
 - [ ] Phase 5R-2 coupons regression passes (`php artisan test --filter=Phase5R2CouponTest`).
-- [ ] Phase 5R-3 totals hardening regression passes (`php artisan test --filter=Phase5R3TotalsHardeningTest`); completion report: `docs/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`.
+- [ ] Phase 5R-3 totals hardening regression passes (`php artisan test --filter=Phase5R3TotalsHardeningTest`); completion report: `docs/archive/implementation/PHASE_5R_3_TOTALS_HARDENING_COMPLETION_REPORT.md`.
 - [ ] Phase 5R tax migration round-trip passes (`php artisan test --filter=Phase5RTaxMigrationRoundTripTest`).
 
 ## Builds

@@ -1,5 +1,5 @@
 ---
-description: Variant system rules, option groups, combinations, and usability
+description: Variant system rules, option groups, combinations, and product workspace
 alwaysApply: true
 ---
 
@@ -10,6 +10,7 @@ Variants are a critical differentiator in this platform.
 ## Variant system requirements
 
 Variants must support:
+
 - multiple option groups
 - multiple option values
 - clear combination logic
@@ -24,6 +25,7 @@ Variants must support:
 ## Product modeling requirements
 
 The platform must support:
+
 - simple products
 - variant products
 - service products
@@ -32,29 +34,23 @@ The platform must support:
 
 Do not hardcode assumptions that all products are physical or simple.
 
-## Merchant UX rule
+## Merchant UX and readiness rules
 
-Variant handling must be easier than competing platforms.
+- Canonical product editing is the product workspace (`products.edit`).
+- Product list Edit must lead to that workspace.
+- A list-page edit modal must not remain the primary product-edit path.
+- Product stock remains variant-backed.
+- Stock movements and multi-store isolation must remain intact.
+- Do not redesign the complete product editor during readiness cleanup.
 
-Merchants must be able to understand:
-- what the option groups are
-- what values belong to each group
-- what combinations exist
-- what price/stock belongs to each variant
-- what image belongs to which variant
+Merchants must be able to understand option groups, values, combinations, and per-variant price/stock/image relationships.
 
 ## Data integrity rule
 
 Never allow:
+
 - duplicate option values in the same group
 - duplicate variant combinations
 - ambiguous default variant behavior
 - unsafe variant/image linkage
 - orphaned option/variant relationships
-
-## Day 15 and Day 16 rule
-
-Day 15 should stabilize variant structure and merchant usability.
-Day 16 should implement variant import on top of that structure.
-
-Do not skip structural clarity and jump straight into import hacks.
