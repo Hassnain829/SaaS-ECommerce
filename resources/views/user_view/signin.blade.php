@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In - BaaS Core</title>
+    <title>Sign In — Merchant workspace</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -20,14 +20,14 @@
                         </svg>
                     </div>
                     <div class="flex flex-col">
-                        <span class="text-[#0F172A] text-xl font-bold leading-5">BaaS Core</span>
-                        <span class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-[1px]">Infrastructure</span>
+                        <span class="text-[#0F172A] text-xl font-bold leading-5">Merchant workspace</span>
+                        <span class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-[1px]">Store operations</span>
                     </div>
                 </div>
 
                 <div class="mb-8">
                     <h1 class="text-[#0F172A] text-3xl font-medium leading-9">Welcome back</h1>
-                    <p class="text-[#64748B] text-base leading-6 mt-1">Enter your credentials to access your marketplace dashboard.</p>
+                    <p class="text-[#64748B] text-base leading-6 mt-1">Sign in to manage your store catalog, orders, and delivery.</p>
                 </div>
 
                 <form class="space-y-6" method="POST" action="{{ route('signin.attempt') }}">
@@ -88,38 +88,27 @@
             <div class="relative z-10 max-w-[672px] flex flex-col items-center text-center gap-8">
                 <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-[#0052CC]/10 rounded-full px-4 py-2 shadow-sm">
                     <span class="w-2 h-2 bg-brand rounded-full"></span>
-                    <span class="text-[#0052CC] text-xs font-bold uppercase tracking-[0.3px]">Scalable Infrastructure</span>
+                    <span class="text-[#0052CC] text-xs font-bold uppercase tracking-[0.3px]">Merchant operations</span>
                 </div>
 
                 <h2 class="text-4xl md:text-5xl font-bold leading-tight text-[#0F172A]">
-                    Powering the next<br>generation of <span class="text-[#0052CC]">multi-tenant</span><br><span class="text-[#0052CC]">marketplaces</span>.
+                    Manage products, orders,<br>and delivery from one<br><span class="text-[#0052CC]">merchant workspace</span>.
                 </h2>
 
                 <p class="text-[#475569] text-lg md:text-xl leading-relaxed max-w-[594px]">
-                    Standardize your e-commerce operations with a unified core<br>designed for massive scale and complex service architectures.
+                    Keep store work clear and trustworthy — without fake live-domain or infrastructure claims.
                 </p>
 
-                <div class="flex flex-wrap justify-center gap-6 mt-4">
-                    <div class="bg-white rounded-2xl border border-[#F1F5F9] p-6 w-[186px] shadow-[0_20px_25px_-5px_rgba(226,232,240,0.5),0_8px_10px_-6px_rgba(226,232,240,0.5)]">
-                        <div class="text-[#0052CC] text-2xl font-bold">99.9%</div>
-                        <div class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-wider mt-1">UPTIME SLA</div>
-                    </div>
-                    <div class="bg-white rounded-2xl border border-[#F1F5F9] p-6 w-[186px] shadow-[0_20px_25px_-5px_rgba(226,232,240,0.5),0_8px_10px_-6px_rgba(226,232,240,0.5)]">
-                        <div class="text-[#0052CC] text-2xl font-bold">200ms</div>
-                        <div class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-wider mt-1">API LATENCY</div>
-                    </div>
-                    <div class="bg-white rounded-2xl border border-[#F1F5F9] p-6 w-[186px] shadow-[0_20px_25px_-5px_rgba(226,232,240,0.5),0_8px_10px_-6px_rgba(226,232,240,0.5)]">
-                        <div class="text-[#0052CC] text-2xl font-bold">10k+</div>
-                        <div class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-wider mt-1">ACTIVE NODES</div>
-                    </div>
-                </div>
+                <div class="mt-2 text-sm text-[#64748B]">Catalog, orders, customers, and delivery — ready when you are.</div>
             </div>
+        </div>
+    </div>
         </div>
     </div>
 
     <footer class="border-t border-gray-200 py-5 px-4 text-center text-sm text-[#94A3B8] font-inter font-medium">
         <div class="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-x-4 gap-y-1">
-            <span>&copy; 2024 BaaS Core Systems</span>
+            <span>&copy; Merchant workspace</span>
             <span class="hidden sm:inline">&middot;</span>
             <a href="#" class="hover:text-[#64748B] transition">Privacy Policy</a>
             <span class="hidden sm:inline">&middot;</span>

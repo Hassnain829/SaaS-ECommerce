@@ -249,7 +249,7 @@
         ></iframe>
     </div>
 
-    <div class="text-center text-xs text-[#94A3B8] py-4">&copy; 2024 BaaS Core &middot; Onboarding flow</div>
+    <div class="text-center text-xs text-[#94A3B8] py-4">&copy; Merchant workspace &middot; Onboarding</div>
     <script>
         (() => {
             const categoryInput = document.getElementById('categoryInput');

@@ -322,17 +322,6 @@ class DashboardController extends Controller
         $taxSetting = $store->taxSetting()->first();
         $taxRatesCount = $store->taxRates()->where('is_active', true)->count();
         $taxReady = (bool) ($taxSetting?->enabled) && $taxRatesCount > 0;
-        $stripeOrPlatformReady = $store->paymentProviderAccounts()
-            ->where('status', 'active')
-            ->where(function ($query): void {
-                $query->where('connection_type', PaymentProviderAccount::CONNECTION_PLATFORM)
-                    ->orWhere(function ($connectQuery): void {
-                        $connectQuery->where('connection_type', PaymentProviderAccount::CONNECTION_CONNECT)
-                            ->whereNotNull('provider_account_id');
-                    });
-            })
-            ->exists();
-        $paymentReady = CheckoutMode::forStore($store) === CheckoutMode::EXTERNAL || $stripeOrPlatformReady;
 
         return [
             'has_store' => true,
@@ -361,9 +350,6 @@ class DashboardController extends Controller
                     'areas_count' => $activeDeliveryAreasCount,
                     'options_count' => $checkoutDeliveryOptionsCount,
                     'providers_count' => $connectedProvidersCount,
-                ],
-                'payments' => [
-                    'ready' => $paymentReady,
                 ],
             ],
         ];
@@ -1288,12 +1274,16 @@ class DashboardController extends Controller
 
     public function analytics()
     {
-        return view('user_view.analytics');
+        return redirect()
+            ->route('dashboard')
+            ->with('success', 'Analytics will appear here when store-scoped reports are available. Demo metrics have been removed.');
     }
 
     public function billingSubscription()
     {
-        return view('user_view.billingSubscription');
+        return redirect()
+            ->route('dashboard')
+            ->with('success', 'SaaS billing is not part of the current merchant experience and has been hidden.');
     }
 
     public function generalSettings(Request $request)
@@ -1577,7 +1567,8 @@ class DashboardController extends Controller
      */
     protected function storeManagementMetrics(array $storeIds): array
     {
-        $setupTotal = 5;
+        // Catalog, location, tax, and delivery only — payments/billing are excluded from readiness setup %.
+        $setupTotal = 4;
         $metrics = [];
         foreach ($storeIds as $storeId) {
             $metrics[(int) $storeId] = [
@@ -1687,27 +1678,6 @@ class DashboardController extends Controller
             ->groupBy('store_id')
             ->pluck('aggregate', 'store_id');
 
-        $stripeOrPlatformReady = PaymentProviderAccount::query()
-            ->whereIn('store_id', $storeIds)
-            ->where('status', 'active')
-            ->where(function ($query): void {
-                $query->where('connection_type', PaymentProviderAccount::CONNECTION_PLATFORM)
-                    ->orWhere(function ($connectQuery): void {
-                        $connectQuery->where('connection_type', PaymentProviderAccount::CONNECTION_CONNECT)
-                            ->whereNotNull('provider_account_id');
-                    });
-            })
-            ->pluck('store_id')
-            ->unique()
-            ->flip();
-
-        $externalCheckoutReady = Store::query()
-            ->whereIn('id', $storeIds)
-            ->get(['id', 'settings'])
-            ->filter(fn (Store $store): bool => CheckoutMode::forStore($store) === CheckoutMode::EXTERNAL)
-            ->pluck('id')
-            ->flip();
-
         foreach ($metrics as $storeId => &$row) {
             $prev = (int) $row['orders_prev_7d'];
             $curr = (int) $row['orders_7d'];
@@ -1719,13 +1689,11 @@ class DashboardController extends Controller
                 $row['orders_change_pct'] = round((($curr - $prev) / $prev) * 100, 1);
             }
 
-            $paymentsReady = $externalCheckoutReady->has($storeId) || $stripeOrPlatformReady->has($storeId);
             $readyFlags = [
                 (int) ($productCounts[$storeId] ?? 0) > 0,
                 (int) ($locationReady[$storeId] ?? 0) > 0,
                 $taxEnabled->has($storeId) && (int) ($taxRateCounts[$storeId] ?? 0) > 0,
                 (int) ($zoneCounts[$storeId] ?? 0) > 0 && (int) ($checkoutMethodCounts[$storeId] ?? 0) > 0,
-                $paymentsReady,
             ];
             $readyCount = count(array_filter($readyFlags));
             $setupComplete = $readyCount === $setupTotal;

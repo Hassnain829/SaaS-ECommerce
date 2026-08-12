@@ -9,7 +9,7 @@
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold text-[#0F172A]">Connect a delivery provider</h2>
-                    <p class="mt-1 text-sm text-[#475569]">Choose FedEx, USPS, manual/local delivery, or see planned carriers like DHL and UPS.</p>
+                    <p class="mt-1 text-sm text-[#475569]">Connect FedEx for live rates and labels, keep Manual / Local Delivery for fixed shipping, and treat USPS and DHL as deferred until platform approvals are ready.</p>
                 </div>
                 <a href="{{ route('shipping.carriers.connect.index') }}" class="ui-btn ui-btn-primary shrink-0">Connect delivery provider</a>
             </div>
@@ -51,12 +51,16 @@
     <div>
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-                <h2 class="text-xl font-semibold text-[#0F172A]">USPS Merchant Account</h2>
-                <p class="mt-1 text-sm text-[#64748B]">Connect your merchant-owned USPS business account. Postage stays on your USPS payment account — BmyBrand does not pay for your labels.</p>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="text-xl font-semibold text-[#0F172A]">USPS Merchant Account</h2>
+                    <span class="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-800">Coming later</span>
+                </div>
+                <p class="mt-1 text-sm text-[#64748B]">General production merchant-owned USPS label purchasing stays deferred until platform / Label Provider approval is complete. Postage stays on your USPS payment account — this platform never pays merchant postage.</p>
             </div>
-            @if (($uspsMerchantConnectionEnabled ?? false) && ($canManageShipping ?? false) && $uspsMerchantAccounts->isEmpty())
-                <a href="{{ route('settings.shipping.usps-merchant.start') }}" class="inline-flex h-10 shrink-0 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Connect USPS account</a>
-            @endif
+        </div>
+
+        <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            USPS is not generally available for production labels yet. Manual Delivery remains supported. Existing connection foundations stay available for authorized testing only.
         </div>
 
         @if (! ($uspsMerchantConnectionEnabled ?? false))
@@ -68,11 +72,8 @@
             </div>
         @elseif ($uspsMerchantAccounts->isEmpty())
             <div class="rounded-2xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-6 py-10 text-center">
-                <p class="font-semibold text-[#0F172A]">Connect your USPS business account</p>
-                <p class="mx-auto mt-2 max-w-lg text-sm text-[#64748B]">Authorize BmyBrand as your Label Provider in the USPS Business Portal. You never paste API keys or passwords here.</p>
-                @if ($canManageShipping ?? false)
-                    <a href="{{ route('settings.shipping.usps-merchant.start') }}" class="mt-4 inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Connect USPS account</a>
-                @endif
+                <p class="font-semibold text-[#0F172A]">USPS production labels are deferred</p>
+                <p class="mx-auto mt-2 max-w-lg text-sm text-[#64748B]">You will not be asked to paste USPS secrets here. When platform approval is ready, merchants will authorize through the official USPS flow.</p>
             </div>
         @else
             <div class="space-y-4">

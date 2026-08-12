@@ -473,10 +473,10 @@
         <div class="bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.18),_transparent_60%)] px-6 pb-4 pt-6">
             <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFF1F2] text-[#DC2626] shadow-sm">!</div>
             <h3 class="mt-5 text-2xl font-semibold text-[#0F172A]">Delete this product?</h3>
-            <p class="mt-2 text-sm leading-6 text-[#64748B]">This soft-deletes the product. You can undo it later from Deleted products, or permanently remove it there.</p>
+            <p class="mt-2 text-sm leading-6 text-[#64748B]">This moves the product to Deleted products. You can undo delete later, or permanently remove it there.</p>
         </div>
         <div class="px-6 pb-6 pt-2">
-            <div class="rounded-2xl border border-[#FEE2E2] bg-[#FFF7F7] px-4 py-4"><p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#B42318]">Soft delete</p><p class="mt-2 text-sm text-[#7F1D1D]">You are about to delete <span id="deleteProductName" class="font-bold"></span>.</p></div>
+            <div class="rounded-2xl border border-[#FEE2E2] bg-[#FFF7F7] px-4 py-4"><p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#B42318]">Delete product</p><p class="mt-2 text-sm text-[#7F1D1D]">You are about to delete <span id="deleteProductName" class="font-bold"></span>.</p></div>
             <form id="deleteProductForm" method="POST" class="mt-6">
                 @csrf
                 @method('DELETE')

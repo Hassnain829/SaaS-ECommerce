@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Register | BaaS Core</title>
+  <title>Register — Merchant workspace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -19,8 +19,8 @@
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M11 13L9 11L11 9L13 11L11 13ZM8.875 7.125L6.375 4.625L11 0L15.625 4.625L13.125 7.125L11 5L8.875 7.125ZM4.625 15.625L0 11L4.625 6.375L7.125 8.875L5 11L7.125 13.125L4.625 15.625ZM17.375 15.625L14.875 13.125L17 11L14.875 8.875L17.375 6.375L22 11L17.375 15.625ZM11 22L6.375 17.375L8.875 14.875L11 17L13.125 14.875L15.625 17.375L11 22Z" fill="white"/></svg>
           </span>
           <div class="flex flex-col">
-            <span class="text-[#0F172A] text-xl font-bold leading-5">BaaS Core</span>
-            <span class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-[1px]">Infrastructure</span>
+            <span class="text-[#0F172A] text-xl font-bold leading-5">Merchant workspace</span>
+            <span class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-[1px]">Store operations</span>
           </div>
         </a>
 
@@ -105,7 +105,7 @@
             </div>
             <div>
               <h3 class="text-2xl font-semibold">Instant Setup</h3>
-              <p class="mt-1 text-base leading-7 text-[#94A3B8]">Deploy a production-ready multi-tenant environment in seconds with automated environment provisioning.</p>
+              <p class="mt-1 text-base leading-7 text-[#94A3B8]">Create your store workspace and start managing catalog, orders, and delivery.</p>
             </div>
           </div>
 
@@ -115,7 +115,7 @@
             </div>
             <div>
               <h3 class="text-2xl font-medium">Automated Logistics</h3>
-              <p class="mt-1 text-base leading-7 text-[#94A3B8]">Seamlessly integrate with major fulfillment providers. Real-time tracking and automated route optimization built-in.</p>
+              <p class="mt-1 text-base leading-7 text-[#94A3B8]">Connect merchant-owned delivery options when you are ready — without unsupported live claims.</p>
             </div>
           </div>
 
@@ -134,13 +134,13 @@
           <div class="flex items-center gap-3">
             <div class="flex items-center">
               <span class="h-8 w-8 rounded-full border-2 border-[#1E293B] bg-[#F5D8BE]"></span>
-              <span class="-ml-2 h-8 rounded-full border-2 border-[#1E293B] bg-[#334155] px-2 text-[10px] font-bold text-white inline-flex items-center">+5k</span>
+              <span class="-ml-2 h-8 rounded-full border-2 border-[#1E293B] bg-[#334155] px-2 text-[10px] font-bold text-white inline-flex items-center">New</span>
             </div>
-            <p class="text-xs text-[#CBD5E1]">"The most robust multi-tenant engine we've integrated."</p>
+            <p class="text-xs text-[#CBD5E1]">"Built for day-to-day merchant store operations."</p>
           </div>
           <div class="mt-4 flex items-center justify-between">
             <div class="text-[#EAB308] text-xs tracking-[2px]">*****</div>
-            <span class="text-[10px] uppercase tracking-[1px] text-[#64748B] font-bold">Enterprise Verified</span>
+            <span class="text-[10px] uppercase tracking-[1px] text-[#64748B] font-bold">Merchant focused</span>
           </div>
         </div>
       </div>
@@ -149,7 +149,7 @@
 
   <footer class="border-t border-gray-200 py-5 px-4 text-center text-sm text-[#94A3B8] font-inter font-medium">
     <div class="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-x-4 gap-y-1">
-      <span>&copy; 2024 BaaS Core Enterprise. All rights reserved.</span>
+      <span>&copy; 2024 Merchant workspace. All rights reserved.</span>
     </div>
   </footer>
 </body>

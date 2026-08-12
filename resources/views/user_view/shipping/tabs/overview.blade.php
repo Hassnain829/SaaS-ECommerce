@@ -86,11 +86,11 @@
     }
 
     $uspsStatus = 'setup';
-    $uspsLabel = 'Setup required';
-    $uspsDetail = 'Authorize postage when you are ready to buy USPS labels.';
+    $uspsLabel = 'Coming later';
+    $uspsDetail = 'USPS merchant label purchasing stays deferred until platform approval is complete.';
     $uspsHref = ($uspsMerchantConnectionEnabled ?? false)
         ? route('settings.shipping.usps-merchant.start')
-        : route('shipping.carriers.connect.index');
+        : route('shippingAutomation', ['tab' => 'providers']);
     if ($uspsAccount) {
         $uspsHref = route('settings.shipping.usps-merchant.manage', $uspsAccount);
         $uspsDetail = $uspsAccount->display_name ?? 'USPS merchant account';
@@ -98,6 +98,9 @@
             || $uspsAccount->connection_status === 'connected') {
             $uspsStatus = 'connected';
             $uspsLabel = 'Connected';
+        } else {
+            $uspsLabel = 'Pending approval';
+            $uspsDetail .= ' · Platform approval still required for production labels';
         }
     }
 
@@ -248,6 +251,16 @@
                     <span class="delivery-status-dot" aria-hidden="true"></span>{{ strtoupper($uspsLabel) }}
                 </span>
             </a>
+            <div class="delivery-carrier-card is-setup" aria-disabled="true">
+                <span class="delivery-carrier-logo"><span class="delivery-carrier-fallback">DHL</span></span>
+                <span class="min-w-0 flex-1">
+                    <span class="block font-semibold text-[color:var(--color-ink)]">DHL</span>
+                    <span class="mt-0.5 block text-xs text-[color:var(--color-ink-muted)]">Coming later — production integration is not available yet.</span>
+                </span>
+                <span class="delivery-status-pill is-setup">
+                    <span class="delivery-status-dot" aria-hidden="true"></span>COMING LATER
+                </span>
+            </div>
         </div>
     </section>
 

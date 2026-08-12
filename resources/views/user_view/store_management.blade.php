@@ -244,7 +244,7 @@
                                 $setupReady = (int) ($metrics['setup_ready_count'] ?? 0);
                                 $setupTotal = (int) ($metrics['setup_total'] ?? 5);
                                 $healthTitle = $health === 'setup'
-                                    ? "Finish store setup ({$setupReady}/{$setupTotal}): catalog, location, tax, delivery, and payments"
+                                    ? "Finish store setup ({$setupReady}/{$setupTotal}): catalog, location, tax, and delivery"
                                     : ($health === 'ready'
                                         ? 'Major setup is complete. Waiting for recent orders.'
                                         : 'Major setup is complete and this store has recent orders.');

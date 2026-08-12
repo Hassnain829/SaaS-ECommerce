@@ -178,6 +178,8 @@ class Phase35StoreSettingsAlignmentTest extends TestCase
             ->assertSee('Open delivery setup', false)
             ->assertSee(route('shippingAutomation'), false)
             ->assertSee('Set ship-from locations, delivery areas, checkout delivery options, and optional delivery providers.', false)
+            ->assertSee('Open payments settings', false)
+            ->assertSee(route('settings.payments.index'), false)
             ->assertDontSee('Integrated Carriers', false)
             ->assertDontSee('Generate New Key', false)
             ->assertDontSee('Automated Tax Calculation', false)

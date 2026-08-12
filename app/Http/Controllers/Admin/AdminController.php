@@ -3,66 +3,74 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use Illuminate\View\View;
 
 class AdminController extends Controller
 {
-    public function admin_dashboard()
+    public function admin_dashboard(): View
     {
-        return view('admin_view.admin-dashboard');
+        return $this->unavailable('Platform overview');
     }
 
-    public function admin_tenant()
+    public function admin_tenant(): View
     {
-        return view('admin_view.admin-tenant');
+        return $this->unavailable('Tenants');
     }
 
-    public function admin_products()
+    public function admin_products(): View
     {
-        return view('admin_view.admin-products');
+        return $this->unavailable('Products');
     }
 
-    public function admin_users()
+    public function admin_users(): View
     {
-        return view('admin_view.admin_users');
+        return $this->unavailable('Users');
     }
 
-    public function admin_infrastructure()
+    public function admin_infrastructure(): View
     {
-        return view('admin_view.admin-infrastructure');
+        return $this->unavailable('Infrastructure');
     }
 
-    public function admin_ups()
+    public function admin_ups(): View
     {
-        return view('admin_view.admin_infrastructure_UPS');
+        return $this->unavailable('UPS');
     }
 
-    public function admin_billing()
+    public function admin_billing(): View
     {
-        return view('admin_view.admin_billing');
+        return $this->unavailable('Billing');
     }
 
-    public function admin_settings()
+    public function admin_settings(): View
     {
-        return view('admin_view.admin_settings');
+        return $this->unavailable('Settings');
     }
 
-    public function admin_profile()
+    public function admin_profile(): View
     {
-        return view('admin_view.admin_profile');
+        return $this->unavailable('Profile');
     }
 
-    public function admin_infrastructure_add_logistic()
+    public function admin_settings_security(): View
     {
-        return view('admin_view.admin_infrastructure_add_logistic');
+        return $this->unavailable('Security');
     }
 
-    public function admin_settings_security()
+    public function admin_settings_notifications(): View
     {
-        return view('admin_view.admin_settings_security_auth');
+        return $this->unavailable('Notifications');
     }
 
-    public function admin_settings_notifications()
+    public function admin_infrastructure_add_logistic(): View
     {
-        return view('admin_view.admin_settings_notification');
+        return $this->unavailable('Add logistic');
+    }
+
+    private function unavailable(string $pageLabel): View
+    {
+        return view('admin_view.unavailable', [
+            'pageLabel' => $pageLabel,
+        ]);
     }
 }

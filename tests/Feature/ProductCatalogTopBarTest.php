@@ -37,8 +37,14 @@ class ProductCatalogTopBarTest extends TestCase
             ->getContent() ?: '';
 
         $this->assertStringContainsString('data-products-more-actions', $html);
+        $this->assertStringContainsString(route('products.import.create'), $html);
         $this->assertStringContainsString('Import products', $html);
         $this->assertStringContainsString('Import history', $html);
         $this->assertStringContainsString('Catalog tools', $html);
+        // Import is a primary topbar action; history stays under More.
+        $this->assertLessThan(
+            strpos($html, 'data-products-more-actions') ?: PHP_INT_MAX,
+            strpos($html, route('products.import.create')) ?: PHP_INT_MAX
+        );
     }
 }

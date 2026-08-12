@@ -49,15 +49,6 @@
             'href' => route('shippingAutomation'),
             'cta' => ((bool) ($setup['delivery']['ready'] ?? false)) ? 'Review delivery' : 'Set delivery',
         ],
-        [
-            'title' => 'Connect payments',
-            'description' => ((bool) ($setup['payments']['ready'] ?? false))
-                ? 'Payment account is ready for checkout'
-                : 'Connect Stripe or use platform payment setup',
-            'ready' => (bool) ($setup['payments']['ready'] ?? false),
-            'href' => route('settings.payments.index'),
-            'cta' => ((bool) ($setup['payments']['ready'] ?? false)) ? 'Review payments' : 'Set payments',
-        ],
     ];
     $setupReadyCount = collect($setupSteps)->where('ready', true)->count();
     $setupComplete = $setupReadyCount === count($setupSteps);

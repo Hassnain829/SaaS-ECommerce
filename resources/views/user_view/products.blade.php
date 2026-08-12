@@ -80,6 +80,8 @@
         $activeSort !== 'latest' ? $activeSort : '',
     ])->filter(fn ($v) => trim((string) $v) !== '')->count();
     $filtersPanelOpen = $panelFilterCount > 0;
+    $isGenuinelyEmptyCatalog = ! $isDeletedView && $panelFilterCount === 0 && (int) $products->total() === 0;
+    $isFilteredEmptyCatalog = ! $isDeletedView && $panelFilterCount > 0 && (int) $products->total() === 0;
     $catalogAttributeTermCount = ($catalogAttributes ?? collect())->sum(fn ($attribute) => $attribute->terms->count());
     $sortOptions = [
         'latest' => 'Latest',
@@ -101,10 +103,15 @@
     <x-ui.merchant-topbar
         title="Products"
         :lead="$isDeletedView
-            ? 'Review soft-deleted items for '.($selectedStore->name ?? 'this store')
+            ? 'Review deleted products for '.($selectedStore->name ?? 'this store')
             : 'Manage catalog and inventory for '.($selectedStore->name ?? 'this store')"
     >
         <x-slot:actions>
+            @if ($canManageBrands)
+                <a href="{{ route('products.import.create') }}" class="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3.5 py-2 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">
+                    <span>Import products</span>
+                </a>
+            @endif
             <a href="{{ route('products.create') }}" class="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
@@ -119,7 +126,6 @@
                     </summary>
                     <div class="absolute right-0 z-40 mt-1 w-52 overflow-hidden rounded-md border border-border bg-surface py-1 shadow-lg">
                         @if ($canManageBrands)
-                            <a href="{{ route('products.import.create') }}" class="block px-4 py-2.5 text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">Import products</a>
                             <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">Import history</a>
                             <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">Manage specifications</a>
                         @endif
@@ -169,7 +175,7 @@
                 </div>
                 <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-secondary">
                     @if ($isDeletedView)
-                        Soft-deleted products stay here until you undo delete or permanently remove them.
+                        Deleted products stay here until you undo delete or permanently remove them.
                     @else
                         Browse, filter, and update inventory for this store. Select products to make changes in bulk.
                     @endif
@@ -212,6 +218,12 @@
                             <button type="button" data-open-catalog-tools data-catalog-tools-tab="categories" class="block w-full px-4 py-2.5 text-left text-sm font-medium text-ink-secondary hover:bg-surface-muted">Catalog tools</button>
                         </div>
                     </details>
+                @endif
+
+                @if ($canManageBrands)
+                    <a href="{{ route('products.import.create') }}" class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-semibold text-ink-secondary sm:hidden">
+                        Import
+                    </a>
                 @endif
 
                 <a href="{{ route('products.create') }}" class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-bold text-white sm:hidden">
@@ -843,7 +855,7 @@
                 }
 
                 function seedEditPayloadMemory() {
-                    document.querySelectorAll('.js-open-edit-product-modal').forEach((btn) => {
+                    document.querySelectorAll('.js-product-edit-payload').forEach((btn) => {
                         const payload = parseButtonPayload(btn);
                         const productId = payload?.id || btn.getAttribute('data-product-id');
                         if (!productId) return;
@@ -869,7 +881,7 @@
                     if (!row || !payload) return;
                     try {
                         const json = JSON.stringify(payload);
-                        row.querySelectorAll('.js-open-edit-product-modal, .js-open-delete-product-modal').forEach((btn) => {
+                        row.querySelectorAll('.js-product-edit-payload, .js-open-delete-product-modal').forEach((btn) => {
                             btn.setAttribute('data-product', json);
                         });
                     } catch (e) {
@@ -912,7 +924,7 @@
                 function rowProductId(row) {
                     if (!row) return null;
                     return row.querySelector('.js-product-row-checkbox')?.getAttribute('data-product-id')
-                        || row.querySelector('.js-open-edit-product-modal')?.getAttribute('data-product-id')
+                        || row.querySelector('.js-product-edit-payload')?.getAttribute('data-product-id')
                         || row.getAttribute('data-product-id')
                         || null;
                 }
@@ -936,7 +948,7 @@
 
                 function patchRowEditPayload(row, mutator) {
                     if (!row || typeof mutator !== 'function') return;
-                    const btn = row.querySelector('.js-open-edit-product-modal, .js-open-delete-product-modal');
+                    const btn = row.querySelector('.js-product-edit-payload, .js-open-delete-product-modal');
                     const fromBtn = parseButtonPayload(btn);
                     const productId = fromBtn?.id || rowProductId(row);
                     const current = (productId && readRememberedPayload(productId)) || fromBtn;
@@ -1142,7 +1154,7 @@
                     const { popover, rows, title } = variantStockEls();
                     if (!root || !popover || !rows) return;
                     const row = root.closest('tr');
-                    const btn = row?.querySelector('.js-open-edit-product-modal');
+                    const btn = row?.querySelector('.js-product-edit-payload');
                     const productId = root.getAttribute('data-product-id')
                         || btn?.getAttribute('data-product-id')
                         || rowProductId(row);
@@ -1928,7 +1940,7 @@
                                         @endif
                                     @else
                                         <a href="{{ route('products.show', $product) }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]">View</a>
-                                        <button type="button" class="js-open-edit-product-modal inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#0052CC] hover:bg-[#EEF4FF]" data-product-id="{{ $product->id }}" data-product='@json($productActionPayload)'>Edit</button>
+                                        <a href="{{ route('products.edit', $product) }}" class="js-product-edit-payload inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#0052CC] hover:bg-[#EEF4FF]" data-product-id="{{ $product->id }}" data-product='@json($productActionPayload)'>Edit</a>
                                         <button type="button" class="js-open-delete-product-modal inline-flex items-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FEEBEC]" data-product-id="{{ $product->id }}" data-product='@json($productActionPayload)'>Delete</button>
                                     @endif
                                 </div>
@@ -1937,8 +1949,23 @@
                     @empty
                         <tr>
                             <td colspan="9" class="px-4 py-12 text-center">
-                                <p class="text-sm font-semibold text-[#0F172A]">{{ $isDeletedView ? 'No deleted products' : 'No products found' }}</p>
-                                <p class="mt-1 text-sm text-[#64748B]">{{ $isDeletedView ? 'Soft-deleted products appear here so you can undo or permanently remove them.' : 'Try a different search term or clear your filters.' }}</p>
+                                @if ($isDeletedView)
+                                    <p class="text-sm font-semibold text-[#0F172A]">No deleted products</p>
+                                    <p class="mt-1 text-sm text-[#64748B]">Deleted products appear here so you can undo delete or permanently remove them.</p>
+                                @elseif ($isGenuinelyEmptyCatalog)
+                                    <p class="text-sm font-semibold text-[#0F172A]">Add your first product</p>
+                                    <p class="mt-1 text-sm text-[#64748B]">Create a product in the product workspace or import a catalog file to get started.</p>
+                                    <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
+                                        <a href="{{ route('products.create') }}" class="inline-flex items-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover">Add product</a>
+                                        @if ($canManageBrands)
+                                            <a href="{{ route('products.import.create') }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#334155] hover:bg-[#F8FAFC]">Import products</a>
+                                        @endif
+                                    </div>
+                                @else
+                                    <p class="text-sm font-semibold text-[#0F172A]">No products match these filters</p>
+                                    <p class="mt-1 text-sm text-[#64748B]">Try a different search term or clear your filters.</p>
+                                    <a href="{{ route('products') }}" class="mt-4 inline-flex items-center text-sm font-semibold text-[#0052CC] hover:underline">Clear filters</a>
+                                @endif
                             </td>
                         </tr>
                     @endforelse
@@ -2230,7 +2257,7 @@
                     extraSimple.classList.remove('hidden');
                     if (extraSimpleCopy) {
                         if (v === 'delete') {
-                            extraSimpleCopy.textContent = 'Selected products will be soft-deleted. You can undo this later from Deleted products.';
+                            extraSimpleCopy.textContent = 'Selected products will move to Deleted products. You can undo delete later.';
                         } else if (v === 'force_delete') {
                             extraSimpleCopy.textContent = 'This permanently removes the selected products. This cannot be undone.';
                         } else {

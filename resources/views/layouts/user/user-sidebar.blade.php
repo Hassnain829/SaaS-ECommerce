@@ -90,10 +90,6 @@
 
         <div class="sidebar-nav-group">
             <p class="sidebar-nav-label">Sales channels</p>
-            <a href="{{ route('analytics') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('analytics')])>
-                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 17V9h3v8H3zm5 0V3h3v14H8zm5 0v-5h3v5h-3z"/></svg>
-                <span>Analytics</span>
-            </a>
             <a href="{{ route('developer-storefront.settings') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('developer-storefront.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4 4h12v2H4V4zm0 4h12v8H4V8zm2 2v4h8v-4H6z"/></svg>
                 <span>Test storefront</span>
@@ -114,10 +110,6 @@
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M2 6h11v7H2V6zm11 2h3l2 3v2h-1.5a2 2 0 11-3.9 0H8.4a2 2 0 11-3.9 0H3V6h9v2z"/></svg>
                 <span>Delivery</span>
             </a>
-            <a href="{{ route('settings.payments.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.payments.*')])>
-                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 5h14a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1zm1 3v5h12V8H4zm0-2v1h12V6H4z"/></svg>
-                <span>Payments</span>
-            </a>
             <a href="{{ route('settings.taxes.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.taxes.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4 3h8l4 4v10a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1zm7 1v3h3l-3-3zM6 10h8v1.5H6V10zm0 3h6v1.5H6V13z"/></svg>
                 <span>Checkout &amp; tax</span>
@@ -133,10 +125,6 @@
             <a href="{{ route('team-members.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('team-members.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7 9a3 3 0 100-6 3 3 0 000 6zm6-1a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM2 16a5 5 0 0110 0v1H2v-1zm11-.5c0-1.2.4-2.3 1.1-3.2A5.5 5.5 0 0118 15.5V16h-5v-.5z"/></svg>
                 <span>Team</span>
-            </a>
-            <a href="{{ route('billingSubscription') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('billingSubscription')])>
-                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 5h14v2H3V5zm0 4h14v6H3V9zm2 2v2h4v-2H5z"/></svg>
-                <span>Billing</span>
             </a>
             <a href="{{ route('generalSettings') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('generalSettings')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM8.2 2h3.6l.4 2.1a6 6 0 011.5.9l2-.9 1.8 3.1-1.6 1.4c.1.5.1 1 0 1.5l1.6 1.4-1.8 3.1-2-.9a6 6 0 01-1.5.9L11.8 18H8.2l-.4-2.1a6 6 0 01-1.5-.9l-2 .9L2.5 12.8l1.6-1.4a6 6 0 010-1.5L2.5 8.5 4.3 5.4l2 .9a6 6 0 011.5-.9L8.2 2z"/></svg>

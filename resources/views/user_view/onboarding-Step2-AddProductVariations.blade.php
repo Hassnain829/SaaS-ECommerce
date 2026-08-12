@@ -84,9 +84,11 @@
                     @endif
                     </div>
                 </div>
-                <button
-                    class="bg-[#E2E8F0] text-[#64748B] text-sm font-inter font-medium px-4 py-2 rounded border border-[#E2E8F0]"
-                    type="button">Upload CSV</button>
+                <a
+                    href="{{ route('products.import.create') }}"
+                    class="bg-[#E2E8F0] text-[#334155] text-sm font-inter font-medium px-4 py-2 rounded border border-[#E2E8F0] hover:bg-[#CBD5E1]">
+                    Import products
+                </a>
             </div>
 
             @if ($errors->any())
