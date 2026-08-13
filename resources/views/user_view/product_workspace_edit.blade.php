@@ -33,9 +33,9 @@
                     <p class="product-edit-eyebrow">Editing product</p>
                     <h2>{{ $product->name }}</h2>
                     <p class="mt-1 text-sm text-[#454652]">
-                        Update name, price, stock, photos, and options for
+                        Update name, price, stock, images, and options for
                         <span class="font-semibold text-[#1A1B22]">{{ $selectedStore?->name }}</span>.
-                        Use the shortcuts above to jump to a section, then save when you are done.
+                        Use the section bar to jump, then save when you are done.
                     </p>
                 </div>
             </section>
@@ -48,12 +48,14 @@
                 <div class="min-w-0 space-y-4 lg:col-span-8">
                     <div class="product-edit-section-nav-shell" data-product-edit-nav-shell>
                         <nav id="catalog-editor-section-nav" class="product-edit-section-nav" aria-label="Jump to editor sections">
-                            <a href="#catalog-edit-section-basics" class="product-edit-section-link is-active" data-product-edit-tab>Details</a>
-                            <a href="#catalog-edit-section-pricing" class="product-edit-section-link" data-product-edit-tab>Price &amp; stock</a>
-                            <a href="#catalog-edit-section-media" class="product-edit-section-link" data-product-edit-tab>Photos</a>
-                            <a href="#catalog-edit-section-organization" class="product-edit-section-link" data-product-edit-tab>Categories</a>
-                            <a href="#catalog-edit-section-option-groups" class="product-edit-section-link" data-product-edit-tab>Options &amp; inventory</a>
-                            <a href="#catalog-edit-section-attributes" class="product-edit-section-link" data-product-edit-tab>Extra info</a>
+                            <a href="#catalog-edit-section-basics" class="product-edit-section-link is-active" data-product-edit-tab>Product details</a>
+                            <a href="#catalog-edit-section-media" class="product-edit-section-link" data-product-edit-tab>Images</a>
+                            <a href="#catalog-edit-section-pricing" class="product-edit-section-link" data-product-edit-tab>Price &amp; inventory</a>
+                            <a href="#catalog-edit-section-organization" class="product-edit-section-link" data-product-edit-tab>Organization</a>
+                            <a href="#catalog-edit-section-attributes" class="product-edit-section-link" data-product-edit-tab>Specifications</a>
+                            <a href="#catalog-edit-section-additional-details" class="product-edit-section-link" data-product-edit-tab>Additional details</a>
+                            <a href="#catalog-edit-section-option-groups" class="product-edit-section-link" data-product-edit-tab>Options</a>
+                            <a href="#catalog-edit-section-inventory" class="product-edit-section-link" data-product-edit-tab>Inventory</a>
                         </nav>
                     </div>
 
@@ -122,34 +124,51 @@
             const tabs = [...workspace.querySelectorAll('[data-product-edit-tab]')];
             const sections = tabs
                 .map((tab) => document.querySelector(tab.getAttribute('href')))
-                .filter(Boolean);
+                .filter(Boolean)
+                .sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+            const isWindowScrollRoot = (el) => el === document.scrollingElement
+                || el === document.documentElement
+                || el === document.body;
             const scrollRoot = workspace.closest('.merchant-app') || document.scrollingElement || document.documentElement;
             let lockedId = null;
             let lockTimer = null;
             let ticking = false;
+            let lastActiveId = null;
 
             const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+            const headerBottom = () => mainHeader?.getBoundingClientRect().bottom
+                ?? (isWindowScrollRoot(scrollRoot) ? 0 : scrollRoot.getBoundingClientRect().top);
+
             const stickyOffset = () => {
                 const navHeight = nav ? nav.getBoundingClientRect().height : 0;
-                return navHeight + 16;
+                return navHeight + 12;
+            };
+
+            const keepTabInView = (tab) => {
+                if (!nav || !tab) return;
+                const navRect = nav.getBoundingClientRect();
+                const tabRect = tab.getBoundingClientRect();
+                const pad = 12;
+                if (tabRect.left < navRect.left + pad) {
+                    nav.scrollLeft -= (navRect.left + pad) - tabRect.left;
+                } else if (tabRect.right > navRect.right - pad) {
+                    nav.scrollLeft += tabRect.right - (navRect.right - pad);
+                }
             };
 
             const syncNavPlacement = () => {
                 if (!nav || !navShell) return;
 
-                const headerBottom = mainHeader?.getBoundingClientRect().bottom
-                    ?? scrollRoot.getBoundingClientRect().top;
-                const shellTop = navShell.getBoundingClientRect().top;
-                const shouldStick = shellTop <= headerBottom;
-
+                const topEdge = headerBottom();
+                const shouldStick = navShell.getBoundingClientRect().top <= topEdge + 1;
                 nav.classList.toggle('is-stuck', shouldStick);
 
                 if (shouldStick) {
                     const shellRect = navShell.getBoundingClientRect();
-                    nav.style.setProperty('--product-edit-nav-top', `${headerBottom - 1}px`);
-                    nav.style.setProperty('--product-edit-nav-left', `${shellRect.left}px`);
-                    nav.style.setProperty('--product-edit-nav-width', `${shellRect.width}px`);
+                    nav.style.setProperty('--product-edit-nav-top', `${Math.round(topEdge)}px`);
+                    nav.style.setProperty('--product-edit-nav-left', `${Math.round(shellRect.left)}px`);
+                    nav.style.setProperty('--product-edit-nav-width', `${Math.round(shellRect.width)}px`);
                 } else {
                     nav.style.removeProperty('--product-edit-nav-top');
                     nav.style.removeProperty('--product-edit-nav-left');
@@ -157,8 +176,7 @@
                 }
             };
 
-            let lastActiveId = null;
-            const selectTab = (id) => {
+            const selectTab = (id, { syncHash = false } = {}) => {
                 if (id === lastActiveId) return;
                 lastActiveId = id;
                 tabs.forEach((tab) => {
@@ -166,19 +184,31 @@
                     tab.classList.toggle('is-active', active);
                     if (active) {
                         tab.setAttribute('aria-current', 'location');
-                        tab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+                        keepTabInView(tab);
                     } else {
                         tab.removeAttribute('aria-current');
                     }
                 });
+                if (syncHash && id && history.replaceState) {
+                    history.replaceState(null, '', '#' + id);
+                }
             };
 
             const scrollTopOf = (el) => {
-                if (scrollRoot === document.scrollingElement || scrollRoot === document.documentElement || scrollRoot === document.body) {
+                if (isWindowScrollRoot(scrollRoot)) {
                     return el.getBoundingClientRect().top + window.scrollY;
                 }
                 const rootRect = scrollRoot.getBoundingClientRect();
                 return scrollRoot.scrollTop + (el.getBoundingClientRect().top - rootRect.top);
+            };
+
+            const currentScroll = () => (isWindowScrollRoot(scrollRoot) ? window.scrollY : scrollRoot.scrollTop);
+
+            const maxScroll = () => {
+                if (isWindowScrollRoot(scrollRoot)) {
+                    return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                }
+                return Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight);
             };
 
             const updateActiveFromScroll = () => {
@@ -188,31 +218,39 @@
                     return;
                 }
 
-                const isWindowScroll = scrollRoot === document.scrollingElement
-                    || scrollRoot === document.documentElement
-                    || scrollRoot === document.body;
-                const maxScroll = Math.max(
-                    0,
-                    (isWindowScroll ? document.documentElement.scrollHeight : scrollRoot.scrollHeight)
-                    - (isWindowScroll ? window.innerHeight : scrollRoot.clientHeight)
-                );
-                const current = isWindowScroll ? window.scrollY : scrollRoot.scrollTop;
-
-                if (maxScroll > 0 && current >= maxScroll - 2) {
+                if (maxScroll() > 0 && currentScroll() >= maxScroll() - 4) {
                     selectTab(sections[sections.length - 1].id);
                     return;
                 }
 
-                const line = current + stickyOffset();
+                const line = headerBottom() + stickyOffset() + 8;
                 let active = sections[0];
                 for (const section of sections) {
-                    if (scrollTopOf(section) <= line) {
+                    if (section.getBoundingClientRect().top <= line) {
                         active = section;
-                    } else {
-                        break;
                     }
                 }
                 selectTab(active.id);
+            };
+
+            const scrollToSection = (target) => {
+                const top = Math.max(0, scrollTopOf(target) - stickyOffset());
+                const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
+                if (isWindowScrollRoot(scrollRoot)) {
+                    window.scrollTo({ top, behavior });
+                } else {
+                    scrollRoot.scrollTo({ top, behavior });
+                }
+            };
+
+            const lockSection = (id) => {
+                lockedId = id;
+                selectTab(id, { syncHash: true });
+                if (lockTimer) window.clearTimeout(lockTimer);
+                lockTimer = window.setTimeout(() => {
+                    lockedId = null;
+                    updateActiveFromScroll();
+                }, 900);
             };
 
             const onScroll = () => {
@@ -229,27 +267,11 @@
                 const target = document.querySelector(tab.getAttribute('href'));
                 if (!target) return;
                 event.preventDefault();
-
-                lockedId = target.id;
-                selectTab(target.id);
-                if (lockTimer) window.clearTimeout(lockTimer);
-                lockTimer = window.setTimeout(() => {
-                    lockedId = null;
-                    updateActiveFromScroll();
-                }, 700);
-
-                const top = Math.max(0, scrollTopOf(target) - stickyOffset());
-                const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
-                if (scrollRoot === document.scrollingElement || scrollRoot === document.documentElement || scrollRoot === document.body) {
-                    window.scrollTo({ top, behavior });
-                } else {
-                    scrollRoot.scrollTo({ top, behavior });
-                }
+                lockSection(target.id);
+                scrollToSection(target);
             }));
 
-            const bindScroll = scrollRoot === document.scrollingElement || scrollRoot === document.documentElement || scrollRoot === document.body
-                ? window
-                : scrollRoot;
+            const bindScroll = isWindowScrollRoot(scrollRoot) ? window : scrollRoot;
             bindScroll.addEventListener('scroll', onScroll, { passive: true });
             window.addEventListener('resize', onScroll);
             syncNavPlacement();
@@ -258,7 +280,11 @@
             if (window.location.hash) {
                 const hashTarget = document.querySelector(window.location.hash);
                 if (hashTarget && sections.includes(hashTarget)) {
-                    selectTab(hashTarget.id);
+                    lockSection(hashTarget.id);
+                    window.requestAnimationFrame(() => {
+                        syncNavPlacement();
+                        scrollToSection(hashTarget);
+                    });
                 }
             }
 

@@ -4761,11 +4761,94 @@
         box-shadow: 0 0 0 3px rgb(63 81 181 / 0.12);
     }
 
-    .product-edit-workspace #edit_product_image {
-        border-width: 2px;
-        border-style: dashed;
+    .product-image-dropzone {
+        display: flex;
+        min-height: 10.5rem;
+        cursor: pointer;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        border: 2px dashed #cbd5e1;
+        border-radius: 1rem;
+        background: #f8fafc;
+        padding: 1.5rem 1.25rem;
+        text-align: center;
+        transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .product-image-dropzone:hover,
+    .product-image-dropzone:focus-visible,
+    .product-image-dropzone.is-dragover {
+        border-color: #3f51b5;
+        background: rgb(63 81 181 / 0.06);
+        box-shadow: 0 0 0 4px rgb(63 81 181 / 0.1);
+        outline: none;
+    }
+
+    .product-image-dropzone-icon {
+        display: inline-flex;
+        height: 3rem;
+        width: 3rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
         background: #fff;
-        padding-block: 1rem;
+        color: #3f51b5;
+        box-shadow: 0 1px 3px rgb(15 23 42 / 0.08);
+    }
+
+    .product-image-dropzone-title {
+        margin-top: 0.35rem;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #0f172a;
+        text-transform: none;
+        letter-spacing: 0;
+    }
+
+    .product-image-dropzone-help {
+        font-size: 0.75rem;
+        color: #64748b;
+        text-transform: none;
+        letter-spacing: 0;
+    }
+
+    .product-image-dropzone-action {
+        display: inline-flex;
+        margin-top: 0.45rem;
+        min-height: 2.25rem;
+        align-items: center;
+        border-radius: 0.5rem;
+        background: #3f51b5;
+        padding: 0.4rem 0.9rem;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        color: #fff;
+    }
+
+    .product-image-gallery {
+        display: grid;
+        margin-top: 0.85rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    @media (min-width: 640px) {
+        .product-image-gallery {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .product-image-gallery {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+    }
+
+    .product-edit-workspace .product-image-dropzone {
+        background: #fff;
+        border-color: rgb(197 197 212 / 0.8);
     }
 
     .product-edit-workspace #editOpenVariationModal,

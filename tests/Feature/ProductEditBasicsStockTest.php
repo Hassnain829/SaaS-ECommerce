@@ -101,9 +101,12 @@ class ProductEditBasicsStockTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products.edit', $product))
             ->assertOk()
-            ->assertSee('Price &amp; stock', false)
-            ->assertSee('Options &amp; inventory', false)
-            ->assertSee('Extra info', false)
+            ->assertSee('Price &amp; inventory', false)
+            ->assertSee('data-product-edit-tab>Options</a>', false)
+            ->assertSee('data-product-edit-tab>Inventory</a>', false)
+            ->assertSee('data-product-edit-tab>Specifications</a>', false)
+            ->assertDontSee('Price &amp; stock', false)
+            ->assertDontSee('Extra info', false)
             ->assertSee('Low stock alert', false)
             ->assertSee('edit_product_stock', false);
     }

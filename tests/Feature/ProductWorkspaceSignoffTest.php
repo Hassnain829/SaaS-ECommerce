@@ -35,9 +35,11 @@ class ProductWorkspaceSignoffTest extends TestCase
         $store = $this->makeStore($owner, 'Edit Page Store');
         $product = $this->makeProduct($store, 'Editable');
 
-        $this->actingAs($owner)
+        $response = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('products.edit', $product))
+            ->get(route('products.edit', $product));
+
+        $response
             ->assertOk()
             ->assertSee('Editable', false)
             ->assertSee('Save and return to workspace', false)
@@ -53,15 +55,50 @@ class ProductWorkspaceSignoffTest extends TestCase
             ->assertSee('href="#catalog-edit-section-pricing"', false)
             ->assertSee('href="#catalog-edit-section-organization"', false)
             ->assertSee('href="#catalog-edit-section-attributes"', false)
+            ->assertSee('href="#catalog-edit-section-additional-details"', false)
             ->assertSee('href="#catalog-edit-section-option-groups"', false)
-            ->assertSee('Price &amp; stock', false)
-            ->assertSee('Options &amp; inventory', false)
-            ->assertSee('Extra info', false)
+            ->assertSee('href="#catalog-edit-section-inventory"', false)
+            ->assertSee('data-product-edit-tab>Product details</a>', false)
+            ->assertSee('data-product-edit-tab>Images</a>', false)
+            ->assertSee('data-image-dropzone', false)
+            ->assertSee('Drop photos here or click to browse', false)
+            ->assertSee('Choose photos', false)
+            ->assertSee('id="edit_product_image"', false)
+            ->assertDontSee('No product images selected.', false)
+            ->assertSee('data-product-edit-tab>Price &amp; inventory</a>', false)
+            ->assertSee('data-product-edit-tab>Organization</a>', false)
+            ->assertSee('data-product-edit-tab>Specifications</a>', false)
+            ->assertSee('data-product-edit-tab>Additional details</a>', false)
+            ->assertSee('data-product-edit-tab>Options</a>', false)
+            ->assertSee('data-product-edit-tab>Inventory</a>', false)
+            ->assertSee('data-product-edit-section', false)
+            ->assertDontSee('data-product-edit-tab>Details</a>', false)
+            ->assertDontSee('data-product-edit-tab>Photos</a>', false)
+            ->assertDontSee('Price &amp; stock', false)
+            ->assertDontSee('Extra info', false)
             ->assertSee('aria-label="Notifications"', false)
             ->assertSee('aria-label="Help"', false)
             ->assertSee('aria-label="Open profile menu"', false)
             ->assertDontSee('Edit catalog item', false)
             ->assertDontSee('Editing from product workspace', false);
+
+        $html = $response->getContent();
+
+        preg_match_all('/id="(catalog-edit-section-[a-z-]+)"[^>]*data-product-edit-section/', $html, $sectionIds);
+        $this->assertSame([
+            'catalog-edit-section-basics',
+            'catalog-edit-section-media',
+            'catalog-edit-section-pricing',
+            'catalog-edit-section-organization',
+            'catalog-edit-section-attributes',
+            'catalog-edit-section-additional-details',
+            'catalog-edit-section-option-groups',
+            'catalog-edit-section-inventory',
+        ], $sectionIds[1]);
+        $this->assertStringNotContainsString(
+            'id="catalog-edit-section-media" class="mt-6',
+            $html
+        );
     }
 
     public function test_catalog_edit_popup_collapses_advanced_fields_and_links_to_full_workspace(): void
