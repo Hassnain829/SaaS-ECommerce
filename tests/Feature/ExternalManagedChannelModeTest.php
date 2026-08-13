@@ -158,9 +158,9 @@ class ExternalManagedChannelModeTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.payments.index'))
             ->assertOk()
-            ->assertSee('Checkout and fulfillment mode')
-            ->assertSee('External managed')
-            ->assertSee('Platform managed');
+            ->assertSee('How does this store accept payments?')
+            ->assertSee('External checkout')
+            ->assertSee('Platform checkout');
     }
 
     public function test_external_order_sync_succeeds_without_shipping_or_fulfillment_objects(): void
@@ -325,8 +325,8 @@ class ExternalManagedChannelModeTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.payments.index'))
             ->assertOk()
-            ->assertSee('Inventory source for external orders')
-            ->assertSee('External orders reduce dashboard stock when they sync.');
+            ->assertSee('Inventory for external orders')
+            ->assertSee('Reduce dashboard stock when orders sync');
     }
 
     public function test_external_checkout_with_external_inventory_does_not_deduct_stock(): void
@@ -411,7 +411,7 @@ class ExternalManagedChannelModeTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.payments.index'))
             ->assertOk()
-            ->assertSee('External orders are recorded here, but dashboard stock is not changed.');
+            ->assertSee('Website manages stock — dashboard stock stays unchanged');
     }
 
     public function test_legacy_implicit_external_inventory_defaults_to_platform(): void

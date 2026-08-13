@@ -80,7 +80,7 @@ Do **not** describe the overall project as live-ready / public-beta ready until:
 1. the readiness document’s P0 acceptance gates pass, and
 2. the full automated suite gate passes with current evidence.
 
-Do not claim the suite is green without a successful run. As of the 2026-08-05 readiness review, the full suite was not green.
+Do not claim the suite is green without a successful run. DR-04 evidence on 2026-08-13: `php artisan test` was green with 1,430 passed, 2 skipped, and 0 failures. CI now also requires `migrate:fresh --seed`.
 
 ## Key links
 

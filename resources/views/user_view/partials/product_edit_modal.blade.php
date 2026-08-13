@@ -218,15 +218,12 @@
                             <p class="text-sm font-medium text-[#0F172A]">Alerts are per option</p>
                             <p class="mt-1 text-xs text-[#64748B]">Set a low stock alert on each option row in Options &amp; inventory.</p>
                         </div>
-                        <div class="md:col-span-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                            <input type="hidden" name="is_taxable" value="0">
-                            <label class="flex items-start gap-3 text-sm font-semibold text-[#0F172A]">
-                                <input id="edit_product_is_taxable" name="is_taxable" type="checkbox" value="1" class="mt-0.5 rounded border-[#CBD5E1] text-[#0052CC] focus:ring-[#0052CC]">
-                                <span>
-                                    Charge tax on this product
-                                    <span class="mt-1 block text-xs font-normal leading-relaxed text-[#64748B]">Turn this off for products that should not receive configured platform checkout tax. External checkout keeps using the tax totals supplied by that checkout.</span>
-                                </span>
-                            </label>
+                        <div class="md:col-span-3">
+                            @include('user_view.partials.product_taxable_control', [
+                                'taxSetting' => $taxSetting ?? $selectedStore?->taxSetting,
+                                'inputId' => 'edit_product_is_taxable',
+                                'checkedOverride' => isset($product) ? (bool) $product->is_taxable : null,
+                            ])
                         </div>
                         <div id="editShippingWeightWrap" class="md:col-span-3 hidden rounded-xl border border-[#E2E8F0] bg-white p-4">
                             <p class="text-sm font-semibold text-[#0F172A]">Shipping</p>

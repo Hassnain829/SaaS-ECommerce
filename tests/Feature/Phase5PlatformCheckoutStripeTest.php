@@ -373,7 +373,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('orderViewDetails', $order))
             ->assertOk()
-            ->assertSeeText('Payment was confirmed through platform checkout.')
+            ->assertSeeText('Order was created from platform checkout after Stripe payment succeeded.')
             ->assertSeeText($checkout->checkout_number)
             ->assertSeeText('Stripe')
             ->assertSeeText('pi_test_checkout_'.$checkout->id);

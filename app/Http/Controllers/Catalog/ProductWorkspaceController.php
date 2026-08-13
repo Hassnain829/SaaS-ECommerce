@@ -71,6 +71,7 @@ final class ProductWorkspaceController extends Controller
             'catalogAttributes' => $catalogAttributes,
             'editProductPayload' => $editProductPayload,
             'workspaceReturnProductId' => $product->id,
+            'taxSetting' => $store->taxSetting,
         ]);
     }
 

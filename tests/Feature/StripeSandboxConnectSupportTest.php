@@ -43,8 +43,8 @@ class StripeSandboxConnectSupportTest extends TestCase
             ->assertOk()
             ->assertSeeText('Stripe test account')
             ->assertSeeText('Stripe live account')
-            ->assertSeeText('Test mode is for safe sandbox payments. Live mode charges real customers.')
-            ->assertSeeText('Connect separate Stripe test and live accounts for platform checkout through secure Stripe hosted onboarding.');
+            ->assertSeeText('Safe sandbox payments for testing platform checkout. No real money is charged.')
+            ->assertSeeText('You will connect through Stripe hosted onboarding.');
     }
 
     public function test_payments_page_never_asks_store_owner_for_stripe_keys(): void

@@ -200,8 +200,9 @@ class Phase2CatalogCleanupTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products', ['attribute_term' => $term->id]))
             ->assertOk()
-            ->assertSee('Filtered by product specification', false)
-            ->assertSee('Clear specification filter', false);
+            ->assertSee('Spec', false)
+            ->assertSee('Cotton', false)
+            ->assertSee('Clear', false);
     }
 
     public function test_products_page_does_not_render_advanced_filters_panel(): void

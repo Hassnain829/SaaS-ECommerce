@@ -17,7 +17,9 @@ Use this before tagging a release or merging to production branches.
 - [ ] `PROJECT_RETENTION_SCHEDULE_FORCE` remains `false` unless operations explicitly approves destructive scheduled pruning.
 - [ ] Carrier routes remain registered after `routes/carriers.php` extraction (`tests/Feature/CarrierRouteRegressionTest.php`).
 - [ ] `composer validate --strict` passes.
+- [ ] `php artisan migrate:fresh --seed --force` succeeds on a clean database.
 - [ ] `php artisan test` passes locally (same PHP extensions as CI: `dom`, `mbstring`, `xml`, `xmlwriter`, plus `pdo_sqlite` for the default test suite).
+- [ ] CI runs both `migrate:fresh --seed` and the full PHPUnit suite (`.github/workflows/ci.yml`).
 - [ ] Phase 5R checkout/tax regression filters pass (`ProductTaxableFlagTest`, `DraftTax`, `Phase5ExternalCheckoutSyncTest`, `PlatformCheckoutTaxTest`, `CheckoutPaymentInvariantTest`, `Phase4DraftOrderTest`, `Phase6CheckoutDeliveryMethodsTest`).
 - [ ] Phase 5R-1 tax foundation is complete and documented (`docs/archive/implementation/PHASE_5R_1_BATCH_B_FINAL_COMPLETION_REPORT.md`).
 - [ ] Phase 5R-2 coupons regression passes (`php artisan test --filter=Phase5R2CouponTest`).

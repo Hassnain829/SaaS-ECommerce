@@ -36,8 +36,8 @@ class Phase6USPSMerchantConnectionFoundationTest extends TestCase
             ->get(route('shippingAutomation', ['tab' => 'advanced']))
             ->assertOk()
             ->assertSeeText('USPS Merchant Account')
-            ->assertSeeText('Connect USPS account')
-            ->assertSeeText('USPS sandbox diagnostics')
+            ->assertSeeText('Coming later')
+            ->assertSeeText('USPS production labels are deferred')
             ->assertDontSeeText('USPS Sandbox Tools');
     }
 

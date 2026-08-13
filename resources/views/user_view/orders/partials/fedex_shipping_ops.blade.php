@@ -69,9 +69,9 @@
         $shippingAddress->address_line2 ?? null,
     ])));
     $enteredCityLine = trim(implode(' ', array_filter([
-        $shippingAddress->city ?? null,
-        $shippingAddress->province_code ?: ($shippingAddress->state ?? null),
-        $shippingAddress->postal_code ?? null,
+        $shippingAddress?->city ?? null,
+        $shippingAddress?->province_code ?: ($shippingAddress?->state ?? null),
+        $shippingAddress?->postal_code ?? null,
     ])));
     $suggestions = collect($addressSuggestionSource['suggestions'] ?? $addressSuggestionSource['address_suggestions'] ?? [])
         ->filter(fn ($row) => is_array($row))

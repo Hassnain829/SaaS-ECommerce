@@ -2567,17 +2567,6 @@ class OnboardingController extends Controller
         );
 
         if ($isFullWorkspaceCreate) {
-            if (! $store->onboarding_completed) {
-                $request->session()->put('onboarding_last_product_id', $newProductId);
-                $request->session()->put('onboarding_product_id', $newProductId);
-
-                return redirect()
-                    ->route('onboarding_StoreReady')
-                    ->with('success', "Product '{$validated['name']}' was created.")
-                    ->with('success_title', 'Product created')
-                    ->with('success_meta', 'Continue setup when you are ready');
-            }
-
             return redirect()
                 ->route('products.show', ['product' => $newProductId])
                 ->with('success', "Product '{$validated['name']}' was created.")

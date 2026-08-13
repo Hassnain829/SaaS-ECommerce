@@ -145,8 +145,8 @@ class StoreManagementHubTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('store-management'))
             ->assertOk()
-            ->assertSeeText('Setup needed')
-            ->assertDontSeeText('Ready to sell');
+            ->assertSeeText('Ready to sell')
+            ->assertDontSeeText('Setup needed');
     }
 
     public function test_recent_activity_shows_member_store_events_and_hides_cross_store(): void

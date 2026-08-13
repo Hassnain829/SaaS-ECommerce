@@ -245,7 +245,7 @@ class Phase5ExternalCheckoutSyncTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('orderViewDetails', $order))
             ->assertOk()
-            ->assertSeeText('Payment status recorded from external checkout.')
+            ->assertSeeText('Payment status was recorded from the external checkout.')
             ->assertSeeText('WEB-DASH')
             ->assertSeeText('External Test')
             ->assertSeeText('pay-dashboard');

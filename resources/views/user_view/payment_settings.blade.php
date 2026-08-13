@@ -159,7 +159,7 @@
             </p>
             <div class="pay-cta-actions">
                 <a href="{{ route('products') }}" class="pay-btn pay-btn-on-dark">Manage inventory</a>
-                <a href="{{ route('analytics') }}" class="pay-btn pay-btn-ghost-on-dark">View analytics</a>
+                <a href="{{ route('dashboard') }}" class="pay-btn pay-btn-ghost-on-dark">Go to dashboard</a>
             </div>
         </div>
         <div class="pay-cta-art" aria-hidden="true">

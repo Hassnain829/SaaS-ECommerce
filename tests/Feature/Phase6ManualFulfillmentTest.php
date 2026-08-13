@@ -43,8 +43,8 @@ class Phase6ManualFulfillmentTest extends TestCase
             ->assertSeeText('Delivery')
             ->assertSeeText('Delivery areas')
             ->assertSeeText('Delivery options')
-            ->assertSeeText('FedEx Merchant Account')
-            ->assertSeeText('Connect FedEx account')
+            ->assertSeeText('FedEx')
+            ->assertSeeText('Connect your FedEx account')
             ->assertSeeText('Fulfillment locations')
             ->assertDontSeeText('Add carrier account')
             ->assertDontSeeText('Save unavailable')
@@ -497,19 +497,29 @@ class Phase6ManualFulfillmentTest extends TestCase
         [$owner, $store, $order, $item] = $this->orderFixture('Shipment Pending Safety Store', 1);
         [$account, $method] = $this->shippingSetup($store);
 
-        foreach (range(1, 2) as $index) {
-            $this->actingAs($owner)
-                ->withSession(['current_store_id' => $store->id])
-                ->post(route('orders.shipments.store', $order), [
-                    'carrier_account_id' => $account->id,
-                    'shipping_method_id' => $method->id,
-                    'items' => [$item->id => 1],
-                ])
-                ->assertRedirect();
-        }
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('orders.shipments.store', $order), [
+                'carrier_account_id' => $account->id,
+                'shipping_method_id' => $method->id,
+                'items' => [$item->id => 1],
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('orderViewDetails', $order))
+            ->post(route('orders.shipments.store', $order), [
+                'carrier_account_id' => $account->id,
+                'shipping_method_id' => $method->id,
+                'items' => [$item->id => 1],
+            ])
+            ->assertSessionHasErrors([
+                'items.'.$item->id => 'Shipment quantity exceeds the remaining quantity for this item.',
+            ]);
 
         $shipments = Shipment::query()->where('order_id', $order->id)->orderBy('id')->get();
-        $this->assertCount(2, $shipments);
+        $this->assertCount(1, $shipments);
         $this->assertSame(OrderLifecycle::FULFILLMENT_UNFULFILLED, $order->fresh()->fulfillment_status);
 
         $this->actingAs($owner)
@@ -517,16 +527,7 @@ class Phase6ManualFulfillmentTest extends TestCase
             ->post(route('shipments.mark-shipped', $shipments[0]))
             ->assertRedirect();
 
-        $this->assertSame(OrderLifecycle::FULFILLMENT_FULFILLED, $order->fresh()->fulfillment_status);
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('shipments.mark-shipped', $shipments[1]))
-            ->assertSessionHasErrors([
-                'shipment_status' => 'Shipment quantity exceeds the remaining quantity for this item.',
-            ]);
-
-        $this->assertSame(Shipment::STATUS_PENDING, $shipments[1]->fresh()->status);
+        $this->assertSame(Shipment::STATUS_SHIPPED, $shipments[0]->fresh()->status);
         $this->assertSame(OrderLifecycle::FULFILLMENT_FULFILLED, $order->fresh()->fulfillment_status);
     }
 
