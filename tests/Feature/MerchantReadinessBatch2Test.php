@@ -168,6 +168,15 @@ class MerchantReadinessBatch2Test extends TestCase
         $step3->assertSeeText('when the production connected-channel feature becomes available');
         $step3->assertDontSeeText('baas.com');
         $step3->assertDontSee('cdn.tailwindcss.com', false);
+        $step3->assertSee('data-onboarding-stepper', false);
+        $step3->assertSee('data-step="1"', false);
+        $step3->assertSee('data-step="2"', false);
+        $step3->assertSee('data-step="3"', false);
+        $step3->assertSee('data-stepper-fill', false);
+        $step3->assertSee(route('onboarding-StoreDetails-1'), false);
+        $step3->assertSee(route('products.create'), false);
+        $step3->assertSee(route('products.import.create'), false);
+        $step3->assertDontSee('id="product-onboarding-form"', false);
     }
 
     public function test_password_reset_request_is_non_enumerating_and_resets_with_valid_token(): void
