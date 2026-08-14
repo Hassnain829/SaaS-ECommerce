@@ -5,13 +5,12 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Store;
-use App\Services\Channels\ChannelOwnershipService;
+use App\Services\ConnectedSiteService;
 use App\Services\SecurityLogRecorder;
+use App\Support\ConnectedSiteScope;
 use FilesystemIterator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -20,7 +19,7 @@ use ZipArchive;
 
 class DeveloperStorefrontSettingsController extends Controller
 {
-    public function show(Request $request, ChannelOwnershipService $channelOwnership): View|RedirectResponse
+    public function show(Request $request): View|RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
 
@@ -31,10 +30,21 @@ class DeveloperStorefrontSettingsController extends Controller
         }
 
         $store->refresh();
+        $connectedSites = app(ConnectedSiteService::class);
+        $connectedSite = $connectedSites->primarySite($store);
+        $health = is_array($connectedSite?->last_health) ? $connectedSite->last_health : [];
+        $catalogCache = is_array($health['catalog_cache'] ?? null) ? $health['catalog_cache'] : [];
+        $catalogSync = $connectedSites->catalogSyncSummary($store, $connectedSite, $catalogCache);
+        $scopeLabels = $connectedSite
+            ? array_map(
+                static fn (string $scope): string => ConnectedSiteScope::label($scope),
+                $connectedSite->grantedScopes()
+            )
+            : [];
 
         $connectionState = $store->websiteConnectionState();
         $tokenConfigured = $store->hasDeveloperStorefrontToken();
-        $lastSeenAt = $store->developer_storefront_last_seen_at;
+        $lastSeenAt = $connectedSite?->last_seen_at ?? $store->developer_storefront_last_seen_at;
 
         $currentStep = match (true) {
             $connectionState === Store::WEBSITE_DISCONNECTED => 2,
@@ -48,19 +58,18 @@ class DeveloperStorefrontSettingsController extends Controller
             'tokenConfigured' => $tokenConfigured,
             'tokenCreatedAt' => $store->developer_storefront_token_created_at,
             'plainToken' => $request->session()->pull('developer_storefront_plain_token'),
-            'websiteUrl' => $store->connectedWebsiteUrl(),
+            'websiteUrl' => $connectedSite?->site_url ?: $store->connectedWebsiteUrl(),
             'lastSeenAt' => $lastSeenAt,
             'connectionState' => $connectionState,
             'currentStep' => $currentStep,
             'publishedProductCount' => Product::query()
                 ->where('store_id', $store->id)
                 ->where('status', true)
-                ->whereHas('variants')
                 ->count(),
-            'usesPlatformInventory' => $channelOwnership->usesPlatformInventory(
-                $store,
-                ChannelOwnershipService::CHANNEL_EXTERNAL
-            ),
+            'connectedSite' => $connectedSite,
+            'connectedSiteHealth' => $health,
+            'catalogSync' => $catalogSync,
+            'connectedSiteScopeLabels' => $scopeLabels,
             'portalAddress' => rtrim((string) config('app.url'), '/'),
             'stripeConfig' => [
                 'mode' => (string) config('payments.stripe.mode', 'test'),
@@ -81,30 +90,25 @@ class DeveloperStorefrontSettingsController extends Controller
                 ->withErrors(['store' => 'No active store was found.']);
         }
 
-        $plain = 'baa_dev_'.Str::lower(Str::random(40));
-        $hash = hash('sha256', $plain);
-
-        $tokenUpdate = [
-            'developer_storefront_token_hash' => $hash,
-            'developer_storefront_token_created_at' => now(),
-        ];
-        if (Schema::hasColumn('stores', 'developer_storefront_last_seen_at')) {
-            $tokenUpdate['developer_storefront_last_seen_at'] = null;
-        }
-
-        Store::query()->whereKey($store->id)->update($tokenUpdate);
+        $issued = app(ConnectedSiteService::class)->issuePrimaryCredential($store);
 
         app(SecurityLogRecorder::class)->record(
             $request,
             'api_key_created',
             store: $store,
-            metadata: ['source' => 'developer_storefront']
+            metadata: [
+                'source' => 'connected_site',
+                'public_id' => $issued['site']->public_id,
+                'rotated' => $issued['rotated'],
+            ]
         );
 
         return redirect()
             ->route('developer-storefront.settings')
-            ->with('success', 'Copy this key now. It will not be shown again.')
-            ->with('developer_storefront_plain_token', $plain);
+            ->with('success', $issued['rotated']
+                ? 'Copy this new key now. The previous key stops working immediately.'
+                : 'Copy this key now. It will not be shown again.')
+            ->with('developer_storefront_plain_token', $issued['plain']);
     }
 
     public function revoke(Request $request): RedirectResponse
@@ -117,16 +121,16 @@ class DeveloperStorefrontSettingsController extends Controller
                 ->withErrors(['store' => 'No active store was found.']);
         }
 
-        Store::query()->whereKey($store->id)->update([
-            'developer_storefront_token_hash' => null,
-            'developer_storefront_token_created_at' => null,
-        ]);
+        $site = app(ConnectedSiteService::class)->revokePrimary($store);
 
         app(SecurityLogRecorder::class)->record(
             $request,
             'api_key_revoked',
             store: $store,
-            metadata: ['source' => 'developer_storefront']
+            metadata: [
+                'source' => 'connected_site',
+                'public_id' => $site?->public_id,
+            ]
         );
 
         return redirect()
@@ -155,14 +159,13 @@ class DeveloperStorefrontSettingsController extends Controller
                 ->withErrors(['website_url' => 'Enter a valid website address, including http:// or https://.']);
         }
 
-        $settings = is_array($store->settings) ? $store->settings : [];
-        if ($url === '') {
-            unset($settings['connected_website_url']);
-        } else {
-            $settings['connected_website_url'] = $url;
+        try {
+            app(ConnectedSiteService::class)->bindWebsiteUrl($store, $url);
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            return redirect()
+                ->route('developer-storefront.settings')
+                ->withErrors($exception->errors());
         }
-
-        $store->forceFill(['settings' => $settings])->save();
 
         return redirect()
             ->route('developer-storefront.settings')

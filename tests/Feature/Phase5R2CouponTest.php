@@ -510,13 +510,13 @@ class Phase5R2CouponTest extends TestCase
             ->assertJsonPath('checkout.discount_total', '5.00');
     }
 
-    public function test_external_order_can_opt_into_platform_coupon_calculation(): void
+    public function test_external_order_coupon_endpoint_is_gone(): void
     {
         [$store, $token] = $this->tokenedStore('Coupon External Store');
         [, $variant] = $this->product($store, price: 40);
         $this->coupon($store, ['code' => 'EXT25', 'type' => 'percentage', 'value' => 25]);
 
-        $response = $this->withToken($token)
+        $this->withToken($token)
             ->postJson('/api/v1/external/orders', [
                 'external_order_id' => 'ext-coupon-1',
                 'external_order_number' => 'EXT-COUPON-1',
@@ -542,25 +542,7 @@ class Phase5R2CouponTest extends TestCase
                     ['variant_id' => $variant->id, 'quantity' => 1],
                 ],
             ])
-            ->assertCreated();
-
-        $orderId = $response->json('order.id');
-        $this->assertDatabaseHas('orders', [
-            'id' => $orderId,
-            'discount' => 10.00,
-            'grand_total' => 30.00,
-        ]);
-        $this->assertDatabaseHas('coupon_redemptions', [
-            'order_id' => $orderId,
-            'checkout_id' => null,
-            'status' => CouponRedemption::STATUS_REDEEMED,
-            'code_snapshot' => 'EXT25',
-            'discount_amount' => 10.00,
-        ]);
-        $this->assertSame('EXT25', data_get(
-            \App\Models\Order::query()->findOrFail($orderId)->meta,
-            'coupon_snapshot.code'
-        ));
+            ->assertNotFound();
     }
 
     public function test_mid_checkout_item_update_recalculates_coupon_and_may_clear_it(): void

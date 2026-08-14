@@ -304,9 +304,29 @@ class Store extends Model
         return $this->hasMany(CustomerTag::class);
     }
 
+    public function connectedSites(): HasMany
+    {
+        return $this->hasMany(ConnectedSite::class);
+    }
+
+    public function primaryConnectedSite(): HasOne
+    {
+        return $this->hasOne(ConnectedSite::class)->where('is_primary', true)->latestOfMany();
+    }
+
     public function hasDeveloperStorefrontToken(): bool
     {
-        return filled($this->developer_storefront_token_hash);
+        if (filled($this->developer_storefront_token_hash)) {
+            return true;
+        }
+
+        if (! Schema::hasTable('connected_sites')) {
+            return false;
+        }
+
+        return $this->connectedSites()
+            ->where('status', ConnectedSite::STATUS_ACTIVE)
+            ->exists();
     }
 
     public function connectedWebsiteUrl(): ?string

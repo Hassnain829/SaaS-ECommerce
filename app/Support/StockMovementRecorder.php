@@ -165,6 +165,7 @@ final class StockMovementRecorder
         ?int $performedBy,
         int $productImportId,
         ?string $reason = null,
+        ?\App\Models\Location $location = null,
     ): void {
         if ($previousStock !== null && $previousStock === $newStock) {
             return;
@@ -174,20 +175,37 @@ final class StockMovementRecorder
         self::assertVariantBelongsToProduct($product, $variant);
 
         if (self::inventoryTablesExist()) {
-            app(InventoryAdjustmentService::class)->setVariantAvailable(
+            $context = [
+                'movement_type' => StockMovement::TYPE_IMPORT,
+                'source' => 'import',
+                'reference_id' => $productImportId,
+                'reference_type' => 'product_import',
+                'performed_by' => $performedBy,
+                'previous_stock_for_movement' => $previousStock,
+                'initial_available' => $previousStock ?? 0,
+            ];
+            $adjustment = app(InventoryAdjustmentService::class);
+            if ($location !== null) {
+                $item = app(\App\Services\Inventory\InventorySyncService::class)
+                    ->ensureInventoryItemForVariant($variant);
+                $adjustment->setAvailable(
+                    $item,
+                    $location,
+                    $newStock,
+                    $reason ?? 'Catalog import',
+                    null,
+                    $context
+                );
+
+                return;
+            }
+
+            $adjustment->setVariantAvailable(
                 $variant,
                 $newStock,
                 $reason ?? 'Catalog import',
                 null,
-                [
-                    'movement_type' => StockMovement::TYPE_IMPORT,
-                    'source' => 'import',
-                    'reference_id' => $productImportId,
-                    'reference_type' => 'product_import',
-                    'performed_by' => $performedBy,
-                    'previous_stock_for_movement' => $previousStock,
-                    'initial_available' => $previousStock ?? 0,
-                ]
+                $context
             );
 
             return;

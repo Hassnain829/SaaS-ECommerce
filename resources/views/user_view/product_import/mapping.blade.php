@@ -33,6 +33,13 @@
                 </div>
             @endif
 
+            @if (!empty($isWooCommerceImport))
+                <div class="mb-6 rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-sm text-[#14532D]">
+                    <p class="font-semibold text-[#166534]">WooCommerce product export detected</p>
+                    <p class="mt-1">We matched this file to the WooCommerce product CSV layout (simple products, variable products, and variations). Review the mapping below if a column looks wrong. This step imports products only — it does not move orders, customers, or payments.</p>
+                </div>
+            @endif
+
             @php
                 $existingCustom = old('custom_field_mappings', $existingCustomMappings ?? []);
                 if (! is_array($existingCustom)) {

@@ -205,6 +205,23 @@
                         <div class="rounded-xl bg-[#F8FAFC] px-4 py-3"><dt class="text-[#64748B]">Rows skipped</dt><dd class="text-lg font-bold text-[#0F172A] tabular-nums">{{ $summary['skipped'] ?? 0 }}</dd></div>
                         <div class="rounded-xl bg-[#F8FAFC] px-4 py-3"><dt class="text-[#64748B]">Rows that need attention</dt><dd class="text-lg font-bold text-[#B42318] tabular-nums">{{ $summary['failed'] ?? 0 }}</dd></div>
                     </dl>
+                    @if (!empty($summary['does_not_migrate_orders_customers_payments']))
+                        <p class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">This catalog import did not migrate orders, customers, or payments.</p>
+                    @endif
+                    @if (!empty($summary['stock_mode']))
+                        <p class="mt-3 text-sm text-[#475569]">Stock policy: <span class="font-semibold text-[#0F172A]">{{ $summary['stock_mode'] === 'preserve' ? 'kept existing quantities on products that already existed' : 'replaced quantities from the file' }}</span></p>
+                    @endif
+                    @if (!empty($summary['url_redirects']))
+                        <div class="mt-6 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
+                            <p class="font-semibold text-[#0F172A]">Previous product addresses</p>
+                            <p class="mt-1 text-xs text-[#64748B]">These map old WooCommerce product paths to the catalog addresses in this store.</p>
+                            <ul class="mt-2 max-h-48 overflow-y-auto space-y-1 font-mono text-xs text-[#334155]">
+                                @foreach ($summary['url_redirects'] as $redirect)
+                                    <li>{{ $redirect['from'] ?? '' }} → {{ $redirect['destination_slug'] ?? '' }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
                     <div class="mt-6 flex flex-wrap gap-3">
                         <a href="{{ route('products.import.history') }}" class="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm hover:bg-[#F8FAFC]">View import history</a>
                         @if ($failed > 0)

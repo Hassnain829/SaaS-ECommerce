@@ -14,7 +14,6 @@ use App\Models\Store;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\USPS\Support\USPSConfig;
-use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Delivery\DeliveryAreaInputNormalizer;
 use App\Services\Delivery\DeliveryOptionInputNormalizer;
 use App\Services\Delivery\DeliverySetupStatusService;
@@ -33,7 +32,6 @@ class ShippingSettingsController extends Controller
 {
     public function index(
         Request $request,
-        ChannelOwnershipService $channelOwnership,
         FedExConfig $fedExConfig,
         USPSConfig $uspsConfig,
         CarrierOriginReadinessService $originReadiness,
@@ -109,8 +107,6 @@ class ShippingSettingsController extends Controller
 
         return view('user_view.shippingAutomation', [
             'selectedStore' => $store,
-            'isExternalManaged' => $channelOwnership->isExternalManaged($store),
-            'isPlatformManaged' => $channelOwnership->isPlatformManaged($store),
             'carriers' => Carrier::query()
                 ->where('is_active', true)
                 ->orderBy('name')

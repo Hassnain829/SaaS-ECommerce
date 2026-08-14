@@ -483,21 +483,14 @@ class Phase7CorrectionTest extends TestCase
             ->assertSessionHasErrors('quantity');
     }
 
-    public function test_external_order_create_rejects_refunded_payment_statuses(): void
+    public function test_external_order_create_endpoint_is_gone(): void
     {
-        $controller = app(\App\Http\Controllers\Api\ExternalOrderSyncController::class);
-        $method = new \ReflectionMethod($controller, 'validatedPayload');
-        $method->setAccessible(true);
-
-        $request = \Illuminate\Http\Request::create('/api/external/orders', 'POST', [
+        $this->postJson('/api/v1/external/orders', [
             'payment_status' => 'refunded',
             'currency_code' => 'USD',
             'customer' => ['email' => 'buyer@example.test'],
             'items' => [['sku' => 'X', 'quantity' => 1, 'unit_price' => 10, 'name' => 'X']],
-        ]);
-
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
-        $method->invoke($controller, $request);
+        ])->assertNotFound();
     }
 
     private function bindProvider(callable $resultFactory): void

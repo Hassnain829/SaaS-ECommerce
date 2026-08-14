@@ -15,9 +15,11 @@ use App\Services\Catalog\ProductImportPreviewService;
 use App\Services\Catalog\ProductImportProcessor;
 use App\Services\Catalog\ProductImportSpreadsheetReader;
 use App\Services\Catalog\ProductImportStaleHandler;
+use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
 use App\Support\Catalog\ProductImportHeaderNormalizer;
 use App\Support\Catalog\ProductImportQueue;
+use App\Support\Catalog\WooCommerceCsvDetector;
 use App\Support\StorePermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -83,10 +85,16 @@ class ProductImportController extends Controller
                     'Duplicate column headers (ignoring capitalization) would cause values to overwrite each other. Give each column a unique name, then try again.'
                 );
             }
-            $import->update([
+            $headerUpdate = [
                 'headers' => $headers,
                 'status' => ProductImport::STATUS_PARSED,
-            ]);
+            ];
+            if (WooCommerceCsvDetector::detect($headers)) {
+                $headerUpdate['import_state'] = array_merge(is_array($import->import_state) ? $import->import_state : [], [
+                    'source_preset' => 'woocommerce',
+                ]);
+            }
+            $import->update($headerUpdate);
 
             Log::channel('import')->info('product_import_upload_stored', [
                 'import_id' => $import->id,
@@ -154,6 +162,7 @@ class ProductImportController extends Controller
             'headers' => $productImport->headers ?? [],
             'existingMapping' => $productImport->column_mapping ?? [],
             'existingCustomMappings' => $productImport->custom_field_mappings ?? [],
+            'isWooCommerceImport' => $productImport->isWooCommercePreset(),
         ]);
     }
 
@@ -213,11 +222,23 @@ class ProductImportController extends Controller
         }
 
         $store = $request->attributes->get('currentStore');
+        $locations = collect();
+        if ($productImport->isWooCommercePreset() && $store) {
+            app(DefaultLocationService::class)->ensureForStore($store);
+            $locations = \App\Models\Location::query()
+                ->where('store_id', $store->id)
+                ->where('is_active', true)
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(['id', 'name', 'is_default']);
+        }
 
         return view('user_view.product_import.preview', [
             'selectedStore' => $store,
             'import' => $productImport,
             'preview' => $productImport->preview_summary ?? [],
+            'stockLocations' => $locations,
+            'isWooCommerceImport' => $productImport->isWooCommercePreset(),
         ]);
     }
 
@@ -230,6 +251,34 @@ class ProductImportController extends Controller
             return redirect()
                 ->route('products.import.result', ['productImportId' => $productImport->id])
                 ->withErrors(['import' => 'This import has already been submitted or is not ready to confirm.']);
+        }
+
+        $existingState = is_array($productImport->import_state) ? $productImport->import_state : [];
+        $keptState = [];
+        if ($productImport->isWooCommercePreset()) {
+            $store = $request->attributes->get('currentStore');
+            abort_unless($store, 404);
+            app(DefaultLocationService::class)->ensureForStore($store);
+            $validatedStock = $request->validate([
+                'location_id' => ['required', 'integer'],
+                'stock_mode' => ['required', 'in:replace,preserve'],
+            ]);
+            $location = \App\Models\Location::query()
+                ->where('store_id', $store->id)
+                ->where('is_active', true)
+                ->whereKey((int) $validatedStock['location_id'])
+                ->first();
+            if ($location === null) {
+                return back()->withErrors(['location_id' => 'Choose an active location in this store for WooCommerce stock.']);
+            }
+            $keptState = [
+                'source_preset' => 'woocommerce',
+                'location_id' => (int) $location->id,
+                'stock_mode' => $validatedStock['stock_mode'],
+                'woo_id_to_sku' => $existingState['woo_id_to_sku'] ?? null,
+            ];
+        } elseif (($existingState['source_preset'] ?? '') !== '') {
+            $keptState['source_preset'] = $existingState['source_preset'];
         }
 
         if (! Storage::disk($productImport->stored_disk)->exists($productImport->stored_path)) {
@@ -255,7 +304,7 @@ class ProductImportController extends Controller
             'queued_at' => now(),
             'last_processed_row' => 0,
             'total_rows' => null,
-            'import_state' => null,
+            'import_state' => $keptState !== [] ? array_filter($keptState, static fn ($value) => $value !== null) : null,
             'failure_message' => null,
         ]);
 
@@ -385,6 +434,7 @@ class ProductImportController extends Controller
                 ->withErrors(['import' => 'Re-editing mapping from import history is only available once the import shows Finished or Could not finish. If you are still mapping a new upload, open Map columns from your import notifications or start from Import products.']);
         }
 
+        $keptPreset = is_array($productImport->import_state) ? ($productImport->import_state['source_preset'] ?? null) : null;
         $productImport->update([
             'status' => ProductImport::STATUS_PARSED,
             'preview_summary' => null,
@@ -394,7 +444,7 @@ class ProductImportController extends Controller
             'started_at' => null,
             'last_processed_row' => 0,
             'total_rows' => null,
-            'import_state' => null,
+            'import_state' => $keptPreset ? ['source_preset' => $keptPreset] : null,
             'result_summary' => null,
         ]);
 
@@ -633,10 +683,15 @@ class ProductImportController extends Controller
     private function persistMappingAndBuildPreview(ProductImport $productImport, array $mapping, array $customMappings): ?string
     {
         $normalizedCustom = ProductImportProcessor::normalizeCustomMappings($customMappings);
+        $state = is_array($productImport->import_state) ? $productImport->import_state : [];
+        if ($productImport->isWooCommercePreset()) {
+            $state['source_preset'] = 'woocommerce';
+        }
 
         $productImport->update([
             'column_mapping' => $mapping,
             'custom_field_mappings' => $normalizedCustom,
+            'import_state' => $state !== [] ? $state : null,
         ]);
 
         $preview = $this->previewService->build($productImport->fresh());

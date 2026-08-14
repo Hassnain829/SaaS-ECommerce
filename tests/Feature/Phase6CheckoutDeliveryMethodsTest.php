@@ -243,7 +243,7 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
             ->assertJsonValidationErrors(['shipping_method_id']);
     }
 
-    public function test_external_order_sync_preserves_external_shipping_snapshot_without_internal_method(): void
+    public function test_external_order_shipping_snapshot_endpoint_is_gone(): void
     {
         [$store, $token] = $this->tokenedStore('Phase 6B External Store', false);
         [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
@@ -275,14 +275,7 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
                     ['variant_id' => $variant->id, 'quantity' => 2, 'unit_price' => '12.00'],
                 ],
             ])
-            ->assertCreated()
-            ->assertJsonPath('order.shipping', '4.25')
-            ->assertJsonPath('order.total', '28.25');
-
-        $order = Order::query()->where('store_id', $store->id)->firstOrFail();
-        $this->assertSame('Website standard delivery', data_get($order->meta, 'shipping.method_name'));
-        $this->assertSame('External courier', data_get($order->meta, 'shipping.carrier_name'));
-        $this->assertSame(4.25, (float) data_get($order->meta, 'shipping.amount'));
+            ->assertNotFound();
     }
 
     public function test_shipping_settings_page_exposes_checkout_delivery_method_fields(): void

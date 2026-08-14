@@ -437,7 +437,7 @@ class Phase5R3TotalsHardeningTest extends TestCase
         $this->assertSame(10, (int) $variant->fresh()->stock);
     }
 
-    public function test_external_explicit_totals_remain_unchanged_and_create_no_payment_intent(): void
+    public function test_external_order_endpoint_is_gone(): void
     {
         [$store, $token] = $this->tokenedStore('External Preserve Store');
         [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
@@ -452,123 +452,7 @@ class Phase5R3TotalsHardeningTest extends TestCase
                     'total' => 28.00,
                 ],
             ]))
-            ->assertCreated()
-            ->assertJsonPath('order.total', '28.00');
-
-        $order = Order::query()->where('store_id', $store->id)->firstOrFail();
-        $this->assertSame('24.00', (string) $order->subtotal);
-        $this->assertSame('4.50', (string) $order->shipping);
-        $this->assertSame('1.50', (string) $order->tax);
-        $this->assertSame('2.00', (string) $order->discount);
-        $this->assertSame('28.00', (string) $order->grand_total);
-        $this->assertSame(0, PaymentIntent::query()->count());
-        $this->assertSame(0, Checkout::query()->count());
-    }
-
-    public function test_external_platform_coupon_line_discounts_are_decimal_exact_and_sum_to_header(): void
-    {
-        [$store, $token] = $this->tokenedStore('External Decimal Coupon Store');
-        [, $variantA] = $this->product($store, ['price' => '10.00', 'name' => 'Line A', 'stock' => 5]);
-        [, $variantB] = $this->product($store, ['price' => '10.01', 'name' => 'Line B', 'stock' => 5]);
-        $this->coupon($store, [
-            'code' => 'SPLIT10',
-            'type' => Coupon::TYPE_PERCENTAGE,
-            'value' => 10,
-        ]);
-
-        $response = $this->withToken($token)
-            ->postJson('/api/v1/external/orders', [
-                'external_order_number' => 'EXT-DEC-1',
-                'external_checkout_reference' => 'checkout-dec-1',
-                'payment_status' => 'paid',
-                'payment_method' => 'card',
-                'payment_gateway' => 'external_test',
-                'payment_reference' => 'pay-dec-1',
-                'currency_code' => 'USD',
-                'discount_calculation' => 'platform',
-                'coupon_code' => 'SPLIT10',
-                'customer' => [
-                    'email' => 'external.decimal@example.test',
-                    'full_name' => 'Decimal Buyer',
-                ],
-                'shipping_address' => [
-                    'name' => 'Decimal Buyer',
-                    'address_line1' => '9 Decimal Way',
-                    'city' => 'Austin',
-                    'state' => 'TX',
-                    'postal_code' => '73301',
-                    'country' => 'US',
-                    'country_code' => 'US',
-                ],
-                'items' => [
-                    ['variant_id' => $variantA->id, 'quantity' => 1, 'unit_price' => '10.00'],
-                    ['variant_id' => $variantB->id, 'quantity' => 1, 'unit_price' => '10.01'],
-                ],
-                'totals' => [
-                    'subtotal' => '20.01',
-                    'shipping' => '1.23',
-                    'tax' => '4.56',
-                    'discount' => '0.00',
-                    'total' => '99.99',
-                ],
-            ])
-            ->assertCreated();
-
-        $order = Order::query()->findOrFail($response->json('order.id'));
-        // Explicit external shipping/tax preserved; platform discount replaces discount; grand recalculated.
-        $this->assertSame('20.01', (string) $order->subtotal);
-        $this->assertSame('1.23', (string) $order->shipping);
-        $this->assertSame('4.56', (string) $order->tax);
-        $this->assertSame('2.00', (string) $order->discount);
-        $this->assertSame('23.80', (string) $order->grand_total);
-
-        $lineDiscountSum = $order->items->reduce(
-            fn (string $carry, $item): string => bcadd($carry, (string) $item->discount_amount, 2),
-            '0.00'
-        );
-        $this->assertSame('2.00', $lineDiscountSum);
-        $this->assertSame(
-            CurrencyPrecision::toMinorUnits('2.00', 'USD'),
-            CurrencyPrecision::toMinorUnits($lineDiscountSum, 'USD')
-        );
-        $this->assertSame(0, PaymentIntent::query()->count());
-    }
-
-    public function test_external_missing_grand_total_uses_deterministic_fallback(): void
-    {
-        [$store, $token] = $this->tokenedStore('External Fallback Store');
-        [, $variant] = $this->product($store, ['price' => 10, 'stock' => 5]);
-
-        $payload = $this->externalPayload($variant);
-        $payload['totals'] = [
-            'subtotal' => 20.00,
-            'shipping' => 3.00,
-            'tax' => 2.00,
-            'discount' => 1.00,
-        ];
-
-        $this->withToken($token)
-            ->postJson('/api/v1/external/orders', $payload)
-            ->assertCreated()
-            ->assertJsonPath('order.total', '24.00');
-    }
-
-    public function test_external_nested_currency_mismatch_is_rejected(): void
-    {
-        [$store, $token] = $this->tokenedStore('External Currency Store');
-        [, $variant] = $this->product($store, ['price' => 10, 'stock' => 5]);
-
-        $this->withToken($token)
-            ->postJson('/api/v1/external/orders', $this->externalPayload($variant, [
-                'currency_code' => 'USD',
-                'shipping' => [
-                    'method_name' => 'Express',
-                    'amount' => 5,
-                    'currency' => 'EUR',
-                ],
-            ]))
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['shipping.currency']);
+            ->assertNotFound();
     }
 
     /**

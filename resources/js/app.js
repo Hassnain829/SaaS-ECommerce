@@ -9,40 +9,20 @@ window.paymentsConsole = (options = {}) => {
     const config = typeof options === 'object' && options !== null && ! Array.isArray(options)
         ? options
         : {
-            initialView: 'external',
             storeId: typeof arguments[1] === 'number' ? arguments[1] : 0,
             canManage: Boolean(arguments[2]),
             liveReady: Boolean(arguments[3]),
-            checkoutMode: 'external_checkout',
         };
 
-    const initialView = config.initialView === 'platform' ? 'platform' : 'external';
-    const checkoutMode = config.checkoutMode || 'external_checkout';
     const storeId = config.storeId || 0;
     const canManage = Boolean(config.canManage);
     const liveReady = Boolean(config.liveReady);
 
     return {
-        viewMode: initialView,
-        checkoutMode,
         stripePanel: 'test',
         canManage,
         liveReady,
         diagnosticsOpen: MerchantUi.recallDisclosure(`payments-diagnostics-${storeId}`, false),
-        get isExternalCurrent() {
-            return this.checkoutMode === 'external_checkout';
-        },
-        get isPlatformCurrent() {
-            return this.checkoutMode === 'platform_checkout';
-        },
-        get viewingOtherMode() {
-            return this.viewMode === 'external'
-                ? ! this.isExternalCurrent
-                : ! this.isPlatformCurrent;
-        },
-        switchTab(mode) {
-            this.viewMode = mode === 'platform' ? 'platform' : 'external';
-        },
         setStripePanel(mode) {
             if (mode === 'live' && ! this.liveReady && this.canManage) {
                 this.stripePanel = 'live';

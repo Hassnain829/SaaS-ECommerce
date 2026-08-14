@@ -61,11 +61,7 @@
             <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $errors->first() }}</div>
         @endif
 
-        @if ($isExternalManaged ?? false)
-            <div class="settings-alert">External storefront manages checkout shipping. The settings below apply to platform checkout and dashboard fulfillment.</div>
-        @elseif ($isPlatformManaged ?? false)
-            <div class="settings-alert" style="border-color:#bbf7d0;background:#f0fdf4;color:#166534;">Delivery options can appear during platform checkout when setup is complete.</div>
-        @endif
+            <div class="settings-alert" style="border-color:#bbf7d0;background:#f0fdf4;color:#166534;">Delivery options can appear during checkout when setup is complete.</div>
 
         @include('user_view.shipping.tabs.overview')
 

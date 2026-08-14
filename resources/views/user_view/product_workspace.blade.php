@@ -8,6 +8,13 @@
     $compareAt = $catalog['compare_at_price'] ?? null;
     $costPrice = $catalog['cost_price'] ?? null;
     $shortDesc = $catalog['short_description'] ?? null;
+    $barcode = $catalog['barcode'] ?? null;
+    $weight = $catalog['weight'] ?? null;
+    $weightUnit = $catalog['weight_unit'] ?? null;
+    $length = $catalog['length'] ?? null;
+    $width = $catalog['width'] ?? null;
+    $height = $catalog['height'] ?? null;
+    $dimensionUnit = $catalog['dimension_unit'] ?? null;
     $readyImages = $product->images->filter(fn ($img) => $img->isReady());
     $primaryImg = $readyImages->first(fn ($img) => $img->is_primary) ?? $readyImages->first();
     $primaryUrl = $primaryImg ? asset('storage/'.$primaryImg->image_path) : null;
@@ -35,6 +42,8 @@
     $hasCustom = $customFieldRows !== [];
     $hasAttributes = $attributeRows !== [];
     $hasImportExtra = $importExtraRows !== [];
+    $sourceIdentity = $sourceIdentity ?? [];
+    $urlRedirects = $urlRedirects ?? collect();
     $variantCount = count($variantSummaries);
     $multiVariant = $variantCount > 1;
 @endphp
@@ -86,6 +95,12 @@
                                 <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Store SKU</dt>
                                 <dd class="mt-1 font-mono text-sm font-semibold text-ink">{{ $product->sku ?: '—' }}</dd>
                             </div>
+                            @if (filled($barcode))
+                                <div class="rounded-md bg-surface-muted px-3.5 py-3">
+                                    <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Barcode</dt>
+                                    <dd class="mt-1 font-mono text-sm font-semibold text-ink">{{ $barcode }}</dd>
+                                </div>
+                            @endif
                             <div class="rounded-md bg-surface-muted px-3.5 py-3">
                                 <dt class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Product behavior</dt>
                                 <dd class="mt-1 text-sm font-medium text-ink-secondary">{{ $productBehavior['label'] ?? Str::title(str_replace(['-', '_'], ' ', $product->product_type)) }}</dd>
@@ -223,6 +238,49 @@
                             </div>
                         </dl>
                     </section>
+
+                    @if (($product->source_system ?? '') === 'woocommerce' || $sourceIdentity !== [])
+                        <section class="product-workspace-card rounded-xl border border-border bg-white p-6 shadow-sm sm:p-8" aria-labelledby="workspace-woo-source-heading">
+                            <div class="border-b border-border pb-4">
+                                <h2 id="workspace-woo-source-heading" class="text-lg font-semibold text-ink">Imported from WooCommerce</h2>
+                                <p class="mt-1 text-sm text-ink-muted">This product was created or updated from a WooCommerce catalog file. Orders, customers, and payments were not migrated with it.</p>
+                            </div>
+                            <dl class="mt-6 grid gap-4 sm:grid-cols-2">
+                                <div class="rounded-xl border border-border bg-surface-muted px-4 py-3">
+                                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">WooCommerce product ID</dt>
+                                    <dd class="mt-1 text-sm font-semibold text-ink">{{ $sourceIdentity['woo_product_id'] ?? $product->source_product_id ?? '—' }}</dd>
+                                </div>
+                                <div class="rounded-xl border border-border bg-surface-muted px-4 py-3">
+                                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Original SKU</dt>
+                                    <dd class="mt-1 text-sm font-semibold text-ink">{{ $sourceIdentity['source_sku'] ?? $product->sku }}</dd>
+                                </div>
+                                <div class="rounded-xl border border-border bg-surface-muted px-4 py-3">
+                                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Original address</dt>
+                                    <dd class="mt-1 text-sm font-semibold text-ink break-all">{{ $sourceIdentity['original_path'] ?? ($sourceIdentity['original_slug'] ?? '—') }}</dd>
+                                </div>
+                                <div class="rounded-xl border border-border bg-surface-muted px-4 py-3">
+                                    <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Import batch</dt>
+                                    <dd class="mt-1 text-sm font-semibold text-ink">{{ $sourceIdentity['import_batch_id'] ?? '—' }}</dd>
+                                </div>
+                                @if (!empty($sourceIdentity['site']))
+                                    <div class="rounded-xl border border-border bg-surface-muted px-4 py-3 sm:col-span-2">
+                                        <dt class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Source website</dt>
+                                        <dd class="mt-1 text-sm font-semibold text-ink break-all">{{ $sourceIdentity['site'] }}</dd>
+                                    </div>
+                                @endif
+                            </dl>
+                            @if ($urlRedirects->isNotEmpty())
+                                <div class="mt-5">
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Previous web addresses</p>
+                                    <ul class="mt-2 space-y-1 font-mono text-xs text-ink-secondary">
+                                        @foreach ($urlRedirects as $redirect)
+                                            <li>{{ $redirect->source_path }} → {{ $redirect->destination_slug }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+                        </section>
+                    @endif
 
                     <section class="product-workspace-card product-workspace-additional-card rounded-xl border border-border bg-white p-6 shadow-sm sm:p-8" aria-labelledby="workspace-additional-details-heading">
                         <div class="border-b border-border pb-4">
@@ -464,6 +522,19 @@
                                 <div>
                                     <dt class="text-ink-muted">Cost price</dt>
                                     <dd class="mt-0.5 font-medium tabular-nums text-ink-secondary">{{ $currency }} {{ is_numeric($costPrice) ? number_format((float) $costPrice, 2) : e($costPrice) }}</dd>
+                                </div>
+                            @endif
+                            @if (filled($weight) || filled($length) || filled($width) || filled($height))
+                                <div class="border-t border-border pt-4">
+                                    <dt class="text-ink-muted">Shipping measurements</dt>
+                                    <dd class="mt-1 space-y-1 font-medium text-ink-secondary">
+                                        @if (filled($weight))
+                                            <p>Weight: {{ $weight }}{{ filled($weightUnit) ? ' '.$weightUnit : '' }}</p>
+                                        @endif
+                                        @if (filled($length) || filled($width) || filled($height))
+                                            <p>Size: {{ implode(' × ', array_filter([$length, $width, $height], fn ($v) => filled($v))) }}{{ filled($dimensionUnit) ? ' '.$dimensionUnit : '' }}</p>
+                                        @endif
+                                    </dd>
                                 </div>
                             @endif
                         </dl>

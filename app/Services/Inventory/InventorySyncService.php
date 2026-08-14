@@ -7,6 +7,7 @@ use App\Models\InventoryLevel;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Services\StorefrontCatalogEventRecorder;
 
 class InventorySyncService
 {
@@ -87,6 +88,7 @@ class InventorySyncService
 
         if ((int) $variant->stock !== $available) {
             $variant->forceFill(['stock' => $available])->saveQuietly();
+            app(StorefrontCatalogEventRecorder::class)->recordInventoryChanged($variant);
         }
     }
 

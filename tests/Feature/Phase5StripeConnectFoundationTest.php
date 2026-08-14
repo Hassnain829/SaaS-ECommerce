@@ -300,7 +300,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             ->postJson('/api/v1/checkout', $this->payload($variant))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['payment'])
-            ->assertJsonPath('errors.payment.0', 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.');
+            ->assertJsonPath('errors.payment.0', 'Platform checkout is not available. Connect Stripe in Payments before customers can pay.');
 
         $this->assertSame(0, Checkout::query()->where('store_id', $store->id)->count());
     }
@@ -421,6 +421,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
         $account->refresh();
         $this->assertSame('disabled', $account->status);
         $this->assertFalse($account->is_default);
+        $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store->fresh()));
         $this->assertDatabaseHas('security_logs', [
             'store_id' => $store->id,
             'event_type' => 'stripe_provider_disconnected',

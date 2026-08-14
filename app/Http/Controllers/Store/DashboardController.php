@@ -28,7 +28,6 @@ use App\Services\OrderEventRecorder;
 use App\Services\ReturnService;
 use App\Services\SecurityLogRecorder;
 use App\Services\UserSessionTracker;
-use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductEditPayload;

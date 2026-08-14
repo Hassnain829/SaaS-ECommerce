@@ -224,7 +224,7 @@
                             <aside class="rounded-xl border border-[#D8E1EC] bg-[#F8FAFC] p-5">
                                 <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#94A3B8]">Checkout payments</p>
                                 <h3 class="mt-1 text-xl font-semibold text-[#0F172A]">Payments</h3>
-                                <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Connect Stripe and manage how this store collects payment for platform and external checkout. SaaS subscription billing stays separate and is not shown here.</p>
+                                <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Connect Stripe so shoppers can pay through this portal. SaaS subscription billing stays separate and is not shown here.</p>
                                 <a href="{{ route('settings.payments.index') }}" class="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Open payments settings</a>
                             </aside>
                         </div>

@@ -57,7 +57,7 @@ class DeveloperStorefrontApiTest extends TestCase
             ->getJson('/api/developer-storefront/catalog')
             ->assertOk()
             ->assertJsonPath('store.id', $store->id)
-            ->assertJsonPath('store.checkout_mode', 'external_checkout')
+            ->assertJsonPath('store.checkout_mode', 'platform_checkout')
             ->assertJsonStructure(['store' => ['platform_checkout' => ['ready']]])
             ->assertJsonCount(1, 'products');
     }

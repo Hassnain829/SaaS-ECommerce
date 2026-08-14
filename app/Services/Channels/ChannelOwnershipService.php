@@ -17,7 +17,7 @@ final class ChannelOwnershipService
     public const CHANNEL_PLATFORM = 'platform_checkout';
 
     private const EXTERNAL_DEFAULTS = [
-        'enabled' => true,
+        'enabled' => false,
         'checkout_owner' => self::OWNER_EXTERNAL,
         'payment_owner' => self::OWNER_EXTERNAL,
         'shipping_owner' => self::OWNER_EXTERNAL,
@@ -52,7 +52,7 @@ final class ChannelOwnershipService
             return $this->resolveChannelKey($sourceChannel) === self::CHANNEL_EXTERNAL;
         }
 
-        return CheckoutMode::forStore($store) === CheckoutMode::EXTERNAL;
+        return false;
     }
 
     public function isPlatformManaged(Store $store, ?string $sourceChannel = null): bool
@@ -110,18 +110,16 @@ final class ChannelOwnershipService
 
     public function setExternalCheckoutInventoryOwner(Store $store, string $owner): Store
     {
-        if (! in_array($owner, [self::OWNER_PLATFORM, self::OWNER_EXTERNAL], true)) {
-            throw new \InvalidArgumentException('Inventory owner must be platform or external.');
-        }
-
         $store = $this->ensureChannelsStructure($store);
         $settings = $store->settings ?? [];
         $channels = is_array($settings['channels'] ?? null) ? $settings['channels'] : [];
         $external = is_array($channels[self::CHANNEL_EXTERNAL] ?? null) ? $channels[self::CHANNEL_EXTERNAL] : [];
-        $external['inventory_owner'] = $owner;
+        $external['enabled'] = false;
+        $external['inventory_owner'] = self::OWNER_PLATFORM;
         $external['inventory_owner_configured'] = true;
         $channels[self::CHANNEL_EXTERNAL] = $external;
         $settings['channels'] = $channels;
+        $settings['checkout_mode'] = CheckoutMode::PLATFORM;
         $store->forceFill(['settings' => $settings])->save();
 
         return $store->fresh();
@@ -138,11 +136,18 @@ final class ChannelOwnershipService
             $merged = array_merge($defaults, $existing);
             if ($key === self::CHANNEL_EXTERNAL) {
                 $merged = $this->normalizeExternalInventoryOwner($merged, $existing);
+                $merged['enabled'] = false;
+                $merged['inventory_owner'] = self::OWNER_PLATFORM;
             }
             if ($merged !== ($channels[$key] ?? null)) {
                 $channels[$key] = $merged;
                 $changed = true;
             }
+        }
+
+        if (($settings['checkout_mode'] ?? null) !== CheckoutMode::PLATFORM) {
+            $settings['checkout_mode'] = CheckoutMode::PLATFORM;
+            $changed = true;
         }
 
         if (! $changed) {
@@ -159,7 +164,7 @@ final class ChannelOwnershipService
     {
         $store = $this->ensureChannelsStructure($store);
         $settings = $store->settings ?? [];
-        $settings['checkout_mode'] = $checkoutMode;
+        $settings['checkout_mode'] = CheckoutMode::PLATFORM;
         $store->forceFill(['settings' => $settings])->save();
 
         return $store->fresh();
@@ -182,11 +187,7 @@ final class ChannelOwnershipService
      */
     private function configForContext(Store $store, ?string $sourceChannel): array
     {
-        $channelKey = $this->resolveChannelKey($sourceChannel) ?? (
-            CheckoutMode::forStore($store) === CheckoutMode::PLATFORM
-                ? self::CHANNEL_PLATFORM
-                : self::CHANNEL_EXTERNAL
-        );
+        $channelKey = $this->resolveChannelKey($sourceChannel) ?? self::CHANNEL_PLATFORM;
 
         return $channelKey === self::CHANNEL_PLATFORM
             ? $this->platformCheckoutConfig($store)

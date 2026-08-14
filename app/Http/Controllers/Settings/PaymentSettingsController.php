@@ -63,13 +63,6 @@ class PaymentSettingsController extends Controller
             'liveConnectReady' => $liveConnectReady,
             'activeConnectAccount' => $activeConnectAccount,
             'platformPaymentMode' => $platformPaymentMode,
-            'checkoutMode' => CheckoutMode::forStore($store),
-            'externalChannelConfig' => $channelOwnership->externalCheckoutConfig($store),
-            'platformChannelConfig' => $channelOwnership->platformCheckoutConfig($store),
-            'isExternalManaged' => $channelOwnership->isExternalManaged($store),
-            'isPlatformManaged' => $channelOwnership->isPlatformManaged($store),
-            'externalInventoryOwner' => $channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
-            'usesPlatformInventoryForExternal' => $channelOwnership->usesPlatformInventory($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
             'stripeConfig' => [
                 'test' => [
                     'configured' => $stripeConfig->isModeConfigured(PlatformPaymentMode::TEST),
@@ -116,74 +109,26 @@ class PaymentSettingsController extends Controller
         abort_unless($store && $request->user(), 404);
 
         $validated = $request->validate([
-            'checkout_mode' => ['required', Rule::in(CheckoutMode::ALL)],
+            'checkout_mode' => ['required', 'string'],
         ]);
 
-        $targetMode = $validated['checkout_mode'];
-        $previousMode = CheckoutMode::forStore($store);
-
-        if ($targetMode === CheckoutMode::PLATFORM && ! $paymentProviderManager->isCheckoutReady($store)) {
+        if ($validated['checkout_mode'] !== CheckoutMode::PLATFORM) {
             return redirect()
                 ->route('settings.payments.index')
-                ->withErrors(['checkout_mode' => 'Connect Stripe before enabling platform checkout.']);
+                ->withErrors(['checkout_mode' => 'Platform checkout is the only checkout mode. Connect Stripe to accept payments.']);
         }
 
-        if ($previousMode !== $targetMode) {
-            $store = CheckoutMode::setForStore($store, $targetMode);
+        $store = CheckoutMode::setForStore($store, CheckoutMode::PLATFORM);
 
-            $securityLogRecorder->record(
-                $request,
-                'payment.checkout_mode_changed',
-                store: $store,
-                metadata: [
-                    'previous_mode' => $previousMode,
-                    'new_mode' => $targetMode,
-                ]
-            );
+        if (! $paymentProviderManager->isCheckoutReady($store)) {
+            return redirect()
+                ->route('settings.payments.index')
+                ->with('success', 'Platform checkout is the only checkout mode. Connect Stripe before customers can pay.');
         }
 
         return redirect()
             ->route('settings.payments.index')
-            ->with('success', 'Checkout mode updated to '.CheckoutMode::label($targetMode).'.');
-    }
-
-    public function updateExternalInventory(
-        Request $request,
-        ChannelOwnershipService $channelOwnership,
-        SecurityLogRecorder $securityLogRecorder,
-    ): RedirectResponse {
-        $store = $request->attributes->get('currentStore');
-        abort_unless($store && $request->user(), 404);
-
-        $validated = $request->validate([
-            'inventory_owner' => ['required', Rule::in([
-                ChannelOwnershipService::OWNER_PLATFORM,
-                ChannelOwnershipService::OWNER_EXTERNAL,
-            ])],
-        ]);
-
-        $previousOwner = $channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL);
-        $targetOwner = $validated['inventory_owner'];
-
-        if ($previousOwner !== $targetOwner) {
-            $store = $channelOwnership->setExternalCheckoutInventoryOwner($store, $targetOwner);
-
-            $securityLogRecorder->record(
-                $request,
-                'payment.external_inventory_owner_changed',
-                store: $store,
-                metadata: [
-                    'previous_inventory_owner' => $previousOwner,
-                    'new_inventory_owner' => $targetOwner,
-                ]
-            );
-        }
-
-        return redirect()
-            ->route('settings.payments.index')
-            ->with('success', $targetOwner === ChannelOwnershipService::OWNER_PLATFORM
-                ? 'External orders will now reduce dashboard stock when they sync.'
-                : 'External orders will be recorded without changing dashboard stock.');
+            ->with('success', 'Platform checkout is active for this store.');
     }
 
     public function updatePlatformPaymentMode(
@@ -442,13 +387,6 @@ class PaymentSettingsController extends Controller
 
         $account = $connectService->disconnectAccount($account);
 
-        if (
-            CheckoutMode::forStore($store) === CheckoutMode::PLATFORM
-            && PlatformPaymentMode::forStore($store) === $account->mode
-        ) {
-            $store = CheckoutMode::setForStore($store, CheckoutMode::EXTERNAL);
-        }
-
         $securityLogRecorder->record(
             $request,
             'stripe_provider_disconnected',
@@ -463,7 +401,7 @@ class PaymentSettingsController extends Controller
 
         return redirect()
             ->route('settings.payments.index')
-            ->with('success', 'Stripe '.($account->mode === PlatformPaymentMode::LIVE ? 'live' : 'test').' account was disabled for this store.');
+            ->with('success', 'Stripe '.($account->mode === PlatformPaymentMode::LIVE ? 'live' : 'test').' account was disabled for this store. Platform checkout stays on, but customers cannot pay until Stripe is connected again.');
     }
 
     private function connectForMode(

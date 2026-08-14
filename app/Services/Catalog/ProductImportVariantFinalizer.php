@@ -53,6 +53,15 @@ final class ProductImportVariantFinalizer
             return;
         }
 
+        $wooContext = [];
+        if ($import->isWooCommercePreset()) {
+            $state = is_array($import->import_state) ? $import->import_state : [];
+            $wooContext = [
+                'id_to_sku' => is_array($state['woo_id_to_sku'] ?? null) ? $state['woo_id_to_sku'] : [],
+                'extra_attribute_headers' => WooCommerceImportNormalizer::extraAttributeHeaders($headers),
+            ];
+        }
+
         $rows = ProductImportRow::query()
             ->where('product_import_id', $import->id)
             ->where('status', ProductImportRow::STATUS_DEFERRED)
@@ -76,7 +85,33 @@ final class ProductImportVariantFinalizer
                 continue;
             }
             $keyed = $this->cellsToKeyedRow($headers, $cells);
+            if ($wooContext !== []) {
+                $normalized = WooCommerceImportNormalizer::normalize(
+                    $headers,
+                    $keyed,
+                    $wooContext,
+                    (int) $import->id,
+                    (int) $importRow->row_number
+                );
+                $keyed = $normalized['row'];
+                if ($normalized['unsupported_reason'] !== null) {
+                    $this->failPreparedRow($import, $importRow, $failures, $failed, (string) $normalized['unsupported_reason']);
+
+                    continue;
+                }
+                if (($normalized['parent_error'] ?? null) !== null) {
+                    $this->failPreparedRow($import, $importRow, $failures, $failed, (string) $normalized['parent_error']);
+
+                    continue;
+                }
+            }
             $fields = $this->extractMappedFields($keyed, $mapping);
+            if (isset($keyed['__woo_product_type']) && is_string($keyed['__woo_product_type']) && $keyed['__woo_product_type'] !== '') {
+                $fields[ProductImportField::PRODUCT_TYPE] = $keyed['__woo_product_type'];
+            }
+            if ($wooContext !== []) {
+                $fields = WooCommerceImportPreset::mirrorMappedFields($fields);
+            }
             $gk = $this->groupKeyForFields($fields, $mapping);
             if ($gk === '') {
                 $this->failPreparedRow($import, $importRow, $failures, $failed, 'This row does not have a stable product identifier (map Parent product SKU, or use Brand when several rows share the same product name).');
@@ -108,24 +143,19 @@ final class ProductImportVariantFinalizer
                 continue;
             }
 
-            $slotLabelsResult = $this->assertConsistentOptionLabelsAcrossGroup($members, $slots);
-            if (isset($slotLabelsResult['error'])) {
-                $msg = (string) $slotLabelsResult['error'];
-                foreach ($members as $m) {
-                    $this->failPreparedRow($import, $m['import_row'], $failures, $failed, $msg);
-                }
-
-                continue;
-            }
-            /** @var array<int, string> $slotLabels */
-            $slotLabels = $slotLabelsResult['labels'];
-
             $comboKeys = [];
             /** @var list<array{import_row: ProductImportRow, row_number: int, excel_row: int, keyed: array<string, string>, fields: array<string, string>}> $eligible */
             $eligible = [];
+            /** @var list<array{import_row: ProductImportRow, row_number: int, excel_row: int, keyed: array<string, string>, fields: array<string, string>}> $headerOnly */
+            $headerOnly = [];
             foreach ($members as $m) {
                 $ck = $this->combinationKey($m['fields'], $mapping, $slots);
                 if ($ck === '') {
+                    if ($import->isWooCommercePreset()) {
+                        $headerOnly[] = $m;
+
+                        continue;
+                    }
                     $this->failPreparedRow($import, $m['import_row'], $failures, $failed, 'Each variant row needs a value for every option group you mapped.');
 
                     continue;
@@ -140,10 +170,62 @@ final class ProductImportVariantFinalizer
             }
 
             if ($eligible === []) {
+                if ($headerOnly !== [] && $import->isWooCommercePreset()) {
+                    try {
+                        DB::transaction(function () use (
+                            $import,
+                            $store,
+                            $mapping,
+                            $customMappings,
+                            $taxonomyCache,
+                            &$assignedVariantSkusLower,
+                            &$created,
+                            &$updated,
+                            $headerOnly,
+                            &$warningsCount,
+                        ): void {
+                            $this->persistWooParentWithoutVariations(
+                                $import,
+                                $store,
+                                $mapping,
+                                $customMappings,
+                                $taxonomyCache,
+                                $assignedVariantSkusLower,
+                                $created,
+                                $updated,
+                                $headerOnly,
+                                $warningsCount
+                            );
+                        });
+                    } catch (\Throwable $e) {
+                        $msg = ProductImportMerchantMessages::humanizeException($e);
+                        foreach ($headerOnly as $m) {
+                            $this->failPreparedRow($import, $m['import_row'], $failures, $failed, $msg);
+                        }
+
+                        continue;
+                    }
+                    foreach ($headerOnly as $m) {
+                        $this->markRow($import, $m['import_row']->row_number, ProductImportRow::STATUS_PROCESSED, null);
+                    }
+                }
+
                 continue;
             }
 
-            $inconsistent = $this->detectInconsistentProductLevelFields($eligible, $mapping);
+            $slotLabelsResult = $this->assertConsistentOptionLabelsAcrossGroup($eligible, $slots);
+            if (isset($slotLabelsResult['error'])) {
+                $msg = (string) $slotLabelsResult['error'];
+                foreach (array_merge($eligible, $headerOnly) as $m) {
+                    $this->failPreparedRow($import, $m['import_row'], $failures, $failed, $msg);
+                }
+
+                continue;
+            }
+            /** @var array<int, string> $slotLabels */
+            $slotLabels = $slotLabelsResult['labels'];
+
+            $inconsistent = $this->detectInconsistentProductLevelFields(array_merge($headerOnly, $eligible), $mapping);
             if ($inconsistent !== null) {
                 foreach ($eligible as $m) {
                     $this->failPreparedRow($import, $m['import_row'], $failures, $failed, $inconsistent);
@@ -163,6 +245,7 @@ final class ProductImportVariantFinalizer
                     &$created,
                     &$updated,
                     $eligible,
+                    $headerOnly,
                     $slots,
                     $slotLabels,
                     $groupKey,
@@ -178,6 +261,7 @@ final class ProductImportVariantFinalizer
                         $created,
                         $updated,
                         $eligible,
+                        $headerOnly,
                         $slots,
                         $slotLabels,
                         $groupKey,
@@ -193,7 +277,7 @@ final class ProductImportVariantFinalizer
                 continue;
             }
 
-            foreach ($eligible as $m) {
+            foreach (array_merge($eligible, $headerOnly) as $m) {
                 $this->markRow($import, $m['import_row']->row_number, ProductImportRow::STATUS_PROCESSED, null);
             }
         }
@@ -226,10 +310,8 @@ final class ProductImportVariantFinalizer
             }
         }
 
-        foreach ($slots as $slot) {
-            if (! isset($labels[$slot]) || $labels[$slot] === '') {
-                return ['error' => 'Each mapped option group needs at least one value in the file for this product.'];
-            }
+        if ($labels === []) {
+            return ['error' => 'Each mapped option group needs at least one value in the file for this product.'];
         }
 
         return ['labels' => $labels];
@@ -276,13 +358,16 @@ final class ProductImportVariantFinalizer
         foreach ($slots as $slot) {
             $name = trim((string) ($fields[ProductImportField::optionNameField($slot)] ?? ''));
             $val = trim((string) ($fields[ProductImportField::optionValueField($slot)] ?? ''));
+            if ($name === '' && $val === '') {
+                continue;
+            }
             if ($name === '' || $val === '') {
                 return '';
             }
             $parts[] = mb_strtolower($name)."\n".mb_strtolower($val);
         }
 
-        return implode("\n", $parts);
+        return $parts === [] ? '' : implode("\n", $parts);
     }
 
     /**
@@ -321,23 +406,24 @@ final class ProductImportVariantFinalizer
         int &$created,
         int &$updated,
         array $members,
+        array $headerRows,
         array $slots,
         array $slotLabels,
         string $groupKey,
         int &$warningsCount,
     ): void {
+        $slots = array_values(array_filter($slots, static fn (int $slot): bool => isset($slotLabels[$slot]) && $slotLabels[$slot] !== ''));
+        $productRows = $headerRows !== [] ? $headerRows : $members;
+        usort($productRows, static fn (array $a, array $b): int => $a['row_number'] <=> $b['row_number']);
         usort($members, static fn (array $a, array $b): int => $a['row_number'] <=> $b['row_number']);
-        $first = $members[0];
+        $first = $productRows[0];
         $fields0 = $first['fields'];
         $name = trim((string) ($fields0[ProductImportField::PRODUCT_NAME] ?? ''));
         $parentMapped = is_string($mapping[ProductImportField::PARENT_SKU] ?? null) && $mapping[ProductImportField::PARENT_SKU] !== '';
         $parentSku = $parentMapped ? trim((string) ($fields0[ProductImportField::PARENT_SKU] ?? '')) : '';
         $productSku = $parentSku !== '' ? $parentSku : $this->deriveAutoProductSku($store->id, $groupKey, $fields0);
 
-        $product = Product::query()
-            ->where('store_id', $store->id)
-            ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)])
-            ->first();
+        $product = ProductImportSourceIdentity::findProduct($store, $productSku, $first['keyed']);
 
         $productExistedBefore = $product !== null;
 
@@ -349,7 +435,8 @@ final class ProductImportVariantFinalizer
         $basePrice = 0.0;
         $productType = 'physical';
         $status = true;
-        foreach ($members as $m) {
+        $allProductRows = array_merge($headerRows, $members);
+        foreach ($allProductRows as $m) {
             $f = $m['fields'];
             [$pc, $_vc] = $this->extractCustomFieldValues($m['keyed'], $customMappings);
             $mergedProductCustom = array_merge($mergedProductCustom, $pc);
@@ -357,6 +444,17 @@ final class ProductImportVariantFinalizer
                 $mergedAttributeValues[$attributeName] = array_merge($mergedAttributeValues[$attributeName] ?? [], $values);
             }
             $mergedExtras = array_merge($mergedExtras, $this->collectUnmappedExtras($m['keyed'], array_keys($m['keyed']), $mapping, $customMappings));
+            $encodedExtraAttrs = trim((string) ($m['keyed']['__woo_extra_attributes'] ?? ''));
+            if ($encodedExtraAttrs !== '') {
+                $decoded = json_decode($encodedExtraAttrs, true);
+                if (is_array($decoded)) {
+                    foreach ($decoded as $key => $value) {
+                        if (is_string($key) && is_string($value) && $value !== '') {
+                            $mergedExtras[$key] = $value;
+                        }
+                    }
+                }
+            }
             $d = trim((string) ($f[ProductImportField::DESCRIPTION] ?? ''));
             if ($d !== '' && strlen($d) > strlen($mergedDescription)) {
                 $mergedDescription = $d;
@@ -373,7 +471,11 @@ final class ProductImportVariantFinalizer
             $status = $this->parseStatus($f[ProductImportField::STATUS] ?? '', $f[ProductImportField::VISIBILITY] ?? '');
         }
 
-        $catalogMeta = $this->buildMergedCatalogMeta($members);
+        $catalogMeta = $this->buildMergedCatalogMeta($allProductRows);
+        $catalogMeta = array_merge(
+            $catalogMeta,
+            WooCommerceImportPreset::catalogUnitHints($import->column_mapping ?? [], $catalogMeta)
+        );
 
         $variantOptionsMeta = [];
         foreach ($slots as $slot) {
@@ -382,10 +484,14 @@ final class ProductImportVariantFinalizer
 
         $performedBy = $import->created_by;
         $importId = (int) $import->id;
+        $stockPolicy = ProductImportStockPolicy::fromImport($import, $store);
+        $slugService = app(ProductImportSlugRedirectService::class);
+        $preferredSlug = trim((string) ($first['keyed']['__woo_original_slug'] ?? ''));
 
         if (! $product) {
             $meta = $this->mergeMetaLayer([], $mergedExtras, $catalogMeta, $variantOptionsMeta, 0, $mergedProductCustom);
-            $slug = $this->uniqueProductSlug($store->id, $name);
+            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $store, $first['keyed']);
+            $slug = $slugService->assignSlug($store, $name, null, $preferredSlug !== '' ? $preferredSlug : null);
             $brandName = trim((string) ($fields0[ProductImportField::BRAND] ?? ''));
             $product = Product::query()->create([
                 'store_id' => $store->id,
@@ -395,28 +501,34 @@ final class ProductImportVariantFinalizer
                 'description' => $mergedDescription !== '' ? $mergedDescription : null,
                 'base_price' => $basePrice,
                 'sku' => $productSku,
+                ...ProductImportSourceIdentity::productColumns($first['keyed']),
                 'product_type' => $productType,
                 ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => $status,
                 'meta' => $meta,
             ]);
+            $slugService->record($store, $product, $import, $preferredSlug !== '' ? $preferredSlug : null, $slug);
             $this->syncTaxonomyFromFields($product, $fields0, $taxonomyCache);
         } else {
             $meta = $this->mergeMetaLayer($product->meta ?? [], $mergedExtras, $catalogMeta, $variantOptionsMeta, (int) ($product->meta['stock_alert'] ?? 0), $mergedProductCustom);
+            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $store, $first['keyed']);
             $brandName = trim((string) ($fields0[ProductImportField::BRAND] ?? ''));
+            $keptSlug = (string) $product->slug;
             $product->update([
                 'name' => $name,
-                'slug' => $this->uniqueProductSlug($store->id, $name, $product->id),
+                'slug' => $keptSlug,
                 'description' => $mergedDescription !== '' ? $mergedDescription : $product->description,
                 'base_price' => $basePrice > 0 ? $basePrice : $product->base_price,
                 'sku' => $productSku,
+                ...ProductImportSourceIdentity::productColumns($first['keyed']),
                 'product_type' => $productType,
                 ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'status' => $status,
                 'brand_id' => $brandName !== '' ? $taxonomyCache->brandId($brandName) : $product->brand_id,
                 'meta' => $meta,
             ]);
+            $slugService->record($store, $product, $import, $preferredSlug !== '' ? $preferredSlug : null, $keptSlug);
             $this->syncTaxonomyFromFields($product, $fields0, $taxonomyCache);
         }
 
@@ -504,17 +616,23 @@ final class ProductImportVariantFinalizer
             }
             sort($optionIds);
 
-            $variant = $this->findVariantWithExactOptions($product, $optionIds);
+            $desiredVariantSku = trim((string) ($f[ProductImportField::VARIANT_SKU] ?? ''));
+            if ($desiredVariantSku === '') {
+                $desiredVariantSku = $productSku.'-'.implode('-', array_map(static fn (int $id): string => (string) $id, $optionIds));
+            }
+            $variant = ProductImportSourceIdentity::findVariant(
+                $product,
+                $desiredVariantSku,
+                $optionIds,
+                $m['keyed'],
+                fn (Product $candidate, array $ids): ?ProductVariant => $this->findVariantWithExactOptions($candidate, $ids)
+            );
             if (! $variant && $singletonDefault && $firstAssignable) {
                 $variant = $product->variants->first();
                 $firstAssignable = false;
                 if ($variant) {
                     $variant->options()->sync($optionIds);
                 }
-            }
-            $desiredVariantSku = trim((string) ($f[ProductImportField::VARIANT_SKU] ?? ''));
-            if ($desiredVariantSku === '') {
-                $desiredVariantSku = $productSku.'-'.implode('-', array_map(static fn (int $id): string => (string) $id, $optionIds));
             }
             $variantSku = $this->ensureUniqueVariantSku($desiredVariantSku, $store->id, $assignedVariantSkusLower, $variant?->id);
 
@@ -534,42 +652,50 @@ final class ProductImportVariantFinalizer
                 $variant = ProductVariant::query()->create([
                     'product_id' => $product->id,
                     'sku' => $variantSku,
+                    ...ProductImportSourceIdentity::variantColumns($m['keyed']),
                     'price' => $price,
                     'compare_at_price' => $compareAt,
                     'stock' => 0,
                     'stock_alert' => max(0, $stockAlert),
                 ]);
                 $variant->options()->sync($optionIds);
-                StockMovementRecorder::recordImport(
-                    $store,
-                    $product,
-                    $variant,
-                    null,
-                    $stock,
-                    $performedBy,
-                    $importId,
-                    'Imported variant row'
-                );
+                if ($stockPolicy->shouldWriteStock(false)) {
+                    StockMovementRecorder::recordImport(
+                        $store,
+                        $product,
+                        $variant,
+                        null,
+                        $stock,
+                        $performedBy,
+                        $importId,
+                        'Imported variant row',
+                        $stockPolicy->location
+                    );
+                }
             } else {
                 $previousStock = (int) $variant->stock;
                 $variant->update([
                     'sku' => $variantSku,
+                    ...ProductImportSourceIdentity::variantColumns($m['keyed']),
                     'price' => $price,
                     'compare_at_price' => $compareAt,
                     'stock_alert' => max(0, $stockAlert),
                 ]);
                 $variant->options()->sync($optionIds);
                 $variant->refresh();
-                StockMovementRecorder::recordImport(
-                    $store,
-                    $product,
-                    $variant,
-                    $previousStock,
-                    $stock,
-                    $performedBy,
-                    $importId,
-                    'Imported variant row'
-                );
+                if ($stockPolicy->shouldWriteStock(true)) {
+                    StockMovementRecorder::recordImport(
+                        $store,
+                        $product,
+                        $variant,
+                        $previousStock,
+                        $stock,
+                        $performedBy,
+                        $importId,
+                        'Imported variant row',
+                        $stockPolicy->location
+                    );
+                }
             }
 
             $variant->refresh();
@@ -582,7 +708,7 @@ final class ProductImportVariantFinalizer
                 $variant->update(['meta' => $meta]);
             }
 
-            $imgUrl = trim((string) ($f[ProductImportField::VARIANT_IMAGE_URL] ?? ''));
+            $imgUrl = $this->variantImageUrlFromFields($f);
             if ($imgUrl !== '' && preg_match('#^https?://#i', $imgUrl)) {
                 ProductImage::query()
                     ->where('product_id', $product->id)
@@ -602,7 +728,8 @@ final class ProductImportVariantFinalizer
                 }
             }
 
-            $gallery = trim((string) ($f[ProductImportField::IMAGE_URLS] ?? ''));
+            $galleryFields = $headerRows[0]['fields'] ?? $f;
+            $gallery = trim((string) ($galleryFields[ProductImportField::IMAGE_URLS] ?? ''));
             if ($gallery !== '' && $mi === 0) {
                 $urls = $this->splitDelimited($gallery);
                 if ($urls === []) {
@@ -623,12 +750,48 @@ final class ProductImportVariantFinalizer
             }
         }
 
-        $rowCount = count($members);
+        $rowCount = count($members) + count($headerRows);
         if (! $productExistedBefore) {
             $created += $rowCount;
         } else {
             $updated += $rowCount;
         }
+    }
+
+    /**
+     * Variable parent row with no variation lines still creates one catalog product.
+     *
+     * @param  list<array{import_row: ProductImportRow, row_number: int, excel_row: int, keyed: array<string, string>, fields: array<string, string>}>  $headerRows
+     * @param  array<string, true>  $assignedVariantSkusLower
+     */
+    private function persistWooParentWithoutVariations(
+        ProductImport $import,
+        Store $store,
+        array $mapping,
+        array $customMappings,
+        ProductImportTaxonomyCache $taxonomyCache,
+        array &$assignedVariantSkusLower,
+        int &$created,
+        int &$updated,
+        array $headerRows,
+        int &$warningsCount,
+    ): void {
+        $this->persistVariantGroup(
+            $import,
+            $store,
+            $mapping,
+            $customMappings,
+            $taxonomyCache,
+            $assignedVariantSkusLower,
+            $created,
+            $updated,
+            $headerRows,
+            [],
+            [],
+            [],
+            'woo-header',
+            $warningsCount
+        );
     }
 
     private function deriveAutoProductSku(int $storeId, string $groupKey, array $fields0): string
@@ -916,7 +1079,7 @@ final class ProductImportVariantFinalizer
         $used = array_values(array_unique($used));
         $extras = [];
         foreach ($headerKeys as $h) {
-            if ($h === '' || in_array($h, $used, true)) {
+            if ($h === '' || str_starts_with((string) $h, '__') || in_array($h, $used, true)) {
                 continue;
             }
             $val = trim((string) ($row[$h] ?? ''));
@@ -966,6 +1129,24 @@ final class ProductImportVariantFinalizer
         }
 
         return $out;
+    }
+
+    /**
+     * WooCommerce exports one Images column: parent gallery on the variable row,
+     * variation photos on variation rows. Mapping cannot point that header at two fields.
+     *
+     * @param  array<string, string>  $fields
+     */
+    private function variantImageUrlFromFields(array $fields): string
+    {
+        $explicit = trim((string) ($fields[ProductImportField::VARIANT_IMAGE_URL] ?? ''));
+        if ($explicit !== '') {
+            return $explicit;
+        }
+
+        $urls = $this->splitDelimited(trim((string) ($fields[ProductImportField::IMAGE_URLS] ?? '')));
+
+        return $urls[0] ?? '';
     }
 
     /**

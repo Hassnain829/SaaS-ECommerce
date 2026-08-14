@@ -142,10 +142,15 @@ The portal is the commerce system. WordPress is only the customer-facing website
 - Rebuild **Test storefront** into a guided **Website / Connect your website** workspace (WordPress-first stepper).
 - Keep `dev-test-wordpress` as the primary connect path and `dev-test-storefront` in Advanced details on the same connection key.
 - Let merchants download the WordPress plugin, create/rotate/revoke a connection key, save an optional website URL, and see last catalog-request health.
-- Bind WordPress checkout to the store currency and reject external orders whose currency does not match the store.
-- Keep stock, customers, and fulfillment on existing portal logic. Do not invent WordPress shipment posting.
+- Bind WordPress checkout to the store currency. Platform checkout is the only checkout mode (Batch 1 superseded dual-mode / `POST /api/v1/external/orders`).
+- Batch 2 replaced the prototype per-store hash with a `connected_sites` identity (hashed credential, scopes, rotation, revocation, health, and one WordPress site per store). The Website workspace still generates/rotates/revokes the key; the store hash remains a compatibility mirror for existing catalog tests and the local React simulator.
+- Batch 3 hardened the versioned catalog/checkout contract: published catalog (including products without variants) with cache version, guest platform checkout, inventory reservation expiry, Stripe PaymentIntent idempotency, webhook de-duplication, and customer-facing confirmation/tracking. The WordPress shop now reads catalog v1, categories, and confirmation/tracking from those APIs. Stripe onboarding remains hosted Connect; conventional WooCommerce Stripe account reuse is not supported.
+- Batch 4 turned the WordPress plugin into a presentation client: API-backed product/order surfaces, cart intent limited to variant IDs and quantities, SaaS quotes before totals, Stripe disconnect blocks checkout, and WooCommerce/cache conflicts block live-shopper readiness with exact instructions (plugins are never auto-deactivated).
+- Batch 5 binds the WordPress shop to portal catalog changes: short-lived public product/category cache, signed connected-site catalog events, retry, and `catalog_version` reconciliation. Checkout and private order/payment data stay live portal reads. This is not Phase 9 merchant webhooks.
+- Batch 6 upgrades the existing catalog importer with a WooCommerce product-export preset: detection, simple/variable/variation mapping, unsupported-type reporting, source identity, location + replace/preserve stock, slug redirects, and product-workspace source details. Orders, customers, and payments are not migrated. This is not Phase 9.
+- Keep stock, customers, and fulfillment on existing portal logic. Do not invent WordPress shipment posting. Registered storefront customer login is not in this pass.
 
-**Acceptance:** A non-technical merchant can finish the on-page WordPress stepper without reading API docs. The first screen is the WordPress guide, not React/API tiles. `dev-test-storefront` remains available under Advanced details. Rotate/revoke still works. WooCommerce and Phase 9 remain out of scope.
+**Acceptance:** A non-technical merchant can finish the on-page WordPress stepper without reading API docs. The first screen is the WordPress guide, not React/API tiles. `dev-test-storefront` remains available under Advanced details. Rotate/revoke still works. Phase 9 remains out of scope. WooCommerce catalog import is available through **Import products**, not as a silent success path for unsupported rows.
 
 #### DR-06 — Run end-to-end merchant acceptance
 
@@ -156,7 +161,7 @@ Test with owner, manager, and staff accounts across two stores:
 3. Add simple and variant products.
 4. Import a mixed-quality catalog.
 5. Adjust stock and verify stock movement history.
-6. Connect an external test site and receive an order.
+6. Connect a WordPress test site and complete a platform checkout order.
 7. Create and convert a manual draft order.
 8. Update order/customer data.
 9. Configure a manual delivery area and option.

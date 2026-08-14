@@ -6,7 +6,7 @@ Use this connector to prove:
 
 1. Catalog loads from the portal
 2. Orders placed on WordPress appear in the merchant dashboard
-3. Inventory follows the store’s Payments setting for website orders
+3. Inventory reduces in the portal when platform checkout completes
 
 The connection key stays **server-side in WordPress** (never in browser JavaScript). You do not need WooCommerce.
 
@@ -39,7 +39,7 @@ zip -r eco-portal-connector.zip eco-portal-connector
 
 1. WordPress admin → **Plugins → Add New → Upload Plugin**
 2. Upload `eco-portal-connector.zip` and activate it
-3. Confirm pages exist: **Portal Shop**, **Portal Cart**, **Portal Checkout**
+3. Confirm pages exist: **Portal Shop**, **Portal Cart**, **Portal Checkout**, **Portal order status**
 
 ### 3. Connect to the portal
 
@@ -51,15 +51,16 @@ zip -r eco-portal-connector.zip eco-portal-connector
    - **Connection key** — paste the key
 5. Click **Save connection**, then **Test connection**
 
-You should see the store name, product count, and store currency.
+You should see the store name, product count, store currency, website-address match, and readiness notes (Stripe, location, catalog, plugin version).
+
+The connection key is saved on the WordPress server only. After save, the settings field stays empty so the key is not printed back into HTML.
 
 ### 4. Run a test order
 
 1. Open **Portal Shop** (`/portal-shop`)
 2. Add a product to the cart
 3. Checkout:
-   - **Platform checkout** (Payments → platform): enter the address, click **Get delivery rates**, choose a portal delivery method, then pay with Stripe. The order and stock update in this portal.
-   - **Website payment** (Payments → external): place the order on WordPress; it syncs into this portal.
+   - Enter the address, click **Get delivery rates**, choose a portal delivery method, then pay with Stripe. The order and stock update in this portal.
 4. In the merchant portal, open **Orders**
 
 Shipping and labels stay in the portal after the order arrives.
@@ -78,8 +79,16 @@ Shipping and labels stay in the portal after the order arrives.
 
 | Direction | Endpoint |
 |-----------|----------|
-| WordPress → Portal | `GET /api/developer-storefront/catalog` |
-| WordPress → Portal | `POST /api/v1/external/orders` |
+| WordPress → Portal | `GET /api/v1/catalog/products` |
+| WordPress → Portal | `GET /api/v1/catalog/products/{id}` |
+| WordPress → Portal | `GET /api/v1/catalog/categories` |
+| WordPress → Portal | `GET /api/v1/site/health` |
+| WordPress → Portal | `POST /api/v1/site/health` (WooCommerce/cache conflict report and catalog cache checkpoint) |
+| WordPress → Portal | `GET /api/v1/site/events/config` (catalog event signing secret; server-side only) |
+| WordPress → Portal | `GET /api/v1/catalog/events` (missed catalog updates) |
+| Portal → WordPress | `POST /wp-json/eco-portal/v1/events` (signed catalog cache invalidation) |
+| WordPress → Portal | `POST /api/v1/checkout` |
+| WordPress → Portal | `GET /api/v1/orders/confirmation/{token}` |
 
 Auth: `Authorization: Bearer <connection key>` from **Website → Connect your website** in the merchant portal.
 
@@ -120,7 +129,7 @@ Complete the WordPress install wizard (site title, admin user, password).
 
 1. WordPress admin → **Plugins**
 2. Activate **Eco Portal Connector**
-3. Confirm pages exist: **Portal Shop**, **Portal Cart**, **Portal Checkout**
+3. Confirm pages exist: **Portal Shop**, **Portal Cart**, **Portal Checkout**, **Portal order status**
 
 ### 4. Connect to the portal
 
@@ -133,14 +142,18 @@ Complete the WordPress install wizard (site title, admin user, password).
    - **Connection key** — paste the key
 5. Click **Save connection**, then **Test connection**
 
-You should see the store name, product count, and store currency.
+You should see the store name, product count, store currency, website-address match, and readiness notes (Stripe, location, catalog, plugin version).
 
-### 5. Run a test order
+The connection key is saved on the WordPress server only. After save, the settings field stays empty so the key is not printed back into HTML.
+
+### 5. Run a test checkout
 
 1. Open **Portal Shop** (`/portal-shop`)
 2. Add a product to the cart
-3. Checkout → **Place order & sync to portal**
-4. In the merchant portal, open **Orders** — the order should appear with source `external_checkout`
+3. Checkout → enter an address → **Get delivery rates** → pay with Stripe test card
+4. In the merchant portal, open **Orders** — the order should appear from platform checkout
+
+Website payment sync (`/api/v1/external/orders`) is no longer available.
 
 ---
 
@@ -191,7 +204,7 @@ Before testing:
 
 - Treat the connection key like a password
 - Do not commit keys into git
-- This sample simulates payment on WordPress; it does not process real cards
+This sample uses Stripe’s browser payment form from portal checkout data; it does not store Stripe secret keys.
 - Shipping and labels stay in the merchant portal
 
 ---

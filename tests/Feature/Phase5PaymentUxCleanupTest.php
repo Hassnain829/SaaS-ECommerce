@@ -30,7 +30,7 @@ class Phase5PaymentUxCleanupTest extends TestCase
         ]);
     }
 
-    public function test_payments_page_renders_two_user_friendly_checkout_modes(): void
+    public function test_payments_page_is_platform_checkout_only(): void
     {
         [$store, $owner] = $this->storeWithUser();
 
@@ -39,25 +39,21 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->get(route('settings.payments.index'));
 
         $response->assertOk()
-            ->assertSeeText('How does this store accept payments?')
-            ->assertSeeText('External checkout')
+            ->assertSeeText('How this store accepts payments')
             ->assertSeeText('Platform checkout')
-            ->assertSeeText('(current)')
-            ->assertSeeText('Active mode')
-            ->assertSeeText('What each system handles')
-            ->assertSeeText('Inventory for external orders')
-            ->assertSeeText('Edit')
             ->assertSeeText('Stripe test account')
             ->assertSeeText('Connect Stripe test account')
+            ->assertDontSeeText('Switch to external checkout')
+            ->assertDontSeeText('External checkout')
+            ->assertDontSeeText('Inventory for external orders')
             ->assertDontSeeText('Platform checkout: Sandbox');
 
         $html = $response->content();
-        $this->assertStringContainsString('id="tab-external"', $html);
-        $this->assertStringContainsString('id="tab-platform"', $html);
-        $this->assertStringContainsString('switchTab(', $html);
+        $this->assertStringNotContainsString('id="tab-external"', $html);
+        $this->assertStringNotContainsString('switchTab(', $html);
     }
 
-    public function test_technical_stripe_details_are_not_in_main_mode_cards_but_exist_in_diagnostics(): void
+    public function test_technical_stripe_details_are_not_in_main_ui_but_exist_in_diagnostics(): void
     {
         [$store, $owner] = $this->storeWithUser();
 
@@ -67,20 +63,19 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->assertOk()
             ->content();
 
-        $externalPanel = Str::between($html, 'id="content-external"', 'id="content-platform"');
+        $storeOwnerUi = Str::before($html, 'id="developer-diagnostics"');
 
-        $this->assertStringNotContainsString('Platform webhook', $externalPanel);
-        $this->assertStringNotContainsString('Connect webhook', $externalPanel);
-        $this->assertStringNotContainsString('Platform publishable key', $externalPanel);
-        $this->assertStringNotContainsString('Platform secret key', $externalPanel);
-        $this->assertStringNotContainsString('STRIPE_TEST_SECRET', $externalPanel);
+        $this->assertStringNotContainsString('Platform webhook', $storeOwnerUi);
+        $this->assertStringNotContainsString('Connect webhook', $storeOwnerUi);
+        $this->assertStringNotContainsString('Platform publishable key', $storeOwnerUi);
+        $this->assertStringNotContainsString('Platform secret key', $storeOwnerUi);
+        $this->assertStringNotContainsString('STRIPE_TEST_SECRET', $storeOwnerUi);
 
         $this->assertStringContainsString('Developer diagnostics', $html);
         $this->assertStringContainsString('STRIPE_TEST_KEY configured', $html);
         $this->assertStringContainsString('STRIPE_LIVE_SECRET configured', $html);
         $this->assertStringContainsString('Platform sandbox fallback', $html);
         $this->assertStringContainsString('Enabled for local/testing', $html);
-        $this->assertStringNotContainsString('Add the live Stripe keys', $externalPanel);
     }
 
     public function test_production_store_owner_does_not_see_developer_diagnostics(): void
@@ -120,24 +115,20 @@ class Phase5PaymentUxCleanupTest extends TestCase
         $this->assertStringContainsString('No Stripe secret keys are entered here', $storeOwnerUi);
     }
 
-    public function test_store_owner_can_enable_external_checkout_mode(): void
+    public function test_store_owner_cannot_enable_external_checkout_mode(): void
     {
         [$store, $owner] = $this->storeWithUser(settings: ['checkout_mode' => CheckoutMode::PLATFORM]);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.payments.mode'), ['checkout_mode' => CheckoutMode::EXTERNAL])
-            ->assertRedirect(route('settings.payments.index'));
+            ->assertRedirect(route('settings.payments.index'))
+            ->assertSessionHasErrors(['checkout_mode']);
 
-        $this->assertSame(CheckoutMode::EXTERNAL, CheckoutMode::forStore($store->fresh()));
-        $this->assertDatabaseHas('security_logs', [
-            'store_id' => $store->id,
-            'user_id' => $owner->id,
-            'event_type' => 'payment.checkout_mode_changed',
-        ]);
+        $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store->fresh()));
     }
 
-    public function test_store_owner_cannot_enable_platform_checkout_without_active_provider(): void
+    public function test_store_owner_keeps_platform_checkout_even_without_active_provider(): void
     {
         config(['payments.stripe.allow_platform_sandbox_fallback' => false]);
 
@@ -147,9 +138,9 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.payments.mode'), ['checkout_mode' => CheckoutMode::PLATFORM])
             ->assertRedirect(route('settings.payments.index'))
-            ->assertSessionHasErrors(['checkout_mode']);
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame(CheckoutMode::EXTERNAL, CheckoutMode::forStore($store->fresh()));
+        $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store->fresh()));
     }
 
     public function test_store_owner_can_enable_platform_checkout_after_active_stripe_account_exists(): void
@@ -165,17 +156,12 @@ class Phase5PaymentUxCleanupTest extends TestCase
         $store->refresh();
         $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store));
         $this->assertSame(CheckoutMode::PLATFORM, $store->settings['checkout_mode']);
-        $this->assertDatabaseHas('security_logs', [
-            'store_id' => $store->id,
-            'event_type' => 'payment.checkout_mode_changed',
-        ]);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.payments.index'))
             ->assertOk()
             ->assertSeeText('Platform checkout is active')
-            ->assertSeeText('Active mode')
             ->assertSeeText('Stripe test account');
     }
 
@@ -226,8 +212,8 @@ class Phase5PaymentUxCleanupTest extends TestCase
 
         $this->assertStringContainsString('Developer payload simulator', $source);
         $this->assertStringContainsString('This screen is only for local testing.', $source);
-        $this->assertStringContainsString('Sync external checkout order', $source);
         $this->assertStringContainsString('Platform checkout', $source);
+        $this->assertStringNotContainsString('Sync external checkout order', $source);
         $this->assertStringNotContainsString('Legacy direct dev order', $source);
     }
 

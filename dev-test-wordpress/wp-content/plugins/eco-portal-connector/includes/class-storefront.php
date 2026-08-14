@@ -9,20 +9,22 @@ if (! defined('ABSPATH')) {
 final class Eco_Portal_Storefront
 {
     private const CART_COOKIE = 'eco_portal_cart';
+    private const ORDERS_COOKIE = 'eco_portal_orders';
 
     public static function init(): void
     {
         add_shortcode('eco_portal_catalog', [self::class, 'render_catalog']);
+        add_shortcode('eco_portal_product', [self::class, 'render_product_shortcode']);
         add_shortcode('eco_portal_cart', [self::class, 'render_cart']);
         add_shortcode('eco_portal_checkout', [self::class, 'render_checkout']);
+        add_shortcode('eco_portal_order', [self::class, 'render_order']);
 
         add_action('wp_enqueue_scripts', [self::class, 'enqueue_assets']);
+        add_action('template_redirect', [self::class, 'send_nocache_headers']);
         add_action('admin_post_nopriv_eco_portal_add_to_cart', [self::class, 'handle_add_to_cart']);
         add_action('admin_post_eco_portal_add_to_cart', [self::class, 'handle_add_to_cart']);
         add_action('admin_post_nopriv_eco_portal_update_cart', [self::class, 'handle_update_cart']);
         add_action('admin_post_eco_portal_update_cart', [self::class, 'handle_update_cart']);
-        add_action('admin_post_nopriv_eco_portal_place_order', [self::class, 'handle_place_order']);
-        add_action('admin_post_eco_portal_place_order', [self::class, 'handle_place_order']);
         add_action('admin_post_nopriv_eco_portal_start_checkout', [self::class, 'handle_start_checkout']);
         add_action('admin_post_eco_portal_start_checkout', [self::class, 'handle_start_checkout']);
         add_action('admin_post_nopriv_eco_portal_select_shipping', [self::class, 'handle_select_shipping']);
@@ -31,6 +33,8 @@ final class Eco_Portal_Storefront
         add_action('admin_post_eco_portal_confirm_checkout', [self::class, 'handle_confirm_checkout']);
         add_action('admin_post_nopriv_eco_portal_reset_checkout', [self::class, 'handle_reset_checkout']);
         add_action('admin_post_eco_portal_reset_checkout', [self::class, 'handle_reset_checkout']);
+        add_action('admin_post_nopriv_eco_portal_lookup_order', [self::class, 'handle_lookup_order']);
+        add_action('admin_post_eco_portal_lookup_order', [self::class, 'handle_lookup_order']);
     }
 
     public static function ensure_pages(): void
@@ -47,6 +51,10 @@ final class Eco_Portal_Storefront
             'portal-checkout' => [
                 'title' => 'Portal Checkout',
                 'content' => '[eco_portal_checkout]',
+            ],
+            'portal-order' => [
+                'title' => 'Portal order status',
+                'content' => '[eco_portal_order]',
             ],
         ];
 
@@ -66,23 +74,21 @@ final class Eco_Portal_Storefront
         }
     }
 
+    public static function send_nocache_headers(): void
+    {
+        if (! self::is_commerce_page()) {
+            return;
+        }
+
+        if (! defined('DONOTCACHEPAGE')) {
+            define('DONOTCACHEPAGE', true);
+        }
+        nocache_headers();
+    }
+
     public static function enqueue_assets(): void
     {
-        if (! is_singular('page')) {
-            return;
-        }
-
-        global $post;
-        if (! $post instanceof WP_Post) {
-            return;
-        }
-
-        $content = (string) $post->post_content;
-        if (
-            ! has_shortcode($content, 'eco_portal_catalog')
-            && ! has_shortcode($content, 'eco_portal_cart')
-            && ! has_shortcode($content, 'eco_portal_checkout')
-        ) {
+        if (! self::is_commerce_page()) {
             return;
         }
 
@@ -93,6 +99,8 @@ final class Eco_Portal_Storefront
             ECO_PORTAL_CONNECTOR_VERSION
         );
 
+        global $post;
+        $content = $post instanceof WP_Post ? (string) $post->post_content : '';
         if (has_shortcode($content, 'eco_portal_checkout')) {
             wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
             wp_enqueue_script(
@@ -107,18 +115,38 @@ final class Eco_Portal_Storefront
 
     public static function render_catalog(): string
     {
-        $client = new Eco_Portal_Api_Client();
-        if (! $client->is_configured()) {
-            return self::notice('Configure the portal connection under Settings → Eco Portal.', 'error');
+        $product_id = (int) ($_GET['eco_product'] ?? 0);
+        if ($product_id > 0) {
+            return self::render_product($product_id);
         }
 
-        $result = $client->get_catalog();
+        $connection = self::connection_state();
+        if (! $connection['ok'] && in_array($connection['code'], ['not_configured', 'unauthorized', 'unreachable'], true)) {
+            return self::reconnect_notice($connection);
+        }
+
+        $client = new Eco_Portal_Api_Client();
+        $page = max(1, (int) ($_GET['eco_page'] ?? 1));
+        $category = sanitize_text_field((string) ($_GET['eco_category'] ?? ''));
+        $result = $client->get_catalog([
+            'page' => $page,
+            'per_page' => 15,
+            'category' => $category,
+        ]);
         if (! $result['ok'] || ! is_array($result['data'])) {
-            return self::notice('Could not load catalog: '.($result['message'] ?: 'unknown error'), 'error');
+            return self::reconnect_notice([
+                'ok' => false,
+                'code' => 'catalog_failed',
+                'message' => 'Could not load catalog: '.($result['message'] ?: 'unknown error'),
+                'reconnect' => $result['status'] === 401,
+            ]);
         }
 
         $store = is_array($result['data']['store'] ?? null) ? $result['data']['store'] : [];
         $products = is_array($result['data']['products'] ?? null) ? $result['data']['products'] : [];
+        $categories = is_array($result['data']['categories'] ?? null) ? $result['data']['categories'] : [];
+        $catalog_meta = is_array($result['data']['meta'] ?? null) ? $result['data']['meta'] : [];
+        $active_category = $category;
         $cart_url = self::page_url('portal-cart');
         $currency = self::remember_store_currency((string) ($store['currency'] ?? ''));
         self::remember_checkout_settings($store);
@@ -129,12 +157,47 @@ final class Eco_Portal_Storefront
         return (string) ob_get_clean();
     }
 
+    public static function render_product_shortcode($atts = []): string
+    {
+        $atts = is_array($atts) ? $atts : [];
+        $id = (int) ($atts['id'] ?? ($_GET['eco_product'] ?? 0));
+
+        return $id > 0 ? self::render_product($id) : self::notice('Add a product id to this page, or open a product from Portal Shop.', 'info');
+    }
+
+    public static function render_product(int $product_id): string
+    {
+        $connection = self::connection_state();
+        if (! $connection['ok'] && in_array($connection['code'], ['not_configured', 'unauthorized', 'unreachable'], true)) {
+            return self::reconnect_notice($connection);
+        }
+
+        $client = new Eco_Portal_Api_Client();
+        $result = $client->get_product($product_id);
+        if (! $result['ok'] || ! is_array($result['data']['data'] ?? null)) {
+            return self::notice('This product is not available from the merchant portal.', 'info');
+        }
+
+        $product = $result['data']['data'];
+        $store = is_array($result['data']['meta']['store'] ?? null) ? $result['data']['meta']['store'] : [];
+        $cart_url = self::page_url('portal-cart');
+        $shop_url = self::page_url('portal-shop');
+        $currency = self::remember_store_currency((string) ($store['currency'] ?? self::store_currency(false)));
+
+        ob_start();
+        include ECO_PORTAL_CONNECTOR_PATH.'templates/product.php';
+
+        return (string) ob_get_clean();
+    }
+
     public static function render_cart(): string
     {
-        $cart = self::get_cart();
+        $connection = self::connection_state();
+        $cart = self::hydrate_cart();
         $checkout_url = self::page_url('portal-checkout');
         $shop_url = self::page_url('portal-shop');
         $currency = self::store_currency();
+        $catalog_subtotal = self::cart_subtotal($cart);
 
         ob_start();
         include ECO_PORTAL_CONNECTOR_PATH.'templates/cart.php';
@@ -144,31 +207,18 @@ final class Eco_Portal_Storefront
 
     public static function render_checkout(): string
     {
-        $cart = self::get_cart();
+        $connection = self::connection_state();
+        $cart = self::hydrate_cart();
         $shop_url = self::page_url('portal-shop');
+        $order_url = self::page_url('portal-order');
         $currency = self::store_currency();
-        $client = new Eco_Portal_Api_Client();
-        if ($client->is_configured()) {
-            $catalog = $client->get_catalog();
-            if ($catalog['ok'] && is_array($catalog['data']['store'] ?? null)) {
-                $currency = self::remember_store_currency((string) ($catalog['data']['store']['currency'] ?? ''));
-                self::remember_checkout_settings($catalog['data']['store']);
-            }
-        }
-        $checkout_mode = self::checkout_mode();
-        $platform_ready = self::platform_ready();
+        $checkout_mode = 'platform_checkout';
+        $platform_ready = ! empty($connection['stripe']);
+        $checkout_blocked = ! $connection['ok'] || ! $platform_ready;
         $checkout_state = self::checkout_state();
         $order_result = null;
         $error = '';
-
-        if (isset($_GET['eco_order'])) {
-            $token = sanitize_text_field((string) wp_unslash($_GET['eco_order']));
-            $stored = get_transient('eco_portal_order_'.$token);
-            if (is_array($stored)) {
-                $order_result = $stored;
-                delete_transient('eco_portal_order_'.$token);
-            }
-        }
+        $conflict_notice = self::storefront_conflict_notice();
 
         if (isset($_GET['eco_error'])) {
             $error = sanitize_text_field((string) wp_unslash($_GET['eco_error']));
@@ -180,6 +230,38 @@ final class Eco_Portal_Storefront
         return (string) ob_get_clean();
     }
 
+    public static function render_order(): string
+    {
+        $connection = self::connection_state();
+        $order_result = null;
+        $error = '';
+        $token = sanitize_text_field((string) wp_unslash($_GET['eco_confirm'] ?? ''));
+        if ($token === '') {
+            $token = sanitize_text_field((string) wp_unslash($_GET['eco_order'] ?? ''));
+        }
+
+        if ($token !== '' && ($connection['ok'] || $connection['code'] === 'stripe')) {
+            $client = new Eco_Portal_Api_Client();
+            $live = $client->get_order_confirmation($token);
+            if ($live['ok'] && is_array($live['data']['order'] ?? null)) {
+                $order_result = $live['data']['order'];
+                $order_result['confirmation_token'] = $token;
+            } else {
+                $error = $live['status'] === 401
+                    ? 'The connection key is missing or was removed. Create a new key in the merchant portal: Website → Connect your website.'
+                    : 'No order was found for that confirmation code.';
+            }
+        }
+
+        $recent = self::recent_order_tokens();
+        $shop_url = self::page_url('portal-shop');
+
+        ob_start();
+        include ECO_PORTAL_CONNECTOR_PATH.'templates/order.php';
+
+        return (string) ob_get_clean();
+    }
+
     public static function handle_add_to_cart(): void
     {
         check_admin_referer('eco_portal_add_to_cart');
@@ -187,29 +269,20 @@ final class Eco_Portal_Storefront
         $product_id = (int) ($_POST['product_id'] ?? 0);
         $variant_id = (int) ($_POST['variant_id'] ?? 0);
         $quantity = max(1, (int) ($_POST['quantity'] ?? 1));
-        $name = sanitize_text_field((string) ($_POST['product_name'] ?? 'Product'));
-        $variant_label = sanitize_text_field((string) ($_POST['variant_label'] ?? 'Default'));
-        $unit_price = self::money((string) ($_POST['unit_price'] ?? '0'));
-        $sku = sanitize_text_field((string) ($_POST['sku'] ?? ''));
 
         if ($product_id < 1 || $variant_id < 1) {
             wp_safe_redirect(self::page_url('portal-shop'));
             exit;
         }
 
-        $cart = self::get_cart();
+        $cart = self::intent_cart();
         $key = $product_id.'-'.$variant_id;
-
         if (isset($cart[$key])) {
             $cart[$key]['quantity'] += $quantity;
         } else {
             $cart[$key] = [
                 'product_id' => $product_id,
                 'variant_id' => $variant_id,
-                'product_name' => $name,
-                'variant_label' => $variant_label,
-                'unit_price' => $unit_price,
-                'sku' => $sku,
                 'quantity' => $quantity,
             ];
         }
@@ -224,7 +297,7 @@ final class Eco_Portal_Storefront
         check_admin_referer('eco_portal_update_cart');
 
         $action = sanitize_text_field((string) ($_POST['cart_action'] ?? 'update'));
-        $cart = self::get_cart();
+        $cart = self::intent_cart();
 
         if ($action === 'clear') {
             self::save_cart([]);
@@ -243,6 +316,8 @@ final class Eco_Portal_Storefront
                 unset($cart[$key]);
             } else {
                 $cart[$key]['quantity'] = min(999, $qty);
+                $cart[$key]['product_id'] = (int) ($cart[$key]['product_id'] ?? 0);
+                $cart[$key]['variant_id'] = (int) ($cart[$key]['variant_id'] ?? 0);
             }
         }
 
@@ -251,123 +326,19 @@ final class Eco_Portal_Storefront
         exit;
     }
 
-    public static function handle_place_order(): void
-    {
-        check_admin_referer('eco_portal_place_order');
-
-        $cart = self::get_cart();
-        if ($cart === []) {
-            self::redirect_checkout_error('Cart is empty.');
-        }
-
-        $customer_name = sanitize_text_field((string) ($_POST['customer_name'] ?? ''));
-        $customer_email = sanitize_email((string) ($_POST['customer_email'] ?? ''));
-        $customer_phone = sanitize_text_field((string) ($_POST['customer_phone'] ?? ''));
-        $address_line1 = sanitize_text_field((string) ($_POST['address_line1'] ?? ''));
-        $city = sanitize_text_field((string) ($_POST['city'] ?? ''));
-        $state = sanitize_text_field((string) ($_POST['state'] ?? ''));
-        $postal_code = sanitize_text_field((string) ($_POST['postal_code'] ?? ''));
-        $country = sanitize_text_field((string) ($_POST['country'] ?? ''));
-        $shipping_total = self::money((string) ($_POST['shipping_total'] ?? '0'));
-        $tax_total = self::money((string) ($_POST['tax_total'] ?? '0'));
-        $discount_total = self::money((string) ($_POST['discount_total'] ?? '0'));
-        $payment_status = sanitize_text_field((string) ($_POST['payment_status'] ?? 'paid'));
-
-        if ($customer_name === '' || $customer_email === '' || $address_line1 === '' || $city === '' || $postal_code === '' || $country === '') {
-            self::redirect_checkout_error('Fill in customer name, email, and full shipping address.');
-        }
-
-        $allowed_payment = ['paid', 'pending', 'cod_pending', 'bank_transfer_pending'];
-        if (! in_array($payment_status, $allowed_payment, true)) {
-            $payment_status = 'paid';
-        }
-
-        $items = [];
-        $subtotal = '0.00';
-        $line_index = 1;
-        foreach ($cart as $line) {
-            $qty = (int) ($line['quantity'] ?? 1);
-            $unit = self::money((string) ($line['unit_price'] ?? '0'));
-            $line_total = self::money((string) ((float) $unit * $qty));
-            $subtotal = self::money((string) ((float) $subtotal + (float) $line_total));
-
-            $items[] = [
-                'variant_id' => (int) $line['variant_id'],
-                'quantity' => $qty,
-                'unit_price' => $unit,
-                'external_line_id' => 'wp-line-'.$line_index,
-            ];
-            $line_index++;
-        }
-
-        $external_order_id = 'wp-'.wp_generate_uuid4();
-        $external_order_number = 'WP-'.strtoupper(wp_generate_password(8, false, false));
-        $idempotency_key = 'wp-order-'.$external_order_id;
-
-        $payload = [
-            'external_order_id' => $external_order_id,
-            'external_order_number' => $external_order_number,
-            'external_checkout_reference' => 'wp-checkout-'.$external_order_id,
-            'payment_status' => $payment_status,
-            'payment_gateway' => 'wordpress_test',
-            'payment_method' => 'test_checkout',
-            'payment_reference' => 'wp-pay-'.$external_order_id,
-            'placed_at' => gmdate('c'),
-            'currency_code' => self::store_currency(),
-            'shipping_total' => $shipping_total,
-            'tax_total' => $tax_total,
-            'discount_total' => $discount_total,
-            'notes' => 'Synced from sample WordPress site (Eco Portal Connector).',
-            'customer' => [
-                'full_name' => $customer_name,
-                'email' => $customer_email,
-                'phone' => $customer_phone !== '' ? $customer_phone : null,
-            ],
-            'shipping_address' => [
-                'name' => $customer_name,
-                'address_line1' => $address_line1,
-                'city' => $city,
-                'state' => $state !== '' ? $state : null,
-                'postal_code' => $postal_code,
-                'country' => $country,
-                'phone' => $customer_phone !== '' ? $customer_phone : null,
-            ],
-            'billing_address' => [
-                'same_as_shipping' => true,
-            ],
-            'items' => $items,
-        ];
-
-        $client = new Eco_Portal_Api_Client();
-        $result = $client->sync_external_order($payload, $idempotency_key);
-
-        if (! $result['ok'] || ! is_array($result['data']['order'] ?? null)) {
-            self::redirect_checkout_error($result['message'] !== '' ? $result['message'] : 'Order sync failed.');
-        }
-
-        self::save_cart([]);
-
-        $order = $result['data']['order'];
-        $token = wp_generate_password(20, false, false);
-        set_transient('eco_portal_order_'.$token, [
-            'portal_order_number' => $order['order_number'] ?? '',
-            'portal_order_id' => $order['id'] ?? '',
-            'external_order_number' => $order['external_order_number'] ?? $external_order_number,
-            'external_order_id' => $order['external_order_id'] ?? $external_order_id,
-            'total' => $order['total'] ?? $order['grand_total'] ?? '',
-            'payment_status' => $order['payment_status'] ?? $payment_status,
-            'status' => $order['status'] ?? '',
-        ], 10 * MINUTE_IN_SECONDS);
-
-        wp_safe_redirect(add_query_arg('eco_order', $token, self::page_url('portal-checkout')));
-        exit;
-    }
-
     public static function handle_start_checkout(): void
     {
         check_admin_referer('eco_portal_start_checkout');
 
-        $cart = self::get_cart();
+        $connection = self::connection_state();
+        if (! $connection['ok']) {
+            self::redirect_checkout_error($connection['message']);
+        }
+        if (empty($connection['stripe'])) {
+            self::redirect_checkout_error('Checkout is blocked until Stripe is connected in the merchant portal Payments page. This site will not take payment locally.');
+        }
+
+        $cart = self::intent_cart();
         if ($cart === []) {
             self::redirect_checkout_error('Cart is empty.');
         }
@@ -378,16 +349,6 @@ final class Eco_Portal_Storefront
         }
 
         $client = new Eco_Portal_Api_Client();
-        $catalog = $client->get_catalog();
-        if ($catalog['ok'] && is_array($catalog['data']['store'] ?? null)) {
-            self::remember_store_currency((string) ($catalog['data']['store']['currency'] ?? ''));
-            self::remember_checkout_settings($catalog['data']['store']);
-        }
-
-        if (self::checkout_mode() !== 'platform_checkout') {
-            self::redirect_checkout_error('This store is set to website payment. Switch to platform checkout in the merchant portal Payments page to load delivery rates from this portal.');
-        }
-
         $items = [];
         foreach ($cart as $line) {
             $items[] = [
@@ -413,8 +374,11 @@ final class Eco_Portal_Storefront
         ];
 
         $created = $client->create_checkout($payload);
+        if ($created['status'] === 401) {
+            self::redirect_checkout_error('The connection key is missing or was removed. Create a new key in the merchant portal: Website → Connect your website.');
+        }
         if (! $created['ok'] || ! is_array($created['data']['checkout'] ?? null)) {
-            self::redirect_checkout_error($created['message'] !== '' ? $created['message'] : 'Could not start platform checkout. Connect Stripe and enable platform checkout in the merchant portal.');
+            self::redirect_checkout_error($created['message'] !== '' ? $created['message'] : 'Could not start platform checkout. Connect Stripe in the merchant portal.');
         }
 
         $checkout = $created['data']['checkout'];
@@ -451,6 +415,13 @@ final class Eco_Portal_Storefront
     {
         check_admin_referer('eco_portal_select_shipping');
 
+        $connection = self::connection_state();
+        if (! $connection['ok'] || empty($connection['stripe'])) {
+            self::redirect_checkout_error($connection['ok']
+                ? 'Checkout is blocked until Stripe is connected in the merchant portal Payments page.'
+                : $connection['message']);
+        }
+
         $state = self::checkout_state();
         $checkout_id = (int) ($state['checkout_id'] ?? 0);
         $method_id = (int) ($_POST['shipping_method_id'] ?? 0);
@@ -467,6 +438,9 @@ final class Eco_Portal_Storefront
             'shipping_address' => self::shipping_address_payload($fields),
         ]);
 
+        if ($selected['status'] === 401) {
+            self::redirect_checkout_error('The connection key is missing or was removed. Create a new key in the merchant portal: Website → Connect your website.');
+        }
         if (! $selected['ok'] || ! is_array($selected['data']['checkout'] ?? null)) {
             self::redirect_checkout_error($selected['message'] !== '' ? $selected['message'] : 'Could not save the delivery option.');
         }
@@ -491,6 +465,11 @@ final class Eco_Portal_Storefront
     {
         check_admin_referer('eco_portal_confirm_checkout');
 
+        $connection = self::connection_state();
+        if (! $connection['ok']) {
+            self::redirect_checkout_error($connection['message']);
+        }
+
         $state = self::checkout_state();
         $checkout_id = (int) ($state['checkout_id'] ?? 0);
         if ($checkout_id < 1) {
@@ -499,6 +478,9 @@ final class Eco_Portal_Storefront
 
         $client = new Eco_Portal_Api_Client();
         $result = $client->confirm_checkout($checkout_id);
+        if ($result['status'] === 401) {
+            self::redirect_checkout_error('The connection key is missing or was removed. Create a new key in the merchant portal: Website → Connect your website.');
+        }
         if (! $result['ok'] || ! is_array($result['data']['order'] ?? null)) {
             self::redirect_checkout_error($result['message'] !== '' ? $result['message'] : 'Payment was taken, but the portal has not created the order yet. Open Orders in the merchant portal.');
         }
@@ -507,17 +489,16 @@ final class Eco_Portal_Storefront
         self::clear_checkout_state();
 
         $order = $result['data']['order'];
-        $token = wp_generate_password(20, false, false);
-        set_transient('eco_portal_order_'.$token, [
-            'portal_order_number' => $order['order_number'] ?? '',
-            'portal_order_id' => $order['id'] ?? '',
-            'total' => $order['total'] ?? '',
-            'payment_status' => $order['payment_status'] ?? 'paid',
-            'status' => $order['status'] ?? '',
-            'mode' => 'platform',
-        ], 10 * MINUTE_IN_SECONDS);
+        $confirmation_token = (string) ($order['confirmation_token'] ?? '');
+        if ($confirmation_token !== '') {
+            self::remember_order_token($confirmation_token);
+        }
 
-        wp_safe_redirect(add_query_arg('eco_order', $token, self::page_url('portal-checkout')));
+        wp_safe_redirect(add_query_arg(
+            'eco_confirm',
+            $confirmation_token !== '' ? $confirmation_token : (string) ($order['order_number'] ?? ''),
+            self::page_url('portal-order')
+        ));
         exit;
     }
 
@@ -529,10 +510,92 @@ final class Eco_Portal_Storefront
         exit;
     }
 
+    public static function handle_lookup_order(): void
+    {
+        check_admin_referer('eco_portal_lookup_order');
+        $token = sanitize_text_field((string) ($_POST['confirmation_token'] ?? ''));
+        wp_safe_redirect(add_query_arg('eco_confirm', $token, self::page_url('portal-order')));
+        exit;
+    }
+
     /**
      * @return array<string, array<string, mixed>>
      */
-    private static function get_cart(): array
+    private static function intent_cart(): array
+    {
+        $raw = self::get_cart_raw();
+        $intent = [];
+        foreach ($raw as $key => $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+            $product_id = (int) ($line['product_id'] ?? 0);
+            $variant_id = (int) ($line['variant_id'] ?? 0);
+            $quantity = max(1, (int) ($line['quantity'] ?? 1));
+            if ($product_id < 1 || $variant_id < 1) {
+                continue;
+            }
+            $intent[(string) $key] = [
+                'product_id' => $product_id,
+                'variant_id' => $variant_id,
+                'quantity' => $quantity,
+            ];
+        }
+
+        return $intent;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private static function hydrate_cart(): array
+    {
+        $intent = self::intent_cart();
+        if ($intent === []) {
+            return [];
+        }
+
+        $client = new Eco_Portal_Api_Client();
+        if (! $client->is_configured()) {
+            return $intent;
+        }
+
+        $hydrated = [];
+        foreach ($intent as $key => $line) {
+            $product_id = (int) $line['product_id'];
+            $variant_id = (int) $line['variant_id'];
+            $result = $client->get_product($product_id);
+            $product = is_array($result['data']['data'] ?? null) ? $result['data']['data'] : [];
+            $variants = is_array($product['variants'] ?? null) ? $product['variants'] : [];
+            $variant = null;
+            foreach ($variants as $row) {
+                if (is_array($row) && (int) ($row['id'] ?? 0) === $variant_id) {
+                    $variant = $row;
+                    break;
+                }
+            }
+
+            $hydrated[$key] = [
+                'product_id' => $product_id,
+                'variant_id' => $variant_id,
+                'quantity' => (int) $line['quantity'],
+                'product_name' => (string) ($product['name'] ?? 'Product'),
+                'variant_label' => $variant ? self::variant_label($variant) : 'Unavailable',
+                'unit_price' => (string) ($variant['price'] ?? ''),
+                'sku' => (string) ($variant['sku'] ?? ''),
+                'stock' => (int) ($variant['stock'] ?? 0),
+                'available' => $result['ok'] && is_array($variant),
+                'primary_image_url' => (string) ($product['primary_image_url'] ?? ''),
+            ];
+        }
+
+        return $hydrated;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private static function get_cart_raw(): array
     {
         if (! isset($_COOKIE[self::CART_COOKIE])) {
             return [];
@@ -549,7 +612,24 @@ final class Eco_Portal_Storefront
      */
     private static function save_cart(array $cart): void
     {
-        $json = (string) wp_json_encode($cart);
+        $intent = [];
+        foreach ($cart as $key => $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+            $product_id = (int) ($line['product_id'] ?? 0);
+            $variant_id = (int) ($line['variant_id'] ?? 0);
+            if ($product_id < 1 || $variant_id < 1) {
+                continue;
+            }
+            $intent[(string) $key] = [
+                'product_id' => $product_id,
+                'variant_id' => $variant_id,
+                'quantity' => max(1, (int) ($line['quantity'] ?? 1)),
+            ];
+        }
+
+        $json = (string) wp_json_encode($intent);
         setcookie(self::CART_COOKIE, $json, [
             'expires' => time() + WEEK_IN_SECONDS,
             'path' => COOKIEPATH ? COOKIEPATH : '/',
@@ -613,6 +693,104 @@ final class Eco_Portal_Storefront
             'samesite' => 'Lax',
         ]);
         unset($_COOKIE['eco_portal_checkout_sid']);
+    }
+
+    /**
+     * @return array{ok:bool,code:string,message:string,reconnect:bool,stripe:bool,health:array<string,mixed>}
+     */
+    public static function connection_state(): array
+    {
+        $client = new Eco_Portal_Api_Client();
+        if (! $client->is_configured()) {
+            return [
+                'ok' => false,
+                'code' => 'not_configured',
+                'message' => 'This website is not connected to the merchant portal. Open WordPress admin → Settings → Eco Portal, paste a connection key from Website → Connect your website, then click Test connection.',
+                'reconnect' => true,
+                'stripe' => false,
+                'health' => [],
+            ];
+        }
+
+        $health = $client->get_health();
+        if ($health['status'] === 401) {
+            return [
+                'ok' => false,
+                'code' => 'unauthorized',
+                'message' => 'The connection key is missing or was removed. In the merchant portal open Website → Connect your website, create a new key, then paste it in WordPress: Settings → Eco Portal.',
+                'reconnect' => true,
+                'stripe' => false,
+                'health' => [],
+            ];
+        }
+        if (! $health['ok'] || ! is_array($health['data'])) {
+            return [
+                'ok' => false,
+                'code' => 'unreachable',
+                'message' => $health['message'] !== '' ? $health['message'] : 'This website cannot reach the merchant portal. Check the portal website address, then click Test connection.',
+                'reconnect' => true,
+                'stripe' => false,
+                'health' => [],
+            ];
+        }
+
+        $data = $health['data'];
+        $store = is_array($data['store'] ?? null) ? $data['store'] : [];
+        $store['platform_checkout'] = [
+            'ready' => ! empty($data['readiness']['stripe']),
+        ];
+        self::remember_store_currency((string) ($store['currency'] ?? ''));
+        self::remember_checkout_settings($store);
+
+        $stripe = ! empty($data['readiness']['stripe']);
+        if (! $stripe) {
+            return [
+                'ok' => false,
+                'code' => 'stripe',
+                'message' => 'Checkout is blocked until Stripe is connected in the merchant portal Payments page. This website will not take payment itself.',
+                'reconnect' => false,
+                'stripe' => false,
+                'health' => $data,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'code' => 'ready',
+            'message' => '',
+            'reconnect' => false,
+            'stripe' => true,
+            'health' => $data,
+        ];
+    }
+
+    /**
+     * @param  array{ok?:bool,code?:string,message?:string,reconnect?:bool}  $connection
+     */
+    private static function reconnect_notice(array $connection): string
+    {
+        $message = (string) ($connection['message'] ?? 'This website is not connected to the merchant portal.');
+        $html = self::notice($message, 'error');
+        if (! empty($connection['reconnect'])) {
+            $html .= '<p class="eco-portal__meta">Reconnect: merchant portal → Website → Connect your website → create a key → WordPress Settings → Eco Portal → Save → Test connection.</p>';
+        }
+
+        return $html;
+    }
+
+    private static function storefront_conflict_notice(): string
+    {
+        $report = Eco_Portal_Conflicts::report();
+        if (! empty($report['production_ready'])) {
+            return '';
+        }
+
+        $first = $report['conflicts'][0] ?? null;
+        if (! is_array($first)) {
+            return '';
+        }
+
+        return (string) ($first['title'] ?? '').'. Portal checkout can still be tested, but this website is not ready for live shoppers until the WordPress conflicts are fixed.';
     }
 
     /**
@@ -704,11 +882,16 @@ final class Eco_Portal_Storefront
         return preg_match('/^[A-Z]{2}$/', $country) === 1 ? $country : '';
     }
 
-    private static function page_url(string $slug): string
+    public static function page_url(string $slug): string
     {
         $page = get_page_by_path($slug);
 
         return $page ? (string) get_permalink($page) : home_url('/');
+    }
+
+    public static function product_url(int $product_id): string
+    {
+        return add_query_arg('eco_product', $product_id, self::page_url('portal-shop'));
     }
 
     private static function money(string $value): string
@@ -760,15 +943,15 @@ final class Eco_Portal_Storefront
             return 'USD';
         }
 
-        $result = $client->get_catalog();
-        $from_catalog = is_array($result['data']['store'] ?? null)
+        $result = $client->get_health();
+        $from_health = is_array($result['data']['store'] ?? null)
             ? strtoupper(trim((string) ($result['data']['store']['currency'] ?? '')))
             : '';
 
-        if ($result['ok'] && preg_match('/^[A-Z]{3}$/', $from_catalog) === 1) {
-            update_option('eco_portal_store_currency', $from_catalog, false);
+        if ($result['ok'] && preg_match('/^[A-Z]{3}$/', $from_health) === 1) {
+            update_option('eco_portal_store_currency', $from_health, false);
 
-            return $from_catalog;
+            return $from_health;
         }
 
         return 'USD';
@@ -779,21 +962,13 @@ final class Eco_Portal_Storefront
      */
     public static function remember_checkout_settings(array $store): void
     {
-        $mode = (string) ($store['checkout_mode'] ?? 'external_checkout');
-        if (! in_array($mode, ['external_checkout', 'platform_checkout'], true)) {
-            $mode = 'external_checkout';
-        }
-        update_option('eco_portal_checkout_mode', $mode, false);
+        update_option('eco_portal_checkout_mode', 'platform_checkout', false);
         update_option('eco_portal_platform_ready', ! empty($store['platform_checkout']['ready']) ? '1' : '0', false);
     }
 
     public static function checkout_mode(): string
     {
-        $mode = (string) get_option('eco_portal_checkout_mode', 'external_checkout');
-
-        return in_array($mode, ['external_checkout', 'platform_checkout'], true)
-            ? $mode
-            : 'external_checkout';
+        return 'platform_checkout';
     }
 
     public static function platform_ready(): bool
@@ -803,6 +978,10 @@ final class Eco_Portal_Storefront
 
     public static function format_money(string $value, string $currency): string
     {
+        if ($value === '') {
+            return $currency;
+        }
+
         return $currency.' '.self::money($value);
     }
 
@@ -810,6 +989,9 @@ final class Eco_Portal_Storefront
     {
         $total = 0.0;
         foreach ($cart as $line) {
+            if (empty($line['available'])) {
+                continue;
+            }
             $total += ((float) ($line['unit_price'] ?? 0)) * ((int) ($line['quantity'] ?? 1));
         }
 
@@ -828,11 +1010,66 @@ final class Eco_Portal_Storefront
             if (! is_array($option)) {
                 continue;
             }
-            $type = (string) ($option['type'] ?? 'Option');
+            $type = (string) ($option['group'] ?? $option['type'] ?? 'Option');
             $value = (string) ($option['value'] ?? '');
             $parts[] = $type.': '.$value;
         }
 
         return $parts === [] ? 'Default' : implode(', ', $parts);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function recent_order_tokens(): array
+    {
+        if (! isset($_COOKIE[self::ORDERS_COOKIE])) {
+            return [];
+        }
+        $decoded = json_decode((string) wp_unslash((string) $_COOKIE[self::ORDERS_COOKIE]), true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('strval', $decoded), static fn (string $token): bool => str_starts_with($token, 'ordconf_')));
+    }
+
+    private static function remember_order_token(string $token): void
+    {
+        if (! str_starts_with($token, 'ordconf_')) {
+            return;
+        }
+        $tokens = self::recent_order_tokens();
+        array_unshift($tokens, $token);
+        $tokens = array_values(array_unique($tokens));
+        $tokens = array_slice($tokens, 0, 10);
+        $json = (string) wp_json_encode($tokens);
+        setcookie(self::ORDERS_COOKIE, $json, [
+            'expires' => time() + (30 * DAY_IN_SECONDS),
+            'path' => COOKIEPATH ? COOKIEPATH : '/',
+            'domain' => COOKIE_DOMAIN ?: '',
+            'secure' => is_ssl(),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        $_COOKIE[self::ORDERS_COOKIE] = $json;
+    }
+
+    private static function is_commerce_page(): bool
+    {
+        if (! is_singular('page')) {
+            return false;
+        }
+        global $post;
+        if (! $post instanceof WP_Post) {
+            return false;
+        }
+        $content = (string) $post->post_content;
+
+        return has_shortcode($content, 'eco_portal_catalog')
+            || has_shortcode($content, 'eco_portal_product')
+            || has_shortcode($content, 'eco_portal_cart')
+            || has_shortcode($content, 'eco_portal_checkout')
+            || has_shortcode($content, 'eco_portal_order');
     }
 }

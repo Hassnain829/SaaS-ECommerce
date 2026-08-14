@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Checkout;
+use App\Models\Order;
 use App\Models\PaymentIntent;
 use App\Models\Store;
+use App\Services\Checkout\CheckoutIdempotencyService;
 use App\Services\CheckoutConversionService;
 use App\Services\CheckoutService;
 use App\Services\Payments\PaymentProviderManager;
@@ -26,7 +28,7 @@ class PlatformCheckoutController extends Controller
         'card_token',
     ];
 
-    public function store(Request $request, CheckoutService $checkoutService): JsonResponse
+    public function store(Request $request, CheckoutService $checkoutService, CheckoutIdempotencyService $idempotency): JsonResponse
     {
         /** @var Store|null $store */
         $store = $request->attributes->get('developerStorefrontStore');
@@ -38,19 +40,28 @@ class PlatformCheckoutController extends Controller
             ]);
         }
 
+        $payload = $this->validatedPayload($request);
+        $replay = $idempotency->replayOrStart($store, $request, $payload);
+        if ($replay) {
+            return $replay;
+        }
+
         try {
-            $checkout = $checkoutService->create($store, $this->validatedPayload($request));
+            $checkout = $checkoutService->create($store, $payload);
         } catch (\RuntimeException $exception) {
             if (str_contains($exception->getMessage(), 'Stripe')) {
                 throw ValidationException::withMessages([
-                    'payment' => 'Stripe is not configured for platform checkout. Connect Stripe in the SaaS dashboard or use External checkout sync.',
+                    'payment' => 'Platform checkout is not available. Connect Stripe in Payments before customers can pay.',
                 ]);
             }
 
             throw $exception;
         }
 
-        return response()->json($this->checkoutResponse($checkout), 201);
+        $body = $this->checkoutResponse($checkout);
+        $idempotency->remember($store, $request, $body, 201, (int) $checkout->id);
+
+        return response()->json($body, 201);
     }
 
     public function show(Request $request, Checkout $checkout): JsonResponse
@@ -192,18 +203,12 @@ class PlatformCheckoutController extends Controller
 
         if ($result->status === 'succeeded') {
             $order = $conversionService->handleSucceededPayment($result);
+            $fresh = $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder']);
 
             return response()->json([
                 'message' => 'Platform checkout converted to an order.',
-                'checkout' => $this->checkoutResponse($checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder']))['checkout'],
-                'order' => $order ? [
-                    'id' => $order->id,
-                    'order_number' => $order->order_number,
-                    'status' => $order->status,
-                    'payment_status' => $order->payment_status,
-                    'total' => number_format((float) ($order->grand_total ?: $order->total), 2, '.', ''),
-                    'currency_code' => $order->currency_code,
-                ] : null,
+                'checkout' => $this->checkoutResponse($fresh)['checkout'],
+                'order' => $order ? $this->publicOrderSummary($order, $fresh) : null,
             ]);
         }
 
@@ -390,6 +395,7 @@ class PlatformCheckoutController extends Controller
                 'grand_total' => number_format((float) $checkout->grand_total, 2, '.', ''),
                 'converted_order_id' => $checkout->converted_order_id,
                 'converted_order_number' => $checkout->convertedOrder?->order_number,
+                'confirmation_token' => data_get($checkout->metadata, 'storefront_confirmation_token'),
                 'items' => $checkout->items
                     ->map(fn ($item): array => [
                         'product_id' => $item->product_id,
@@ -420,6 +426,23 @@ class PlatformCheckoutController extends Controller
                 'client_secret' => $paymentIntent?->client_secret,
                 'publishable_key' => $stripeConfig->stripePublicKey($paymentMode),
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function publicOrderSummary(Order $order, ?Checkout $checkout = null): array
+    {
+        return [
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'status' => $order->status,
+            'payment_status' => $order->payment_status,
+            'fulfillment_status' => $order->fulfillment_status,
+            'total' => number_format((float) ($order->grand_total ?: $order->total), 2, '.', ''),
+            'currency_code' => $order->currency_code,
+            'confirmation_token' => data_get($checkout?->metadata, 'storefront_confirmation_token'),
         ];
     }
 

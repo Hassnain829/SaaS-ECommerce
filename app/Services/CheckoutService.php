@@ -64,7 +64,7 @@ class CheckoutService
 
             if (CheckoutMode::forStore($store) !== CheckoutMode::PLATFORM) {
                 throw ValidationException::withMessages([
-                    'payment' => 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.',
+                    'payment' => 'Platform checkout is not available. Connect Stripe in Payments before customers can pay.',
                 ]);
             }
 
@@ -72,7 +72,7 @@ class CheckoutService
             $paymentMode = $this->paymentProviderManager->platformPaymentModeForStore($store);
             if (! $providerAccount) {
                 throw ValidationException::withMessages([
-                    'payment' => 'Platform checkout is not enabled for this store. Connect Stripe in the SaaS dashboard or use External checkout sync.',
+                    'payment' => 'Platform checkout is not available. Connect Stripe in Payments before customers can pay.',
                 ]);
             }
             $currencyCode = $this->resolveCurrencyCode($store, $payload['currency_code'] ?? null);
@@ -309,6 +309,7 @@ class CheckoutService
                 ->createPaymentIntent($checkout, [
                     'provider_account' => $providerAccount,
                     'mode' => $paymentMode,
+                    'idempotency_key' => 'checkout-pi-'.$checkout->id,
                 ]);
 
             $paymentIntent = PaymentIntent::query()->create([
@@ -894,6 +895,12 @@ class CheckoutService
             if (! $variant || ! $variant->product || (int) $variant->product->store_id !== (int) $store->id) {
                 throw ValidationException::withMessages([
                     'items.'.($index).'.variant_id' => 'Choose a product variant that belongs to this store.',
+                ]);
+            }
+
+            if (! $variant->product->status) {
+                throw ValidationException::withMessages([
+                    'items.'.($index).'.variant_id' => 'That product is not available for purchase.',
                 ]);
             }
 

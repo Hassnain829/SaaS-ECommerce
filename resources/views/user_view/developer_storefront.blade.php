@@ -14,6 +14,9 @@
     $step1Done = $tokenConfigured || $connectionState === \App\Models\Store::WEBSITE_DISCONNECTED;
     $step2Done = $tokenConfigured;
     $step3Done = $tokenConfigured && $lastSeenAt;
+    $connectedSiteHealth = is_array($connectedSiteHealth ?? null) ? $connectedSiteHealth : [];
+    $connectedSiteScopeLabels = is_array($connectedSiteScopeLabels ?? null) ? $connectedSiteScopeLabels : [];
+    $catalogSync = is_array($catalogSync ?? null) ? $catalogSync : [];
 @endphp
 
 @section('title', 'Connect your website — '.config('app.name'))
@@ -49,11 +52,7 @@
                         <li>When someone buys, the order appears in Orders and stock updates here.</li>
                     </ol>
                     <p class="website-connect-help">
-                        @if (\App\Support\CheckoutMode::forStore($selectedStore) === \App\Support\CheckoutMode::PLATFORM)
-                            This store uses platform checkout. WordPress will show this portal’s delivery rates and Stripe payment. Add a checkout-enabled delivery method first.
-                        @else
-                            This store uses website payment. WordPress collects payment, then sends the order here. Switch to platform checkout in Payments if you want WordPress to use this portal’s rates and Stripe.
-                        @endif
+                        WordPress shows your products and this portal’s Stripe checkout. Connect Stripe in Payments and add a checkout-enabled delivery method before shoppers can pay.
                     </p>
                 </section>
 
@@ -232,13 +231,124 @@
                     <ul class="website-connect-next-links">
                         <li><a href="{{ route('products') }}">Products</a> — publish products with stock or options first.</li>
                         <li><a href="{{ route('orders') }}">Orders</a> — website purchases appear here.</li>
-                        <li><a href="{{ route('settings.payments.index') }}">Payments</a> — choose whether website orders reduce stock here.</li>
+                        <li><a href="{{ route('settings.payments.index') }}">Payments</a> — connect Stripe before shoppers can pay.</li>
                         <li><a href="{{ route('shippingAutomation') }}">Delivery</a> — shipping and labels stay in this portal.</li>
                     </ul>
-                    @unless ($usesPlatformInventory)
-                        <p class="website-connect-help mt-3">This store is set to keep dashboard stock unchanged when website orders arrive. Change that in Payments if you want stock to reduce here.</p>
-                    @endunless
                 </section>
+
+                @if ($connectedSite)
+                    <section class="website-connect-card" aria-label="Connection details">
+                        <h2 class="website-connect-card-title">Connection details</h2>
+                        <dl class="grid gap-3 text-sm">
+                            <div>
+                                <dt class="website-connect-rail-label">Connection ID</dt>
+                                <dd class="website-connect-rail-value font-mono break-all">{{ $connectedSite->public_id }}</dd>
+                            </div>
+                            <div>
+                                <dt class="website-connect-rail-label">Status</dt>
+                                <dd class="website-connect-rail-value">
+                                    @if ($connectedSite->isActive())
+                                        Active
+                                    @else
+                                        Removed{{ $connectedSite->revoked_at ? ' '.$connectedSite->revoked_at->diffForHumans() : '' }}
+                                    @endif
+                                </dd>
+                            </div>
+                            @if ($connectedSite->credential_rotated_at)
+                                <div>
+                                    <dt class="website-connect-rail-label">Last key replacement</dt>
+                                    <dd class="website-connect-rail-value">{{ $connectedSite->credential_rotated_at->diffForHumans() }}</dd>
+                                </div>
+                            @endif
+                            <div>
+                                <dt class="website-connect-rail-label">Plugin version</dt>
+                                <dd class="website-connect-rail-value">{{ $connectedSite->plugin_version ?: 'Waiting for WordPress' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="website-connect-rail-label">Website address check</dt>
+                                <dd class="website-connect-rail-value">
+                                    @php $urlMatch = $connectedSiteHealth['url_match'] ?? null; @endphp
+                                    @if ($urlMatch === true)
+                                        Matches the saved WordPress address
+                                    @elseif ($urlMatch === false)
+                                        Does not match the saved WordPress address
+                                    @else
+                                        Not checked yet
+                                    @endif
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="website-connect-rail-label">Last health check</dt>
+                                <dd class="website-connect-rail-value">
+                                    @if ($connectedSite->last_health_at)
+                                        {{ $connectedSite->last_health_at->diffForHumans() }}
+                                    @else
+                                        WordPress has not run a connection test yet
+                                    @endif
+                                </dd>
+                            </div>
+                            <div>
+                                <dt class="website-connect-rail-label">Products on the website</dt>
+                                <dd class="website-connect-rail-value">
+                                    @php
+                                        $websiteMatches = $catalogSync['website_matches_portal'] ?? null;
+                                        $pendingDeliveries = (int) ($catalogSync['pending_deliveries'] ?? 0);
+                                    @endphp
+                                    @if ($websiteMatches === false)
+                                        WordPress still has an older product list — it will refresh on the next check
+                                    @elseif ($pendingDeliveries > 0)
+                                        {{ $pendingDeliveries }} product {{ $pendingDeliveries === 1 ? 'update is' : 'updates are' }} waiting to reach WordPress
+                                    @elseif ($websiteMatches === true)
+                                        Showing the current product list
+                                    @else
+                                        Waiting for WordPress to report its product list
+                                    @endif
+                                </dd>
+                            </div>
+                            @if (! empty($catalogSync['site_last_rebuild_at']))
+                                <div>
+                                    <dt class="website-connect-rail-label">Last website catalog rebuild</dt>
+                                    <dd class="website-connect-rail-value">{{ $catalogSync['site_last_rebuild_at'] }}</dd>
+                                </div>
+                            @endif
+                            @if (! empty($catalogSync['last_delivered_at']))
+                                <div>
+                                    <dt class="website-connect-rail-label">Last catalog update sent</dt>
+                                    <dd class="website-connect-rail-value">{{ \Illuminate\Support\Carbon::parse($catalogSync['last_delivered_at'])->diffForHumans() }}</dd>
+                                </div>
+                            @endif
+                            @if ($connectedSiteScopeLabels !== [])
+                                <div>
+                                    <dt class="website-connect-rail-label">This website can</dt>
+                                    <dd class="website-connect-rail-value">{{ implode(', ', $connectedSiteScopeLabels) }}</dd>
+                                </div>
+                            @endif
+                        </dl>
+                        @if (! empty($connectedSiteHealth['conflicts']) && is_array($connectedSiteHealth['conflicts']))
+                            <div class="mt-4 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
+                                <p class="font-semibold">WordPress is not ready for live shoppers</p>
+                                <p class="mt-1">This portal did not turn anything off on the website. Follow these steps in WordPress, then click Test connection again.</p>
+                                <ul class="mt-3 space-y-2">
+                                    @foreach ($connectedSiteHealth['conflicts'] as $conflict)
+                                        <li>
+                                            <strong>{{ $conflict['title'] ?? 'Website conflict' }}</strong>
+                                            <span class="block text-[#78350F]">{{ $conflict['instruction'] ?? '' }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @elseif (array_key_exists('production_ready', $connectedSiteHealth) && $connectedSiteHealth['production_ready'] === true)
+                            <p class="mt-4 text-sm text-[#166534]">WordPress reported no WooCommerce checkout, payment, or cache conflicts.</p>
+                        @endif
+                        @if (! empty($connectedSiteHealth['messages']) && is_array($connectedSiteHealth['messages']))
+                            <ul class="mt-4 space-y-1 text-sm text-[#92400E]">
+                                @foreach ($connectedSiteHealth['messages'] as $message)
+                                    <li>{{ $message }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </section>
+                @endif
             </div>
 
             <aside class="website-connect-rail lg:col-span-4">
@@ -261,9 +371,30 @@
                         @endif
                     </p>
 
+                    @if (! empty($catalogSync['catalog_version']))
+                        <p class="website-connect-rail-label mt-5">Product list on the website</p>
+                        <p class="website-connect-rail-value">
+                            @php $websiteMatches = $catalogSync['website_matches_portal'] ?? null; @endphp
+                            @if ($websiteMatches === false)
+                                Refresh pending
+                            @elseif ((int) ($catalogSync['pending_deliveries'] ?? 0) > 0)
+                                Updates are on the way
+                            @elseif ($websiteMatches === true)
+                                Up to date
+                            @else
+                                Waiting for WordPress
+                            @endif
+                        </p>
+                    @endif
+
                     @if ($websiteUrl)
                         <p class="website-connect-rail-label mt-5">Website</p>
                         <p class="website-connect-rail-value break-all">{{ $websiteUrl }}</p>
+                    @endif
+
+                    @if ($connectedSite?->plugin_version)
+                        <p class="website-connect-rail-label mt-5">WordPress plugin</p>
+                        <p class="website-connect-rail-value">Version {{ $connectedSite->plugin_version }}</p>
                     @endif
 
                     <div class="mt-6">
@@ -296,27 +427,20 @@
                     <p class="mt-1">Optional. For developers only. WordPress above is the website merchants connect.</p>
                     <p class="mt-3">In the repository folder <code class="bg-[#F1F5F9] px-1.5 py-0.5 rounded text-[#0F172A]">dev-test-storefront</code>, create <code class="bg-[#F1F5F9] px-1.5 py-0.5 rounded">.env</code> with:</p>
                     <pre class="text-xs bg-[#0F172A] text-[#E2E8F0] rounded-lg p-4 overflow-x-auto mt-3">VITE_API_BASE={{ rtrim(config('app.url'), '/') }}/api/developer-storefront
-VITE_EXTERNAL_API_BASE={{ rtrim(config('app.url'), '/') }}/api/v1/external
 VITE_CHECKOUT_API_BASE={{ rtrim(config('app.url'), '/') }}/api/v1/checkout
 VITE_STOREFRONT_TOKEN=your_token_here</pre>
                     <p class="mt-3">Then run <code class="bg-[#F1F5F9] px-1.5 py-0.5 rounded">npm install</code> and <code class="bg-[#F1F5F9] px-1.5 py-0.5 rounded">npm run dev</code>.</p>
                 </div>
 
                 <div class="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] p-4 space-y-2 font-mono text-xs break-all">
-                    <p class="font-sans text-sm font-semibold text-[#0F172A] mb-2">Catalog and legacy dev order API</p>
+                    <p class="font-sans text-sm font-semibold text-[#0F172A] mb-2">Catalog API</p>
                     <code class="text-[#0052CC]">{{ rtrim(config('app.url'), '/') }}/api/developer-storefront</code>
                     <ul class="list-disc pl-5 mt-3 space-y-1 font-sans text-sm text-[#475569]">
                         <li><code class="text-[#0F172A]">GET /catalog</code> - active products with variants (Bearer token)</li>
-                        <li><code class="text-[#0F172A]">POST /orders</code> - legacy direct test order endpoint for the local simulator</li>
+                        <li><code class="text-[#0F172A]">GET /api/v1/site/health</code> - connection health for the WordPress plugin</li>
+                        <li><code class="text-[#0F172A]">GET /api/v1/site/events/config</code> - catalog event signing for the plugin</li>
+                        <li><code class="text-[#0F172A]">GET /api/v1/catalog/events</code> - missed catalog updates for WordPress to repair</li>
                     </ul>
-                </div>
-
-                <div class="rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] p-4 space-y-2 font-mono text-xs break-all">
-                    <p class="font-sans text-sm font-semibold text-[#0F172A] mb-2">External checkout sync</p>
-                    <code class="text-[#0052CC]">{{ rtrim(config('app.url'), '/') }}/api/v1/external/orders</code>
-                    <p class="font-sans text-sm text-[#475569]">
-                        Use this endpoint when another website or marketplace already handled checkout. Send customer, address, items, payment status, gateway, and payment reference. Never send raw card data.
-                    </p>
                 </div>
 
                 <div class="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] p-4 space-y-3">

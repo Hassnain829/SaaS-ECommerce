@@ -114,6 +114,12 @@ final class ProductWorkspaceController extends Controller
         $importExtraRows = ProductDetailPresenter::associativeRowsWithRawKeys(
             is_array($meta['import_extra'] ?? null) ? $meta['import_extra'] : []
         );
+        $sourceIdentity = is_array($meta['source_identity'] ?? null) ? $meta['source_identity'] : [];
+        $urlRedirects = $product->urlRedirects()
+            ->where('store_id', $store->id)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get(['source_path', 'source_slug', 'destination_slug']);
 
         $primaryCatalogThumb = null;
         $primaryImg = $product->images->first(fn ($im) => $im->is_primary) ?? $product->images->first();
@@ -196,6 +202,8 @@ final class ProductWorkspaceController extends Controller
             'catalog' => $catalog,
             'customFieldRows' => $customFieldRows,
             'importExtraRows' => $importExtraRows,
+            'sourceIdentity' => $sourceIdentity,
+            'urlRedirects' => $urlRedirects,
             'attributeRows' => $attributeRows,
             'productBehavior' => array_merge(
                 ProductTypeBehavior::behaviorFor($product->product_type),

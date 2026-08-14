@@ -38,6 +38,29 @@ class ProductImportAutoColumnMapperTest extends TestCase
         $this->assertSame('image_urls', $m[ProductImportField::IMAGE_URLS]);
     }
 
+    public function test_guess_maps_imperial_woocommerce_export_headers(): void
+    {
+        $headers = [
+            'ID', 'Type', 'SKU', 'GTIN, UPC, EAN, or ISBN', 'Name', 'Published',
+            'Visibility in catalog', 'In stock?', 'Stock', 'Weight (lbs)',
+            'Length (in)', 'Width (in)', 'Height (in)', 'Regular price',
+            'Categories', 'Images', 'Parent', 'Brands',
+            'Attribute 1 name', 'Attribute 1 value(s)',
+        ];
+
+        $m = ProductImportAutoColumnMapper::guess($headers);
+
+        $this->assertSame('Name', $m[ProductImportField::PRODUCT_NAME]);
+        $this->assertSame('Weight (lbs)', $m[ProductImportField::WEIGHT]);
+        $this->assertSame('Length (in)', $m[ProductImportField::LENGTH]);
+        $this->assertSame('Width (in)', $m[ProductImportField::WIDTH]);
+        $this->assertSame('Height (in)', $m[ProductImportField::HEIGHT]);
+        $this->assertSame('Brands', $m[ProductImportField::BRAND]);
+        $this->assertSame('GTIN, UPC, EAN, or ISBN', $m[ProductImportField::BARCODE]);
+        $this->assertSame('Images', $m[ProductImportField::IMAGE_URLS]);
+        $this->assertSame('Parent', $m[ProductImportField::PARENT_SKU]);
+    }
+
     public function test_suggest_custom_maps_supplier_column(): void
     {
         $headers = ['Title', 'SKU', 'Supplier'];

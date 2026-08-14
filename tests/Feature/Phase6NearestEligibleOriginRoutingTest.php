@@ -351,52 +351,14 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
         $this->assertSame('routed_origin', data_get($shipment->metadata, 'origin_selection'));
     }
 
-    public function test_external_checkout_routes_platform_inventory_but_not_external_inventory(): void
+    public function test_external_checkout_routing_endpoint_is_gone(): void
     {
         [$store, $token] = $this->tokenedStore('Phase 6C External Platform Inventory', platformMode: false);
         [, $variant] = $this->product($store, ['stock' => 0]);
-        $default = $store->defaultLocation()->firstOrFail();
-        $origin = $this->location($store, 'Texas origin', [
-            'service_countries' => ['US'],
-            'service_regions' => ['TX'],
-            'routing_priority' => 1,
-        ]);
-        $this->stockAtLocations($variant, [
-            $default->id => 0,
-            $origin->id => 3,
-        ]);
 
         $this->withToken($token)
             ->postJson('/api/v1/external/orders', $this->externalPayload($variant))
-            ->assertCreated();
-
-        $order = Order::query()->where('store_id', $store->id)->firstOrFail();
-        $this->assertSame($origin->id, (int) data_get($order->meta, 'fulfillment_routing.origin_location_id'));
-        $this->assertDatabaseHas('inventory_reservations', [
-            'store_id' => $store->id,
-            'reference_type' => 'external_order',
-            'reference_id' => (string) $order->id,
-            'location_id' => $origin->id,
-            'status' => InventoryReservation::STATUS_DEDUCTED,
-        ]);
-
-        [$externalStore, $externalToken] = $this->tokenedStore(
-            'Phase 6C External Inventory Owner',
-            platformMode: false,
-            inventoryOwner: 'external'
-        );
-        [, $externalVariant] = $this->product($externalStore, ['stock' => 2]);
-
-        $this->withToken($externalToken)
-            ->postJson('/api/v1/external/orders', $this->externalPayload($externalVariant))
-            ->assertCreated();
-
-        $externalOrder = Order::query()->where('store_id', $externalStore->id)->firstOrFail();
-        $this->assertNull(data_get($externalOrder->meta, 'fulfillment_routing'));
-        $this->assertDatabaseMissing('order_events', [
-            'order_id' => $externalOrder->id,
-            'event_type' => OrderLifecycle::EVENT_FULFILLMENT_ORIGIN_SELECTED,
-        ]);
+            ->assertNotFound();
     }
 
     private function tokenedStore(string $name, bool $platformMode = true, ?string $inventoryOwner = null): array

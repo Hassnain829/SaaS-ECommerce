@@ -69,8 +69,19 @@ final class ProductImportPreviewService
         $categoriesToCreate = [];
         $tagsToCreate = [];
 
-        $this->reader->eachDataRow($path, $ext, function (array $cells) use (
-            &$total,
+        $wooMode = $import->isWooCommercePreset();
+        $generatedSkus = [];
+        $unsupportedSamples = [];
+        $extraAttributeWarnings = [];
+        $wooRoleCounts = [
+            'simple' => 0,
+            'variable' => 0,
+            'variation' => 0,
+            'unsupported' => 0,
+        ];
+        $emptyStockRows = 0;
+
+        $processPreviewRow = function (array $row, int $rowNumber) use (
             &$valid,
             &$invalid,
             &$invalidSamples,
@@ -85,23 +96,52 @@ final class ProductImportPreviewService
             &$brandsToCreate,
             &$categoriesToCreate,
             &$tagsToCreate,
+            &$generatedSkus,
+            &$unsupportedSamples,
+            &$extraAttributeWarnings,
+            &$wooRoleCounts,
+            &$emptyStockRows,
             $headers,
             $mapping,
             $customMappings,
             $store,
             $variantMode,
-            $slots
+            $slots,
+            $wooMode
         ): void {
-            $total++;
-            if ($total > 5000) {
-                return;
+            $wooRole = '';
+            if ($wooMode) {
+                // Context is applied by the caller before this closure for Woo rows.
             }
 
-            $row = $this->cellsToKeyedRow($headers, $cells);
             $errors = ProductImportRowValidator::validateMappedRow($row, $mapping, $customMappings);
             $fields = $this->extractMappedFields($row, $mapping);
+            if (isset($row['__woo_product_type']) && is_string($row['__woo_product_type']) && $row['__woo_product_type'] !== '') {
+                $fields[ProductImportField::PRODUCT_TYPE] = $row['__woo_product_type'];
+            }
+            if ($wooMode) {
+                $fields = WooCommerceImportPreset::mirrorMappedFields($fields);
+                if (trim((string) ($fields[ProductImportField::STOCK] ?? '')) === '') {
+                    $emptyStockRows++;
+                }
+            }
+            $wooRole = (string) ($row['__woo_role'] ?? '');
+            $treatAsVariantLine = $variantMode && ! in_array($wooRole, [
+                WooCommerceImportNormalizer::ROLE_SIMPLE,
+                WooCommerceImportNormalizer::ROLE_VARIABLE,
+                WooCommerceImportNormalizer::ROLE_UNSUPPORTED,
+            ], true);
+            if ($wooMode && $wooRole === WooCommerceImportNormalizer::ROLE_VARIATION) {
+                $treatAsVariantLine = true;
+            }
+            if ($wooMode && $wooRole === WooCommerceImportNormalizer::ROLE_VARIABLE) {
+                $treatAsVariantLine = false;
+            }
+            if ($wooMode && $wooRole === WooCommerceImportNormalizer::ROLE_SIMPLE) {
+                $treatAsVariantLine = false;
+            }
 
-            if ($variantMode) {
+            if ($treatAsVariantLine) {
                 $vSku = trim((string) ($fields[ProductImportField::VARIANT_SKU] ?? ''));
                 if ($errors === [] && $vSku !== '') {
                     $vk = mb_strtolower($vSku);
@@ -128,7 +168,9 @@ final class ProductImportPreviewService
                     }
                     $combo = $this->previewCombinationKey($fields, $slots);
                     if ($combo === '') {
-                        $errors[] = 'Each variant row needs a value for every option group you mapped.';
+                        if (! $wooMode) {
+                            $errors[] = 'Each variant row needs a value for every option group you mapped.';
+                        }
                     } elseif (isset($groupComboKeys[$gk][$combo])) {
                         $errors[] = 'Duplicate variant combination for the same product in this file.';
                     } else {
@@ -147,7 +189,7 @@ final class ProductImportPreviewService
             } else {
                 $sku = trim((string) ($fields[ProductImportField::SKU] ?? ''));
                 $skuKey = $sku !== '' ? mb_strtolower($sku) : '';
-                if ($errors === [] && $skuKey !== '' && isset($seenSku[$skuKey])) {
+                if ($errors === [] && $skuKey !== '' && isset($seenSku[$skuKey]) && $wooRole !== WooCommerceImportNormalizer::ROLE_VARIABLE) {
                     $errors[] = 'Duplicate SKU in file.';
                     $duplicateSkusInFile[$sku] = true;
                 }
@@ -161,7 +203,7 @@ final class ProductImportPreviewService
                 $invalid++;
                 if (count($invalidSamples) < 25) {
                     $invalidSamples[] = [
-                        'row' => $total + 1,
+                        'row' => $rowNumber + 1,
                         'messages' => $errors,
                     ];
                 }
@@ -187,7 +229,88 @@ final class ProductImportPreviewService
                     $tagsToCreate[$tag] = true;
                 }
             }
-        });
+        };
+
+        if ($wooMode) {
+            /** @var list<array<string, string>> $keyedRows */
+            $keyedRows = [];
+            $this->reader->eachDataRow($path, $ext, function (array $cells) use (
+                &$total,
+                &$keyedRows,
+                $headers
+            ): void {
+                $total++;
+                if ($total > 5000) {
+                    return;
+                }
+                $keyedRows[] = $this->cellsToKeyedRow($headers, $cells);
+            });
+            $wooContext = WooCommerceImportNormalizer::buildContext($headers, $keyedRows, (int) $import->id);
+            foreach ($keyedRows as $index => $keyed) {
+                $normalized = WooCommerceImportNormalizer::normalize(
+                    $headers,
+                    $keyed,
+                    $wooContext,
+                    (int) $import->id,
+                    $index + 1
+                );
+                $row = $normalized['row'];
+                $role = (string) $normalized['role'];
+                $wooRoleCounts[$role] = ($wooRoleCounts[$role] ?? 0) + 1;
+                if ($normalized['generated_sku']) {
+                    $sku = trim((string) ($row[WooCommerceImportNormalizer::headerNamed($headers, ['sku'])] ?? ''));
+                    if ($sku !== '' && count($generatedSkus) < 20) {
+                        $generatedSkus[] = $sku;
+                    }
+                }
+                if (($normalized['extra_attributes'] ?? []) !== []) {
+                    foreach (array_keys($normalized['extra_attributes']) as $attrName) {
+                        $extraAttributeWarnings[$attrName] = true;
+                    }
+                }
+                if ($normalized['unsupported_reason'] !== null) {
+                    $invalid++;
+                    if (count($unsupportedSamples) < 15) {
+                        $unsupportedSamples[] = [
+                            'row' => $index + 2,
+                            'messages' => [$normalized['unsupported_reason']],
+                        ];
+                    }
+                    if (count($invalidSamples) < 25) {
+                        $invalidSamples[] = [
+                            'row' => $index + 2,
+                            'messages' => [$normalized['unsupported_reason']],
+                        ];
+                    }
+
+                    continue;
+                }
+                if (($normalized['parent_error'] ?? null) !== null) {
+                    $invalid++;
+                    if (count($invalidSamples) < 25) {
+                        $invalidSamples[] = [
+                            'row' => $index + 2,
+                            'messages' => [$normalized['parent_error']],
+                        ];
+                    }
+
+                    continue;
+                }
+                $processPreviewRow($row, $index + 1);
+            }
+        } else {
+            $this->reader->eachDataRow($path, $ext, function (array $cells) use (
+                &$total,
+                $processPreviewRow,
+                $headers
+            ): void {
+                $total++;
+                if ($total > 5000) {
+                    return;
+                }
+                $processPreviewRow($this->cellsToKeyedRow($headers, $cells), $total);
+            });
+        }
 
         $duplicateSkuList = array_keys($duplicateSkusInFile);
         $duplicateVariantSkuList = array_keys($duplicateVariantSkusInFile);
@@ -245,7 +368,7 @@ final class ProductImportPreviewService
             'invalid_rows' => $invalid,
             'invalid_samples' => $invalidSamples,
             'duplicate_skus_in_file' => $duplicateSkuList,
-            'variant_import' => $variantMode,
+            'variant_import' => $variantMode || (($wooRoleCounts['variation'] ?? 0) > 0),
             'variant_summary' => $variantSummary,
             'unmapped_headers' => $unmappedHeaders,
             'unmapped_will_capture_to_meta' => $unmappedHeaders,
@@ -256,6 +379,17 @@ final class ProductImportPreviewService
             'tags_to_create' => array_keys($tagsToCreate),
             'columns_used_count' => count($usedSourceList),
             'columns_total_count' => count(array_filter($headers, static fn ($h) => $h !== '')),
+            'woocommerce' => $wooMode,
+            'woocommerce_summary' => $wooMode ? [
+                'simple_rows' => (int) ($wooRoleCounts['simple'] ?? 0),
+                'variable_rows' => (int) ($wooRoleCounts['variable'] ?? 0),
+                'variation_rows' => (int) ($wooRoleCounts['variation'] ?? 0),
+                'unsupported_rows' => (int) ($wooRoleCounts['unsupported'] ?? 0),
+                'generated_skus' => $generatedSkus,
+                'empty_stock_rows' => $emptyStockRows,
+                'extra_option_groups' => array_keys($extraAttributeWarnings),
+                'unsupported_samples' => $unsupportedSamples,
+            ] : null,
         ];
     }
 
@@ -286,13 +420,16 @@ final class ProductImportPreviewService
         foreach ($slots as $slot) {
             $name = trim((string) ($fields[ProductImportField::optionNameField($slot)] ?? ''));
             $val = trim((string) ($fields[ProductImportField::optionValueField($slot)] ?? ''));
+            if ($name === '' && $val === '') {
+                continue;
+            }
             if ($name === '' || $val === '') {
                 return '';
             }
             $parts[] = mb_strtolower($name)."\n".mb_strtolower($val);
         }
 
-        return implode("\n", $parts);
+        return $parts === [] ? '' : implode("\n", $parts);
     }
 
     /**

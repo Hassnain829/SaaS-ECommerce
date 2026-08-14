@@ -107,39 +107,18 @@ class StoreManagementHubTest extends TestCase
             ->assertDontSeeText('Ready to sell');
     }
 
-    public function test_external_checkout_counts_as_payments_ready_without_stripe(): void
-    {
-        $owner = $this->merchant('external-ready-hub@example.com');
-        $store = $this->store($owner, 'External Ready Store', onboardingCompleted: true);
-        $this->attach($store, $owner, Store::ROLE_OWNER);
-
-        $this->seedOperationalSetup($store);
-
-        $this->assertSame(\App\Support\CheckoutMode::EXTERNAL, \App\Support\CheckoutMode::forStore($store->fresh()));
-        $this->assertFalse(
-            \App\Models\PaymentProviderAccount::query()->where('store_id', $store->id)->exists()
-        );
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->get(route('store-management'))
-            ->assertOk()
-            ->assertSeeText('Ready to sell')
-            ->assertDontSeeText('Setup needed');
-    }
-
-    public function test_platform_checkout_without_stripe_keeps_setup_needed_for_payments(): void
+    public function test_operational_setup_without_stripe_still_shows_ready_to_sell_on_the_hub(): void
     {
         $owner = $this->merchant('platform-setup-hub@example.com');
         $store = $this->store($owner, 'Platform Setup Store', onboardingCompleted: true);
         $this->attach($store, $owner, Store::ROLE_OWNER);
 
         $this->seedOperationalSetup($store);
-        $store->forceFill([
-            'settings' => array_merge($store->fresh()->settings ?? [], [
-                'checkout_mode' => \App\Support\CheckoutMode::PLATFORM,
-            ]),
-        ])->save();
+
+        $this->assertSame(\App\Support\CheckoutMode::PLATFORM, \App\Support\CheckoutMode::forStore($store->fresh()));
+        $this->assertFalse(
+            \App\Models\PaymentProviderAccount::query()->where('store_id', $store->id)->exists()
+        );
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -368,10 +347,10 @@ class StoreManagementHubTest extends TestCase
             'is_active' => true,
         ]);
 
-        // External checkout (default) counts as payments-ready without Stripe.
+        // Hub operational checklist does not include Stripe. Checkout is still blocked until Stripe is connected.
         $store->forceFill([
             'settings' => array_merge($store->settings ?? [], [
-                'checkout_mode' => \App\Support\CheckoutMode::EXTERNAL,
+                'checkout_mode' => \App\Support\CheckoutMode::PLATFORM,
             ]),
         ])->save();
     }

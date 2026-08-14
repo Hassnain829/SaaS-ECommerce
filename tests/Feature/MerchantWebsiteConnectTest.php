@@ -34,7 +34,6 @@ class MerchantWebsiteConnectTest extends TestCase
                 'Advanced details',
                 'Local React test app',
                 'VITE_API_BASE=',
-                'VITE_EXTERNAL_API_BASE=',
                 'VITE_CHECKOUT_API_BASE=',
                 'VITE_STOREFRONT_TOKEN=',
             ])
@@ -43,6 +42,10 @@ class MerchantWebsiteConnectTest extends TestCase
             ->assertDontSee('Connect a React dev app')
             ->assertDontSee('Developer test storefront')
             ->assertDontSee('Test storefront')
+            ->assertDontSee('VITE_EXTERNAL_API_BASE=')
+            ->assertDontSee('/api/v1/external/orders')
+            ->assertDontSee('choose whether website orders reduce stock')
+            ->assertDontSee('keep dashboard stock unchanged when website orders arrive')
             ->content();
 
         $advancedPos = strpos($html, 'Advanced details');
@@ -150,7 +153,7 @@ class MerchantWebsiteConnectTest extends TestCase
             ->assertSee('WordPress last checked your products');
     }
 
-    public function test_external_order_rejects_currency_that_does_not_match_the_store(): void
+    public function test_external_order_endpoint_is_not_available(): void
     {
         [, $store, $token] = $this->tokenedStore('Currency Store', 'PKR');
         [, $variant] = $this->product($store);
@@ -159,16 +162,7 @@ class MerchantWebsiteConnectTest extends TestCase
             ->postJson('/api/v1/external/orders', $this->externalPayload($variant, [
                 'currency_code' => 'USD',
             ]))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['currency_code']);
-
-        $this->withToken($token)
-            ->postJson('/api/v1/external/orders', $this->externalPayload($variant, [
-                'external_order_number' => 'WEB-PKR-OK',
-                'currency_code' => 'PKR',
-            ]))
-            ->assertCreated()
-            ->assertJsonPath('order.external_order_number', 'WEB-PKR-OK');
+            ->assertNotFound();
     }
 
     public function test_wordpress_checkout_template_uses_store_currency_instead_of_hardcoded_usd(): void
@@ -177,15 +171,36 @@ class MerchantWebsiteConnectTest extends TestCase
 
         $this->assertIsString($checkout);
         $this->assertStringNotContainsString('value="USD"', $checkout);
-        $this->assertStringContainsString('name="currency_code"', $checkout);
         $this->assertStringContainsString('$currency', $checkout);
         $this->assertStringContainsString('eco_portal_start_checkout', $checkout);
         $this->assertStringContainsString('Get delivery rates', $checkout);
+        $this->assertStringNotContainsString('Place order & sync to portal', $checkout);
 
         $client = file_get_contents(base_path('dev-test-wordpress/wp-content/plugins/eco-portal-connector/includes/class-api-client.php'));
         $this->assertIsString($client);
         $this->assertStringContainsString('/api/v1/checkout', $client);
         $this->assertStringContainsString('delivery-options', $client);
+        $this->assertStringContainsString('X-Eco-Site-Url', $client);
+        $this->assertStringContainsString('/api/v1/site/health', $client);
+    }
+
+    public function test_generating_a_key_creates_a_primary_connected_site(): void
+    {
+        [$owner, $store] = $this->ownerStore('Connected Site Store');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('developer-storefront.token.generate'))
+            ->assertRedirect(route('developer-storefront.settings'))
+            ->assertSessionHas('developer_storefront_plain_token');
+
+        $this->assertDatabaseHas('connected_sites', [
+            'store_id' => $store->id,
+            'is_primary' => 1,
+            'status' => 'active',
+        ]);
+
+        $this->assertNotNull($store->fresh()->developer_storefront_token_hash);
     }
 
     /**

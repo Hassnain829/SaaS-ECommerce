@@ -1,10 +1,11 @@
 <?php
 
 use App\Http\Controllers\Api\CatalogApiV1Controller;
+use App\Http\Controllers\Api\ConnectedSiteCatalogEventsController;
+use App\Http\Controllers\Api\ConnectedSiteHealthController;
 use App\Http\Controllers\Api\DeveloperStorefrontCatalogController;
-use App\Http\Controllers\Api\ExternalOrderSyncController;
-use App\Http\Controllers\Api\ExternalShipmentSyncController;
 use App\Http\Controllers\Api\PlatformCheckoutController;
+use App\Http\Controllers\Api\StorefrontOrderController;
 use App\Http\Controllers\Api\StripeConnectWebhookController;
 use App\Http\Controllers\Api\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,12 @@ Route::middleware(['dev.storefront.token'])
             ->post('orders', [DeveloperStorefrontCatalogController::class, 'placeOrder']);
     });
 
+Route::middleware(['dev.storefront.token', 'throttle:api-dev-health'])
+    ->match(['GET', 'POST'], 'v1/site/health', [ConnectedSiteHealthController::class, 'show']);
+
+Route::middleware(['dev.storefront.token', 'throttle:api-dev-health'])
+    ->get('v1/site/events/config', [ConnectedSiteCatalogEventsController::class, 'config']);
+
 Route::middleware(['dev.storefront.token', 'throttle:api-dev-catalog'])
     ->prefix('v1/catalog')
     ->group(function (): void {
@@ -32,13 +39,7 @@ Route::middleware(['dev.storefront.token', 'throttle:api-dev-catalog'])
         Route::get('/categories', [CatalogApiV1Controller::class, 'categories']);
         Route::get('/brands', [CatalogApiV1Controller::class, 'brands']);
         Route::get('/attributes', [CatalogApiV1Controller::class, 'attributes']);
-    });
-
-Route::middleware(['dev.storefront.token', 'throttle:api-dev-external'])
-    ->prefix('v1/external')
-    ->group(function (): void {
-        Route::post('/orders', [ExternalOrderSyncController::class, 'store']);
-        Route::post('/shipments', [ExternalShipmentSyncController::class, 'store']);
+        Route::get('/events', [ConnectedSiteCatalogEventsController::class, 'index']);
     });
 
 Route::middleware(['dev.storefront.token', 'throttle:api-dev-checkout'])
@@ -54,6 +55,9 @@ Route::middleware(['dev.storefront.token', 'throttle:api-dev-checkout'])
         Route::delete('/{checkout}/coupon', [PlatformCheckoutController::class, 'removeCoupon']);
         Route::post('/{checkout}/confirm', [PlatformCheckoutController::class, 'confirm']);
     });
+
+Route::middleware(['dev.storefront.token', 'throttle:api-dev-checkout'])
+    ->get('v1/orders/confirmation/{token}', [StorefrontOrderController::class, 'confirmation']);
 
 Route::post('/webhooks/stripe/{mode}', StripeWebhookController::class)->where('mode', 'test|live');
 Route::post('/webhooks/stripe', StripeWebhookController::class)->defaults('mode', 'test');

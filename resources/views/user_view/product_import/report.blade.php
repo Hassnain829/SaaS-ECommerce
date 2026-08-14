@@ -84,6 +84,19 @@
                         <div class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3"><dt class="text-[#991B1B]">Rows that need attention</dt><dd class="text-lg font-bold text-[#B42318] tabular-nums">{{ $failedCount }}</dd></div>
                         <div class="rounded-xl bg-[#F8FAFC] px-4 py-3"><dt class="text-[#64748B]">Warnings</dt><dd class="text-lg font-bold text-[#0F172A] tabular-nums">{{ (int) ($summary['warnings_count'] ?? 0) }}</dd></div>
                     </dl>
+                    @if (!empty($summary['does_not_migrate_orders_customers_payments']))
+                        <p class="mt-4 text-sm text-[#475569]">This catalog import did not migrate orders, customers, or payments. Unsupported or failed rows were not added as successful products.</p>
+                    @endif
+                    @if (!empty($summary['url_redirects']))
+                        <div class="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm">
+                            <p class="font-semibold text-[#0F172A]">Previous product addresses</p>
+                            <ul class="mt-2 max-h-40 overflow-y-auto space-y-1 font-mono text-xs text-[#334155]">
+                                @foreach ($summary['url_redirects'] as $redirect)
+                                    <li>{{ $redirect['from'] ?? '' }} → {{ $redirect['destination_slug'] ?? '' }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
 
                     <div class="mt-6 flex flex-wrap gap-3">
                         <a href="{{ route('products.import.result', ['productImportId' => $import->id]) }}" class="inline-flex items-center justify-center rounded-xl border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-semibold text-[#334155] shadow-sm hover:bg-[#F8FAFC]">Live status view</a>

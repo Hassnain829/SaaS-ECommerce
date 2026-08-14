@@ -38,6 +38,10 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
         $amountMinor = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, (string) $checkout->currency_code);
         $client = new StripeClient($secret);
         $requestOptions = $providerAccount ? $this->requestOptionsForAccount($providerAccount) : [];
+        $idempotencyKey = trim((string) ($options['idempotency_key'] ?? 'checkout-pi-'.$checkout->id.'-'.$amountMinor));
+        if ($idempotencyKey !== '') {
+            $requestOptions['idempotency_key'] = $idempotencyKey;
+        }
         $intent = $client->paymentIntents->create([
             'amount' => $amountMinor,
             'currency' => strtolower((string) $checkout->currency_code),
@@ -96,6 +100,7 @@ class StripePlatformPaymentProvider implements PaymentProviderInterface
             ],
             providerAccountId: isset($event->account) ? (string) $event->account : null,
             mode: $mode,
+            eventId: (string) $event->id,
         );
     }
 

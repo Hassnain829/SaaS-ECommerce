@@ -9,6 +9,7 @@ use App\Models\SecurityLog;
 use App\Services\CheckoutConversionService;
 use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
+use App\Services\Payments\ProviderWebhookEventService;
 use App\Services\SecurityLogRecorder;
 use App\Support\Money\CurrencyPrecision;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +25,7 @@ class StripeConnectWebhookController extends Controller
         CheckoutConversionService $conversionService,
         SecurityLogRecorder $securityLogRecorder,
         StripeConfig $stripeConfig,
+        ProviderWebhookEventService $webhookEvents,
         string $mode = 'test',
     ): JsonResponse {
         $mode = strtolower($mode);
@@ -54,12 +56,26 @@ class StripeConnectWebhookController extends Controller
         $rawObject = method_exists($object, 'toArray') ? $object->toArray() : (array) $object;
         $providerAccountId = $this->providerAccountId($event, $rawObject);
 
+        $claimed = $webhookEvents->claim(
+            'stripe',
+            (string) $event->id,
+            (string) $event->type,
+            (string) ($rawObject['id'] ?? ''),
+            $rawObject,
+        );
+
+        if ($claimed === null) {
+            return response()->json(['received' => true, 'duplicate' => true]);
+        }
+
         match ((string) $event->type) {
             'account.updated' => $this->handleAccountUpdated($providerAccountId, $rawObject, $mode, $connectService, $securityLogRecorder),
             'payment_intent.succeeded' => $conversionService->handleSucceededPayment($this->paymentResult($event, $rawObject, $providerAccountId, $mode)),
             'payment_intent.payment_failed', 'payment_intent.canceled' => $conversionService->handleFailedPayment($this->paymentResult($event, $rawObject, $providerAccountId, $mode)),
             default => null,
         };
+
+        $webhookEvents->markProcessed($claimed);
 
         return response()->json(['received' => true]);
     }
@@ -131,6 +147,7 @@ class StripeConnectWebhookController extends Controller
             ],
             providerAccountId: $providerAccountId,
             mode: $mode,
+            eventId: (string) $event->id,
         );
     }
 

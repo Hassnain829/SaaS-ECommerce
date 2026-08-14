@@ -76,6 +76,9 @@ final class ProductImportProcessor
             return;
         }
 
+        $wooMode = $import->isWooCommercePreset();
+        $wooContext = $wooMode ? $this->scanWooCommerceContext($import, $headers) : [];
+
         $path = Storage::disk($import->stored_disk)->path($import->stored_path);
         if (! is_file($path)) {
             $this->failImport($import, 'Import file is missing from storage.');
@@ -195,6 +198,7 @@ final class ProductImportProcessor
                 $customMappings,
                 $taxonomyCache,
                 $variantMode,
+                $wooContext,
                 &$assignedVariantSkusLower,
                 &$seenSkuInFile,
                 &$seenVariantSkuLowerInFile,
@@ -301,6 +305,7 @@ final class ProductImportProcessor
                         $seenSkuInFile,
                         $seenVariantSkuLowerInFile,
                         $variantMode,
+                        $wooContext,
                         $rn,
                         $cells,
                         $created,
@@ -357,7 +362,8 @@ final class ProductImportProcessor
 
             $import->refresh();
             $stateAfterStream = is_array($import->import_state) ? $import->import_state : [];
-            if ($variantMode && empty($stateAfterStream['variant_finalize_complete']) && $rowIndex > 0) {
+            $needsVariantFinalize = ($variantMode || $wooMode) && empty($stateAfterStream['variant_finalize_complete']) && $rowIndex > 0;
+            if ($needsVariantFinalize) {
                 $finalizeTaxonomy = new ProductImportTaxonomyCache($store, $import->created_by);
                 $this->variantFinalizer->finalize(
                     $import,
@@ -387,6 +393,13 @@ final class ProductImportProcessor
 
             $processedCap = min($rowIndex, $maxRows);
             $import->refresh();
+            $redirectRows = \App\Models\ProductUrlRedirect::query()
+                ->where('store_id', $store->id)
+                ->where('product_import_id', $import->id)
+                ->orderBy('id')
+                ->limit(100)
+                ->get(['source_path', 'source_slug', 'destination_slug']);
+            $stockState = is_array($import->import_state) ? $import->import_state : [];
             $completedSummary = array_merge(is_array($import->result_summary) ? $import->result_summary : [], [
                 'processed_rows' => $processedCap,
                 'total_processed' => $processedCap,
@@ -417,6 +430,16 @@ final class ProductImportProcessor
                     $warningsCount,
                     'completed',
                 ),
+                'url_redirects' => $redirectRows->map(static fn ($row): array => [
+                    'from' => (string) $row->source_path,
+                    'to' => '/'.ltrim((string) $row->destination_slug, '/'),
+                    'source_slug' => (string) $row->source_slug,
+                    'destination_slug' => (string) $row->destination_slug,
+                ])->all(),
+                'stock_location_id' => isset($stockState['location_id']) ? (int) $stockState['location_id'] : null,
+                'stock_mode' => $stockState['stock_mode'] ?? null,
+                'woocommerce' => $wooMode,
+                'does_not_migrate_orders_customers_payments' => $wooMode,
             ]);
             $import->update([
                 'status' => ProductImport::STATUS_COMPLETED,
@@ -574,6 +597,7 @@ final class ProductImportProcessor
      * @param  array<string, true>  $assignedVariantSkusLower
      * @param  array<string, true>  $seenSkuInFile
      * @param  array<string, true>  $seenVariantSkuLowerInFile
+     * @param  array{id_to_sku?: array<string, string>, extra_attribute_headers?: list<string>}  $wooContext
      * @param  list<array{row:int, message:string}>  $failures
      */
     private function processImportDataRow(
@@ -587,6 +611,7 @@ final class ProductImportProcessor
         array &$seenSkuInFile,
         array &$seenVariantSkuLowerInFile,
         bool $variantMode,
+        array $wooContext,
         int $dataRowNumber,
         array $cells,
         int &$created,
@@ -597,6 +622,42 @@ final class ProductImportProcessor
     ): void {
         $excelRow = $dataRowNumber + 1;
         $row = $this->rowMapper->cellsToKeyedRow($headers, $cells);
+        $wooRole = '';
+        if ($wooContext !== []) {
+            $normalized = WooCommerceImportNormalizer::normalize(
+                $headers,
+                $row,
+                $wooContext,
+                (int) $import->id,
+                $dataRowNumber
+            );
+            $row = $normalized['row'];
+            $wooRole = (string) $normalized['role'];
+            if ($normalized['unsupported_reason'] !== null) {
+                $failed++;
+                $merchantMsg = ProductImportMerchantMessages::humanizeRowError((string) $normalized['unsupported_reason']);
+                if (count($failures) < 200) {
+                    $failures[] = ['row' => $excelRow, 'message' => $merchantMsg];
+                }
+                $this->markImportRow($import, $dataRowNumber, ProductImportRow::STATUS_FAILED, $merchantMsg);
+
+                return;
+            }
+            if (($normalized['parent_error'] ?? null) !== null) {
+                $failed++;
+                $merchantMsg = ProductImportMerchantMessages::humanizeRowError((string) $normalized['parent_error']);
+                if (count($failures) < 200) {
+                    $failures[] = ['row' => $excelRow, 'message' => $merchantMsg];
+                }
+                $this->markImportRow($import, $dataRowNumber, ProductImportRow::STATUS_FAILED, $merchantMsg);
+
+                return;
+            }
+            if (($normalized['extra_attributes'] ?? []) !== []) {
+                $warningsCount++;
+            }
+        }
+
         $previewErrors = ProductImportRowValidator::validateMappedRow($row, $mapping, $customMappings);
         if ($previewErrors !== []) {
             $failed++;
@@ -610,8 +671,22 @@ final class ProductImportProcessor
         }
 
         $fields = $this->rowMapper->extractMappedFields($row, $mapping);
+        if (isset($row['__woo_product_type']) && is_string($row['__woo_product_type']) && $row['__woo_product_type'] !== '') {
+            $fields[ProductImportField::PRODUCT_TYPE] = $row['__woo_product_type'];
+        }
+        if ($wooContext !== []) {
+            $fields = WooCommerceImportPreset::mirrorMappedFields($fields);
+        }
 
-        if ($variantMode) {
+        $deferThisRow = $variantMode;
+        if ($wooContext !== []) {
+            $deferThisRow = in_array($wooRole, [
+                WooCommerceImportNormalizer::ROLE_VARIABLE,
+                WooCommerceImportNormalizer::ROLE_VARIATION,
+            ], true);
+        }
+
+        if ($deferThisRow) {
             $vSku = trim((string) ($fields[ProductImportField::VARIANT_SKU] ?? ''));
             if ($vSku !== '') {
                 $vk = mb_strtolower($vSku);
@@ -648,6 +723,17 @@ final class ProductImportProcessor
         $seenSkuInFile[$skuKey] = true;
 
         $extras = $this->rowMapper->collectUnmappedExtras($row, $headers, $mapping, $customMappings);
+        $encodedExtraAttrs = trim((string) ($row['__woo_extra_attributes'] ?? ''));
+        if ($encodedExtraAttrs !== '') {
+            $decoded = json_decode($encodedExtraAttrs, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $key => $value) {
+                    if (is_string($key) && is_string($value) && $value !== '') {
+                        $extras[$key] = $value;
+                    }
+                }
+            }
+        }
 
         $pendingImages = null;
         try {
@@ -797,6 +883,7 @@ final class ProductImportProcessor
         }
         $variantMode = ProductImportField::usesStructuredVariantRows($mapping)
             && ! ProductImportField::hasPartialOptionSlotMapping($mapping);
+        $wooContext = $import->isWooCommercePreset() ? $this->scanWooCommerceContext($import, $headers) : [];
 
         $taxonomyCache = new ProductImportTaxonomyCache($store, $import->created_by);
         $rs = $import->result_summary ?? [];
@@ -829,6 +916,7 @@ final class ProductImportProcessor
                 $seenSkuInFile,
                 $seenVariantSkuLowerInFile,
                 $variantMode,
+                $wooContext,
                 $rn,
                 $cells,
                 $created,
@@ -839,7 +927,7 @@ final class ProductImportProcessor
             );
         }
 
-        if ($variantMode) {
+        if ($variantMode || $import->isWooCommercePreset()) {
             $this->variantFinalizer->finalize(
                 $import,
                 $store,
@@ -954,25 +1042,30 @@ final class ProductImportProcessor
             'width' => trim((string) ($fields[ProductImportField::WIDTH] ?? '')) ?: null,
             'height' => trim((string) ($fields[ProductImportField::HEIGHT] ?? '')) ?: null,
         ], static fn ($v) => $v !== null && $v !== '');
+        $catalogMeta = array_merge(
+            $catalogMeta,
+            WooCommerceImportPreset::catalogUnitHints($import->column_mapping ?? [], $catalogMeta)
+        );
 
         $variantOptions = array_filter([
             'option_1' => trim((string) ($fields[ProductImportField::VARIANT_OPTION_1] ?? '')),
             'option_2' => trim((string) ($fields[ProductImportField::VARIANT_OPTION_2] ?? '')),
         ]);
 
-        $product = Product::query()
-            ->where('store_id', $store->id)
-            ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)])
-            ->first();
+        $product = ProductImportSourceIdentity::findProduct($store, $productSku, $row);
         $variantSku = $variantSkuDesired !== '' ? $variantSkuDesired : $productSku;
         $variantSku = $this->ensureUniqueVariantSku($variantSku, $store->id, $assignedVariantSkusLower, $product?->id);
 
         $performedBy = $import->created_by;
         $importId = (int) $import->id;
+        $stockPolicy = ProductImportStockPolicy::fromImport($import, $store);
+        $slugService = app(ProductImportSlugRedirectService::class);
+        $preferredSlug = trim((string) ($row['__woo_original_slug'] ?? ''));
 
         if (! $product) {
             $meta = $this->mergeMetaLayer([], $extras, $catalogMeta, $variantOptions, $stockAlert, $productCustom);
-            $slug = $this->uniqueProductSlug($store->id, $name);
+            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $store, $row);
+            $slug = $slugService->assignSlug($store, $name, null, $preferredSlug !== '' ? $preferredSlug : null);
 
             $brandName = trim((string) ($fields[ProductImportField::BRAND] ?? ''));
             $product = Product::query()->create([
@@ -983,12 +1076,14 @@ final class ProductImportProcessor
                 'description' => $description !== '' ? $description : null,
                 'base_price' => $basePrice,
                 'sku' => $productSku,
+                ...ProductImportSourceIdentity::productColumns($row),
                 'product_type' => $productType,
                 ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
                 'status' => $status,
                 'meta' => $meta,
             ]);
+            $slugService->record($store, $product, $import, $preferredSlug !== '' ? $preferredSlug : null, $slug);
 
             $this->syncTaxonomy($product, $fields, $taxonomyCache);
             $this->syncAttributeValues($store, $product, $attributeValues, $performedBy);
@@ -996,7 +1091,9 @@ final class ProductImportProcessor
             $variant = ProductVariant::query()->create([
                 'product_id' => $product->id,
                 'sku' => $variantSku,
+                ...ProductImportSourceIdentity::variantColumns($row),
                 'price' => $basePrice,
+                'compare_at_price' => SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::COMPARE_AT_PRICE] ?? ''),
                 'stock' => 0,
                 'stock_alert' => max(0, $stockAlert),
             ]);
@@ -1004,16 +1101,19 @@ final class ProductImportProcessor
 
             $this->mergeVariantCustomFields($variant, $variantCustom);
 
-            StockMovementRecorder::recordImport(
-                $store,
-                $product,
-                $variant,
-                null,
-                $stock,
-                $performedBy,
-                $importId,
-                'Imported catalog row'
-            );
+            if ($stockPolicy->shouldWriteStock(false)) {
+                StockMovementRecorder::recordImport(
+                    $store,
+                    $product,
+                    $variant,
+                    null,
+                    $stock,
+                    $performedBy,
+                    $importId,
+                    'Imported catalog row',
+                    $stockPolicy->location
+                );
+            }
 
             return [
                 'action' => 'created',
@@ -1023,31 +1123,38 @@ final class ProductImportProcessor
         }
 
         $meta = $this->mergeMetaLayer($product->meta ?? [], $extras, $catalogMeta, $variantOptions, $stockAlert, $productCustom);
+        $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $store, $row);
         $brandName = trim((string) ($fields[ProductImportField::BRAND] ?? ''));
         $brandId = $brandName !== '' ? $taxonomyCache->brandId($brandName) : null;
+        $keptSlug = (string) $product->slug;
 
         $product->update([
             'name' => $name,
-            'slug' => $this->uniqueProductSlug($store->id, $name, $product->id),
+            'slug' => $keptSlug,
             'description' => $description !== '' ? $description : $product->description,
             'base_price' => $basePrice,
             'sku' => $productSku,
+            ...ProductImportSourceIdentity::productColumns($row),
             'product_type' => $productType,
             ...ProductTypeBehavior::defaultColumnsFor($productType),
             'status' => $status,
             'brand_id' => $brandId ?? $product->brand_id,
             'meta' => $meta,
         ]);
+        $slugService->record($store, $product, $import, $preferredSlug !== '' ? $preferredSlug : null, $keptSlug);
 
         $this->syncTaxonomy($product, $fields, $taxonomyCache);
         $this->syncAttributeValues($store, $product, $attributeValues, $performedBy);
 
         $variant = $product->variants()->whereDoesntHave('options')->orderBy('id')->first();
+        $variantExisted = $variant !== null;
         if (! $variant) {
             $variant = ProductVariant::query()->create([
                 'product_id' => $product->id,
                 'sku' => $variantSku,
+                ...ProductImportSourceIdentity::variantColumns($row),
                 'price' => $basePrice,
+                'compare_at_price' => SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::COMPARE_AT_PRICE] ?? ''),
                 'stock' => 0,
                 'stock_alert' => max(0, $stockAlert),
             ]);
@@ -1057,23 +1164,28 @@ final class ProductImportProcessor
         $previousStock = (int) $variant->stock;
         $variant->update([
             'sku' => $variantSku,
+            ...ProductImportSourceIdentity::variantColumns($row),
             'price' => $basePrice,
+            'compare_at_price' => SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::COMPARE_AT_PRICE] ?? ''),
             'stock_alert' => max(0, $stockAlert),
         ]);
 
         $variant->refresh();
         $product->refresh();
 
-        StockMovementRecorder::recordImport(
-            $store,
-            $product,
-            $variant,
-            $previousStock,
-            $stock,
-            $performedBy,
-            $importId,
-            'Imported catalog row'
-        );
+        if ($stockPolicy->shouldWriteStock($variantExisted)) {
+            StockMovementRecorder::recordImport(
+                $store,
+                $product,
+                $variant,
+                $variantExisted ? $previousStock : null,
+                $stock,
+                $performedBy,
+                $importId,
+                'Imported catalog row',
+                $stockPolicy->location
+            );
+        }
 
         $variant->refresh();
         $this->mergeVariantCustomFields($variant, $variantCustom);
@@ -1214,6 +1326,51 @@ final class ProductImportProcessor
             }
         }
         $product->tags()->sync(array_values(array_unique($tagIds)));
+    }
+
+    /**
+     * @param  list<string>  $headers
+     * @return array{id_to_sku: array<string, string>, extra_attribute_headers: list<string>}
+     */
+    private function scanWooCommerceContext(ProductImport $import, array $headers): array
+    {
+        $state = is_array($import->import_state) ? $import->import_state : [];
+        if (isset($state['woo_id_to_sku']) && is_array($state['woo_id_to_sku'])) {
+            return [
+                'id_to_sku' => array_map('strval', $state['woo_id_to_sku']),
+                'extra_attribute_headers' => WooCommerceImportNormalizer::extraAttributeHeaders($headers),
+            ];
+        }
+
+        $path = Storage::disk($import->stored_disk)->path($import->stored_path);
+        $idHeader = WooCommerceImportNormalizer::headerNamed($headers, ['id']);
+        $skuHeader = WooCommerceImportNormalizer::headerNamed($headers, ['sku']);
+        $typeHeader = WooCommerceImportNormalizer::headerNamed($headers, ['type']);
+        $miniRows = [];
+        $this->reader->eachDataRow($path, $import->file_extension, function (array $cells) use (
+            $headers,
+            $idHeader,
+            $skuHeader,
+            $typeHeader,
+            &$miniRows
+        ): void {
+            $row = $this->rowMapper->cellsToKeyedRow($headers, $cells);
+            $miniRows[] = [
+                $idHeader => (string) ($row[$idHeader] ?? ''),
+                $skuHeader => (string) ($row[$skuHeader] ?? ''),
+                $typeHeader => (string) ($row[$typeHeader] ?? ''),
+            ];
+        });
+
+        $context = WooCommerceImportNormalizer::buildContext($headers, $miniRows, (int) $import->id);
+        $import->update([
+            'import_state' => array_merge(is_array($import->import_state) ? $import->import_state : [], [
+                'source_preset' => 'woocommerce',
+                'woo_id_to_sku' => $context['id_to_sku'],
+            ]),
+        ]);
+
+        return $context;
     }
 
     private function uniqueProductSlug(int $storeId, string $name, ?int $ignoreProductId = null): string

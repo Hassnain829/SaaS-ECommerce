@@ -20,9 +20,9 @@
     const stripe = stripeAccount
         ? window.Stripe(publishableKey, { stripeAccount: stripeAccount })
         : window.Stripe(publishableKey);
-    const elements = stripe.elements();
-    const card = elements.create('card');
-    card.mount('#eco-portal-card');
+    const elements = stripe.elements({ clientSecret: clientSecret });
+    const paymentElement = elements.create('payment');
+    paymentElement.mount('#eco-portal-card');
 
     const showError = (message) => {
         if (!errorBox) {
@@ -36,8 +36,12 @@
         button.disabled = true;
         showError('');
         try {
-            const result = await stripe.confirmCardPayment(clientSecret, {
-                payment_method: { card: card },
+            const result = await stripe.confirmPayment({
+                elements: elements,
+                redirect: 'if_required',
+                confirmParams: {
+                    return_url: window.location.href,
+                },
             });
             if (result.error) {
                 showError(result.error.message || 'Payment failed.');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\CheckoutConversionService;
 use App\Services\Payments\PaymentProviderManager;
+use App\Services\Payments\ProviderWebhookEventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +16,7 @@ class StripeWebhookController extends Controller
         Request $request,
         PaymentProviderManager $paymentProviderManager,
         CheckoutConversionService $conversionService,
+        ProviderWebhookEventService $webhookEvents,
         string $mode = 'test',
     ): JsonResponse {
         $mode = strtolower($mode);
@@ -36,11 +38,25 @@ class StripeWebhookController extends Controller
             return response()->json(['message' => 'Stripe webhook mode mismatch.'], 400);
         }
 
+        $claimed = $webhookEvents->claim(
+            'stripe',
+            (string) ($result->eventId ?: data_get($result->raw, 'id', '')),
+            $result->eventType,
+            $result->providerIntentId,
+            $result->raw,
+        );
+
+        if ($claimed === null) {
+            return response()->json(['received' => true, 'duplicate' => true]);
+        }
+
         match ($result->eventType) {
             'payment_intent.succeeded' => $conversionService->handleSucceededPayment($result),
             'payment_intent.payment_failed', 'payment_intent.canceled' => $conversionService->handleFailedPayment($result),
             default => null,
         };
+
+        $webhookEvents->markProcessed($claimed);
 
         return response()->json(['received' => true]);
     }

@@ -243,24 +243,9 @@ CSV;
         $this->assertSame(0, TaxSetting::query()->where('store_id', $store->id)->count());
     }
 
-    public function test_external_checkout_preserves_supplied_tax_even_when_product_is_not_taxable(): void
+    public function test_external_checkout_endpoint_no_longer_accepts_orders(): void
     {
         [$store, $token] = $this->tokenedStore('External Product Tax Preserve Store');
-        $store->taxSetting->update([
-            'enabled' => true,
-            'default_product_taxable' => false,
-            'prices_include_tax' => true,
-            'shipping_taxable' => true,
-        ]);
-        TaxRate::query()->create([
-            'store_id' => $store->id,
-            'country_code' => 'US',
-            'region_code' => 'TX',
-            'name' => 'Ignored Platform Rate',
-            'rate_percent' => '25.0000',
-            'priority' => 100,
-            'is_active' => true,
-        ]);
         $product = $this->product($store, ['is_taxable' => false, 'price' => 12, 'stock' => 5]);
         $variant = $product->variants()->firstOrFail();
 
@@ -274,17 +259,7 @@ CSV;
                     'grand_total' => 35.10,
                 ],
             ]))
-            ->assertCreated()
-            ->assertJsonPath('order.total', '35.10');
-
-        $this->assertDatabaseHas('orders', [
-            'store_id' => $store->id,
-            'tax' => 7.77,
-            'shipping' => 4.44,
-            'discount' => 1.11,
-            'grand_total' => 35.10,
-        ]);
-        $this->assertSame(0, OrderTaxLine::query()->where('store_id', $store->id)->count());
+            ->assertNotFound();
     }
 
     private function productCreatePayload(string $name, string $sku): array

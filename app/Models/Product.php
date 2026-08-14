@@ -27,6 +27,8 @@ class Product extends Model
         'description',
         'base_price',
         'sku',
+        'source_system',
+        'source_product_id',
         'product_type',
         'requires_shipping',
         'track_inventory',
@@ -133,5 +135,10 @@ class Product extends Model
     public function inventoryItems(): HasMany
     {
         return $this->hasMany(InventoryItem::class);
+    }
+
+    public function urlRedirects(): HasMany
+    {
+        return $this->hasMany(ProductUrlRedirect::class);
     }
 }

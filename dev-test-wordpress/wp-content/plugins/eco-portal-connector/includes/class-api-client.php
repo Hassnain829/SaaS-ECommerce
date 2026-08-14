@@ -8,7 +8,7 @@ if (! defined('ABSPATH')) {
 
 /**
  * Server-side client for the Eco Commerce portal APIs.
- * The developer storefront token never leaves WordPress PHP.
+ * The connection key never leaves WordPress PHP and is never printed into storefront HTML or JavaScript.
  */
 final class Eco_Portal_Api_Client
 {
@@ -30,25 +30,128 @@ final class Eco_Portal_Api_Client
     /**
      * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
      */
-    public function get_catalog(): array
+    public function get_health(): array
     {
-        return $this->request('GET', '/api/developer-storefront/catalog');
+        return $this->request('GET', '/api/v1/site/health');
     }
 
     /**
-     * Sync an order paid on this WordPress site into the portal.
-     *
      * @param  array<string, mixed>  $payload
      * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
      */
-    public function sync_external_order(array $payload, ?string $idempotency_key = null): array
+    public function report_diagnostics(array $payload): array
     {
-        $headers = [];
-        if ($idempotency_key !== null && $idempotency_key !== '') {
-            $headers['Idempotency-Key'] = $idempotency_key;
+        return $this->request('POST', '/api/v1/site/health', $payload);
+    }
+
+    /**
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function get_product(int $product_id, bool $force = false): array
+    {
+        if (! $force) {
+            $cached = Eco_Portal_Catalog_Cache::get('product', (string) $product_id);
+            if (is_array($cached)) {
+                return $cached;
+            }
         }
 
-        return $this->request('POST', '/api/v1/external/orders', $payload, $headers);
+        $result = $this->request('GET', '/api/v1/catalog/products/'.$product_id);
+        if ($result['ok']) {
+            Eco_Portal_Catalog_Cache::put('product', (string) $product_id, $result);
+            $version = is_array($result['data']['meta'] ?? null) ? (string) ($result['data']['meta']['catalog_version'] ?? '') : '';
+            Eco_Portal_Catalog_Cache::remember_version($version);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array<string, scalar>  $query
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function get_products(array $query = [], bool $force = false): array
+    {
+        $cache_key = wp_json_encode($query) ?: 'default';
+        if (! $force) {
+            $cached = Eco_Portal_Catalog_Cache::get('catalog', $cache_key);
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+
+        $result = $this->request('GET', '/api/v1/catalog/products', null, [], $query);
+        if ($result['ok']) {
+            Eco_Portal_Catalog_Cache::put('catalog', $cache_key, $result);
+            $version = is_array($result['data']['meta'] ?? null) ? (string) ($result['data']['meta']['catalog_version'] ?? '') : '';
+            Eco_Portal_Catalog_Cache::remember_version($version);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function get_categories(bool $force = false): array
+    {
+        if (! $force) {
+            $cached = Eco_Portal_Catalog_Cache::get('categories', 'all');
+            if (is_array($cached)) {
+                return $cached;
+            }
+        }
+
+        $result = $this->request('GET', '/api/v1/catalog/categories');
+        if ($result['ok']) {
+            Eco_Portal_Catalog_Cache::put('categories', 'all', $result);
+            $version = is_array($result['data']['meta'] ?? null) ? (string) ($result['data']['meta']['catalog_version'] ?? '') : '';
+            Eco_Portal_Catalog_Cache::remember_version($version);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Published catalog plus store identity from the versioned commerce API.
+     *
+     * @param  array<string, scalar>  $query
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function get_catalog(array $query = [], bool $force = false): array
+    {
+        $products = $this->get_products($query, $force);
+        if (! $products['ok'] || ! is_array($products['data'])) {
+            return $products;
+        }
+
+        $health = $this->get_health();
+        $categories = $this->get_categories($force);
+        $payload = $products['data'];
+        $rows = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+        $store = is_array($meta['store'] ?? null) ? $meta['store'] : [];
+        if ($store === [] && is_array($health['data']['store'] ?? null)) {
+            $store = $health['data']['store'];
+        }
+        if (! isset($store['platform_checkout']) && is_array($health['data']['readiness'] ?? null)) {
+            $store['platform_checkout'] = [
+                'ready' => ! empty($health['data']['readiness']['stripe']),
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'status' => (int) $products['status'],
+            'data' => [
+                'store' => $store,
+                'products' => $rows,
+                'categories' => is_array($categories['data']['data'] ?? null) ? $categories['data']['data'] : [],
+                'meta' => $meta,
+            ],
+            'message' => '',
+            'raw' => (string) $products['raw'],
+        ];
     }
 
     /**
@@ -57,7 +160,11 @@ final class Eco_Portal_Api_Client
      */
     public function create_checkout(array $payload): array
     {
-        return $this->request('POST', '/api/v1/checkout', $payload);
+        $key = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : bin2hex(random_bytes(16));
+
+        return $this->request('POST', '/api/v1/checkout', $payload, [
+            'Idempotency-Key' => $key,
+        ]);
     }
 
     /**
@@ -87,11 +194,41 @@ final class Eco_Portal_Api_Client
     }
 
     /**
-     * @param  array<string, mixed>|null  $body
-     * @param  array<string, string>  $extra_headers
      * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
      */
-    public function request(string $method, string $path, ?array $body = null, array $extra_headers = []): array
+    public function get_order_confirmation(string $token): array
+    {
+        return $this->request('GET', '/api/v1/orders/confirmation/'.rawurlencode($token));
+    }
+
+    /**
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function get_event_config(): array
+    {
+        return $this->request('GET', '/api/v1/site/events/config');
+    }
+
+    /**
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function get_catalog_events(string $after = ''): array
+    {
+        $query = [];
+        if ($after !== '') {
+            $query['after'] = $after;
+        }
+
+        return $this->request('GET', '/api/v1/catalog/events', null, [], $query);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $body
+     * @param  array<string, string>  $extra_headers
+     * @param  array<string, scalar>  $query
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function request(string $method, string $path, ?array $body = null, array $extra_headers = [], array $query = []): array
     {
         if (! $this->is_configured()) {
             return [
@@ -104,9 +241,15 @@ final class Eco_Portal_Api_Client
         }
 
         $url = $this->portal_base_url().$path;
+        $query = array_filter($query, static fn ($value): bool => $value !== '' && $value !== null);
+        if ($query !== []) {
+            $url .= (str_contains($path, '?') ? '&' : '?').http_build_query($query);
+        }
         $headers = array_merge([
             'Accept' => 'application/json',
             'Authorization' => 'Bearer '.$this->token(),
+            'X-Eco-Site-Url' => home_url(),
+            'X-Eco-Plugin-Version' => defined('ECO_PORTAL_CONNECTOR_VERSION') ? ECO_PORTAL_CONNECTOR_VERSION : '1.3.0',
         ], $extra_headers);
 
         $args = [

@@ -366,9 +366,6 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/settings/payments/mode', [PaymentSettingsController::class, 'updateMode'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.mode');
-    Route::post('/settings/payments/external-inventory', [PaymentSettingsController::class, 'updateExternalInventory'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.payments.external-inventory');
     Route::post('/settings/payments/platform-payment-mode', [PaymentSettingsController::class, 'updatePlatformPaymentMode'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.platform-payment-mode');

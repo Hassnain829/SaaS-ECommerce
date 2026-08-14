@@ -97,6 +97,29 @@
                 </div>
             @endif
 
+            @if (!empty($preview['woocommerce']))
+                <div class="mt-6 rounded-2xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3 text-sm text-[#14532D]">
+                    <p class="font-semibold text-[#166534]">WooCommerce catalog file</p>
+                    <p class="mt-1">This dry run treats the file as a WooCommerce product export. Product migration does not migrate orders, customers, or payments.</p>
+                    @php $ws = $preview['woocommerce_summary'] ?? []; @endphp
+                    <ul class="mt-2 grid gap-1 sm:grid-cols-2">
+                        <li>Simple products: <span class="font-semibold">{{ (int) ($ws['simple_rows'] ?? 0) }}</span></li>
+                        <li>Variable products: <span class="font-semibold">{{ (int) ($ws['variable_rows'] ?? 0) }}</span></li>
+                        <li>Variations: <span class="font-semibold">{{ (int) ($ws['variation_rows'] ?? 0) }}</span></li>
+                        <li>Unsupported types: <span class="font-semibold text-[#B42318]">{{ (int) ($ws['unsupported_rows'] ?? 0) }}</span></li>
+                    </ul>
+                    @if (!empty($ws['generated_skus']))
+                        <p class="mt-2 text-xs">Missing SKUs will be created as: {{ implode(', ', $ws['generated_skus']) }}</p>
+                    @endif
+                    @if ((int) ($ws['empty_stock_rows'] ?? 0) > 0)
+                        <p class="mt-2 text-xs">{{ (int) $ws['empty_stock_rows'] }} row{{ (int) $ws['empty_stock_rows'] === 1 ? '' : 's' }} have a blank Stock quantity. Those import as 0 available units. The In stock? column is saved as additional product detail and is not treated as a quantity.</p>
+                    @endif
+                    @if (!empty($ws['extra_option_groups']))
+                        <p class="mt-2 text-xs text-[#92400E]">This file has more option groups than this catalog supports (3). Extra attributes will be kept with the product and will not become extra variants: {{ implode(', ', $ws['extra_option_groups']) }}</p>
+                    @endif
+                </div>
+            @endif
+
             @if (!empty($preview['unmapped_headers']))
                 <div class="mt-6 rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
                     <p class="font-semibold">Extra columns we will keep with each product</p>
@@ -116,15 +139,52 @@
                 </div>
             @endif
 
-            <div class="mt-8 flex flex-wrap items-center gap-4">
-                <form method="post" action="{{ route('products.import.confirm', ['productImportId' => $import->id]) }}">
-                    @csrf
-                    <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">
-                        Confirm &amp; run import
-                    </button>
-                </form>
-                <a href="{{ route('products.import.mapping', ['productImportId' => $import->id]) }}" class="text-sm font-semibold text-[#475569] underline">Adjust mapping</a>
-                <a href="{{ route('products') }}" class="text-sm text-[#64748B]">Cancel</a>
+            <div class="mt-8 space-y-4">
+                @if (!empty($isWooCommerceImport))
+                    <form method="post" action="{{ route('products.import.confirm', ['productImportId' => $import->id]) }}" class="rounded-3xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+                        @csrf
+                        <h2 class="text-sm font-semibold text-[#0F172A]">Stock for this WooCommerce file</h2>
+                        <p class="mt-1 text-sm text-[#475569]">WooCommerce stock is store-wide. Choose where those quantities should live in this store, and whether to replace quantities you already have.</p>
+                        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <label for="location_id" class="mb-1 block text-sm font-medium text-[#334155]">Destination location</label>
+                                <select id="location_id" name="location_id" required class="w-full rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                    @foreach ($stockLocations ?? [] as $location)
+                                        <option value="{{ $location->id }}" @selected(old('location_id', $location->is_default ? $location->id : null) == $location->id)>
+                                            {{ $location->name }}{{ $location->is_default ? ' (main)' : '' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label for="stock_mode" class="mb-1 block text-sm font-medium text-[#334155]">Existing stock</label>
+                                <select id="stock_mode" name="stock_mode" required class="w-full rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#0F172A]">
+                                    <option value="replace" @selected(old('stock_mode', 'replace') === 'replace')">Replace with quantities from this file</option>
+                                    <option value="preserve" @selected(old('stock_mode') === 'preserve')">Keep current quantities on products that already exist</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-xs text-[#64748B]">New products always receive the file quantities. This import still does not migrate orders, customers, or payments.</p>
+                        <div class="mt-5 flex flex-wrap items-center gap-4">
+                            <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">
+                                Confirm &amp; run import
+                            </button>
+                            <a href="{{ route('products.import.mapping', ['productImportId' => $import->id]) }}" class="text-sm font-semibold text-[#475569] underline">Adjust mapping</a>
+                            <a href="{{ route('products') }}" class="text-sm text-[#64748B]">Cancel</a>
+                        </div>
+                    </form>
+                @else
+                    <div class="flex flex-wrap items-center gap-4">
+                        <form method="post" action="{{ route('products.import.confirm', ['productImportId' => $import->id]) }}">
+                            @csrf
+                            <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">
+                                Confirm &amp; run import
+                            </button>
+                        </form>
+                        <a href="{{ route('products.import.mapping', ['productImportId' => $import->id]) }}" class="text-sm font-semibold text-[#475569] underline">Adjust mapping</a>
+                        <a href="{{ route('products') }}" class="text-sm text-[#64748B]">Cancel</a>
+                    </div>
+                @endif
             </div>
         </div>
     </div>

@@ -52,12 +52,9 @@ class DeveloperStorefrontCatalogController extends Controller
                 'id' => $store->id,
                 'name' => $store->name,
                 'currency' => $store->currency,
-                'checkout_mode' => CheckoutMode::forStore($store),
+                'checkout_mode' => CheckoutMode::PLATFORM,
                 'platform_checkout' => [
                     'ready' => $platformReady,
-                ],
-                'external_checkout' => [
-                    'inventory_owner' => $channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
                 ],
             ],
             'products' => $products->map(fn (Product $p) => $this->serializeProduct($p)),

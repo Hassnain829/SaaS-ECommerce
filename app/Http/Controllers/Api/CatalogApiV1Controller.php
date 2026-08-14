@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\Payments\PaymentProviderManager;
+use App\Support\CatalogRevision;
+use App\Support\CheckoutMode;
 use App\Support\ProductTypeBehavior;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +19,7 @@ class CatalogApiV1Controller extends Controller
     {
         $store = $request->attributes->get('developerStorefrontStore');
         abort_unless($store, 401);
+        $store->stampDeveloperStorefrontLastSeen();
 
         $perPage = max(1, min(50, (int) $request->query('per_page', 15)));
         $search = trim((string) ($request->query('search', $request->query('q', ''))));
@@ -83,6 +87,14 @@ class CatalogApiV1Controller extends Controller
         }
 
         $products = $query->orderByDesc('id')->paginate($perPage)->withQueryString();
+        $revision = CatalogRevision::forStore($store);
+        $etag = '"'.$revision.'"';
+
+        if ($this->ifNoneMatch($request, $etag)) {
+            return response()->json(null, 304)
+                ->setEtag($revision, true)
+                ->header('Cache-Control', 'private, max-age=30, must-revalidate');
+        }
 
         return response()->json([
             'data' => $products->getCollection()->map(fn (Product $product): array => $this->serializeProduct($product))->values(),
@@ -91,14 +103,17 @@ class CatalogApiV1Controller extends Controller
                 'per_page' => $products->perPage(),
                 'total' => $products->total(),
                 'last_page' => $products->lastPage(),
+                'catalog_version' => $revision,
+                'store' => $this->serializeStore($store),
             ],
-        ]);
+        ])->setEtag($revision, true)->header('Cache-Control', 'private, max-age=30, must-revalidate');
     }
 
     public function product(Request $request, Product $product): JsonResponse
     {
         $store = $request->attributes->get('developerStorefrontStore');
         abort_unless($store && (int) $product->store_id === (int) $store->id && $product->status, 404);
+        $store->stampDeveloperStorefrontLastSeen();
 
         $product->load([
             'brand:id,name,slug,store_id',
@@ -110,7 +125,10 @@ class CatalogApiV1Controller extends Controller
             'productAttributes.terms:id,attribute_id,name,slug,swatch_value',
         ]);
 
-        return response()->json(['data' => $this->serializeProduct($product)]);
+        return response()->json(['data' => $this->serializeProduct($product), 'meta' => [
+            'catalog_version' => CatalogRevision::forStore($store),
+            'store' => $this->serializeStore($store),
+        ]])->header('Cache-Control', 'private, max-age=30, must-revalidate');
     }
 
     public function categories(Request $request): JsonResponse
@@ -125,7 +143,12 @@ class CatalogApiV1Controller extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'slug', 'parent_id']);
 
-        return response()->json(['data' => $categories]);
+        return response()->json([
+            'data' => $categories,
+            'meta' => [
+                'catalog_version' => CatalogRevision::forStore($store),
+            ],
+        ])->header('Cache-Control', 'private, max-age=30, must-revalidate');
     }
 
     public function brands(Request $request): JsonResponse
@@ -175,6 +198,7 @@ class CatalogApiV1Controller extends Controller
             'slug' => $product->slug,
             'description' => $product->description,
             'sku' => $product->sku,
+            'updated_at' => optional($product->updated_at)?->toIso8601String(),
             'base_price' => (string) $product->base_price,
             'product_type' => $product->product_type,
             'product_type_label' => ProductTypeBehavior::productTypeLabel($product->product_type, $customProductTypeLabel),
@@ -203,6 +227,11 @@ class CatalogApiV1Controller extends Controller
                 ])->values(),
             ])->filter(fn (array $row): bool => $row['id'] !== null)->values(),
             'additional_details' => $customFields,
+            'tags' => $product->tags->map(fn ($tag): array => [
+                'id' => $tag->id,
+                'name' => $tag->name,
+                'slug' => $tag->slug,
+            ])->values(),
             'images' => $product->images->filter(fn ($image) => $image->isReady())->map(fn ($image): array => [
                 'id' => $image->id,
                 'url' => asset('storage/'.$image->image_path),
@@ -217,9 +246,45 @@ class CatalogApiV1Controller extends Controller
                 'stock' => (int) $variant->stock,
                 'options' => $variant->options->map(fn ($option): array => [
                     'group' => $option->variationType?->name,
+                    'type' => $option->variationType?->name,
                     'value' => $option->value,
                 ])->values(),
             ])->values(),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeStore(mixed $store): array
+    {
+        $platformReady = false;
+        try {
+            $platformReady = app(PaymentProviderManager::class)->accountForCheckout($store) !== null;
+        } catch (\Throwable) {
+            $platformReady = false;
+        }
+
+        return [
+            'id' => $store->id,
+            'name' => $store->name,
+            'currency' => $store->currency,
+            'checkout_mode' => CheckoutMode::PLATFORM,
+            'platform_checkout' => [
+                'ready' => $platformReady,
+            ],
+        ];
+    }
+
+    private function ifNoneMatch(Request $request, string $etag): bool
+    {
+        $header = trim((string) $request->header('If-None-Match', ''));
+        if ($header === '') {
+            return false;
+        }
+
+        $normalized = trim(str_replace(['W/', '"'], '', $header));
+
+        return hash_equals(trim($etag, '"'), $normalized);
     }
 }

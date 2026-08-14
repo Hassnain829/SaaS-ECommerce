@@ -247,6 +247,17 @@ class CheckoutConversionService
 
                 $this->couponService->redeem($checkout, $order);
 
+                $confirmationToken = 'ordconf_'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(40));
+                $orderMeta = is_array($order->meta) ? $order->meta : [];
+                $orderMeta['storefront'] = array_merge(
+                    is_array($orderMeta['storefront'] ?? null) ? $orderMeta['storefront'] : [],
+                    ['confirmation_token_hash' => hash('sha256', $confirmationToken)]
+                );
+                $checkoutMeta = is_array($checkout->metadata) ? $checkout->metadata : [];
+                $checkoutMeta['storefront_confirmation_token'] = $confirmationToken;
+                $order->forceFill(['meta' => $orderMeta])->save();
+                $checkout->forceFill(['metadata' => $checkoutMeta])->save();
+
                 $reservations = InventoryReservation::query()
                     ->where('store_id', $checkout->store_id)
                     ->where('reference_type', 'checkout')
@@ -402,6 +413,20 @@ class CheckoutConversionService
                 return;
             }
 
+            $checkout = Checkout::query()
+                ->whereKey($paymentIntent->checkout_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (
+                ! $checkout
+                || $checkout->converted_order_id
+                || $checkout->status === Checkout::STATUS_CONVERTED
+                || in_array((string) $paymentIntent->status, ['succeeded', 'superseded'], true)
+            ) {
+                return;
+            }
+
             $paymentIntent->forceFill([
                 'status' => $failedStatus,
                 'response_payload' => $result->raw,
@@ -416,15 +441,6 @@ class CheckoutConversionService
                 'failure_message' => $result->failureMessage,
                 'response_payload' => $result->raw,
             ]);
-
-            $checkout = Checkout::query()
-                ->whereKey($paymentIntent->checkout_id)
-                ->lockForUpdate()
-                ->first();
-
-            if (! $checkout || $checkout->converted_order_id) {
-                return;
-            }
 
             $reservations = InventoryReservation::query()
                 ->where('store_id', $checkout->store_id)

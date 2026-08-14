@@ -73,6 +73,16 @@ class ProductImport extends Model
         return $this->hasMany(ProductImportRow::class, 'product_import_id');
     }
 
+    public function isWooCommercePreset(): bool
+    {
+        $state = is_array($this->import_state) ? $this->import_state : [];
+        if (($state['source_preset'] ?? '') === 'woocommerce') {
+            return true;
+        }
+
+        return \App\Support\Catalog\WooCommerceCsvDetector::detect($this->headers ?? []);
+    }
+
     /**
      * Lowercase trimmed status for comparisons (handles DB padding / casing quirks).
      */

@@ -33,7 +33,7 @@
                         <label for="import_file" class="mb-2 block text-sm font-medium text-[#334155]">Spreadsheet file</label>
                         <input id="import_file" name="file" type="file" accept=".csv,.txt,.xlsx" required
                                class="w-full rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-4 text-sm text-[#0F172A] file:mr-4 file:rounded-lg file:border-0 file:bg-brand file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-brand-hover">
-                        <p class="mt-2 text-xs text-[#64748B]">Accepted: CSV, TXT, XLSX. Max 15 MB. First row must be column headers. Each column name must be unique (duplicates, including different capitalization of the same name, are rejected so data does not collide).</p>
+                        <p class="mt-2 text-xs text-[#64748B]">Accepted: CSV, TXT, XLSX. Max 15 MB. First row must be column headers. Each column name must be unique (duplicates, including different capitalization of the same name, are rejected so data does not collide). WooCommerce product exports are detected automatically.</p>
                     </div>
                     <div class="flex flex-wrap items-center gap-4">
                         <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-hover">

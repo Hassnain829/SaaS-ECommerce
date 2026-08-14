@@ -1,34 +1,20 @@
-@php
-    use App\Support\CheckoutMode;
-@endphp
-
-@if($canManagePayments && ! $isPlatformMode)
-    <div class="pay-switch-banner">
-        @if($connectReady)
+@if($isPlatformMode)
+    @if($connectReady)
+        <div class="pay-switch-banner is-active">
             <div class="pay-switch-banner-copy">
-                <strong>Stripe is connected.</strong>
-                <span>You can make platform checkout the active mode for this store.</span>
+                <strong>Platform checkout is active.</strong>
+                <span>Customers pay through Stripe on this platform. Orders appear here after payment succeeds.</span>
             </div>
-            <form method="POST" action="{{ route('settings.payments.mode') }}" data-turbo="false">
-                @csrf
-                <input type="hidden" name="checkout_mode" value="{{ CheckoutMode::PLATFORM }}">
-                <button type="submit" class="pay-btn pay-btn-primary">Switch to platform checkout</button>
-            </form>
-        @else
-            <div class="pay-switch-banner-copy">
-                <strong>Finish Stripe setup below</strong>
-                <span>Platform checkout needs a connected Stripe account before you can turn it on.</span>
-            </div>
-        @endif
-    </div>
-@elseif($isPlatformMode)
-    <div class="pay-switch-banner is-active">
-        <div class="pay-switch-banner-copy">
-            <strong>Platform checkout is active.</strong>
-            <span>Customers pay through Stripe on this platform. Orders appear here after payment succeeds.</span>
+            <span class="pay-badge pay-badge-active">Active</span>
         </div>
-        <span class="pay-badge pay-badge-active">Active mode</span>
-    </div>
+    @else
+        <div class="pay-switch-banner">
+            <div class="pay-switch-banner-copy">
+                <strong>Checkout is blocked until Stripe is connected.</strong>
+                <span>Platform checkout is the only payment path. Connect Stripe below before customers can pay.</span>
+            </div>
+        </div>
+    @endif
 @endif
 
 <div class="pay-stripe-grid">
@@ -116,7 +102,7 @@
             <x-brand.stripe-logo variant="wordmark" :size="88" />
             <h4 class="pay-info-title">Connect security</h4>
         </div>
-        <p class="pay-info-copy">You connect through Stripe’s hosted onboarding. Secret keys are never pasted into this dashboard.</p>
+        <p class="pay-info-copy">You connect through Stripe’s hosted onboarding. Secret keys are never pasted into this dashboard. A Stripe account already used in WooCommerce cannot be reused here — connect from this portal.</p>
         <div class="pay-chip-row">
             <span class="pay-chip">Stripe Connect</span>
             <span class="pay-chip">Hosted onboarding</span>

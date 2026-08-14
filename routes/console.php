@@ -11,6 +11,10 @@ Artisan::command('inspire', function () {
 
 ProjectRetentionScheduleConfigurator::register();
 
+Schedule::command('connected-sites:deliver-catalog-events --limit=100')
+    ->everyMinute()
+    ->withoutOverlapping();
+
 Schedule::command('checkouts:expire-abandoned')
     ->everyFiveMinutes()
     ->withoutOverlapping();

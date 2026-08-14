@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\Tag;
 use App\Services\Inventory\InventoryAdjustmentService;
 use App\Services\SecurityLogRecorder;
+use App\Services\StorefrontCatalogEventRecorder;
 use App\Support\StorePermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -309,6 +310,8 @@ final class ProductBulkController extends Controller
             $product->categories()->syncWithoutDetaching($ids);
         }
 
+        app(StorefrontCatalogEventRecorder::class)->recordCatalogUpdated($store->id, $products->keys()->all());
+
         app(SecurityLogRecorder::class)->record(
             request(),
             'product_bulk_action',
@@ -336,6 +339,7 @@ final class ProductBulkController extends Controller
         }
 
         Product::query()->where('store_id', $store->id)->whereIn('id', $products->keys())->update(['brand_id' => $brandId]);
+        app(StorefrontCatalogEventRecorder::class)->recordCatalogUpdated($store->id, $products->keys()->all());
 
         app(SecurityLogRecorder::class)->record(
             request(),
@@ -368,6 +372,8 @@ final class ProductBulkController extends Controller
             $product->tags()->syncWithoutDetaching($ids);
         }
 
+        app(StorefrontCatalogEventRecorder::class)->recordCatalogUpdated($store->id, $products->keys()->all());
+
         app(SecurityLogRecorder::class)->record(
             request(),
             'product_bulk_action',
@@ -392,6 +398,7 @@ final class ProductBulkController extends Controller
 
         $bool = $status === 'published';
         Product::query()->where('store_id', $store->id)->whereIn('id', $products->keys())->update(['status' => $bool]);
+        app(StorefrontCatalogEventRecorder::class)->recordCatalogUpdated($store->id, $products->keys()->all());
 
         app(SecurityLogRecorder::class)->record(
             request(),

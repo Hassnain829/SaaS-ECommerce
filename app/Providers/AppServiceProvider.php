@@ -2,7 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\Category;
+use App\Models\Product;
+use App\Models\ProductImage;
+use App\Models\ProductVariant;
 use App\Models\Store;
+use App\Observers\StorefrontCatalogChangeObserver;
 use App\Services\Notifications\NotificationQueryService;
 use App\Support\Catalog\ProductImportQueue;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -30,6 +35,11 @@ class AppServiceProvider extends ServiceProvider
     {
         Config::set('product_import.queue_connection', ProductImportQueue::connection());
 
+        Product::observe(StorefrontCatalogChangeObserver::class);
+        ProductVariant::observe(StorefrontCatalogChangeObserver::class);
+        Category::observe(StorefrontCatalogChangeObserver::class);
+        ProductImage::observe(StorefrontCatalogChangeObserver::class);
+
         RateLimiter::for('api-dev-catalog', function (Request $request): Limit {
             $id = $request->attributes->get('developerStorefrontStore')?->id;
 
@@ -48,10 +58,10 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(90)->by($id ? 'store:'.$id : $request->ip());
         });
 
-        RateLimiter::for('api-dev-external', function (Request $request): Limit {
+        RateLimiter::for('api-dev-health', function (Request $request): Limit {
             $id = $request->attributes->get('developerStorefrontStore')?->id;
 
-            return Limit::perMinute(45)->by($id ? 'store:'.$id : $request->ip());
+            return Limit::perMinute(60)->by($id ? 'store:'.$id : $request->ip());
         });
 
         RateLimiter::for('fedex-registration', function (Request $request): Limit {

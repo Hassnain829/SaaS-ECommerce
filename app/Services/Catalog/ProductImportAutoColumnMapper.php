@@ -4,6 +4,7 @@ namespace App\Services\Catalog;
 
 use App\Catalog\ProductImportField;
 use App\Support\Catalog\ProductImportHeaderNormalizer;
+use App\Support\Catalog\WooCommerceCsvDetector;
 
 /**
  * Guesses column_mapping from spreadsheet headers so standard files can skip manual mapping.
@@ -57,6 +58,10 @@ final class ProductImportAutoColumnMapper
             }
         }
 
+        if (WooCommerceCsvDetector::detect($headers)) {
+            return WooCommerceImportPreset::apply($mapping, $headers);
+        }
+
         return $mapping;
     }
 
@@ -92,17 +97,17 @@ final class ProductImportAutoColumnMapper
             [ProductImportField::IMAGE_URLS, ['image urls', 'image url', 'images', 'photos', 'image links', 'gallery urls']],
             [ProductImportField::SHORT_DESCRIPTION, ['short description', 'summary', 'excerpt', 'subtitle']],
             [ProductImportField::DESCRIPTION, ['description', 'long description', 'details', 'body']],
-            [ProductImportField::BRAND, ['brand', 'brand name', 'manufacturer', 'vendor']],
+            [ProductImportField::BRAND, ['brands', 'brand', 'brand name', 'manufacturer', 'vendor']],
             [ProductImportField::CATEGORY, ['category', 'categories', 'taxonomy', 'collection', 'department']],
             [ProductImportField::TAGS, ['tags', 'keywords', 'labels']],
             [ProductImportField::PRODUCT_TYPE, ['product type', 'item type']],
             [ProductImportField::STATUS, ['status', 'publish status', 'listing status', 'product status']],
             [ProductImportField::VISIBILITY, ['visibility', 'catalog visibility']],
-            [ProductImportField::BARCODE, ['barcode', 'gtin', 'ean', 'upc', 'mpn', 'isbn']],
-            [ProductImportField::WEIGHT, ['weight', 'mass']],
-            [ProductImportField::LENGTH, ['length']],
-            [ProductImportField::WIDTH, ['width']],
-            [ProductImportField::HEIGHT, ['height']],
+            [ProductImportField::BARCODE, ['gtin, upc, ean, or isbn', 'barcode', 'gtin', 'ean', 'upc', 'mpn', 'isbn']],
+            [ProductImportField::WEIGHT, ['weight (lbs)', 'weight (lb)', 'weight lbs', 'weight (oz)', 'weight (kg)', 'weight kg', 'weight', 'mass']],
+            [ProductImportField::LENGTH, ['length (in)', 'length (inches)', 'length (cm)', 'length in', 'length cm', 'length']],
+            [ProductImportField::WIDTH, ['width (in)', 'width (inches)', 'width (cm)', 'width in', 'width cm', 'width']],
+            [ProductImportField::HEIGHT, ['height (in)', 'height (inches)', 'height (cm)', 'height in', 'height cm', 'height']],
             [ProductImportField::PRODUCT_NAME, ['product name', 'product title', 'item name', 'title', 'name', 'handle']],
             [ProductImportField::SKU, ['sku', 'product sku', 'item sku', 'product code', 'item code', 'article number', 'stock keeping unit']],
         ];
@@ -138,6 +143,17 @@ final class ProductImportAutoColumnMapper
             };
             if ($key !== null) {
                 $out[] = ['source' => $h, 'key' => $key, 'scope' => 'product'];
+                $used[$h] = true;
+            }
+        }
+
+        if (WooCommerceCsvDetector::detect($headers)) {
+            foreach (WooCommerceImportPreset::suggestCustomMappings($headers, $mapping) as $entry) {
+                if (isset($used[$entry['source']])) {
+                    continue;
+                }
+                $out[] = $entry;
+                $used[$entry['source']] = true;
             }
         }
 
