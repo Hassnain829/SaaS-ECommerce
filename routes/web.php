@@ -477,6 +477,12 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/developer-storefront', [DeveloperStorefrontSettingsController::class, 'show'])
         ->middleware('store.permission:developer_api.view')
         ->name('developer-storefront.settings');
+    Route::get('/developer-storefront/plugin', [DeveloperStorefrontSettingsController::class, 'downloadPlugin'])
+        ->middleware('store.permission:developer_api.view')
+        ->name('developer-storefront.plugin.download');
+    Route::patch('/developer-storefront/website', [DeveloperStorefrontSettingsController::class, 'updateWebsiteUrl'])
+        ->middleware('store.permission:developer_api.manage')
+        ->name('developer-storefront.website.update');
     Route::post('/developer-storefront/token', [DeveloperStorefrontSettingsController::class, 'generate'])
         ->middleware('store.permission:developer_api.manage')
         ->name('developer-storefront.token.generate');

@@ -13,6 +13,7 @@ use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
 use App\Models\Store;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Shipping\ShippingZoneMatcher;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +22,7 @@ class FulfillmentOriginRouter
     public function __construct(
         private readonly LocationServiceAreaMatcher $serviceAreaMatcher,
         private readonly InventorySyncService $inventorySyncService,
+        private readonly ShippingZoneMatcher $zoneMatcher,
     ) {}
 
     /**
@@ -97,27 +99,38 @@ class FulfillmentOriginRouter
         ?string $reservationReferenceType,
         int|string|null $reservationReferenceId,
     ): FulfillmentOriginResult {
-        $candidates = [];
+        $matching = [];
+        $countryWideDelivery = $this->zoneMatcher->hasCountryWideCoverage($store, $destinationAddress);
 
         foreach ($this->activeLocations($store)->where('fulfills_online_orders', true) as $location) {
-            $score = $this->serviceAreaMatcher->scoreAddress($location, $destinationAddress, $store);
+            $score = $this->serviceAreaMatcher->scoreAddress(
+                $location,
+                $destinationAddress,
+                $store,
+                $countryWideDelivery,
+            );
             if (! $score['matches']) {
                 continue;
             }
 
-            if (! $this->locationHasStock($location, $items, $reservationReferenceType, $reservationReferenceId)) {
-                continue;
-            }
-
-            $candidates[] = [
+            $matching[] = [
                 'location' => $location,
                 'score' => $score,
             ];
         }
 
+        $candidates = $this->stockedCandidates($matching, $items, $reservationReferenceType, $reservationReferenceId);
+
+        if ($candidates === [] && $matching !== []) {
+            $this->allocateUnlocatedCatalogStock($matching, $items);
+            $candidates = $this->stockedCandidates($matching, $items, $reservationReferenceType, $reservationReferenceId);
+        }
+
         if ($candidates === []) {
             throw ValidationException::withMessages([
-                'items' => 'No fulfillment location has enough stock for this address. Adjust inventory or choose another delivery option.',
+                'items' => $matching === []
+                    ? 'This address is outside the delivery area of your fulfillment locations. Choose another address or expand where you deliver.'
+                    : 'No fulfillment location has enough stock for this address. Adjust inventory or choose another delivery option.',
             ]);
         }
 
@@ -315,6 +328,102 @@ class FulfillmentOriginRouter
         }
 
         return 1;
+    }
+
+    /**
+     * @param  list<array{location: Location, score: array<string, mixed>}>  $matching
+     * @param  array<int, array{item: InventoryItem, quantity: int}>  $items
+     * @return list<array{location: Location, score: array<string, mixed>}>
+     */
+    private function stockedCandidates(
+        array $matching,
+        array $items,
+        ?string $reservationReferenceType,
+        int|string|null $reservationReferenceId,
+    ): array {
+        $candidates = [];
+
+        foreach ($matching as $row) {
+            if ($this->locationHasStock($row['location'], $items, $reservationReferenceType, $reservationReferenceId)) {
+                $candidates[] = $row;
+            }
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * When catalog stock exists but no location level holds it, place it on the
+     * best matching ship-from so a country-wide delivery area can check out.
+     *
+     * @param  list<array{location: Location, score: array<string, mixed>}>  $matching
+     * @param  array<int, array{item: InventoryItem, quantity: int}>  $items
+     */
+    private function allocateUnlocatedCatalogStock(array $matching, array $items): void
+    {
+        $target = $this->preferredMatchingLocation($matching);
+        if (! $target) {
+            return;
+        }
+
+        foreach ($items as $row) {
+            $item = $row['item'];
+            if (! $item->tracked) {
+                continue;
+            }
+
+            $stockAtAnyLocation = (int) InventoryLevel::query()
+                ->where('store_id', $item->store_id)
+                ->where('inventory_item_id', $item->id)
+                ->where('available', '>', 0)
+                ->sum('available');
+
+            if ($stockAtAnyLocation > 0) {
+                continue;
+            }
+
+            $item->loadMissing('variant');
+            $catalogStock = (int) ($item->variant?->stock ?? 0);
+            if ($catalogStock < (int) $row['quantity']) {
+                continue;
+            }
+
+            $level = $this->inventorySyncService->ensureLevel($item, $target, $catalogStock);
+            if ((int) $level->available < $catalogStock) {
+                $level->forceFill(['available' => $catalogStock])->save();
+            }
+        }
+    }
+
+    /**
+     * @param  list<array{location: Location, score: array<string, mixed>}>  $matching
+     */
+    private function preferredMatchingLocation(array $matching): ?Location
+    {
+        if ($matching === []) {
+            return null;
+        }
+
+        usort($matching, function (array $a, array $b): int {
+            /** @var Location $left */
+            $left = $a['location'];
+            /** @var Location $right */
+            $right = $b['location'];
+
+            return [
+                -1 * (int) $a['score']['score'],
+                (int) $left->routing_priority,
+                -1 * (int) $left->is_default,
+                (int) $left->id,
+            ] <=> [
+                -1 * (int) $b['score']['score'],
+                (int) $right->routing_priority,
+                -1 * (int) $right->is_default,
+                (int) $right->id,
+            ];
+        });
+
+        return $matching[0]['location'];
     }
 
     /**

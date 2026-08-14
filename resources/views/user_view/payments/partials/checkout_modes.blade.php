@@ -65,7 +65,7 @@
             <h3 class="payments-mode-card-title">External checkout</h3>
             <p class="payments-mode-card-copy">Payments happen on your existing website. Completed orders sync into this dashboard.</p>
             <div class="payments-mode-card-foot">
-                <a href="{{ route('developer-storefront.settings') }}" class="payments-btn payments-btn-secondary">Integration instructions</a>
+                <a href="{{ route('developer-storefront.settings') }}" class="payments-btn payments-btn-secondary">Website</a>
                 @if($canManagePayments)
                     @if($checkoutMode === CheckoutMode::EXTERNAL)
                         <span class="payments-btn payments-btn-current">Current mode</span>

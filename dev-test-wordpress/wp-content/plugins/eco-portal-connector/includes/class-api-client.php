@@ -52,6 +52,41 @@ final class Eco_Portal_Api_Client
     }
 
     /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function create_checkout(array $payload): array
+    {
+        return $this->request('POST', '/api/v1/checkout', $payload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function delivery_options(int $checkout_id, array $payload): array
+    {
+        return $this->request('POST', '/api/v1/checkout/'.$checkout_id.'/delivery-options', $payload);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function select_shipping_method(int $checkout_id, array $payload): array
+    {
+        return $this->request('POST', '/api/v1/checkout/'.$checkout_id.'/shipping-method', $payload);
+    }
+
+    /**
+     * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
+     */
+    public function confirm_checkout(int $checkout_id): array
+    {
+        return $this->request('POST', '/api/v1/checkout/'.$checkout_id.'/confirm');
+    }
+
+    /**
      * @param  array<string, mixed>|null  $body
      * @param  array<string, string>  $extra_headers
      * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}

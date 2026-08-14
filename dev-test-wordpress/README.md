@@ -1,14 +1,68 @@
 # Sample WordPress site — Eco Portal connector
 
-Deployable WordPress test site that connects to your Eco Commerce merchant portal.
+WordPress is the customer-facing website. The merchant portal owns products, inventory, orders, customers, and shipping.
 
-It is a **sample integration channel**, not the final production WordPress/WooCommerce plugin (that comes later in Phase 9G). Use it to prove:
+Use this connector to prove:
 
 1. Catalog loads from the portal
 2. Orders placed on WordPress appear in the merchant dashboard
-3. Inventory is deducted on the portal
+3. Inventory follows the store’s Payments setting for website orders
 
-The API token stays **server-side in WordPress** (never in browser JavaScript).
+The connection key stays **server-side in WordPress** (never in browser JavaScript). You do not need WooCommerce.
+
+---
+
+## Local XAMPP (this machine)
+
+If WordPress already runs in XAMPP, use that site. Do **not** retarget the Docker `.env` in this folder to XAMPP MySQL credentials. Docker settings (`8088`, user/password `wordpress` / `wordpress`) are only for the optional Docker sample below.
+
+Typical local pairing:
+
+| App | Address / credentials |
+|-----|------------------------|
+| Merchant portal | `http://127.0.0.1:8000` |
+| Existing XAMPP WordPress | `http://127.0.0.1:8080` |
+| XAMPP MySQL | user `root`, blank password, database `wordpress` |
+
+### 1. Get the plugin
+
+In the merchant portal: **Website → Connect your website → Download plugin**.
+
+Or zip the folder yourself:
+
+```bash
+cd dev-test-wordpress/wp-content/plugins
+zip -r eco-portal-connector.zip eco-portal-connector
+```
+
+### 2. Install it on the XAMPP site
+
+1. WordPress admin → **Plugins → Add New → Upload Plugin**
+2. Upload `eco-portal-connector.zip` and activate it
+3. Confirm pages exist: **Portal Shop**, **Portal Cart**, **Portal Checkout**
+
+### 3. Connect to the portal
+
+1. In the merchant portal, open **Website → Connect your website**
+2. Create a connection key and copy it once
+3. In WordPress: **Settings → Eco Portal**
+4. Set:
+   - **Portal website address** — `http://127.0.0.1:8000` (no trailing slash)
+   - **Connection key** — paste the key
+5. Click **Save connection**, then **Test connection**
+
+You should see the store name, product count, and store currency.
+
+### 4. Run a test order
+
+1. Open **Portal Shop** (`/portal-shop`)
+2. Add a product to the cart
+3. Checkout:
+   - **Platform checkout** (Payments → platform): enter the address, click **Get delivery rates**, choose a portal delivery method, then pay with Stripe. The order and stock update in this portal.
+   - **Website payment** (Payments → external): place the order on WordPress; it syncs into this portal.
+4. In the merchant portal, open **Orders**
+
+Shipping and labels stay in the portal after the order arrives.
 
 ---
 
@@ -16,9 +70,9 @@ The API token stays **server-side in WordPress** (never in browser JavaScript).
 
 | Piece | Purpose |
 |-------|---------|
-| `docker-compose.yml` | WordPress + MySQL on your server |
 | Plugin `eco-portal-connector` | Settings, shop, cart, checkout |
 | Pages auto-created | `/portal-shop`, `/portal-cart`, `/portal-checkout` |
+| `docker-compose.yml` | Optional WordPress + MySQL sample (not required for XAMPP) |
 
 ### API calls used today
 
@@ -27,11 +81,11 @@ The API token stays **server-side in WordPress** (never in browser JavaScript).
 | WordPress → Portal | `GET /api/developer-storefront/catalog` |
 | WordPress → Portal | `POST /api/v1/external/orders` |
 
-Auth: `Authorization: Bearer <developer storefront token>` from **Settings → Developer storefront** in the merchant portal.
+Auth: `Authorization: Bearer <connection key>` from **Website → Connect your website** in the merchant portal.
 
 ---
 
-## Option A — Docker (recommended)
+## Option B — Docker (optional sample)
 
 ### Requirements
 
@@ -70,16 +124,16 @@ Complete the WordPress install wizard (site title, admin user, password).
 
 ### 4. Connect to the portal
 
-1. In the **merchant portal**, open **Settings → Developer storefront**
-2. Generate a token (starts with `baa_dev_…`) and copy it once
+1. In the **merchant portal**, open **Website → Connect your website**
+2. Create a connection key (starts with `baa_dev_…`) and copy it once
 3. In WordPress: **Settings → Eco Portal**
 4. Set:
-   - **Portal base URL** — public URL of Laravel, no trailing slash  
+   - **Portal website address** — public URL of Laravel, no trailing slash  
      Example: `https://portal.yourdomain.com`
-   - **Developer storefront token** — paste the token
+   - **Connection key** — paste the key
 5. Click **Save connection**, then **Test connection**
 
-You should see the store name and product count.
+You should see the store name, product count, and store currency.
 
 ### 5. Run a test order
 
@@ -90,18 +144,9 @@ You should see the store name and product count.
 
 ---
 
-## Option B — Existing WordPress (no Docker)
+## Option C — Other existing WordPress (no Docker, not XAMPP)
 
-1. Zip the plugin folder:
-
-```bash
-cd dev-test-wordpress/wp-content/plugins
-zip -r eco-portal-connector.zip eco-portal-connector
-```
-
-2. In WordPress admin → **Plugins → Add New → Upload Plugin**
-3. Upload `eco-portal-connector.zip`, activate it
-4. Follow steps 4–5 from Option A
+Follow the **Local XAMPP** plugin upload steps, then use your real portal URL instead of `http://127.0.0.1:8000`.
 
 ---
 
@@ -125,7 +170,7 @@ Product images are loaded from the portal URL. If images fail to show, the porta
 Before testing:
 
 1. At least one **active product with variants** and stock
-2. Developer storefront token generated
+2. Connection key generated on **Website → Connect your website**
 3. Portal API routes reachable (no auth wall in front of `/api/*` that strips Bearer tokens)
 
 ---
@@ -144,10 +189,10 @@ Before testing:
 
 ## Security notes (test only)
 
-- Treat the developer token like a password
-- Do not commit tokens into git
+- Treat the connection key like a password
+- Do not commit keys into git
 - This sample simulates payment on WordPress; it does not process real cards
-- For production connectors, Phase 9 replaces the single developer token with scoped API keys
+- Shipping and labels stay in the merchant portal
 
 ---
 

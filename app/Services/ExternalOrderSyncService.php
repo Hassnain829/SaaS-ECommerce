@@ -801,6 +801,13 @@ class ExternalOrderSyncService
             ]);
         }
 
+        $storeCurrency = strtoupper(trim((string) ($store->currency ?? 'USD')));
+        if ($storeCurrency !== '' && $currency !== $storeCurrency) {
+            throw ValidationException::withMessages([
+                'currency_code' => 'Order currency must match the store currency ('.$storeCurrency.').',
+            ]);
+        }
+
         $shipping = is_array($payload['shipping'] ?? null) ? $payload['shipping'] : [];
         $shippingCurrency = $shipping['currency'] ?? $shipping['currency_code'] ?? null;
         if ($shippingCurrency !== null && trim((string) $shippingCurrency) !== '') {

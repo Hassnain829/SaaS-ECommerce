@@ -4,6 +4,7 @@ namespace App\Services\Fulfillment;
 
 use App\Models\Location;
 use App\Models\Store;
+use App\Support\CountryCode;
 
 class LocationServiceAreaMatcher
 {
@@ -19,7 +20,7 @@ class LocationServiceAreaMatcher
      * @param  array<string, mixed>  $address
      * @return array{matches: bool, score: int, matched_by: string, service_area: array<string, mixed>}
      */
-    public function scoreAddress(Location $location, array $address, Store $store): array
+    public function scoreAddress(Location $location, array $address, Store $store, bool $countryWideDelivery = false): array
     {
         $score = 0;
         $matchedBy = [];
@@ -27,7 +28,7 @@ class LocationServiceAreaMatcher
         $serviceRegions = $this->normalizedList($location->service_regions);
         $servicePostalPatterns = $this->normalizedList($location->service_postal_patterns, preserveWildcard: true);
 
-        $destinationCountry = $this->countryCode($address['country_code'] ?? $address['country'] ?? '');
+        $destinationCountry = CountryCode::fromAddress($address);
         $regionCandidates = $this->regionCandidates($address);
         $postalCode = $this->postalCode($address['postal_code'] ?? '');
 
@@ -41,22 +42,33 @@ class LocationServiceAreaMatcher
         }
 
         if ($serviceRegions !== []) {
-            if ($regionCandidates === [] || collect($regionCandidates)->intersect($serviceRegions)->isEmpty()) {
+            $regionMatches = $regionCandidates !== []
+                && collect($regionCandidates)->intersect($serviceRegions)->isNotEmpty();
+
+            if (! $regionMatches && ! $countryWideDelivery) {
                 return $this->noMatch($serviceCountries, $serviceRegions, $servicePostalPatterns);
             }
 
-            $score += 40;
-            $matchedBy[] = 'region';
+            if ($regionMatches) {
+                $score += 40;
+                $matchedBy[] = 'region';
+            } elseif ($countryWideDelivery) {
+                $matchedBy[] = 'country_wide_zone';
+            }
         }
 
         if ($servicePostalPatterns !== []) {
             $postalMatch = $this->postalMatch($postalCode, $servicePostalPatterns);
-            if ($postalMatch === null) {
+            if ($postalMatch === null && ! $countryWideDelivery) {
                 return $this->noMatch($serviceCountries, $serviceRegions, $servicePostalPatterns);
             }
 
-            $score += $postalMatch === 'exact' ? 100 : 90;
-            $matchedBy[] = $postalMatch === 'exact' ? 'postal_exact' : 'postal_prefix';
+            if ($postalMatch !== null) {
+                $score += $postalMatch === 'exact' ? 100 : 90;
+                $matchedBy[] = $postalMatch === 'exact' ? 'postal_exact' : 'postal_prefix';
+            } elseif ($countryWideDelivery) {
+                $matchedBy[] = 'country_wide_zone';
+            }
         }
 
         if ($location->is_default) {
@@ -86,7 +98,7 @@ class LocationServiceAreaMatcher
     private function serviceCountries(Location $location, Store $store): array
     {
         $countries = collect($this->normalizedList($location->service_countries))
-            ->map(fn (string $country): string => $this->countryCode($country))
+            ->map(fn (string $country): string => CountryCode::normalize($country))
             ->filter()
             ->unique()
             ->values()
@@ -96,7 +108,7 @@ class LocationServiceAreaMatcher
             return $countries;
         }
 
-        $fallback = $this->countryCode($location->country_code ?: $this->storeCountryCode($store));
+        $fallback = CountryCode::normalize($location->country_code ?: $this->storeCountryCode($store));
 
         return $fallback !== '' ? [$fallback] : [];
     }
@@ -170,25 +182,11 @@ class LocationServiceAreaMatcher
         return strtoupper(str_replace(' ', '', trim((string) $value)));
     }
 
-    private function countryCode(mixed $country): string
-    {
-        $country = strtoupper(trim((string) $country));
-
-        return match ($country) {
-            'UNITED STATES', 'UNITED STATES OF AMERICA', 'USA' => 'US',
-            'UNITED KINGDOM', 'UK' => 'GB',
-            'CANADA' => 'CA',
-            'PAKISTAN' => 'PK',
-            'UNITED ARAB EMIRATES', 'UAE' => 'AE',
-            default => strlen($country) === 2 ? $country : '',
-        };
-    }
-
     private function storeCountryCode(Store $store): string
     {
         $settings = is_array($store->settings) ? $store->settings : [];
         foreach (['country_code', 'business_country_code', 'store_country_code', 'primary_market'] as $key) {
-            $country = $this->countryCode($settings[$key] ?? '');
+            $country = CountryCode::normalize($settings[$key] ?? '');
             if ($country !== '') {
                 return $country;
             }

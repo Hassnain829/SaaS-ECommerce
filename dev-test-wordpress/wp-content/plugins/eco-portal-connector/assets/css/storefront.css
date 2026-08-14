@@ -252,6 +252,37 @@
   border: 1px solid #b2ddff;
 }
 
+.eco-portal-rates {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.eco-portal-rate {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  border: 1px solid var(--eco-border);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  background: #fff;
+}
+
+.eco-portal-rate em {
+  display: block;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--eco-accent-dark);
+}
+
+.eco-portal-card-element {
+  border: 1px solid var(--eco-border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #fff;
+  margin: 0.75rem 0;
+}
+
 @media (max-width: 800px) {
   .eco-portal__checkout-layout,
   .eco-portal__header {

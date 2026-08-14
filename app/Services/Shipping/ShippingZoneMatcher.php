@@ -4,6 +4,7 @@ namespace App\Services\Shipping;
 
 use App\Models\ShippingZone;
 use App\Models\Store;
+use App\Support\CountryCode;
 use Illuminate\Support\Collection;
 
 class ShippingZoneMatcher
@@ -32,6 +33,25 @@ class ShippingZoneMatcher
                 ];
             })
             ->values();
+    }
+
+    /**
+     * True when an active delivery area covers this address for the whole
+     * selected country (no state or ZIP rules).
+     *
+     * @param  array<string, mixed>  $address
+     */
+    public function hasCountryWideCoverage(Store $store, array $address): bool
+    {
+        return $this->matchingZones($store, $address)->contains(
+            fn (ShippingZone $zone): bool => $this->isCountryWide($zone)
+        );
+    }
+
+    public function isCountryWide(ShippingZone $zone): bool
+    {
+        return collect($zone->regions)->filter(fn ($region): bool => filled($region))->isEmpty()
+            && collect($zone->postal_patterns)->filter(fn ($pattern): bool => filled($pattern))->isEmpty();
     }
 
     /**
@@ -73,7 +93,7 @@ class ShippingZoneMatcher
     private function matchesCountry(ShippingZone $zone, array $address): bool
     {
         $countries = collect($zone->countries)
-            ->map(fn ($country): string => $this->countryCode($country))
+            ->map(fn ($country): string => CountryCode::normalize($country) ?: $this->normalized($country))
             ->filter()
             ->values();
 
@@ -81,7 +101,7 @@ class ShippingZoneMatcher
             return true;
         }
 
-        $country = $this->countryCode($address['country_code'] ?? $address['country'] ?? null);
+        $country = CountryCode::fromAddress($address);
 
         return $country !== '' && $countries->contains($country);
     }
@@ -238,19 +258,6 @@ class ShippingZoneMatcher
         $regex = '/^'.str_replace('\*', '.*', preg_quote($pattern, '/')).'$/';
 
         return (bool) preg_match($regex, $postalCode);
-    }
-
-    private function countryCode(mixed $country): string
-    {
-        $country = $this->normalized($country);
-
-        return match ($country) {
-            'UNITED STATES', 'UNITED STATES OF AMERICA', 'USA' => 'US',
-            'UNITED KINGDOM', 'UK' => 'GB',
-            'CANADA' => 'CA',
-            'PAKISTAN' => 'PK',
-            default => $country,
-        };
     }
 
     private function normalized(mixed $value): string

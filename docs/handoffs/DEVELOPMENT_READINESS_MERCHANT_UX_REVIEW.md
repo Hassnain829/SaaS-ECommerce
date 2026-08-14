@@ -135,16 +135,17 @@ The product list opens a modal editor even though the direct product workspace i
 
 **Acceptance:** Fresh install succeeds and the full suite passes with zero failures.
 
-#### DR-05 — Production connected-channel foundation
+#### DR-05 — Merchant WordPress website connection
 
-- Replace the single developer token with store-scoped API credentials and explicit scopes.
-- Add idempotency keys for external order/customer writes.
-- Add signed outbound webhooks with retry history and delivery diagnostics.
-- Add an event outbox so external calls are asynchronous and auditable.
-- Build a merchant “Connected sites” hub with connection name, status, last sync, credential rotation, and setup instructions.
-- Harden the Cuba proof integration against stale catalog data and duplicate product/variant mappings.
+The portal is the commerce system. WordPress is only the customer-facing website. Do not treat Phase 9 API keys/webhooks or WooCommerce import as this ticket.
 
-**Acceptance:** A merchant can connect a site without editing `.env`, rotate access safely, see connection health, and retry failed deliveries without duplicate orders.
+- Rebuild **Test storefront** into a guided **Website / Connect your website** workspace (WordPress-first stepper).
+- Keep `dev-test-wordpress` as the primary connect path and `dev-test-storefront` in Advanced details on the same connection key.
+- Let merchants download the WordPress plugin, create/rotate/revoke a connection key, save an optional website URL, and see last catalog-request health.
+- Bind WordPress checkout to the store currency and reject external orders whose currency does not match the store.
+- Keep stock, customers, and fulfillment on existing portal logic. Do not invent WordPress shipment posting.
+
+**Acceptance:** A non-technical merchant can finish the on-page WordPress stepper without reading API docs. The first screen is the WordPress guide, not React/API tiles. `dev-test-storefront` remains available under Advanced details. Rotate/revoke still works. WooCommerce and Phase 9 remain out of scope.
 
 #### DR-06 — Run end-to-end merchant acceptance
 

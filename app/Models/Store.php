@@ -30,6 +30,14 @@ class Store extends Model
         self::ROLE_STAFF,
     ];
 
+    public const WEBSITE_NOT_STARTED = 'not_started';
+
+    public const WEBSITE_WAITING = 'waiting';
+
+    public const WEBSITE_CONNECTED = 'connected';
+
+    public const WEBSITE_DISCONNECTED = 'disconnected';
+
     protected $fillable = [
         'user_id',
         'name',
@@ -47,6 +55,7 @@ class Store extends Model
         'settings' => 'array',
         'onboarding_completed' => 'boolean',
         'developer_storefront_token_created_at' => 'datetime',
+        'developer_storefront_last_seen_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -298,6 +307,40 @@ class Store extends Model
     public function hasDeveloperStorefrontToken(): bool
     {
         return filled($this->developer_storefront_token_hash);
+    }
+
+    public function connectedWebsiteUrl(): ?string
+    {
+        $url = data_get($this->settings, 'connected_website_url');
+        $url = is_string($url) ? trim($url) : '';
+
+        return $url !== '' ? $url : null;
+    }
+
+    public function websiteConnectionState(): string
+    {
+        if (! $this->hasDeveloperStorefrontToken()) {
+            return $this->developer_storefront_last_seen_at
+                ? self::WEBSITE_DISCONNECTED
+                : self::WEBSITE_NOT_STARTED;
+        }
+
+        return $this->developer_storefront_last_seen_at
+            ? self::WEBSITE_CONNECTED
+            : self::WEBSITE_WAITING;
+    }
+
+    public function stampDeveloperStorefrontLastSeen(): void
+    {
+        if (! Schema::hasColumn($this->getTable(), 'developer_storefront_last_seen_at')) {
+            return;
+        }
+
+        $seenAt = now();
+        static::query()->whereKey($this->id)->update([
+            'developer_storefront_last_seen_at' => $seenAt,
+        ]);
+        $this->developer_storefront_last_seen_at = $seenAt;
     }
 
     public function userHasPermission(User|int|null $user, string $permission): bool

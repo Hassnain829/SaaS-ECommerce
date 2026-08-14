@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Eco Portal Connector
  * Description: Sample WordPress storefront that pulls catalog from the Eco Commerce SaaS portal and syncs orders back for integration testing.
- * Version: 1.0.0
+ * Version: 1.1.1
  * Author: Eco Commerce
  * Requires at least: 6.0
  * Requires PHP: 8.0
@@ -15,7 +15,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('ECO_PORTAL_CONNECTOR_VERSION', '1.0.0');
+define('ECO_PORTAL_CONNECTOR_VERSION', '1.1.1');
 define('ECO_PORTAL_CONNECTOR_FILE', __FILE__);
 define('ECO_PORTAL_CONNECTOR_PATH', plugin_dir_path(__FILE__));
 define('ECO_PORTAL_CONNECTOR_URL', plugin_dir_url(__FILE__));

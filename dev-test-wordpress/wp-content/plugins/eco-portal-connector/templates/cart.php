@@ -9,8 +9,10 @@ if (! defined('ABSPATH')) {
 /** @var array<string, array<string, mixed>> $cart */
 /** @var string $checkout_url */
 /** @var string $shop_url */
+/** @var string $currency */
 
 $subtotal = Eco_Portal_Storefront::cart_subtotal($cart);
+$currency = $currency ?? Eco_Portal_Storefront::store_currency();
 ?>
 <div class="eco-portal">
     <header class="eco-portal__header">
@@ -49,18 +51,18 @@ $subtotal = Eco_Portal_Storefront::cart_subtotal($cart);
                                 <strong><?php echo esc_html((string) ($line['product_name'] ?? 'Product')); ?></strong>
                                 <div class="eco-portal__meta"><?php echo esc_html((string) ($line['variant_label'] ?? 'Default')); ?></div>
                             </td>
-                            <td><?php echo esc_html($unit); ?></td>
+                            <td><?php echo esc_html(Eco_Portal_Storefront::format_money($unit, $currency)); ?></td>
                             <td>
                                 <input type="number" name="quantity[<?php echo esc_attr((string) $key); ?>]" min="0" max="999" value="<?php echo esc_attr((string) $qty); ?>" />
                             </td>
-                            <td><?php echo esc_html($line_total); ?></td>
+                            <td><?php echo esc_html(Eco_Portal_Storefront::format_money($line_total, $currency)); ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
 
             <div class="eco-portal__actions">
-                <p><strong>Subtotal:</strong> <?php echo esc_html($subtotal); ?></p>
+                <p><strong>Subtotal:</strong> <?php echo esc_html(Eco_Portal_Storefront::format_money($subtotal, $currency)); ?></p>
                 <div class="eco-portal__action-buttons">
                     <button type="submit" name="cart_action" value="update" class="eco-portal__button eco-portal__button--secondary">Update cart</button>
                     <button type="submit" name="cart_action" value="clear" class="eco-portal__button eco-portal__button--secondary">Clear cart</button>

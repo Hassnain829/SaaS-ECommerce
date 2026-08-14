@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Services\Carriers\FedEx\Operations\FedExCheckoutPackageBuilder;
 use App\Services\Carriers\FedEx\Operations\FedExCheckoutRateResolver;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
+use App\Support\CountryCode;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\Money\DecimalString;
 use Illuminate\Validation\ValidationException;
@@ -306,14 +307,14 @@ class DeliveryOptionService
         }
 
         $countries = collect($account->supported_countries)
-            ->map(fn ($country): string => $this->countryCode($country))
+            ->map(fn ($country): string => CountryCode::normalize($country) ?: strtoupper(trim((string) $country)))
             ->filter();
 
         if ($countries->isEmpty()) {
             return true;
         }
 
-        $country = $this->countryCode($destination['country_code'] ?? $destination['country'] ?? '');
+        $country = CountryCode::fromAddress($destination);
 
         return $country !== '' && $countries->contains($country);
     }
@@ -388,16 +389,4 @@ class DeliveryOptionService
         return CurrencyPrecision::roundMajor('0', $currencyCode);
     }
 
-    private function countryCode(mixed $country): string
-    {
-        $country = strtoupper(trim((string) $country));
-
-        return match ($country) {
-            'UNITED STATES', 'UNITED STATES OF AMERICA', 'USA' => 'US',
-            'UNITED KINGDOM', 'UK' => 'GB',
-            'CANADA' => 'CA',
-            'PAKISTAN' => 'PK',
-            default => $country,
-        };
-    }
 }

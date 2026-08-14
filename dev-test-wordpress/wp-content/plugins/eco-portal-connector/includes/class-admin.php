@@ -64,7 +64,7 @@ final class Eco_Portal_Admin
         ?>
         <div class="wrap">
             <h1>Eco Portal Connector</h1>
-            <p>Connect this WordPress site to your Eco Commerce merchant portal for integration testing.</p>
+            <p>Sell products from your merchant portal on this WordPress site. You do not need WooCommerce.</p>
 
             <?php if ($test_message !== '') : ?>
                 <div class="notice notice-<?php echo $test_ok ? 'success' : 'error'; ?> is-dismissible">
@@ -76,7 +76,7 @@ final class Eco_Portal_Admin
                 <?php settings_fields('eco_portal_connector'); ?>
                 <table class="form-table" role="presentation">
                     <tr>
-                        <th scope="row"><label for="eco_portal_base_url">Portal base URL</label></th>
+                        <th scope="row"><label for="eco_portal_base_url">Portal website address</label></th>
                         <td>
                             <input
                                 name="eco_portal_base_url"
@@ -84,17 +84,17 @@ final class Eco_Portal_Admin
                                 type="url"
                                 class="regular-text"
                                 value="<?php echo esc_attr($base_url); ?>"
-                                placeholder="https://your-portal.example.com"
+                                placeholder="http://127.0.0.1:8000"
                                 required
                             />
                             <p class="description">
-                                Public URL of the Laravel portal (no trailing slash). Example:
-                                <code>https://portal.yourdomain.com</code>
+                                Address of your merchant portal, with no trailing slash. Local example:
+                                <code>http://127.0.0.1:8000</code>
                             </p>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="eco_portal_token">Developer storefront token</label></th>
+                        <th scope="row"><label for="eco_portal_token">Connection key</label></th>
                         <td>
                             <input
                                 name="eco_portal_token"
@@ -106,8 +106,8 @@ final class Eco_Portal_Admin
                                 required
                             />
                             <p class="description">
-                                From the merchant dashboard: <strong>Settings → Developer storefront</strong>.
-                                Generate a token and paste it here. It is stored in WordPress and used only on the server.
+                                From the merchant portal: <strong>Website → Connect your website</strong>.
+                                Create a connection key and paste it here. It stays on this WordPress server.
                             </p>
                         </td>
                     </tr>
@@ -150,13 +150,13 @@ final class Eco_Portal_Admin
                 </li>
             </ul>
 
-            <h2>How orders flow</h2>
+            <h2>How this works</h2>
             <ol>
-                <li>This site loads products from <code>GET /api/developer-storefront/catalog</code>.</li>
-                <li>Checkout posts paid orders to <code>POST /api/v1/external/orders</code>.</li>
-                <li>Orders appear in the merchant portal with source <code>external_checkout</code>.</li>
+                <li>This site loads products from your merchant portal.</li>
+                <li>If the store uses platform checkout, this site loads delivery rates and Stripe payment from the portal.</li>
+                <li>If the store uses website payment, checkout stays on WordPress and the finished order is sent to the portal.</li>
+                <li>The order, customer, and stock activity appear in the merchant portal. Shipping labels stay there.</li>
             </ol>
-            <p><em>This is a test connector, not the final production WordPress/WooCommerce plugin.</em></p>
         </div>
         <?php
     }
@@ -175,7 +175,8 @@ final class Eco_Portal_Admin
         if ($result['ok'] && is_array($result['data'])) {
             $store_name = (string) ($result['data']['store']['name'] ?? 'store');
             $count = is_array($result['data']['products'] ?? null) ? count($result['data']['products']) : 0;
-            $message = "Connected to \"{$store_name}\" ({$count} products).";
+            $currency = Eco_Portal_Storefront::remember_store_currency((string) ($result['data']['store']['currency'] ?? ''));
+            $message = "Connected to \"{$store_name}\" ({$count} products, {$currency}).";
             $ok = '1';
         } else {
             $message = $result['message'] !== '' ? $result['message'] : 'Connection failed.';

@@ -8,6 +8,8 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Inventory\InventoryReservationService;
+use App\Services\Payments\PaymentProviderManager;
+use App\Support\CheckoutMode;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\OrderEventRecorder;
 use App\Services\OrderNumberGenerator;
@@ -25,6 +27,8 @@ class DeveloperStorefrontCatalogController extends Controller
         $store = $request->attributes->get('developerStorefrontStore');
         $store = $channelOwnership->ensureChannelsStructure($store);
 
+        $store->stampDeveloperStorefrontLastSeen();
+
         $products = Product::query()
             ->where('store_id', $store->id)
             ->where('status', true)
@@ -36,11 +40,22 @@ class DeveloperStorefrontCatalogController extends Controller
             ->orderByDesc('id')
             ->get();
 
+        $platformReady = false;
+        try {
+            $platformReady = app(PaymentProviderManager::class)->accountForCheckout($store) !== null;
+        } catch (\Throwable) {
+            $platformReady = false;
+        }
+
         return response()->json([
             'store' => [
                 'id' => $store->id,
                 'name' => $store->name,
                 'currency' => $store->currency,
+                'checkout_mode' => CheckoutMode::forStore($store),
+                'platform_checkout' => [
+                    'ready' => $platformReady,
+                ],
                 'external_checkout' => [
                     'inventory_owner' => $channelOwnership->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL),
                 ],

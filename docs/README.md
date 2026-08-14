@@ -9,7 +9,6 @@ Runtime application code lives in `app/`, `routes/`, `resources/`, and `database
 3. [`canonical/README.md`](canonical/README.md) — root enterprise docs index
 4. [`architecture/`](architecture/) — carrier structure and refactoring boundaries
 5. [`operations/`](operations/) — security, release, retention
-6. [`plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md) — approved Phase 9 plan (**not complete**)
 
 Also useful:
 
@@ -28,7 +27,7 @@ Also useful:
 | `cleanup/` | Active cleanup decision log + source archive guide |
 | `fedex/` | Active FedEx Model A documentation |
 | `operations/` | Security hardening, release checklist, retention |
-| `plans/` | Approved execution plans (Phase 9) |
+| `plans/` | Historical execution plans — not current implementation authority |
 | `archive/` | Historical reports only — **non-authoritative**; excluded from Cursor and source exports |
 
 Do not treat `docs/archive/**` as current instructions. Prefer source code and `docs/current/PROJECT_STATE.md` on conflict.

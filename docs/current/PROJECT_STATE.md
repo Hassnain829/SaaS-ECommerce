@@ -55,17 +55,31 @@ Current work priority:
 3. Truthful onboarding
 4. Password recovery, email verification, legal links, POST logout, and password toggles
 5. Full-suite recovery
-6. Production connected-channel foundation
+6. Merchant WordPress website connection (DR-05) — guided Website workspace on the current store connection key and catalog/order APIs (not Phase 9)
 7. Owner/manager/staff and two-store acceptance
 8. Actionable settings
 9. Customer identity editing
 10. Real or hidden analytics/admin surfaces
 
-## Phase 9
+## Connected websites (current code)
 
-Approved plan: [`docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](../plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)
+The merchant path is **Website → Connect your website**. WordPress is the customer-facing shop. Catalog, orders, customers, and shipping stay in this portal. WooCommerce import and Phase 9 API keys/webhooks are out of this pass.
 
-Cohesive Phase 9 connected-channel product (scoped keys, outbox, webhooks, connected-sites hub) is **not complete**. The developer storefront remains a simulator.
+What exists now:
+
+- One hashed connection key per store (`stores.developer_storefront_token_hash`), generated from the Website workspace
+- Optional saved website URL (`stores.settings.connected_website_url`) and last catalog request (`stores.developer_storefront_last_seen_at`)
+- Catalog read: `GET /api/developer-storefront/catalog` (store-scoped, includes store currency; stamps last-seen)
+- External order write: `POST /api/v1/external/orders` (variant-backed, store-scoped, optional Idempotency-Key; currency must match the store)
+- External shipment write: `POST /api/v1/external/shipments` (other external systems — not the WordPress plugin)
+- WordPress plugin in `dev-test-wordpress/` (primary merchant connect path; plugin zip download on the Website page)
+- Local React simulator in `dev-test-storefront/` (Advanced details only; same connection key)
+
+What this pass does not include:
+
+- Phase 9 scoped API keys, outbound webhooks, or event outbox
+- Import of an existing WooCommerce/WordPress catalog into this portal
+- WordPress shipment posting or carrier controls on the Website page
 
 ## Deferred from the readiness gate
 
@@ -87,7 +101,6 @@ Do not claim the suite is green without a successful run. DR-04 evidence on 2026
 - [`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`](../handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md)
 - [`docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md`](../fedex/MODEL_A_INTEGRATOR_PROVIDER.md)
 - [`docs/architecture/CARRIER_CODE_STRUCTURE.md`](../architecture/CARRIER_CODE_STRUCTURE.md)
-- [`docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](../plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)
 - [`docs/operations/RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)
 
 ## Documentation authority
