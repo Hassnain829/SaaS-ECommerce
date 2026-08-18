@@ -158,12 +158,10 @@ final class Eco_Portal_Api_Client
      * @param  array<string, mixed>  $payload
      * @return array{ok:bool,status:int,data:mixed,message:string,raw:string}
      */
-    public function create_checkout(array $payload): array
+    public function create_checkout(array $payload, string $idempotency_key): array
     {
-        $key = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : bin2hex(random_bytes(16));
-
         return $this->request('POST', '/api/v1/checkout', $payload, [
-            'Idempotency-Key' => $key,
+            'Idempotency-Key' => $idempotency_key,
         ]);
     }
 
@@ -249,7 +247,7 @@ final class Eco_Portal_Api_Client
             'Accept' => 'application/json',
             'Authorization' => 'Bearer '.$this->token(),
             'X-Eco-Site-Url' => home_url(),
-            'X-Eco-Plugin-Version' => defined('ECO_PORTAL_CONNECTOR_VERSION') ? ECO_PORTAL_CONNECTOR_VERSION : '1.3.0',
+            'X-Eco-Plugin-Version' => defined('ECO_PORTAL_CONNECTOR_VERSION') ? ECO_PORTAL_CONNECTOR_VERSION : '1.7.1',
         ], $extra_headers);
 
         $args = [

@@ -28,6 +28,7 @@ class Product extends Model
         'base_price',
         'sku',
         'source_system',
+        'source_site',
         'source_product_id',
         'product_type',
         'requires_shipping',

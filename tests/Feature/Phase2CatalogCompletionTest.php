@@ -341,11 +341,7 @@ class Phase2CatalogCompletionTest extends TestCase
     {
         $owner = $this->merchantUser(Str::slug($name).'-owner@example.test');
         $store = $this->storeFor($owner, $name);
-        $plain = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $plain),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $plain = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $plain, $owner];
     }

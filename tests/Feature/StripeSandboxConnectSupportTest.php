@@ -468,11 +468,7 @@ class StripeSandboxConnectSupportTest extends TestCase
             return [$store, $owner];
         }
 
-        $token = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $token),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $owner, $token];
     }

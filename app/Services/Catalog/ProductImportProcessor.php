@@ -1052,7 +1052,7 @@ final class ProductImportProcessor
             'option_2' => trim((string) ($fields[ProductImportField::VARIANT_OPTION_2] ?? '')),
         ]);
 
-        $product = ProductImportSourceIdentity::findProduct($store, $productSku, $row);
+        $product = ProductImportSourceIdentity::findProduct($store, $import, $productSku, $row);
         $variantSku = $variantSkuDesired !== '' ? $variantSkuDesired : $productSku;
         $variantSku = $this->ensureUniqueVariantSku($variantSku, $store->id, $assignedVariantSkusLower, $product?->id);
 
@@ -1064,7 +1064,7 @@ final class ProductImportProcessor
 
         if (! $product) {
             $meta = $this->mergeMetaLayer([], $extras, $catalogMeta, $variantOptions, $stockAlert, $productCustom);
-            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $store, $row);
+            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $row);
             $slug = $slugService->assignSlug($store, $name, null, $preferredSlug !== '' ? $preferredSlug : null);
 
             $brandName = trim((string) ($fields[ProductImportField::BRAND] ?? ''));
@@ -1076,7 +1076,7 @@ final class ProductImportProcessor
                 'description' => $description !== '' ? $description : null,
                 'base_price' => $basePrice,
                 'sku' => $productSku,
-                ...ProductImportSourceIdentity::productColumns($row),
+                ...ProductImportSourceIdentity::productColumns($import, $row),
                 'product_type' => $productType,
                 ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
@@ -1091,7 +1091,7 @@ final class ProductImportProcessor
             $variant = ProductVariant::query()->create([
                 'product_id' => $product->id,
                 'sku' => $variantSku,
-                ...ProductImportSourceIdentity::variantColumns($row),
+                ...ProductImportSourceIdentity::variantColumns($import, $row),
                 'price' => $basePrice,
                 'compare_at_price' => SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::COMPARE_AT_PRICE] ?? ''),
                 'stock' => 0,
@@ -1123,7 +1123,7 @@ final class ProductImportProcessor
         }
 
         $meta = $this->mergeMetaLayer($product->meta ?? [], $extras, $catalogMeta, $variantOptions, $stockAlert, $productCustom);
-        $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $store, $row);
+        $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $row);
         $brandName = trim((string) ($fields[ProductImportField::BRAND] ?? ''));
         $brandId = $brandName !== '' ? $taxonomyCache->brandId($brandName) : null;
         $keptSlug = (string) $product->slug;
@@ -1134,7 +1134,7 @@ final class ProductImportProcessor
             'description' => $description !== '' ? $description : $product->description,
             'base_price' => $basePrice,
             'sku' => $productSku,
-            ...ProductImportSourceIdentity::productColumns($row),
+            ...ProductImportSourceIdentity::productColumns($import, $row),
             'product_type' => $productType,
             ...ProductTypeBehavior::defaultColumnsFor($productType),
             'status' => $status,
@@ -1152,7 +1152,7 @@ final class ProductImportProcessor
             $variant = ProductVariant::query()->create([
                 'product_id' => $product->id,
                 'sku' => $variantSku,
-                ...ProductImportSourceIdentity::variantColumns($row),
+                ...ProductImportSourceIdentity::variantColumns($import, $row),
                 'price' => $basePrice,
                 'compare_at_price' => SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::COMPARE_AT_PRICE] ?? ''),
                 'stock' => 0,
@@ -1164,7 +1164,7 @@ final class ProductImportProcessor
         $previousStock = (int) $variant->stock;
         $variant->update([
             'sku' => $variantSku,
-            ...ProductImportSourceIdentity::variantColumns($row),
+            ...ProductImportSourceIdentity::variantColumns($import, $row),
             'price' => $basePrice,
             'compare_at_price' => SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::COMPARE_AT_PRICE] ?? ''),
             'stock_alert' => max(0, $stockAlert),

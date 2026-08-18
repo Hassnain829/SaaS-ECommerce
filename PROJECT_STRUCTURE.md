@@ -32,7 +32,7 @@ Every tenant operation must pass **`EnsureCurrentStore`** middleware and scope q
 | `routes/carriers.php` | Carrier connect wizard shell — included from `web.php` |
 | `routes/fedex.php` | FedEx Model A integrator + production merchant ops |
 | `routes/usps.php` | USPS merchant connection / foundation routes |
-| `routes/api.php` | Developer/catalog/checkout/external sync APIs + Stripe webhooks |
+| `routes/api.php` | Connected-site catalog/platform checkout APIs + Stripe webhooks; retired order/shipment sync routes are absent |
 | `routes/console.php` | Scheduled Artisan commands |
 
 There is **no** `routes/fedex-validation.php`. FedEx certification/validation routes are removed.
@@ -79,9 +79,9 @@ Dashboard, current-store switch, onboarding + product CRUD save pipeline.
 
 Admin shells and FedEx admin diagnostics (`Admin\FedExAdminDiagnosticsController`).
 
-### `Api/` — External integrations
+### `Api/` — Connected-site integrations
 
-Catalog API, developer storefront catalog, platform checkout, external order/shipment sync, Stripe webhooks.
+Catalog API, developer storefront catalog compatibility path, platform checkout polling, site health/events, and Stripe webhooks. Direct paid-order and external order/shipment sync controllers are removed.
 
 ### `Carrier/` — Connection + operations only
 

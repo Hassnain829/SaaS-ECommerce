@@ -61,6 +61,8 @@ The connection key is saved on the WordPress server only. After save, the settin
 2. Add a product to the cart
 3. Checkout:
    - Enter the address, click **Get delivery rates**, choose a portal delivery method, then pay with Stripe. The order and stock update in this portal.
+   - The checkout page creates one browser-bound attempt before showing the address form. Double submissions and retries after a lost WordPress response reuse that attempt; use **Start over** before intentionally changing a submitted checkout.
+   - After Stripe submission, the checkout page polls the portal for the webhook-confirmed order. If confirmation is delayed, keep the processing page open or use **Check order status again**. Reloads and Stripe redirect returns resume the same status check; do not submit payment again.
 4. In the merchant portal, open **Orders**
 
 Shipping and labels stay in the portal after the order arrives.
@@ -88,6 +90,7 @@ Shipping and labels stay in the portal after the order arrives.
 | WordPress → Portal | `GET /api/v1/catalog/events` (missed catalog updates) |
 | Portal → WordPress | `POST /wp-json/eco-portal/v1/events` (signed catalog cache invalidation) |
 | WordPress → Portal | `POST /api/v1/checkout` |
+| WordPress → Portal | `POST /api/v1/checkout/{id}/confirm` (server-side, read-only order-status polling) |
 | WordPress → Portal | `GET /api/v1/orders/confirmation/{token}` |
 
 Auth: `Authorization: Bearer <connection key>` from **Website → Connect your website** in the merchant portal.

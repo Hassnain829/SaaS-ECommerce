@@ -141,7 +141,7 @@ Important existing models:
 - Manual fulfillment and shipments
 - Checkout delivery methods
 - Stripe platform checkout and Stripe Connect foundation
-- External checkout synchronization (developer storefront prototype)
+- Connected WordPress presentation client with SaaS-authoritative platform checkout; direct external order/shipment sync is retired
 - Security logs and user sessions
 - FedEx Model A connectivity, registration, MFA, and gated production operations (US/CA approval; certification/validation workspace removed)
 - USPS public API foundation (production merchant labels pending platform approval — see `docs/current/PROJECT_STATE.md`)
@@ -580,24 +580,13 @@ Every important order change should create an event:
 ## 12. Storefront/API Rules
 
 The dev storefront is a testbed, not the final production API.
-### Developer Storefront Payment Clarification
+### Connected storefront authority
 
-`dev-test-storefront` is a local simulator used to test how an external website can connect to this SaaS platform.
+`dev-test-storefront` is a local payload simulator, not the final storefront builder or a payment/order authority. WordPress is the supported presentation client. Both clients may send product/variant identifiers, quantities, and addresses to platform checkout only.
 
-It is not the final storefront builder.
+The SaaS validates and prices the cart, reserves inventory, calculates discounts/tax/shipping, creates the PaymentIntent, and owns checkout/order state. Only a cryptographically verified Stripe webhook may convert a checkout. Client confirmation endpoints only poll state while webhook processing completes.
 
-It should eventually support two testing modes:
-
-1. **External paid order mode**
-   - Simulates Shopify, WooCommerce, WordPress, custom websites, PayPal, cash on delivery, bank transfer, or another existing checkout.
-   - Payment is collected outside this SaaS.
-   - The external site sends the order, customer, address, payment status, payment gateway, and payment reference into our SaaS.
-
-2. **Platform checkout mode**
-   - Simulates a storefront using our checkout lifecycle.
-   - Our SaaS creates checkout sessions, validates/reserves stock, calculates tax/discounts, creates payment intents, receives webhook confirmation, and converts checkout into an order.
-
-Do not overbuild `dev-test-storefront` as the final storefront product.
+Direct paid-order ingestion and external order/shipment truth are retired runtime behavior. Historical external orders remain readable for operations, refunds, and returns.
 
 Production API keys, scopes, rate limits, webhook delivery, event outbox, and full external integration management belong to the later integration roadmap.
 
@@ -630,51 +619,11 @@ Final target:
 
 ## 13. Payments and Checkout Strategy
 
-This platform must support multiple merchant payment models.
+This platform uses one runtime checkout authority: SaaS-owned platform checkout. Provider-neutral payment abstractions may support additional SaaS-integrated gateways later, but clients cannot submit paid-order or shipment truth.
 
-The SaaS is not limited to one payment gateway.
+### 13.1 Platform checkout
 
-The platform supports three payment/channel modes:
-
-### 13.1 External checkout sync
-
-Use this mode for merchants who already accept payments through:
-
-- Shopify;
-- WooCommerce;
-- WordPress;
-- custom websites;
-- PayPal;
-- bank transfer;
-- cash on delivery;
-- any other existing checkout or gateway.
-
-In this mode:
-
-- the external storefront collects payment;
-- our SaaS receives the order through API/integration;
-- our SaaS stores the order, customer, address, items, payment status, payment gateway, and payment reference;
-- our SaaS does not process the payment again;
-- no Stripe PaymentIntent is created for externally paid orders.
-
-This is the closest match to the current `dev-test-storefront` concept.
-
-External orders should store:
-
-- `external_order_id` or `external_order_number` (at least one required on create);
-- `external_checkout_reference`;
-- `payment_status`;
-- `payment_gateway`;
-- `payment_reference`;
-- `payment_method`;
-- customer snapshot;
-- address snapshots;
-- item snapshots;
-- tax/discount/shipping/totals snapshots.
-
-### 13.2 Platform checkout
-
-Use this mode for merchants who want this SaaS platform to manage checkout.
+All connected storefronts use this mode.
 
 In this mode:
 
@@ -703,7 +652,7 @@ Correct lifecycle:
 9. Convert checkout to confirmed order.
 10. Record order/payment events.
 
-### 13.3 Merchant-connected payments
+### 13.2 Merchant-connected payments
 
 Use this mode for merchants who want to connect their own payment account to platform checkout.
 
@@ -806,16 +755,7 @@ Merchants should eventually see a clear settings area:
 
 `Settings → Payments & Channels`
 
-It should explain:
-
-1. **External checkout**
-   - For merchants already using Shopify, WooCommerce, WordPress, PayPal, COD, bank transfer, or another checkout.
-
-2. **Platform checkout**
-   - For merchants who want this SaaS to manage checkout and payment.
-
-3. **Connected Stripe account**
-   - For merchants who want to connect their own Stripe account later.
+It should explain platform checkout and the merchant-owned connected Stripe account. It must not show an external checkout selector or imply WordPress payment plugins remain authoritative.
 
 Do not show fake working buttons.
 

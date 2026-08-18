@@ -22,23 +22,18 @@ class ExternalManagedChannelModeTest extends TestCase
     {
         [$store] = $this->tokenedStore('Ownership Defaults Store');
         $service = app(ChannelOwnershipService::class);
-        $store = $service->ensureChannelsStructure($store);
-
-        $external = $service->externalCheckoutConfig($store);
         $platform = $service->platformCheckoutConfig($store);
 
-        $this->assertFalse($external['enabled']);
-        $this->assertSame('platform', $external['inventory_owner']);
         $this->assertSame('platform', $platform['checkout_owner']);
         $this->assertSame('platform', $platform['fulfillment_owner']);
         $this->assertSame('platform', $platform['inventory_owner']);
         $this->assertFalse($service->isExternalManaged($store));
         $this->assertTrue($service->isPlatformManaged($store));
         $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store));
-        $this->assertSame(CheckoutMode::PLATFORM, data_get($store->settings, 'checkout_mode'));
+        $this->assertNull(data_get($store->settings, 'checkout_mode'));
     }
 
-    public function test_legacy_external_inventory_is_forced_to_platform(): void
+    public function test_legacy_external_inventory_is_read_only_and_runtime_defaults_to_platform(): void
     {
         $role = Role::firstOrCreate(['name' => 'user']);
         $owner = User::factory()->create(['role_id' => $role->id]);
@@ -64,11 +59,11 @@ class ExternalManagedChannelModeTest extends TestCase
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
 
         $service = app(ChannelOwnershipService::class);
-        $store = $service->ensureChannelsStructure($store);
 
-        $this->assertSame(CheckoutMode::PLATFORM, data_get($store->settings, 'checkout_mode'));
-        $this->assertFalse(data_get($store->settings, 'channels.external_checkout.enabled'));
-        $this->assertSame('platform', $service->inventoryOwner($store, ChannelOwnershipService::CHANNEL_EXTERNAL));
+        $this->assertSame(CheckoutMode::EXTERNAL, data_get($store->settings, 'checkout_mode'));
+        $this->assertTrue(data_get($store->settings, 'channels.external_checkout.enabled'));
+        $this->assertSame('external', $service->inventoryOwner($store, CheckoutMode::EXTERNAL));
+        $this->assertSame('platform', $service->inventoryOwner($store));
         $this->assertFalse($service->isExternalManaged($store));
     }
 
@@ -167,11 +162,7 @@ class ExternalManagedChannelModeTest extends TestCase
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
 
-        $token = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $token),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

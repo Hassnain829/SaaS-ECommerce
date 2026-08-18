@@ -56,7 +56,7 @@ class DeveloperStorefrontSettingsController extends Controller
         return view('user_view.developer_storefront', [
             'selectedStore' => $store,
             'tokenConfigured' => $tokenConfigured,
-            'tokenCreatedAt' => $store->developer_storefront_token_created_at,
+            'tokenCreatedAt' => $connectedSite?->credential_created_at,
             'plainToken' => $request->session()->pull('developer_storefront_plain_token'),
             'websiteUrl' => $connectedSite?->site_url ?: $store->connectedWebsiteUrl(),
             'lastSeenAt' => $lastSeenAt,

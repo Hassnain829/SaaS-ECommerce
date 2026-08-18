@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\Store;
-use App\Services\Channels\ChannelOwnershipService;
 
 final class CheckoutMode
 {
@@ -29,11 +28,6 @@ final class CheckoutMode
             self::EXTERNAL => 'External checkout (historical)',
             default => 'Platform checkout',
         };
-    }
-
-    public static function setForStore(Store $store, string $mode): Store
-    {
-        return app(ChannelOwnershipService::class)->syncActiveCheckoutMode($store, self::PLATFORM);
     }
 
     public static function isHistoricalExternal(?string $orderSource): bool

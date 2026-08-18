@@ -11,6 +11,7 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
@@ -66,23 +67,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
 
             public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult
             {
-                return new PaymentWebhookResult(
-                    eventType: 'payment_intent.succeeded',
-                    providerIntentId: $providerIntentId,
-                    status: 'succeeded',
-                    amount: '24.00',
-                    currencyCode: 'USD',
-                    raw: [
-                        'id' => 'client_confirm_'.$providerIntentId,
-                        'type' => 'payment_intent.succeeded',
-                        'object' => [
-                            'id' => $providerIntentId,
-                            'status' => 'succeeded',
-                            'amount' => 2400,
-                            'currency' => 'usd',
-                        ],
-                    ],
-                );
+                throw new \RuntimeException('Checkout confirmation must not retrieve Stripe payment state.');
             }
         });
     }
@@ -100,8 +85,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         $payload = $this->payload($variant);
         $payload['payment'] = ['card_number' => '4242424242424242'];
 
-        $this->withToken($token)
-            ->postJson('/api/v1/checkout', $payload)
+        $this->postCheckout($token, $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['payment'])
             ->assertJsonPath('errors.payment.0', 'Raw payment card data must not be sent to this API. Use Stripe.js in the browser instead.');
@@ -117,8 +101,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             'discount_total' => 10,
         ]);
 
-        $this->withToken($token)
-            ->postJson('/api/v1/checkout', $payload)
+        $this->postCheckout($token, $payload)
             ->assertCreated()
             ->assertJsonPath('checkout.checkout_number', 'CHK-1001')
             ->assertJsonPath('checkout.status', Checkout::STATUS_PAYMENT_PENDING)
@@ -167,8 +150,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         [$otherStore] = $this->tokenedStore('Platform Other Store');
         [, $otherVariant] = $this->product($otherStore);
 
-        $this->withToken($token)
-            ->postJson('/api/v1/checkout', $this->payload($otherVariant))
+        $this->postCheckout($token, $this->payload($otherVariant))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['items.0.variant_id']);
 
@@ -180,8 +162,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         [$store, $token] = $this->tokenedStore('Platform Webhook Store');
         [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
 
-        $this->withToken($token)
-            ->postJson('/api/v1/checkout', $this->payload($variant))
+        $this->postCheckout($token, $this->payload($variant))
             ->assertCreated();
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
@@ -243,31 +224,32 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         ]);
         $this->assertSame(3, (int) $variant->fresh()->stock);
 
-        $body = $this->stripeEvent('payment_intent.succeeded', 'pi_test_checkout_'.$checkout->id, 'succeeded', 2400);
         $this->postStripeWebhook($body)->assertOk();
 
         $this->assertSame(1, Order::query()->where('store_id', $store->id)->count());
     }
 
-    public function test_client_confirmation_endpoint_verifies_stripe_and_converts_checkout_without_webhook(): void
+    public function test_client_confirmation_is_read_only_until_verified_webhook_converts_checkout(): void
     {
         [$store, $token] = $this->tokenedStore('Platform Client Confirm Store');
         [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
 
-        $this->withToken($token)
-            ->postJson('/api/v1/checkout', $this->payload($variant))
+        $this->postCheckout($token, $this->payload($variant))
             ->assertCreated();
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
-            ->assertOk()
-            ->assertJsonPath('message', 'Platform checkout converted to an order.')
-            ->assertJsonPath('order.order_number', '#1002')
-            ->assertJsonPath('order.payment_status', OrderLifecycle::PAYMENT_PAID);
+            ->assertStatus(202)
+            ->assertJsonPath('state', 'processing');
 
-        $this->assertSame(1, Order::query()->where('store_id', $store->id)->count());
+        $this->assertSame(0, Order::query()->where('store_id', $store->id)->count());
+        $this->assertSame(3, (int) $variant->fresh()->stock);
+
+        $body = $this->stripeEvent('payment_intent.succeeded', 'pi_test_checkout_'.$checkout->id, 'succeeded', 2400);
+        $this->postStripeWebhook($body)->assertOk();
+
         $order = Order::query()->where('store_id', $store->id)->firstOrFail();
 
         $this->assertDatabaseHas('checkouts', [
@@ -291,9 +273,17 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
             ->assertOk()
+            ->assertJsonPath('state', 'completed')
             ->assertJsonPath('order.order_number', '#1002');
 
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
+            ->assertOk()
+            ->assertJsonPath('state', 'completed')
+            ->assertJsonPath('order.id', $order->id);
+
         $this->assertSame(1, Order::query()->where('store_id', $store->id)->count());
+        $this->assertSame(3, (int) $variant->fresh()->stock);
     }
 
     public function test_stripe_failed_webhook_marks_checkout_failed_and_releases_inventory(): void
@@ -301,8 +291,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         [$store, $token] = $this->tokenedStore('Platform Failed Store');
         [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
 
-        $this->withToken($token)
-            ->postJson('/api/v1/checkout', $this->payload($variant))
+        $this->postCheckout($token, $this->payload($variant))
             ->assertCreated();
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
@@ -332,6 +321,30 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             'reference_id' => (string) $checkout->id,
             'status' => 'released',
         ]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
+            ->assertStatus(422)
+            ->assertJsonPath('state', 'failed');
+    }
+
+    public function test_client_confirmation_reports_expired_without_creating_an_order(): void
+    {
+        [$store, $token] = $this->tokenedStore('Platform Expired Confirm Store');
+        [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
+
+        $this->postCheckout($token, $this->payload($variant))->assertCreated();
+
+        $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
+        $checkout->forceFill(['expires_at' => now()->subMinute()])->save();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
+            ->assertStatus(410)
+            ->assertJsonPath('state', 'expired');
+
+        $this->assertSame(0, Order::query()->where('store_id', $store->id)->count());
+        $this->assertSame(3, (int) $variant->fresh()->stock);
     }
 
     public function test_stripe_webhook_rejects_invalid_signature(): void
@@ -350,8 +363,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         [$store, $token, $owner] = $this->tokenedStore('Platform Dashboard Store');
         [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
 
-        $this->withToken($token)
-            ->postJson('/api/v1/checkout', $this->payload($variant))
+        $this->postCheckout($token, $this->payload($variant))
             ->assertCreated();
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
@@ -395,11 +407,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
 
-        $token = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $token),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }
@@ -458,6 +466,13 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
                 ],
             ],
         ], $overrides);
+    }
+
+    private function postCheckout(string $token, array $payload, ?string $key = null)
+    {
+        return $this->withToken($token)
+            ->withHeader('Idempotency-Key', $key ?? 'checkout-'.Str::uuid())
+            ->postJson('/api/v1/checkout', $payload);
     }
 
     /**

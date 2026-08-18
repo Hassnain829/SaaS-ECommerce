@@ -10,13 +10,17 @@ use App\Models\Store;
 use App\Services\Payments\PaymentProviderManager;
 use App\Support\CatalogRevision;
 use App\Support\ConnectedSiteScope;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ConnectedSiteService
 {
+    private const ACTIVE_SITE_URL_UNIQUE_INDEX = 'connected_sites_active_site_url_unique';
+
     public function __construct(
         private readonly SecurityLogRecorder $securityLogRecorder,
         private readonly PaymentProviderManager $paymentProviderManager,
@@ -31,60 +35,67 @@ class ConnectedSiteService
         $hash = hash('sha256', $plain);
         $now = now();
 
-        $site = $this->primarySite($store);
-        $rotated = $site !== null && $site->isActive();
+        try {
+            return DB::transaction(function () use ($store, $plain, $hash, $now): array {
+                $lockedStore = Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
+                $site = $this->primarySiteForUpdate($lockedStore);
+                $rotated = $site !== null && $site->isActive();
 
-        if ($site === null) {
-            $url = $store->connectedWebsiteUrl();
-            $normalized = $this->normalizeSiteUrl((string) ($url ?? ''));
-            if ($normalized !== null && ! $this->normalizedUrlIsAvailable($normalized, $store->id)) {
-                $url = null;
-                $normalized = null;
-            }
+                if ($site === null) {
+                    $url = $lockedStore->connectedWebsiteUrl();
+                    $normalized = $this->normalizeSiteUrl((string) ($url ?? ''));
+                    if ($normalized !== null) {
+                        $this->assertNormalizedUrlAvailable($normalized);
+                    }
 
-            $site = new ConnectedSite([
-                'store_id' => $store->id,
-                'public_id' => 'csite_'.Str::lower(Str::random(24)),
-                'status' => ConnectedSite::STATUS_ACTIVE,
-                'is_primary' => true,
-                'scopes' => ConnectedSiteScope::connectorDefaults(),
-                'site_url' => $url,
-                'site_url_normalized' => $normalized,
-            ]);
+                    $site = new ConnectedSite([
+                        'store_id' => $lockedStore->id,
+                        'public_id' => 'csite_'.Str::lower(Str::random(24)),
+                        'status' => ConnectedSite::STATUS_ACTIVE,
+                        'is_primary' => true,
+                        'scopes' => ConnectedSiteScope::connectorDefaults(),
+                        'site_url' => $url,
+                        'site_url_normalized' => $normalized,
+                    ]);
+                } elseif (filled($site->site_url_normalized)) {
+                    $this->assertNormalizedUrlAvailable((string) $site->site_url_normalized, $site->id);
+                }
+
+                $site->forceFill([
+                    'credential_hash' => $hash,
+                    'event_signing_secret' => $this->newEventSigningSecret(),
+                    'status' => ConnectedSite::STATUS_ACTIVE,
+                    'is_primary' => true,
+                    'scopes' => $site->grantedScopes() !== [] ? $site->grantedScopes() : ConnectedSiteScope::connectorDefaults(),
+                    'credential_created_at' => $site->credential_created_at ?? $now,
+                    'credential_rotated_at' => $rotated ? $now : $site->credential_rotated_at,
+                    'revoked_at' => null,
+                    'last_seen_at' => null,
+                ])->save();
+
+                return ['site' => $site->fresh(), 'plain' => $plain, 'rotated' => $rotated];
+            });
+        } catch (QueryException $exception) {
+            $this->throwConnectedSiteUrlException($exception);
         }
-
-        $site->forceFill([
-            'credential_hash' => $hash,
-            'event_signing_secret' => $this->newEventSigningSecret(),
-            'status' => ConnectedSite::STATUS_ACTIVE,
-            'is_primary' => true,
-            'scopes' => $site->grantedScopes() !== [] ? $site->grantedScopes() : ConnectedSiteScope::connectorDefaults(),
-            'credential_created_at' => $site->credential_created_at ?? $now,
-            'credential_rotated_at' => $rotated ? $now : $site->credential_rotated_at,
-            'revoked_at' => null,
-            'last_seen_at' => null,
-        ])->save();
-
-        $this->mirrorStoreCredential($store, $hash, $now, clearLastSeen: true);
-
-        return ['site' => $site->fresh(), 'plain' => $plain, 'rotated' => $rotated];
     }
 
     public function revokePrimary(Store $store): ?ConnectedSite
     {
-        $site = $this->primarySite($store);
+        return DB::transaction(function () use ($store): ?ConnectedSite {
+            $lockedStore = Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
+            $site = $this->primarySiteForUpdate($lockedStore);
 
-        if ($site !== null && $site->isActive()) {
-            $site->forceFill([
-                'status' => ConnectedSite::STATUS_REVOKED,
-                'revoked_at' => now(),
-                'event_signing_secret' => null,
-            ])->save();
-        }
+            if ($site !== null && $site->isActive()) {
+                $site->forceFill([
+                    'status' => ConnectedSite::STATUS_REVOKED,
+                    'revoked_at' => now(),
+                    'event_signing_secret' => null,
+                ])->save();
+            }
 
-        $this->mirrorStoreCredential($store, null, null, clearLastSeen: false);
-
-        return $site?->fresh();
+            return $site?->fresh();
+        });
     }
 
     public function resolveActiveByPlainToken(string $plain): ?ConnectedSite
@@ -101,19 +112,6 @@ class ConnectedSiteService
         }
 
         return null;
-    }
-
-    public function resolveLegacyStoreByPlainToken(string $plain): ?Store
-    {
-        if (! Schema::hasColumn('stores', 'developer_storefront_token_hash')) {
-            return null;
-        }
-
-        $hash = hash('sha256', $plain);
-
-        return Store::query()
-            ->where('developer_storefront_token_hash', $hash)
-            ->first();
     }
 
     public function primarySite(Store $store): ?ConnectedSite
@@ -140,26 +138,37 @@ class ConnectedSiteService
 
         if ($normalized !== null) {
             $this->assertHttpsAllowed($url);
-            $this->assertNormalizedUrlAvailable($normalized, $store);
         }
 
-        $settings = is_array($store->settings) ? $store->settings : [];
-        if ($url === '') {
-            unset($settings['connected_website_url']);
-        } else {
-            $settings['connected_website_url'] = $url;
-        }
-        $store->forceFill(['settings' => $settings])->save();
+        try {
+            return DB::transaction(function () use ($store, $url, $normalized): Store {
+                $lockedStore = Store::query()->whereKey($store->id)->lockForUpdate()->firstOrFail();
+                $site = $this->primarySiteForUpdate($lockedStore);
 
-        $site = $this->primarySite($store);
-        if ($site !== null) {
-            $site->forceFill([
-                'site_url' => $url !== '' ? $url : null,
-                'site_url_normalized' => $normalized,
-            ])->save();
-        }
+                if ($normalized !== null) {
+                    $this->assertNormalizedUrlAvailable($normalized, $site?->id);
+                }
 
-        return $store->fresh();
+                $settings = is_array($lockedStore->settings) ? $lockedStore->settings : [];
+                if ($url === '') {
+                    unset($settings['connected_website_url']);
+                } else {
+                    $settings['connected_website_url'] = $url;
+                }
+                $lockedStore->forceFill(['settings' => $settings])->save();
+
+                if ($site !== null) {
+                    $site->forceFill([
+                        'site_url' => $url !== '' ? $url : null,
+                        'site_url_normalized' => $normalized,
+                    ])->save();
+                }
+
+                return $lockedStore->fresh();
+            });
+        } catch (QueryException $exception) {
+            $this->throwConnectedSiteUrlException($exception);
+        }
     }
 
     public function observeAuthenticatedRequest(ConnectedSite $site, Request $request): void
@@ -174,20 +183,7 @@ class ConnectedSiteService
             $updates['plugin_version'] = Str::limit($version, 32, '');
         }
 
-        $headerUrl = trim((string) $request->header('X-Eco-Site-Url', ''));
-        $normalizedHeader = $this->normalizeSiteUrl($headerUrl);
-        if ($normalizedHeader && blank($site->site_url_normalized) && $this->normalizedUrlIsAvailable($normalizedHeader, $site->store_id, $site->id)) {
-            $updates['site_url'] = rtrim($headerUrl, '/');
-            $updates['site_url_normalized'] = $normalizedHeader;
-        }
-
         $site->forceFill($updates)->save();
-
-        if (isset($updates['site_url']) && $site->store) {
-            $settings = is_array($site->store->settings) ? $site->store->settings : [];
-            $settings['connected_website_url'] = $updates['site_url'];
-            $site->store->forceFill(['settings' => $settings])->save();
-        }
 
         $site->store?->stampDeveloperStorefrontLastSeen();
     }
@@ -341,10 +337,6 @@ class ConnectedSiteService
             return ConnectedSiteScope::CATALOG_READ;
         }
 
-        if ($path === 'api/developer-storefront/orders') {
-            return ConnectedSiteScope::CHECKOUT_CREATE;
-        }
-
         if (str_contains($path, '/delivery-options')) {
             return ConnectedSiteScope::SHIPPING_QUOTE;
         }
@@ -368,7 +360,9 @@ class ConnectedSiteService
 
         $expected = $site->site_url_normalized;
         if (! is_string($expected) || $expected === '') {
-            return;
+            abort(response()->json([
+                'message' => 'Bind this connection to its WordPress website address before using it in production.',
+            ], 403));
         }
 
         $reported = $this->normalizeSiteUrl(trim((string) $request->header('X-Eco-Site-Url', '')));
@@ -387,7 +381,7 @@ class ConnectedSiteService
         }
 
         $parts = parse_url($url);
-        if (! is_array($parts) || empty($parts['host'])) {
+        if (! is_array($parts) || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])) {
             return null;
         }
 
@@ -425,33 +419,31 @@ class ConnectedSiteService
 
         $parts = parse_url($url);
         $scheme = strtolower((string) ($parts['scheme'] ?? ''));
-        $host = strtolower((string) ($parts['host'] ?? ''));
-        $local = in_array($host, ['localhost', '127.0.0.1', '::1'], true)
-            || str_ends_with($host, '.local')
-            || str_ends_with($host, '.test');
 
-        if ($scheme !== 'https' && ! $local) {
+        if ($scheme !== 'https') {
             throw ValidationException::withMessages([
                 'website_url' => 'Use an https website address in production.',
             ]);
         }
     }
 
-    private function assertNormalizedUrlAvailable(string $normalized, Store $store): void
+    private function assertNormalizedUrlAvailable(string $normalized, ?int $exceptSiteId = null): void
     {
-        if (! $this->normalizedUrlIsAvailable($normalized, $store->id)) {
+        if (! $this->normalizedUrlIsAvailable($normalized, $exceptSiteId)) {
             throw ValidationException::withMessages([
                 'website_url' => 'That WordPress site is already connected to another store.',
             ]);
         }
     }
 
-    private function normalizedUrlIsAvailable(string $normalized, int $storeId, ?int $exceptSiteId = null): bool
+    private function normalizedUrlIsAvailable(string $normalized, ?int $exceptSiteId = null): bool
     {
         $query = ConnectedSite::query()
-            ->where('site_url_normalized', $normalized)
-            ->where('status', ConnectedSite::STATUS_ACTIVE)
-            ->where('store_id', '!=', $storeId);
+            ->when(
+                Schema::hasColumn('connected_sites', 'active_site_url_key'),
+                fn ($query) => $query->where('active_site_url_key', $normalized),
+                fn ($query) => $query->where('site_url_normalized', $normalized)->where('status', ConnectedSite::STATUS_ACTIVE),
+            );
 
         if ($exceptSiteId !== null) {
             $query->whereKeyNot($exceptSiteId);
@@ -460,22 +452,43 @@ class ConnectedSiteService
         return ! $query->exists();
     }
 
-    private function mirrorStoreCredential(Store $store, ?string $hash, mixed $createdAt, bool $clearLastSeen): void
+    private function primarySiteForUpdate(Store $store): ?ConnectedSite
     {
-        if (! Schema::hasColumn('stores', 'developer_storefront_token_hash')) {
-            return;
+        return ConnectedSite::query()
+            ->where('store_id', $store->id)
+            ->where('is_primary', true)
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->first();
+    }
+
+    private function throwConnectedSiteUrlException(QueryException $exception): never
+    {
+        if ($this->isActiveSiteUrlUniqueViolation($exception)) {
+            throw ValidationException::withMessages([
+                'website_url' => 'That WordPress site is already connected to another store.',
+            ]);
         }
 
-        $payload = [
-            'developer_storefront_token_hash' => $hash,
-            'developer_storefront_token_created_at' => $createdAt,
-        ];
-        if ($clearLastSeen && Schema::hasColumn('stores', 'developer_storefront_last_seen_at')) {
-            $payload['developer_storefront_last_seen_at'] = null;
-        }
+        throw $exception;
+    }
 
-        Store::query()->whereKey($store->id)->update($payload);
-        $store->forceFill($payload);
+    private function isActiveSiteUrlUniqueViolation(QueryException $exception): bool
+    {
+        $errorInfo = is_array($exception->errorInfo ?? null) ? $exception->errorInfo : [];
+        $sqlState = strtoupper((string) ($errorInfo[0] ?? $exception->getCode()));
+        $driverCode = (string) ($errorInfo[1] ?? '');
+        $message = Str::lower($exception->getMessage());
+
+        $mentionsConstraint = str_contains($message, Str::lower(self::ACTIVE_SITE_URL_UNIQUE_INDEX))
+            || str_contains($message, 'connected_sites.active_site_url_key');
+        $isUniqueViolation = in_array($sqlState, ['23000', '23505'], true)
+            || in_array($driverCode, ['19', '1062'], true)
+            || str_contains($message, 'unique constraint')
+            || str_contains($message, 'duplicate entry')
+            || str_contains($message, 'unique violation');
+
+        return $mentionsConstraint && $isUniqueViolation;
     }
 
     public function ensureEventSigningSecret(ConnectedSite $site): string

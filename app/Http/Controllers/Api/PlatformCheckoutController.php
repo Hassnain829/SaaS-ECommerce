@@ -8,9 +8,7 @@ use App\Models\Order;
 use App\Models\PaymentIntent;
 use App\Models\Store;
 use App\Services\Checkout\CheckoutIdempotencyService;
-use App\Services\CheckoutConversionService;
 use App\Services\CheckoutService;
-use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\StripeConfig;
 use App\Services\Shipping\CheckoutShippingService;
 use Illuminate\Http\JsonResponse;
@@ -48,8 +46,10 @@ class PlatformCheckoutController extends Controller
 
         try {
             $checkout = $checkoutService->create($store, $payload);
-        } catch (\RuntimeException $exception) {
-            if (str_contains($exception->getMessage(), 'Stripe')) {
+        } catch (\Throwable $exception) {
+            $idempotency->releaseOwnUnfinishedClaim($store, $request);
+
+            if ($exception instanceof \RuntimeException && str_contains($exception->getMessage(), 'Stripe')) {
                 throw ValidationException::withMessages([
                     'payment' => 'Platform checkout is not available. Connect Stripe in Payments before customers can pay.',
                 ]);
@@ -180,46 +180,47 @@ class PlatformCheckoutController extends Controller
     public function confirm(
         Request $request,
         Checkout $checkout,
-        PaymentProviderManager $paymentProviderManager,
-        CheckoutConversionService $conversionService,
     ): JsonResponse {
         /** @var Store|null $store */
         $store = $request->attributes->get('developerStorefrontStore');
         abort_unless($store && (int) $checkout->store_id === (int) $store->id, 404);
 
-        $checkout->loadMissing(['paymentIntents', 'convertedOrder']);
+        $checkout->loadMissing(['items', 'addresses', 'paymentIntents', 'convertedOrder']);
+
+        if ($checkout->convertedOrder) {
+            return response()->json([
+                'message' => 'The order is ready.',
+                'state' => 'completed',
+                'checkout' => $this->checkoutResponse($checkout)['checkout'],
+                'order' => $this->publicOrderSummary($checkout->convertedOrder, $checkout),
+            ]);
+        }
+
         /** @var PaymentIntent|null $paymentIntent */
         $paymentIntent = $checkout->paymentIntents->sortByDesc('id')->first();
 
-        if (! $paymentIntent?->provider_intent_id) {
-            throw ValidationException::withMessages([
-                'payment' => 'No Stripe payment was found for this checkout.',
-            ]);
-        }
-
-        $result = $paymentProviderManager
-            ->driver($paymentIntent->provider)
-            ->retrievePaymentIntent($paymentIntent->provider_intent_id, $paymentIntent->mode);
-
-        if ($result->status === 'succeeded') {
-            $order = $conversionService->handleSucceededPayment($result);
-            $fresh = $checkout->fresh(['items', 'addresses', 'paymentIntents', 'convertedOrder']);
-
+        if ($checkout->status === Checkout::STATUS_CANCELLED || ($checkout->expires_at && $checkout->expires_at->isPast())) {
             return response()->json([
-                'message' => 'Platform checkout converted to an order.',
-                'checkout' => $this->checkoutResponse($fresh)['checkout'],
-                'order' => $order ? $this->publicOrderSummary($order, $fresh) : null,
-            ]);
+                'message' => 'This checkout has expired. Start a new checkout attempt.',
+                'state' => 'expired',
+                'payment_status' => $paymentIntent?->status,
+            ], 410);
         }
 
-        if (in_array($result->status, ['requires_payment_method', 'canceled'], true)) {
-            $conversionService->handleFailedPayment($result);
+        if ($checkout->status === Checkout::STATUS_FAILED || in_array((string) $paymentIntent?->status, ['failed', 'canceled'], true)) {
+            return response()->json([
+                'message' => 'Stripe reported that this payment did not complete. Start a new checkout attempt.',
+                'state' => 'failed',
+                'payment_status' => $paymentIntent?->status,
+            ], 422);
         }
 
         return response()->json([
-            'message' => 'Stripe has not confirmed payment for this checkout yet.',
-            'payment_status' => $result->status,
-        ], 409);
+            'message' => 'Payment confirmation is still processing. Retry this status request shortly.',
+            'state' => 'processing',
+            'payment_status' => $paymentIntent?->status,
+            'retry_after_seconds' => 1,
+        ], 202)->header('Retry-After', '1');
     }
 
     /**

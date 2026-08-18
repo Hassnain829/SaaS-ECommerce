@@ -7,6 +7,7 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use App\Support\CheckoutMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -35,8 +36,8 @@ class PlatformOnlyCheckoutTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.payments.mode'), ['checkout_mode' => CheckoutMode::EXTERNAL])
-            ->assertSessionHasErrors(['checkout_mode']);
+            ->post('/settings/payments/mode', ['checkout_mode' => CheckoutMode::EXTERNAL])
+            ->assertNotFound();
 
         $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store->fresh()));
     }
@@ -130,11 +131,7 @@ class PlatformOnlyCheckoutTest extends TestCase
     private function tokenedStore(string $name): array
     {
         [$owner, $store] = $this->ownerStore($name);
-        $token = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $token),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$owner, $store->fresh(), $token];
     }

@@ -6,6 +6,8 @@
 >
 > **Current audit basis:** Project zip inspection + research document + existing roadmap + ERD + Cursor/Anti-Gravity progress notes.
 
+> **DR-05 correction (2026-08-18):** `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md` supersedes every older dual-mode or external-checkout-sync proposal in this roadmap. Runtime commerce is SaaS-authoritative platform checkout only; WordPress is a presentation client; only verified payment webhooks convert checkouts. Any older external sync detail retained below is historical design context, not an implementation instruction.
+
 ---
 
 ## 0. Strategic North Star
@@ -69,7 +71,7 @@ The project already has a strong base in these areas:
 - Manual fulfillment and shipments
 - Checkout delivery methods
 - Stripe platform checkout and Stripe Connect foundation
-- External checkout synchronization (developer storefront prototype)
+- Connected WordPress presentation client and SaaS-authoritative platform checkout; direct external order/shipment sync is retired
 - Security logs and user sessions
 - FedEx Model A connectivity and gated US/CA production operations (certification/validation workspace retired)
 - USPS public API foundation
@@ -669,7 +671,7 @@ Replace single-stock logic with location-aware inventory before building serious
 ### Implementation steps
 
 1. During checkout, reserve stock.
-2. On payment/order confirmation, convert reservation to committed/deducted.
+2. On verified payment webhook conversion, convert the reservation to committed/deducted; client confirmation only polls SaaS state.
 3. On failure/expiry, release reservation.
 
 ### Acceptance criteria
@@ -969,31 +971,11 @@ Order detail page must show only real data:
 
 ---
 
-# PHASE 5 — Checkout, Payments, Tax, Discounts, and Channel Payment Modes
+# PHASE 5 — Checkout, Payments, Tax, Discounts, and Connected Channels
 
 ## Goal
 
-Replace direct test order creation with a production checkout lifecycle while supporting multiple merchant payment models.
-
-The platform must not force every merchant into one payment gateway.
-
-Merchants should be able to use one of these modes:
-
-1. **External checkout sync**
-   - Merchant already collects payment on Shopify, WooCommerce, WordPress, custom website, PayPal, COD, bank transfer, or another external checkout.
-   - Our platform receives the paid/pending order and manages catalog, customers, orders, inventory, fulfillment, and reporting.
-   - Our platform does not process the customer payment in this mode.
-
-2. **Platform checkout**
-   - Merchant uses our checkout lifecycle.
-   - Our platform creates checkout sessions, validates/reserves stock, calculates discounts/tax, creates payment intents, receives webhook confirmation, and converts checkout into an order.
-
-3. **Merchant-connected payments**
-   - Merchant connects their own Stripe account through Stripe Connect later.
-   - Our platform creates payments for that connected merchant account.
-   - Platform fees/payout management can be added later.
-
-Phase 5 must build the neutral foundation first, with Stripe sandbox as the first real payment provider and external checkout sync as the first channel-friendly mode.
+Replace direct test order creation with a production checkout lifecycle. Connected storefronts submit identifiers, quantities, and addresses; the SaaS owns validation, totals, reservations, PaymentIntents, and orders. Stripe is the first provider, while provider-neutral internals may support additional SaaS-integrated gateways later. Client confirmation is polling only and verified payment webhooks alone convert checkouts.
 
 Do not hardcode the whole payment system around Stripe only.
 
@@ -1003,17 +985,14 @@ Do not hardcode the whole payment system around Stripe only.
 
 ### Purpose
 
-Create a flexible architecture that supports external checkouts, platform checkout, and future connected merchant accounts without rewriting orders later.
+Create a flexible provider architecture around the single platform-checkout authority and future merchant-connected payment accounts without rewriting orders later.
 
 ### Concepts
 
-A store can support one or more payment/channel modes:
+A store uses `platform_checkout`. Payment provider/account types may include:
 
-- `external_checkout`
-- `platform_checkout`
 - `stripe_platform`
 - `stripe_connect`
-- `manual`
 - future: `paypal`, `square`, `authorize_net`, `shopify`, `woocommerce`
 
 ### Tables
@@ -1072,8 +1051,6 @@ Create:
 - `PaymentProviderInterface`
 - `PaymentProviderManager`
 - `StripePlatformPaymentProvider`
-- `ExternalPaymentProvider`
-- `ManualPaymentProvider`
 - future: `StripeConnectPaymentProvider`
 
 ### Internal payment result
@@ -1095,7 +1072,6 @@ All providers must return a normalized internal result:
 
 - Payment logic is provider-neutral.
 - Stripe is the first implementation, not the only architecture.
-- External payment references can be recorded without processing payment.
 - Store scoping is enforced.
 - Tests prove Store A cannot use Store B payment provider account.
 
@@ -1125,11 +1101,9 @@ Suggested fields:
 - `source_channel`
   - `dev_storefront`
   - `api`
-  - `external_storefront`
   - `manual`
   - future: `shopify`, `woocommerce`
 - `mode`
-  - `external_checkout`
   - `platform_checkout`
 - `status`
   - `open`
@@ -1148,8 +1122,7 @@ Suggested fields:
 - `grand_total`
 - `payment_provider`
 - `payment_provider_account_id` nullable
-- `external_checkout_reference` nullable
-- `external_order_reference` nullable
+- historical external reference columns may remain nullable for old records, but no runtime endpoint writes them
 - `metadata` json nullable
 - timestamps
 - `expires_at`
@@ -1179,79 +1152,18 @@ Suggested fields:
 
 ---
 
-## 5.2 External Checkout Sync
+## 5.2 Retired direct order synchronization
 
-### Purpose
+The former proposal to accept paid-order or shipment truth from a storefront is retired by the DR-05 correction. There is no runtime order-sync mode, merchant selector, configuration writer, or direct order/shipment endpoint.
 
-Support merchants who already collect payment on Shopify, WooCommerce, WordPress, custom websites, PayPal, COD, bank transfer, or another external checkout.
-
-In this mode, the external storefront is the payment source of truth.
-
-Our platform records the order and payment reference but does not process the payment.
-
-### API behavior
-
-Create or update endpoint:
-
-- `POST /api/v1/external/orders`
-- or version current dev storefront order endpoint safely
-
-Payload should support:
-
-- `external_order_number`
-- `external_checkout_reference`
-- `payment_status`
-- `payment_gateway`
-- `payment_reference`
-- `payment_method`
-- `customer`
-- `shipping_address`
-- `billing_address`
-- `items`
-- `discounts`
-- `taxes`
-- `shipping`
-- `totals`
-- `placed_at`
-
-### Rules
-
-- External order payload must be authenticated.
-- Store scoping is mandatory.
-- External order number should be unique per store/source.
-- Payment status must map into internal payment statuses:
-  - `pending`
-  - `authorized`
-  - `paid`
-  - `failed`
-  - `refunded`
-  - `partially_refunded`
-- Do not create Stripe PaymentIntent for external-paid orders.
-- Do not collect raw card data.
-- Create order events:
-  - `external_order.received`
-  - `payment.status_recorded`
-  - `inventory.deducted` or `inventory.reserved` depending inventory mode
-- Create security/audit log where appropriate.
-
-### Dev storefront simulator
-
-Update `dev-test-storefront` to support two modes:
-
-1. `External paid order`
-   - Simulates Shopify/WooCommerce/custom website checkout.
-   - Sends `payment_status=paid`, `payment_gateway=external_test`, and `payment_reference`.
-
-2. `Platform checkout`
-   - Starts your checkout session flow and Stripe sandbox payment when implemented.
+Connected WordPress and local simulator clients use platform checkout. Historical source fields and old orders remain readable so existing business records, refunds, returns, and fulfillment interpretation are preserved.
 
 ### Acceptance criteria
 
-- Merchants can connect existing storefronts without using our payment gateway.
-- External paid orders appear in Orders dashboard.
-- Customers, addresses, order items, payment status, and order events are created.
-- Duplicate external order numbers are rejected or idempotently returned.
-- Tests prove external checkout mode does not create Stripe payment intents.
+- Retired order/shipment endpoints return `404`.
+- No connected-site request may declare payment success or create a paid order.
+- Only verified Stripe webhook handlers trigger successful checkout conversion.
+- No runtime request generates new external-channel settings.
 
 ---
 
@@ -1934,7 +1846,7 @@ Add tests for:
 3. free shipping threshold works;
 4. flat rate shipping is added to checkout totals;
 5. selected shipping method is snapshotted on order;
-6. external checkout sync can still pass external shipping values;
+6. retired external order/shipment routes return `404`;
 7. platform checkout still works.
 
 ---
@@ -1962,7 +1874,7 @@ Implemented/required behavior:
 - platform checkout stores a fulfillment routing snapshot;
 - checkout reservations are placed at the selected origin;
 - selected shipping/pickup changes can reroute reservations safely;
-- external checkout sync routes only when dashboard inventory owns stock;
+- no direct storefront order-sync route participates in origin routing;
 - orders copy the routing snapshot into order metadata;
 - order detail preselects the routed origin for manual shipment creation.
 
@@ -1970,7 +1882,7 @@ Customer/store-owner wording must say "nearest eligible fulfillment location", "
 
 **Phase Q Step 3 gate (2026-05-24):** QA-001 external dedup and QA-007 routing hardening tests complete (historical: `docs/archive/audit/PHASE_Q_STEP_3_MUST_FIX_QA_HARDENING_REPORT.md`).
 
-**Phase Q Step 3C (2026-05-24):** External order creation requires `external_order_id` or `external_order_number`; `Idempotency-Key` alone is rejected. QA audit snapshots live under historical `docs/archive/audit/`.
+**Phase Q Step 3C (2026-05-24, retired historical behavior):** The former external-order contract required an external ID. DR-05 removed that runtime endpoint; QA snapshots remain under historical `docs/archive/audit/` only.
 
 **Phase 6C-1A (2026-06-04):** FedEx sandbox connection foundation complete (provider architecture, registration, OAuth test, encrypted credentials, API event logs, merchant UI). FedEx Credential Registration may remain blocked pending FedEx support.
 
@@ -2253,7 +2165,7 @@ Findings summary:
 * Platform checkout uses `CheckoutService::totals()` with **tax and discount hardcoded to zero**; float `round(..., 2)`.
 * **Duplicate grand-total formula** in `CheckoutShippingService::selectShippingMethod()`.
 * **Four duplicate `amountMinor()` implementations** for Stripe.
-* External checkout preserves supplied tax/discount/totals (`ExternalOrderSyncService::totals()`).
+* The historical audit found a now-retired external-sync totals path. `ExternalOrderSyncService` and its runtime endpoints were removed by DR-05.
 * Draft orders use **manual** tax/discount/shipping with BCMath for draft total only.
 * Schema has tax columns but **no tax engine, settings, or product taxable flag**.
 * Platform authority: **`CheckoutTotalsService`** (Phase 5R-1 Slices 3–5 — create path, shipping recalculation, and conversion snapshots implemented).
@@ -2261,7 +2173,7 @@ Findings summary:
 ### Acceptance gate
 
 * [x] One authoritative totals calculation path is identified for platform checkout.
-* [x] Existing external and platform checkout behavior is documented.
+* [x] Historical external behavior and current platform checkout authority are documented.
 * [x] Duplicate sources of truth are identified.
 
 ---
@@ -2292,7 +2204,7 @@ Use a provider-neutral tax service boundary so an external tax provider can be a
 
 * Store A cannot use Store B tax settings or tax rates.
 * Historical order tax values must not change when tax settings change later.
-* External checkout tax values supplied by an authenticated external source must be preserved according to the external-order contract.
+* Existing historical order tax snapshots must be preserved; no new external source may submit tax truth.
 * Do not silently recalculate historical orders.
 * Do not use floating-point arithmetic for money.
 * Tax errors must not create partially confirmed orders.
@@ -2311,12 +2223,12 @@ Cover:
 * rounding;
 * cross-store isolation;
 * checkout-to-order snapshot;
-* external checkout preservation.
+* historical external-order tax snapshot immutability.
 
 ### Acceptance gate
 
 * Platform checkout calculates and snapshots tax consistently.
-* External checkout remains provider-owned for supplied tax snapshots.
+* Historical externally sourced tax snapshots remain immutable; no runtime external checkout exists.
 * Historical orders remain immutable.
 * Full suite passes.
 
@@ -2324,7 +2236,7 @@ Cover:
 
 ## Phase 5R-2 — Coupons and discount rules
 
-**Status: Complete — 2026-07-22.** Store-scoped coupon engine, merchant Discounts UI, platform checkout apply/remove and mid-checkout item/address revalidation, draft-order coupon apply + convert redemption, external opt-in `discount_calculation=platform`, and abandoned-checkout reservation cleanup. Verification: `tests/Feature/Phase5R2CouponTest.php`. Out of scope by design: stackable multi-coupon carts; advanced customer-segment eligibility beyond per-customer usage limits.
+**Status: Complete — 2026-07-22.** Store-scoped coupon engine, merchant Discounts UI, platform checkout apply/remove and mid-checkout item/address revalidation, draft-order coupon apply + convert redemption, and abandoned-checkout reservation cleanup. The former external opt-in path is retired. Verification: `tests/Feature/Phase5R2CouponTest.php`. Out of scope by design: stackable multi-coupon carts; advanced customer-segment eligibility beyond per-customer usage limits.
 
 ### Build
 
@@ -2358,7 +2270,7 @@ Recommended data boundaries:
 * Expired, inactive, exhausted, or ineligible coupons return merchant/customer-friendly errors.
 * Discount must never reduce payable totals below zero.
 * Coupon changes must not alter completed historical orders.
-* External checkout discounts must not be replaced by platform coupons unless the external contract explicitly requests platform calculation.
+* Historical externally sourced discount snapshots remain immutable; no new external checkout may request platform coupon calculation.
 
 ### Tests
 
@@ -2416,7 +2328,7 @@ Create one deterministic financial order:
 * PaymentIntent amount synchronization;
 * checkout-to-order snapshot verification;
 * manual/draft order compatibility;
-* external checkout total-preservation rules;
+* historical order total-snapshot compatibility;
 * audit events for important calculation changes where appropriate.
 
 ### Critical rules
@@ -2432,7 +2344,7 @@ Create one deterministic financial order:
 * Platform checkout totals are server-authoritative. **Met.**
 * Stripe amount and checkout amount match. **Met.**
 * Order snapshots match the final checkout. **Met.**
-* External checkout contracts remain unchanged. **Met** (explicit totals preserved; platform-coupon line path decimal-exact).
+* Historical order snapshots remain readable; direct external checkout contracts are retired by DR-05.
 * Full suite passes. **Met for 5R-3 scope** (`Phase5R3TotalsHardeningTest`; three FedEx failures proven pre-existing on `6bfa366`).
 * Phase 5R is marked complete before Phase 7 begins. **Met.**
 
@@ -2526,7 +2438,7 @@ Build:
 * Refund cannot exceed captured/paid amount.
 * Repeated request cannot duplicate a refund.
 * Failed provider refund cannot mark an order as refunded.
-* External checkout refunds may be recorded as externally processed without calling Stripe.
+* Refunds for already-existing historical external orders may be recorded as externally processed without calling Stripe.
 * Courier postage refund is separate from customer payment refund.
 
 ### Acceptance gate
@@ -2631,9 +2543,7 @@ Initial scopes should include:
 
 Apply idempotency to:
 
-* external order creation;
 * platform checkout creation;
-* payment confirmation;
 * checkout-to-order conversion;
 * refund creation;
 * webhook processing;

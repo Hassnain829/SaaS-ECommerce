@@ -200,7 +200,8 @@ class MerchantWebsiteConnectTest extends TestCase
             'status' => 'active',
         ]);
 
-        $this->assertNotNull($store->fresh()->developer_storefront_token_hash);
+        $this->assertNull($store->fresh()->developer_storefront_token_hash);
+        $this->assertNull($store->fresh()->developer_storefront_token_created_at);
     }
 
     /**
@@ -221,11 +222,7 @@ class MerchantWebsiteConnectTest extends TestCase
     private function tokenedStore(string $name, string $currency = 'USD'): array
     {
         [$owner, $store] = $this->ownerStore($name, $currency);
-        $token = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $token),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$owner, $store->fresh(), $token];
     }

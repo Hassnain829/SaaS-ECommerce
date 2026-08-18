@@ -19,6 +19,7 @@ class ConnectedSite extends Model
         'public_id',
         'site_url',
         'site_url_normalized',
+        'active_site_url_key',
         'credential_hash',
         'event_signing_secret',
         'status',
@@ -50,6 +51,16 @@ class ConnectedSite extends Model
         'credential_hash',
         'event_signing_secret',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (ConnectedSite $site): void {
+            $site->active_site_url_key = $site->status === self::STATUS_ACTIVE
+                && filled($site->site_url_normalized)
+                    ? $site->site_url_normalized
+                    : null;
+        });
+    }
 
     public function store(): BelongsTo
     {

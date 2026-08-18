@@ -36,10 +36,6 @@ class AuthenticateDeveloperStorefrontToken
         $store = $site?->store;
 
         if ($store === null) {
-            $store = $this->connectedSites->resolveLegacyStoreByPlainToken($token);
-        }
-
-        if ($store === null) {
             $this->rateLimiter->hit($throttleKey, 60);
             $this->fail($request, 'invalid_token');
 

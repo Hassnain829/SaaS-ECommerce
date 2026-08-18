@@ -346,11 +346,7 @@ CSV;
     {
         $owner = $this->merchant(Str::slug($name).'@example.test');
         $store = $this->store($owner, $name);
-        $token = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $token),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

@@ -17,6 +17,7 @@ use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Payments\StripePlatformPaymentProvider;
+use App\Services\CheckoutConversionService;
 use App\Support\CheckoutMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -208,8 +209,12 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
-            ->assertOk()
-            ->assertJsonPath('order.total', '30.50');
+            ->assertStatus(202)
+            ->assertJsonPath('state', 'processing');
+
+        $paymentResult = app(StripePlatformPaymentProvider::class)
+            ->retrievePaymentIntent((string) $checkout->stripe_payment_intent_id);
+        app(CheckoutConversionService::class)->handleSucceededPayment($paymentResult);
 
         $order = Order::query()->where('store_id', $store->id)->firstOrFail();
 
@@ -311,11 +316,7 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
 
-        $token = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $token),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

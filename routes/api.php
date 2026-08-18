@@ -21,8 +21,6 @@ Route::middleware(['dev.storefront.token'])
     ->group(function (): void {
         Route::middleware('throttle:api-dev-catalog')
             ->get('catalog', [DeveloperStorefrontCatalogController::class, 'catalog']);
-        Route::middleware('throttle:api-dev-orders')
-            ->post('orders', [DeveloperStorefrontCatalogController::class, 'placeOrder']);
     });
 
 Route::middleware(['dev.storefront.token', 'throttle:api-dev-health'])

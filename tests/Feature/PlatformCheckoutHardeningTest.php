@@ -14,6 +14,7 @@ use App\Models\Role;
 use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
@@ -24,6 +25,13 @@ use Tests\TestCase;
 class PlatformCheckoutHardeningTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function withToken(string $token, string $type = 'Bearer'): static
+    {
+        parent::withToken($token, $type);
+
+        return $this->withHeader('Idempotency-Key', 'hardening-'.Str::uuid());
+    }
 
     protected function setUp(): void
     {
@@ -511,11 +519,7 @@ class PlatformCheckoutHardeningTest extends TestCase
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
 
-        $token = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $token),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

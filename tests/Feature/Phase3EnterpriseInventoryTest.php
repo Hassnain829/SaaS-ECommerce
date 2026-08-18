@@ -222,54 +222,6 @@ class Phase3EnterpriseInventoryTest extends TestCase
         app(InventoryReservationService::class)->reserve($item, 3, 'checkout', 'abc-2');
     }
 
-    public function test_storefront_order_uses_reservations_and_location_aware_movements(): void
-    {
-        [$store, $plain] = $this->tokenedStore('Inventory Storefront');
-        [$product, $variant] = $this->productFor($store, 'API Inventory Product', 4);
-
-        $this->withToken($plain)
-            ->postJson('/api/developer-storefront/orders', [
-                'customer_name' => 'Inventory Buyer',
-                'customer_email' => 'inventory-buyer@example.test',
-                'shipping_address' => [
-                    'address_line1' => '123 Market Street',
-                    'city' => 'Karachi',
-                    'postal_code' => '74000',
-                    'country' => 'Pakistan',
-                ],
-                'items' => [
-                    [
-                        'product_id' => $product->id,
-                        'variant_id' => $variant->id,
-                        'quantity' => 2,
-                    ],
-                ],
-            ])
-            ->assertCreated();
-
-        $this->assertSame(2, (int) $variant->fresh()->stock);
-        $this->assertDatabaseHas('inventory_reservations', [
-            'store_id' => $store->id,
-            'inventory_item_id' => InventoryItem::query()->where('variant_id', $variant->id)->value('id'),
-            'quantity' => 2,
-            'status' => InventoryReservation::STATUS_DEDUCTED,
-        ]);
-        $this->assertDatabaseHas('stock_movements', [
-            'store_id' => $store->id,
-            'product_id' => $product->id,
-            'variant_id' => $variant->id,
-            'movement_type' => StockMovement::TYPE_ORDER_RESERVED,
-            'quantity_change' => -2,
-        ]);
-        $this->assertDatabaseHas('stock_movements', [
-            'store_id' => $store->id,
-            'product_id' => $product->id,
-            'variant_id' => $variant->id,
-            'movement_type' => StockMovement::TYPE_ORDER_DEDUCTED,
-            'quantity_change' => -2,
-        ]);
-    }
-
     private function merchantUser(?string $email = null): User
     {
         $role = Role::firstOrCreate(['name' => 'user']);
@@ -327,20 +279,4 @@ class Phase3EnterpriseInventoryTest extends TestCase
         return [$product, $variant];
     }
 
-    /**
-     * @return array{0: Store, 1: string, 2: User}
-     */
-    private function tokenedStore(string $name): array
-    {
-        $owner = $this->merchantUser(Str::slug($name).'-owner@example.test');
-        $store = $this->storeFor($owner, $name);
-        $plain = 'baa_dev_test_'.Str::random(32);
-
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $plain),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
-
-        return [$store, $plain, $owner];
-    }
 }

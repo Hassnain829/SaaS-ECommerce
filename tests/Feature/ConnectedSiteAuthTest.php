@@ -12,8 +12,11 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\ConnectedSiteService;
 use App\Support\ConnectedSiteScope;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class ConnectedSiteAuthTest extends TestCase
@@ -168,7 +171,214 @@ class ConnectedSiteAuthTest extends TestCase
             ->assertSessionHasErrors(['website_url']);
     }
 
-    public function test_production_requires_https_except_local_addresses(): void
+    public function test_binding_and_clearing_a_url_updates_store_and_primary_site_together(): void
+    {
+        [, $store] = $this->ownerStore('Atomic Url Store');
+        $service = app(ConnectedSiteService::class);
+        $site = $service->issuePrimaryCredential($store)['site'];
+        $url = 'https://atomic-url.example.com/shop';
+
+        $service->bindWebsiteUrl($store, $url);
+
+        $this->assertSame($url, $store->fresh()->connectedWebsiteUrl());
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $site->id,
+            'site_url' => $url,
+            'site_url_normalized' => $url,
+            'active_site_url_key' => $url,
+        ]);
+
+        $service->bindWebsiteUrl($store, '');
+
+        $settings = $store->fresh()->settings;
+        $this->assertIsArray($settings);
+        $this->assertArrayNotHasKey('connected_website_url', $settings);
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $site->id,
+            'site_url' => null,
+            'site_url_normalized' => null,
+            'active_site_url_key' => null,
+        ]);
+    }
+
+    public function test_expected_unique_race_returns_validation_and_rolls_back_store_and_site(): void
+    {
+        [$owner, $store] = $this->ownerStore('Atomic Race Store');
+        $service = app(ConnectedSiteService::class);
+        $site = $service->issuePrimaryCredential($store)['site'];
+        $originalUrl = 'https://original-race.example.com';
+        $racedUrl = 'https://raced-url.example.com';
+        $service->bindWebsiteUrl($store, $originalUrl);
+
+        DB::unprepared(
+            "CREATE TRIGGER connected_site_unique_race BEFORE UPDATE ON connected_sites "
+            ."WHEN NEW.active_site_url_key = '{$racedUrl}' "
+            ."BEGIN SELECT RAISE(ABORT, 'UNIQUE constraint failed: connected_sites.active_site_url_key'); END"
+        );
+
+        try {
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $store->id])
+                ->patch(route('developer-storefront.website.update'), [
+                    'website_url' => $racedUrl,
+                ])
+                ->assertSessionHasErrors([
+                    'website_url' => 'That WordPress site is already connected to another store.',
+                ]);
+        } finally {
+            DB::unprepared('DROP TRIGGER IF EXISTS connected_site_unique_race');
+        }
+
+        $this->assertSame($originalUrl, $store->fresh()->connectedWebsiteUrl());
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $site->id,
+            'site_url' => $originalUrl,
+            'site_url_normalized' => $originalUrl,
+            'active_site_url_key' => $originalUrl,
+        ]);
+    }
+
+    public function test_unrelated_database_failure_is_not_mislabeled_and_rolls_back_both_records(): void
+    {
+        [, $store] = $this->ownerStore('Atomic Failure Store');
+        $service = app(ConnectedSiteService::class);
+        $site = $service->issuePrimaryCredential($store)['site'];
+        $originalUrl = 'https://original-failure.example.com';
+        $failingUrl = 'https://unrelated-failure.example.com';
+        $service->bindWebsiteUrl($store, $originalUrl);
+
+        DB::unprepared(
+            "CREATE TRIGGER connected_site_unrelated_failure BEFORE UPDATE ON connected_sites "
+            ."WHEN NEW.active_site_url_key = '{$failingUrl}' "
+            ."BEGIN SELECT RAISE(ABORT, 'simulated unrelated database failure'); END"
+        );
+
+        try {
+            $service->bindWebsiteUrl($store, $failingUrl);
+            $this->fail('An unrelated database failure was swallowed.');
+        } catch (QueryException $exception) {
+            $this->assertStringContainsString('simulated unrelated database failure', $exception->getMessage());
+        } catch (ValidationException) {
+            $this->fail('An unrelated database failure was mislabeled as a duplicate website URL.');
+        } finally {
+            DB::unprepared('DROP TRIGGER IF EXISTS connected_site_unrelated_failure');
+        }
+
+        $this->assertSame($originalUrl, $store->fresh()->connectedWebsiteUrl());
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $site->id,
+            'site_url' => $originalUrl,
+            'site_url_normalized' => $originalUrl,
+            'active_site_url_key' => $originalUrl,
+        ]);
+    }
+
+    public function test_reactivating_a_credential_cannot_reclaim_a_url_now_owned_by_another_store(): void
+    {
+        [$ownerA, $storeA] = $this->ownerStore('Reactivation Store A');
+        [, $storeB] = $this->ownerStore('Reactivation Store B');
+        $service = app(ConnectedSiteService::class);
+        $url = 'https://reactivation-owner.example.com';
+
+        $siteA = $service->issuePrimaryCredential($storeA)['site'];
+        $service->bindWebsiteUrl($storeA, $url);
+        $service->revokePrimary($storeA);
+
+        $service->bindWebsiteUrl($storeB, $url);
+        $siteB = $service->issuePrimaryCredential($storeB)['site'];
+
+        $this->actingAs($ownerA)
+            ->withSession(['current_store_id' => $storeA->id])
+            ->post(route('developer-storefront.token.generate'))
+            ->assertSessionHasErrors([
+                'website_url' => 'That WordPress site is already connected to another store.',
+            ]);
+
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $siteA->id,
+            'status' => ConnectedSite::STATUS_REVOKED,
+            'active_site_url_key' => null,
+        ]);
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $siteB->id,
+            'status' => ConnectedSite::STATUS_ACTIVE,
+            'active_site_url_key' => $url,
+        ]);
+    }
+
+    public function test_reactivation_unique_race_returns_validation_and_keeps_the_site_revoked(): void
+    {
+        [$owner, $store] = $this->ownerStore('Reactivation Race Store');
+        $service = app(ConnectedSiteService::class);
+        $site = $service->issuePrimaryCredential($store)['site'];
+        $url = 'https://reactivation-race.example.com';
+        $service->bindWebsiteUrl($store, $url);
+        $service->revokePrimary($store);
+        $credentialHash = (string) $site->fresh()->getRawOriginal('credential_hash');
+
+        DB::unprepared(
+            "CREATE TRIGGER connected_site_reactivation_race BEFORE UPDATE ON connected_sites "
+            ."WHEN NEW.status = 'active' AND NEW.active_site_url_key = '{$url}' "
+            ."BEGIN SELECT RAISE(ABORT, 'UNIQUE constraint failed: connected_sites.active_site_url_key'); END"
+        );
+
+        try {
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $store->id])
+                ->post(route('developer-storefront.token.generate'))
+                ->assertSessionHasErrors([
+                    'website_url' => 'That WordPress site is already connected to another store.',
+                ]);
+        } finally {
+            DB::unprepared('DROP TRIGGER IF EXISTS connected_site_reactivation_race');
+        }
+
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $site->id,
+            'credential_hash' => $credentialHash,
+            'status' => ConnectedSite::STATUS_REVOKED,
+            'active_site_url_key' => null,
+        ]);
+    }
+
+    public function test_database_enforces_active_url_uniqueness_and_revocation_releases_the_url(): void
+    {
+        [, $storeA] = $this->ownerStore('Database Url Store A');
+        [, $storeB] = $this->ownerStore('Database Url Store B');
+        $service = app(ConnectedSiteService::class);
+        $siteA = $service->issuePrimaryCredential($storeA)['site'];
+        $siteB = $service->issuePrimaryCredential($storeB)['site'];
+        $url = 'https://database-unique.example.com';
+
+        $service->bindWebsiteUrl($storeA, $url);
+
+        try {
+            $siteB->forceFill([
+                'site_url' => $url,
+                'site_url_normalized' => $url,
+            ])->save();
+            $this->fail('The active connected-site URL database key accepted a duplicate.');
+        } catch (QueryException) {
+            $this->assertDatabaseHas('connected_sites', [
+                'id' => $siteA->id,
+                'active_site_url_key' => $url,
+            ]);
+        }
+
+        $service->revokePrimary($storeA);
+        $service->bindWebsiteUrl($storeB, $url);
+
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $siteA->id,
+            'active_site_url_key' => null,
+        ]);
+        $this->assertDatabaseHas('connected_sites', [
+            'id' => $siteB->id,
+            'active_site_url_key' => $url,
+        ]);
+    }
+
+    public function test_production_requires_https_for_every_connected_site_address(): void
     {
         [$owner, $store] = $this->ownerStore('Https Store');
         $original = $this->app['env'];
@@ -194,7 +404,23 @@ class ConnectedSiteAuthTest extends TestCase
                 ->patch(route('developer-storefront.website.update'), [
                     'website_url' => 'http://localhost:8080',
                 ])
-                ->assertRedirect(route('developer-storefront.settings'));
+                ->assertSessionHasErrors(['website_url']);
+        } finally {
+            $this->app['env'] = $original;
+        }
+    }
+
+    public function test_production_rejects_an_unbound_connected_site(): void
+    {
+        [, , $token] = $this->connectedStore('Unbound Production Site');
+        $original = $this->app['env'];
+        $this->app['env'] = 'production';
+
+        try {
+            $this->withToken($token)
+                ->withHeaders(['X-Eco-Site-Url' => 'https://shop.example.com'])
+                ->getJson('/api/developer-storefront/catalog')
+                ->assertForbidden();
         } finally {
             $this->app['env'] = $original;
         }

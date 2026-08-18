@@ -1,8 +1,10 @@
 # Phase 9 — Integration Foundation Plan
 
 > **Status:** Approved execution plan / not started in code
-> **Last updated:** 2026-08-12
+> **Last updated:** 2026-08-18
 > **Authority:** This is the **approved Phase 9 execution plan** for goals, vision, current baseline, and batch order. It is **not** a root canonical document. On conflict, prefer `docs/current/PROJECT_STATE.md`, then root canonical docs: `ENTERPRISE_PROJECT_CONTEXT.md`, `ENTERPRISE_ROADMAP_2026.md`, `PROJECT_BRAIN.md`, `PROJECT_STRUCTURE.md`, and `AGENTS.md`.
+
+> **DR-05 correction:** `DR05_BATCH6_CRITICAL_FIX_SPEC.md` supersedes the legacy-token, external-order-sync, and direct-order assumptions in the original Phase 9 baseline. ConnectedSite-only authentication, atomic platform checkout, webhook-only conversion, and catalog-delivery SSRF controls are implemented foundations for any future Phase 9 work. Phase 9 must not reintroduce direct paid-order or external shipment truth.
 
 External source document (audit basis): `PHASE_9_ENTERPRISE_INTEGRATION_ARCHITECTURE_GUIDE.md` (kept outside the repo; this file is the project-bound execution plan aligned to actual code).
 
@@ -86,36 +88,34 @@ Merchant readiness P0 (`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.m
 
 ---
 
-## 3. Current baseline (code audit — 2026-07-04)
+## 3. Current baseline (updated after DR-05 correction — 2026-08-18)
 
 ### Implemented (prototype level)
 
 | Area | Location | Notes |
 |------|----------|-------|
-| API routes | `routes/api.php` | Legacy dev storefront + v1 catalog/external/checkout + Stripe inbound webhooks |
-| Auth | `AuthenticateDeveloperStorefrontToken` | One SHA-256 hashed token per store (`baa_dev_*`); attribute `developerStorefrontStore` |
+| API routes | `routes/api.php` | Connected-site catalog/platform checkout + Stripe inbound webhooks; direct order/shipment sync routes retired |
+| Auth | `AuthenticateDeveloperStorefrontToken` | Active hashed `ConnectedSite` credential with scopes, revocation, rotation, and production site binding |
 | Catalog reads | `Api\CatalogApiV1Controller` | Products, detail, categories, brands, attributes — serialization in controller |
-| Legacy catalog/orders | `Api\DeveloperStorefrontCatalogController` | Simpler catalog + **separate** `placeOrder` path (not `ExternalOrderSyncService`) |
-| External writes | `Api\ExternalOrderSyncController`, `ExternalShipmentSyncController` | Full sync services; controller-local idempotency |
-| Platform checkout | `Api\PlatformCheckoutController` | Create, delivery, shipping, confirm — no idempotency middleware |
-| Inbound Stripe | `Api\StripeWebhookController`, `StripeConnectWebhookController` | Signature verify; conversion dedup via checkout/order state |
-| Idempotency table | `idempotency_keys` + `IdempotencyKey` model | External order/shipment only; non-atomic; `(store_id, key)` unique |
-| Channel ownership | `Services\Channels\ChannelOwnershipService` | External vs platform checkout/inventory ownership |
-| Domain services | `ExternalOrderSyncService`, `ExternalShipmentSyncService`, `CheckoutService`, `CheckoutConversionService`, `CheckoutShippingService`, `InventoryAdjustmentService`, etc. | **Primary reuse layer** |
+| Compatibility catalog | `Api\DeveloperStorefrontCatalogController` | Simpler catalog response only; no direct order method |
+| Platform checkout | `Api\PlatformCheckoutController` | Atomic create idempotency, delivery/shipping updates, and read-only confirmation polling |
+| Inbound Stripe | `Api\StripeWebhookController`, `StripeConnectWebhookController` | Signature verify, provider-event claim, and sole successful conversion callers |
+| Idempotency table | `idempotency_keys` + `CheckoutIdempotencyService` | Database-first `(store_id, key)` claim with request hash, owner token, replay, and processing conflict |
+| Channel ownership | `Services\Channels\ChannelOwnershipService` | Platform runtime defaults plus read-only interpretation of historical orders |
+| Domain services | `CheckoutService`, `CheckoutConversionService`, `CheckoutShippingService`, `InventoryAdjustmentService`, etc. | **Primary reuse layer** |
 | Merchant token UI | `Settings\DeveloperStorefrontSettingsController`, `developer_storefront.blade.php` | Permissions: `developer_api.view/manage` |
 | Rate limits | `AppServiceProvider` | Per-store fixed limits (`api-dev-catalog`, `api-dev-checkout`, …) |
-| Tests | ~1191 passing | External sync, checkout, Stripe, partial catalog v1, channel mode |
+| Tests | 1,474 passing, 2 skipped | Full suite result on 2026-08-18; platform checkout, ConnectedSite, WordPress connector, Woo import, and historical compatibility |
 
 ### Not implemented (Phase 9 target)
 
 - `api_keys` table and scoped key lifecycle
 - `AuthenticateApiKey` / `RequireApiScope` middleware
-- Central `IdempotencyService` with processing/claim states
-- `provider_webhook_events` (Stripe/provider event dedup table)
+- Generic idempotency coverage beyond the current hardened checkout boundary
 - `outbox_events` + dispatcher jobs
 - `webhook_subscriptions`, `webhook_deliveries`, `webhook_delivery_attempts`
 - `integration_connections`, `integration_resource_links`, `integration_sync_runs`
-- WooCommerce / Shopify / WordPress connector adapters
+- WooCommerce and Shopify production adapters (the thin WordPress connector exists for DR-05)
 - Settings → **Integrations** hub (API keys, webhooks, connected sites)
 - OpenAPI spec and production reference examples
 - Read APIs: `GET /api/v1/orders`, customers, inventory, shipments, store
@@ -151,21 +151,18 @@ Provider callbacks **do not** use merchant API keys.
 |--------|---------|---------|
 | **Client idempotency** | Replay-safe client retries for public writes | `Idempotency-Key` header + `idempotency_keys` (upgraded in 9B) |
 | **Provider-event dedup** | Exactly-once processing of inbound provider events | Stripe event ID → `provider_webhook_events` |
-| **External resource identity** | Durable business identity of an external order/shipment/product | `external_order_id` / `external_order_number`, resource links |
+| **External resource identity** | Durable source identity for future authorized connectors and historical records | source system/site/resource IDs and resource links |
 
 Do not collapse these into one table or one middleware.
 
-### Legacy `/api/developer-storefront/*`
+### Compatibility `/api/developer-storefront/*`
 
 Do **not** change legacy response shapes before:
 
 1. Phase 9-0 contract tests lock current behavior, and
 2. simulator migration to a test API key (9F).
 
-Both legacy and v1 order paths must be characterized:
-
-- `POST /api/developer-storefront/orders` → `DeveloperStorefrontCatalogController::placeOrder`
-- `POST /api/v1/external/orders` → `ExternalOrderSyncService`
+The compatibility catalog response may remain until simulator migration. Its former paid-order path and the v1 external order/shipment paths are retired and must continue returning `404`.
 
 ---
 
@@ -194,11 +191,9 @@ Merchant API key secrets are hashed because we only verify them. Connector/provi
 
 ```
 routes/api.php
-  → AuthenticateDeveloperStorefrontToken (legacy, then migrate)
+  → AuthenticateDeveloperStorefrontToken (ConnectedSite only)
   → Api/* controllers (harden, do not duplicate routes)
   → Services:
-       ExternalOrderSyncService      ← external orders + ownership + inventory
-       ExternalShipmentSyncService   ← shipment sync
        CheckoutService               ← platform checkout create
        CheckoutConversionService     ← Stripe webhook → order
        CheckoutShippingService       ← delivery options
@@ -212,7 +207,7 @@ routes/api.php
 
 **Product write blocker:** Do **not** expose `catalog.write` or connector product push until product persistence is extracted from `Store\OnboardingController` into **one shared store-scoped service** used by Blade and API.
 
-**SSRF pattern to reuse:** `App\Support\Security\ServerSideImageHttpUrlValidator` for webhook endpoint validation.
+**SSRF pattern to reuse:** `App\Services\Security\OutboundUrlGuard` and `OutboundDnsResolver` for merchant-controlled outbound destinations.
 
 ---
 
@@ -312,8 +307,8 @@ Merchant readiness P0 and full-suite recovery precede Phase 9 unless explicitly 
 | Batch | Focus | Gate |
 |-------|-------|------|
 | **9-0** | Contracts, characterization tests, architecture docs (ownership, capability matrix, event catalog, dependency audit) | No schema until tests lock current behavior |
-| **9A** | API keys, auth, scopes, rate limits, request IDs, stable errors, API resources, read APIs, Integrations UI, legacy-token migration path | Every merchant `/api/v1` route has auth + scope + rate class; secrets never logged |
-| **9B** | Atomic client idempotency engine + provider webhook dedup (`provider_webhook_events`); migrate external/checkout/inventory writes and Stripe callbacks | Concurrent duplicates → one business result; duplicate Stripe events safe 2xx |
+| **9A** | API keys, auth, scopes, rate limits, request IDs, stable errors, API resources, read APIs, Integrations UI, and ConnectedSite interoperability | Every merchant `/api/v1` route has auth + scope + rate class; secrets never logged |
+| **9B** | Extend the atomic client idempotency engine + provider webhook dedup (`provider_webhook_events`) to future authorized writes and callbacks | Concurrent duplicates → one business result; duplicate Stripe events safe 2xx |
 | **9C** | Transactional outbox (`outbox_events`), producers at service boundaries, worker/recovery/retention | Rollback removes event; commit includes event |
 | **9D** | Signed outbound webhooks (`webhook_subscriptions`, `webhook_deliveries`, `webhook_delivery_attempts`), SSRF protection, retries, merchant diagnostics | No duplicate logical delivery; private targets blocked |
 | **9F** | Shared integration connections, resource links, sync runs, reconciliation; then custom website reference (simulator → test API key, OpenAPI, examples) | Chunked import + durable links; legacy shapes preserved until migration |
@@ -326,7 +321,7 @@ Merchant readiness P0 and full-suite recovery precede Phase 9 unless explicitly 
 2. `AuthenticateApiKey`, scopes, per-key rate limits, stable errors + request ID
 3. API resources/DTOs, response envelope (merchant v1 only; do not change legacy shapes yet)
 4. Read APIs (store, orders, customers, inventory, shipments), cursor/`updated_since`
-5. Settings → Integrations UI and legacy-token migration path
+5. Settings → Integrations UI and ConnectedSite-to-future-API-key transition without dual authentication
 
 ### Merchant UX target
 
@@ -361,22 +356,21 @@ Evolve from current `developer_storefront` page; keep route aliases during migra
 Must cover:
 
 - catalog v1 list/detail
-- **legacy API response contracts** (`/api/developer-storefront/*`) — shapes must not drift
-- **both legacy and v1 order paths**
-- external order/shipment: **external identity vs idempotency** (identity required; idempotency is replay protection only)
+- **compatibility catalog response contract** (`GET /api/developer-storefront/catalog`) — shape must not drift before simulator migration
+- retired direct order/shipment paths remain `404`
 - platform checkout golden path
 - **duplicate Stripe events** → single order / safe 2xx
 - **cross-store isolation** and **request `store_id` override** rejection (body/query cannot switch store)
 - **secret/header log redaction** (no full secrets or `Authorization` headers in logs)
-- **rollback without partial order/inventory state** (failed sync leaves no half-created order or stock movement)
+- **rollback without partial checkout/order/inventory state**
 - rate-limit baseline
 
 JSON fixtures under `tests/fixtures/api/v1/` or `tests/Support/Integrations/`.
 
 ### Explicit decisions before 9A
 
-- [ ] Any real external v1 consumers today? (If no → can normalize merchant v1 envelope before public launch; still do not change legacy shapes until simulator migration.)
-- [ ] Deprecation plan for `POST /api/developer-storefront/orders` vs `POST /api/v1/external/orders`.
+- [ ] Any real merchant v1 consumers today? (If no → can normalize merchant v1 envelope before public launch; keep the compatibility catalog shape until simulator migration.)
+- [x] Direct paid-order and external order/shipment paths retired with `404` regression coverage under DR-05.
 - [ ] Queue worker + failed jobs + scheduler confirmed for production.
 - [ ] Phase 5R-2 coupon impact documented — **do not freeze coupon payloads**.
 - [ ] Phase 5R-3 totals-hardening impact documented — avoid over-freezing totals fields.
@@ -393,10 +387,10 @@ After 9-0: run tests, show changed files and `git diff --stat`, stop for manual 
 
 | Topic | Notes |
 |-------|-------|
-| Token format | Current `baa_dev_*` → target `eco_test_*` / `eco_live_*`; legacy middleware kept during transition |
+| Token format | Current `baa_dev_*` ConnectedSite key → future `eco_test_*` / `eco_live_*`; do not restore store-hash dual auth |
 | Permission names | Code has `developer_api.*`; roadmap mentions `integrations.*` — unify when building Integrations UI |
 | Scope naming | Prefer granular scopes over roadmap’s `orders.write` / `inventory.write` |
-| Dual order APIs | Legacy `placeOrder` vs `ExternalOrderSyncService` — both need contract tests and deprecation path |
+| Retired direct order APIs | Keep 404 regression coverage; future integrations must enter SaaS-authoritative checkout, not restore paid-order ingestion |
 | Roadmap returns scopes in 9A | Do not issue; Phase 7 owns returns/refunds |
 | Roadmap billing phase | SaaS billing is **Phase 10**, not Phase 8 |
 | Roadmap Markets/B2B | **Phase 8** |
@@ -413,7 +407,7 @@ After 9-0: run tests, show changed files and `git diff --stat`, stop for manual 
 | Controller idempotency races | Central atomic idempotency in 9B; concurrency tests mandatory |
 | Coupons not finalized (5R-2) | Document impact in 9-0; **do not freeze coupon payloads** |
 | Totals still hardening (5R-3) | Document impact in 9-0; avoid over-freezing totals fields |
-| Legacy token removal too early | Dual auth period; migrate `dev-test-storefront` to test API key in 9F; preserve legacy response shapes until then |
+| Reintroducing retired legacy authentication | Keep ConnectedSite as the only current connector authority; future API keys need an explicit migration with no dual store-hash fallback |
 | Uncontrolled two-way sync | Ownership matrix + capability matrix + connector conflict UI |
 | Catalog serialization duplicated | Refactor in 9A into shared resources (merchant v1 only) |
 | No outbound webhook infra | Complete 9C–9D before promising merchant webhooks |
@@ -483,16 +477,15 @@ Until both groups pass, the project has an **integration foundation in progress*
 | When working on… | Start here |
 |------------------|------------|
 | Route inventory | `routes/api.php`, `PROJECT_STRUCTURE.md` §3 Api |
-| Legacy auth | `AuthenticateDeveloperStorefrontToken`, `Store::hasDeveloperStorefrontToken()` |
-| External orders (v1) | `ExternalOrderSyncController` → `ExternalOrderSyncService` |
-| Legacy orders | `DeveloperStorefrontCatalogController::placeOrder` |
+| Connected-site auth | `AuthenticateDeveloperStorefrontToken`, `ConnectedSiteService`, `Store::hasDeveloperStorefrontToken()` |
+| Retired direct order guard | `routes/api.php`, `DeveloperStorefrontApiTest`, `PlatformOnlyCheckoutTest` |
 | Checkout API | `PlatformCheckoutController` → `CheckoutService` / `CheckoutShippingService` |
 | Stripe inbound | `StripeWebhookController` → `CheckoutConversionService` |
 | Ownership rules | `ChannelOwnershipService` |
 | Stock changes | `InventoryAdjustmentService` (never raw variant stock updates) |
 | Merchant token UI | `DeveloperStorefrontSettingsController`, `developer_storefront.blade.php` |
 | Future integration code | `app/Services/Integrations/` (to be created in 9A+) |
-| Tests to extend | `tests/Feature/Phase5ExternalCheckoutSyncTest.php`, `EnterpriseQaExternalOrderDedupHardeningTest.php`, `Phase5PlatformCheckoutStripeTest.php`, `DeveloperStorefrontApiTest.php` |
+| Tests to extend | `Phase5PlatformCheckoutStripeTest`, `PlatformCheckoutHardeningTest`, `CheckoutIdempotencyClaimTest`, `DeveloperStorefrontApiTest`, `ConnectedSiteAuthTest` |
 
 ---
 

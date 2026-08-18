@@ -142,11 +142,7 @@ class Phase2CatalogCleanupTest extends TestCase
     public function test_catalog_api_v1_exposes_custom_product_type_label(): void
     {
         [$owner, $store] = $this->ownerWithStore();
-        $plainToken = 'baa_dev_test_'.Str::random(32);
-        $store->forceFill([
-            'developer_storefront_token_hash' => hash('sha256', $plainToken),
-            'developer_storefront_token_created_at' => now(),
-        ])->save();
+        $plainToken = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         Product::query()->create([
             'store_id' => $store->id,

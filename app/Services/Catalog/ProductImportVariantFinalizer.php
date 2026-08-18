@@ -423,7 +423,7 @@ final class ProductImportVariantFinalizer
         $parentSku = $parentMapped ? trim((string) ($fields0[ProductImportField::PARENT_SKU] ?? '')) : '';
         $productSku = $parentSku !== '' ? $parentSku : $this->deriveAutoProductSku($store->id, $groupKey, $fields0);
 
-        $product = ProductImportSourceIdentity::findProduct($store, $productSku, $first['keyed']);
+        $product = ProductImportSourceIdentity::findProduct($store, $import, $productSku, $first['keyed']);
 
         $productExistedBefore = $product !== null;
 
@@ -490,7 +490,7 @@ final class ProductImportVariantFinalizer
 
         if (! $product) {
             $meta = $this->mergeMetaLayer([], $mergedExtras, $catalogMeta, $variantOptionsMeta, 0, $mergedProductCustom);
-            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $store, $first['keyed']);
+            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $first['keyed']);
             $slug = $slugService->assignSlug($store, $name, null, $preferredSlug !== '' ? $preferredSlug : null);
             $brandName = trim((string) ($fields0[ProductImportField::BRAND] ?? ''));
             $product = Product::query()->create([
@@ -501,7 +501,7 @@ final class ProductImportVariantFinalizer
                 'description' => $mergedDescription !== '' ? $mergedDescription : null,
                 'base_price' => $basePrice,
                 'sku' => $productSku,
-                ...ProductImportSourceIdentity::productColumns($first['keyed']),
+                ...ProductImportSourceIdentity::productColumns($import, $first['keyed']),
                 'product_type' => $productType,
                 ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'is_taxable' => app(ProductTaxableDefaultResolver::class)->forStore($store),
@@ -512,7 +512,7 @@ final class ProductImportVariantFinalizer
             $this->syncTaxonomyFromFields($product, $fields0, $taxonomyCache);
         } else {
             $meta = $this->mergeMetaLayer($product->meta ?? [], $mergedExtras, $catalogMeta, $variantOptionsMeta, (int) ($product->meta['stock_alert'] ?? 0), $mergedProductCustom);
-            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $store, $first['keyed']);
+            $meta = ProductImportSourceIdentity::mergeMeta($meta, $import, $first['keyed']);
             $brandName = trim((string) ($fields0[ProductImportField::BRAND] ?? ''));
             $keptSlug = (string) $product->slug;
             $product->update([
@@ -521,7 +521,7 @@ final class ProductImportVariantFinalizer
                 'description' => $mergedDescription !== '' ? $mergedDescription : $product->description,
                 'base_price' => $basePrice > 0 ? $basePrice : $product->base_price,
                 'sku' => $productSku,
-                ...ProductImportSourceIdentity::productColumns($first['keyed']),
+                ...ProductImportSourceIdentity::productColumns($import, $first['keyed']),
                 'product_type' => $productType,
                 ...ProductTypeBehavior::defaultColumnsFor($productType),
                 'status' => $status,
@@ -622,6 +622,7 @@ final class ProductImportVariantFinalizer
             }
             $variant = ProductImportSourceIdentity::findVariant(
                 $product,
+                $import,
                 $desiredVariantSku,
                 $optionIds,
                 $m['keyed'],
@@ -652,7 +653,7 @@ final class ProductImportVariantFinalizer
                 $variant = ProductVariant::query()->create([
                     'product_id' => $product->id,
                     'sku' => $variantSku,
-                    ...ProductImportSourceIdentity::variantColumns($m['keyed']),
+                    ...ProductImportSourceIdentity::variantColumns($import, $m['keyed']),
                     'price' => $price,
                     'compare_at_price' => $compareAt,
                     'stock' => 0,
@@ -676,7 +677,7 @@ final class ProductImportVariantFinalizer
                 $previousStock = (int) $variant->stock;
                 $variant->update([
                     'sku' => $variantSku,
-                    ...ProductImportSourceIdentity::variantColumns($m['keyed']),
+                    ...ProductImportSourceIdentity::variantColumns($import, $m['keyed']),
                     'price' => $price,
                     'compare_at_price' => $compareAt,
                     'stock_alert' => max(0, $stockAlert),

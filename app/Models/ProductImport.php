@@ -31,6 +31,7 @@ class ProductImport extends Model
         'stored_path',
         'mime_type',
         'file_extension',
+        'source_site',
         'status',
         'headers',
         'column_mapping',

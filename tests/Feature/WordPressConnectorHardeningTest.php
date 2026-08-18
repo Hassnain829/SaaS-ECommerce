@@ -97,6 +97,7 @@ class WordPressConnectorHardeningTest extends TestCase
         $pluginDir = base_path('dev-test-wordpress/wp-content/plugins/eco-portal-connector');
         $files = [
             'includes/class-api-client.php',
+            'includes/class-checkout-attempt.php',
             'includes/class-admin.php',
             'includes/class-storefront.php',
             'includes/class-conflicts.php',
@@ -129,6 +130,7 @@ class WordPressConnectorHardeningTest extends TestCase
         $checkout = file_get_contents($pluginDir.'/templates/checkout.php');
         $js = file_get_contents($pluginDir.'/assets/js/checkout.js');
         $conflicts = file_get_contents($pluginDir.'/includes/class-conflicts.php');
+        $attempt = file_get_contents($pluginDir.'/includes/class-checkout-attempt.php');
 
         $this->assertStringContainsString('intent_cart', $storefront);
         $this->assertStringContainsString('hydrate_cart', $storefront);
@@ -143,11 +145,94 @@ class WordPressConnectorHardeningTest extends TestCase
         $this->assertStringContainsString('Not the checkout total', $cart);
         $this->assertStringContainsString('This site will not take payment itself', $checkout);
         $this->assertStringContainsString('confirmPayment', $js);
+        $this->assertStringContainsString('request_fingerprint', $attempt);
+        $this->assertStringContainsString('idempotency_key', $storefront);
+        $this->assertStringContainsString('self::ensure_checkout_attempt();', $storefront);
+        $this->assertStringContainsString('Eco_Portal_Checkout_Attempt::begin(', $storefront);
+        $this->assertStringContainsString('checkout_attempt_token', $checkout);
+        $this->assertStringContainsString('hash_equals($token, $posted_token)', $attempt);
+        $this->assertStringContainsString('$client->create_checkout($payload, $idempotency_key)', $storefront);
+        $this->assertStringContainsString('self::save_checkout_state($attempt_state)', $storefront);
+        $this->assertStringNotContainsString('usleep(', $storefront);
+        $this->assertStringNotContainsString('for ($attempt = 0; $attempt < 12; $attempt++)', $storefront);
+        $this->assertStringContainsString('create_checkout(array $payload, string $idempotency_key)', $client);
+        $this->assertStringContainsString('\'Idempotency-Key\' => $idempotency_key', $client);
+        $this->assertStringNotContainsString('wp_generate_uuid4()', substr($client, strpos($client, 'function create_checkout'), 700));
+
+        $startHandlerStart = strpos($storefront, 'public static function handle_start_checkout');
+        $startHandlerEnd = strpos($storefront, 'public static function handle_select_shipping', $startHandlerStart ?: 0);
+        $this->assertNotFalse($startHandlerStart);
+        $this->assertNotFalse($startHandlerEnd);
+        $startHandler = substr($storefront, (int) $startHandlerStart, (int) $startHandlerEnd - (int) $startHandlerStart);
+        $this->assertStringNotContainsString('wp_checkout_', $startHandler);
+        $this->assertStringNotContainsString('wp_generate_uuid4', $startHandler);
+
         $this->assertStringContainsString('woocommerce/woocommerce.php', $conflicts);
         $this->assertStringContainsString('unsafe_checkout_cache', $conflicts);
         $this->assertStringContainsString('Eco_Portal_Catalog_Cache::get', $client);
         $this->assertStringContainsString('hash_hmac', file_get_contents($pluginDir.'/includes/class-events.php'));
         $this->assertStringNotContainsString('/api/v1/checkout', file_get_contents($pluginDir.'/includes/class-catalog-cache.php'));
+    }
+
+    public function test_wordpress_checkout_uses_session_bound_durable_browser_polling(): void
+    {
+        $pluginDir = base_path('dev-test-wordpress/wp-content/plugins/eco-portal-connector');
+        $storefront = file_get_contents($pluginDir.'/includes/class-storefront.php');
+        $checkout = file_get_contents($pluginDir.'/templates/checkout.php');
+        $js = file_get_contents($pluginDir.'/assets/js/checkout.js');
+
+        $this->assertIsString($storefront);
+        $this->assertIsString($checkout);
+        $this->assertIsString($js);
+
+        $this->assertStringContainsString("add_action('wp_ajax_nopriv_eco_portal_checkout_status'", $storefront);
+        $this->assertStringContainsString("add_action('wp_ajax_eco_portal_checkout_status'", $storefront);
+        $this->assertStringContainsString("check_ajax_referer('eco_portal_checkout_status', 'nonce')", $storefront);
+        $this->assertStringContainsString("\$checkout_id = (int) (\$state['checkout_id'] ?? 0)", $storefront);
+        $this->assertStringNotContainsString("\$_POST['checkout_id']", $storefront);
+        $this->assertStringContainsString("'httponly' => true", $storefront);
+        $this->assertStringContainsString("preg_match('/^[A-Za-z0-9]{20}$/', \$sid)", $storefront);
+        $this->assertStringContainsString("\$state['step'] = 'confirming'", $storefront);
+        $this->assertStringContainsString("\$state['step'] = 'processing'", $storefront);
+        $this->assertStringContainsString('set_transient(\'eco_portal_co_\'.$sid, $state, HOUR_IN_SECONDS)', $storefront);
+        $this->assertStringContainsString('eco-portal-checkout-status', $checkout);
+        $this->assertStringContainsString('Do not pay again', $checkout);
+
+        $handlerStart = strpos($storefront, 'public static function handle_checkout_status');
+        $handlerEnd = strpos($storefront, 'public static function handle_reset_checkout', $handlerStart ?: 0);
+        $this->assertNotFalse($handlerStart);
+        $this->assertNotFalse($handlerEnd);
+        $statusHandler = substr($storefront, (int) $handlerStart, (int) $handlerEnd - (int) $handlerStart);
+        $this->assertStringContainsString("\$status === 410", $statusHandler);
+        $this->assertStringContainsString("\$status === 422", $statusHandler);
+        $this->assertStringContainsString('processing_checkout_state', $statusHandler);
+        $this->assertStringNotContainsString('usleep(', $statusHandler);
+        $this->assertSame(1, substr_count($statusHandler, 'self::save_cart([])'));
+        $this->assertSame(1, substr_count($statusHandler, 'self::clear_checkout_state()'));
+
+        $localizedStart = strpos($storefront, "wp_localize_script('eco-portal-checkout'");
+        $localizedEnd = strpos($storefront, ']);', $localizedStart ?: 0);
+        $this->assertNotFalse($localizedStart);
+        $this->assertNotFalse($localizedEnd);
+        $localizedConfig = substr($storefront, (int) $localizedStart, (int) $localizedEnd - (int) $localizedStart);
+        $this->assertStringContainsString('statusNonce', $localizedConfig);
+        $this->assertStringNotContainsString('token', strtolower($localizedConfig));
+        $this->assertStringNotContainsString('Authorization', $js);
+        $this->assertStringNotContainsString('Bearer', $js);
+        $this->assertStringNotContainsString('checkout_id', $js);
+
+        $this->assertSame(1, substr_count($js, 'stripe.confirmPayment('));
+        $this->assertStringContainsString("await requestStatus('begin')", $js);
+        $this->assertTrue(strpos($js, "await requestStatus('begin')") < strpos($js, 'stripe.confirmPayment('));
+        $this->assertStringContainsString('return_url: config.returnUrl', $js);
+        $this->assertStringContainsString("if (statusRoot) {", $js);
+        $this->assertStringContainsString("requestStatus('poll')", $js);
+        $this->assertStringContainsString("requestStatus('complete')", $js);
+        $this->assertStringContainsString('pollingBudgetMs = 120000', $js);
+        $this->assertStringContainsString('Math.min(10000, Math.ceil(delayMs * 1.6))', $js);
+        $this->assertStringContainsString('You can safely check the same order status again', $js);
+        $this->assertStringNotContainsString('form.submit()', $js);
+        $this->assertStringNotContainsString('create_checkout', $js);
     }
 
     /**

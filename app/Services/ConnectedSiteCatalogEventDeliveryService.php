@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ConnectedSite;
 use App\Models\ConnectedSiteEventDelivery;
 use App\Models\ConnectedSiteOutboxEvent;
+use App\Services\Security\OutboundUrlGuard;
 use App\Support\ConnectedSiteEventSignature;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -16,6 +17,10 @@ class ConnectedSiteCatalogEventDeliveryService
      * @var list<int>
      */
     private const BACKOFF_SECONDS = [60, 300, 900, 3600, 21600];
+
+    public function __construct(
+        private readonly OutboundUrlGuard $outboundUrlGuard,
+    ) {}
 
     public function deliver(ConnectedSiteEventDelivery $delivery): void
     {
@@ -57,8 +62,10 @@ class ConnectedSiteCatalogEventDeliveryService
         $timeout = max(2, (int) config('connected_sites.delivery_timeout_seconds', 8));
 
         try {
+            // Resolve, validate, and pin immediately before the outbound request.
+            $validatedTarget = $this->outboundUrlGuard->validate($target);
             $response = Http::timeout($timeout)
-                ->withOptions(['allow_redirects' => false])
+                ->withOptions($validatedTarget['options'])
                 ->withHeaders([
                     'Accept' => 'application/json',
                     'Content-Type' => 'application/json',
@@ -69,7 +76,7 @@ class ConnectedSiteCatalogEventDeliveryService
                     'X-Eco-Event-Type' => $event->type,
                 ])
                 ->withBody($raw, 'application/json')
-                ->post($target);
+                ->post($validatedTarget['url']);
         } catch (\Throwable $exception) {
             $this->scheduleRetry($delivery, $exception->getMessage());
 

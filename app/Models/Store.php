@@ -316,10 +316,6 @@ class Store extends Model
 
     public function hasDeveloperStorefrontToken(): bool
     {
-        if (filled($this->developer_storefront_token_hash)) {
-            return true;
-        }
-
         if (! Schema::hasTable('connected_sites')) {
             return false;
         }

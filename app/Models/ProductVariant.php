@@ -17,6 +17,8 @@ class ProductVariant extends Model
         'store_id',
         'product_id',
         'sku',
+        'source_system',
+        'source_site',
         'source_variation_id',
         'price',
         'compare_at_price',

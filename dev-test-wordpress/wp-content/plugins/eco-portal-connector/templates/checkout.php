@@ -64,7 +64,37 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
         <div class="eco-portal-notice eco-portal-notice--info"><?php echo esc_html($warning); ?></div>
     <?php endif; ?>
 
-    <?php if ($checkout_blocked) : ?>
+    <?php if (in_array($step, ['confirming', 'processing', 'completed'], true)) : ?>
+        <div
+            id="eco-portal-checkout-status"
+            class="eco-portal__form"
+            data-checkout-state="<?php echo esc_attr($step); ?>"
+        >
+            <h3><?php echo $step === 'completed' ? 'Order confirmed' : 'Confirming your order'; ?></h3>
+            <p id="eco-portal-status-message" class="eco-portal-notice eco-portal-notice--info">
+                <?php if ($step === 'completed') : ?>
+                    Your order is ready. Opening its confirmation page…
+                <?php else : ?>
+                    Stripe may have accepted the payment while the merchant portal finishes the order. Do not pay again. This page will keep checking safely.
+                <?php endif; ?>
+            </p>
+            <button type="button" id="eco-portal-status-retry" class="eco-portal__button eco-portal__button--secondary" hidden>
+                Check order status again
+            </button>
+        </div>
+    <?php elseif (in_array($step, ['failed', 'expired'], true)) : ?>
+        <div class="eco-portal-notice eco-portal-notice--error">
+            <?php echo $step === 'expired'
+                ? 'This checkout expired before an order was confirmed.'
+                : 'Stripe reported that this payment did not complete.'; ?>
+        </div>
+        <p>Your cart is still available. Start a fresh checkout only when you are ready.</p>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <input type="hidden" name="action" value="eco_portal_reset_checkout" />
+            <?php wp_nonce_field('eco_portal_reset_checkout'); ?>
+            <button type="submit" class="eco-portal__button eco-portal__button--secondary">Return to checkout</button>
+        </form>
+    <?php elseif ($checkout_blocked) : ?>
         <div class="eco-portal-notice eco-portal-notice--info">
             Checkout stays blocked until this website can reach the merchant portal and Stripe is connected there. This site will not take payment itself.
         </div>
@@ -79,19 +109,20 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
                     <p><strong>Total:</strong> <?php echo esc_html(Eco_Portal_Storefront::format_money((string) ($checkout['grand_total'] ?? '0'), $currency)); ?></p>
                     <div
                         id="eco-portal-stripe"
+                        data-checkout-state="pay"
                         data-publishable-key="<?php echo esc_attr((string) $payment['publishable_key']); ?>"
                         data-client-secret="<?php echo esc_attr((string) $payment['client_secret']); ?>"
                         data-stripe-account="<?php echo esc_attr((string) ($payment['provider_account_id'] ?? '')); ?>"
                     >
                         <div id="eco-portal-card" class="eco-portal-card-element"></div>
                         <p id="eco-portal-card-error" class="eco-portal-notice eco-portal-notice--error" hidden></p>
+                        <p id="eco-portal-payment-status" class="eco-portal-notice eco-portal-notice--info" hidden></p>
                     </div>
-                    <form id="eco-portal-confirm-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                        <input type="hidden" name="action" value="eco_portal_confirm_checkout" />
-                        <?php wp_nonce_field('eco_portal_confirm_checkout'); ?>
-                    </form>
                     <button type="button" id="eco-portal-pay-button" class="eco-portal__button">
                         Pay <?php echo esc_html(Eco_Portal_Storefront::format_money((string) ($checkout['grand_total'] ?? '0'), $currency)); ?>
+                    </button>
+                    <button type="button" id="eco-portal-status-retry" class="eco-portal__button eco-portal__button--secondary" hidden>
+                        Check order status again
                     </button>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <input type="hidden" name="action" value="eco_portal_reset_checkout" />
@@ -195,6 +226,7 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
             <div class="eco-portal__checkout-layout">
                 <form class="eco-portal__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                     <input type="hidden" name="action" value="eco_portal_start_checkout" />
+                    <input type="hidden" name="checkout_attempt_token" value="<?php echo esc_attr((string) ($checkout_state['attempt_token'] ?? '')); ?>" />
                     <?php wp_nonce_field('eco_portal_start_checkout'); ?>
                     <h3>Customer</h3>
                     <label>Full name
@@ -237,6 +269,14 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
                         <?php endforeach; ?>
                     </ul>
                     <p class="eco-portal__meta">Totals, tax, and delivery are calculated after you continue. This site does not decide the amount to pay.</p>
+                    <?php if (! empty($checkout_state['request_fingerprint'])) : ?>
+                        <p class="eco-portal__meta">Retry the unchanged form to resume this checkout, or start over before changing its details.</p>
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="eco_portal_reset_checkout" />
+                            <?php wp_nonce_field('eco_portal_reset_checkout'); ?>
+                            <button type="submit" class="eco-portal__button eco-portal__button--secondary">Start over</button>
+                        </form>
+                    <?php endif; ?>
                 </aside>
             </div>
     <?php endif; ?>

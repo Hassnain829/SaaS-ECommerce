@@ -47,7 +47,7 @@ Golden rule: if the merchant is confused, the system is wrong.
 
 ## Completed foundations (high level)
 
-Catalog/import/variants, commerce core, multi-location inventory, manual fulfillment, checkout delivery, Stripe foundations, external checkout sync prototype, Phase 5R tax/coupons/totals, Phase 7 returns/refunds/exchanges, Phase 11 notifications foundation, CLEAN-1–4 hygiene, FedEx Model A production connectivity (gated), USPS public API foundation.
+Catalog/import/variants, commerce core, multi-location inventory, manual fulfillment, checkout delivery, webhook-authoritative Stripe platform checkout, source-site-aware Woo catalog migration, connected WordPress presentation client, Phase 5R tax/coupons/totals, Phase 7 returns/refunds/exchanges, Phase 11 notifications foundation, CLEAN-1–4 hygiene, FedEx Model A production connectivity (gated), USPS public API foundation. External order/shipment sync is retired runtime behavior; only historical order interpretation remains.
 
 Historical phase/completion reports live under `docs/archive/` and are **not** current instructions.
 

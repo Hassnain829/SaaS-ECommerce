@@ -121,14 +121,13 @@ class Phase5PaymentUxCleanupTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.payments.mode'), ['checkout_mode' => CheckoutMode::EXTERNAL])
-            ->assertRedirect(route('settings.payments.index'))
-            ->assertSessionHasErrors(['checkout_mode']);
+            ->post('/settings/payments/mode', ['checkout_mode' => CheckoutMode::EXTERNAL])
+            ->assertNotFound();
 
         $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store->fresh()));
     }
 
-    public function test_store_owner_keeps_platform_checkout_even_without_active_provider(): void
+    public function test_checkout_mode_writer_is_absent_even_without_active_provider(): void
     {
         config(['payments.stripe.allow_platform_sandbox_fallback' => false]);
 
@@ -136,9 +135,8 @@ class Phase5PaymentUxCleanupTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.payments.mode'), ['checkout_mode' => CheckoutMode::PLATFORM])
-            ->assertRedirect(route('settings.payments.index'))
-            ->assertSessionHasNoErrors();
+            ->post('/settings/payments/mode', ['checkout_mode' => CheckoutMode::PLATFORM])
+            ->assertNotFound();
 
         $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store->fresh()));
     }
@@ -148,14 +146,8 @@ class Phase5PaymentUxCleanupTest extends TestCase
         [$store, $owner] = $this->storeWithUser();
         $this->connectedAccount($store);
 
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.payments.mode'), ['checkout_mode' => CheckoutMode::PLATFORM])
-            ->assertRedirect(route('settings.payments.index'));
-
         $store->refresh();
         $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store));
-        $this->assertSame(CheckoutMode::PLATFORM, $store->settings['checkout_mode']);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -183,14 +175,14 @@ class Phase5PaymentUxCleanupTest extends TestCase
             ->assertDontSeeText('Add the test Stripe keys');
     }
 
-    public function test_staff_cannot_change_checkout_mode(): void
+    public function test_checkout_mode_writer_is_absent_for_staff_too(): void
     {
         [$store, , $staff] = $this->storeWithUser(extraRole: Store::ROLE_STAFF);
 
         $this->actingAs($staff)
             ->withSession(['current_store_id' => $store->id])
-            ->post(route('settings.payments.mode'), ['checkout_mode' => CheckoutMode::EXTERNAL])
-            ->assertForbidden();
+            ->post('/settings/payments/mode', ['checkout_mode' => CheckoutMode::EXTERNAL])
+            ->assertNotFound();
     }
 
     public function test_staff_does_not_see_developer_diagnostics(): void

@@ -145,6 +145,22 @@
                         @csrf
                         <h2 class="text-sm font-semibold text-[#0F172A]">Stock for this WooCommerce file</h2>
                         <p class="mt-1 text-sm text-[#475569]">WooCommerce stock is store-wide. Choose where those quantities should live in this store, and whether to replace quantities you already have.</p>
+                        <div class="mt-4">
+                            <label for="source_site" class="mb-1 block text-sm font-medium text-[#334155]">WooCommerce source website</label>
+                            <input
+                                id="source_site"
+                                name="source_site"
+                                type="url"
+                                required
+                                value="{{ old('source_site', $import->source_site) }}"
+                                placeholder="https://shop.example.com"
+                                class="w-full rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#0F172A]"
+                            >
+                            <p class="mt-1 text-xs text-[#64748B]">Enter the exact site this export came from. WooCommerce IDs are unique only within that website.</p>
+                            @error('source_site')
+                                <p class="mt-1 text-xs font-medium text-[#B42318]">{{ $message }}</p>
+                            @enderror
+                        </div>
                         <div class="mt-4 grid gap-4 sm:grid-cols-2">
                             <div>
                                 <label for="location_id" class="mb-1 block text-sm font-medium text-[#334155]">Destination location</label>
@@ -164,6 +180,14 @@
                                 </select>
                             </div>
                         </div>
+                        <label class="mt-4 flex items-start gap-3 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] p-3 text-sm text-[#78350F]">
+                            <input type="hidden" name="approve_existing_sku_links" value="0">
+                            <input type="checkbox" name="approve_existing_sku_links" value="1" class="mt-0.5 rounded border-[#D97706]" @checked(old('approve_existing_sku_links'))>
+                            <span>
+                                <strong class="block">Link matching existing SKUs only when they are the same products</strong>
+                                Leave this unchecked for the safest import. A matching SKU on a manually created catalog item will otherwise stop that row instead of overwriting it.
+                            </span>
+                        </label>
                         <p class="mt-3 text-xs text-[#64748B]">New products always receive the file quantities. This import still does not migrate orders, customers, or payments.</p>
                         <div class="mt-5 flex flex-wrap items-center gap-4">
                             <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-brand px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-brand-hover">

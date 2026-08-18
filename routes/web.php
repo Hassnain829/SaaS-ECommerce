@@ -363,9 +363,6 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/settings/payments', [PaymentSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('settings.payments.index');
-    Route::post('/settings/payments/mode', [PaymentSettingsController::class, 'updateMode'])
-        ->middleware('store.permission:settings.manage')
-        ->name('settings.payments.mode');
     Route::post('/settings/payments/platform-payment-mode', [PaymentSettingsController::class, 'updatePlatformPaymentMode'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.payments.platform-payment-mode');

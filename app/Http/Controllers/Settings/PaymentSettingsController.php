@@ -5,12 +5,10 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentProviderAccount;
 use App\Models\SecurityLog;
-use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
 use App\Services\SecurityLogRecorder;
-use App\Support\CheckoutMode;
 use App\Support\PlatformPaymentMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +20,6 @@ class PaymentSettingsController extends Controller
     public function index(
         Request $request,
         PaymentProviderManager $paymentProviderManager,
-        ChannelOwnershipService $channelOwnership,
         StripeConfig $stripeConfig,
     ): View|RedirectResponse {
         $store = $request->attributes->get('currentStore');
@@ -40,7 +37,6 @@ class PaymentSettingsController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
-        $store = $channelOwnership->ensureChannelsStructure($store);
         $platformPaymentMode = PlatformPaymentMode::forStore($store);
         $testConnectAccount = $paymentProviderManager->connectAccountForStore($store, PlatformPaymentMode::TEST);
         $liveConnectAccount = $paymentProviderManager->connectAccountForStore($store, PlatformPaymentMode::LIVE);
@@ -98,37 +94,6 @@ class PaymentSettingsController extends Controller
             'canManagePayments' => $canManagePayments,
             'showDeveloperDiagnostics' => $canManagePayments && app()->environment(['local', 'testing']),
         ]);
-    }
-
-    public function updateMode(
-        Request $request,
-        PaymentProviderManager $paymentProviderManager,
-        SecurityLogRecorder $securityLogRecorder,
-    ): RedirectResponse {
-        $store = $request->attributes->get('currentStore');
-        abort_unless($store && $request->user(), 404);
-
-        $validated = $request->validate([
-            'checkout_mode' => ['required', 'string'],
-        ]);
-
-        if ($validated['checkout_mode'] !== CheckoutMode::PLATFORM) {
-            return redirect()
-                ->route('settings.payments.index')
-                ->withErrors(['checkout_mode' => 'Platform checkout is the only checkout mode. Connect Stripe to accept payments.']);
-        }
-
-        $store = CheckoutMode::setForStore($store, CheckoutMode::PLATFORM);
-
-        if (! $paymentProviderManager->isCheckoutReady($store)) {
-            return redirect()
-                ->route('settings.payments.index')
-                ->with('success', 'Platform checkout is the only checkout mode. Connect Stripe before customers can pay.');
-        }
-
-        return redirect()
-            ->route('settings.payments.index')
-            ->with('success', 'Platform checkout is active for this store.');
     }
 
     public function updatePlatformPaymentMode(

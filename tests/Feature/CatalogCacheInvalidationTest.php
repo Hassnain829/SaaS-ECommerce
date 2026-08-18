@@ -163,7 +163,10 @@ class CatalogCacheInvalidationTest extends TestCase
 
     public function test_signed_delivery_posts_to_the_bound_site_and_failed_delivery_does_not_change_the_product(): void
     {
-        config(['connected_sites.deliver_in_tests' => true]);
+        config([
+            'connected_sites.deliver_in_tests' => true,
+            'connected_sites.allow_private_networks_non_production' => true,
+        ]);
         Http::fake([
             'http://127.0.0.1:8080/wp-json/eco-portal/v1/events' => Http::sequence()
                 ->push(['ok' => true], 200)
@@ -331,7 +334,7 @@ class CatalogCacheInvalidationTest extends TestCase
         $admin = file_get_contents($pluginDir.'/includes/class-admin.php');
         $storefront = file_get_contents($pluginDir.'/includes/class-storefront.php');
 
-        $this->assertStringContainsString("define('ECO_PORTAL_CONNECTOR_VERSION', '1.6.0')", $plugin);
+        $this->assertStringContainsString("define('ECO_PORTAL_CONNECTOR_VERSION', '1.7.1')", $plugin);
         $this->assertStringContainsString('eco-portal/v1', $events);
         $this->assertStringContainsString('hash_hmac', $events);
         $this->assertStringContainsString('already_seen', $events);

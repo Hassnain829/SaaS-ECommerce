@@ -313,6 +313,7 @@ class WooCommerceCatalogImportTest extends TestCase
             ->post(route('products.import.confirm', ['productImportId' => $import->id]), [
                 'location_id' => $location->id,
                 'stock_mode' => 'replace',
+                'source_site' => 'https://shop.example.test',
             ]);
 
         $import->refresh();
@@ -366,6 +367,90 @@ class WooCommerceCatalogImportTest extends TestCase
             ->assertSee('lb');
     }
 
+    public function test_same_woocommerce_ids_from_two_source_sites_create_distinct_identities(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        [$owner, $store] = $this->ownerStore('woo-sites@example.com', 'Woo Source Sites');
+        $location = app(DefaultLocationService::class)->ensureForStore($store);
+
+        $siteA = $this->wooCsv([
+            $this->wooRow(['ID' => '200', 'Type' => 'variable', 'SKU' => 'SITE-A-P', 'Name' => 'Site A Shirt', 'Regular price' => '20', 'Stock' => '0', 'Attribute 1 name' => 'Color', 'Attribute 1 value(s)' => 'Red']),
+            $this->wooRow(['ID' => '201', 'Type' => 'variation', 'SKU' => 'SITE-A-RED', 'Name' => 'Site A Shirt', 'Regular price' => '20', 'Parent' => 'id:200', 'Stock' => '2', 'Attribute 1 name' => 'Color', 'Attribute 1 value(s)' => 'Red']),
+        ]);
+        $siteB = $this->wooCsv([
+            $this->wooRow(['ID' => '200', 'Type' => 'variable', 'SKU' => 'SITE-B-P', 'Name' => 'Site B Shirt', 'Regular price' => '25', 'Stock' => '0', 'Attribute 1 name' => 'Color', 'Attribute 1 value(s)' => 'Blue']),
+            $this->wooRow(['ID' => '201', 'Type' => 'variation', 'SKU' => 'SITE-B-BLUE', 'Name' => 'Site B Shirt', 'Regular price' => '25', 'Parent' => 'id:200', 'Stock' => '3', 'Attribute 1 name' => 'Color', 'Attribute 1 value(s)' => 'Blue']),
+        ]);
+
+        $importA = $this->uploadAndImport($owner, $store, $siteA, $location->id, 'replace', 'https://site-a.example.com');
+        $importB = $this->uploadAndImport($owner, $store, $siteB, $location->id, 'replace', 'https://site-b.example.com');
+        $this->assertSame(0, (int) ($importA->result_summary['failed'] ?? -1), json_encode([
+            'status' => $importA->status,
+            'failure' => $importA->failure_message,
+            'state' => $importA->import_state,
+            'summary' => $importA->result_summary,
+        ]));
+        $this->assertSame(0, (int) ($importB->result_summary['failed'] ?? -1), json_encode($importB->result_summary));
+
+        $products = Product::query()
+            ->where('store_id', $store->id)
+            ->where('source_system', 'woocommerce')
+            ->where('source_product_id', '200')
+            ->orderBy('source_site')
+            ->get();
+        $this->assertCount(2, $products);
+        $this->assertSame(['https://site-a.example.com', 'https://site-b.example.com'], $products->pluck('source_site')->all());
+
+        $variants = $products->flatMap(fn (Product $product) => $product->variants()->where('source_variation_id', '201')->get());
+        $this->assertCount(2, $variants);
+        $this->assertSame(
+            ['https://site-a.example.com', 'https://site-b.example.com'],
+            $variants->pluck('source_site')->sort()->values()->all()
+        );
+    }
+
+    public function test_manual_sku_collision_requires_explicit_link_approval(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        [$owner, $store] = $this->ownerStore('woo-collision@example.com', 'Woo Collision Store');
+        $location = app(DefaultLocationService::class)->ensureForStore($store);
+        $manual = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Manual Product',
+            'slug' => 'manual-product',
+            'base_price' => 10,
+            'sku' => 'MANUAL-1',
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => [],
+        ]);
+        $manual->variants()->create([
+            'store_id' => $store->id,
+            'sku' => 'MANUAL-1',
+            'price' => 10,
+            'stock' => 4,
+        ]);
+        $csv = $this->wooCsv([
+            $this->wooRow(['ID' => '900', 'Type' => 'simple', 'SKU' => 'MANUAL-1', 'Name' => 'Woo Product', 'Regular price' => '15', 'Stock' => '6']),
+        ]);
+
+        $blocked = $this->uploadAndImport($owner, $store, $csv, $location->id, 'replace', 'https://source.example.com');
+        $this->assertSame(1, (int) ($blocked->result_summary['failed'] ?? 0));
+        $this->assertSame('Manual Product', $manual->fresh()->name);
+        $this->assertNull($manual->fresh()->source_system);
+
+        $approved = $this->uploadAndImport($owner, $store, $csv, $location->id, 'replace', 'https://source.example.com', true);
+        $this->assertSame(0, (int) ($approved->result_summary['failed'] ?? -1));
+        $this->assertSame('Woo Product', $manual->fresh()->name);
+        $this->assertSame('woocommerce', $manual->fresh()->source_system);
+        $this->assertSame('https://source.example.com', $manual->fresh()->source_site);
+        $this->assertSame('900', $manual->fresh()->source_product_id);
+    }
+
     /**
      * @return array{0: User, 1: Store}
      */
@@ -407,7 +492,15 @@ class WooCommerceCatalogImportTest extends TestCase
         ]);
     }
 
-    private function uploadAndImport(User $owner, Store $store, string $csv, int $locationId, string $stockMode): ProductImport
+    private function uploadAndImport(
+        User $owner,
+        Store $store,
+        string $csv,
+        int $locationId,
+        string $stockMode,
+        string $sourceSite = 'https://shop.example.test',
+        bool $approveExistingSkuLinks = false,
+    ): ProductImport
     {
         $file = UploadedFile::fake()->createWithContent('woo.csv', $csv);
         $this->actingAs($owner)
@@ -420,6 +513,8 @@ class WooCommerceCatalogImportTest extends TestCase
             ->post(route('products.import.confirm', ['productImportId' => $import->id]), [
                 'location_id' => $locationId,
                 'stock_mode' => $stockMode,
+                'source_site' => $sourceSite,
+                'approve_existing_sku_links' => $approveExistingSkuLinks ? '1' : '0',
             ]);
 
         return $import->fresh();

@@ -10,6 +10,7 @@ final class Eco_Portal_Storefront
 {
     private const CART_COOKIE = 'eco_portal_cart';
     private const ORDERS_COOKIE = 'eco_portal_orders';
+    private const CHECKOUT_SESSION_COOKIE = 'eco_portal_checkout_sid';
 
     public static function init(): void
     {
@@ -29,8 +30,8 @@ final class Eco_Portal_Storefront
         add_action('admin_post_eco_portal_start_checkout', [self::class, 'handle_start_checkout']);
         add_action('admin_post_nopriv_eco_portal_select_shipping', [self::class, 'handle_select_shipping']);
         add_action('admin_post_eco_portal_select_shipping', [self::class, 'handle_select_shipping']);
-        add_action('admin_post_nopriv_eco_portal_confirm_checkout', [self::class, 'handle_confirm_checkout']);
-        add_action('admin_post_eco_portal_confirm_checkout', [self::class, 'handle_confirm_checkout']);
+        add_action('wp_ajax_nopriv_eco_portal_checkout_status', [self::class, 'handle_checkout_status']);
+        add_action('wp_ajax_eco_portal_checkout_status', [self::class, 'handle_checkout_status']);
         add_action('admin_post_nopriv_eco_portal_reset_checkout', [self::class, 'handle_reset_checkout']);
         add_action('admin_post_eco_portal_reset_checkout', [self::class, 'handle_reset_checkout']);
         add_action('admin_post_nopriv_eco_portal_lookup_order', [self::class, 'handle_lookup_order']);
@@ -84,6 +85,13 @@ final class Eco_Portal_Storefront
             define('DONOTCACHEPAGE', true);
         }
         nocache_headers();
+
+        // Allocate the browser-bound logical attempt before the theme starts
+        // rendering. Both the cookie and the form token therefore exist before
+        // any initial checkout submission can be sent.
+        if (self::is_checkout_page()) {
+            self::ensure_checkout_attempt();
+        }
     }
 
     public static function enqueue_assets(): void
@@ -110,6 +118,11 @@ final class Eco_Portal_Storefront
                 ECO_PORTAL_CONNECTOR_VERSION,
                 true
             );
+            wp_localize_script('eco-portal-checkout', 'ecoPortalCheckout', [
+                'statusUrl' => admin_url('admin-ajax.php'),
+                'statusNonce' => wp_create_nonce('eco_portal_checkout_status'),
+                'returnUrl' => add_query_arg('eco_payment_return', '1', self::page_url('portal-checkout')),
+            ]);
         }
     }
 
@@ -215,7 +228,7 @@ final class Eco_Portal_Storefront
         $checkout_mode = 'platform_checkout';
         $platform_ready = ! empty($connection['stripe']);
         $checkout_blocked = ! $connection['ok'] || ! $platform_ready;
-        $checkout_state = self::checkout_state();
+        $checkout_state = self::ensure_checkout_attempt();
         $order_result = null;
         $error = '';
         $conflict_notice = self::storefront_conflict_notice();
@@ -373,7 +386,31 @@ final class Eco_Portal_Storefront
             'items' => $items,
         ];
 
-        $created = $client->create_checkout($payload);
+        $payload_fingerprint = hash('sha256', (string) wp_json_encode($payload));
+        $attempt_state = self::checkout_state();
+        $posted_attempt_token = sanitize_text_field((string) wp_unslash($_POST['checkout_attempt_token'] ?? ''));
+
+        try {
+            $attempt_state = Eco_Portal_Checkout_Attempt::begin(
+                $attempt_state,
+                $posted_attempt_token,
+                $payload_fingerprint
+            );
+        } catch (RuntimeException $exception) {
+            $message = $exception->getCode() === Eco_Portal_Checkout_Attempt::ERROR_CHANGED
+                ? 'Checkout details changed after this attempt was submitted. Choose Start over before beginning a different checkout.'
+                : 'This checkout form has expired. Reload the checkout page before trying again.';
+            self::redirect_checkout_error($message);
+        }
+
+        $idempotency_key = Eco_Portal_Checkout_Attempt::idempotency_key($attempt_state);
+
+        // Persist the logical attempt before the network request so timeouts and
+        // concurrent browser submissions reuse the preallocated key.
+        $attempt_state['address'] = $fields;
+        self::save_checkout_state($attempt_state);
+
+        $created = $client->create_checkout($payload, $idempotency_key);
         if ($created['status'] === 401) {
             self::redirect_checkout_error('The connection key is missing or was removed. Create a new key in the merchant portal: Website → Connect your website.');
         }
@@ -397,15 +434,13 @@ final class Eco_Portal_Storefront
             $warning = 'No delivery methods matched this address. In the merchant portal, check Delivery zones, checkout-enabled methods, and origin locations.';
         }
 
-        self::save_checkout_state([
-            'step' => 'rates',
-            'checkout_id' => $checkout_id,
-            'checkout' => $checkout,
-            'delivery_options' => $options,
-            'payment' => is_array($created['data']['payment'] ?? null) ? $created['data']['payment'] : [],
-            'address' => $fields,
-            'warning' => $warning,
-        ]);
+        $attempt_state['step'] = 'rates';
+        $attempt_state['checkout_id'] = $checkout_id;
+        $attempt_state['checkout'] = $checkout;
+        $attempt_state['delivery_options'] = $options;
+        $attempt_state['payment'] = is_array($created['data']['payment'] ?? null) ? $created['data']['payment'] : [];
+        $attempt_state['warning'] = $warning;
+        self::save_checkout_state($attempt_state);
 
         wp_safe_redirect(self::page_url('portal-checkout'));
         exit;
@@ -461,45 +496,145 @@ final class Eco_Portal_Storefront
         exit;
     }
 
-    public static function handle_confirm_checkout(): void
+    public static function handle_checkout_status(): void
     {
-        check_admin_referer('eco_portal_confirm_checkout');
+        check_ajax_referer('eco_portal_checkout_status', 'nonce');
 
-        $connection = self::connection_state();
-        if (! $connection['ok']) {
-            self::redirect_checkout_error($connection['message']);
+        $mode = sanitize_key((string) wp_unslash($_POST['mode'] ?? 'poll'));
+        if (! in_array($mode, ['begin', 'poll', 'payment_error', 'complete'], true)) {
+            wp_send_json_error([
+                'state' => 'processing',
+                'message' => 'That checkout status action is not available.',
+                'recoverable' => true,
+            ], 400);
         }
 
         $state = self::checkout_state();
         $checkout_id = (int) ($state['checkout_id'] ?? 0);
         if ($checkout_id < 1) {
-            self::redirect_checkout_error('Checkout expired. Start again.');
+            wp_send_json_success([
+                'state' => 'expired',
+                'message' => 'This checkout session has expired. Return to your cart to start a new checkout.',
+                'recoverable' => false,
+            ]);
+        }
+
+        if ($mode === 'begin') {
+            if (($state['step'] ?? '') === 'pay') {
+                $state['step'] = 'confirming';
+                $state['confirmation_started_at'] = time();
+                self::save_checkout_state($state);
+            }
+
+            if (($state['step'] ?? '') === 'completed') {
+                wp_send_json_success(self::completed_checkout_state($state));
+            }
+
+            wp_send_json_success(self::processing_checkout_state(
+                'Stripe is confirming the payment. Order confirmation will continue automatically.'
+            ));
+        }
+
+        if ($mode === 'payment_error') {
+            if (in_array((string) ($state['step'] ?? ''), ['confirming', 'processing'], true)) {
+                $state['step'] = 'pay';
+                unset($state['confirmation_started_at'], $state['last_status_checked_at']);
+                self::save_checkout_state($state);
+            }
+
+            wp_send_json_success([
+                'state' => 'failed',
+                'message' => 'Stripe did not complete this payment. Review the payment details and try again.',
+                'recoverable' => true,
+            ]);
+        }
+
+        if ($mode === 'complete') {
+            if (($state['step'] ?? '') !== 'completed' || empty($state['confirmation_redirect_url'])) {
+                wp_send_json_error([
+                    'state' => 'processing',
+                    'message' => 'Order confirmation is not ready yet.',
+                    'recoverable' => true,
+                ], 409);
+            }
+
+            $completed = self::completed_checkout_state($state);
+            self::clear_checkout_state();
+            wp_send_json_success($completed);
+        }
+
+        if (($state['step'] ?? '') === 'completed') {
+            wp_send_json_success(self::completed_checkout_state($state));
+        }
+
+        if (! in_array((string) ($state['step'] ?? ''), ['confirming', 'processing'], true)) {
+            wp_send_json_error([
+                'state' => 'processing',
+                'message' => 'Payment has not been submitted for this checkout.',
+                'recoverable' => true,
+            ], 409);
         }
 
         $client = new Eco_Portal_Api_Client();
         $result = $client->confirm_checkout($checkout_id);
-        if ($result['status'] === 401) {
-            self::redirect_checkout_error('The connection key is missing or was removed. Create a new key in the merchant portal: Website → Connect your website.');
-        }
-        if (! $result['ok'] || ! is_array($result['data']['order'] ?? null)) {
-            self::redirect_checkout_error($result['message'] !== '' ? $result['message'] : 'Payment was taken, but the portal has not created the order yet. Open Orders in the merchant portal.');
+        $status = (int) ($result['status'] ?? 0);
+
+        if ($status === 200 && is_array($result['data']['order'] ?? null)) {
+            $order = $result['data']['order'];
+            $confirmation_token = sanitize_text_field((string) ($order['confirmation_token'] ?? ''));
+            $confirmation_reference = $confirmation_token !== ''
+                ? $confirmation_token
+                : sanitize_text_field((string) ($order['order_number'] ?? ''));
+            $redirect_url = add_query_arg('eco_confirm', $confirmation_reference, self::page_url('portal-order'));
+
+            self::save_cart([]);
+            $state['step'] = 'completed';
+            $state['confirmation_token'] = $confirmation_token;
+            $state['confirmation_redirect_url'] = $redirect_url;
+            $state['completion_recorded_at'] = time();
+            unset($state['payment']);
+            if ($confirmation_token !== '') {
+                self::remember_order_token($confirmation_token);
+            }
+            self::save_checkout_state($state);
+
+            wp_send_json_success(self::completed_checkout_state($state));
         }
 
-        self::save_cart([]);
-        self::clear_checkout_state();
+        if ($status === 410) {
+            $state['step'] = 'expired';
+            unset($state['payment']);
+            self::save_checkout_state($state);
 
-        $order = $result['data']['order'];
-        $confirmation_token = (string) ($order['confirmation_token'] ?? '');
-        if ($confirmation_token !== '') {
-            self::remember_order_token($confirmation_token);
+            wp_send_json_success([
+                'state' => 'expired',
+                'message' => 'This checkout expired before an order was confirmed. Return to your cart to start a new checkout.',
+                'recoverable' => false,
+            ]);
         }
 
-        wp_safe_redirect(add_query_arg(
-            'eco_confirm',
-            $confirmation_token !== '' ? $confirmation_token : (string) ($order['order_number'] ?? ''),
-            self::page_url('portal-order')
-        ));
-        exit;
+        if ($status === 422) {
+            $state['step'] = 'failed';
+            unset($state['payment']);
+            self::save_checkout_state($state);
+
+            wp_send_json_success([
+                'state' => 'failed',
+                'message' => 'Stripe reported that this payment did not complete. Return to your cart when you are ready to try again.',
+                'recoverable' => false,
+            ]);
+        }
+
+        $state['step'] = 'processing';
+        $state['last_status_checked_at'] = time();
+        self::save_checkout_state($state);
+
+        $message = in_array($status, [401, 403], true)
+            ? 'Order confirmation is still pending, but this website connection needs attention. Do not pay again.'
+            : 'Payment confirmation is still processing. Do not pay again; this page will keep checking safely.';
+        $retry_after = max(1, min(10, (int) ($result['data']['retry_after_seconds'] ?? 2)));
+
+        wp_send_json_success(self::processing_checkout_state($message, $retry_after));
     }
 
     public static function handle_reset_checkout(): void
@@ -646,7 +781,7 @@ final class Eco_Portal_Storefront
      */
     private static function checkout_state(): array
     {
-        $sid = isset($_COOKIE['eco_portal_checkout_sid']) ? sanitize_text_field((string) wp_unslash($_COOKIE['eco_portal_checkout_sid'])) : '';
+        $sid = self::checkout_session_id();
         if ($sid === '') {
             return [];
         }
@@ -657,14 +792,43 @@ final class Eco_Portal_Storefront
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function ensure_checkout_attempt(): array
+    {
+        $state = self::checkout_state();
+
+        // Established checkouts from an earlier plugin version do not need a
+        // form token because their initial address form is no longer rendered.
+        if ((int) ($state['checkout_id'] ?? 0) > 0) {
+            return $state;
+        }
+
+        $ensured = Eco_Portal_Checkout_Attempt::ensure(
+            $state,
+            static fn (): string => 'wp_checkout_'.(function_exists('wp_generate_uuid4')
+                ? wp_generate_uuid4()
+                : bin2hex(random_bytes(16))),
+            static fn (): string => wp_generate_password(32, false, false),
+            time()
+        );
+
+        if ($ensured !== $state) {
+            self::save_checkout_state($ensured);
+        }
+
+        return $ensured;
+    }
+
+    /**
      * @param  array<string, mixed>  $state
      */
     private static function save_checkout_state(array $state): void
     {
-        $sid = isset($_COOKIE['eco_portal_checkout_sid']) ? sanitize_text_field((string) wp_unslash($_COOKIE['eco_portal_checkout_sid'])) : '';
+        $sid = self::checkout_session_id();
         if ($sid === '') {
             $sid = wp_generate_password(20, false, false);
-            setcookie('eco_portal_checkout_sid', $sid, [
+            setcookie(self::CHECKOUT_SESSION_COOKIE, $sid, [
                 'expires' => time() + HOUR_IN_SECONDS,
                 'path' => COOKIEPATH ? COOKIEPATH : '/',
                 'domain' => COOKIE_DOMAIN ?: '',
@@ -672,7 +836,7 @@ final class Eco_Portal_Storefront
                 'httponly' => true,
                 'samesite' => 'Lax',
             ]);
-            $_COOKIE['eco_portal_checkout_sid'] = $sid;
+            $_COOKIE[self::CHECKOUT_SESSION_COOKIE] = $sid;
         }
 
         set_transient('eco_portal_co_'.$sid, $state, HOUR_IN_SECONDS);
@@ -680,11 +844,11 @@ final class Eco_Portal_Storefront
 
     private static function clear_checkout_state(): void
     {
-        $sid = isset($_COOKIE['eco_portal_checkout_sid']) ? sanitize_text_field((string) wp_unslash($_COOKIE['eco_portal_checkout_sid'])) : '';
+        $sid = self::checkout_session_id();
         if ($sid !== '') {
             delete_transient('eco_portal_co_'.$sid);
         }
-        setcookie('eco_portal_checkout_sid', '', [
+        setcookie(self::CHECKOUT_SESSION_COOKIE, '', [
             'expires' => time() - 3600,
             'path' => COOKIEPATH ? COOKIEPATH : '/',
             'domain' => COOKIE_DOMAIN ?: '',
@@ -692,7 +856,43 @@ final class Eco_Portal_Storefront
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
-        unset($_COOKIE['eco_portal_checkout_sid']);
+        unset($_COOKIE[self::CHECKOUT_SESSION_COOKIE]);
+    }
+
+    private static function checkout_session_id(): string
+    {
+        $sid = isset($_COOKIE[self::CHECKOUT_SESSION_COOKIE])
+            ? sanitize_text_field((string) wp_unslash($_COOKIE[self::CHECKOUT_SESSION_COOKIE]))
+            : '';
+
+        return preg_match('/^[A-Za-z0-9]{20}$/', $sid) === 1 ? $sid : '';
+    }
+
+    /**
+     * @return array{state:string,message:string,retry_after_seconds:int,recoverable:bool}
+     */
+    private static function processing_checkout_state(string $message, int $retry_after = 2): array
+    {
+        return [
+            'state' => 'processing',
+            'message' => sanitize_text_field($message),
+            'retry_after_seconds' => max(1, min(10, $retry_after)),
+            'recoverable' => true,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     * @return array{state:string,message:string,redirect_url:string,recoverable:bool}
+     */
+    private static function completed_checkout_state(array $state): array
+    {
+        return [
+            'state' => 'completed',
+            'message' => 'Your order is confirmed.',
+            'redirect_url' => esc_url_raw((string) ($state['confirmation_redirect_url'] ?? '')),
+            'recoverable' => false,
+        ];
     }
 
     /**
@@ -1071,5 +1271,17 @@ final class Eco_Portal_Storefront
             || has_shortcode($content, 'eco_portal_cart')
             || has_shortcode($content, 'eco_portal_checkout')
             || has_shortcode($content, 'eco_portal_order');
+    }
+
+    private static function is_checkout_page(): bool
+    {
+        if (! is_singular('page')) {
+            return false;
+        }
+
+        global $post;
+
+        return $post instanceof WP_Post
+            && has_shortcode((string) $post->post_content, 'eco_portal_checkout');
     }
 }

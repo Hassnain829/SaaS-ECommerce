@@ -13,6 +13,7 @@ use App\Services\Catalog\ProductImportMappingValidator;
 use App\Services\Catalog\ProductImportMediaProgress;
 use App\Services\Catalog\ProductImportPreviewService;
 use App\Services\Catalog\ProductImportProcessor;
+use App\Services\Catalog\ProductImportSourceIdentity;
 use App\Services\Catalog\ProductImportSpreadsheetReader;
 use App\Services\Catalog\ProductImportStaleHandler;
 use App\Services\Inventory\DefaultLocationService;
@@ -262,7 +263,15 @@ class ProductImportController extends Controller
             $validatedStock = $request->validate([
                 'location_id' => ['required', 'integer'],
                 'stock_mode' => ['required', 'in:replace,preserve'],
+                'source_site' => ['required', 'string', 'max:2048'],
+                'approve_existing_sku_links' => ['nullable', 'boolean'],
             ]);
+            $sourceSite = ProductImportSourceIdentity::normalizeSourceSite((string) $validatedStock['source_site']);
+            if ($sourceSite === null || mb_strlen($sourceSite) > 255) {
+                return back()->withInput()->withErrors([
+                    'source_site' => 'Enter the exact WordPress/WooCommerce site URL, including http:// or https://.',
+                ]);
+            }
             $location = \App\Models\Location::query()
                 ->where('store_id', $store->id)
                 ->where('is_active', true)
@@ -275,8 +284,11 @@ class ProductImportController extends Controller
                 'source_preset' => 'woocommerce',
                 'location_id' => (int) $location->id,
                 'stock_mode' => $validatedStock['stock_mode'],
+                'source_site' => $sourceSite,
+                'approve_existing_sku_links' => (bool) ($validatedStock['approve_existing_sku_links'] ?? false),
                 'woo_id_to_sku' => $existingState['woo_id_to_sku'] ?? null,
             ];
+            $productImport->forceFill(['source_site' => $sourceSite]);
         } elseif (($existingState['source_preset'] ?? '') !== '') {
             $keptState['source_preset'] = $existingState['source_preset'];
         }

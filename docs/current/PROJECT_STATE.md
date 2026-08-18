@@ -1,4 +1,4 @@
-# Project State — 2026-08-12
+# Project State — 2026-08-18
 
 Concise current-state snapshot for agents and developers. This is **not** a roadmap.
 
@@ -69,7 +69,7 @@ What exists now:
 
 - Connected-site identity (`connected_sites`): store ID, public id, normalized WordPress URL, hashed credential, status, scopes, plugin version, last-seen, last health, rotation, and revocation
 - One WordPress site belongs to exactly one SaaS store. Merchant UX keeps one primary WordPress storefront; the schema can hold more sites later
-- Connection key generated, rotated, and revoked from the Website workspace. The hashed value is mirrored onto `stores.developer_storefront_token_hash` so existing catalog/checkout tests and the local React simulator still authenticate
+- Connection key generated, rotated, and revoked from the Website workspace. Only the active `connected_sites.credential_hash` authenticates; legacy store-level hashes are cleared after migration verification and are never mirrored
 - Optional saved website URL (`stores.settings.connected_website_url` and the connected-site row)
 - Catalog read: `GET /api/developer-storefront/catalog` (store-scoped, includes store currency; stamps last-seen)
 - Connection health: `GET /api/v1/site/health` (store, URL match, plugin version, Stripe/location/catalog readiness, last contact, catalog version, catalog-cache checkpoint)
@@ -80,7 +80,7 @@ What exists now:
 
 **Checkout policy (Batch 1, 2026-08-14):** Platform checkout is the only checkout mode. External order/shipment write APIs are removed. Stripe disconnect blocks checkout and never falls back to website payment. Historical `external_checkout` orders remain readable.
 
-**Connected-site auth (Batch 2, 2026-08-15):** Connector APIs authenticate a connected site (or the legacy store hash), enforce scopes, bind the production site URL, rate-limit failed attempts, and log `connected_site.auth_failed`. Phase 9 API keys, outbox, and webhooks remain incomplete.
+**Connected-site auth (corrected 2026-08-18):** Connector APIs authenticate active connected-site credentials only, enforce scopes, require the bound HTTPS site URL in production, rate-limit failed attempts, and log `connected_site.auth_failed`. Active normalized URLs are database-unique and revocation releases the active URL key. There is no legacy store-hash fallback or credential mirroring.
 
 **Commerce API (Batch 3, 2026-08-15):** Platform checkout remains the only checkout path. Catalog v1 is published-only (including products without variants) with pagination, store identity, tags, and `catalog_version` / ETag. The WordPress shop reads that catalog plus categories; checkout still sends variant IDs and quantities only. Prices, tax, shipping, and stock are calculated in this portal. Guest checkout upserts the customer by email (no WordPress password sync). Stripe PaymentIntents are created here with store/account, amount, currency, and idempotency. Stripe webhooks are signature-verified, de-duplicated, and ignore a failed event after a successful conversion. Shoppers receive a confirmation token for order status and tracking. Stripe onboarding stays hosted Connect; a WooCommerce Stripe plugin account cannot be reused.
 
@@ -89,6 +89,8 @@ What exists now:
 **Catalog cache events (Batch 5, 2026-08-15):** Public product/category representations may be cached briefly on WordPress. Checkout, customers, orders, payments, and carrier credentials are not. Catalog changes write to a connected-site outbox (not the Phase 9 merchant webhook product), then a signed event is delivered to the bound WordPress URL. WordPress verifies HMAC signatures, rejects replays, invalidates cache, and repairs missed updates from `catalog_version` plus `GET /api/v1/catalog/events`. The Website workspace shows whether the website product list matches this portal. Phase 9 scoped API keys, generic outbound webhooks, and Woo import remain incomplete.
 
 **WooCommerce catalog import (Batch 6, 2026-08-15):** The existing product importer detects a standard WooCommerce product CSV, maps simple/variable/variation rows, rejects unsupported types instead of importing them as success, generates missing SKUs deterministically, stores Woo source identity, preserves slugs with an old-to-new address map, and requires a destination location plus replace-or-preserve stock choice. Re-import updates the same catalog records. Imperial Woo headers (`Weight (lbs)`, `Length/Width/Height (in)`), `Brands`, and `GTIN, UPC, EAN, or ISBN` map onto catalog fields; variation `Images` become variant photos while the parent `Images` column remains the product gallery. Blank Stock cells import as 0; `In stock?` is additional detail, not a quantity. This does not migrate orders, customers, or payments. Phase 9 scoped API keys and generic outbound webhooks remain incomplete.
+
+**DR-05 Batch 1–6 critical correction (2026-08-18):** `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md` is the locked architecture. Direct paid-order and external shipment/order sync runtime endpoints are retired. Checkout creation requires a database-first idempotency claim. Browser/WordPress confirmation is read-only polling; only a verified Stripe webhook converts a checkout. WordPress preallocates the browser-bound session, opaque form token, and one idempotency key before rendering the initial address form; concurrent submissions and lost-response retries reuse it, while missing state fails closed and rotation requires completion or an explicit reset. Connected-site URL binding and credential activation are transactional, with the active URL unique index as concurrency authority. WordPress persists `confirming` / `processing` server-side and uses nonce-protected browser polling with backoff, reload/redirect resume, and no PHP sleep loop. Catalog push delivery applies production HTTPS, A/AAAA destination filtering, no redirects, and DNS pinning. Woo re-import identity includes the exact merchant-confirmed source site; SKU linking is blocked unless explicitly approved.
 
 What this pass does not include:
 
@@ -109,7 +111,7 @@ Do **not** describe the overall project as live-ready / public-beta ready until:
 1. the readiness document’s P0 acceptance gates pass, and
 2. the full automated suite gate passes with current evidence.
 
-Do not claim the suite is green without a successful run. Batch 5 evidence on 2026-08-15: `php artisan test` was green with 1,451 passed, 2 skipped, and 0 failures. CI now also requires `migrate:fresh --seed`.
+Do not claim the suite is green without a successful run. DR-05 final-correction evidence on 2026-08-18: `php artisan test` was green with 1,481 passed, 2 skipped, 8,049 assertions, and 0 failures in 164.86 seconds; a fresh in-memory SQLite database also passed `migrate:fresh --seed --force`. Browser-driven WordPress + Stripe test-mode acceptance remains unverified, so Batches 1–6 are not fully signed off and Batch 7 must not begin. CI requires `migrate:fresh --seed`.
 
 ## Key links
 

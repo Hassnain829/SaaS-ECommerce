@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Data\Payments\PaymentIntentResult;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\Checkout;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -13,6 +15,7 @@ use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Services\Shipping\DeliveryOptionService;
 use App\Services\Tax\TaxConfigurationService;
 use Database\Seeders\CarrierSeeder;
@@ -29,6 +32,27 @@ class DeliveryUxBatch3Test extends TestCase
         parent::setUp();
 
         $this->seed(CarrierSeeder::class);
+        config([
+            'payments.default_provider' => 'stripe',
+            'payments.stripe.mode' => 'test',
+            'payments.stripe.key' => 'pk_test_delivery_batch3',
+            'payments.stripe.secret' => 'sk_test_delivery_batch3',
+        ]);
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        {
+            public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
+            {
+                return new PaymentIntentResult(
+                    provider: 'stripe',
+                    providerIntentId: 'pi_delivery_batch3_'.$checkout->id,
+                    clientSecret: 'pi_delivery_batch3_'.$checkout->id.'_secret_test',
+                    status: 'requires_payment_method',
+                    amount: (string) $checkout->grand_total,
+                    currencyCode: $checkout->currency_code,
+                    raw: ['status' => 'requires_payment_method'],
+                );
+            }
+        });
     }
 
     public function test_delivery_setup_wizard_ship_from_page_renders(): void
@@ -390,9 +414,8 @@ class DeliveryUxBatch3Test extends TestCase
         [$owner, $store] = $this->ownerStore('Batch3 Storefront API Store');
         $store->forceFill([
             'settings' => ['checkout_mode' => CheckoutMode::PLATFORM],
-            'developer_storefront_token_hash' => hash('sha256', 'wizard-e2e-token'),
-            'developer_storefront_token_created_at' => now(),
         ])->save();
+        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         $product = Product::query()->create([
             'store_id' => $store->id,
@@ -446,7 +469,7 @@ class DeliveryUxBatch3Test extends TestCase
 
         $method = ShippingMethod::query()->where('store_id', $store->id)->where('name', 'Wizard API Standard')->firstOrFail();
 
-        $this->withToken('wizard-e2e-token')
+        $this->withToken($token)
             ->postJson('/api/v1/checkout', [
                 'source_channel' => 'dev_storefront',
                 'currency_code' => 'USD',
@@ -470,7 +493,7 @@ class DeliveryUxBatch3Test extends TestCase
 
         $checkout = \App\Models\Checkout::query()->where('store_id', $store->id)->firstOrFail();
 
-        $this->withToken('wizard-e2e-token')
+        $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/delivery-options', [
                 'shipping_address' => [
                     'country' => 'US',
