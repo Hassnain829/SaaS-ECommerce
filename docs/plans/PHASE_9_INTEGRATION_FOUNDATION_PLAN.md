@@ -4,7 +4,7 @@
 > **Last updated:** 2026-08-18
 > **Authority:** This is the **approved Phase 9 execution plan** for goals, vision, current baseline, and batch order. It is **not** a root canonical document. On conflict, prefer `docs/current/PROJECT_STATE.md`, then root canonical docs: `ENTERPRISE_PROJECT_CONTEXT.md`, `ENTERPRISE_ROADMAP_2026.md`, `PROJECT_BRAIN.md`, `PROJECT_STRUCTURE.md`, and `AGENTS.md`.
 
-> **DR-05 correction:** `DR05_BATCH6_CRITICAL_FIX_SPEC.md` supersedes the legacy-token, external-order-sync, and direct-order assumptions in the original Phase 9 baseline. ConnectedSite-only authentication, atomic platform checkout, webhook-only conversion, and catalog-delivery SSRF controls are implemented foundations for any future Phase 9 work. Phase 9 must not reintroduce direct paid-order or external shipment truth.
+> **DR-05 correction, amended 2026-08-19:** `DR05_BATCH6_CRITICAL_FIX_SPEC.md` supersedes the legacy-token, external-order-sync, and direct-order assumptions in the original Phase 9 baseline. ConnectedSite-only authentication, atomic platform checkout, provider-authoritative payment conversion (verified webhook or validated server-to-server PaymentIntent retrieval), and catalog-delivery SSRF controls are implemented foundations for any future Phase 9 work. Phase 9 must not reintroduce direct paid-order or external shipment truth.
 
 External source document (audit basis): `PHASE_9_ENTERPRISE_INTEGRATION_ARCHITECTURE_GUIDE.md` (kept outside the repo; this file is the project-bound execution plan aligned to actual code).
 
@@ -98,7 +98,7 @@ Merchant readiness P0 (`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.m
 | Auth | `AuthenticateDeveloperStorefrontToken` | Active hashed `ConnectedSite` credential with scopes, revocation, rotation, and production site binding |
 | Catalog reads | `Api\CatalogApiV1Controller` | Products, detail, categories, brands, attributes — serialization in controller |
 | Compatibility catalog | `Api\DeveloperStorefrontCatalogController` | Simpler catalog response only; no direct order method |
-| Platform checkout | `Api\PlatformCheckoutController` | Atomic create idempotency, delivery/shipping updates, and read-only confirmation polling |
+| Platform checkout | `Api\PlatformCheckoutController` | Atomic create idempotency, delivery/shipping updates, and provider-verified confirmation/reconciliation |
 | Inbound Stripe | `Api\StripeWebhookController`, `StripeConnectWebhookController` | Signature verify, provider-event claim, and sole successful conversion callers |
 | Idempotency table | `idempotency_keys` + `CheckoutIdempotencyService` | Database-first `(store_id, key)` claim with request hash, owner token, replay, and processing conflict |
 | Channel ownership | `Services\Channels\ChannelOwnershipService` | Platform runtime defaults plus read-only interpretation of historical orders |

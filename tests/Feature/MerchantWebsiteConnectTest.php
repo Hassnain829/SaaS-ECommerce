@@ -7,6 +7,7 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -27,7 +28,7 @@ class MerchantWebsiteConnectTest extends TestCase
                 'Connect your website',
                 'Website for PKR Store',
                 'Get the WordPress plugin',
-                'Create a connection key',
+                'Save the website address and create a key',
                 'Paste the key in WordPress',
                 'Settings → Eco Portal',
                 'Open the shop and place a test order',
@@ -130,6 +131,111 @@ class MerchantWebsiteConnectTest extends TestCase
             ->assertDownload('eco-portal-connector.zip');
     }
 
+    public function test_owner_must_save_the_store_wordpress_address_before_creating_a_key(): void
+    {
+        [$owner, $store] = $this->ownerStore('Address First Store');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('developer-storefront.token.generate'))
+            ->assertSessionHasErrors([
+                'website_url' => 'Save this store\'s exact WordPress website address before creating a connection key.',
+            ]);
+
+        $this->assertDatabaseMissing('connected_sites', [
+            'store_id' => $store->id,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patch(route('developer-storefront.website.update'), [
+                'website_url' => 'http://localhost:8080/address-first',
+            ])
+            ->assertRedirect(route('developer-storefront.settings'));
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('developer-storefront.token.generate'))
+            ->assertRedirect(route('developer-storefront.settings'))
+            ->assertSessionHas('developer_storefront_plain_token');
+
+        $this->assertDatabaseHas('connected_sites', [
+            'store_id' => $store->id,
+            'site_url_normalized' => 'http://localhost:8080/address-first',
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_one_owner_can_connect_different_wordpress_sites_to_different_selected_stores(): void
+    {
+        $owner = $this->merchant('multi-store-websites@example.com');
+        $alpha = $this->store($owner, 'Website Alpha');
+        $beta = $this->store($owner, 'Website Beta');
+        $this->attach($alpha, $owner, Store::ROLE_OWNER);
+        $this->attach($beta, $owner, Store::ROLE_OWNER);
+
+        $tokens = [];
+        foreach ([
+            $alpha->id => 'http://localhost:8080/alpha',
+            $beta->id => 'http://localhost:8080/beta',
+        ] as $storeId => $websiteUrl) {
+            $this->actingAs($owner)
+                ->withSession(['current_store_id' => $storeId])
+                ->patch(route('developer-storefront.website.update'), [
+                    'website_url' => $websiteUrl,
+                ])
+                ->assertRedirect(route('developer-storefront.settings'));
+
+            $response = $this->actingAs($owner)
+                ->withSession(['current_store_id' => $storeId])
+                ->post(route('developer-storefront.token.generate'))
+                ->assertRedirect(route('developer-storefront.settings'));
+
+            $tokens[$storeId] = (string) $response->getSession()->get('developer_storefront_plain_token');
+        }
+
+        $service = app(ConnectedSiteService::class);
+        $this->assertSame($alpha->id, $service->resolveActiveByPlainToken($tokens[$alpha->id])?->store_id);
+        $this->assertSame($beta->id, $service->resolveActiveByPlainToken($tokens[$beta->id])?->store_id);
+        $this->assertNotSame($tokens[$alpha->id], $tokens[$beta->id]);
+    }
+
+    public function test_owner_can_move_one_wordpress_site_to_another_store_after_removing_the_old_key(): void
+    {
+        $owner = $this->merchant('move-website@example.com');
+        $oldStore = $this->store($owner, 'Old Website Store');
+        $newStore = $this->store($owner, 'New Website Store');
+        $this->attach($oldStore, $owner, Store::ROLE_OWNER);
+        $this->attach($newStore, $owner, Store::ROLE_OWNER);
+        $websiteUrl = 'http://localhost:8080/movable-site';
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $oldStore->id])
+            ->patch(route('developer-storefront.website.update'), ['website_url' => $websiteUrl]);
+        $oldResponse = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $oldStore->id])
+            ->post(route('developer-storefront.token.generate'));
+        $oldToken = (string) $oldResponse->getSession()->get('developer_storefront_plain_token');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $oldStore->id])
+            ->delete(route('developer-storefront.token.revoke'))
+            ->assertRedirect(route('developer-storefront.settings'));
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $newStore->id])
+            ->patch(route('developer-storefront.website.update'), ['website_url' => $websiteUrl])
+            ->assertRedirect(route('developer-storefront.settings'));
+        $newResponse = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $newStore->id])
+            ->post(route('developer-storefront.token.generate'));
+        $newToken = (string) $newResponse->getSession()->get('developer_storefront_plain_token');
+
+        $service = app(ConnectedSiteService::class);
+        $this->assertNull($service->resolveActiveByPlainToken($oldToken));
+        $this->assertSame($newStore->id, $service->resolveActiveByPlainToken($newToken)?->store_id);
+    }
+
     public function test_catalog_request_stamps_last_seen_and_page_shows_connected_state(): void
     {
         [$owner, $store, $token] = $this->tokenedStore('Last Seen Store');
@@ -188,6 +294,9 @@ class MerchantWebsiteConnectTest extends TestCase
     {
         [$owner, $store] = $this->ownerStore('Connected Site Store');
 
+        app(ConnectedSiteService::class)
+            ->bindWebsiteUrl($store, 'http://localhost:8080/connected-site');
+
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('developer-storefront.token.generate'))
@@ -222,7 +331,7 @@ class MerchantWebsiteConnectTest extends TestCase
     private function tokenedStore(string $name, string $currency = 'USD'): array
     {
         [$owner, $store] = $this->ownerStore($name, $currency);
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$owner, $store->fresh(), $token];
     }

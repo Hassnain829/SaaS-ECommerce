@@ -225,7 +225,15 @@ final class ProductImportVariantFinalizer
             /** @var array<int, string> $slotLabels */
             $slotLabels = $slotLabelsResult['labels'];
 
-            $inconsistent = $this->detectInconsistentProductLevelFields(array_merge($headerOnly, $eligible), $mapping);
+            // WooCommerce variation names are display labels such as
+            // "Product name - Option". The variable parent row is authoritative
+            // for product-level fields; variation display names must not conflict
+            // with that parent name. Multiple parent rows are still compared so a
+            // genuinely conflicting parent definition continues to fail closed.
+            $productLevelRows = $import->isWooCommercePreset() && $headerOnly !== []
+                ? $headerOnly
+                : array_merge($headerOnly, $eligible);
+            $inconsistent = $this->detectInconsistentProductLevelFields($productLevelRows, $mapping);
             if ($inconsistent !== null) {
                 foreach ($eligible as $m) {
                     $this->failPreparedRow($import, $m['import_row'], $failures, $failed, $inconsistent);

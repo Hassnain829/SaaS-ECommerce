@@ -7,6 +7,7 @@ use App\Data\Payments\PaymentIntentResult;
 use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Checkout;
 use App\Models\Order;
+use App\Models\PaymentProviderAccount;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ProviderWebhookEvent;
@@ -518,10 +519,31 @@ class PlatformCheckoutHardeningTest extends TestCase
             'onboarding_completed' => true,
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
+        $this->connectStripeForCheckout($store);
 
         $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
+    }
+
+    private function connectStripeForCheckout(Store $store): void
+    {
+        PaymentProviderAccount::query()->create([
+            'store_id' => $store->id,
+            'provider' => 'stripe',
+            'provider_account_id' => 'acct_test_store_'.$store->id,
+            'mode' => 'test',
+            'connection_type' => PaymentProviderAccount::CONNECTION_CONNECT,
+            'display_name' => 'Test connected Stripe account',
+            'status' => 'active',
+            'is_default' => true,
+            'settings' => ['account_type' => 'express'],
+            'charges_enabled' => true,
+            'payouts_enabled' => true,
+            'requirements_currently_due' => [],
+            'onboarding_completed_at' => now(),
+            'last_verified_at' => now(),
+        ]);
     }
 
     /**

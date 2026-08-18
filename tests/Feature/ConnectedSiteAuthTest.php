@@ -211,7 +211,7 @@ class ConnectedSiteAuthTest extends TestCase
         $service->bindWebsiteUrl($store, $originalUrl);
 
         DB::unprepared(
-            "CREATE TRIGGER connected_site_unique_race BEFORE UPDATE ON connected_sites "
+            'CREATE TRIGGER connected_site_unique_race BEFORE UPDATE ON connected_sites '
             ."WHEN NEW.active_site_url_key = '{$racedUrl}' "
             ."BEGIN SELECT RAISE(ABORT, 'UNIQUE constraint failed: connected_sites.active_site_url_key'); END"
         );
@@ -248,7 +248,7 @@ class ConnectedSiteAuthTest extends TestCase
         $service->bindWebsiteUrl($store, $originalUrl);
 
         DB::unprepared(
-            "CREATE TRIGGER connected_site_unrelated_failure BEFORE UPDATE ON connected_sites "
+            'CREATE TRIGGER connected_site_unrelated_failure BEFORE UPDATE ON connected_sites '
             ."WHEN NEW.active_site_url_key = '{$failingUrl}' "
             ."BEGIN SELECT RAISE(ABORT, 'simulated unrelated database failure'); END"
         );
@@ -317,7 +317,7 @@ class ConnectedSiteAuthTest extends TestCase
         $credentialHash = (string) $site->fresh()->getRawOriginal('credential_hash');
 
         DB::unprepared(
-            "CREATE TRIGGER connected_site_reactivation_race BEFORE UPDATE ON connected_sites "
+            'CREATE TRIGGER connected_site_reactivation_race BEFORE UPDATE ON connected_sites '
             ."WHEN NEW.status = 'active' AND NEW.active_site_url_key = '{$url}' "
             ."BEGIN SELECT RAISE(ABORT, 'UNIQUE constraint failed: connected_sites.active_site_url_key'); END"
         );
@@ -464,6 +464,9 @@ class ConnectedSiteAuthTest extends TestCase
     public function test_connection_key_is_shown_once_then_removed_from_the_website_page(): void
     {
         [$owner, $store] = $this->ownerStore('Secret Flash Store');
+
+        app(ConnectedSiteService::class)
+            ->bindWebsiteUrl($store, 'http://localhost:8080/secret-flash');
 
         $generate = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])

@@ -70,7 +70,9 @@ return [
         'connect_client_id' => $legacyConnectClientId,
         'connect_refresh_url' => env('STRIPE_CONNECT_REFRESH_URL'),
         'connect_return_url' => env('STRIPE_CONNECT_RETURN_URL'),
-        'allow_platform_sandbox_fallback' => env('STRIPE_ALLOW_PLATFORM_SANDBOX_FALLBACK', env('APP_ENV') !== 'production'),
+        // Explicit developer-test opt-in only. Normal checkout never selects this
+        // account, even when enabled; see PaymentProviderManager.
+        'allow_platform_sandbox_fallback' => env('STRIPE_ALLOW_PLATFORM_SANDBOX_FALLBACK', false),
         'allow_local_live_key_mirror' => $allowLocalLiveKeyMirror,
         'live_mirrors_test_keys' => $liveMirrorsTestKeys,
         'live_has_dedicated_env_keys' => $liveHasDedicatedEnvKeys,

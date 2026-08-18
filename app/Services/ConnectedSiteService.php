@@ -6,6 +6,7 @@ use App\Models\ConnectedSite;
 use App\Models\ConnectedSiteEventDelivery;
 use App\Models\ConnectedSiteOutboxEvent;
 use App\Models\Product;
+use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Services\Payments\PaymentProviderManager;
 use App\Support\CatalogRevision;
@@ -361,7 +362,7 @@ class ConnectedSiteService
         $expected = $site->site_url_normalized;
         if (! is_string($expected) || $expected === '') {
             abort(response()->json([
-                'message' => 'Bind this connection to its WordPress website address before using it in production.',
+                'message' => 'This store\'s connection key is not bound to a WordPress website address. In the merchant portal, select this store, open Website → Connect your website, and save the exact WordPress address before testing again.',
             ], 403));
         }
 
@@ -402,7 +403,7 @@ class ConnectedSiteService
         $this->securityLogRecorder->record(
             $request,
             'connected_site.auth_failed',
-            severity: \App\Models\SecurityLog::SEVERITY_WARNING,
+            severity: SecurityLog::SEVERITY_WARNING,
             store: $store,
             metadata: [
                 'reason' => $reason,

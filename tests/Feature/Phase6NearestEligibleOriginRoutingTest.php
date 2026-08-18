@@ -12,6 +12,8 @@ use App\Models\InventoryLevel;
 use App\Models\InventoryReservation;
 use App\Models\Location;
 use App\Models\Order;
+use App\Models\PaymentIntent;
+use App\Models\PaymentProviderAccount;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Role;
@@ -20,9 +22,10 @@ use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
-use App\Services\CheckoutConversionService;
 use App\Support\CheckoutMode;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\OrderLifecycle;
@@ -46,7 +49,7 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_phase6c0a',
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             private array $intents = [];
 
@@ -78,6 +81,12 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
                     'amount_minor' => 2400,
                     'currency' => 'USD',
                 ];
+                $localIntent = PaymentIntent::query()
+                    ->with('checkout')
+                    ->where('provider_intent_id', $providerIntentId)
+                    ->latest('id')
+                    ->firstOrFail();
+                $checkout = $localIntent->checkout;
 
                 return new PaymentWebhookResult(
                     eventType: 'payment_intent.succeeded',
@@ -93,8 +102,18 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
                             'status' => 'succeeded',
                             'amount' => (int) $intent['amount_minor'],
                             'currency' => strtolower((string) $intent['currency']),
+                            'metadata' => [
+                                'store_id' => (string) $checkout->store_id,
+                                'checkout_id' => (string) $checkout->id,
+                                'checkout_number' => (string) $checkout->checkout_number,
+                                'source_channel' => (string) $checkout->source_channel,
+                                'payment_provider_account_id' => (string) $checkout->payment_provider_account_id,
+                                'connected_account_id' => (string) ($localIntent->provider_account_id ?? ''),
+                            ],
                         ],
                     ],
+                    providerAccountId: $localIntent->provider_account_id,
+                    mode: $mode ?? $localIntent->mode,
                 );
             }
 
@@ -319,12 +338,8 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
-            ->assertStatus(202)
-            ->assertJsonPath('state', 'processing');
-
-        $paymentResult = app(StripePlatformPaymentProvider::class)
-            ->retrievePaymentIntent((string) $checkout->stripe_payment_intent_id);
-        app(CheckoutConversionService::class)->handleSucceededPayment($paymentResult);
+            ->assertOk()
+            ->assertJsonPath('state', 'completed');
 
         $order = Order::query()->where('store_id', $store->id)->firstOrFail();
         $item = $order->items()->firstOrFail();
@@ -392,10 +407,33 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
             'onboarding_completed' => true,
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
+        if ($platformMode) {
+            $this->connectStripeForCheckout($store);
+        }
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
+    }
+
+    private function connectStripeForCheckout(Store $store): void
+    {
+        PaymentProviderAccount::query()->create([
+            'store_id' => $store->id,
+            'provider' => 'stripe',
+            'provider_account_id' => 'acct_test_store_'.$store->id,
+            'mode' => 'test',
+            'connection_type' => PaymentProviderAccount::CONNECTION_CONNECT,
+            'display_name' => 'Test connected Stripe account',
+            'status' => 'active',
+            'is_default' => true,
+            'settings' => ['account_type' => 'express'],
+            'charges_enabled' => true,
+            'payouts_enabled' => true,
+            'requirements_currently_due' => [],
+            'onboarding_completed_at' => now(),
+            'last_verified_at' => now(),
+        ]);
     }
 
     private function product(Store $store, array $overrides = []): array

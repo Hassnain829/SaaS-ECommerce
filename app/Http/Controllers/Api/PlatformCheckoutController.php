@@ -2,19 +2,24 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Data\Payments\PaymentWebhookResult;
 use App\Http\Controllers\Controller;
 use App\Models\Checkout;
 use App\Models\Order;
 use App\Models\PaymentIntent;
 use App\Models\Store;
 use App\Services\Checkout\CheckoutIdempotencyService;
+use App\Services\CheckoutConversionService;
 use App\Services\CheckoutService;
 use App\Services\Payments\StripeConfig;
+use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Services\Shipping\CheckoutShippingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class PlatformCheckoutController extends Controller
 {
@@ -46,7 +51,7 @@ class PlatformCheckoutController extends Controller
 
         try {
             $checkout = $checkoutService->create($store, $payload);
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $idempotency->releaseOwnUnfinishedClaim($store, $request);
 
             if ($exception instanceof \RuntimeException && str_contains($exception->getMessage(), 'Stripe')) {
@@ -180,31 +185,115 @@ class PlatformCheckoutController extends Controller
     public function confirm(
         Request $request,
         Checkout $checkout,
+        StripePlatformPaymentProvider $paymentProvider,
+        CheckoutConversionService $conversionService,
     ): JsonResponse {
         /** @var Store|null $store */
         $store = $request->attributes->get('developerStorefrontStore');
         abort_unless($store && (int) $checkout->store_id === (int) $store->id, 404);
 
-        $checkout->loadMissing(['items', 'addresses', 'paymentIntents', 'convertedOrder']);
+        $checkout->loadMissing(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount']);
 
         if ($checkout->convertedOrder) {
-            return response()->json([
-                'message' => 'The order is ready.',
-                'state' => 'completed',
-                'checkout' => $this->checkoutResponse($checkout)['checkout'],
-                'order' => $this->publicOrderSummary($checkout->convertedOrder, $checkout),
-            ]);
+            return $this->completedConfirmationResponse($checkout);
         }
 
         /** @var PaymentIntent|null $paymentIntent */
         $paymentIntent = $checkout->paymentIntents->sortByDesc('id')->first();
+        $providerResult = null;
+        $providerUnavailable = false;
 
-        if ($checkout->status === Checkout::STATUS_CANCELLED || ($checkout->expires_at && $checkout->expires_at->isPast())) {
+        if ($paymentIntent && filled($paymentIntent->provider_intent_id)) {
+            try {
+                $providerResult = $paymentProvider->retrievePaymentIntent(
+                    (string) $paymentIntent->provider_intent_id,
+                    (string) $paymentIntent->mode,
+                );
+
+                if ($providerResult->status === 'succeeded') {
+                    if (! $this->providerResultBelongsToCheckout($checkout, $paymentIntent, $providerResult)) {
+                        Log::error('checkout.confirmation_provider_mismatch', [
+                            'store_id' => $checkout->store_id,
+                            'checkout_id' => $checkout->id,
+                            'payment_intent_id' => $paymentIntent->id,
+                            'provider_intent_id' => $paymentIntent->provider_intent_id,
+                        ]);
+
+                        return response()->json([
+                            'message' => 'Payment was received, but order confirmation needs review. Do not pay again.',
+                            'state' => 'processing',
+                            'payment_status' => $providerResult->status,
+                            'retry_after_seconds' => 5,
+                        ], 409)->header('Retry-After', '5');
+                    }
+
+                    $order = $conversionService->handleSucceededPayment($providerResult);
+                    if ($order) {
+                        $checkout = $checkout->fresh([
+                            'items',
+                            'addresses',
+                            'paymentIntents',
+                            'convertedOrder',
+                            'paymentProviderAccount',
+                        ]);
+
+                        return $this->completedConfirmationResponse($checkout);
+                    }
+
+                    Log::error('checkout.confirmation_conversion_missing_order', [
+                        'store_id' => $checkout->store_id,
+                        'checkout_id' => $checkout->id,
+                        'payment_intent_id' => $paymentIntent->id,
+                        'provider_intent_id' => $paymentIntent->provider_intent_id,
+                    ]);
+
+                    return response()->json([
+                        'message' => 'Payment was received, but order confirmation needs review. Do not pay again.',
+                        'state' => 'processing',
+                        'payment_status' => $providerResult->status,
+                        'retry_after_seconds' => 5,
+                    ], 409)->header('Retry-After', '5');
+                }
+
+                if (
+                    $providerResult->eventType === 'payment_intent.canceled'
+                    || ($providerResult->eventType === 'payment_intent.payment_failed' && filled($providerResult->failureCode))
+                ) {
+                    $conversionService->handleFailedPayment($providerResult);
+                }
+            } catch (Throwable $exception) {
+                $providerUnavailable = true;
+
+                Log::warning('checkout.confirmation_provider_check_failed', [
+                    'store_id' => $checkout->store_id,
+                    'checkout_id' => $checkout->id,
+                    'payment_intent_id' => $paymentIntent->id,
+                    'provider_intent_id' => $paymentIntent->provider_intent_id,
+                    'exception' => $exception::class,
+                ]);
+            }
+
+            $checkout = $checkout->fresh([
+                'items',
+                'addresses',
+                'paymentIntents',
+                'convertedOrder',
+                'paymentProviderAccount',
+            ]);
+            abort_unless($checkout, 404);
+            $paymentIntent = $checkout->paymentIntents->sortByDesc('id')->first();
+
+            if ($checkout->convertedOrder) {
+                return $this->completedConfirmationResponse($checkout);
+            }
+        }
+
+        if ($checkout->status === Checkout::STATUS_CANCELLED) {
             return response()->json([
-                'message' => 'This checkout has expired. Start a new checkout attempt.',
-                'state' => 'expired',
+                'message' => 'Stripe reported that this payment did not complete. Start a new checkout attempt.',
+                'state' => 'failed',
                 'payment_status' => $paymentIntent?->status,
-            ], 410);
+            ], 422);
         }
 
         if ($checkout->status === Checkout::STATUS_FAILED || in_array((string) $paymentIntent?->status, ['failed', 'canceled'], true)) {
@@ -215,12 +304,30 @@ class PlatformCheckoutController extends Controller
             ], 422);
         }
 
+        $providerStatus = (string) ($providerResult?->status ?? '');
+        $providerMayStillComplete = $providerUnavailable || in_array($providerStatus, [
+            'processing',
+            'requires_action',
+            'requires_capture',
+            'requires_confirmation',
+        ], true);
+
+        if ($checkout->expires_at && $checkout->expires_at->isPast() && ! $providerMayStillComplete) {
+            return response()->json([
+                'message' => 'This checkout has expired. Start a new checkout attempt.',
+                'state' => 'expired',
+                'payment_status' => $paymentIntent?->status,
+            ], 410);
+        }
+
         return response()->json([
-            'message' => 'Payment confirmation is still processing. Retry this status request shortly.',
+            'message' => $providerUnavailable
+                ? 'Stripe payment status is temporarily unavailable. Do not pay again; this order will keep checking safely.'
+                : 'Payment confirmation is still processing. Retry this status request shortly.',
             'state' => 'processing',
-            'payment_status' => $paymentIntent?->status,
-            'retry_after_seconds' => 1,
-        ], 202)->header('Retry-After', '1');
+            'payment_status' => $providerResult?->status ?: $paymentIntent?->status,
+            'retry_after_seconds' => 2,
+        ], 202)->header('Retry-After', '2');
     }
 
     /**
@@ -428,6 +535,66 @@ class PlatformCheckoutController extends Controller
                 'publishable_key' => $stripeConfig->stripePublicKey($paymentMode),
             ],
         ];
+    }
+
+    private function completedConfirmationResponse(Checkout $checkout): JsonResponse
+    {
+        $checkout->loadMissing(['items', 'addresses', 'paymentIntents', 'convertedOrder', 'paymentProviderAccount']);
+        abort_unless($checkout->convertedOrder, 409);
+
+        return response()->json([
+            'message' => 'The order is ready.',
+            'state' => 'completed',
+            'checkout' => $this->checkoutResponse($checkout)['checkout'],
+            'order' => $this->publicOrderSummary($checkout->convertedOrder, $checkout),
+        ]);
+    }
+
+    private function providerResultBelongsToCheckout(
+        Checkout $checkout,
+        PaymentIntent $paymentIntent,
+        PaymentWebhookResult $result,
+    ): bool {
+        if (
+            (int) $paymentIntent->checkout_id !== (int) $checkout->id
+            || (int) $paymentIntent->store_id !== (int) $checkout->store_id
+            || ! hash_equals((string) $paymentIntent->provider_intent_id, $result->providerIntentId)
+            || $result->mode === null
+            || strtolower((string) $paymentIntent->mode) !== strtolower($result->mode)
+        ) {
+            return false;
+        }
+
+        $metadata = data_get($result->raw, 'object.metadata');
+        if (! is_array($metadata)) {
+            return false;
+        }
+
+        $expectedMetadata = [
+            'store_id' => (string) $checkout->store_id,
+            'checkout_id' => (string) $checkout->id,
+            'checkout_number' => (string) $checkout->checkout_number,
+            'source_channel' => (string) $checkout->source_channel,
+            'payment_provider_account_id' => (string) $checkout->payment_provider_account_id,
+        ];
+
+        foreach ($expectedMetadata as $key => $expected) {
+            if (! hash_equals($expected, (string) ($metadata[$key] ?? ''))) {
+                return false;
+            }
+        }
+
+        $expectedProviderAccountId = trim((string) (
+            $paymentIntent->provider_account_id
+            ?: $checkout->paymentProviderAccount?->provider_account_id
+        ));
+
+        if ($expectedProviderAccountId === '') {
+            return $result->providerAccountId === null || $result->providerAccountId === '';
+        }
+
+        return hash_equals($expectedProviderAccountId, (string) $result->providerAccountId)
+            && hash_equals($expectedProviderAccountId, (string) ($metadata['connected_account_id'] ?? ''));
     }
 
     /**

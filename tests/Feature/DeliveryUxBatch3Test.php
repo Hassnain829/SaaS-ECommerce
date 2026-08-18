@@ -415,6 +415,7 @@ class DeliveryUxBatch3Test extends TestCase
         $store->forceFill([
             'settings' => ['checkout_mode' => CheckoutMode::PLATFORM],
         ])->save();
+        $this->connectReadyStripeForCheckout($store);
         $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         $product = Product::query()->create([

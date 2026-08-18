@@ -74,8 +74,8 @@ class Phase5PaymentUxCleanupTest extends TestCase
         $this->assertStringContainsString('Developer diagnostics', $html);
         $this->assertStringContainsString('STRIPE_TEST_KEY configured', $html);
         $this->assertStringContainsString('STRIPE_LIVE_SECRET configured', $html);
-        $this->assertStringContainsString('Platform sandbox fallback', $html);
-        $this->assertStringContainsString('Enabled for local/testing', $html);
+        $this->assertStringContainsString('Developer-only platform sandbox', $html);
+        $this->assertStringContainsString('Enabled (never used by checkout)', $html);
     }
 
     public function test_production_store_owner_does_not_see_developer_diagnostics(): void

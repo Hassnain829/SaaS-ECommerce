@@ -538,6 +538,7 @@ class Phase5R3TotalsHardeningTest extends TestCase
             'onboarding_completed' => true,
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
+        $this->connectReadyStripeForCheckout($store);
 
         $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 

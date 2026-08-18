@@ -9,6 +9,8 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Checkout;
 use App\Models\Order;
+use App\Models\PaymentIntent;
+use App\Models\PaymentProviderAccount;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Role;
@@ -16,8 +18,9 @@ use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
-use App\Services\CheckoutConversionService;
 use App\Support\CheckoutMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -39,7 +42,7 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_phase6b',
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             private int $counter = 0;
 
@@ -61,6 +64,13 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
 
             public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult
             {
+                $intent = PaymentIntent::query()
+                    ->with('checkout')
+                    ->where('provider_intent_id', $providerIntentId)
+                    ->latest('id')
+                    ->firstOrFail();
+                $checkout = $intent->checkout;
+
                 return new PaymentWebhookResult(
                     eventType: 'payment_intent.succeeded',
                     providerIntentId: $providerIntentId,
@@ -75,8 +85,18 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
                             'status' => 'succeeded',
                             'amount' => 3050,
                             'currency' => 'usd',
+                            'metadata' => [
+                                'store_id' => (string) $checkout->store_id,
+                                'checkout_id' => (string) $checkout->id,
+                                'checkout_number' => (string) $checkout->checkout_number,
+                                'source_channel' => (string) $checkout->source_channel,
+                                'payment_provider_account_id' => (string) $checkout->payment_provider_account_id,
+                                'connected_account_id' => (string) ($intent->provider_account_id ?? ''),
+                            ],
                         ],
                     ],
+                    providerAccountId: $intent->provider_account_id,
+                    mode: $mode ?? $intent->mode,
                 );
             }
 
@@ -170,7 +190,7 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
             ->assertJsonPath('payment.provider_intent_id', 'pi_phase6b_1_1')
             ->assertJsonPath('payment.client_secret', 'pi_phase6b_1_1_secret_test');
 
-        $paymentIntent = \App\Models\PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
+        $paymentIntent = PaymentIntent::query()->where('checkout_id', $checkout->id)->sole();
         $this->assertDatabaseHas('checkouts', [
             'id' => $checkout->id,
             'shipping_method_id' => $methods['standard']->id,
@@ -209,12 +229,8 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
-            ->assertStatus(202)
-            ->assertJsonPath('state', 'processing');
-
-        $paymentResult = app(StripePlatformPaymentProvider::class)
-            ->retrievePaymentIntent((string) $checkout->stripe_payment_intent_id);
-        app(CheckoutConversionService::class)->handleSucceededPayment($paymentResult);
+            ->assertOk()
+            ->assertJsonPath('state', 'completed');
 
         $order = Order::query()->where('store_id', $store->id)->firstOrFail();
 
@@ -315,10 +331,33 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
             'onboarding_completed' => true,
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
+        if ($platformMode) {
+            $this->connectStripeForCheckout($store);
+        }
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
+    }
+
+    private function connectStripeForCheckout(Store $store): void
+    {
+        PaymentProviderAccount::query()->create([
+            'store_id' => $store->id,
+            'provider' => 'stripe',
+            'provider_account_id' => 'acct_test_store_'.$store->id,
+            'mode' => 'test',
+            'connection_type' => PaymentProviderAccount::CONNECTION_CONNECT,
+            'display_name' => 'Test connected Stripe account',
+            'status' => 'active',
+            'is_default' => true,
+            'settings' => ['account_type' => 'express'],
+            'charges_enabled' => true,
+            'payouts_enabled' => true,
+            'requirements_currently_due' => [],
+            'onboarding_completed_at' => now(),
+            'last_verified_at' => now(),
+        ]);
     }
 
     private function product(Store $store, array $overrides = []): array

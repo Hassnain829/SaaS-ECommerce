@@ -3,6 +3,8 @@
 Status: Approved correction specification  
 Date: 2026-08-18
 
+Amended 2026-08-19: the webhook-only confirmation restriction is superseded by provider-authoritative reconciliation. An authenticated, store-scoped confirmation request may finalize an order only after the SaaS retrieves the stored PaymentIntent directly from Stripe in the stored mode and connected-account context, validates its identity metadata, amount, and currency, and receives `succeeded`. Browser/WordPress payment claims remain untrusted. Verified webhooks remain the asynchronous retry and recovery path.
+
 ## 1. Purpose
 
 This document defines the required corrections before Batch 7 can begin. It exists because Batches 1–6 contained substantial implementation but did not fully satisfy the locked WordPress/SaaS commerce architecture.
@@ -67,19 +69,19 @@ The connector must not calculate authoritative prices, tax, shipping, inventory,
 7. The SaaS calculates discounts, tax, shipping choices, and final totals.
 8. The SaaS creates the checkout, inventory reservation, and Stripe PaymentIntent.
 9. WordPress renders Stripe's secure Payment Element.
-10. Stripe reports the payment result to a signed SaaS webhook.
-11. The verified SaaS webhook finalizes the order and commits/deducts inventory exactly once.
-12. WordPress polls the SaaS while the webhook is processing.
+10. After Stripe.js completes, WordPress requests checkout confirmation from the SaaS.
+11. The SaaS retrieves the stored PaymentIntent directly from Stripe in the stored mode and connected-account context and validates checkout/store/account metadata, amount, and currency.
+12. A provider-verified `succeeded` result finalizes the order and commits/deducts inventory exactly once; the signed webhook remains an idempotent asynchronous recovery path.
 13. WordPress displays the SaaS order confirmation and tracking state.
 
-Neither WordPress nor a confirmation request may declare an order paid.
+Neither WordPress nor browser-supplied confirmation data may declare an order paid. Payment authority comes only from Stripe: either a server-to-server PaymentIntent retrieval or a verified webhook.
 
 ## 4. Critical defects requiring correction
 
 | Area | Defect | Required result |
 | --- | --- | --- |
 | Direct order API | A connected-site route can create an immediately paid order without Stripe proof | Remove the route and order-creation method; retired endpoints return `404` |
-| Payment authority | Client confirmation can convert a succeeded PaymentIntent into an order | Confirmation becomes read-only polling; only verified webhooks convert |
+| Payment authority | Client-supplied confirmation could declare payment truth | Confirmation may convert only after server-to-server retrieval of the stored Stripe PaymentIntent and full checkout/account/amount/currency validation; verified webhooks remain supported |
 | Idempotency | Check-before-create permits concurrent duplicate checkouts; WordPress creates new retry keys | Database-first atomic claim and one persisted key per logical WordPress checkout |
 | Authentication | Legacy store token fallback bypasses connected-site scopes and binding | Active connected-site credentials only; no legacy fallback or mirroring |
 | Site ownership | Active normalized URLs are not reliably unique | Database-enforced active URL identity; duplicate migration stops explicitly |
@@ -194,8 +196,9 @@ Batch 1–6 correction is complete only when all applicable gates pass:
 
 - no active direct paid-order route;
 - no external order/shipment sync runtime endpoints;
-- no confirmation-triggered conversion;
-- only verified webhook controllers call successful checkout conversion;
+- no conversion from client-supplied payment status or identifiers;
+- confirmation conversion requires provider-authoritative Stripe retrieval plus checkout/store/account/amount/currency validation;
+- verified webhook conversion remains idempotent and supported;
 - atomic idempotency behavior is covered;
 - WordPress retry key reuse is covered;
 - no legacy-token authentication fallback;
@@ -221,5 +224,5 @@ The implementer must provide:
 - full-suite command and exact result;
 - frontend/WordPress checks and exact results;
 - search evidence showing retired routes/classes and legacy fallback are absent;
-- search evidence showing order conversion is reachable only from verified webhook handlers;
+- evidence showing every order-conversion path is provider-authoritative (verified webhook or validated server-to-server Stripe retrieval);
 - any unresolved risk or blocked verification.

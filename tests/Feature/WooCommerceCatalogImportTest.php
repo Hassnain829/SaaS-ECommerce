@@ -12,6 +12,7 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Inventory\DefaultLocationService;
+use App\Services\Inventory\InventoryAdjustmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -207,7 +208,7 @@ class WooCommerceCatalogImportTest extends TestCase
         $productId = $product->id;
 
         $variant->update(['stock' => 99]);
-        app(\App\Services\Inventory\InventoryAdjustmentService::class)->setVariantAvailable(
+        app(InventoryAdjustmentService::class)->setVariantAvailable(
             $variant->fresh(),
             99,
             'Manual test stock',
@@ -265,7 +266,7 @@ class WooCommerceCatalogImportTest extends TestCase
             $this->realExportRow([
                 'ID' => '12446',
                 'Type' => 'variation',
-                'Name' => 'Got Pain Capsules',
+                'Name' => 'Got Pain Capsules - Regular',
                 'Parent' => 'id:12156',
                 'Regular price' => '35',
                 'Images' => 'https://cdn.example.test/var-regular.png',
@@ -275,7 +276,7 @@ class WooCommerceCatalogImportTest extends TestCase
             $this->realExportRow([
                 'ID' => '12447',
                 'Type' => 'variation',
-                'Name' => 'Got Pain Capsules',
+                'Name' => 'Got Pain Capsules - 7-Day Evaluation',
                 'Parent' => 'id:12156',
                 'Regular price' => '15',
                 'Images' => 'https://cdn.example.test/var-eval.png',
@@ -327,6 +328,7 @@ class WooCommerceCatalogImportTest extends TestCase
             ->firstOrFail();
 
         $this->assertSame('woo-12156', $product->sku);
+        $this->assertSame('Got Pain Capsules', $product->name);
         $this->assertSame('ECS Therapy', $product->brand?->name);
         $this->assertSame('012345678905', $product->meta['catalog']['barcode'] ?? null);
         $this->assertSame('0.45', (string) ($product->meta['catalog']['weight'] ?? ''));
@@ -500,8 +502,7 @@ class WooCommerceCatalogImportTest extends TestCase
         string $stockMode,
         string $sourceSite = 'https://shop.example.test',
         bool $approveExistingSkuLinks = false,
-    ): ProductImport
-    {
+    ): ProductImport {
         $file = UploadedFile::fake()->createWithContent('woo.csv', $csv);
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])

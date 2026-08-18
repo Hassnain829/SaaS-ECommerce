@@ -41,12 +41,12 @@
         @endforeach
 
         <div class="payments-diag-item">
-            <span class="payments-diag-label">Platform sandbox fallback</span>
+            <span class="payments-diag-label">Developer-only platform sandbox</span>
             <span @class([
                 'payments-diag-badge',
                 'is-yes' => ($stripeConfig['sandbox_fallback'] ?? false),
                 'is-muted' => ! ($stripeConfig['sandbox_fallback'] ?? false),
-            ])>{{ ($stripeConfig['sandbox_fallback'] ?? false) ? 'Enabled for local/testing' : 'Disabled' }}</span>
+            ])>{{ ($stripeConfig['sandbox_fallback'] ?? false) ? 'Enabled (never used by checkout)' : 'Disabled' }}</span>
         </div>
 
         <div class="payments-diag-item">

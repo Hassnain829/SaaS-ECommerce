@@ -154,10 +154,7 @@ class PaymentProviderAccount extends Model
             return false;
         }
 
-        if (! $this->isConnectedStripeAccount()) {
-            return $this->connection_type === 'platform';
-        }
-
-        return $this->charges_enabled === true;
+        return $this->isConnectedStripeAccount()
+            && $this->charges_enabled === true;
     }
 }

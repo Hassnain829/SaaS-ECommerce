@@ -11,6 +11,7 @@ use App\Support\ConnectedSiteScope;
 use FilesystemIterator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -49,6 +50,7 @@ class DeveloperStorefrontSettingsController extends Controller
         $currentStep = match (true) {
             $connectionState === Store::WEBSITE_DISCONNECTED => 2,
             ! $tokenConfigured => 1,
+            ! filled($connectedSite?->site_url ?: $store->connectedWebsiteUrl()) => 2,
             $lastSeenAt === null => 3,
             default => 4,
         };
@@ -90,7 +92,19 @@ class DeveloperStorefrontSettingsController extends Controller
                 ->withErrors(['store' => 'No active store was found.']);
         }
 
-        $issued = app(ConnectedSiteService::class)->issuePrimaryCredential($store);
+        $connectedSites = app(ConnectedSiteService::class);
+        $connectedSite = $connectedSites->primarySite($store);
+        $websiteUrl = $connectedSite?->site_url ?: $store->connectedWebsiteUrl();
+
+        if (! filled($websiteUrl)) {
+            return redirect()
+                ->route('developer-storefront.settings')
+                ->withErrors([
+                    'website_url' => 'Save this store\'s exact WordPress website address before creating a connection key.',
+                ]);
+        }
+
+        $issued = $connectedSites->issuePrimaryCredential($store);
 
         app(SecurityLogRecorder::class)->record(
             $request,
@@ -161,7 +175,7 @@ class DeveloperStorefrontSettingsController extends Controller
 
         try {
             app(ConnectedSiteService::class)->bindWebsiteUrl($store, $url);
-        } catch (\Illuminate\Validation\ValidationException $exception) {
+        } catch (ValidationException $exception) {
             return redirect()
                 ->route('developer-storefront.settings')
                 ->withErrors($exception->errors());

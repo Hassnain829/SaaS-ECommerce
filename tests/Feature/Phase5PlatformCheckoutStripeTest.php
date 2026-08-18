@@ -6,12 +6,15 @@ use App\Data\Payments\PaymentIntentResult;
 use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Checkout;
 use App\Models\Order;
+use App\Models\PaymentIntent;
+use App\Models\PaymentProviderAccount;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\ConnectedSiteService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
@@ -47,7 +50,7 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             ],
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -67,7 +70,50 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
 
             public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult
             {
-                throw new \RuntimeException('Checkout confirmation must not retrieve Stripe payment state.');
+                if (config('testing.stripe_retrieval_throws', false)) {
+                    throw new \RuntimeException('Simulated Stripe retrieval outage.');
+                }
+
+                $intent = PaymentIntent::query()
+                    ->with('checkout')
+                    ->where('provider_intent_id', $providerIntentId)
+                    ->latest('id')
+                    ->firstOrFail();
+                $checkout = $intent->checkout;
+                $status = (string) config('testing.stripe_retrieved_payment_status', 'requires_payment_method');
+                $metadata = array_merge([
+                    'store_id' => (string) $checkout->store_id,
+                    'checkout_id' => (string) $checkout->id,
+                    'checkout_number' => (string) $checkout->checkout_number,
+                    'source_channel' => (string) $checkout->source_channel,
+                    'payment_provider_account_id' => (string) $checkout->payment_provider_account_id,
+                    'connected_account_id' => (string) ($intent->provider_account_id ?? ''),
+                ], (array) config('testing.stripe_retrieval_metadata_override', []));
+
+                return new PaymentWebhookResult(
+                    eventType: match ($status) {
+                        'succeeded' => 'payment_intent.succeeded',
+                        'canceled' => 'payment_intent.canceled',
+                        default => 'payment_intent.updated',
+                    },
+                    providerIntentId: $providerIntentId,
+                    status: $status,
+                    amount: (string) $intent->amount,
+                    currencyCode: $intent->currency_code,
+                    raw: [
+                        'id' => 'client_confirm_'.$providerIntentId,
+                        'type' => 'payment_intent.updated',
+                        'object' => [
+                            'id' => $providerIntentId,
+                            'status' => $status,
+                            'amount' => $intent->amount_minor,
+                            'currency' => strtolower((string) $intent->currency_code),
+                            'metadata' => $metadata,
+                        ],
+                    ],
+                    providerAccountId: $intent->provider_account_id,
+                    mode: $mode ?? $intent->mode,
+                );
             }
         });
     }
@@ -229,10 +275,11 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
         $this->assertSame(1, Order::query()->where('store_id', $store->id)->count());
     }
 
-    public function test_client_confirmation_is_read_only_until_verified_webhook_converts_checkout(): void
+    public function test_client_confirmation_retrieves_stripe_and_converts_without_a_webhook_listener(): void
     {
         [$store, $token] = $this->tokenedStore('Platform Client Confirm Store');
         [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
+        config(['testing.stripe_retrieved_payment_status' => 'succeeded']);
 
         $this->postCheckout($token, $this->payload($variant))
             ->assertCreated();
@@ -241,14 +288,9 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
-            ->assertStatus(202)
-            ->assertJsonPath('state', 'processing');
-
-        $this->assertSame(0, Order::query()->where('store_id', $store->id)->count());
-        $this->assertSame(3, (int) $variant->fresh()->stock);
-
-        $body = $this->stripeEvent('payment_intent.succeeded', 'pi_test_checkout_'.$checkout->id, 'succeeded', 2400);
-        $this->postStripeWebhook($body)->assertOk();
+            ->assertOk()
+            ->assertJsonPath('state', 'completed')
+            ->assertJsonPath('order.order_number', '#1002');
 
         $order = Order::query()->where('store_id', $store->id)->firstOrFail();
 
@@ -274,16 +316,79 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
             ->assertOk()
             ->assertJsonPath('state', 'completed')
-            ->assertJsonPath('order.order_number', '#1002');
-
-        $this->withToken($token)
-            ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
-            ->assertOk()
-            ->assertJsonPath('state', 'completed')
             ->assertJsonPath('order.id', $order->id);
 
         $this->assertSame(1, Order::query()->where('store_id', $store->id)->count());
         $this->assertSame(3, (int) $variant->fresh()->stock);
+        $this->assertDatabaseCount('provider_webhook_events', 0);
+    }
+
+    public function test_client_confirmation_converts_a_provider_verified_success_after_checkout_expiry(): void
+    {
+        [$store, $token] = $this->tokenedStore('Platform Late Confirm Store');
+        [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
+        config(['testing.stripe_retrieved_payment_status' => 'succeeded']);
+
+        $this->postCheckout($token, $this->payload($variant))->assertCreated();
+
+        $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
+        $checkout->forceFill(['expires_at' => now()->subMinute()])->save();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
+            ->assertOk()
+            ->assertJsonPath('state', 'completed');
+
+        $this->assertSame(1, Order::query()->where('store_id', $store->id)->count());
+        $this->assertDatabaseHas('checkouts', [
+            'id' => $checkout->id,
+            'status' => Checkout::STATUS_CONVERTED,
+        ]);
+    }
+
+    public function test_client_confirmation_rejects_a_succeeded_intent_with_wrong_checkout_metadata(): void
+    {
+        [$store, $token] = $this->tokenedStore('Platform Metadata Guard Store');
+        [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
+        config([
+            'testing.stripe_retrieved_payment_status' => 'succeeded',
+            'testing.stripe_retrieval_metadata_override' => ['checkout_id' => '999999'],
+        ]);
+
+        $this->postCheckout($token, $this->payload($variant))->assertCreated();
+        $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
+            ->assertStatus(409)
+            ->assertJsonPath('state', 'processing')
+            ->assertJsonPath('payment_status', 'succeeded');
+
+        $this->assertSame(0, Order::query()->where('store_id', $store->id)->count());
+        $this->assertDatabaseHas('checkouts', [
+            'id' => $checkout->id,
+            'status' => Checkout::STATUS_PAYMENT_PENDING,
+            'converted_order_id' => null,
+        ]);
+    }
+
+    public function test_client_confirmation_keeps_an_expired_checkout_processing_when_stripe_is_unavailable(): void
+    {
+        [$store, $token] = $this->tokenedStore('Platform Retrieval Outage Store');
+        [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
+        config(['testing.stripe_retrieval_throws' => true]);
+
+        $this->postCheckout($token, $this->payload($variant))->assertCreated();
+        $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
+        $checkout->forceFill(['expires_at' => now()->subMinute()])->save();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
+            ->assertAccepted()
+            ->assertJsonPath('state', 'processing')
+            ->assertJsonPath('retry_after_seconds', 2);
+
+        $this->assertSame(0, Order::query()->where('store_id', $store->id)->count());
     }
 
     public function test_stripe_failed_webhook_marks_checkout_failed_and_releases_inventory(): void
@@ -406,10 +511,31 @@ class Phase5PlatformCheckoutStripeTest extends TestCase
             'onboarding_completed' => true,
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
+        $this->connectStripeForCheckout($store);
 
         $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
+    }
+
+    private function connectStripeForCheckout(Store $store): void
+    {
+        PaymentProviderAccount::query()->create([
+            'store_id' => $store->id,
+            'provider' => 'stripe',
+            'provider_account_id' => 'acct_test_store_'.$store->id,
+            'mode' => 'test',
+            'connection_type' => PaymentProviderAccount::CONNECTION_CONNECT,
+            'display_name' => 'Test connected Stripe account',
+            'status' => 'active',
+            'is_default' => true,
+            'settings' => ['account_type' => 'express'],
+            'charges_enabled' => true,
+            'payouts_enabled' => true,
+            'requirements_currently_due' => [],
+            'onboarding_completed_at' => now(),
+            'last_verified_at' => now(),
+        ]);
     }
 
     private function product(Store $store, array $overrides = []): array

@@ -14,6 +14,9 @@ use App\Models\Role;
 use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
+use App\Services\Payments\PaymentProviderManager;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
@@ -54,7 +57,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             ],
         ]);
 
-        $this->app->instance(StripeConnectService::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripeConnectService
+        $this->app->instance(StripeConnectService::class, new class(app(StripeConfig::class)) extends StripeConnectService
         {
             public function createOrRetrieveConnectedAccount(Store $store, User $user, string $mode = 'test'): PaymentProviderAccount
             {
@@ -109,7 +112,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
             }
         });
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -135,9 +138,11 @@ class Phase5StripeConnectFoundationTest extends TestCase
             public function retrievePaymentIntent(string $providerIntentId, ?string $mode = null): PaymentWebhookResult
             {
                 $intent = PaymentIntent::query()
+                    ->with('checkout')
                     ->where('provider_intent_id', $providerIntentId)
                     ->latest('id')
                     ->first();
+                $checkout = $intent?->checkout;
 
                 return new PaymentWebhookResult(
                     eventType: 'payment_intent.succeeded',
@@ -151,9 +156,20 @@ class Phase5StripeConnectFoundationTest extends TestCase
                         'object' => [
                             'id' => $providerIntentId,
                             'status' => 'succeeded',
+                            'amount' => $intent?->amount_minor,
+                            'currency' => strtolower((string) ($intent?->currency_code ?? 'USD')),
+                            'metadata' => [
+                                'store_id' => (string) $checkout?->store_id,
+                                'checkout_id' => (string) $checkout?->id,
+                                'checkout_number' => (string) $checkout?->checkout_number,
+                                'source_channel' => (string) $checkout?->source_channel,
+                                'payment_provider_account_id' => (string) $checkout?->payment_provider_account_id,
+                                'connected_account_id' => (string) $intent?->provider_account_id,
+                            ],
                         ],
                     ],
                     providerAccountId: $intent?->provider_account_id,
+                    mode: $mode ?? $intent?->mode,
                 );
             }
         });
@@ -305,16 +321,32 @@ class Phase5StripeConnectFoundationTest extends TestCase
         $this->assertSame(0, Checkout::query()->where('store_id', $store->id)->count());
     }
 
-    public function test_platform_sandbox_fallback_only_works_when_allowed_in_testing(): void
+    public function test_platform_sandbox_is_explicit_and_never_enables_merchant_checkout(): void
     {
         [$store, $token] = $this->tokenedStore('Connect Fallback Store');
         [, $variant] = $this->product($store);
+        $manager = app(PaymentProviderManager::class);
+
+        $sandboxAccount = $manager->platformSandboxAccountForDeveloperTesting($store);
+
+        $this->assertNotNull($sandboxAccount);
+        $this->assertSame(PaymentProviderAccount::CONNECTION_PLATFORM, $sandboxAccount->connection_type);
+        $this->assertNull($manager->accountForCheckout($store));
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout', $this->payload($variant))
-            ->assertCreated()
-            ->assertJsonPath('payment.connection_type', 'platform')
-            ->assertJsonPath('payment.connection_label', 'Platform test mode');
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payment']);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/site/health')
+            ->assertOk()
+            ->assertJsonPath('readiness.stripe', false);
+
+        $this->withToken($token)
+            ->getJson('/api/developer-storefront/catalog')
+            ->assertOk()
+            ->assertJsonPath('store.platform_checkout.ready', false);
 
         $this->assertDatabaseHas('payment_provider_accounts', [
             'store_id' => $store->id,
@@ -326,10 +358,40 @@ class Phase5StripeConnectFoundationTest extends TestCase
         [$blockedStore, $blockedToken] = $this->tokenedStore('Connect No Fallback Store');
         [, $blockedVariant] = $this->product($blockedStore);
 
+        $this->assertNull($manager->platformSandboxAccountForDeveloperTesting($blockedStore));
+
         $this->withToken($blockedToken)
             ->postJson('/api/v1/checkout', $this->payload($blockedVariant))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['payment']);
+    }
+
+    public function test_incomplete_store_connect_account_cannot_be_bypassed_by_platform_test_keys(): void
+    {
+        [$store, $token] = $this->tokenedStore('Incomplete Connect Store');
+        $account = $this->connectedAccount($store, [
+            'status' => 'restricted',
+            'charges_enabled' => false,
+            'payouts_enabled' => false,
+            'requirements_currently_due' => ['business_profile.url'],
+        ]);
+        [, $variant] = $this->product($store);
+
+        $this->assertNull(app(PaymentProviderManager::class)->accountForCheckout($store));
+        $this->assertFalse($account->fresh()->isReadyForCheckout());
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->payload($variant))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payment']);
+
+        $this->withToken($token)
+            ->getJson('/api/v1/site/health')
+            ->assertOk()
+            ->assertJsonPath('readiness.stripe', false);
+
+        $this->assertSame(0, Checkout::query()->where('store_id', $store->id)->count());
+        $this->assertSame(0, PaymentIntent::query()->where('store_id', $store->id)->count());
     }
 
     public function test_connect_webhook_requires_valid_connect_signature(): void
@@ -388,6 +450,35 @@ class Phase5StripeConnectFoundationTest extends TestCase
         $this->assertSame($account->provider_account_id, data_get($order->meta, 'platform_checkout.provider_account_id'));
     }
 
+    public function test_connected_payment_confirmation_retrieves_from_stripe_and_converts_without_webhook_delivery(): void
+    {
+        [$store, $token] = $this->tokenedStore('Connect Direct Confirmation Store');
+        $account = $this->connectedAccount($store);
+        [, $variant] = $this->product($store, ['price' => 12, 'stock' => 5]);
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout', $this->payload($variant))
+            ->assertCreated();
+
+        $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checkout/'.$checkout->id.'/confirm')
+            ->assertOk()
+            ->assertJsonPath('state', 'completed')
+            ->assertJsonPath('order.payment_status', OrderLifecycle::PAYMENT_PAID);
+
+        $order = Order::query()->where('store_id', $store->id)->firstOrFail();
+        $this->assertSame($account->provider_account_id, data_get($order->meta, 'platform_checkout.provider_account_id'));
+        $this->assertDatabaseHas('payment_intents', [
+            'checkout_id' => $checkout->id,
+            'provider_account_id' => $account->provider_account_id,
+            'status' => 'succeeded',
+            'order_id' => $order->id,
+        ]);
+        $this->assertDatabaseCount('provider_webhook_events', 0);
+    }
+
     public function test_store_cannot_use_another_store_connected_account(): void
     {
         config(['payments.stripe.allow_platform_sandbox_fallback' => false]);
@@ -403,6 +494,52 @@ class Phase5StripeConnectFoundationTest extends TestCase
             ->assertJsonValidationErrors(['payment']);
 
         $this->assertSame(0, Checkout::query()->where('store_id', $storeA->id)->count());
+    }
+
+    public function test_one_owner_can_keep_two_stores_stripe_ready_independently(): void
+    {
+        [$storeA, $tokenA, $owner] = $this->tokenedStore('Owner Multi Store A');
+        $storeB = Store::query()->create([
+            'user_id' => $owner->id,
+            'name' => 'Owner Multi Store B',
+            'slug' => 'owner-multi-store-b-'.Str::random(6),
+            'currency' => 'USD',
+            'timezone' => 'UTC',
+            'category' => 'physical',
+            'settings' => ['checkout_mode' => CheckoutMode::PLATFORM],
+            'onboarding_completed' => true,
+        ]);
+        $storeB->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
+        $tokenB = app(ConnectedSiteService::class)->issuePrimaryCredential($storeB)['plain'];
+
+        $accountA = $this->connectedAccount($storeA);
+        $accountB = $this->connectedAccount($storeB);
+        [, $variantA] = $this->product($storeA);
+        [, $variantB] = $this->product($storeB);
+
+        $this->withToken($tokenA)
+            ->getJson('/api/v1/site/health')
+            ->assertOk()
+            ->assertJsonPath('readiness.stripe', true);
+        $this->withToken($tokenB)
+            ->getJson('/api/v1/site/health')
+            ->assertOk()
+            ->assertJsonPath('readiness.stripe', true);
+
+        app(StripeConnectService::class)->disableLocally($accountA);
+
+        $this->withToken($tokenA)
+            ->postJson('/api/v1/checkout', $this->payload($variantA))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['payment']);
+        $this->withToken($tokenB)
+            ->postJson('/api/v1/checkout', $this->payload($variantB))
+            ->assertCreated()
+            ->assertJsonPath('payment.provider_account_id', $accountB->provider_account_id);
+
+        $manager = app(PaymentProviderManager::class);
+        $this->assertNull($manager->activeConnectedAccountForStore($storeA));
+        $this->assertSame($accountB->id, $manager->activeConnectedAccountForStore($storeB)?->id);
     }
 
     public function test_disabling_connected_provider_prevents_new_platform_checkout(): void
@@ -450,7 +587,7 @@ class Phase5StripeConnectFoundationTest extends TestCase
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         $extraUser = null;
         if ($extraUserRole !== Store::ROLE_OWNER) {

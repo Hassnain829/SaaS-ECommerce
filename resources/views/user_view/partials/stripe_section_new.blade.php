@@ -15,7 +15,7 @@
                     @csrf
                     <label class="flex items-start gap-2 text-sm text-[#334155]">
                         <input type="radio" name="platform_payment_mode" value="test" @checked(($platformPaymentMode ?? 'test') === 'test') class="mt-1">
-                        <span><span class="font-semibold text-[#0F172A]">Test mode</span><span class="mt-0.5 block text-xs text-[#64748B]">Uses the connected Stripe test account or local sandbox fallback.</span></span>
+                        <span><span class="font-semibold text-[#0F172A]">Test mode</span><span class="mt-0.5 block text-xs text-[#64748B]">Requires a ready Stripe test account connected to this store.</span></span>
                     </label>
                     <label class="flex items-start gap-2 text-sm text-[#334155]">
                         <input type="radio" name="platform_payment_mode" value="live" @checked(($platformPaymentMode ?? 'test') === 'live') class="mt-1" @disabled(! ($liveConnectReady ?? false))>
@@ -71,8 +71,8 @@
                     </div>
                 @endforeach
                 <div class="rounded-xl bg-[#F8FAFC] px-4 py-3">
-                    <p class="font-semibold text-[#0F172A]">Platform sandbox fallback</p>
-                    <p class="mt-1 text-[#64748B]">{{ ($stripeConfig['sandbox_fallback'] ?? false) ? 'Enabled for local/testing' : 'Disabled' }}</p>
+                    <p class="font-semibold text-[#0F172A]">Developer-only platform sandbox</p>
+                    <p class="mt-1 text-[#64748B]">{{ ($stripeConfig['sandbox_fallback'] ?? false) ? 'Enabled (never used by checkout)' : 'Disabled' }}</p>
                 </div>
             </div>
         </details>

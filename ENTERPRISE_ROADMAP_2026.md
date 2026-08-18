@@ -6,7 +6,7 @@
 >
 > **Current audit basis:** Project zip inspection + research document + existing roadmap + ERD + Cursor/Anti-Gravity progress notes.
 
-> **DR-05 correction (2026-08-18):** `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md` supersedes every older dual-mode or external-checkout-sync proposal in this roadmap. Runtime commerce is SaaS-authoritative platform checkout only; WordPress is a presentation client; only verified payment webhooks convert checkouts. Any older external sync detail retained below is historical design context, not an implementation instruction.
+> **DR-05 correction (2026-08-18, payment authority amended 2026-08-19):** `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md` supersedes every older dual-mode or external-checkout-sync proposal in this roadmap. Runtime commerce is SaaS-authoritative platform checkout only; WordPress is a presentation client. Checkout conversion requires provider-authoritative Stripe proof: a verified webhook or validated server-to-server retrieval of the exact stored PaymentIntent. Any older external sync detail retained below is historical design context, not an implementation instruction.
 
 ---
 
@@ -671,7 +671,7 @@ Replace single-stock logic with location-aware inventory before building serious
 ### Implementation steps
 
 1. During checkout, reserve stock.
-2. On verified payment webhook conversion, convert the reservation to committed/deducted; client confirmation only polls SaaS state.
+2. On provider-verified payment conversion (signed webhook or validated server-to-server PaymentIntent retrieval), convert the reservation to committed/deducted exactly once.
 3. On failure/expiry, release reservation.
 
 ### Acceptance criteria
@@ -975,7 +975,7 @@ Order detail page must show only real data:
 
 ## Goal
 
-Replace direct test order creation with a production checkout lifecycle. Connected storefronts submit identifiers, quantities, and addresses; the SaaS owns validation, totals, reservations, PaymentIntents, and orders. Stripe is the first provider, while provider-neutral internals may support additional SaaS-integrated gateways later. Client confirmation is polling only and verified payment webhooks alone convert checkouts.
+Replace direct test order creation with a production checkout lifecycle. Connected storefronts submit identifiers, quantities, and addresses; the SaaS owns validation, totals, reservations, PaymentIntents, and orders. Stripe is the first provider, while provider-neutral internals may support additional SaaS-integrated gateways later. Confirmation never trusts client payment claims: the SaaS converts only after a verified webhook or validated server-to-server retrieval of the exact stored PaymentIntent.
 
 Do not hardcode the whole payment system around Stripe only.
 

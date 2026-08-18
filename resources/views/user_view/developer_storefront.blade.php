@@ -12,7 +12,8 @@
         default => ['label' => 'Not started', 'class' => 'is-idle'],
     };
     $step1Done = $tokenConfigured || $connectionState === \App\Models\Store::WEBSITE_DISCONNECTED;
-    $step2Done = $tokenConfigured;
+    $websiteBound = filled($websiteUrl);
+    $step2Done = $websiteBound && $tokenConfigured;
     $step3Done = $tokenConfigured && $lastSeenAt;
     $connectedSiteHealth = is_array($connectedSiteHealth ?? null) ? $connectedSiteHealth : [];
     $connectedSiteScopeLabels = is_array($connectedSiteScopeLabels ?? null) ? $connectedSiteScopeLabels : [];
@@ -91,8 +92,26 @@
                                 @endif
                             </div>
                             <div class="website-connect-step-body">
-                                <h3>Create a connection key</h3>
-                                <p>This key lets your website load this store’s products. Treat it like a password.</p>
+                                <h3>Save the website address and create a key</h3>
+                                <p>Each store needs its own website connection. Save the exact WordPress home address first, then create the key that loads this store’s products.</p>
+                                @if ($canManageKey)
+                                    <form method="post" action="{{ route('developer-storefront.website.update') }}" class="website-connect-url-form" data-turbo="false">
+                                        @csrf
+                                        @method('PATCH')
+                                        <label class="sr-only" for="setup_website_url">WordPress website address</label>
+                                        <input
+                                            id="setup_website_url"
+                                            type="url"
+                                            name="website_url"
+                                            value="{{ old('website_url', $websiteUrl) }}"
+                                            placeholder="http://localhost:8080/wordpress"
+                                            class="website-connect-input"
+                                            required
+                                        >
+                                        <button type="submit" class="website-connect-btn website-connect-btn-secondary">Save address</button>
+                                    </form>
+                                    <p class="website-connect-help">One WordPress site can point to one portal store at a time. Switching stores requires using the new store’s key.</p>
+                                @endif
                                 @if ($plainToken)
                                     <div class="website-connect-key-alert">
                                         <p class="font-semibold text-[#92400E]">Copy this key now. It will not be shown again.</p>
@@ -104,7 +123,7 @@
                                     <div class="website-connect-actions">
                                         <form method="post" action="{{ route('developer-storefront.token.generate') }}" data-turbo="false" @if($tokenConfigured) onsubmit="return confirm('Create a new connection key? The old key stops working.');" @endif>
                                             @csrf
-                                            <button type="submit" class="website-connect-btn website-connect-btn-primary">
+                                            <button type="submit" class="website-connect-btn website-connect-btn-primary" @disabled(! $websiteBound)>
                                                 {{ $tokenConfigured ? 'Create new key' : 'Create connection key' }}
                                             </button>
                                         </form>
@@ -203,7 +222,7 @@
 
                 <section class="website-connect-card">
                     <h2 class="website-connect-card-title">Your website address</h2>
-                    <p class="text-sm text-[#64748B] mb-3">Optional. Save the WordPress site you connected so you can find it later.</p>
+                    <p class="text-sm text-[#64748B] mb-3">Required for the connection key. Save the exact WordPress home address for this store.</p>
                     @if ($canManageKey)
                         <form method="post" action="{{ route('developer-storefront.website.update') }}" class="website-connect-url-form" data-turbo="false">
                             @csrf
@@ -216,6 +235,7 @@
                                 value="{{ old('website_url', $websiteUrl) }}"
                                 placeholder="http://127.0.0.1:8080"
                                 class="website-connect-input"
+                                required
                             >
                             <button type="submit" class="website-connect-btn website-connect-btn-secondary">Save</button>
                         </form>

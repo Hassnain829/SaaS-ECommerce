@@ -584,7 +584,7 @@ The dev storefront is a testbed, not the final production API.
 
 `dev-test-storefront` is a local payload simulator, not the final storefront builder or a payment/order authority. WordPress is the supported presentation client. Both clients may send product/variant identifiers, quantities, and addresses to platform checkout only.
 
-The SaaS validates and prices the cart, reserves inventory, calculates discounts/tax/shipping, creates the PaymentIntent, and owns checkout/order state. Only a cryptographically verified Stripe webhook may convert a checkout. Client confirmation endpoints only poll state while webhook processing completes.
+The SaaS validates and prices the cart, reserves inventory, calculates discounts/tax/shipping, creates the PaymentIntent, and owns checkout/order state. Payment authority must come from Stripe: either a cryptographically verified webhook or server-to-server retrieval of the exact stored PaymentIntent in its stored mode and connected-account context. Client confirmation data is never trusted; an authenticated store-scoped confirmation request converts only after provider identity metadata, amount, currency, and `succeeded` status are validated.
 
 Direct paid-order ingestion and external order/shipment truth are retired runtime behavior. Historical external orders remain readable for operations, refunds, and returns.
 

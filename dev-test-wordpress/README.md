@@ -44,12 +44,13 @@ zip -r eco-portal-connector.zip eco-portal-connector
 ### 3. Connect to the portal
 
 1. In the merchant portal, open **Website → Connect your website**
-2. Create a connection key and copy it once
-3. In WordPress: **Settings → Eco Portal**
-4. Set:
+2. Save the exact WordPress home address for the selected store (for this XAMPP site: `http://localhost:8080/wordpress`)
+3. Create that store's connection key and copy it once
+4. In WordPress: **Settings → Eco Portal**
+5. Set:
    - **Portal website address** — `http://127.0.0.1:8000` (no trailing slash)
    - **Connection key** — paste the key
-5. Click **Save connection**, then **Test connection**
+6. Click **Save connection**, then **Test connection**
 
 You should see the store name, product count, store currency, website-address match, and readiness notes (Stripe, location, catalog, plugin version).
 
@@ -62,7 +63,7 @@ The connection key is saved on the WordPress server only. After save, the settin
 3. Checkout:
    - Enter the address, click **Get delivery rates**, choose a portal delivery method, then pay with Stripe. The order and stock update in this portal.
    - The checkout page creates one browser-bound attempt before showing the address form. Double submissions and retries after a lost WordPress response reuse that attempt; use **Start over** before intentionally changing a submitted checkout.
-   - After Stripe submission, the checkout page polls the portal for the webhook-confirmed order. If confirmation is delayed, keep the processing page open or use **Check order status again**. Reloads and Stripe redirect returns resume the same status check; do not submit payment again.
+   - After Stripe submission, the checkout page asks the portal to verify the stored PaymentIntent directly with Stripe. A verified success creates the order without requiring a local Stripe CLI listener; signed webhooks remain the asynchronous recovery path. If confirmation is delayed, keep the processing page open or use **Check order status again**. Reloads and Stripe redirect returns resume the same status check; do not submit payment again.
 4. In the merchant portal, open **Orders**
 
 Shipping and labels stay in the portal after the order arrives.
@@ -90,7 +91,7 @@ Shipping and labels stay in the portal after the order arrives.
 | WordPress → Portal | `GET /api/v1/catalog/events` (missed catalog updates) |
 | Portal → WordPress | `POST /wp-json/eco-portal/v1/events` (signed catalog cache invalidation) |
 | WordPress → Portal | `POST /api/v1/checkout` |
-| WordPress → Portal | `POST /api/v1/checkout/{id}/confirm` (server-side, read-only order-status polling) |
+| WordPress → Portal | `POST /api/v1/checkout/{id}/confirm` (server-side Stripe retrieval, validation, and idempotent order confirmation) |
 | WordPress → Portal | `GET /api/v1/orders/confirmation/{token}` |
 
 Auth: `Authorization: Bearer <connection key>` from **Website → Connect your website** in the merchant portal.

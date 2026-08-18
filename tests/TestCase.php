@@ -2,12 +2,38 @@
 
 namespace Tests;
 
+use App\Models\PaymentProviderAccount;
+use App\Models\Store;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Str;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function connectReadyStripeForCheckout(Store $store, string $mode = 'test'): PaymentProviderAccount
+    {
+        return PaymentProviderAccount::query()->updateOrCreate(
+            [
+                'store_id' => $store->id,
+                'provider' => 'stripe',
+                'mode' => $mode,
+                'connection_type' => PaymentProviderAccount::CONNECTION_CONNECT,
+            ],
+            [
+                'provider_account_id' => 'acct_'.$mode.'_store_'.$store->id,
+                'display_name' => 'Test connected Stripe account',
+                'status' => 'active',
+                'is_default' => true,
+                'settings' => ['account_type' => 'express'],
+                'charges_enabled' => true,
+                'payouts_enabled' => true,
+                'requirements_currently_due' => [],
+                'onboarding_completed_at' => now(),
+                'last_verified_at' => now(),
+            ],
+        );
+    }
+
     public function withToken(string $token, string $type = 'Bearer'): static
     {
         parent::withToken($token, $type);

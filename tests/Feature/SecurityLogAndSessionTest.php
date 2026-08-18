@@ -7,6 +7,7 @@ use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Models\User;
 use App\Models\UserSession;
+use App\Services\ConnectedSiteService;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
@@ -82,6 +83,9 @@ class SecurityLogAndSessionTest extends TestCase
             'target_user_id' => $newMemberId,
             'event_type' => 'team_member_invited',
         ]);
+
+        app(ConnectedSiteService::class)
+            ->bindWebsiteUrl($beta, 'http://localhost:8080/security-log');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $beta->id])

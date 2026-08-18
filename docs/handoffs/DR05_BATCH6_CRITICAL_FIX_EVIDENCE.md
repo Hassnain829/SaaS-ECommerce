@@ -2,12 +2,16 @@
 
 Date: 2026-08-18
 
+Amendment 2026-08-19: merchant acceptance showed that webhook-only conversion made localhost checkout completion depend on a Stripe CLI listener. Confirmation now performs provider-authoritative reconciliation by retrieving the stored PaymentIntent directly from Stripe in the stored mode and connected-account context. It validates provider intent identity, checkout/store/account metadata, amount, and currency before invoking the same transactional idempotent conversion used by verified webhooks. Webhooks remain supported as asynchronous recovery. Focused payment, Connect, shipping/routing, invariant, and WordPress lifecycle coverage passed with **65 tests and 415 assertions**. The full suite passed with **1,489 tests, 2 skipped, 8,096 assertions, and 0 failures** in **213.88 seconds**.
+
+Stripe readiness amendment 2026-08-19: read-only database and Stripe API inspection proved that local order `#1003` was a successful test PaymentIntent created on the platform account with no connected-account context. The store's separate Connect record was restricted with charges disabled, while an implicit local/testing fallback had generated a synthetic charge-enabled platform row. This made Payments truthfully show checkout blocked while connected-site health and checkout incorrectly treated the store as ready. Normal checkout now resolves only an active, default, charge-enabled, store-scoped Connect account. The platform sandbox default is false and its account creation is available only through an explicitly named developer-test method; platform keys or Stripe CLI login cannot authorize shopper payment. The current local WordPress checkout was verified by HTTP to render the Stripe connection block. Multi-store coverage proves that one owner can keep two store-specific Stripe accounts ready simultaneously and that disabling one does not affect the other. The final full suite passed with **1,494 tests, 2 skipped, 8,151 assertions, and 0 failures** in **160.94 seconds**.
+
 Status: Runtime corrections and automated verification passed. The browser-driven WordPress + Stripe test-mode acceptance gate was not run, so the overall Batch 1–6 acceptance set is not yet fully verified and Batch 7 must not begin on this evidence alone.
 
 ## Critical corrections delivered
 
 - Removed the direct paid-order and external shipment/order synchronization runtime surfaces. Retired v1 endpoints remain unavailable, and `POST /api/developer-storefront/orders` is no longer registered.
-- Made checkout confirmation a read-only state poll. Only verified Stripe webhook controllers call checkout conversion.
+- Made checkout confirmation provider-authoritative: it never accepts browser payment truth, retrieves the stored intent directly from Stripe, validates checkout/store/account/mode/amount/currency, and converts a verified success idempotently. Verified webhooks remain an asynchronous recovery path.
 - Reworked checkout idempotency as a database-first claim with a database uniqueness constraint, request hashing, owner tokens, completed-response replay, and explicit in-progress conflicts.
 - Removed legacy store-hash authentication fallback and legacy credential mirroring. Active connected-site normalized URL identity is database-enforced and released on revocation. Store settings and primary-site URL binding/clearing now commit in one transaction, and credential issue/reactivation translates only the relevant unique-index race into the existing website validation error.
 - Added an outbound catalog delivery guard covering production HTTPS, credentials in URLs, local hostnames, A and AAAA resolution, special-use IP ranges, redirects, DNS pinning, and production fail-closed behavior.
@@ -30,7 +34,7 @@ No blocker was encountered on the current database or a fresh test database. Pro
 - PHP syntax checks passed for all **64** changed or created PHP files.
 - `node --check dev-test-wordpress/wp-content/plugins/eco-portal-connector/assets/js/checkout.js` — passed with no output.
 - The normal `npm.cmd run build` output cleanup was blocked by Windows `EPERM` on the existing `public/build/assets` directory while four pre-existing Node processes were active. The same Vite 7.3.1 production build was rerun with a unique isolated `--outDir`; **58 modules built successfully in 2.81 seconds**, and only that temporary output was removed.
-- Searches passed: retired order/shipment runtime paths and classes absent; legacy token fallback/mirroring absent; checkout conversion callsites limited to the two verified Stripe webhook controllers; WordPress PHP sleep loop absent; no bearer credential reference in browser-facing templates or JavaScript.
+- Searches passed: retired order/shipment runtime paths and classes absent; legacy token fallback/mirroring absent; checkout conversion callsites are provider-authoritative (verified Stripe webhook or validated server-to-server retrieval); WordPress PHP sleep loop absent; no bearer credential reference in browser-facing templates or JavaScript.
 - `git diff --check` — passed; Git emitted only CRLF normalization warnings for three working-copy files.
 
 ### WordPress + Stripe test-mode acceptance
@@ -161,6 +165,6 @@ The deleted tests covered only retired direct-order/external-sync behavior. Curr
 ## Scope and safety confirmation
 
 - No carrier runtime code or carrier billing/authorization model was changed.
-- No `.env` file contents were read or changed.
+- `.env` was explicitly set to `STRIPE_ALLOW_PLATFORM_SANDBOX_FALLBACK=false`; Stripe secrets were neither printed nor changed.
 - No commit or push was performed.
 - Batch 7 was not started.

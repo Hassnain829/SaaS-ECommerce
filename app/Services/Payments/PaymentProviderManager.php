@@ -38,17 +38,11 @@ class PaymentProviderManager
         }
 
         $mode = $this->normalizeMode($mode ?? $this->platformPaymentModeForStore($store));
-        $connectedAccount = $this->activeConnectedAccountForStore($store, $mode);
 
-        if ($connectedAccount) {
-            return $connectedAccount;
-        }
-
-        if ($mode === PlatformPaymentMode::TEST && $this->canUsePlatformSandboxFallback($mode)) {
-            return $this->ensurePlatformSandboxAccount($store, $mode);
-        }
-
-        return null;
+        // Merchant checkout must always be funded through this store's ready
+        // Stripe Connect account. Platform keys are infrastructure credentials;
+        // their presence must never make a merchant storefront payment-ready.
+        return $this->activeConnectedAccountForStore($store, $mode);
     }
 
     public function activeConnectedAccountForStore(Store $store, ?string $mode = null): ?PaymentProviderAccount
@@ -84,13 +78,32 @@ class PaymentProviderManager
 
         return $mode === PlatformPaymentMode::TEST
             && app()->environment(['local', 'testing'])
-            && (bool) config('payments.stripe.allow_platform_sandbox_fallback', true)
+            && (bool) config('payments.stripe.allow_platform_sandbox_fallback', false)
             && $this->stripeConfig->isModeConfigured($mode);
     }
 
     public function isCheckoutReady(Store $store, ?string $mode = null): bool
     {
         return $this->accountForCheckout($store, $mode) !== null;
+    }
+
+    /**
+     * Create the isolated platform account used by explicit developer tests.
+     *
+     * This method is intentionally separate from accountForCheckout so a local
+     * environment or configured platform test key cannot enable shopper checkout.
+     */
+    public function platformSandboxAccountForDeveloperTesting(
+        Store $store,
+        ?string $mode = null,
+    ): ?PaymentProviderAccount {
+        $mode = $this->normalizeMode($mode ?? PlatformPaymentMode::TEST);
+
+        if (! $this->canUsePlatformSandboxFallback($mode)) {
+            return null;
+        }
+
+        return $this->ensurePlatformSandboxAccount($store, $mode);
     }
 
     private function ensurePlatformSandboxAccount(Store $store, string $mode): PaymentProviderAccount
