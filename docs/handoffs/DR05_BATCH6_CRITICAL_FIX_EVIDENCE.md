@@ -6,7 +6,7 @@ Amendment 2026-08-19: merchant acceptance showed that webhook-only conversion ma
 
 Stripe readiness amendment 2026-08-19: read-only database and Stripe API inspection proved that local order `#1003` was a successful test PaymentIntent created on the platform account with no connected-account context. The store's separate Connect record was restricted with charges disabled, while an implicit local/testing fallback had generated a synthetic charge-enabled platform row. This made Payments truthfully show checkout blocked while connected-site health and checkout incorrectly treated the store as ready. Normal checkout now resolves only an active, default, charge-enabled, store-scoped Connect account. The platform sandbox default is false and its account creation is available only through an explicitly named developer-test method; platform keys or Stripe CLI login cannot authorize shopper payment. The current local WordPress checkout was verified by HTTP to render the Stripe connection block. Multi-store coverage proves that one owner can keep two store-specific Stripe accounts ready simultaneously and that disabling one does not affect the other. The final full suite passed with **1,494 tests, 2 skipped, 8,151 assertions, and 0 failures** in **160.94 seconds**.
 
-Status: Runtime corrections and automated verification passed. The browser-driven WordPress + Stripe test-mode acceptance gate was not run, so the overall Batch 1–6 acceptance set is not yet fully verified and Batch 7 must not begin on this evidence alone.
+Documentation review 2026-08-20: runtime corrections and the automated results recorded below remain historical evidence from the correction passes; no automated suite was rerun during this documentation-only pass. The user reports executing all ten browser scenarios, but the repository contains no scenario-by-scenario artifacts that prove their outcomes. Every scenario is therefore recorded as **User-reported executed — evidence pending**. Batches 1–6 are not fully signed off, and Batch 7 remains blocked.
 
 ## Critical corrections delivered
 
@@ -39,26 +39,34 @@ No blocker was encountered on the current database or a fresh test database. Pro
 
 ### WordPress + Stripe test-mode acceptance
 
-The local WordPress (`127.0.0.1:8080`) and portal (`127.0.0.1:8000`) TCP endpoints were reachable without inspecting configuration. Real browser acceptance was **not executed**: Docker is not installed, and the repository has no Playwright, Puppeteer, Cypress, Selenium driver, or callable browser binary. Interactive Stripe credentials/state were not inspected, and no `.env` file was read. Source contract tests, JavaScript syntax validation, and the production build do not replace this gate.
+The original correction pass recorded reachable local WordPress and portal endpoints plus automated lifecycle coverage. That coverage simulates two initial submissions from one rendered form and a retry after a discarded WordPress response, but it does not prove the real browser/network/Stripe lifecycle. The user subsequently reported executing all ten scenarios. No committed screenshots, timestamped observations, Stripe event/PaymentIntent references, SaaS checkout/order references, inventory records, or scenario log was found, so the report cannot convert that statement into `Passed`.
 
-Automated lifecycle coverage now simulates two concurrent submissions from one rendered form and a retry after discarding the first WordPress response; both prove that the fake SaaS creates/replays exactly one checkout for the preallocated key. It also proves that a POST without the browser-bound attempt fails closed and that key rotation requires cleared state. Real-browser scenario 7 remains required to validate the complete WordPress/network/Stripe path.
+| # | Scenario | Status | Evidence currently recorded | Expected invariant | Remaining concern / proof needed |
+|---:|---|---|---|---|---|
+| 1 | Successful Stripe test payment | User-reported executed — evidence pending | User report only; automated provider/conversion coverage is not this browser run | One SaaS checkout, one PaymentIntent, one paid/confirmed SaaS order, one inventory commitment/deduction | Record actual outcome, timestamp, checkout ID, PaymentIntent ID/account context, order ID, and reservation/movement/stock result |
+| 2 | Webhook delayed; direct retrieval succeeds | User-reported executed — evidence pending | User report only; source permits validated retrieval | Checkout completes exactly once; later verified webhook replay is idempotent | Record delayed webhook condition, retrieval outcome, IDs, completed state, and replay result |
+| 3 | Webhook delayed; direct retrieval temporarily unavailable | User-reported executed — evidence pending | User report only; source returns recoverable `processing` | Truthful `processing`, “do not pay again,” no false failure/duplicate, later safe completion | Record temporary provider failure, shopper state, recovery path, final IDs, and duplicate checks |
+| 4 | Reload and redirect recovery | User-reported executed — evidence pending | User report only; automated/source lifecycle coverage exists | Same checkout resumes polling after reload/`return_url`; Stripe confirmation is not repeated | Record before/after checkout and PaymentIntent IDs plus observed redirect/reload states |
+| 5 | Duplicate status requests and webhook replay | User-reported executed — evidence pending | User report only; automated idempotency coverage exists | One order and one inventory commitment/deduction | Record request/replay sequence and before/after checkout, order, movement, and stock records |
+| 6 | Declined or failed payment | User-reported executed — evidence pending | User report only | `failed` is distinct from delayed `processing`; no order is claimed | Record Stripe test outcome, shopper message/state, checkout state, and absence of an order/stock commitment |
+| 7 | Concurrent initial submissions and lost first WordPress response | User-reported executed — evidence pending | Automated fake-SaaS lifecycle test only; no real-browser artifact | Rendered form reuses one preallocated key; one checkout and one PaymentIntent | Record form attempt identity/key correlation without exposing secrets, network interruption, both submissions, and resulting provider/SaaS IDs |
+| 8 | Current-store Stripe disconnected/ineligible | User-reported executed — evidence pending | User report only; source and automated multi-store readiness coverage block fallback | Checkout blocked before payment; no platform-account or WordPress-gateway fallback | Record selected store, truthful blocked UI/API outcome, and absence of a new PaymentIntent/order |
+| 9 | Inventory state after retries/replays | User-reported executed — evidence pending | User report only; automated conversion invariants exist | Exactly one reservation commitment/deduction and correct final stock | Record product/variant/location, reservation, movement, and before/after stock tied to the order |
+| 10 | WooCommerce/payment/shipping plugin authority | User-reported executed — evidence pending | User report only; source detects conflicts and never auto-deactivates | Plugins do not own payment/order/shipping truth; conflicts are reported; nothing is silently disabled/deleted | Record active/inactive plugin state, conflict report, connector checkout path, and confirmation that no WordPress order/payment authority was used |
 
-All ten scenarios remain **unverified**:
+**Gate verdict:** browser execution is acknowledged but not evidenced. Until all ten rows have sufficient artifacts and actual results, Batches 1–6 remain unsigned and Batch 7 must not begin.
 
-1. Successful test card payment → wait for `completed` → verify one portal order and one inventory commitment.
-2. Delay webhook delivery → verify the shopper remains in truthful `processing`, never payment failure.
-3. Reload during `processing` → verify the same transient checkout resumes polling without a second Stripe confirmation.
-4. Complete a redirect-capable test payment → verify `return_url` resumes status polling.
-5. Send duplicate status requests and replay the verified webhook → verify one order and one inventory commitment.
-6. Use a declined/failed test payment → verify `failed` is distinct from delayed `processing` and no order is claimed.
-7. Interrupt checkout creation/status networking, including two initial form submissions and a lost first WordPress response → retry the rendered logical attempt with the same preallocated idempotency key and verify no duplicate PaymentIntent/checkout.
-8. Disconnect Stripe → verify checkout is blocked before payment.
-9. Compare order, inventory reservation, movement, and stock after duplicate/retried events → verify exactly one commitment/deduction.
-10. Confirm WooCommerce and WordPress payment plugins are inactive/not authoritative throughout the flow.
+## Current documentation-pass inventory (2026-08-20)
 
-Until these pass in a real browser, Batches 1–6 are not fully signed off and Batch 7 must not begin.
+Preflight `git status --short` was clean. This documentation-only pass currently contains **11 modified tracked Markdown files** and **1 new Markdown plan**; application/runtime, test, migration, configuration, environment, and carrier file counts are all **0**.
 
-## Exact file inventory
+Modified: `ENTERPRISE_PROJECT_CONTEXT.md`, `ENTERPRISE_ROADMAP_2026.md`, `PROJECT_BRAIN.md`, `PROJECT_STRUCTURE.md`, `README.md`, `docs/README.md`, `docs/canonical/README.md`, `docs/current/PROJECT_STATE.md`, `docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`, this evidence document, and `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md`.
+
+Created: `docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`.
+
+## Historical correction file inventory
+
+The inventory below describes the original Batch 1–6 correction work. It is historical evidence, not the current documentation-pass Git diff.
 
 ### Modified (64)
 
@@ -165,6 +173,7 @@ The deleted tests covered only retired direct-order/external-sync behavior. Curr
 ## Scope and safety confirmation
 
 - No carrier runtime code or carrier billing/authorization model was changed.
-- `.env` was explicitly set to `STRIPE_ALLOW_PLATFORM_SANDBOX_FALLBACK=false`; Stripe secrets were neither printed nor changed.
-- No commit or push was performed.
+- The historical correction established that normal checkout cannot use the optional platform sandbox fallback. This document records only that non-secret configuration purpose; it does not reproduce environment values or secrets.
+- Git history now contains the Batch 1–6 and follow-up correction commits, so the original claim that the work had not entered Git history is obsolete. At this documentation pass preflight, `HEAD`, `origin/main`, and `origin/HEAD` resolved to `4710b1f`, and `git status --short` was clean. This is repository-state evidence, not proof of browser acceptance.
 - Batch 7 was not started.
+- Batch 8 and DR-06 were not started.

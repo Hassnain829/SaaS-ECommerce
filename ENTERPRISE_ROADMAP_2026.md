@@ -8,6 +8,8 @@
 
 > **DR-05 correction (2026-08-18, payment authority amended 2026-08-19):** `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md` supersedes every older dual-mode or external-checkout-sync proposal in this roadmap. Runtime commerce is SaaS-authoritative platform checkout only; WordPress is a presentation client. Checkout conversion requires provider-authoritative Stripe proof: a verified webhook or validated server-to-server retrieval of the exact stored PaymentIntent. Any older external sync detail retained below is historical design context, not an implementation instruction.
 
+> **DR-05 execution amendment (2026-08-20):** Batches 1–6 are implemented and critically corrected, but their ten-scenario browser gate remains unsigned because the user-reported execution has no scenario-level repository artifacts. Batch 7 merchant migration/cutover remains blocked and runtime has not started. After the gate: Batch 7 → Batch 8 release recovery/acceptance → DR-05 sign-off → DR-06 cross-role/two-store merchant acceptance. Phase 9 remains a separate, unimplemented workstream. The requested root WordPress architecture-plan filename is not tracked; use the correction specification and `docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`.
+
 ---
 
 ## 0. Strategic North Star
@@ -1162,7 +1164,8 @@ Connected WordPress and local simulator clients use platform checkout. Historica
 
 - Retired order/shipment endpoints return `404`.
 - No connected-site request may declare payment success or create a paid order.
-- Only verified Stripe webhook handlers trigger successful checkout conversion.
+- Successful conversion requires provider-authoritative Stripe evidence: either a verified webhook or authenticated retrieval of the exact stored PaymentIntent in its stored mode and connected-account context, with identity, checkout/store/account metadata, amount, currency, and `succeeded` status validated.
+- Verified webhooks remain the idempotent asynchronous recovery path.
 - No runtime request generates new external-channel settings.
 
 ---
@@ -2086,8 +2089,10 @@ The numbered domain phases in this roadmap remain historical canon, but **active
 | 1 | Merchant readiness truth/gating, product workspace, settings | P0 — readiness review |
 | 2 | Onboarding / auth / legal recovery | Readiness review |
 | 3 | Full-suite recovery and acceptance | Evidence required; no suite-green claims without a successful run |
-| 4 | Phase 9 — API keys, idempotency, outbox, and webhooks | Approved plan; **not complete** |
-| 5 | Later platform phases (billing, markets, admin, observability) | After Phase 9 foundations |
+| 4 | DR-05 browser evidence → Batch 7 → Batch 8 → sign-off | Batch 7 blocked until exact browser evidence; Batch 8 required |
+| 5 | DR-06 owner/manager/staff acceptance across two stores | Starts only after DR-05 sign-off |
+| 6 | Phase 9 — API keys, idempotency, outbox, and webhooks | Separate approved plan; **not complete** |
+| 7 | Later platform phases (billing, markets, admin, observability) | After approved foundations |
 
 Completed and not to reopen without a production defect: Phase 5R, Phase 7, Phase 11 notification foundation.
 
@@ -2924,9 +2929,7 @@ For every phase:
 
 **Phase 5R (5R-0 through 5R-3) is complete.** **Phase 7 — Returns, Refunds, and Exchanges is complete (2026-07-28).**
 
-Next carrier-independent workstream:
-
-**Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks**
+Immediate readiness workstream: close the DR-05 Batch 1–6 browser-evidence gate. Only after exact evidence proves all ten scenarios may Batch 7 merchant migration/cutover begin. Batch 8 and DR-05 sign-off follow, then DR-06. Phase 9 remains approved but separate and not complete.
 
 Do not reopen Phase 5R-3 float/totals scope or Phase 7 returns/refunds/exchanges scope unless a production defect requires it.
 
@@ -3523,8 +3526,10 @@ Immediate work:
 1. Merchant readiness truth/gating, product workspace (`products.edit`), and settings corrections.
 2. Onboarding / auth / legal recovery.
 3. Full-suite recovery and acceptance (evidence required).
-4. Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks (**approved plan; not complete**).
-5. Later platform phases (billing, markets, admin, observability).
+4. DR-05: close Batch 1–6 browser evidence, implement/verify Batch 7, execute/verify Batch 8, then sign off.
+5. DR-06 cross-role/two-store merchant acceptance.
+6. Phase 9 — API Keys, Idempotency, Event Outbox, and Webhooks (**separate approved plan; not complete**).
+7. Later platform phases (billing, markets, admin, observability).
 
 Completed and not to reopen without a production defect:
 

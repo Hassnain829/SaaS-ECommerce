@@ -162,7 +162,7 @@ Do not claim the full suite is green without a successful run.
 | `docs/cleanup/` | Decision log + source archive guide | Active ops hygiene |
 | `docs/fedex/` | `MODEL_A_INTEGRATOR_PROVIDER.md` | Active FedEx architecture |
 | `docs/operations/` | Setup, security, release, retention | Ops reference |
-| `docs/plans/` | Phase 9 plan (approved, not complete) | Planning |
+| `docs/plans/` | Active DR-05 correction/cutover plans and Phase 9 plan (not complete) | Planning |
 | `docs/archive/` | Historical phases/audits/reports | **Historical only** |
 
 **Root docs:** `ENTERPRISE_PROJECT_CONTEXT.md`, `ENTERPRISE_ROADMAP_2026.md`, `PROJECT_BRAIN.md`, `AGENTS.md`, `PROJECT_STRUCTURE.md`, `README.md`, `SECURITY_ROTATION_REQUIRED.md`.
@@ -224,3 +224,12 @@ Future extractions must keep route names and behavior unchanged; add characteriz
 Approved plan: [`docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md`](docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)
 
 Status: **not complete**. Merchant readiness P0 and suite recovery precede Phase 9 unless explicitly reprioritized. See `docs/current/PROJECT_STATE.md`.
+
+---
+
+## 14. DR-05 WordPress cutover planning
+
+- Correction contract: [`docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md`](docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md)
+- Batch 7 plan: [`docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`](docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md)
+
+Batch 7 is a plan only and remains blocked pending exact evidence for the ten Batch 1–6 browser scenarios. Batch 8 release acceptance and DR-06 merchant acceptance follow in that order; Phase 9 remains separate.

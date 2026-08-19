@@ -20,6 +20,16 @@ These root files, plus `docs/current/PROJECT_STATE.md`, are the **source of trut
 | [`../../AGENTS.md`](../../AGENTS.md) | Agent/developer operating instructions |
 | [`../../PROJECT_STRUCTURE.md`](../../PROJECT_STRUCTURE.md) | Codebase map — folders, controllers, services, docs layout |
 
+## Active DR-05 plans
+
+1. [`../plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md`](../plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md) — Batches 1–6 correction architecture and ten-scenario browser gate
+2. [`../plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`](../plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md) — merchant migration/cutover plan; blocked and not started in runtime
+3. Batch 8 release recovery/acceptance — pending after Batch 7
+4. DR-05 sign-off — only after Batch 8 evidence
+5. DR-06 owner/manager/staff acceptance across two stores
+
+The requested root `WORDPRESS_SAAS_COMMERCE_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md` is not tracked in this repository or its reachable Git history. The current resolved DR-05 architecture authority is the Batch 1–6 correction specification above; do not create a duplicate root plan silently.
+
 Clarify:
 
 * current operational state in `docs/current/PROJECT_STATE.md` beats historical roadmap text

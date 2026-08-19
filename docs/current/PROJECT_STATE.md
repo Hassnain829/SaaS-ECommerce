@@ -1,4 +1,4 @@
-# Project State — 2026-08-18
+# Project State — 2026-08-20
 
 Concise current-state snapshot for agents and developers. This is **not** a roadmap.
 
@@ -55,8 +55,8 @@ Current work priority:
 3. Truthful onboarding
 4. Password recovery, email verification, legal links, POST logout, and password toggles
 5. Full-suite recovery
-6. Merchant WordPress website connection (DR-05) — guided Website workspace on the current store connection key and catalog/order APIs (not Phase 9)
-7. Owner/manager/staff and two-store acceptance
+6. DR-05 WordPress connection: close the Batch 1–6 browser-evidence gate, then Batch 7 merchant cutover and Batch 8 release acceptance (not Phase 9)
+7. DR-06 owner/manager/staff and two-store acceptance, only after DR-05 sign-off
 8. Actionable settings
 9. Customer identity editing
 10. Real or hidden analytics/admin surfaces
@@ -94,10 +94,23 @@ What exists now:
 
 **Stripe payment readiness follow-up (2026-08-19):** Merchant and WordPress readiness now resolve only the current store's ready Connect account. The local platform sandbox is an explicit developer-test facility and is never selected by normal checkout. Read-only inspection proved that test order `#1003` had instead been created on the platform test account with no connected-account context while the store's own Connect onboarding remained incomplete; that implicit path is now closed without deleting the historical test order.
 
+**DR-05 sequencing and evidence status (2026-08-20):** Batches 1–6 are implemented and critically corrected. The user reports executing all ten real-browser WordPress + Stripe scenarios, but the repository has no scenario-level artifacts sufficient to mark them `Passed`; see `docs/handoffs/DR05_BATCH6_CRITICAL_FIX_EVIDENCE.md`. Those scenarios close the Batch 1–6 correction gate and are not Batch 7. Batch 7 is the merchant migration and controlled production-cutover workflow and remains blocked. Batch 8 is the final WordPress/SaaS end-to-end release recovery and acceptance batch and has not started. DR-05 cannot be signed off before Batch 8 evidence; DR-06 follows DR-05.
+
+Active DR-05 order:
+
+1. Close the Batch 1–6 browser-evidence gate.
+2. Implement and verify Batch 7 merchant migration/cutover.
+3. Execute and verify Batch 8 end-to-end release recovery/acceptance.
+4. Sign off DR-05.
+5. Begin DR-06 cross-role, two-store merchant acceptance.
+6. Continue later readiness work in its approved order.
+
 What this pass does not include:
 
 - Phase 9 scoped API keys, merchant webhook subscriptions, or a generic event outbox
-- Merchant cutover / go-live stepper (Batch 7)
+- Merchant cutover / go-live stepper (Batch 7; planned only in `docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`)
+- Batch 8 end-to-end release recovery and acceptance
+- DR-06 cross-role/two-store merchant acceptance
 - WordPress shipment posting or carrier controls on the Website page
 
 ## Deferred from the readiness gate
@@ -110,12 +123,15 @@ What this pass does not include:
 
 Do **not** describe the overall project as live-ready / public-beta ready until:
 
-1. the readiness document’s P0 acceptance gates pass, and
-2. the full automated suite gate passes with current evidence.
+1. the Batch 1–6 browser gate is evidenced;
+2. DR-05 Batch 7 is implemented and verified;
+3. DR-05 Batch 8 is executed with release evidence;
+4. DR-06 merchant acceptance passes; and
+5. the readiness document's remaining P0 and current full-suite gates pass.
 
-Do not claim the suite is green without a successful run. DR-05 payment-authority amendment evidence on 2026-08-19: `php artisan test` was green with 1,489 passed, 2 skipped, 8,096 assertions, and 0 failures in 213.88 seconds. Focused payment, Connect, shipping/routing, invariant, and WordPress lifecycle coverage passed with 65 tests and 415 assertions. A live read-only Laravel retrieval of the previously stuck Stripe test PaymentIntent returned `succeeded` and matched its stored intent ID, mode, connected account, checkout/store metadata, amount, and currency without a Stripe CLI process. Browser-driven WordPress acceptance remains to be repeated, so Batches 1–6 are not fully signed off and Batch 7 must not begin. CI requires `migrate:fresh --seed`.
+Do not claim the suite is currently green without a successful current run. Historical DR-05 amendment evidence from 2026-08-19 recorded 1,489 passed, 2 skipped, 8,096 assertions, and 0 failures, plus 65 focused tests and 415 assertions. A later historical run recorded 1,494 passed, 2 skipped, 8,151 assertions, and 0 failures. These suites were not rerun during the 2026-08-20 documentation pass. A live read-only Laravel retrieval in the earlier pass matched the stored PaymentIntent identity, mode, connected account, checkout/store metadata, amount, currency, and `succeeded` state without requiring a Stripe CLI listener. CI still requires `migrate:fresh --seed`.
 
-Latest verification supersedes the earlier suite counts above: `php artisan test --compact` passed with **1,494 tests, 2 skipped, 8,151 assertions, and 0 failures** in **160.94 seconds**. Local WordPress checkout was also verified by HTTP to show the Stripe connection block for the incomplete store. Browser-driven end-to-end acceptance must be repeated after Stripe marks that store's connected account charge-enabled.
+The user reports completing all ten browser scenarios, but repository evidence does not yet prove their individual results. Therefore Batches 1–6 remain unsigned and Batch 7 remains blocked; this is an evidence gap, not a claim that the scenarios failed.
 
 ## Key links
 
@@ -123,6 +139,8 @@ Latest verification supersedes the earlier suite counts above: `php artisan test
 - [`docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md`](../fedex/MODEL_A_INTEGRATOR_PROVIDER.md)
 - [`docs/architecture/CARRIER_CODE_STRUCTURE.md`](../architecture/CARRIER_CODE_STRUCTURE.md)
 - [`docs/operations/RELEASE_CHECKLIST.md`](../operations/RELEASE_CHECKLIST.md)
+- [`docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md`](../plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md)
+- [`docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`](../plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md)
 
 ## Documentation authority
 

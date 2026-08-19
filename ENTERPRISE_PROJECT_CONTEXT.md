@@ -2,6 +2,8 @@
 
 > **Purpose:** This file is the long-term project brain for AI coding agents and developers. Put it in the project root so Cursor/Codex/Anti-Gravity can understand what the platform is, what must never be broken, and how every feature should be implemented.
 
+> **DR-05 sequencing amendment (2026-08-20):** Current DR-05 authority is `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md`; the requested root WordPress architecture-plan filename is not tracked. The ten real-browser scenarios close the Batch 1–6 correction gate and are not Batch 7. Batch 7 is merchant migration/controlled cutover, Batch 8 is final release recovery/acceptance, DR-05 sign-off follows Batch 8 evidence, and DR-06 follows DR-05. The user reports executing the ten scenarios, but repository artifacts are still insufficient to mark them passed. See `docs/current/PROJECT_STATE.md` and `docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`.
+
 ---
 
 ## 1. Product Identity
@@ -632,7 +634,7 @@ In this mode:
 - captures address;
 - applies discounts/tax;
 - creates payment intents;
-- receives payment webhook confirmation;
+- obtains provider-authoritative payment evidence through a verified webhook or validated server-to-server retrieval of the exact stored PaymentIntent;
 - converts checkout into a confirmed order.
 
 Stripe sandbox is the first supported provider for platform checkout.
@@ -648,7 +650,7 @@ Correct lifecycle:
 5. Capture shipping/billing address.
 6. Calculate shipping, tax, and discounts.
 7. Create payment intent.
-8. Receive payment success/failure webhook.
+8. Obtain provider-authoritative payment state from a verified webhook or authenticated retrieval of the exact stored PaymentIntent in its stored mode and connected-account context.
 9. Convert checkout to confirmed order.
 10. Record order/payment events.
 
@@ -656,7 +658,7 @@ Correct lifecycle:
 
 Use this mode for merchants who want to connect their own payment account to platform checkout.
 
-Stripe Connect is the preferred future implementation for merchant-owned Stripe accounts.
+Stripe Connect is the implemented store-scoped foundation for merchant-owned Stripe accounts; additional providers remain future work.
 
 Rules:
 
@@ -1553,18 +1555,7 @@ Every AI coding completion should return:
 
 ## 22. Current Priority Queue
 
-Do these next, in order:
-
-1. Fix test environment.
-2. Fix stale storefront/order tests.
-3. Clean migrations and seeders.
-4. Implement deterministic order numbers.
-5. Add order events/timeline.
-6. Clean order/payment/fulfillment status separation.
-7. Harden developer storefront order creation with idempotency.
-8. Add API key/scopes/rate limit foundation.
-9. Add locations/inventory items/inventory levels.
-10. Then begin fulfillment/shipping.
+The original queue is superseded by `docs/current/PROJECT_STATE.md`. Current DR-05 order is: evidence the Batch 1–6 browser gate; implement/verify Batch 7; execute/verify Batch 8; sign off DR-05; then begin DR-06. Phase 9 remains separate and not complete.
 
 ---
 

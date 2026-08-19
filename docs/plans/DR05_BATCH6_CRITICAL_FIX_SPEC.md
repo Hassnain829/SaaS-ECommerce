@@ -5,6 +5,8 @@ Date: 2026-08-18
 
 Amended 2026-08-19: the webhook-only confirmation restriction is superseded by provider-authoritative reconciliation. An authenticated, store-scoped confirmation request may finalize an order only after the SaaS retrieves the stored PaymentIntent directly from Stripe in the stored mode and connected-account context, validates its identity metadata, amount, and currency, and receives `succeeded`. Browser/WordPress payment claims remain untrusted. Verified webhooks remain the asynchronous retry and recovery path.
 
+Documentation amendment 2026-08-20: Batches 1–6 are implemented and critically corrected, but their final browser gate is not signed off from repository evidence. The user reports executing all ten scenarios; scenario-level artifacts proving the results are still pending. Batch 7 remains blocked, Batch 8 has not started, DR-05 is not complete before Batch 8 evidence, and DR-06 follows DR-05.
+
 ## 1. Purpose
 
 This document defines the required corrections before Batch 7 can begin. It exists because Batches 1–6 contained substantial implementation but did not fully satisfy the locked WordPress/SaaS commerce architecture.
@@ -98,8 +100,9 @@ Every connected-site, checkout, product, variant, customer, order, inventory, an
 ### Payment and order state
 
 - A browser redirect, WordPress POST, Stripe.js success result, PaymentIntent client secret, or client-side status is not proof of payment.
-- Only a cryptographically verified Stripe webhook may trigger successful payment conversion.
-- Webhook event IDs and payment/order conversion must be idempotent.
+- Successful conversion requires provider-authoritative Stripe evidence: either (1) a cryptographically verified Stripe webhook or (2) authenticated SaaS server-to-server retrieval of the exact stored PaymentIntent in its stored mode and connected-account context.
+- Server-to-server retrieval must validate provider intent identity, checkout/store/account metadata, amount, currency, and provider status `succeeded` before conversion.
+- Verified webhooks remain an idempotent asynchronous recovery path. Webhook event IDs and payment/order conversion must be idempotent.
 - One checkout can convert into at most one order.
 - Inventory can be committed and deducted at most once for that conversion.
 
@@ -214,7 +217,33 @@ Batch 1–6 correction is complete only when all applicable gates pass:
 
 If any gate is unverified, report it as unverified. Do not mark the batches complete and do not begin Batch 7.
 
-## 10. Required final evidence
+### 9.1 Required real-browser scenarios
+
+The ten scenarios below are the final Batch 1–6 correction gate. They are not Batch 7.
+
+1. Complete a successful Stripe test payment and prove one checkout, one PaymentIntent, one order, and one inventory commitment/deduction.
+2. Delay webhook delivery while authenticated direct retrieval succeeds; confirmation must complete exactly once, and later webhook replay must remain idempotent.
+3. Delay webhook delivery while direct retrieval is temporarily unavailable; confirmation must remain truthfully `processing`, tell the shopper not to pay again, create no duplicate order, and complete safely when either provider-authoritative path succeeds.
+4. Reload during `processing` and complete a redirect-capable test payment; the same checkout must resume status polling without reconfirming payment.
+5. Send duplicate confirmation/status requests and replay the verified webhook; one order and one inventory commitment/deduction may result.
+6. Use a declined or failed test payment; `failed` must remain distinct from delayed `processing`, and no order may be claimed.
+7. Interrupt initial checkout creation/status networking, including two submissions from one rendered form and a lost first WordPress response; the preallocated logical-attempt key must be reused and no duplicate checkout or PaymentIntent may result.
+8. Disconnect or make the current store's Stripe Connect account ineligible; checkout must be blocked before payment and must not fall back to platform credentials or a WordPress gateway.
+9. Compare the order, reservation, inventory movement, and stock after retries/replays; each commitment/deduction must occur exactly once.
+10. Confirm WooCommerce and WordPress payment/shipping plugins remain non-authoritative and that the connector reports conflicts without deactivating or deleting merchant software.
+
+Required evidence must identify the actual outcome and, where applicable, the SaaS checkout, Stripe PaymentIntent, SaaS order, and inventory records. Screenshots alone are insufficient when an exactly-once database/provider invariant is being proved.
+
+## 10. DR-05 execution order after this correction
+
+1. Close the Batch 1–6 browser-evidence gate.
+2. Implement and verify Batch 7 merchant migration and controlled production cutover.
+3. Execute and verify Batch 8 end-to-end release recovery and acceptance.
+4. Sign off DR-05 only after Batch 8 evidence.
+5. Begin DR-06 owner/manager/staff acceptance across two stores.
+6. Continue later development-readiness work in the approved order.
+
+## 11. Required final evidence
 
 The implementer must provide:
 

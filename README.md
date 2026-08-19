@@ -101,7 +101,9 @@ See `docs/cleanup/SOURCE_ARCHIVE_GUIDE.md` and `docs/operations/RUNTIME_STORAGE_
 3. **[docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md](docs/fedex/MODEL_A_INTEGRATOR_PROVIDER.md)** — FedEx Model A architecture
 4. **[docs/architecture/CARRIER_CODE_STRUCTURE.md](docs/architecture/CARRIER_CODE_STRUCTURE.md)** — carrier folder layout
 5. **[docs/architecture/REFACTORING_ROADMAP.md](docs/architecture/REFACTORING_ROADMAP.md)** — deferred internal extractions
-6. **[docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md](docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)** — Phase 9 plan (approved; not complete)
-7. **[docs/README.md](docs/README.md)** — full documentation index
+6. **[docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md](docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md)** — DR-05 correction architecture and browser gate
+7. **[docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md](docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md)** — Batch 7 plan (blocked; runtime not started)
+8. **[docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md](docs/plans/PHASE_9_INTEGRATION_FOUNDATION_PLAN.md)** — separate Phase 9 plan (approved; not complete)
+9. **[docs/README.md](docs/README.md)** — full documentation index
 
 Historical phase/audit reports live under `docs/archive/` and are not current instructions.

@@ -22,13 +22,14 @@ Golden rule: if the merchant is confused, the system is wrong.
 
 ---
 
-## Current priority (2026-08-12)
+## Current priority (2026-08-20)
 
 1. Merchant readiness truth/gating, product workspace, and settings corrections (`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`)
 2. Onboarding / auth / legal recovery
 3. Full-suite recovery and acceptance (do not claim green without evidence)
-4. Phase 9 connected-channel foundation (approved plan; **not complete**)
-5. Later platform phases (billing, markets, admin, observability)
+4. DR-05: evidence the Batch 1–6 browser gate, then Batch 7 merchant cutover, then Batch 8 release acceptance; only then sign off DR-05 and begin DR-06
+5. Phase 9 integration foundation (approved plan; **not complete**)
+6. Later platform phases (billing, markets, admin, observability)
 
 **Deferred from readiness gate:** additional carriers, SaaS subscription expansion, payment expansion.
 
@@ -47,7 +48,7 @@ Golden rule: if the merchant is confused, the system is wrong.
 
 ## Completed foundations (high level)
 
-Catalog/import/variants, commerce core, multi-location inventory, manual fulfillment, checkout delivery, webhook-authoritative Stripe platform checkout, source-site-aware Woo catalog migration, connected WordPress presentation client, Phase 5R tax/coupons/totals, Phase 7 returns/refunds/exchanges, Phase 11 notifications foundation, CLEAN-1–4 hygiene, FedEx Model A production connectivity (gated), USPS public API foundation. External order/shipment sync is retired runtime behavior; only historical order interpretation remains.
+Catalog/import/variants, commerce core, multi-location inventory, manual fulfillment, checkout delivery, provider-authoritative Stripe platform checkout, source-site-aware Woo catalog migration, connected WordPress presentation client, Phase 5R tax/coupons/totals, Phase 7 returns/refunds/exchanges, Phase 11 notifications foundation, CLEAN-1–4 hygiene, FedEx Model A production connectivity (gated), USPS public API foundation. Payment conversion requires either a verified Stripe webhook or validated SaaS retrieval of the exact stored PaymentIntent; browser and WordPress claims are never authoritative. External order/shipment sync is retired runtime behavior; only historical order interpretation remains. DR-05 remains unsigned until Batch 8 evidence.
 
 Historical phase/completion reports live under `docs/archive/` and are **not** current instructions.
 
