@@ -227,9 +227,11 @@ Status: **not complete**. Merchant readiness P0 and suite recovery precede Phase
 
 ---
 
-## 14. DR-05 WordPress cutover planning
+## 14. DR-05 WordPress cutover
 
 - Correction contract: [`docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md`](docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md)
 - Batch 7 plan: [`docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`](docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md)
+- Batch 8 evidence: [`docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`](docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md)
+- Architecture: [`docs/WORDPRESS_SAAS_COMMERCE_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`](docs/WORDPRESS_SAAS_COMMERCE_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md)
 
-Batch 7 is a plan only and remains blocked pending exact evidence for the ten Batch 1–6 browser scenarios. Batch 8 release acceptance and DR-06 merchant acceptance follow in that order; Phase 9 remains separate.
+DR-05 Batches 1–8 are complete. Runtime cutover lives in `app/Services/MerchantCutoverService.php` and the Website go-live checklist. DR-06 merchant acceptance is in progress; Phase 9 remains separate.

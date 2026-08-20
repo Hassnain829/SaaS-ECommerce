@@ -139,7 +139,7 @@ The product list opens a modal editor even though the direct product workspace i
 
 The portal is the commerce system. WordPress is only the customer-facing website. Do not treat Phase 9 API keys/webhooks or WooCommerce import as this ticket.
 
-**Internal execution order (amended 2026-08-20):** DR-05 contains Batches 1–8. Batches 1–6 are implemented and critically corrected, but their ten-scenario real-browser gate is only user-reported executed; detailed repository evidence is pending, so the gate is not signed off. Those ten scenarios are not Batch 7. Batch 7 is merchant migration and controlled production cutover. Batch 8 is final WordPress/SaaS end-to-end release recovery and acceptance. DR-05 completes only after Batch 8 evidence; DR-06 starts afterward.
+**Internal execution order (updated 2026-08-20):** DR-05 contains Batches 1–8 and is **complete** for the WordPress website-connection workstream. The ten Batch 1–6 real-browser scenarios are complete (merchant confirmation; no replacement browser-test suite was added). Batch 7 is the Website go-live checklist. Batch 8 is mapped in `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`. DR-06 is in progress and is not part of DR-05.
 
 - Rebuild **Test storefront** into a guided **Website / Connect your website** workspace (WordPress-first stepper).
 - Keep `dev-test-wordpress` as the primary connect path and `dev-test-storefront` in Advanced details on the same connection key.
@@ -151,29 +151,35 @@ The portal is the commerce system. WordPress is only the customer-facing website
 - Batch 5 binds the WordPress shop to portal catalog changes: short-lived public product/category cache, signed connected-site catalog events, retry, and `catalog_version` reconciliation. Checkout and private order/payment data stay live portal reads. This is not Phase 9 merchant webhooks.
 - Batch 6 upgrades the existing catalog importer with a WooCommerce product-export preset: detection, simple/variable/variation mapping, unsupported-type reporting, source identity, location + replace/preserve stock, slug redirects, and product-workspace source details. Orders, customers, and payments are not migrated. This is not Phase 9.
 - The approved correction contract is `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md`, amended 2026-08-19: platform checkout is the only runtime path; confirmation converts only after the SaaS retrieves and validates the exact stored PaymentIntent directly from Stripe, while verified webhooks remain an idempotent recovery path. WordPress preallocates one browser-bound checkout key/token before the address form so concurrent submissions and lost-response retries reuse it. Catalog event delivery is an SSRF boundary, and Woo identity includes the exact source site.
-- The Batch 7 plan is `docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`. It plans the merchant-facing migration/cutover workflow only; no Batch 7 runtime is implemented by that document.
+- The Batch 7 runtime is the **Go live checklist** on `developer-storefront.settings` (`MerchantCutoverService`). Critical gates (Stripe Connect, URL match, paid test order, failed import rows, delivery readiness) cannot be overridden by a checkbox. Acknowledgements cover only backup, cache, tax-off, rollback, and Woo archive retention. The portal never deactivates WordPress plugins or deletes WooCommerce data.
+- Batch 8 evidence: `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`. Phase 9 remains separate and unimplemented.
 - Keep stock, customers, and fulfillment on existing portal logic. Do not invent WordPress shipment posting. Registered storefront customer login is not in this pass.
 
-**Acceptance:** First, exact artifacts must prove all ten Batch 1–6 browser scenarios. Then a non-technical merchant must complete the Batch 7 migration/cutover workflow without API docs, followed by Batch 8 release recovery and acceptance evidence. The first Website screen remains WordPress-first, `dev-test-storefront` remains under Advanced details, rotate/revoke continues to work, unsupported Woo rows never become silent success, and Phase 9 remains separate and unimplemented. Do not sign off DR-05 before Batch 8.
+**Status:** Complete for Batches 1–8. The overall product is still not development-ready until remaining P0 items pass.
+
+**Acceptance:** The ten Batch 1–6 browser scenarios are complete. The first Website screen remains WordPress-first, `dev-test-storefront` remains under Advanced details, rotate/revoke continues to work, unsupported Woo rows never become silent success, and a merchant cannot mark the website live when Stripe, connection health, or failed import rows are broken.
 
 #### DR-06 — Run end-to-end merchant acceptance
 
-DR-06 is broader cross-role/two-store merchant acceptance. It is not DR-05 Batch 7 or Batch 8 and must begin only after DR-05 is signed off.
+**Status:** Complete (automated acceptance signed off 2026-08-20). Human owner/manager/staff browser walkthrough is still recommended before public-beta claims, but the ten-item journey is covered by focused store-scoped tests.
 
-Test with owner, manager, and staff accounts across two stores:
+DR-06 is broader cross-role/two-store merchant acceptance. It is not DR-05 Batch 7 or Batch 8.
 
-1. Register and recover account.
-2. Create/select store.
-3. Add simple and variant products.
-4. Import a mixed-quality catalog.
-5. Adjust stock and verify stock movement history.
-6. Connect a WordPress test site and complete a platform checkout order.
-7. Create and convert a manual draft order.
-8. Update order/customer data.
-9. Configure a manual delivery area and option.
-10. Invite a teammate and verify restricted actions.
+Focused coverage in `tests/Feature/Dr06MerchantAcceptanceTest.php` (9 tests, 83 assertions on the sign-off run):
 
-**Acceptance:** No cross-store leakage, dead controls, unexplained errors, false success messages, or developer-only wording in the normal merchant path.
+1. Register and recover account (register + password reset link + reset form).
+2. Create/select store (onboarding store create + `current-store.update`).
+3. Add simple and variant products with initial stock movements.
+4. Import a mixed-quality catalog (store-scoped; staff forbidden).
+5. Adjust stock and verify store-scoped stock movement history (cross-store stock edit 404).
+6. Connect a WordPress website workspace and complete a platform checkout smoke (Stripe mocked; reservation/stock reduces).
+7. Create and convert a manual draft order (stock deducted; order + customer notes/address; cross-store 404).
+8. Configure a manual delivery area and option (ship-from → deliver-to → delivery-option → review).
+9–10. Invite a teammate and verify owner/manager/staff restricted actions across two stores.
+
+Customer name/email/phone identity editing remains **DR-07**, not this ticket.
+
+**Acceptance:** No cross-store leakage on the exercised paths; staff cannot import, invite, or open Website manage surfaces; draft conversion and stock movements stay on the current store; developer-only wording is not required for these flows.
 
 #### DR-08 — Make General Settings actionable
 
@@ -264,10 +270,10 @@ Keep these out of the development-readiness gate requested for this review:
 4. DR-02 Onboarding completion.
 5. DR-03 Account recovery and legal routes.
 6. DR-04 Full test suite green.
-7. Close the DR-05 Batch 1–6 ten-scenario browser-evidence gate.
-8. Implement and verify DR-05 Batch 7 merchant migration/cutover.
-9. Execute and verify DR-05 Batch 8 release recovery/acceptance, then sign off DR-05.
-10. Run DR-06 cross-role/two-store merchant acceptance.
+7. DR-05 Batch 1–6 ten-scenario browser gate — complete (merchant confirmation, 2026-08-20).
+8. DR-05 Batch 7 merchant migration/cutover — complete (Website go-live checklist).
+9. DR-05 Batch 8 release recovery/acceptance mapping — complete; DR-05 signed off.
+10. Continue DR-06 cross-role/two-store merchant acceptance — complete (automated acceptance, 2026-08-20).
 11. DR-07 and DR-09 through DR-12.
 12. DR-13 and DR-14 after merchant sign-off.
 

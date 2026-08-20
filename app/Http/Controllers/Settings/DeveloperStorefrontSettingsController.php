@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\ConnectedSiteService;
+use App\Services\MerchantCutoverService;
 use App\Services\SecurityLogRecorder;
 use App\Support\ConnectedSiteScope;
 use FilesystemIterator;
@@ -46,6 +47,7 @@ class DeveloperStorefrontSettingsController extends Controller
         $connectionState = $store->websiteConnectionState();
         $tokenConfigured = $store->hasDeveloperStorefrontToken();
         $lastSeenAt = $connectedSite?->last_seen_at ?? $store->developer_storefront_last_seen_at;
+        $cutover = app(MerchantCutoverService::class)->assess($store);
 
         $currentStep = match (true) {
             $connectionState === Store::WEBSITE_DISCONNECTED => 2,
@@ -79,6 +81,7 @@ class DeveloperStorefrontSettingsController extends Controller
                 'secret_key' => filled(config('payments.stripe.secret')),
                 'webhook_secret' => filled(config('payments.stripe.webhook_secret')),
             ],
+            'cutover' => $cutover,
         ]);
     }
 

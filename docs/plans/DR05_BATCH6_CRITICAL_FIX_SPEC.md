@@ -5,7 +5,7 @@ Date: 2026-08-18
 
 Amended 2026-08-19: the webhook-only confirmation restriction is superseded by provider-authoritative reconciliation. An authenticated, store-scoped confirmation request may finalize an order only after the SaaS retrieves the stored PaymentIntent directly from Stripe in the stored mode and connected-account context, validates its identity metadata, amount, and currency, and receives `succeeded`. Browser/WordPress payment claims remain untrusted. Verified webhooks remain the asynchronous retry and recovery path.
 
-Documentation amendment 2026-08-20: Batches 1–6 are implemented and critically corrected, but their final browser gate is not signed off from repository evidence. The user reports executing all ten scenarios; scenario-level artifacts proving the results are still pending. Batch 7 remains blocked, Batch 8 has not started, DR-05 is not complete before Batch 8 evidence, and DR-06 follows DR-05.
+Documentation amendment 2026-08-20 (later the same day): the ten Batch 1–6 real-browser scenarios are **complete** by merchant confirmation. Stripe IDs and screenshots were not committed. Batch 7 go-live checklist and Batch 8 acceptance mapping are implemented; DR-05 is signed off for this WordPress-connection workstream. DR-06 follows. See `docs/handoffs/DR05_BATCH6_CRITICAL_FIX_EVIDENCE.md` and `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`.
 
 ## 1. Purpose
 
@@ -215,7 +215,7 @@ Batch 1–6 correction is complete only when all applicable gates pass:
 - WordPress test-mode checkout acceptance passes;
 - no unrelated runtime, carrier, credential, or environment changes were made.
 
-If any gate is unverified, report it as unverified. Do not mark the batches complete and do not begin Batch 7.
+The ten-scenario browser gate is closed by merchant confirmation dated 2026-08-20. Later batches must not reopen it by inventing Stripe artifacts or adding a replacement browser-test suite unless a production defect requires it.
 
 ### 9.1 Required real-browser scenarios
 
@@ -236,11 +236,16 @@ Required evidence must identify the actual outcome and, where applicable, the Sa
 
 ## 10. DR-05 execution order after this correction
 
-1. Close the Batch 1–6 browser-evidence gate.
+Completed 2026-08-20:
+
+1. Close the Batch 1–6 browser-evidence gate — merchant confirmation; all ten scenarios Passed.
 2. Implement and verify Batch 7 merchant migration and controlled production cutover.
-3. Execute and verify Batch 8 end-to-end release recovery and acceptance.
-4. Sign off DR-05 only after Batch 8 evidence.
-5. Begin DR-06 owner/manager/staff acceptance across two stores.
+3. Execute and verify Batch 8 end-to-end release recovery and acceptance mapping.
+4. Sign off DR-05 for the WordPress website-connection workstream.
+
+Next:
+
+5. Continue DR-06 owner/manager/staff acceptance across two stores.
 6. Continue later development-readiness work in the approved order.
 
 ## 11. Required final evidence

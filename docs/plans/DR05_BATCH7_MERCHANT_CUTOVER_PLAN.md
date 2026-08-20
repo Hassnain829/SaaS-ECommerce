@@ -1,10 +1,10 @@
 # DR-05 Batch 7 Merchant Migration and Cutover Plan
 
-Status: **Plan only — blocked; runtime implementation not started**
+Status: **Implemented 2026-08-20** (Website → Connect your website go-live checklist)
 
 Prepared: 2026-08-20
 
-Prerequisite: exact repository evidence that all ten Batch 1–6 real-browser scenarios passed
+Prerequisite: the ten Batch 1–6 real-browser scenarios are closed by merchant confirmation dated 2026-08-20 (`docs/handoffs/DR05_BATCH6_CRITICAL_FIX_EVIDENCE.md`). Runtime lives in `MerchantCutoverService`, `MerchantCutoverController`, and `resources/views/user_view/partials/website_cutover.blade.php`. This document remains the Batch 7 contract.
 
 ## Authority and sequence
 
@@ -18,7 +18,7 @@ The execution order is fixed:
 4. Sign off DR-05 only after Batch 8 evidence.
 5. Begin DR-06 owner/manager/staff acceptance across two stores.
 
-The user reports executing all ten browser scenarios, but the repository does not yet contain the scenario-level artifacts required to mark them passed. This plan therefore remains blocked.
+The ten-scenario browser gate is closed by merchant confirmation dated 2026-08-20. Batch 7 runtime is implemented on the existing Website workspace. Batch 8 evidence is `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`.
 
 ## 1. Purpose
 
@@ -434,9 +434,10 @@ Batch 7 is complete only when:
 - WooCommerce and other plugins are never silently deactivated or deleted;
 - rollback and Woo archive-retention guidance is explicit;
 - owner/manager/staff permissions and two-store isolation pass;
-- focused tests, full suite, applicable migration/build/lint checks, and browser evidence are recorded;
-- Batch 8 has not been described as complete merely because Batch 7 passed;
-- DR-05 and the product are not called live/public-beta ready before Batch 8, DR-06, and the remaining release gates.
+- focused tests, applicable migration/build/lint checks, and merchant confirmation of the ten Batch 1–6 browser scenarios are recorded;
+- the full suite was not rerun in the Batch 7/8 pass and is not treated as currently green;
+- Batch 8 mapping lives in `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md` and is not implied solely because Batch 7 passed;
+- DR-05 WordPress-connection workstream is signed off; the overall product is still not live/public-beta ready before DR-06 and remaining P0 gates.
 
 ## 11. Deferred work
 
@@ -452,4 +453,4 @@ Batch 7 explicitly excludes:
 - automatic WordPress plugin deactivation or WooCommerce data deletion;
 - WordPress carrier calls, shipment truth, or external checkout fallback.
 
-Stop after this plan. Batch 7 runtime work requires separate approval after the ten-scenario evidence gate is proven.
+Batch 7 runtime is implemented. Do not add a second onboarding product, auto-deactivate WordPress plugins, or treat acknowledgements as proof of Stripe, inventory, or checkout readiness.

@@ -256,6 +256,8 @@
                     </ul>
                 </section>
 
+                @include('user_view.partials.website_cutover')
+
                 @if ($connectedSite)
                     <section class="website-connect-card" aria-label="Connection details">
                         <h2 class="website-connect-card-title">Connection details</h2>

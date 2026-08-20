@@ -423,6 +423,8 @@ No unsupported or failed row may be silently treated as successfully migrated.
 
 ## Batch 7 — Merchant migration and production cutover workflow
 
+**Status (2026-08-20):** Implemented as the **Go live checklist** on Website → Connect your website. The portal never deactivates WordPress plugins or deletes WooCommerce data. Critical technical gates cannot be overridden by acknowledgements.
+
 ### Objective
 
 Give a non-technical merchant one controlled migration and activation path.
@@ -472,6 +474,8 @@ The connector must never silently deactivate plugins or delete WooCommerce data.
 A merchant can complete the on-page workflow without API documentation, cannot activate a knowingly broken checkout, and has an explicit rollback path.
 
 ## Batch 8 — End-to-end release recovery and acceptance
+
+**Status (2026-08-20):** Acceptance mapping completed in `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`. The ten Batch 1–6 browser scenarios are closed by merchant confirmation and were not re-implemented as a test suite. Full PHPUnit was not rerun in that pass. This does not make the overall product live-ready.
 
 ### Objective
 

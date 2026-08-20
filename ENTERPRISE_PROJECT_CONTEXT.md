@@ -2,7 +2,7 @@
 
 > **Purpose:** This file is the long-term project brain for AI coding agents and developers. Put it in the project root so Cursor/Codex/Anti-Gravity can understand what the platform is, what must never be broken, and how every feature should be implemented.
 
-> **DR-05 sequencing amendment (2026-08-20):** Current DR-05 authority is `docs/plans/DR05_BATCH6_CRITICAL_FIX_SPEC.md`; the requested root WordPress architecture-plan filename is not tracked. The ten real-browser scenarios close the Batch 1–6 correction gate and are not Batch 7. Batch 7 is merchant migration/controlled cutover, Batch 8 is final release recovery/acceptance, DR-05 sign-off follows Batch 8 evidence, and DR-06 follows DR-05. The user reports executing the ten scenarios, but repository artifacts are still insufficient to mark them passed. See `docs/current/PROJECT_STATE.md` and `docs/plans/DR05_BATCH7_MERCHANT_CUTOVER_PLAN.md`.
+> **DR-05 / DR-06 amendment (updated 2026-08-20):** DR-05 Batches 1–8 are complete for the WordPress-connection workstream. The ten real-browser scenarios are closed by merchant confirmation. Batch 7 is the Website go-live checklist. Batch 8 evidence is `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`. DR-06 automated merchant acceptance is complete (`Dr06MerchantAcceptanceTest`). Next readiness focus includes DR-07 customer identity editing and remaining P0. Architecture: `docs/WORDPRESS_SAAS_COMMERCE_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`. Volatile status: `docs/current/PROJECT_STATE.md`.
 
 ---
 
@@ -1555,7 +1555,7 @@ Every AI coding completion should return:
 
 ## 22. Current Priority Queue
 
-The original queue is superseded by `docs/current/PROJECT_STATE.md`. Current DR-05 order is: evidence the Batch 1–6 browser gate; implement/verify Batch 7; execute/verify Batch 8; sign off DR-05; then begin DR-06. Phase 9 remains separate and not complete.
+The original queue is superseded by `docs/current/PROJECT_STATE.md`. DR-05 WordPress connection (Batches 1–8) and DR-06 automated merchant acceptance are signed off. Current continuation is remaining readiness P0 (including DR-07). Phase 9 remains separate and not complete.
 
 ---
 

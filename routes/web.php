@@ -28,6 +28,7 @@ use App\Http\Controllers\Settings\DeliverySetupWizardController;
 use App\Http\Controllers\Settings\DeveloperStorefrontSettingsController;
 use App\Http\Controllers\Settings\CouponController;
 use App\Http\Controllers\Settings\LocationController;
+use App\Http\Controllers\Settings\MerchantCutoverController;
 use App\Http\Controllers\Settings\PaymentSettingsController;
 use App\Http\Controllers\Settings\ShippingSettingsController;
 use App\Http\Controllers\Settings\TaxSettingsController;
@@ -483,6 +484,15 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::delete('/developer-storefront/token', [DeveloperStorefrontSettingsController::class, 'revoke'])
         ->middleware('store.permission:developer_api.manage')
         ->name('developer-storefront.token.revoke');
+    Route::post('/developer-storefront/cutover/acknowledge', [MerchantCutoverController::class, 'acknowledge'])
+        ->middleware('store.permission:developer_api.manage')
+        ->name('developer-storefront.cutover.acknowledge');
+    Route::post('/developer-storefront/cutover/activate', [MerchantCutoverController::class, 'activate'])
+        ->middleware('store.permission:developer_api.manage')
+        ->name('developer-storefront.cutover.activate');
+    Route::post('/developer-storefront/cutover/rollback', [MerchantCutoverController::class, 'rollback'])
+        ->middleware('store.permission:developer_api.manage')
+        ->name('developer-storefront.cutover.rollback');
 
     require __DIR__.'/onboarding.php';
 
