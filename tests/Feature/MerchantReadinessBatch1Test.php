@@ -41,9 +41,15 @@ class MerchantReadinessBatch1Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertSeeText('Open payments settings')
-            ->assertSeeText('Checkout payments')
-            ->assertSee(route('settings.payments.index'), false);
+            ->assertSeeText('Edit store')
+            ->assertSeeText('Configure')
+            ->assertDontSeeText('editable later')
+            ->assertDontSeeText('Branding colors');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.payments.index'))
+            ->assertOk();
     }
 
     public function test_analytics_and_billing_routes_redirect_to_dashboard_for_owner(): void

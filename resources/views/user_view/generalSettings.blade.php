@@ -22,6 +22,10 @@
     $profileInitial = $profileUser
         ? \Illuminate\Support\Str::of($profileUser->name)->trim()->substr(0, 1)->upper()
         : '?';
+    $categoryHeadline = \Illuminate\Support\Str::headline((string) $categoryLabel);
+    $businessModelLine = $businessModels->isNotEmpty()
+        ? $businessModels->map(fn ($model) => \Illuminate\Support\Str::headline((string) $model))->implode(', ')
+        : $categoryHeadline.' products';
     $storeActionPayload = $store ? [
         'id' => $store->id,
         'name' => $store->name,
@@ -61,7 +65,7 @@
 @endsection
 
 @section('content')
-    <div class="mx-auto max-w-9xl space-y-6 px-4 lg:px-0">
+    <div class="gs-page w-full space-y-8">
         @include('user_view.partials.flash_success')
 
         @if ($errors->any())
@@ -70,24 +74,16 @@
             </div>
         @endif
 
-        <nav class="flex flex-wrap gap-2 border-b border-[#E2E8F0] pb-3" aria-label="Settings sections">
+        <nav class="gs-tabs" aria-label="Settings sections">
             <a
                 href="{{ route('generalSettings', ['tab' => 'store']) }}"
-                @class([
-                    'inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-semibold transition',
-                    'bg-[#EFF6FF] text-[#1D4ED8]' => $settingsTab === 'store',
-                    'text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]' => $settingsTab !== 'store',
-                ])
+                @class(['gs-tab', 'is-active' => $settingsTab === 'store'])
             >
                 Store
             </a>
             <a
                 href="{{ route('generalSettings', ['tab' => 'account']) }}"
-                @class([
-                    'inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-semibold transition',
-                    'bg-[#EFF6FF] text-[#1D4ED8]' => $settingsTab === 'account',
-                    'text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]' => $settingsTab !== 'account',
-                ])
+                @class(['gs-tab', 'is-active' => $settingsTab === 'account'])
             >
                 Your account
             </a>
@@ -95,138 +91,150 @@
 
         @if ($settingsTab === 'store')
             @unless ($store)
-                <section class="rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
-                    <h2 class="text-xl font-semibold text-[#0F172A]">No active store</h2>
-                    <p class="mt-2 text-sm text-[#64748B]">Create or select a store before changing store settings.</p>
-                    <a href="{{ route('store-management') }}" class="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white">Open store management</a>
+                <section class="gs-card p-6">
+                    <h2 class="gs-card-title">No active store</h2>
+                    <p class="gs-card-lead">Create or select a store before changing store settings.</p>
+                    <a href="{{ route('store-management') }}" class="gs-btn-primary mt-4 inline-flex">Open store management</a>
                 </section>
             @else
-                <section class="rounded-xl border border-[#DBEAFE] bg-[#EFF6FF] px-5 py-4 text-sm text-[#1E3A8A]">
-                    Default currency and timezone apply to future activity and reports. Past orders keep the currency, totals, and timestamps they were saved with.
+                <section class="gs-info-banner" role="note">
+                    <span class="gs-info-banner-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.674M12 3v1.5m0 15V21m7.794-14.294-.954.954M5.16 18.84l-.954.954M21 12h-1.5M4.5 12H3m15.84 6.84-.954-.954M5.16 5.16l-.954-.954"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5a4.5 4.5 0 0 1 2.25 8.372V17.25h-4.5v-1.378A4.5 4.5 0 0 1 12 7.5Z"/>
+                        </svg>
+                    </span>
+                    <p>Changes to currency and timezone apply to future activity; historical records remain unchanged.</p>
                 </section>
 
-                <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                    <div class="flex flex-col gap-3 border-b border-[#F1F5F9] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <section class="gs-card">
+                    <div class="gs-card-header">
                         <div>
-                            <h2 class="text-2xl">Store Profile</h2>
-                            <p class="text-sm text-[#64748B]">Public identity and appearance of your storefront.</p>
+                            <h2 class="gs-card-title">Store Profile</h2>
+                            <p class="gs-card-lead">Public identity and appearance of your storefront.</p>
                         </div>
                         @if ($canManageStoreSettings && $storeActionPayload)
                             <button
                                 type="button"
-                                class="js-open-edit-store-modal inline-flex h-10 items-center justify-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]"
+                                class="js-open-edit-store-modal gs-btn-secondary"
                                 data-store='@json($storeActionPayload)'
                             >
-                                Edit store
+                                Edit profile
                             </button>
                         @elseif (! $canManageStoreSettings)
-                            <p class="text-xs font-semibold uppercase tracking-[0.06em] text-[#94A3B8]">Read-only for your role</p>
+                            <p class="gs-readonly-note">Read-only for your role</p>
                         @endif
                     </div>
-                    <div class="space-y-6 p-5">
-                        <div class="grid grid-cols-1 gap-5 md:grid-cols-[128px_minmax(0,1fr)]">
+                    <div class="gs-card-body">
+                        <div class="gs-profile-grid">
                             <div>
-                                <p class="mb-2 text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Store Logo</p>
-                                <div class="flex h-32 w-32 flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed border-[#CBD5E1] bg-[#F8FAFC] text-[#94A3B8]">
+                                <p class="gs-label">Store Logo</p>
+                                <div class="gs-logo-box">
                                     @if ($store->logo)
                                         <img src="{{ asset('storage/'.$store->logo) }}" alt="{{ $store->name }} logo" class="h-full w-full object-contain p-3">
                                     @else
-                                        <span class="text-3xl font-bold text-[#64748B]">{{ $storeInitial }}</span>
-                                        <span class="text-center text-[10px] font-bold uppercase tracking-[0.8px]">No logo</span>
+                                        <span class="gs-logo-initial">{{ $storeInitial }}</span>
+                                        <span class="gs-logo-caption">No Logo</span>
                                     @endif
                                 </div>
                             </div>
-                            <div class="space-y-4">
-                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <label class="space-y-1.5">
-                                        <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Store Name</span>
-                                        <input value="{{ $store->name }}" readonly class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
-                                    </label>
-                                    <label class="space-y-1.5">
-                                        <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Store contact email</span>
-                                        <input value="{{ $contactEmailDisplay }}" readonly class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
-                                    </label>
-                                </div>
-                                <label class="block space-y-1.5">
-                                    <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Physical Address</span>
-                                    <textarea readonly class="min-h-20 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">{{ $store->address ?: 'No store address saved' }}</textarea>
+                            <div class="gs-profile-fields">
+                                <label class="gs-field">
+                                    <span class="gs-label">Store Name</span>
+                                    <input value="{{ $store->name }}" readonly class="gs-input">
+                                </label>
+                                <label class="gs-field">
+                                    <span class="gs-label">Store Contact Email</span>
+                                    <input value="{{ $contactEmailDisplay }}" readonly class="gs-input" placeholder="Not set">
+                                </label>
+                                <label class="gs-field gs-field-span">
+                                    <span class="gs-label">Physical Address</span>
+                                    <textarea readonly rows="3" class="gs-textarea">{{ $store->address ?: 'No store address saved' }}</textarea>
                                 </label>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                    <div class="border-b border-[#F1F5F9] px-5 py-4">
-                        <h2 class="text-2xl">Regional &amp; Financials</h2>
-                        <p class="text-sm text-[#64748B]">Store defaults for dashboard totals, dates, and default selling context.</p>
+                <section class="gs-card">
+                    <div class="gs-card-header">
+                        <div>
+                            <h2 class="gs-card-title">Regional &amp; Financials</h2>
+                            <p class="gs-card-lead">Store defaults for dashboard totals, dates, and default selling context.</p>
+                        </div>
+                        @if ($canManageStoreSettings && $storeActionPayload)
+                            <button
+                                type="button"
+                                class="js-open-edit-store-modal gs-btn-secondary"
+                                data-store='@json($storeActionPayload)'
+                            >
+                                Edit settings
+                            </button>
+                        @elseif (! $canManageStoreSettings)
+                            <p class="gs-readonly-note">Read-only for your role</p>
+                        @endif
                     </div>
-                    <div class="grid grid-cols-1 gap-4 p-5 lg:grid-cols-3">
-                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
-                            <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Default store currency</p>
-                            <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $store->currency ?? 'USD' }}</p>
-                            <p class="mt-3 text-sm leading-relaxed text-[#64748B]">Base currency for future dashboard totals and default pricing. Historical orders keep their saved currency and totals.</p>
-                        </div>
-                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
-                            <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Default store timezone</p>
-                            <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $store->timezone ?? 'UTC' }}</p>
-                            <p class="mt-3 text-sm leading-relaxed text-[#64748B]">Used for future dashboard dates and store operations. Past order timestamps stay unchanged.</p>
-                        </div>
-                        <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
-                            <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Primary market</p>
-                            <p class="mt-2 text-2xl font-semibold text-[#0F172A]">{{ $primaryMarket }}</p>
-                            <p class="mt-3 text-sm leading-relaxed text-[#64748B]">Default selling region for this store. Change it from the store editor when you have permission.</p>
+                    <div class="gs-card-body">
+                        <div class="gs-metric-grid">
+                            <div class="gs-metric-tile">
+                                <p class="gs-label">Default Store Currency</p>
+                                <p class="gs-metric-value">{{ $store->currency ?? 'USD' }}</p>
+                                <p class="gs-metric-help">Base currency for future dashboard totals and default pricing.</p>
+                            </div>
+                            <div class="gs-metric-tile">
+                                <p class="gs-label">Default Store Timezone</p>
+                                <p class="gs-metric-value gs-metric-value-sm" title="{{ $store->timezone ?? 'UTC' }}">{{ $store->timezone ?? 'UTC' }}</p>
+                                <p class="gs-metric-help">Used for future dashboard dates and store operations.</p>
+                            </div>
+                            <div class="gs-metric-tile">
+                                <p class="gs-label">Primary Market</p>
+                                <p class="gs-metric-value gs-metric-value-sm">{{ $primaryMarket }}</p>
+                                <p class="gs-metric-help">Default selling region for this store. Manage via region settings.</p>
+                            </div>
                         </div>
                     </div>
                 </section>
 
-                <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                    <div class="border-b border-[#F1F5F9] px-5 py-4">
-                        <h2 class="text-2xl">Business Configuration</h2>
-                        <p class="text-sm text-[#64748B]">Operational status, store type, inventory location, delivery, and payments.</p>
+                <section class="gs-card">
+                    <div class="gs-card-header">
+                        <div>
+                            <h2 class="gs-card-title">Business Configuration</h2>
+                            <p class="gs-card-lead">Operational status, store type, and primary inventory location.</p>
+                        </div>
+                        @if ($canManageStoreSettings && $storeActionPayload)
+                            <button
+                                type="button"
+                                class="js-open-edit-store-modal gs-btn-secondary"
+                                data-store='@json($storeActionPayload)'
+                            >
+                                Configure
+                            </button>
+                        @elseif (! $canManageStoreSettings)
+                            <p class="gs-readonly-note">Read-only for your role</p>
+                        @endif
                     </div>
-                    <div class="grid grid-cols-1 gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-                        <div class="space-y-5">
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
-                                    <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Main category</p>
-                                    <p class="mt-2 text-lg font-semibold text-[#0F172A]">{{ \Illuminate\Support\Str::headline((string) $categoryLabel) }}</p>
-                                    <p class="mt-2 text-xs text-[#64748B]">{{ $businessModels->isNotEmpty() ? $businessModels->implode(', ') : 'No extra business model tags saved' }}</p>
-                                </div>
-                                <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
-                                    <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Operational status</p>
-                                    <p class="mt-2 text-lg font-semibold text-[#0F172A]">{{ $store->onboarding_completed ? 'Live workspace' : 'Draft setup' }}</p>
-                                    <p class="mt-2 text-xs text-[#64748B]">{{ $store->onboarding_completed ? 'Store onboarding is complete.' : 'Finish onboarding before launch.' }}</p>
-                                </div>
+                    <div class="gs-card-body space-y-6">
+                        <div class="gs-business-grid">
+                            <div class="gs-metric-tile">
+                                <p class="gs-label">Main Category</p>
+                                <p class="gs-metric-value gs-metric-value-md">{{ $categoryHeadline }}</p>
+                                <p class="gs-metric-help">{{ $businessModelLine }}</p>
                             </div>
-
-                            <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] p-4">
-                                <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                                    <div>
-                                        <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Default inventory location</p>
-                                        <h3 class="mt-2 text-lg font-semibold text-[#0F172A]">{{ $defaultLocation?->name ?? 'Main location' }}</h3>
-                                        <p class="mt-2 text-sm text-[#64748B]">{{ $defaultLocationAddress ?: 'No address saved' }}</p>
-                                        <p class="mt-2 text-xs text-[#64748B]">Locations store and fulfill inventory. Markets and currency control how you sell.</p>
-                                    </div>
-                                    <a href="{{ route('settings.locations.index') }}" class="inline-flex h-10 items-center justify-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-sm font-semibold text-[#1D4ED8]">Manage locations</a>
+                            <div class="gs-metric-tile">
+                                <p class="gs-label">Operational Status</p>
+                                <div class="mt-1 flex items-center gap-2">
+                                    <span @class(['gs-status-dot', 'is-live' => (bool) $store->onboarding_completed]) aria-hidden="true"></span>
+                                    <p class="gs-metric-value gs-metric-value-md">{{ $store->onboarding_completed ? 'Live workspace' : 'Draft setup' }}</p>
                                 </div>
+                                <p class="gs-metric-help mt-1">{{ $store->onboarding_completed ? 'Store onboarding is complete.' : 'Finish onboarding before launch.' }}</p>
                             </div>
                         </div>
 
-                        <div class="space-y-5">
-                            <aside class="rounded-xl border border-[#D8E1EC] bg-[#F8FAFC] p-5">
-                                <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#94A3B8]">Delivery setup</p>
-                                <h3 class="mt-1 text-xl font-semibold text-[#0F172A]">Delivery</h3>
-                                <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Set ship-from locations, delivery areas, checkout delivery options, and optional delivery providers.</p>
-                                <a href="{{ route('shippingAutomation') }}" class="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Open delivery setup</a>
-                            </aside>
-
-                            <aside class="rounded-xl border border-[#D8E1EC] bg-[#F8FAFC] p-5">
-                                <p class="text-xs font-bold uppercase tracking-[0.6px] text-[#94A3B8]">Checkout payments</p>
-                                <h3 class="mt-1 text-xl font-semibold text-[#0F172A]">Payments</h3>
-                                <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Connect Stripe so shoppers can pay through this portal. SaaS subscription billing stays separate and is not shown here.</p>
-                                <a href="{{ route('settings.payments.index') }}" class="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Open payments settings</a>
-                            </aside>
+                        <div class="gs-metric-tile">
+                            <p class="gs-label">Default Inventory Location</p>
+                            <p class="gs-metric-value gs-metric-value-md">{{ $defaultLocation?->name ?? 'Main location' }}</p>
+                            <p class="gs-metric-help">{{ $defaultLocationAddress ?: 'No address saved' }}</p>
+                            <p class="gs-metric-footnote">Locations store and fulfill inventory. Markets and currency control how you sell.</p>
                         </div>
                     </div>
                 </section>
@@ -234,123 +242,110 @@
                 @include('user_view.partials.store_edit_modal')
             @endunless
         @else
-            <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                <div class="flex flex-col gap-4 border-b border-[#F1F5F9] px-5 py-4 sm:flex-row sm:items-center">
-                    <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-[#E2E8F0] bg-[#F8FAFC] text-xl font-bold text-[#475569]">
-                        @if ($profileUser?->avatar)
-                            <img src="{{ asset('storage/'.$profileUser->avatar) }}" alt="{{ $profileUser->name }}" class="h-full w-full object-cover">
-                        @else
-                            {{ $profileInitial }}
-                        @endif
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <h2 class="truncate text-2xl text-[#0F172A]">{{ $profileUser?->name }}</h2>
-                        <p class="truncate text-sm text-[#64748B]">{{ $profileUser?->email }}</p>
-                        <div class="mt-2 flex flex-wrap gap-2">
-                            <span class="inline-flex items-center rounded-full bg-[#D1FAE5] px-2.5 py-0.5 text-xs font-semibold text-[#047857]">
-                                {{ $profileUser?->is_active === false ? 'Deactivated' : 'Active account' }}
-                            </span>
-                            <span class="inline-flex rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-2.5 py-0.5 text-xs font-semibold text-[#475569]">
-                                {{ $profileUser?->role?->name === 'admin' ? 'Platform admin' : 'Merchant user' }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div class="gs-account-layout">
                 <div class="space-y-6">
-                    <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                        <div class="border-b border-[#F1F5F9] px-5 py-4">
-                            <h3 class="text-xl text-[#0F172A]">Personal information</h3>
-                            <p class="text-sm text-[#64748B]">Keep your merchant account contact details current.</p>
+                    <section class="gs-card gs-profile-summary">
+                        <div class="gs-avatar">
+                            @if ($profileUser?->avatar)
+                                <img src="{{ asset('storage/'.$profileUser->avatar) }}" alt="{{ $profileUser->name }}" class="h-full w-full object-cover">
+                            @else
+                                {{ $profileInitial }}
+                            @endif
                         </div>
-                        <form id="profileForm" method="POST" action="{{ route('profile.update') }}" enctype="multipart/form-data" class="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+                        <div class="min-w-0">
+                            <h2 class="gs-card-title truncate">{{ $profileUser?->name }}</h2>
+                            <p class="mt-1 truncate text-sm text-[#64748B]">{{ $profileUser?->email }}</p>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <span class="gs-badge gs-badge-success">
+                                    {{ $profileUser?->is_active === false ? 'Deactivated' : 'Active account' }}
+                                </span>
+                                <span class="gs-badge gs-badge-muted">
+                                    {{ $profileUser?->role?->name === 'admin' ? 'Platform admin' : 'Merchant user' }}
+                                </span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="gs-card overflow-hidden">
+                        <div class="gs-card-header">
+                            <div>
+                                <h3 class="gs-card-title">Personal information</h3>
+                                <p class="gs-card-lead">Keep your merchant account contact details current. Changing your email address will require re-verification.</p>
+                            </div>
+                        </div>
+                        <form id="profileForm" method="POST" action="{{ route('profile.update') }}" enctype="multipart/form-data">
                             @csrf
                             @method('PATCH')
-                            <label class="space-y-1.5">
-                                <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Full name</span>
-                                <input type="text" name="name" value="{{ old('name', $profileUser?->name) }}" required class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
-                            </label>
-                            <label class="space-y-1.5">
-                                <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Email address</span>
-                                <input type="email" name="email" value="{{ old('email', $profileUser?->email) }}" required class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
-                            </label>
-                            <label class="space-y-1.5">
-                                <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Phone number</span>
-                                <input type="text" name="phone" value="{{ old('phone', $profileUser?->phone) }}" class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
-                            </label>
-                            <label class="space-y-1.5">
-                                <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Profile photo</span>
-                                <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp" class="block w-full text-sm text-[#475569] file:mr-3 file:h-10 file:rounded-lg file:border-0 file:bg-[#EFF6FF] file:px-3 file:font-semibold file:text-[#0052CC]">
-                            </label>
-                            <div class="md:col-span-2 flex justify-end">
-                                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover">Save profile</button>
+                            <div class="gs-card-body gs-form-grid">
+                                <label class="gs-field">
+                                    <span class="gs-label">Full name</span>
+                                    <input type="text" name="name" value="{{ old('name', $profileUser?->name) }}" required class="gs-input is-editable">
+                                </label>
+                                <label class="gs-field">
+                                    <span class="gs-label">Email address</span>
+                                    <input type="email" name="email" value="{{ old('email', $profileUser?->email) }}" required class="gs-input is-editable">
+                                    <span class="gs-field-hint">* Changing this does not affect historical billing.</span>
+                                </label>
+                                <label class="gs-field">
+                                    <span class="gs-label">Phone number</span>
+                                    <input type="text" name="phone" value="{{ old('phone', $profileUser?->phone) }}" placeholder="+1 (555) 000-0000" class="gs-input is-editable">
+                                </label>
+                                <label class="gs-field">
+                                    <span class="gs-label">Profile photo</span>
+                                    <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp" class="gs-file">
+                                </label>
+                            </div>
+                            <div class="gs-card-footer">
+                                <button type="submit" class="gs-btn-primary">Save changes</button>
                             </div>
                         </form>
                     </section>
 
-                    <section id="password" class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                        <div class="border-b border-[#F1F5F9] px-5 py-4">
-                            <h3 class="text-xl text-[#0F172A]">Password</h3>
-                            <p class="text-sm text-[#64748B]">Use a strong password that is not shared with other tools.</p>
+                    <section id="password" class="gs-card overflow-hidden">
+                        <div class="gs-card-header">
+                            <div>
+                                <h3 class="gs-card-title">Password</h3>
+                                <p class="gs-card-lead">Use a strong password that is not shared with other tools.</p>
+                            </div>
                         </div>
-                        <form method="POST" action="{{ route('profile.password.update') }}" class="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+                        <form method="POST" action="{{ route('profile.password.update') }}">
                             @csrf
                             @method('PUT')
-                            <label class="space-y-1.5">
-                                <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Current password</span>
-                                <input type="password" name="current_password" required autocomplete="current-password" class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
-                            </label>
-                            <label class="space-y-1.5">
-                                <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">New password</span>
-                                <input type="password" name="password" required autocomplete="new-password" class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
-                            </label>
-                            <label class="space-y-1.5">
-                                <span class="text-xs font-bold uppercase tracking-[0.6px] text-[#64748B]">Confirm password</span>
-                                <input type="password" name="password_confirmation" required autocomplete="new-password" class="h-10 w-full rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-sm text-[#0F172A]">
-                            </label>
-                            <div class="md:col-span-3 flex justify-end">
-                                <button type="submit" class="inline-flex h-10 items-center rounded-lg border border-[#E2E8F0] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]">Change password</button>
+                            <div class="gs-card-body gs-password-grid">
+                                <label class="gs-field">
+                                    <span class="gs-label">Current password</span>
+                                    <input type="password" name="current_password" required autocomplete="current-password" class="gs-input is-editable">
+                                </label>
+                                <label class="gs-field">
+                                    <span class="gs-label">New password</span>
+                                    <input type="password" name="password" required autocomplete="new-password" class="gs-input is-editable">
+                                </label>
+                                <label class="gs-field">
+                                    <span class="gs-label">Confirm password</span>
+                                    <input type="password" name="password_confirmation" required autocomplete="new-password" class="gs-input is-editable">
+                                </label>
+                            </div>
+                            <div class="gs-card-footer">
+                                <button type="submit" class="gs-btn-outline">Change password</button>
                             </div>
                         </form>
                     </section>
                 </div>
 
-                <aside class="space-y-6">
-                    <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                        <div class="border-b border-[#F1F5F9] bg-[#F8FAFC] px-5 py-4">
-                            <h3 class="text-lg text-[#0F172A]">Store access</h3>
+                <aside>
+                    <section class="gs-card overflow-hidden">
+                        <div class="gs-card-header gs-card-header-compact">
+                            <h3 class="text-base font-semibold text-[#0F172A]">Store access</h3>
                         </div>
-                        <div class="space-y-3 p-5">
+                        <div class="space-y-3 p-4">
                             @forelse ($memberStores as $memberStore)
-                                <div class="rounded-lg border border-[#E2E8F0] bg-white p-3">
-                                    <p class="font-semibold text-[#0F172A]">{{ $memberStore->name }}</p>
-                                    <p class="text-sm text-[#64748B]">{{ \Illuminate\Support\Str::headline($memberStore->pivot?->role ?? 'member') }}</p>
+                                <div class="gs-access-item">
+                                    <p class="text-sm font-medium text-[#0F172A]">{{ $memberStore->name }}</p>
+                                    <p class="mt-1 text-xs text-[#64748B]">{{ \Illuminate\Support\Str::headline($memberStore->pivot?->role ?? 'member') }}</p>
                                 </div>
                             @empty
                                 <p class="text-sm text-[#64748B]">You are not assigned to a store yet.</p>
                             @endforelse
-                        </div>
-                    </section>
-
-                    <section class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm">
-                        <div class="border-b border-[#F1F5F9] px-5 py-4">
-                            <h3 class="text-lg text-[#0F172A]">Account checks</h3>
-                        </div>
-                        <div class="space-y-4 p-5 text-sm">
-                            <div>
-                                <p class="font-semibold text-[#0F172A]">Email verification</p>
-                                <p class="text-[#64748B]">{{ $profileUser?->email_verified_at ? 'Verified '.$profileUser->email_verified_at->diffForHumans() : 'Verification is pending.' }}</p>
-                                @unless ($profileUser?->email_verified_at)
-                                    <a href="{{ route('verification.notice') }}" class="mt-2 inline-flex text-sm font-semibold text-[#0052CC] hover:underline">Verify email</a>
-                                @endunless
-                            </div>
-                            <div>
-                                <p class="font-semibold text-[#0F172A]">Last sign-in</p>
-                                <p class="text-[#64748B]">{{ $profileUser?->last_login_at?->diffForHumans() ?? 'Not recorded yet' }}</p>
-                            </div>
-                            <a href="{{ route('security') }}" class="inline-flex h-10 w-full items-center justify-center rounded-lg bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-hover">Open security</a>
                         </div>
                     </section>
                 </aside>
