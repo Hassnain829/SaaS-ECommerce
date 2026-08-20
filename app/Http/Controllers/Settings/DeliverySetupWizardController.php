@@ -65,7 +65,11 @@ class DeliverySetupWizardController extends Controller
             return redirect()->route('settings.delivery.setup.delivery-option');
         }
 
-        $zones = $store->shippingZones()->orderByDesc('is_active')->orderBy('name')->get();
+        $zones = $store->shippingZones()
+            ->withCount('shippingMethods')
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get();
         $selectedZone = $this->selectedZone($store, $request);
         $zonePayload = $selectedZone ? $areaNormalizer->presentationFromZone($selectedZone) : null;
         $zoneCatalog = $zones->mapWithKeys(fn (ShippingZone $zone): array => [
@@ -103,7 +107,7 @@ class DeliverySetupWizardController extends Controller
                 : ((float) ($selectedMethod->free_over_amount ?? 0) > 0 ? 'free_over' : 'fixed');
         }
 
-        $methods = $store->shippingMethods()->orderBy('name')->get();
+        $methods = $store->shippingMethods()->with(['shippingZone', 'carrierAccount'])->orderBy('name')->get();
         $methodCatalog = $methods->mapWithKeys(function (ShippingMethod $method): array {
             $priceMode = $method->rate_type === ShippingMethod::RATE_FREE
                 ? 'free'
@@ -277,9 +281,21 @@ class DeliverySetupWizardController extends Controller
         );
 
         if (! ($deliverySetup['is_ready'] ?? false)) {
+            $detail = collect($deliverySetup['blocking_items'] ?? $deliverySetup['health_items'] ?? [])
+                ->filter(fn (array $item): bool => ($item['severity'] ?? '') === 'error')
+                ->pluck('message')
+                ->filter()
+                ->unique()
+                ->take(3)
+                ->implode(' ');
+
             return redirect()
                 ->route('settings.delivery.setup.review')
-                ->withErrors(['delivery_setup' => 'Finish delivery setup after ship-from, delivery area, and checkout-visible options are ready.']);
+                ->withErrors([
+                    'delivery_setup' => $detail !== ''
+                        ? $detail
+                        : 'Finish delivery setup after ship-from, delivery area, and checkout-visible options are ready.',
+                ]);
         }
 
         $request->session()->forget([

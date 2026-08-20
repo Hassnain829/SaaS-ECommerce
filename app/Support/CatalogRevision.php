@@ -14,6 +14,7 @@ final class CatalogRevision
     public static function forStore(Store $store): string
     {
         $stamps = [
+            $store->updated_at,
             Product::query()->where('store_id', $store->id)->max('updated_at'),
             ProductVariant::query()->where('store_id', $store->id)->max('updated_at'),
             Category::query()->where('store_id', $store->id)->max('updated_at'),
@@ -50,6 +51,15 @@ final class CatalogRevision
             ->where('store_id', $store->id)
             ->sum('stock');
 
-        return 'cat-'.$store->id.'-'.$timestamp.'-'.$count.'-'.$stock;
+        $currency = strtoupper(trim((string) ($store->currency ?? 'USD'))) ?: 'USD';
+        $identity = substr(hash('sha256', implode('|', [
+            (string) $store->name,
+            $currency,
+            (string) ($store->timezone ?? 'UTC'),
+            (string) ($store->logo ?? ''),
+            (string) ($store->updated_at ?? ''),
+        ])), 0, 12);
+
+        return 'cat-'.$store->id.'-'.$timestamp.'-'.$count.'-'.$stock.'-'.$identity;
     }
 }

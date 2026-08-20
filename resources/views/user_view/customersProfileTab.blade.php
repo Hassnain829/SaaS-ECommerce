@@ -131,7 +131,7 @@
                                         <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">{{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}</span>
                                     </td>
                                     <td class="px-4 py-4 text-center">{{ $order->item_count ?: $order->items->count() }}</td>
-                                    <td class="px-5 py-4 text-right font-bold">{{ $currency }} {{ number_format((float) ($order->grand_total ?: $order->total), 2) }}</td>
+                                    <td class="px-5 py-4 text-right font-bold">{{ \App\Support\MoneyDisplay::formatWithCode($order->grand_total ?: $order->total, $order->currency_code ?: 'USD') }}</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="5" class="px-5 py-8 text-center text-ink-muted">No orders found for this customer.</td></tr>

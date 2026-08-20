@@ -58,7 +58,6 @@ class DeliverySetupStatusService
         $this->assessDeliveryProviders($carrierAccounts, $healthItems);
         $this->assessPackageAndProductReadiness($store, $shippingMethods, $healthItems);
 
-        $blocking = collect($healthItems)->contains(fn (array $item): bool => ($item['severity'] ?? '') === 'error');
         $configurationReady = $this->hasConfigurationReadyCheckoutOption($checkoutMethods, $activeZones, $carrierAccounts);
 
         if ($checkoutMethods->isNotEmpty() && ! $configurationReady) {
@@ -70,23 +69,60 @@ class DeliverySetupStatusService
                 actionLabel: 'Review delivery options',
                 actionHref: route('settings.delivery.setup.delivery-option'),
             );
-            $blocking = true;
         }
 
+        $structuralReady = $defaultLocation !== null
+            && $this->locationAddressComplete($defaultLocation)
+            && $onlineFulfillmentLocations->isNotEmpty()
+            && $activeZones->isNotEmpty()
+            && $checkoutMethods->isNotEmpty()
+            && $configurationReady;
+
+        // Once checkout has a usable path, leftover method/provider defects are cleanup — not blockers.
+        if ($structuralReady) {
+            $healthItems = array_map(function (array $item): array {
+                if (($item['severity'] ?? '') !== 'error') {
+                    return $item;
+                }
+
+                $id = (string) ($item['id'] ?? '');
+                $structuralErrorIds = [
+                    'ship_from_missing',
+                    'ship_from_address_incomplete',
+                    'ship_from_online_fulfillment',
+                    'delivery_area_missing',
+                    'delivery_option_missing',
+                    'delivery_option_checkout_hidden',
+                    'delivery_option_not_configuration_ready',
+                ];
+
+                if (in_array($id, $structuralErrorIds, true)) {
+                    return $item;
+                }
+
+                $item['severity'] = 'warning';
+
+                return $item;
+            }, $healthItems);
+        }
+
+        $blocking = collect($healthItems)->contains(fn (array $item): bool => ($item['severity'] ?? '') === 'error');
+
+        // Wizard finish depends on a usable checkout path, not every leftover method defect.
+        // Hub health cards still surface $healthItems for optional cleanup.
         return [
-            'is_ready' => ! $blocking
-                && $defaultLocation !== null
-                && $this->locationAddressComplete($defaultLocation)
-                && $onlineFulfillmentLocations->isNotEmpty()
-                && $activeZones->isNotEmpty()
-                && $checkoutMethods->isNotEmpty()
-                && $configurationReady,
+            'is_ready' => $structuralReady,
+            'has_blocking_health' => $blocking,
             'ship_from' => $this->shipFromSummary($defaultLocation),
             'delivery_areas' => $this->deliveryAreasSummary($activeZones),
             'delivery_options' => $this->deliveryOptionsSummary($checkoutMethods, $activeMethods),
             'delivery_providers' => $this->deliveryProvidersSummary($carrierAccounts),
             'tax_summary' => $this->taxSummary($taxSetting),
             'health_items' => $healthItems,
+            'blocking_items' => collect($healthItems)
+                ->filter(fn (array $item): bool => ($item['severity'] ?? '') === 'error')
+                ->values()
+                ->all(),
         ];
     }
 
@@ -244,14 +280,22 @@ class DeliverySetupStatusService
         }
 
         foreach ($shippingMethods as $method) {
-            if ($method->shipping_zone_id === null || ! $method->shippingZone) {
+            // Ignore abandoned inactive options that are also hidden from checkout.
+            if (! $method->is_active && ! $method->enabled_for_checkout) {
+                continue;
+            }
+
+            if ($method->isOrphanedFromArea()) {
+                $hadDeletedArea = $method->shipping_zone_id !== null;
                 $healthItems[] = $this->healthItem(
                     id: 'delivery_option_no_area_'.$method->id,
-                    label: 'Delivery option setup',
+                    label: 'Unused delivery option',
                     severity: 'error',
-                    message: '"'.$method->name.'" is not linked to a delivery area.',
-                    actionLabel: 'Add a delivery option',
-                    actionTab: 'options',
+                    message: $hadDeletedArea
+                        ? '"'.$method->name.'" was linked to a delivery area that was removed.'
+                        : '"'.$method->name.'" is not linked to a delivery area.',
+                    actionLabel: 'Remove option',
+                    removeMethodId: (int) $method->id,
                 );
             }
 
@@ -794,6 +838,11 @@ class DeliverySetupStatusService
             return false;
         }
 
+        if ($method->isFedExLiveRateMethod()
+            && ($method->carrier_service_code === null || trim((string) $method->carrier_service_code) === '')) {
+            return false;
+        }
+
         if ($method->carrier_account_id !== null) {
             $account = $carrierAccounts->firstWhere('id', $method->carrier_account_id);
             if ($account === null
@@ -834,6 +883,8 @@ class DeliverySetupStatusService
         string $actionLabel,
         ?string $actionHref = null,
         ?string $actionTab = null,
+        ?int $removeMethodId = null,
+        ?int $removeZoneId = null,
     ): array {
         return [
             'id' => $id,
@@ -843,6 +894,8 @@ class DeliverySetupStatusService
             'action_label' => $actionLabel,
             'action_href' => $actionHref,
             'action_tab' => $actionTab,
+            'remove_method_id' => $removeMethodId,
+            'remove_zone_id' => $removeZoneId,
         ];
     }
 }

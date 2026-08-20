@@ -177,6 +177,9 @@
                     'update_url' => route('store.update', ['storeId' => $store->id]),
                     'delete_url' => route('store.destroy', ['storeId' => $store->id]),
                     'redirect_to' => 'store-management',
+                    'allow_delete' => true,
+                    'hide_primary_market' => false,
+                    'requires_catalog_conversion' => (bool) (($storesNeedingCurrencyConversion[$store->id] ?? false)),
                 ];
             @endphp
             <article
@@ -262,6 +265,7 @@
                         <div>
                             <p class="text-xs font-medium text-slate-500">7D Revenue</p>
                             <p class="mt-0.5 text-lg font-bold text-slate-900">{{ \App\Support\MoneyDisplay::format($metrics['revenue_7d'] ?? 0, $store->currency ?: 'USD') }}</p>
+                            <p class="mt-0.5 text-[11px] leading-snug text-slate-500">Shown in current store currency. Past order records keep their original currency.</p>
                             <div class="mt-2">
                                 <svg
                                     class="js-store-sparkline h-8 w-[100px] {{ $sparkHasData ? 'stroke-brand' : 'stroke-slate-300' }}"

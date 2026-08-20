@@ -5,7 +5,6 @@
 @php
     $store = $selectedStore ?? $currentStore ?? null;
     $settings = is_array($store?->settings) ? $store->settings : [];
-    $primaryMarket = $settings['primary_market'] ?? 'Global Market';
     $businessModels = collect($settings['business_models'] ?? [])->filter()->values();
     $categoryLabel = $settings['custom_category'] ?? $store?->category ?? 'General';
     $contactEmail = trim((string) ($settings['contact_email'] ?? ''));
@@ -16,9 +15,13 @@
     $canManageStoreSettings = $store && (auth()->user()?->hasStorePermission($store, \App\Support\StorePermission::SETTINGS_MANAGE) ?? false);
     $storeInitial = $store ? \Illuminate\Support\Str::of($store->name)->trim()->substr(0, 1)->upper() : '?';
     $stores = $stores ?? ($store ? collect([$store]) : collect());
+    $storeLocations = $storeLocations ?? collect();
+    $requiresCatalogConversion = (bool) ($requiresCatalogConversion ?? false);
     $profileUser = $profileUser ?? auth()->user();
     $memberStores = $memberStores ?? collect();
-    $settingsTab = ($settingsTab ?? 'store') === 'account' || $errors->any() ? 'account' : 'store';
+    $accountErrorKeys = ['email', 'phone', 'avatar', 'current_password', 'password', 'password_confirmation', 'confirm_deactivation'];
+    $forceAccountTab = collect($accountErrorKeys)->contains(fn ($key) => $errors->has($key));
+    $settingsTab = ($settingsTab ?? 'store') === 'account' || $forceAccountTab ? 'account' : 'store';
     $profileInitial = $profileUser
         ? \Illuminate\Support\Str::of($profileUser->name)->trim()->substr(0, 1)->upper()
         : '?';
@@ -26,11 +29,12 @@
     $businessModelLine = $businessModels->isNotEmpty()
         ? $businessModels->map(fn ($model) => \Illuminate\Support\Str::headline((string) $model))->implode(', ')
         : $categoryHeadline.' products';
+    $setupComplete = (bool) ($store?->onboarding_completed);
     $storeActionPayload = $store ? [
         'id' => $store->id,
         'name' => $store->name,
         'contact_email' => $settings['contact_email'] ?? '',
-        'primary_market' => $primaryMarket,
+        'primary_market' => $settings['primary_market'] ?? 'Global Market',
         'currency' => $store->currency,
         'timezone' => $store->timezone,
         'address' => $store->address,
@@ -41,6 +45,15 @@
         'update_url' => route('store.update', ['storeId' => $store->id]),
         'delete_url' => route('store.destroy', ['storeId' => $store->id]),
         'redirect_to' => 'generalSettings',
+        'allow_delete' => false,
+        'hide_primary_market' => true,
+        'requires_catalog_conversion' => $requiresCatalogConversion,
+        'default_location_id' => $defaultLocation?->id,
+        'locations' => $storeLocations->map(fn ($location) => [
+            'id' => $location->id,
+            'name' => $location->name,
+            'is_default' => (bool) $location->is_default,
+        ])->values()->all(),
     ] : null;
 @endphp
 
@@ -53,11 +66,7 @@
                     class="js-open-edit-store-modal inline-flex items-center rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover"
                     data-store='@json($storeActionPayload)'
                 >
-                    Edit store
-                </button>
-            @elseif ($settingsTab === 'account')
-                <button type="submit" form="profileForm" class="inline-flex items-center rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
-                    Save profile
+                    Edit settings
                 </button>
             @endif
         </x-slot:actions>
@@ -68,7 +77,7 @@
     <div class="gs-page w-full space-y-8">
         @include('user_view.partials.flash_success')
 
-        @if ($errors->any())
+        @if ($errors->any() && $settingsTab === 'account')
             <div class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
                 {{ $errors->first() }}
             </div>
@@ -104,7 +113,10 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5a4.5 4.5 0 0 1 2.25 8.372V17.25h-4.5v-1.378A4.5 4.5 0 0 1 12 7.5Z"/>
                         </svg>
                     </span>
-                    <p>Changes to currency and timezone apply to future activity; historical records remain unchanged.</p>
+                    <p>
+                        Currency changes convert catalog prices using a live exchange rate. Timezone changes how dates are displayed; saved timestamps stay as recorded.
+                        Past order amounts and currencies are never rewritten.
+                    </p>
                 </section>
 
                 <section class="gs-card">
@@ -113,17 +125,9 @@
                             <h2 class="gs-card-title">Store Profile</h2>
                             <p class="gs-card-lead">Public identity and appearance of your storefront.</p>
                         </div>
-                        @if ($canManageStoreSettings && $storeActionPayload)
-                            <button
-                                type="button"
-                                class="js-open-edit-store-modal gs-btn-secondary"
-                                data-store='@json($storeActionPayload)'
-                            >
-                                Edit profile
-                            </button>
-                        @elseif (! $canManageStoreSettings)
+                        @unless ($canManageStoreSettings)
                             <p class="gs-readonly-note">Read-only for your role</p>
-                        @endif
+                        @endunless
                     </div>
                     <div class="gs-card-body">
                         <div class="gs-profile-grid">
@@ -139,18 +143,20 @@
                                 </div>
                             </div>
                             <div class="gs-profile-fields">
-                                <label class="gs-field">
-                                    <span class="gs-label">Store Name</span>
-                                    <input value="{{ $store->name }}" readonly class="gs-input">
-                                </label>
-                                <label class="gs-field">
-                                    <span class="gs-label">Store Contact Email</span>
-                                    <input value="{{ $contactEmailDisplay }}" readonly class="gs-input" placeholder="Not set">
-                                </label>
-                                <label class="gs-field gs-field-span">
-                                    <span class="gs-label">Physical Address</span>
-                                    <textarea readonly rows="3" class="gs-textarea">{{ $store->address ?: 'No store address saved' }}</textarea>
-                                </label>
+                                <div class="gs-field">
+                                    <p class="gs-label">Store Name</p>
+                                    <p class="gs-fact">{{ $store->name }}</p>
+                                </div>
+                                <div class="gs-field">
+                                    <p class="gs-label">Store Contact Email</p>
+                                    <p class="gs-fact">{{ $contactEmailDisplay }}</p>
+                                    <p class="gs-field-hint">Optional store operations contact. Separate from your login email.</p>
+                                </div>
+                                <div class="gs-field gs-field-span">
+                                    <p class="gs-label">Business Address</p>
+                                    <p class="gs-fact gs-fact-multiline">{{ $store->address ?: 'No business address saved' }}</p>
+                                    <p class="gs-field-hint">Business contact address. Ship-from inventory locations are managed separately.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -160,36 +166,29 @@
                     <div class="gs-card-header">
                         <div>
                             <h2 class="gs-card-title">Regional &amp; Financials</h2>
-                            <p class="gs-card-lead">Store defaults for dashboard totals, dates, and default selling context.</p>
+                            <p class="gs-card-lead">Store defaults for dashboard totals, dates, and catalog pricing context.</p>
                         </div>
-                        @if ($canManageStoreSettings && $storeActionPayload)
-                            <button
-                                type="button"
-                                class="js-open-edit-store-modal gs-btn-secondary"
-                                data-store='@json($storeActionPayload)'
-                            >
-                                Edit settings
-                            </button>
-                        @elseif (! $canManageStoreSettings)
+                        @unless ($canManageStoreSettings)
                             <p class="gs-readonly-note">Read-only for your role</p>
-                        @endif
+                        @endunless
                     </div>
                     <div class="gs-card-body">
-                        <div class="gs-metric-grid">
+                        <div class="gs-metric-grid gs-metric-grid-2">
                             <div class="gs-metric-tile">
                                 <p class="gs-label">Default Store Currency</p>
                                 <p class="gs-metric-value">{{ $store->currency ?? 'USD' }}</p>
-                                <p class="gs-metric-help">Base currency for future dashboard totals and default pricing.</p>
+                                <p class="gs-metric-help">
+                                    @if ($requiresCatalogConversion)
+                                        Changing currency converts product and variant prices using a live exchange rate. Past orders keep their original currency and amounts.
+                                    @else
+                                        Labels catalog prices and new activity. You can change this freely before products exist.
+                                    @endif
+                                </p>
                             </div>
                             <div class="gs-metric-tile">
                                 <p class="gs-label">Default Store Timezone</p>
                                 <p class="gs-metric-value gs-metric-value-sm" title="{{ $store->timezone ?? 'UTC' }}">{{ $store->timezone ?? 'UTC' }}</p>
-                                <p class="gs-metric-help">Used for future dashboard dates and store operations.</p>
-                            </div>
-                            <div class="gs-metric-tile">
-                                <p class="gs-label">Primary Market</p>
-                                <p class="gs-metric-value gs-metric-value-sm">{{ $primaryMarket }}</p>
-                                <p class="gs-metric-help">Default selling region for this store. Manage via region settings.</p>
+                                <p class="gs-metric-help">Controls how dates are displayed in this workspace. Saved timestamps are not rewritten.</p>
                             </div>
                         </div>
                     </div>
@@ -199,19 +198,11 @@
                     <div class="gs-card-header">
                         <div>
                             <h2 class="gs-card-title">Business Configuration</h2>
-                            <p class="gs-card-lead">Operational status, store type, and primary inventory location.</p>
+                            <p class="gs-card-lead">Setup status, store type, and default inventory location.</p>
                         </div>
-                        @if ($canManageStoreSettings && $storeActionPayload)
-                            <button
-                                type="button"
-                                class="js-open-edit-store-modal gs-btn-secondary"
-                                data-store='@json($storeActionPayload)'
-                            >
-                                Configure
-                            </button>
-                        @elseif (! $canManageStoreSettings)
+                        @unless ($canManageStoreSettings)
                             <p class="gs-readonly-note">Read-only for your role</p>
-                        @endif
+                        @endunless
                     </div>
                     <div class="gs-card-body space-y-6">
                         <div class="gs-business-grid">
@@ -221,25 +212,37 @@
                                 <p class="gs-metric-help">{{ $businessModelLine }}</p>
                             </div>
                             <div class="gs-metric-tile">
-                                <p class="gs-label">Operational Status</p>
+                                <p class="gs-label">Setup Status</p>
                                 <div class="mt-1 flex items-center gap-2">
-                                    <span @class(['gs-status-dot', 'is-live' => (bool) $store->onboarding_completed]) aria-hidden="true"></span>
-                                    <p class="gs-metric-value gs-metric-value-md">{{ $store->onboarding_completed ? 'Live workspace' : 'Draft setup' }}</p>
+                                    <span @class(['gs-status-dot', 'is-live' => $setupComplete]) aria-hidden="true"></span>
+                                    <p class="gs-metric-value gs-metric-value-md">{{ $setupComplete ? 'Setup complete' : 'Setup in progress' }}</p>
                                 </div>
-                                <p class="gs-metric-help mt-1">{{ $store->onboarding_completed ? 'Store onboarding is complete.' : 'Finish onboarding before launch.' }}</p>
+                                <p class="gs-metric-help mt-1">
+                                    {{ $setupComplete
+                                        ? 'Store onboarding is finished. This is not the same as a live WordPress storefront.'
+                                        : 'Finish onboarding to complete workspace setup.' }}
+                                </p>
                             </div>
                         </div>
 
                         <div class="gs-metric-tile">
                             <p class="gs-label">Default Inventory Location</p>
-                            <p class="gs-metric-value gs-metric-value-md">{{ $defaultLocation?->name ?? 'Main location' }}</p>
-                            <p class="gs-metric-help">{{ $defaultLocationAddress ?: 'No address saved' }}</p>
-                            <p class="gs-metric-footnote">Locations store and fulfill inventory. Markets and currency control how you sell.</p>
+                            @if ($defaultLocation)
+                                <p class="gs-metric-value gs-metric-value-md">{{ $defaultLocation->name }}</p>
+                                <p class="gs-metric-help">{{ $defaultLocationAddress ?: 'No ship-from address saved on this location' }}</p>
+                            @else
+                                <p class="gs-metric-value gs-metric-value-md">Not set yet</p>
+                                <p class="gs-metric-help">Create a location when you are ready to stock and fulfill inventory.</p>
+                            @endif
+                            <p class="gs-metric-footnote">
+                                Business address and ship-from location are separate.
+                                <a href="{{ route('settings.locations.index') }}" class="font-semibold text-brand hover:underline">Manage locations</a>
+                            </p>
                         </div>
                     </div>
                 </section>
 
-                @include('user_view.partials.store_edit_modal')
+                @include('user_view.partials.store_edit_modal', ['hideStoreDelete' => true])
             @endunless
         @else
             <div class="gs-account-layout">

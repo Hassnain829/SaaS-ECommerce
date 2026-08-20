@@ -444,6 +444,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::delete('/settings/shipping/methods/{shippingMethod}', [ShippingSettingsController::class, 'destroyMethod'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.methods.destroy');
+    Route::post('/settings/shipping/methods/cleanup-orphans', [ShippingSettingsController::class, 'cleanupOrphanMethods'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.methods.cleanup-orphans');
     Route::post('/settings/shipping/package-presets', [ShippingSettingsController::class, 'storePackagePreset'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.package-presets.store');

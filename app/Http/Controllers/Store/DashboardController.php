@@ -21,12 +21,13 @@ use App\Models\Tag;
 use App\Models\TaxSetting;
 use App\Models\User;
 use App\Models\UserSession;
+use App\Services\Currency\ReportingMoneyConverter;
 use App\Services\CustomerMetricsService;
 use App\Services\Fulfillment\FulfillmentStatusService;
-use App\Services\Inventory\DefaultLocationService;
 use App\Services\OrderEventRecorder;
 use App\Services\ReturnService;
 use App\Services\SecurityLogRecorder;
+use App\Services\Store\StoreCurrencyChangeGuard;
 use App\Services\UserSessionTracker;
 use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
@@ -229,8 +230,11 @@ class DashboardController extends Controller
         ];
 
         $ordersBase = Order::query()->where('store_id', $storeId);
+        $storeCurrency = strtoupper((string) ($store->currency ?: 'USD'));
+        $reporting = app(ReportingMoneyConverter::class);
 
-        $revenue30d = (float) (clone $ordersBase)
+        $revenue30d = 0.0;
+        (clone $ordersBase)
             ->whereNotIn('status', $excludeStatuses)
             ->where(function ($q) use ($since30): void {
                 $q->where(function ($q2) use ($since30): void {
@@ -239,7 +243,14 @@ class DashboardController extends Controller
                     $q2->whereNull('placed_at')->where('created_at', '>=', $since30);
                 });
             })
-            ->sum('grand_total');
+            ->get(['grand_total', 'currency_code'])
+            ->each(function (Order $order) use (&$revenue30d, $reporting, $storeCurrency): void {
+                $revenue30d += $reporting->convert(
+                    $order->grand_total,
+                    (string) ($order->currency_code ?: 'USD'),
+                    $storeCurrency
+                );
+            });
 
         $orders30dCount = (clone $ordersBase)
             ->whereNotIn('status', $excludeStatuses)
@@ -273,7 +284,7 @@ class DashboardController extends Controller
                     $q2->whereNull('placed_at')->where('created_at', '>=', $since7);
                 });
             })
-            ->get(['placed_at', 'created_at', 'grand_total']);
+            ->get(['placed_at', 'created_at', 'grand_total', 'currency_code']);
 
         $chartDays = [];
         for ($i = 6; $i >= 0; $i--) {
@@ -292,14 +303,18 @@ class DashboardController extends Controller
             if (! isset($chartDays[$key])) {
                 continue;
             }
-            $chartDays[$key]['total'] += (float) $order->grand_total;
+            $chartDays[$key]['total'] += $reporting->convert(
+                $order->grand_total,
+                (string) ($order->currency_code ?: 'USD'),
+                $storeCurrency
+            );
         }
         $chartDays = array_values($chartDays);
 
         $recentOrders = (clone $ordersBase)
             ->orderByDesc(DB::raw('COALESCE(placed_at, created_at)'))
             ->limit(6)
-            ->get(['id', 'order_number', 'status', 'grand_total', 'placed_at', 'created_at']);
+            ->get(['id', 'order_number', 'status', 'grand_total', 'currency_code', 'placed_at', 'created_at']);
 
         $topProducts = DB::table('order_items')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
@@ -314,15 +329,40 @@ class DashboardController extends Controller
                 });
             })
             ->whereNotNull('order_items.product_id')
-            ->groupBy('order_items.product_id')
+            ->groupBy('order_items.product_id', 'orders.currency_code')
             ->orderByDesc(DB::raw('SUM(order_items.total)'))
-            ->limit(5)
+            ->limit(20)
             ->get([
                 'order_items.product_id',
+                'orders.currency_code',
                 DB::raw('MAX(COALESCE(products.name, order_items.product_name)) as display_name'),
                 DB::raw('SUM(order_items.quantity) as units_sold'),
                 DB::raw('SUM(order_items.total) as revenue'),
-            ]);
+            ])
+            ->groupBy('product_id')
+            ->map(function ($rows) use ($reporting, $storeCurrency) {
+                $first = $rows->first();
+                $revenue = 0.0;
+                $units = 0.0;
+                foreach ($rows as $row) {
+                    $units += (float) $row->units_sold;
+                    $revenue += $reporting->convert(
+                        $row->revenue,
+                        (string) ($row->currency_code ?: 'USD'),
+                        $storeCurrency
+                    );
+                }
+
+                return (object) [
+                    'product_id' => $first->product_id,
+                    'display_name' => $first->display_name,
+                    'units_sold' => $units,
+                    'revenue' => $revenue,
+                ];
+            })
+            ->sortByDesc('revenue')
+            ->take(5)
+            ->values();
 
         $activeLocationsCount = $store->locations()->where('is_active', true)->count();
         $activeDeliveryAreasCount = $store->shippingZones()->where('is_active', true)->count();
@@ -343,7 +383,7 @@ class DashboardController extends Controller
         return [
             'has_store' => true,
             'store' => $store,
-            'currency' => $store->currency ?: 'USD',
+            'currency' => $storeCurrency,
             'revenue_30d' => $revenue30d,
             'orders_30d_count' => $orders30dCount,
             'active_orders_count' => $activeOrdersCount,
@@ -1307,11 +1347,23 @@ class DashboardController extends Controller
     {
         $selectedStore = $request->attributes->get('currentStore');
         $defaultLocation = null;
+        $storeLocations = collect();
+        $requiresCatalogConversion = false;
         $user = $request->user();
 
         if ($selectedStore) {
-            $defaultLocation = app(DefaultLocationService::class)
-                ->ensureFromStoreDefaults($selectedStore, $user);
+            // Read-only: do not create or mutate locations on GET.
+            $storeLocations = $selectedStore->locations()
+                ->where('is_active', true)
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(['id', 'name', 'address_line1', 'city', 'state', 'postal_code', 'country_code', 'is_default']);
+
+            $defaultLocation = $storeLocations->firstWhere('is_default', true)
+                ?? $storeLocations->first();
+
+            $requiresCatalogConversion = app(StoreCurrencyChangeGuard::class)
+                ->requiresCatalogConversion($selectedStore);
         }
 
         $settingsTab = $request->query('tab') === 'account' ? 'account' : 'store';
@@ -1319,6 +1371,8 @@ class DashboardController extends Controller
         return view('user_view.generalSettings', [
             'selectedStore' => $selectedStore,
             'defaultLocation' => $defaultLocation,
+            'storeLocations' => $storeLocations,
+            'requiresCatalogConversion' => $requiresCatalogConversion,
             'stores' => $selectedStore ? collect([$selectedStore]) : collect(),
             'profileUser' => $user,
             'memberStores' => $user
@@ -1537,6 +1591,12 @@ class DashboardController extends Controller
         $totalBrands = (int) $stores->sum(fn (Store $store): int => (int) ($store->brands_count ?? 0));
 
         $storeMetrics = $this->storeManagementMetrics($storeIds->all());
+        $storesNeedingCurrencyConversion = Product::query()
+            ->whereIn('store_id', $storeIds)
+            ->distinct()
+            ->pluck('store_id')
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
 
         $recentActivity = $storeIds->isEmpty()
             ? collect()
@@ -1554,6 +1614,7 @@ class DashboardController extends Controller
         return view('user_view.store_management', [
             'stores' => $stores,
             'storeMetrics' => $storeMetrics,
+            'storesNeedingCurrencyConversion' => $storesNeedingCurrencyConversion,
             'liveStoresCount' => $liveStoresCount,
             'draftStoresCount' => $draftStoresCount,
             'totalProducts' => $totalProducts,
@@ -1627,7 +1688,14 @@ class DashboardController extends Controller
                     $q2->whereNull('placed_at')->where('created_at', '>=', $since14);
                 });
             })
-            ->get(['id', 'store_id', 'grand_total', 'placed_at', 'created_at']);
+            ->get(['id', 'store_id', 'grand_total', 'currency_code', 'placed_at', 'created_at']);
+
+        $storeCurrencies = Store::query()
+            ->whereIn('id', $storeIds)
+            ->pluck('currency', 'id')
+            ->map(fn ($currency) => strtoupper((string) ($currency ?: 'USD')));
+
+        $reporting = app(ReportingMoneyConverter::class);
 
         foreach ($orders as $order) {
             $storeId = (int) $order->store_id;
@@ -1641,7 +1709,12 @@ class DashboardController extends Controller
             }
 
             $inLast7 = $dt->gte($since7);
-            $amount = (float) $order->grand_total;
+            $targetCurrency = (string) ($storeCurrencies[$storeId] ?? 'USD');
+            $amount = $reporting->convert(
+                $order->grand_total,
+                (string) ($order->currency_code ?: 'USD'),
+                $targetCurrency
+            );
 
             if ($inLast7) {
                 $metrics[$storeId]['revenue_7d'] += $amount;

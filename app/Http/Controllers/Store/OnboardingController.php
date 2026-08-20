@@ -9,21 +9,27 @@ use App\Models\ProductVariant;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
+use App\Models\Location;
 use App\Services\Catalog\ProductAttributeAssigner;
 use App\Services\Catalog\ProductTaxableDefaultResolver;
+use App\Services\Currency\StoreCatalogCurrencyConverter;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
+use App\Services\Store\StoreCurrencyChangeGuard;
+use App\Services\StorefrontCatalogEventRecorder;
 use App\Support\CatalogRules;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
 use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
+use App\Support\StoreBusinessDefaults;
 use App\Support\StorePermission;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -1280,29 +1286,67 @@ class OnboardingController extends Controller
 
         $this->authorizeStorePermission($request, $store, StorePermission::SETTINGS_MANAGE);
 
+        $fromGeneralSettings = ($request->input('redirect_to') === 'generalSettings');
+        $currencyGuard = app(StoreCurrencyChangeGuard::class);
+        $requiresCatalogConversion = $currencyGuard->requiresCatalogConversion($store);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'contact_email' => ['nullable', 'email', 'max:255'],
-            'primary_market' => ['required', 'string', 'max:80'],
+            'primary_market' => [$fromGeneralSettings ? 'nullable' : 'required', 'string', 'max:80'],
             'address' => ['nullable', 'string', 'max:1000'],
-            'currency' => ['required', 'string', 'max:8'],
-            'timezone' => ['required', 'string', 'max:100'],
+            'currency' => ['required', 'string', Rule::in(StoreBusinessDefaults::currencies())],
+            'timezone' => ['required', 'string', Rule::in(StoreBusinessDefaults::timezones())],
             'category' => ['nullable', 'string', 'max:80', 'required_without:custom_category'],
             'business_models' => ['nullable', 'array'],
             'business_models.*' => ['string', 'max:80'],
             'custom_category' => ['nullable', 'string', 'max:80', 'required_without:category'],
-            'store_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,svg', 'max:2048'],
+            'store_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'default_location_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('locations', 'id')->where(fn ($query) => $query
+                    ->where('store_id', $store->id)
+                    ->where('is_active', true)),
+            ],
+            'confirm_currency_conversion' => ['nullable', 'boolean'],
             'redirect_to' => ['nullable', 'string', 'in:generalSettings,store-management'],
         ]);
+
+        $requestedCurrency = strtoupper((string) $validated['currency']);
+        $currentCurrency = strtoupper((string) ($store->currency ?? 'USD'));
+        $currencyChanging = $requestedCurrency !== $currentCurrency;
+
+        if ($currencyChanging && $requiresCatalogConversion && ! $request->boolean('confirm_currency_conversion')) {
+            throw ValidationException::withMessages([
+                'confirm_currency_conversion' => 'Confirm conversion to update product and variant prices to the new currency. Past orders keep their original currency and amounts.',
+            ]);
+        }
 
         $normalizedCategory = $validated['category'] ?? null;
         if (! $normalizedCategory && ! empty($validated['custom_category'])) {
             $normalizedCategory = 'custom';
         }
 
+        $previous = [
+            'name' => (string) $store->name,
+            'contact_email' => data_get($store->settings, 'contact_email'),
+            'address' => $store->address,
+            'currency' => $currentCurrency,
+            'timezone' => (string) ($store->timezone ?? 'UTC'),
+            'logo' => $store->logo,
+            'category' => $store->category,
+            'primary_market' => data_get($store->settings, 'primary_market'),
+        ];
+
         $logoPath = $store->logo;
+        $logoReplaced = false;
         if ($request->hasFile('store_logo')) {
             $logoPath = $request->file('store_logo')->store('store-logos', 'public');
+            $logoReplaced = true;
+            if ($store->logo && $store->logo !== $logoPath) {
+                Storage::disk('public')->delete($store->logo);
+            }
         }
 
         $contactEmail = isset($validated['contact_email'])
@@ -1312,25 +1356,81 @@ class OnboardingController extends Controller
             $contactEmail = null;
         }
 
-        // Operational defaults (currency/timezone) apply to future activity only.
-        // Historical order totals, currencies, timestamps, and snapshots are not rewritten.
-        $store->update([
-            'name' => $validated['name'],
-            'logo' => $logoPath,
-            'address' => $validated['address'] ?? null,
-            'currency' => $validated['currency'],
-            'timezone' => $validated['timezone'],
-            'category' => $normalizedCategory,
-            'settings' => $this->mergeStoreSettings($store->settings, [
-                'primary_market' => $validated['primary_market'],
-                'business_models' => $validated['business_models'] ?? [],
-                'custom_category' => $validated['custom_category'] ?? null,
-                'contact_email' => $contactEmail,
-            ]),
-        ]);
+        $primaryMarket = $validated['primary_market']
+            ?? data_get($store->settings, 'primary_market')
+            ?? 'Global Market';
+
+        $conversionSummary = null;
+
+        try {
+            DB::transaction(function () use (
+                $request,
+                $store,
+                $validated,
+                $logoPath,
+                $requestedCurrency,
+                $currentCurrency,
+                $currencyChanging,
+                $requiresCatalogConversion,
+                $primaryMarket,
+                $contactEmail,
+                $normalizedCategory,
+                &$conversionSummary
+            ): void {
+                if ($currencyChanging) {
+                    if ($requiresCatalogConversion) {
+                        $conversionSummary = app(StoreCatalogCurrencyConverter::class)
+                            ->convertStoreCatalog($store, $currentCurrency, $requestedCurrency);
+                    } else {
+                        $conversionSummary = [
+                            'from' => $currentCurrency,
+                            'to' => $requestedCurrency,
+                            'rate' => 'n/a',
+                            'products_updated' => 0,
+                            'variants_updated' => 0,
+                            'provider' => 'none',
+                        ];
+                    }
+                }
+
+                // Historical order totals, currencies, timestamps, and snapshots are not rewritten.
+                $store->update([
+                    'name' => $validated['name'],
+                    'logo' => $logoPath,
+                    'address' => $validated['address'] ?? null,
+                    'currency' => $requestedCurrency,
+                    'timezone' => $validated['timezone'],
+                    'category' => $normalizedCategory,
+                    'settings' => $this->mergeStoreSettings($store->settings, [
+                        'primary_market' => $primaryMarket,
+                        'business_models' => $validated['business_models'] ?? [],
+                        'custom_category' => $validated['custom_category'] ?? null,
+                        'contact_email' => $contactEmail,
+                        'last_currency_conversion' => $conversionSummary,
+                    ]),
+                ]);
+            });
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                'currency' => $exception->getMessage() ?: 'Currency conversion failed. Store currency was not changed.',
+            ]);
+        }
 
         $store = $store->refresh();
-        app(DefaultLocationService::class)->ensureFromStoreDefaults($store, $request->user());
+
+        // Ensure a default location exists without rewriting ship-from from business address.
+        app(DefaultLocationService::class)->ensureForStore($store, $request->user());
+
+        if (! empty($validated['default_location_id'])) {
+            $location = Location::query()
+                ->where('store_id', $store->id)
+                ->whereKey((int) $validated['default_location_id'])
+                ->where('is_active', true)
+                ->firstOrFail();
+            app(DefaultLocationService::class)->makeDefault($location, $request->user());
+        }
 
         $store->members()->syncWithoutDetaching([
             $request->user()->id => ['role' => 'owner'],
@@ -1338,22 +1438,65 @@ class OnboardingController extends Controller
 
         $this->syncActiveStoreSessions($request, $store);
 
+        $changed = [];
+        if ($previous['name'] !== (string) $store->name) {
+            $changed[] = 'name';
+        }
+        if ((string) ($previous['contact_email'] ?? '') !== (string) ($contactEmail ?? '')) {
+            $changed[] = 'contact_email';
+        }
+        if ((string) ($previous['address'] ?? '') !== (string) ($store->address ?? '')) {
+            $changed[] = 'address';
+        }
+        if ($previous['currency'] !== strtoupper((string) $store->currency)) {
+            $changed[] = 'currency';
+        }
+        if ($previous['timezone'] !== (string) $store->timezone) {
+            $changed[] = 'timezone';
+        }
+        if ($logoReplaced) {
+            $changed[] = 'logo';
+        }
+        if ((string) ($previous['category'] ?? '') !== (string) ($store->category ?? '')) {
+            $changed[] = 'category';
+        }
+        if (! empty($validated['default_location_id'])) {
+            $changed[] = 'default_location';
+        }
+
         app(SecurityLogRecorder::class)->record(
             $request,
             'store_settings_updated',
             store: $store,
-            metadata: ['store_id' => $store->id]
+            metadata: [
+                'store_id' => $store->id,
+                'changed' => $changed,
+                'currency_conversion' => $conversionSummary,
+            ]
         );
+
+        if (array_intersect($changed, ['name', 'currency', 'logo'])) {
+            app(StorefrontCatalogEventRecorder::class)->recordCatalogUpdated($store->id);
+        }
 
         $redirectRoute = ($validated['redirect_to'] ?? null) === 'generalSettings'
             ? 'generalSettings'
             : 'store-management';
 
+        $successMeta = 'Timezone changes how dates are shown going forward; saved timestamps stay the same. '
+            .'Past order amounts and currencies are never rewritten.';
+
+        if (is_array($conversionSummary) && ($conversionSummary['from'] ?? null) !== ($conversionSummary['to'] ?? null)) {
+            $successMeta = "Catalog prices converted from {$conversionSummary['from']} to {$conversionSummary['to']} "
+                ."using rate {$conversionSummary['rate']}. "
+                .'Past orders keep their original currency and amounts.';
+        }
+
         return redirect()
             ->route($redirectRoute)
             ->with('success', "Store '{$store->name}' updated successfully.")
             ->with('success_title', 'Store updated')
-            ->with('success_meta', 'Future activity uses these defaults. Past orders stay unchanged.');
+            ->with('success_meta', $successMeta);
     }
 
     public function updateStoreLifecycleFromManagement(Request $request, $storeId): RedirectResponse

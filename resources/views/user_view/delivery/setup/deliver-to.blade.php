@@ -33,6 +33,31 @@
             </div>
         @endif
 
+        @if ($shippingZones->isNotEmpty())
+            <div class="mt-4 space-y-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Your delivery areas</p>
+                @foreach ($shippingZones as $zone)
+                    <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-[#0F172A]">{{ $zone->name }}</p>
+                            <p class="mt-0.5 text-xs text-[#64748B]">
+                                {{ collect($zone->countries)->filter()->implode(', ') ?: 'No country' }}
+                                · {{ $zone->shipping_methods_count ?? $zone->shippingMethods->count() }} checkout {{ ($zone->shipping_methods_count ?? $zone->shippingMethods->count()) === 1 ? 'option' : 'options' }}
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <a href="{{ route('settings.delivery.setup.deliver-to', ['shipping_zone_id' => $zone->id]) }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Edit</a>
+                            <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}" onsubmit="return confirm('Remove “{{ $zone->name }}” and its checkout options?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove</button>
+                            </form>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('settings.delivery.setup.deliver-to') }}" class="mt-6 space-y-5">
             @csrf
             <input type="hidden" name="zone_editor_mode" value="simple">

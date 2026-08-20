@@ -1,13 +1,30 @@
-@php
-    $setup = $deliverySetup ?? [];
-    $healthItems = collect($setup['health_items'] ?? []);
-    $isReady = (bool) ($setup['is_ready'] ?? false);
-    $locationsList = collect($locations ?? []);
+    @php
+        $setup = $deliverySetup ?? [];
+        $healthItems = collect($setup['health_items'] ?? []);
+        $isReady = (bool) ($setup['is_ready'] ?? false);
+        $hasErrors = $healthItems->contains(fn ($i) => ($i['severity'] ?? '') === 'error');
+        $healthTitle = $isReady
+            ? 'Recommended improvements'
+            : ($hasErrors ? 'Action needed' : 'Suggestions');
+        $locationsList = collect($locations ?? []);
     $originReadiness = $originReadinessByLocationId ?? [];
     $zones = collect($shippingZones ?? [])->where('is_active', true)->values();
     $methods = collect($shippingMethods ?? []);
     $checkoutMethods = $methods->where('is_active', true)->where('enabled_for_checkout', true);
     $fedExLiveMethods = $methods->filter(fn ($m) => method_exists($m, 'isFedExLiveRateMethod') && $m->isFedExLiveRateMethod() && ($m->is_active || $m->enabled_for_checkout));
+    $orphanMethods = $methods->filter(function ($m) {
+        if (! ($m->is_active || $m->enabled_for_checkout)) {
+            return false;
+        }
+
+        return method_exists($m, 'isOrphanedFromArea')
+            ? $m->isOrphanedFromArea()
+            : ($m->shipping_zone_id === null || ! $m->shippingZone);
+    })->values();
+    $manageableZones = collect($shippingZones ?? [])->values();
+    $manageableMethods = $methods
+        ->filter(fn ($m) => $m->is_active || $m->enabled_for_checkout || (method_exists($m, 'isOrphanedFromArea') && $m->isOrphanedFromArea()))
+        ->values();
 
     $statusTone = static function (array $summary): string {
         return match ($summary['status'] ?? 'missing') {
@@ -159,16 +176,31 @@
 
     @if ($healthItems->isNotEmpty())
         <aside class="delivery-hub-health" aria-label="Delivery health">
-            <p class="delivery-hub-health-title">{{ $healthItems->contains(fn ($i) => ($i['severity'] ?? '') === 'error') ? 'Action needed' : 'Suggestions' }}</p>
+            <p class="delivery-hub-health-title">{{ $healthTitle }}</p>
             <ul class="delivery-hub-health-list">
                 @foreach ($healthItems->take(3) as $item)
-                    <li @class(['delivery-hub-health-item', 'is-error' => ($item['severity'] ?? '') === 'error'])>
+                    <li @class([
+                        'delivery-hub-health-item',
+                        'is-error' => ! $isReady && ($item['severity'] ?? '') === 'error',
+                    ])>
                         <div>
                             <p class="font-semibold text-[color:var(--color-ink)]">{{ $item['label'] ?? 'Setup item' }}</p>
                             <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">{{ $item['message'] ?? '' }}</p>
                         </div>
                         @if ($canManageShipping ?? false)
-                            @if (! empty($item['action_href']))
+                            @if (! empty($item['remove_method_id']))
+                                <form method="POST" action="{{ route('settings.shipping.methods.destroy', $item['remove_method_id']) }}" onsubmit="return confirm('Remove this delivery option?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="delivery-hub-link text-[#991B1B]">{{ $item['action_label'] ?? 'Remove' }}</button>
+                                </form>
+                            @elseif (! empty($item['remove_zone_id']))
+                                <form method="POST" action="{{ route('settings.shipping.zones.destroy', $item['remove_zone_id']) }}" onsubmit="return confirm('Remove this delivery area and its checkout options?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="delivery-hub-link text-[#991B1B]">{{ $item['action_label'] ?? 'Remove' }}</button>
+                                </form>
+                            @elseif (! empty($item['action_href']))
                                 <a href="{{ $item['action_href'] }}" class="delivery-hub-link">{{ $item['action_label'] ?? 'Fix' }}</a>
                             @elseif (! empty($item['action_tab']))
                                 <button type="button" data-shipping-tab="{{ $item['action_tab'] }}" class="delivery-hub-link">{{ $item['action_label'] ?? 'Fix' }}</button>
@@ -207,6 +239,87 @@
             </article>
         @endforeach
     </div>
+
+    @if (($canManageShipping ?? false) && ($manageableZones->isNotEmpty() || $manageableMethods->isNotEmpty() || $orphanMethods->isNotEmpty()))
+        <section class="delivery-hub-section" aria-labelledby="delivery-manage-heading">
+            <div class="delivery-section-head">
+                <div>
+                    <h3 id="delivery-manage-heading" class="delivery-section-title">Manage areas and checkout options</h3>
+                    <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">Edit or remove delivery areas and checkout options without digging through advanced settings.</p>
+                </div>
+                @if ($orphanMethods->isNotEmpty())
+                    <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" onsubmit="return confirm('Remove all unused delivery options that are not linked to a delivery area?')">
+                        @csrf
+                        <button type="submit" class="ui-btn ui-btn-secondary">Remove unused options</button>
+                    </form>
+                @endif
+            </div>
+
+            @if ($manageableZones->isNotEmpty())
+                <div class="mb-4 space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)]">Delivery areas</p>
+                    @foreach ($manageableZones as $zone)
+                        <article class="delivery-location-card">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <p class="font-semibold text-[color:var(--color-ink)]">{{ $zone->name }}</p>
+                                    <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">
+                                        {{ collect($zone->countries)->filter()->implode(', ') ?: 'No country set' }}
+                                        · {{ $zone->shippingMethods->count() }} checkout {{ $zone->shippingMethods->count() === 1 ? 'option' : 'options' }}
+                                        @unless ($zone->is_active) · Inactive @endunless
+                                    </p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <a href="{{ route('settings.delivery.setup.deliver-to', ['shipping_zone_id' => $zone->id]) }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Edit</a>
+                                    <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}" onsubmit="return confirm('Remove “{{ $zone->name }}” and its checkout options?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            @endif
+
+            @if ($manageableMethods->isNotEmpty())
+                <div class="space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)]">Checkout options</p>
+                    @foreach ($manageableMethods as $method)
+                        @php
+                            $isOrphan = method_exists($method, 'isOrphanedFromArea') && $method->isOrphanedFromArea();
+                        @endphp
+                        <article class="delivery-location-card">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <p class="font-semibold text-[color:var(--color-ink)]">{{ $method->name }}</p>
+                                    <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">
+                                        @if ($isOrphan)
+                                            Not linked to a delivery area
+                                        @else
+                                            Area: {{ $method->shippingZone?->name ?? '—' }}
+                                        @endif
+                                        · {{ $method->isFedExLiveRateMethod() ? 'FedEx live rates' : 'Fixed / free' }}
+                                    </p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    @unless ($isOrphan)
+                                        <a href="{{ route('settings.delivery.setup.delivery-option', ['shipping_zone_id' => $method->shipping_zone_id, 'shipping_method_id' => $method->id]) }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Edit</a>
+                                    @endunless
+                                    <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}" onsubmit="return confirm('Remove “{{ $method->name }}”?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            @endif
+        </section>
+    @endif
 
     @if (! $isReady && ($canManageShipping ?? false))
         <x-ui.empty-state

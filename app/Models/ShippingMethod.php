@@ -70,6 +70,22 @@ class ShippingMethod extends Model
         return $this->belongsTo(ShippingZone::class);
     }
 
+    /**
+     * True when the method has no usable delivery area (missing, or soft-deleted).
+     */
+    public function isOrphanedFromArea(): bool
+    {
+        if ($this->shipping_zone_id === null) {
+            return true;
+        }
+
+        if ($this->relationLoaded('shippingZone')) {
+            return $this->shippingZone === null;
+        }
+
+        return ! $this->shippingZone()->exists();
+    }
+
     public function carrierAccount(): BelongsTo
     {
         return $this->belongsTo(CarrierAccount::class);

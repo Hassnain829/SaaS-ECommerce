@@ -15,6 +15,36 @@
         <h2 class="text-2xl font-semibold text-[#0F172A]">How should customers get shipping prices?</h2>
         <p class="mt-2 text-sm text-[#64748B]">Choose FedEx live rates, a fixed/free option, or both. You can change this later.</p>
 
+        @php
+            $orphanWizardMethods = collect($shippingMethods ?? [])->filter(function ($m) {
+                return method_exists($m, 'isOrphanedFromArea') && $m->isOrphanedFromArea();
+            })->values();
+        @endphp
+        @if ($orphanWizardMethods->isNotEmpty())
+            <div class="mt-4 space-y-2 rounded-xl border border-[#FECACA] bg-[#FEF2F2] p-4">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <p class="text-sm font-semibold text-[#991B1B]">Unused delivery options</p>
+                        <p class="mt-0.5 text-xs text-[#B91C1C]">These are not linked to a delivery area (often left behind after an area was removed).</p>
+                    </div>
+                    <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" onsubmit="return confirm('Remove all unused delivery options?')">
+                        @csrf
+                        <button type="submit" class="rounded-lg border border-[#FECACA] bg-white px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove all</button>
+                    </form>
+                </div>
+                @foreach ($orphanWizardMethods as $orphan)
+                    <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#FECACA] bg-white px-3 py-2">
+                        <p class="text-sm font-semibold text-[#0F172A]">{{ $orphan->name }}</p>
+                        <form method="POST" action="{{ route('settings.shipping.methods.destroy', $orphan) }}" onsubmit="return confirm('Remove “{{ $orphan->name }}”?')">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove</button>
+                        </form>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+
         @unless ($fedExReady)
             <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3">
                 <div>

@@ -1129,18 +1129,16 @@ final class Eco_Portal_Storefront
 
     public static function store_currency(bool $refresh_from_catalog = true): string
     {
-        $currency = strtoupper(trim((string) get_option('eco_portal_store_currency', '')));
-        if (preg_match('/^[A-Z]{3}$/', $currency) === 1) {
-            return $currency;
-        }
+        $cached = strtoupper(trim((string) get_option('eco_portal_store_currency', '')));
+        $cachedValid = preg_match('/^[A-Z]{3}$/', $cached) === 1;
 
         if (! $refresh_from_catalog) {
-            return 'USD';
+            return $cachedValid ? $cached : 'USD';
         }
 
         $client = new Eco_Portal_Api_Client();
         if (! $client->is_configured()) {
-            return 'USD';
+            return $cachedValid ? $cached : 'USD';
         }
 
         $result = $client->get_health();
@@ -1154,7 +1152,7 @@ final class Eco_Portal_Storefront
             return $from_health;
         }
 
-        return 'USD';
+        return $cachedValid ? $cached : 'USD';
     }
 
     /**

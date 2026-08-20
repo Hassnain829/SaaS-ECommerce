@@ -5589,6 +5589,18 @@
         color: #0f172a;
     }
 
+    .gs-fact {
+        margin: 0;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #0f172a;
+        line-height: 1.45;
+    }
+
+    .gs-fact-multiline {
+        white-space: pre-wrap;
+    }
+
     .gs-textarea {
         min-height: 5.5rem;
         resize: none;
@@ -5738,6 +5750,10 @@
     @media (min-width: 768px) {
         .gs-metric-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .gs-metric-grid-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .gs-business-grid,

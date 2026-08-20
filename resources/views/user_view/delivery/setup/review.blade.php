@@ -62,8 +62,26 @@
         </div>
 
         @if (! ($setup['is_ready'] ?? false))
+            <div class="mt-5 space-y-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">
+                <p class="font-semibold">Delivery setup is not ready to finish yet.</p>
+                <ul class="list-disc space-y-1 pl-5">
+                    @forelse (collect($setup['blocking_items'] ?? [])->take(5) as $item)
+                        <li>
+                            {{ $item['message'] ?? 'A delivery setting still needs attention.' }}
+                            @if (! empty($item['action_href']))
+                                <a href="{{ $item['action_href'] }}" class="font-semibold text-[#1D4ED8] hover:underline">{{ $item['action_label'] ?? 'Fix' }}</a>
+                            @elseif (! empty($item['action_tab']))
+                                <a href="{{ route('shippingAutomation', ['tab' => $item['action_tab']]) }}" class="font-semibold text-[#1D4ED8] hover:underline">{{ $item['action_label'] ?? 'Fix' }}</a>
+                            @endif
+                        </li>
+                    @empty
+                        <li>Confirm ship-from, an active delivery area, and at least one checkout-visible delivery option with valid pricing.</li>
+                    @endforelse
+                </ul>
+            </div>
+        @elseif ($setup['has_blocking_health'] ?? false)
             <div class="mt-5 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
-                Delivery setup still needs attention. Use the Delivery hub health cards after finishing to resolve remaining items.
+                You can finish setup. Some delivery options still need cleanup — review them from the Delivery hub after finishing.
             </div>
         @endif
 
@@ -71,7 +89,13 @@
             <a href="{{ route('settings.delivery.test-address') }}" class="text-sm font-semibold text-[#1D4ED8]">Test checkout shipping</a>
             <form method="POST" action="{{ route('settings.delivery.setup.finish') }}">
                 @csrf
-                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Finish delivery setup</button>
+                <button
+                    type="submit"
+                    @disabled(! ($setup['is_ready'] ?? false))
+                    class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    Finish delivery setup
+                </button>
             </form>
         </div>
     </section>

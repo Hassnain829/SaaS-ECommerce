@@ -99,7 +99,7 @@
                                     <p class="text-xs text-ink-muted">{{ $draft->customer?->email }}</p>
                                 </td>
                                 <td class="px-4 py-3 text-ink-secondary">{{ $draft->created_at?->format('M d, Y') }}</td>
-                                <td class="px-4 py-3 text-right font-semibold tabular-nums text-ink">{{ $draft->currency ?: ($selectedStore->currency ?? 'USD') }} {{ number_format((float) $draft->total, 2) }}</td>
+                                <td class="px-4 py-3 text-right font-semibold tabular-nums text-ink">{{ \App\Support\MoneyDisplay::formatWithCode($draft->total, $draft->currency ?: 'USD') }}</td>
                                 <td class="px-4 py-3">
                                     <span @class([
                                         'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
@@ -188,7 +188,7 @@
                                 <p class="text-xs text-ink-muted">{{ str($order->payment_gateway)->replace('_', ' ')->title() }}</p>
                             @endif
                         </td>
-                        <td class="px-4 py-3 text-right font-semibold tabular-nums text-ink">{{ $selectedStore->currency ?? '$' }}{{ number_format((float) $order->total, 2) }}</td>
+                        <td class="px-4 py-3 text-right font-semibold tabular-nums text-ink">{{ \App\Support\MoneyDisplay::formatWithCode($order->grand_total ?? $order->total, $order->currency_code ?: 'USD') }}</td>
                         <td class="px-4 py-3">
                             <span class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide {{ \App\Support\OrderLifecycle::orderStatusBadgeClass($order->status) }}">
                                 {{ \App\Support\OrderLifecycle::orderStatusLabel($order->status) }}

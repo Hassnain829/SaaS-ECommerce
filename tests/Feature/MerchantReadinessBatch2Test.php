@@ -29,18 +29,21 @@ class MerchantReadinessBatch2Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertSeeText('Edit store')
+            ->assertSeeText('Edit settings')
             ->assertDontSeeText('editable later')
             ->assertSeeText('Store Profile')
             ->assertDontSeeText('Read-only fact')
-            ->assertDontSeeText('Branding colors');
+            ->assertDontSeeText('Branding colors')
+            ->assertDontSeeText('Primary Market')
+            ->assertDontSeeText('Manage via region settings')
+            ->assertSeeText('Setup Status')
+            ->assertDontSeeText('Live workspace');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->put(route('store.update', ['storeId' => $store->id]), [
                 'name' => 'Updated Batch2 Store',
                 'contact_email' => 'ops@batch2.test',
-                'primary_market' => 'Europe',
                 'address' => '10 Merchant Way',
                 'currency' => 'EUR',
                 'timezone' => 'Europe/London',
@@ -120,7 +123,6 @@ class MerchantReadinessBatch2Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->put(route('store.update', ['storeId' => $store->id]), [
                 'name' => $store->name,
-                'primary_market' => 'Global Market',
                 'address' => $store->address,
                 'currency' => 'EUR',
                 'timezone' => 'Europe/London',
@@ -129,7 +131,10 @@ class MerchantReadinessBatch2Test extends TestCase
             ])
             ->assertRedirect(route('generalSettings'));
 
+        $store->refresh();
         $order->refresh();
+        $this->assertSame('EUR', $store->currency);
+        $this->assertSame('Europe/London', $store->timezone);
         $this->assertSame('USD', $order->currency_code);
         $this->assertSame('25.00', number_format((float) $order->grand_total, 2, '.', ''));
     }
@@ -416,20 +421,20 @@ class MerchantReadinessBatch2Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertSeeText('Edit store');
+            ->assertSeeText('Edit settings');
 
         $this->actingAs($manager)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertDontSeeText('Edit store')
+            ->assertDontSeeText('Edit settings')
             ->assertSeeText('Read-only for your role');
 
         $this->actingAs($staff)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertDontSeeText('Edit store')
+            ->assertDontSeeText('Edit settings')
             ->assertSeeText('Read-only for your role');
     }
 
@@ -447,7 +452,7 @@ class MerchantReadinessBatch2Test extends TestCase
             ->assertSeeText('Store access')
             ->assertSee('id="profileForm"', false)
             ->assertSee('id="password"', false)
-            ->assertDontSeeText('Edit store');
+            ->assertDontSeeText('Edit settings');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])

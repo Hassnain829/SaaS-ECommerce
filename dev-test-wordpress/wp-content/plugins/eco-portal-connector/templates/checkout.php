@@ -28,6 +28,12 @@ $step = (string) ($checkout_state['step'] ?? 'address');
 $delivery_options = is_array($checkout_state['delivery_options'] ?? null) ? $checkout_state['delivery_options'] : [];
 $checkout = is_array($checkout_state['checkout'] ?? null) ? $checkout_state['checkout'] : [];
 $payment = is_array($checkout_state['payment'] ?? null) ? $checkout_state['payment'] : [];
+$checkoutCurrency = strtoupper(trim((string) ($checkout['currency_code'] ?? '')));
+if (preg_match('/^[A-Z]{3}$/', $checkoutCurrency) === 1) {
+    $currency = Eco_Portal_Storefront::remember_store_currency($checkoutCurrency);
+} else {
+    $currency = Eco_Portal_Storefront::store_currency(true);
+}
 $warning = (string) ($checkout_state['warning'] ?? '');
 $address = is_array($checkout_state['address'] ?? null) ? $checkout_state['address'] : [];
 $quoted_items = is_array($checkout['items'] ?? null) ? $checkout['items'] : [];

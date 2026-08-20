@@ -1,4 +1,6 @@
 @php
+    use App\Support\StoreBusinessDefaults;
+
     $stores = $stores ?? collect();
     $editStoreHasErrors = $errors->has('name')
         || $errors->has('contact_email')
@@ -9,7 +11,8 @@
         || $errors->has('category')
         || $errors->has('business_models')
         || $errors->has('custom_category')
-        || $errors->has('store_logo');
+        || $errors->has('store_logo')
+        || $errors->has('default_location_id');
 
     $fallbackEditStoreRecord = old('_edit_store_id') ? $stores->firstWhere('id', (int) old('_edit_store_id')) : null;
     $fallbackEditStore = $fallbackEditStoreRecord ? [
@@ -27,6 +30,15 @@
         'update_url' => route('store.update', ['storeId' => (int) old('_edit_store_id')]),
         'delete_url' => route('store.destroy', ['storeId' => (int) old('_edit_store_id')]),
         'redirect_to' => old('redirect_to', ''),
+        'allow_delete' => old('redirect_to') !== 'generalSettings',
+        'hide_primary_market' => old('redirect_to') === 'generalSettings',
+        'requires_catalog_conversion' => (bool) old('requires_catalog_conversion', false),
+        'default_location_id' => old('default_location_id'),
+        'locations' => ($storeLocations ?? collect())->map(fn ($location) => [
+            'id' => $location->id,
+            'name' => $location->name,
+            'is_default' => (bool) $location->is_default,
+        ])->values()->all(),
     ] : null;
 @endphp
 
@@ -64,7 +76,7 @@
                 <input type="hidden" name="redirect_to" id="edit_store_redirect_to" value="{{ old('redirect_to', '') }}">
 
                 <div class="rounded-lg border border-[#DBEAFE] bg-[#EFF6FF] px-4 py-3 text-sm text-[#1E3A8A]">
-                    Changing default currency or timezone affects future store activity and reports. Past orders and financial records keep the values they were saved with.
+                    Changing currency converts product and variant prices with a live exchange rate (via exchangerate-api.com). Past orders keep their original currency and amounts. Timezone only changes how dates are displayed.
                 </div>
 
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -75,23 +87,24 @@
                     <div>
                         <label for="edit_contact_email" class="mb-2 block text-sm font-medium text-[#334155]">Store contact email</label>
                         <input id="edit_contact_email" name="contact_email" type="email" value="{{ old('contact_email', '') }}" placeholder="ops@example.com" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:border-[#0052CC] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
-                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Optional store contact address. This is separate from your personal login email.</p>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Optional store operations contact. Separate from your personal login email.</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <div>
+                    <div id="editPrimaryMarketWrap">
                         <label for="edit_primary_market" class="mb-2 block text-sm font-medium text-[#334155]">Primary market</label>
                         <select id="edit_primary_market" name="primary_market" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
                             @foreach (['Global Market', 'North America', 'Europe', 'Middle East', 'South Asia'] as $market)
                                 <option value="{{ $market }}">{{ $market }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Default selling region for this store.</p>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Internal selling-region label for this store.</p>
                     </div>
                     <div>
                         <label for="edit_address" class="mb-2 block text-sm font-medium text-[#334155]">Business Address</label>
                         <textarea id="edit_address" name="address" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">{{ old('address', '') }}</textarea>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Business contact address. Does not automatically overwrite ship-from inventory locations.</p>
                     </div>
                 </div>
 
@@ -99,21 +112,33 @@
                     <div>
                         <label for="edit_currency" class="mb-2 block text-sm font-medium text-[#334155]">Default store currency</label>
                         <select id="edit_currency" name="currency" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
-                            @foreach (['USD', 'EUR', 'GBP', 'PKR', 'AED'] as $currency)
+                            @foreach (StoreBusinessDefaults::currencies() as $currency)
                                 <option value="{{ $currency }}">{{ $currency }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Used for future dashboard totals and default pricing. Does not rewrite past orders.</p>
+                        <p id="editCurrencyHelp" class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Converts catalog prices when changed. Does not rewrite past orders.</p>
+                        <label id="editCurrencyConfirmWrap" class="mt-3 hidden items-start gap-2 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs text-[#92400E]">
+                            <input id="edit_confirm_currency_conversion" name="confirm_currency_conversion" type="checkbox" value="1" class="mt-0.5 rounded border-[#F59E0B] text-[#D97706] focus:ring-[#F59E0B]/30">
+                            <span>Convert all product and variant prices to the new currency using a live exchange rate. Past orders will not change.</span>
+                        </label>
                     </div>
                     <div>
                         <label for="edit_timezone" class="mb-2 block text-sm font-medium text-[#334155]">Default store timezone</label>
                         <select id="edit_timezone" name="timezone" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
-                            @foreach (['UTC', 'Asia/Karachi', 'America/New_York', 'Europe/London', 'Asia/Dubai'] as $timezone)
+                            @foreach (StoreBusinessDefaults::timezones() as $timezone)
                                 <option value="{{ $timezone }}">{{ $timezone }}</option>
                             @endforeach
                         </select>
-                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Used for future dates and reporting. Historical order timestamps stay as saved.</p>
+                        <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Controls how dates are displayed. Saved timestamps are not rewritten.</p>
                     </div>
+                </div>
+
+                <div id="editDefaultLocationWrap" class="hidden">
+                    <label for="edit_default_location_id" class="mb-2 block text-sm font-medium text-[#334155]">Default inventory location</label>
+                    <select id="edit_default_location_id" name="default_location_id" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-4 py-3 text-sm text-[#0F172A]">
+                        <option value="">Keep current default</option>
+                    </select>
+                    <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">Ship-from location used for inventory defaults. Manage full location details under Locations.</p>
                 </div>
 
                 <div>
@@ -124,7 +149,8 @@
                         </div>
                     </div>
                     <label for="edit_store_logo" class="mb-2 block text-sm font-medium text-[#334155]">Replace Logo</label>
-                    <input id="edit_store_logo" name="store_logo" type="file" accept=".jpg,.jpeg,.png,.svg" class="w-full rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
+                    <input id="edit_store_logo" name="store_logo" type="file" accept=".jpg,.jpeg,.png,.webp" class="w-full rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-4 py-3 text-sm text-[#475569]">
+                    <p class="mt-1.5 text-xs leading-relaxed text-[#64748B]">JPG, PNG, or WebP up to 2MB. Replacing a logo removes the previous file.</p>
                 </div>
 
                 <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-5">
@@ -167,10 +193,12 @@
                 </div>
 
                 <div class="flex flex-col gap-4 border-t border-[#E2E8F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
-                    <button type="button" id="openDeleteStoreWarning" class="inline-flex items-center justify-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-4 py-3 text-sm font-bold text-[#B42318] transition hover:bg-[#FEEBEC]">
-                        Delete Store
-                    </button>
-                    <div class="flex flex-col gap-3 sm:flex-row">
+                    @unless ($hideStoreDelete ?? false)
+                        <button type="button" id="openDeleteStoreWarning" class="inline-flex items-center justify-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-4 py-3 text-sm font-bold text-[#B42318] transition hover:bg-[#FEEBEC]">
+                            Delete Store
+                        </button>
+                    @endunless
+                    <div class="flex flex-col gap-3 sm:flex-row sm:ml-auto">
                         <button type="button" id="dismissEditStoreModal" class="rounded-lg border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]">Cancel</button>
                         <button type="submit" class="rounded-lg bg-brand px-6 py-3 text-sm font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover">Save Changes</button>
                     </div>
@@ -180,6 +208,7 @@
     </div>
 </div>
 
+@unless ($hideStoreDelete ?? false)
 <div id="deleteStoreWarningModal" class="ui-modal-shell ui-modal-shell--alert hidden">
     <div class="ui-modal-panel ui-modal-panel--md border-[#FECACA]">
         <div class="bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.18),_transparent_60%)] px-6 pb-4 pt-6">
@@ -209,6 +238,7 @@
         </div>
     </div>
 </div>
+@endunless
 
 <script>
     (() => {
@@ -227,12 +257,18 @@
         const editStoreName = document.getElementById('edit_store_name');
         const editContactEmail = document.getElementById('edit_contact_email');
         const editPrimaryMarket = document.getElementById('edit_primary_market');
+        const editPrimaryMarketWrap = document.getElementById('editPrimaryMarketWrap');
         const editCurrency = document.getElementById('edit_currency');
+        const editCurrencyHelp = document.getElementById('editCurrencyHelp');
+        const editCurrencyConfirmWrap = document.getElementById('editCurrencyConfirmWrap');
+        const editCurrencyConfirm = document.getElementById('edit_confirm_currency_conversion');
         const editTimezone = document.getElementById('edit_timezone');
         const editAddress = document.getElementById('edit_address');
         const editRedirectTo = document.getElementById('edit_store_redirect_to');
         const editCategoryInput = document.getElementById('editStoreCategoryInput');
         const editCustomCategory = document.getElementById('edit_custom_category');
+        const editDefaultLocationWrap = document.getElementById('editDefaultLocationWrap');
+        const editDefaultLocation = document.getElementById('edit_default_location_id');
         const deleteStoreName = document.getElementById('deleteStoreName');
         const editButtons = [...document.querySelectorAll('.js-open-edit-store-modal')];
         const categoryButtons = [...document.querySelectorAll('.edit-store-category')];
@@ -240,6 +276,7 @@
         const editStoreLogoImg = document.getElementById('edit-store-current-logo-img');
         const editStoreLogoInput = document.getElementById('edit_store_logo');
         let currentStore = null;
+        let originalCurrency = null;
 
         const setBodyLock = (locked) => document.body.classList.toggle('overflow-hidden', locked);
 
@@ -253,17 +290,88 @@
             });
         };
 
+        const syncCurrencyConversionPrompt = () => {
+            if (!editCurrency || !editCurrencyConfirmWrap) {
+                return;
+            }
+
+            const requiresConversion = Boolean(currentStore?.requires_catalog_conversion);
+            const currencyChanged = originalCurrency && editCurrency.value !== originalCurrency;
+            const showConfirm = requiresConversion && currencyChanged;
+
+            editCurrencyConfirmWrap.classList.toggle('hidden', !showConfirm);
+            editCurrencyConfirmWrap.classList.toggle('flex', showConfirm);
+
+            if (editCurrencyConfirm && !showConfirm) {
+                editCurrencyConfirm.checked = false;
+            }
+
+            if (editCurrencyHelp) {
+                editCurrencyHelp.textContent = requiresConversion
+                    ? 'Changing currency converts product and variant prices. Past orders stay unchanged.'
+                    : 'Labels catalog prices and new activity. Does not rewrite past orders.';
+            }
+        };
+
+        const syncPrimaryMarketVisibility = (store) => {
+            const hide = Boolean(store.hide_primary_market) || store.redirect_to === 'generalSettings';
+            if (!editPrimaryMarketWrap || !editPrimaryMarket) {
+                return;
+            }
+            editPrimaryMarketWrap.classList.toggle('hidden', hide);
+            editPrimaryMarket.disabled = hide;
+            if (hide) {
+                editPrimaryMarket.removeAttribute('name');
+            } else {
+                editPrimaryMarket.setAttribute('name', 'primary_market');
+            }
+        };
+
+        const syncDeleteVisibility = (store) => {
+            const allowDelete = store.allow_delete !== false && store.redirect_to !== 'generalSettings';
+            if (openDeleteWarning) {
+                openDeleteWarning.classList.toggle('hidden', !allowDelete);
+            }
+        };
+
+        const syncDefaultLocation = (store) => {
+            if (!editDefaultLocationWrap || !editDefaultLocation) {
+                return;
+            }
+
+            const locations = Array.isArray(store.locations) ? store.locations : [];
+            const show = store.redirect_to === 'generalSettings' && locations.length > 0;
+            editDefaultLocationWrap.classList.toggle('hidden', !show);
+            editDefaultLocation.innerHTML = '<option value="">Keep current default</option>';
+
+            locations.forEach((location) => {
+                const option = document.createElement('option');
+                option.value = String(location.id);
+                option.textContent = location.name + (location.is_default ? ' (current default)' : '');
+                editDefaultLocation.appendChild(option);
+            });
+
+            if (store.default_location_id) {
+                editDefaultLocation.value = String(store.default_location_id);
+            }
+        };
+
         const openEditModal = (store) => {
             currentStore = store;
             editStoreIdInput.value = store.id;
             editStoreForm.action = store.update_url;
-            deleteStoreForm.action = store.delete_url;
+            if (deleteStoreForm && store.delete_url) {
+                deleteStoreForm.action = store.delete_url;
+            }
             editStoreName.value = store.name || '';
             if (editContactEmail) {
                 editContactEmail.value = store.contact_email || '';
             }
-            editPrimaryMarket.value = store.primary_market || 'Global Market';
+            if (editPrimaryMarket) {
+                editPrimaryMarket.value = store.primary_market || 'Global Market';
+            }
             editCurrency.value = store.currency || 'USD';
+            originalCurrency = editCurrency.value;
             editTimezone.value = store.timezone || 'UTC';
             editAddress.value = store.address || '';
             editCustomCategory.value = store.custom_category || '';
@@ -271,6 +379,10 @@
                 editRedirectTo.value = store.redirect_to || '';
             }
             setActiveCategory(store.category || 'physical');
+            syncCurrencyConversionPrompt();
+            syncPrimaryMarketVisibility(store);
+            syncDeleteVisibility(store);
+            syncDefaultLocation(store);
 
             [...editStoreForm.querySelectorAll('input[name="business_models[]"]')].forEach((input) => {
                 input.checked = (store.business_models || []).includes(input.value);
@@ -298,8 +410,8 @@
         const closeEditModal = () => {
             editModal.classList.add('hidden');
             editModal.classList.remove('flex');
-            deleteWarningModal.classList.add('hidden');
-            deleteWarningModal.classList.remove('flex');
+            deleteWarningModal?.classList.add('hidden');
+            deleteWarningModal?.classList.remove('flex');
             setBodyLock(false);
         };
 
@@ -324,6 +436,8 @@
                 closeEditModal();
             }
         });
+
+        editCurrency?.addEventListener('change', syncCurrencyConversionPrompt);
 
         openDeleteWarning?.addEventListener('click', () => {
             if (!currentStore) {

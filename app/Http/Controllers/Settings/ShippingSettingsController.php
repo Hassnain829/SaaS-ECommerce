@@ -331,17 +331,33 @@ class ShippingSettingsController extends Controller
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $shippingZone->store_id === (int) $store->id, 404);
 
-        $shippingZone->delete();
+        $removedMethods = 0;
+
+        DB::transaction(function () use ($shippingZone, &$removedMethods): void {
+            $removedMethods = $shippingZone->shippingMethods()->count();
+            $shippingZone->shippingMethods()->each(function (ShippingMethod $method): void {
+                $method->delete();
+            });
+            $shippingZone->delete();
+        });
 
         $securityLogRecorder->record(
             $request,
             'shipping.zone_deleted',
             store: $store,
-            metadata: ['shipping_zone_id' => $shippingZone->id, 'name' => $shippingZone->name]
+            metadata: [
+                'shipping_zone_id' => $shippingZone->id,
+                'name' => $shippingZone->name,
+                'removed_method_count' => $removedMethods,
+            ]
         );
 
+        $message = $removedMethods > 0
+            ? 'Delivery area removed, including '.$removedMethods.' checkout '.($removedMethods === 1 ? 'option' : 'options').'.'
+            : 'Delivery area removed.';
+
         return back()
-            ->with('success', 'Shipping zone removed.')
+            ->with('success', $message)
             ->with('success_title', 'Shipping & delivery');
     }
 
@@ -448,7 +464,44 @@ class ShippingSettingsController extends Controller
         );
 
         return back()
-            ->with('success', 'Delivery method removed.')
+            ->with('success', 'Delivery option removed.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    /**
+     * Soft-delete checkout options that no longer have a usable delivery area.
+     */
+    public function cleanupOrphanMethods(Request $request, SecurityLogRecorder $securityLogRecorder): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store, 404);
+
+        $orphans = $store->shippingMethods()
+            ->with('shippingZone')
+            ->get()
+            ->filter(fn (ShippingMethod $method): bool => $method->isOrphanedFromArea());
+
+        $removed = 0;
+        foreach ($orphans as $method) {
+            $method->delete();
+            $removed++;
+        }
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.orphan_methods_cleaned',
+            store: $store,
+            metadata: ['removed_count' => $removed]
+        );
+
+        $message = $removed === 0
+            ? 'No unused delivery options to remove.'
+            : ($removed === 1
+                ? 'Removed 1 unused delivery option.'
+                : 'Removed '.$removed.' unused delivery options.');
+
+        return back()
+            ->with('success', $message)
             ->with('success_title', 'Shipping & delivery');
     }
 
