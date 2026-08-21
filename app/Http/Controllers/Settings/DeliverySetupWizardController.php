@@ -11,6 +11,7 @@ use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
 use App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog;
 use App\Services\Delivery\DeliveryAddressDiagnosticService;
 use App\Services\Delivery\DeliveryAreaInputNormalizer;
+use App\Services\Delivery\DeliverySetupLifecycleService;
 use App\Services\Delivery\DeliverySetupStatusService;
 use App\Services\Delivery\DeliveryWizardPersistenceService;
 use App\Services\Tax\TaxConfigurationService;
@@ -28,15 +29,27 @@ class DeliverySetupWizardController extends Controller
 
     private const SESSION_METHOD = 'delivery_wizard.method_id';
 
-    public function index(Request $request): RedirectResponse
+    public function index(Request $request, DeliverySetupLifecycleService $lifecycle): RedirectResponse
     {
-        return redirect()->route('settings.delivery.setup.ship-from');
+        $store = $this->store($request);
+
+        if ($lifecycle->hasCompletedSetup($store)) {
+            return redirect()->route('shippingAutomation');
+        }
+
+        $lifecycle->clearWizardSession($request);
+
+        return redirect()->route($lifecycle->nextIncompleteSetupRouteName($store));
     }
 
-    public function shipFrom(Request $request, TaxConfigurationService $taxConfiguration): View|RedirectResponse
+    public function shipFrom(Request $request, TaxConfigurationService $taxConfiguration, DeliverySetupLifecycleService $lifecycle): View|RedirectResponse
     {
         $store = $this->store($request);
         $this->authorizeManage($request, $store);
+
+        if ($redirect = $this->redirectCompletedSetupToHub($store, $lifecycle)) {
+            return $redirect;
+        }
 
         if ($request->isMethod('post')) {
             $location = app(DeliveryWizardPersistenceService::class)->saveShipFrom($request, $store, $request->user());
@@ -53,10 +66,14 @@ class DeliverySetupWizardController extends Controller
         ]));
     }
 
-    public function deliverTo(Request $request, TaxConfigurationService $taxConfiguration, DeliveryAreaInputNormalizer $areaNormalizer): View|RedirectResponse
+    public function deliverTo(Request $request, TaxConfigurationService $taxConfiguration, DeliveryAreaInputNormalizer $areaNormalizer, DeliverySetupLifecycleService $lifecycle): View|RedirectResponse
     {
         $store = $this->store($request);
         $this->authorizeManage($request, $store);
+
+        if ($redirect = $this->redirectCompletedSetupToHub($store, $lifecycle)) {
+            return $redirect;
+        }
 
         if ($request->isMethod('post')) {
             $zone = app(DeliveryWizardPersistenceService::class)->saveDeliveryArea($request, $store);
@@ -86,10 +103,14 @@ class DeliverySetupWizardController extends Controller
         ]));
     }
 
-    public function deliveryOption(Request $request, TaxConfigurationService $taxConfiguration): View|RedirectResponse
+    public function deliveryOption(Request $request, TaxConfigurationService $taxConfiguration, DeliverySetupLifecycleService $lifecycle): View|RedirectResponse
     {
         $store = $this->store($request);
         $this->authorizeManage($request, $store);
+
+        if ($lifecycle->hasCompletedSetup($store)) {
+            return redirect()->route('settings.delivery.checkout-options', $request->query());
+        }
 
         if ($request->isMethod('post')) {
             $method = app(DeliveryWizardPersistenceService::class)->saveDeliveryOption($request, $store, $request->user());
@@ -98,8 +119,42 @@ class DeliverySetupWizardController extends Controller
             return redirect()->route('settings.delivery.setup.review');
         }
 
+        return $this->renderCheckoutShippingEditor($request, $store, $taxConfiguration, manageMode: false);
+    }
+
+    /**
+     * Ongoing checkout-shipping editor for stores that already finished setup (no wizard chrome).
+     */
+    public function checkoutOptions(Request $request, TaxConfigurationService $taxConfiguration, DeliverySetupLifecycleService $lifecycle): View|RedirectResponse
+    {
+        $store = $this->store($request);
+        $this->authorizeManage($request, $store);
+
+        if (! $lifecycle->hasCompletedSetup($store)) {
+            return redirect()->route('settings.delivery.setup.delivery-option', $request->query());
+        }
+
+        if ($request->isMethod('post')) {
+            app(DeliveryWizardPersistenceService::class)->saveDeliveryOption($request, $store, $request->user());
+            $lifecycle->clearWizardSession($request);
+
+            return redirect()
+                ->route('shippingAutomation')
+                ->with('success', 'Checkout shipping updated.')
+                ->with('success_title', 'Delivery');
+        }
+
+        return $this->renderCheckoutShippingEditor($request, $store, $taxConfiguration, manageMode: true);
+    }
+
+    private function renderCheckoutShippingEditor(
+        Request $request,
+        $store,
+        TaxConfigurationService $taxConfiguration,
+        bool $manageMode,
+    ): View {
         $selectedZone = $this->selectedZone($store, $request);
-        $selectedMethod = $this->selectedMethod($store, $request);
+        $selectedMethod = $this->selectedMethod($store, $request, $selectedZone);
         $priceMode = 'fixed';
         if ($selectedMethod !== null) {
             $priceMode = $selectedMethod->rate_type === ShippingMethod::RATE_FREE
@@ -176,7 +231,11 @@ class DeliverySetupWizardController extends Controller
             $selectedFedExServices = ['FEDEX_GROUND', 'GROUND_HOME_DELIVERY'];
         }
 
-        if ($manualInZone && ! $selectedMethod?->isFedExLiveRateMethod()) {
+        // Prefer explicit method selection; otherwise use the zone's fixed/free option for the form.
+        if ($manualInZone
+            && $selectedMethod === null
+            && ! $request->filled('shipping_method_id')
+            && ! $request->session()->has(self::SESSION_METHOD)) {
             $selectedMethod = $manualInZone;
             $priceMode = $manualInZone->rate_type === ShippingMethod::RATE_FREE
                 ? 'free'
@@ -184,7 +243,8 @@ class DeliverySetupWizardController extends Controller
         }
 
         return view('user_view.delivery.setup.delivery-option', $this->wizardContext($request, $store, $taxConfiguration, [
-            'step' => 3,
+            'step' => $manageMode ? null : 3,
+            'manageMode' => $manageMode,
             'shippingZones' => $store->shippingZones()->where('is_active', true)->orderBy('name')->get(),
             'shippingMethods' => $methods,
             'methodCatalog' => $methodCatalog,
@@ -201,10 +261,14 @@ class DeliverySetupWizardController extends Controller
         ]));
     }
 
-    public function review(Request $request, DeliverySetupStatusService $deliverySetupStatus, TaxConfigurationService $taxConfiguration): View
+    public function review(Request $request, DeliverySetupStatusService $deliverySetupStatus, TaxConfigurationService $taxConfiguration, DeliverySetupLifecycleService $lifecycle): View|RedirectResponse
     {
         $store = $this->store($request);
         $this->authorizeManage($request, $store);
+
+        if ($redirect = $this->redirectCompletedSetupToHub($store, $lifecycle)) {
+            return $redirect;
+        }
 
         $locations = $store->locations()->orderByDesc('is_default')->orderBy('name')->get();
         $zones = $store->shippingZones()->orderByDesc('is_active')->orderBy('name')->get();
@@ -216,7 +280,7 @@ class DeliverySetupWizardController extends Controller
 
         $selectedLocation = $this->selectedLocation($store, $request)?->fresh();
         $selectedZone = $this->selectedZone($store, $request)?->fresh();
-        $selectedMethod = $this->selectedMethod($store, $request)?->fresh(['shippingZone']);
+        $selectedMethod = $this->selectedMethod($store, $request, $this->selectedZone($store, $request))?->fresh(['shippingZone']);
 
         if ($selectedLocation !== null) {
             $deliverySetup['ship_from'] = $deliverySetupStatus->summarizeShipFromLocation($selectedLocation);
@@ -266,10 +330,14 @@ class DeliverySetupWizardController extends Controller
         ]));
     }
 
-    public function finish(Request $request, DeliverySetupStatusService $deliverySetupStatus, TaxConfigurationService $taxConfiguration): RedirectResponse
+    public function finish(Request $request, DeliverySetupStatusService $deliverySetupStatus, TaxConfigurationService $taxConfiguration, DeliverySetupLifecycleService $lifecycle): RedirectResponse
     {
         $store = $this->store($request);
         $this->authorizeManage($request, $store);
+
+        if ($lifecycle->hasCompletedSetup($store)) {
+            return redirect()->route('shippingAutomation');
+        }
 
         $deliverySetup = $deliverySetupStatus->assess(
             $store,
@@ -297,6 +365,8 @@ class DeliverySetupWizardController extends Controller
                         : 'Finish delivery setup after ship-from, delivery area, and checkout-visible options are ready.',
                 ]);
         }
+
+        $lifecycle->markCompleted($store);
 
         $request->session()->forget([
             self::SESSION_LOCATION,
@@ -410,6 +480,15 @@ class DeliverySetupWizardController extends Controller
         abort_unless($request->user()?->canManageSettings($store) ?? false, 403);
     }
 
+    private function redirectCompletedSetupToHub($store, DeliverySetupLifecycleService $lifecycle): ?RedirectResponse
+    {
+        if (! $lifecycle->hasCompletedSetup($store)) {
+            return null;
+        }
+
+        return redirect()->route('shippingAutomation');
+    }
+
     private function selectedLocation($store, Request $request): ?Location
     {
         $sessionId = $request->session()->get(self::SESSION_LOCATION);
@@ -442,7 +521,7 @@ class DeliverySetupWizardController extends Controller
         return $store->shippingZones()->where('is_active', true)->orderBy('sort_order')->first();
     }
 
-    private function selectedMethod($store, Request $request): ?ShippingMethod
+    private function selectedMethod($store, Request $request, ?ShippingZone $zone = null): ?ShippingMethod
     {
         $sessionId = $request->session()->get(self::SESSION_METHOD);
         $requestId = $request->integer('shipping_method_id');
@@ -450,9 +529,17 @@ class DeliverySetupWizardController extends Controller
         $id = $requestId > 0 ? $requestId : $sessionId;
 
         if ($id) {
-            return $store->shippingMethods()->whereKey($id)->first();
+            $method = $store->shippingMethods()->whereKey($id)->first();
+            if ($method !== null) {
+                return $method;
+            }
         }
 
-        return $store->shippingMethods()->where('is_active', true)->orderBy('sort_order')->first();
+        $query = $store->shippingMethods()->where('is_active', true)->orderBy('sort_order');
+        if ($zone !== null) {
+            $query->where('shipping_zone_id', $zone->id);
+        }
+
+        return $query->first();
     }
 }

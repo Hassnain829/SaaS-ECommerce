@@ -25,7 +25,9 @@ class USPSMerchantConnectionService
 
     public function merchantConnectionAvailable(): bool
     {
-        return $this->config->isEnabled() && $this->config->merchantConnectionEnabled();
+        return $this->config->isEnabled()
+            && $this->config->merchantConnectionEnabled()
+            && $this->config->merchantRoutesAccessible();
     }
 
     public function findMerchantAccount(Store $store): ?CarrierAccount
@@ -312,7 +314,7 @@ class USPSMerchantConnectionService
 
     public function merchantOAuthAvailable(): bool
     {
-        return $this->config->merchantOAuthEnabled();
+        return $this->merchantConnectionAvailable() && $this->config->merchantOAuthEnabled();
     }
 
     public function markSetupRequired(CarrierAccount $account): void

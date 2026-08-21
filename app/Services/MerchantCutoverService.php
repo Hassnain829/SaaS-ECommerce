@@ -387,8 +387,12 @@ class MerchantCutoverService
                 ! empty($delivery['is_ready'])
                     ? 'At least one checkout-enabled delivery method is ready.'
                     : 'Finish delivery setup so checkout can offer a shipping option.',
-                actionLabel: 'Open delivery setup',
-                actionHref: route('settings.delivery.setup'),
+                actionLabel: $store->delivery_setup_completed_at
+                    ? 'Open delivery'
+                    : 'Open delivery setup',
+                actionHref: $store->delivery_setup_completed_at
+                    ? route('shippingAutomation')
+                    : route('settings.delivery.setup'),
             ),
             'stripe' => $this->gate(
                 'Stripe',

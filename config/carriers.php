@@ -109,6 +109,9 @@ return [
         'labels_enabled' => env('USPS_LABELS_ENABLED', false),
         'platform_label_purchase' => env('USPS_PLATFORM_LABEL_PURCHASE', false),
         'merchant_connection_enabled' => filter_var(env('USPS_MERCHANT_CONNECTION_ENABLED', false), FILTER_VALIDATE_BOOL),
+        // Merchant Delivery UI / navigation. Keep false until USPS Label Provider approval is ready.
+        // Local/testing can still open routes when merchant_connection_enabled is true (see USPSConfig).
+        'merchant_visible' => filter_var(env('USPS_MERCHANT_VISIBLE', false), FILTER_VALIDATE_BOOL),
         'platform_epa' => env('USPS_PLATFORM_EPA'),
         'platform_crid' => env('USPS_CRID'),
         'platform_master_mid' => env('USPS_MASTER_MID'),

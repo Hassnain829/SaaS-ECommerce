@@ -38,6 +38,10 @@ class ShippingSettingsController extends Controller
         DeliverySetupStatusService $deliverySetupStatus,
         TaxConfigurationService $taxConfiguration,
     ): View|RedirectResponse {
+        if ($legacyRedirect = $this->redirectLegacyDeliveryTab($request)) {
+            return $legacyRedirect;
+        }
+
         $store = $request->attributes->get('currentStore');
         if (! $store) {
             return redirect()
@@ -53,7 +57,7 @@ class ShippingSettingsController extends Controller
 
         $originReadinessByLocationId = $locations
             ->mapWithKeys(fn (Location $location): array => [
-                $location->id => $originReadiness->assess($location, CarrierOriginReadinessService::CARRIER_USPS),
+                $location->id => $originReadiness->assess($location, CarrierOriginReadinessService::CARRIER_GENERIC),
             ])
             ->all();
 
@@ -105,7 +109,11 @@ class ShippingSettingsController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
-        return view('user_view.shippingAutomation', [
+        $uspsMerchantVisible = $uspsConfig->merchantVisible();
+        $loadUspsSupportPayload = $uspsMerchantVisible
+            || ((string) $request->query('support') === '1' && $uspsConfig->merchantRoutesAccessible());
+
+        $viewData = [
             'selectedStore' => $store,
             'carriers' => Carrier::query()
                 ->where('is_active', true)
@@ -122,37 +130,21 @@ class ShippingSettingsController extends Controller
             'fedExRegistrationPath' => $fedExConfig->accountRegistrationPath(CarrierAccount::ENVIRONMENT_SANDBOX),
             'fedExRegistrationResidentialMode' => $fedExConfig->accountRegistrationResidentialMode(),
             'fedExSandboxPlatformFallbackAllowed' => $fedExConfig->allowsSandboxPlatformFallback(),
-            'uspsCarrier' => Carrier::query()->where('code', 'usps')->first(),
-            'uspsMerchantAccounts' => $store->carrierAccounts()
-                ->where('provider', CarrierAccount::PROVIDER_USPS)
-                ->where('connection_mode', CarrierAccount::CONNECTION_MODE_USPS_MERCHANT_LABEL_PROVIDER)
-                ->with(['carrier', 'defaultOriginLocation'])
-                ->orderByDesc('updated_at')
-                ->get()
-                ->reject(fn (CarrierAccount $account): bool => $account->usps_authorization_status === CarrierAccount::USPS_AUTH_DISABLED),
-            'uspsPlatformTestingAccounts' => $store->carrierAccounts()
-                ->where('provider', CarrierAccount::PROVIDER_USPS)
-                ->where('connection_mode', CarrierAccount::CONNECTION_MODE_USPS_PLATFORM)
-                ->with('carrier')
-                ->orderByDesc('updated_at')
-                ->get(),
-            'uspsMerchantConnectionEnabled' => $uspsConfig->merchantConnectionEnabled() && $uspsConfig->isEnabled(),
-            'uspsApiEvents' => $store->carrierApiEvents()
-                ->where('provider', CarrierAccount::PROVIDER_USPS)
-                ->latest('id')
-                ->limit(8)
-                ->get(),
-            'uspsPlatformConfigured' => $uspsConfig->isConfigured(),
-            'uspsEnabled' => $uspsConfig->isEnabled(),
-            'uspsBaseUrl' => $uspsConfig->baseUrl(),
-            'uspsOAuthPath' => $uspsConfig->oauthPath(),
-            'uspsLabelsEnabled' => $uspsConfig->labelsEnabled(),
-            'uspsRecentQuotes' => $store->carrierRateQuotes()
-                ->where('provider', CarrierAccount::PROVIDER_USPS)
-                ->latest('id')
-                ->limit(5)
-                ->get(),
-            'uspsStepDiagnostics' => $this->uspsLatestStepDiagnostics($store),
+            'uspsMerchantVisible' => $uspsMerchantVisible,
+            'uspsMerchantConnectionEnabled' => $uspsMerchantVisible
+                && $uspsConfig->merchantConnectionEnabled()
+                && $uspsConfig->isEnabled(),
+            'uspsCarrier' => null,
+            'uspsMerchantAccounts' => collect(),
+            'uspsPlatformTestingAccounts' => collect(),
+            'uspsApiEvents' => collect(),
+            'uspsPlatformConfigured' => false,
+            'uspsEnabled' => false,
+            'uspsBaseUrl' => null,
+            'uspsOAuthPath' => null,
+            'uspsLabelsEnabled' => false,
+            'uspsRecentQuotes' => collect(),
+            'uspsStepDiagnostics' => [],
             'shippingZones' => $shippingZones,
             'shippingMethods' => $shippingMethods,
             'packagePresets' => $packagePresets,
@@ -168,7 +160,43 @@ class ShippingSettingsController extends Controller
                 fn (string $type): bool => $type !== ShippingMethod::RATE_CARRIER_CALCULATED_LATER
             )),
             'countries' => TaxCountryCatalog::all(),
-        ]);
+        ];
+
+        if ($loadUspsSupportPayload) {
+            $viewData['uspsCarrier'] = Carrier::query()->where('code', 'usps')->first();
+            $viewData['uspsMerchantAccounts'] = $store->carrierAccounts()
+                ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->where('connection_mode', CarrierAccount::CONNECTION_MODE_USPS_MERCHANT_LABEL_PROVIDER)
+                ->with(['carrier', 'defaultOriginLocation'])
+                ->orderByDesc('updated_at')
+                ->get()
+                ->reject(fn (CarrierAccount $account): bool => $account->usps_authorization_status === CarrierAccount::USPS_AUTH_DISABLED);
+            $viewData['uspsPlatformTestingAccounts'] = $store->carrierAccounts()
+                ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->where('connection_mode', CarrierAccount::CONNECTION_MODE_USPS_PLATFORM)
+                ->with('carrier')
+                ->orderByDesc('updated_at')
+                ->get();
+            $viewData['uspsApiEvents'] = $store->carrierApiEvents()
+                ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->latest('id')
+                ->limit(8)
+                ->get();
+            $viewData['uspsPlatformConfigured'] = $uspsConfig->isConfigured();
+            $viewData['uspsEnabled'] = $uspsConfig->isEnabled();
+            $viewData['uspsBaseUrl'] = $uspsConfig->baseUrl();
+            $viewData['uspsOAuthPath'] = $uspsConfig->oauthPath();
+            $viewData['uspsLabelsEnabled'] = $uspsConfig->labelsEnabled();
+            $viewData['uspsRecentQuotes'] = $store->carrierRateQuotes()
+                ->where('provider', CarrierAccount::PROVIDER_USPS)
+                ->latest('id')
+                ->limit(5)
+                ->get();
+            $viewData['uspsStepDiagnostics'] = $this->uspsLatestStepDiagnostics($store);
+            $viewData['uspsMerchantConnectionEnabled'] = $uspsConfig->merchantConnectionEnabled() && $uspsConfig->isEnabled();
+        }
+
+        return view('user_view.shippingAutomation', $viewData);
     }
 
     /**
@@ -180,8 +208,8 @@ class ShippingSettingsController extends Controller
         abort_unless($request->attributes->get('currentStore'), 404);
 
         return redirect()
-            ->route('shipping.carriers.connect.index')
-            ->with('success', 'Carrier accounts are now managed through the guided setup.')
+            ->route('shippingAutomation')
+            ->with('success', 'Connect FedEx from Delivery when you want live rates and labels.')
             ->with('success_title', 'Shipping & delivery');
     }
 
@@ -371,7 +399,9 @@ class ShippingSettingsController extends Controller
 
         $validated = $optionNormalizer->applyPricingMode($request->input('delivery_price_mode'), $validated);
         $optionNormalizer->assertValidPricingAndDays((string) $request->input('delivery_price_mode', 'fixed'), $validated);
-        $validated = $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: true);
+        $validated = $request->exists('available_to_customers')
+            ? $optionNormalizer->applySimpleAvailability($request, $validated, null)
+            : $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: true);
         $validated['carrier_account_id'] = $this->resolveMethodCarrierAccountId(
             $store,
             $validated,
@@ -408,7 +438,7 @@ class ShippingSettingsController extends Controller
 
         if ($shippingMethod->isFedExLiveRateMethod()) {
             return redirect()
-                ->route('settings.delivery.setup.delivery-option')
+                ->route('settings.delivery.checkout-options')
                 ->withErrors([
                     'rate_type' => 'Manage FedEx live services from Checkout Shipping.',
                 ]);
@@ -419,7 +449,9 @@ class ShippingSettingsController extends Controller
 
         $validated = $optionNormalizer->applyPricingMode($request->input('delivery_price_mode'), $validated);
         $optionNormalizer->assertValidPricingAndDays((string) $request->input('delivery_price_mode', 'fixed'), $validated);
-        $validated = $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: false, existing: $shippingMethod);
+        $validated = $request->exists('available_to_customers')
+            ? $optionNormalizer->applySimpleAvailability($request, $validated, $shippingMethod)
+            : $optionNormalizer->applyAdvancedAvailability($request, $validated, isCreate: false, existing: $shippingMethod);
         $validated['carrier_account_id'] = $this->resolveMethodCarrierAccountId(
             $store,
             $validated,
@@ -838,6 +870,76 @@ class ShippingSettingsController extends Controller
                 'carrier_account_id' => 'Manage FedEx live services from Checkout Shipping.',
             ]);
         }
+    }
+
+    public function packages(Request $request): View|RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        if (! $store) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'No active store was found.']);
+        }
+
+        $packagePresets = $store->shippingPackagePresets()
+            ->orderByDesc('is_default')
+            ->orderByDesc('is_active')
+            ->orderBy('name')
+            ->get();
+
+        return view('user_view.shipping.packages', [
+            'selectedStore' => $store,
+            'packagePresets' => $packagePresets,
+            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'statusBadge' => fn (bool $active) => $active ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#F1F5F9] text-[#64748B]',
+        ]);
+    }
+
+    /**
+     * Map legacy Delivery ?tab= bookmarks to the hub anchors (and support panel when needed).
+     */
+    private function redirectLegacyDeliveryTab(Request $request): ?RedirectResponse
+    {
+        $tab = $request->query('tab');
+        if (! is_string($tab) || $tab === '') {
+            return null;
+        }
+
+        $fragmentByTab = [
+            'overview' => null,
+            'setup' => null,
+            'locations' => 'shipping-origin',
+            'ship-from' => 'shipping-origin',
+            'zones' => 'delivery-areas',
+            'areas' => 'delivery-areas',
+            'methods' => 'delivery-areas',
+            'options' => 'delivery-areas',
+            'carriers' => 'delivery-fedex',
+            'providers' => 'delivery-fedex',
+            'packages' => 'packages',
+            'advanced' => 'delivery-troubleshooting',
+        ];
+
+        if (! array_key_exists($tab, $fragmentByTab)) {
+            $query = $request->query();
+            unset($query['tab']);
+
+            return redirect()->route('shippingAutomation', $query);
+        }
+
+        $query = $request->query();
+        unset($query['tab']);
+
+        // Never reopen the old support console via legacy bookmarks.
+        unset($query['support']);
+
+        $url = route('shippingAutomation', $query);
+        $fragment = $fragmentByTab[$tab];
+        if (is_string($fragment) && $fragment !== '') {
+            $url .= '#'.$fragment;
+        }
+
+        return redirect()->to($url);
     }
 
     /**

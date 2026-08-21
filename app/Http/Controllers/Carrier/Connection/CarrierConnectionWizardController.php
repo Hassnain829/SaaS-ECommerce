@@ -20,20 +20,20 @@ use Illuminate\View\View;
 
 class CarrierConnectionWizardController extends Controller
 {
-    public function index(Request $request, CarrierConnectionWizardService $wizard, USPSConfig $uspsConfig, FedExConfig $fedExConfig): View
+    public function index(Request $request, CarrierConnectionWizardService $wizard, USPSConfig $uspsConfig, FedExConfig $fedExConfig): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
 
-        $cards = collect($wizard->supportedCarriers())
-            ->map(fn (string $carrier): array => $wizard->carrierCard($carrier, $store, $uspsConfig, $fedExConfig))
-            ->all();
+        // Generic multi-carrier connect page is not part of normal merchant Delivery.
+        // FedEx Model A is the only product-ready external carrier path.
+        if ($fedExConfig->modelAEnabled()) {
+            return redirect()->route('settings.shipping.fedex-integrator.start');
+        }
 
-        return view('user_view.carrier_connection_wizard.index', [
-            'selectedStore' => $store,
-            'carrierCards' => $cards,
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
-        ]);
+        return redirect()
+            ->route('shippingAutomation')
+            ->withErrors(['carrier' => 'Connect FedEx from Delivery when it is available for this store.']);
     }
 
     public function show(Request $request, string $carrier, CarrierConnectionWizardService $wizard, USPSConfig $uspsConfig, FedExConfig $fedExConfig): View|RedirectResponse
@@ -51,9 +51,24 @@ class CarrierConnectionWizardController extends Controller
             return redirect()->route('settings.shipping.fedex-integrator.start');
         }
 
+        if ($carrier === CarrierConnectionWizardService::CARRIER_USPS
+            && ! $uspsConfig->merchantRoutesAccessible()) {
+            return redirect()->route('shippingAutomation');
+        }
+
+        if (in_array($carrier, [
+            CarrierConnectionWizardService::CARRIER_MANUAL,
+            CarrierConnectionWizardService::CARRIER_UPS,
+            CarrierConnectionWizardService::CARRIER_DHL,
+        ], true)) {
+            return redirect()
+                ->route('shippingAutomation')
+                ->withErrors(['carrier' => 'That connection path is not part of normal Delivery setup.']);
+        }
+
         if ($card['deferred'] ?? false) {
             return redirect()
-                ->route('shipping.carriers.connect.index')
+                ->route('shippingAutomation')
                 ->withErrors(['carrier' => "{$card['name']} integration is planned for a later phase."]);
         }
 

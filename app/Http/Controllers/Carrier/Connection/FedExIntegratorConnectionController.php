@@ -56,7 +56,10 @@ class FedExIntegratorConnectionController extends Controller
             'selectedStore' => $store,
             'locations' => $locations,
             'productionEnabled' => $config->productionEnabled(),
-            'defaultEnvironment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'defaultEnvironment' => $config->merchantMayChooseEnvironment()
+                ? CarrierAccount::ENVIRONMENT_SANDBOX
+                : $config->merchantDefaultEnvironment(),
+            'allowEnvironmentChoice' => $config->merchantMayChooseEnvironment(),
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
         ]);
     }
@@ -79,7 +82,9 @@ class FedExIntegratorConnectionController extends Controller
             'environment' => ['nullable', Rule::in(['sandbox', 'live'])],
         ]);
 
-        $environment = strtolower((string) ($validated['environment'] ?? CarrierAccount::ENVIRONMENT_SANDBOX));
+        $environment = $config->merchantMayChooseEnvironment()
+            ? strtolower((string) ($validated['environment'] ?? CarrierAccount::ENVIRONMENT_SANDBOX))
+            : $config->merchantDefaultEnvironment();
         abort_unless($config->allowsIntegratorEnvironment($environment), 422);
 
         $session = $orchestrator->start(
@@ -576,7 +581,7 @@ class FedExIntegratorConnectionController extends Controller
             ],
             in_array($checkoutRatesStatus, ['needs_setup'], true) => [
                 'label' => 'Manage checkout shipping',
-                'href' => route('settings.delivery.setup.delivery-option'),
+                'href' => route('settings.delivery.checkout-options'),
                 'form' => null,
             ],
             $labelsEnabled && $readyToShipCount > 0 => [

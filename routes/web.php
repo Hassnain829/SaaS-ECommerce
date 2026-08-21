@@ -416,6 +416,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         Route::match(['get', 'post'], '/setup/delivery-option', [DeliverySetupWizardController::class, 'deliveryOption'])
             ->middleware('store.permission:settings.manage')
             ->name('settings.delivery.setup.delivery-option');
+        Route::match(['get', 'post'], '/checkout-options', [DeliverySetupWizardController::class, 'checkoutOptions'])
+            ->middleware('store.permission:settings.manage')
+            ->name('settings.delivery.checkout-options');
         Route::get('/setup/review', [DeliverySetupWizardController::class, 'review'])
             ->middleware('store.permission:settings.manage')
             ->name('settings.delivery.setup.review');
@@ -425,6 +428,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         Route::match(['get', 'post'], '/test-address', [DeliverySetupWizardController::class, 'testAddress'])
             ->name('settings.delivery.test-address');
     });
+    Route::get('/settings/shipping/packages', [ShippingSettingsController::class, 'packages'])
+        ->middleware('store.permission:settings.view')
+        ->name('settings.shipping.packages');
     require __DIR__.'/carriers.php';
     Route::post('/settings/shipping/zones', [ShippingSettingsController::class, 'storeZone'])
         ->middleware('store.permission:settings.manage')

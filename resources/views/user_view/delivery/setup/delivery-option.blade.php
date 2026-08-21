@@ -1,4 +1,4 @@
-@extends('user_view.delivery.wizard-layout')
+@extends(($manageMode ?? false) ? 'user_view.delivery.manage-layout' : 'user_view.delivery.wizard-layout')
 
 @section('wizard-content')
     @php
@@ -9,11 +9,18 @@
         if (! is_array($selectedServices)) {
             $selectedServices = ['FEDEX_GROUND'];
         }
+        $isManage = (bool) ($manageMode ?? false);
     @endphp
 
-    <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
-        <h2 class="text-2xl font-semibold text-[#0F172A]">How should customers get shipping prices?</h2>
-        <p class="mt-2 text-sm text-[#64748B]">Choose FedEx live rates, a fixed/free option, or both. You can change this later.</p>
+    <section class="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-sm md:p-6">
+        <h2 class="text-xl font-semibold text-[#0F172A]">
+            {{ $isManage ? 'Checkout shipping for this area' : 'How should customers get shipping prices?' }}
+        </h2>
+        <p class="mt-2 text-sm text-[#64748B]">
+            {{ $isManage
+                ? 'Turn FedEx live rates and fixed or free options on or off for customers.'
+                : 'Choose FedEx live rates, a fixed/free option, or both. You can change this later.' }}
+        </p>
 
         @php
             $orphanWizardMethods = collect($shippingMethods ?? [])->filter(function ($m) {
@@ -109,7 +116,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('settings.delivery.setup.delivery-option') }}" class="mt-6 space-y-5" id="delivery-option-form">
+        <form method="POST" action="{{ route(($manageMode ?? false) ? 'settings.delivery.checkout-options' : 'settings.delivery.setup.delivery-option') }}" class="mt-6 space-y-5" id="delivery-option-form">
             @csrf
 
             <div>
@@ -132,7 +139,7 @@
                         <input type="radio" name="checkout_shipping_mode" value="fixed" class="mt-1" @checked($defaultMode === 'fixed') data-shipping-mode>
                         <span>
                             <span class="block text-sm font-semibold text-[#0F172A]">Fixed or free shipping</span>
-                            <span class="mt-1 block text-xs leading-5 text-[#64748B]">Charge a fixed amount or offer free shipping (Manual Delivery).</span>
+                            <span class="mt-1 block text-xs leading-5 text-[#64748B]">Charge a fixed amount or offer free shipping.</span>
                         </span>
                     </label>
                     <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 {{ $fedExReady ? '' : 'opacity-60' }}">
@@ -230,7 +237,7 @@
                 <fieldset class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                     <legend class="px-1 text-sm font-semibold text-[#0F172A]">Checkout visibility</legend>
                     <div class="mt-2 space-y-2 text-sm">
-                        <label class="flex items-center gap-2"><input type="radio" name="resolve_flag_mismatch" value="available" @checked(old('resolve_flag_mismatch') === 'available')> Make available to customers</label>
+                        <label class="flex items-center gap-2"><input type="radio" name="resolve_flag_mismatch" value="available" @checked(old('resolve_flag_mismatch') === 'available')> Make available at checkout</label>
                         <label class="flex items-center gap-2"><input type="radio" name="resolve_flag_mismatch" value="keep" @checked(old('resolve_flag_mismatch', 'keep') === 'keep')> Keep current settings</label>
                     </div>
                 </fieldset>
@@ -238,15 +245,18 @@
                 <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]">
                     <input type="hidden" name="available_to_customers" value="0">
                     <input type="checkbox" name="available_to_customers" value="1" @checked(old('available_to_customers', $selectedMethod?->enabled_for_checkout ?? true))>
-                    Available to customers at checkout
+                    Available at checkout
                 </label>
             @endif
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#F1F5F9] pt-4">
-                <a href="{{ route('settings.delivery.setup.deliver-to') }}" class="text-sm font-semibold text-[#64748B]">Back</a>
+                <a href="{{ ($manageMode ?? false) || ($selectedStore ?? null)?->delivery_setup_completed_at ? route('shippingAutomation') : route('settings.delivery.setup.deliver-to') }}" class="text-sm font-semibold text-[#64748B]">
+                    {{ ($manageMode ?? false) || ($selectedStore ?? null)?->delivery_setup_completed_at ? 'Back to Delivery' : 'Back' }}
+                </a>
                 <div class="flex flex-wrap gap-2">
-                    <a href="{{ route('shippingAutomation', ['tab' => 'advanced']) }}" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Advanced settings</a>
-                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Save and continue</button>
+                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">
+                        {{ ($manageMode ?? false) || ($selectedStore ?? null)?->delivery_setup_completed_at ? 'Save' : 'Save and continue' }}
+                    </button>
                 </div>
             </div>
         </form>

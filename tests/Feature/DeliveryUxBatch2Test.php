@@ -127,7 +127,7 @@ class DeliveryUxBatch2Test extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shippingAutomation', ['tab' => 'advanced']))
+            ->get(route('shippingAutomation', ['support' => 1]))
             ->assertOk()
             ->assertSee('id="zone-field-country"', false)
             ->assertSee('Exact postal code', false)

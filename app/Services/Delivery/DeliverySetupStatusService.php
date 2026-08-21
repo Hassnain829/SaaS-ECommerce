@@ -78,6 +78,14 @@ class DeliverySetupStatusService
             && $checkoutMethods->isNotEmpty()
             && $configurationReady;
 
+        $fedExOnlyWeightBlocker = collect($healthItems)->contains(
+            fn (array $item): bool => ($item['id'] ?? '') === 'products_missing_shipping_weight'
+                && ($item['severity'] ?? '') === 'error'
+        );
+        if ($fedExOnlyWeightBlocker) {
+            $structuralReady = false;
+        }
+
         // Once checkout has a usable path, leftover method/provider defects are cleanup — not blockers.
         if ($structuralReady) {
             $healthItems = array_map(function (array $item): array {
@@ -94,6 +102,7 @@ class DeliverySetupStatusService
                     'delivery_option_missing',
                     'delivery_option_checkout_hidden',
                     'delivery_option_not_configuration_ready',
+                    'products_missing_shipping_weight',
                 ];
 
                 if (in_array($id, $structuralErrorIds, true)) {
@@ -223,7 +232,7 @@ class DeliverySetupStatusService
                 severity: 'error',
                 message: 'Choose where you deliver before customers can receive orders.',
                 actionLabel: 'Choose a delivery area',
-                actionTab: 'areas',
+                actionHref: route('settings.delivery.setup.deliver-to'),
             );
 
             return;
@@ -237,7 +246,7 @@ class DeliverySetupStatusService
                     severity: 'error',
                     message: '"'.$zone->name.'" does not include a country yet.',
                     actionLabel: 'Choose a delivery area',
-                    actionTab: 'areas',
+                    actionHref: route('settings.delivery.setup.deliver-to'),
                 );
             }
         }
@@ -264,7 +273,7 @@ class DeliverySetupStatusService
                 severity: 'error',
                 message: 'Add at least one delivery option for customers to choose at checkout.',
                 actionLabel: 'Add a delivery option',
-                actionTab: 'options',
+                actionHref: route('settings.delivery.setup.delivery-option'),
             );
         }
 
@@ -275,7 +284,7 @@ class DeliverySetupStatusService
                 severity: 'error',
                 message: 'You have delivery options, but none are shown at checkout.',
                 actionLabel: 'Fix checkout visibility',
-                actionTab: 'options',
+                actionHref: route('settings.delivery.setup.delivery-option'),
             );
         }
 
@@ -306,7 +315,7 @@ class DeliverySetupStatusService
                     severity: 'warning',
                     message: '"'.$method->name.'" is active but hidden from checkout.',
                     actionLabel: 'Fix checkout visibility',
-                    actionTab: 'options',
+                    actionHref: route('settings.delivery.setup.delivery-option'),
                 );
             }
 
@@ -317,7 +326,7 @@ class DeliverySetupStatusService
                     severity: 'warning',
                     message: '"'.$method->name.'" is shown at checkout but currently inactive.',
                     actionLabel: 'Fix checkout visibility',
-                    actionTab: 'options',
+                    actionHref: route('settings.delivery.setup.delivery-option'),
                 );
             }
 
@@ -331,7 +340,7 @@ class DeliverySetupStatusService
                     severity: 'error',
                     message: '"'.$method->name.'" has a minimum order greater than its maximum order.',
                     actionLabel: 'Add a delivery option',
-                    actionTab: 'options',
+                    actionHref: route('settings.delivery.setup.delivery-option'),
                 );
             }
 
@@ -345,7 +354,7 @@ class DeliverySetupStatusService
                     severity: 'error',
                     message: '"'.$method->name.'" has invalid negative pricing or threshold values.',
                     actionLabel: 'Add a delivery option',
-                    actionTab: 'options',
+                    actionHref: route('settings.delivery.setup.delivery-option'),
                 );
             }
 
@@ -356,7 +365,7 @@ class DeliverySetupStatusService
                     severity: 'error',
                     message: '"'.$method->name.'" uses carrier pricing but has no delivery provider linked.',
                     actionLabel: 'Fix provider',
-                    actionTab: 'options',
+                    actionHref: route('settings.delivery.setup.delivery-option'),
                 );
             }
 
@@ -365,10 +374,10 @@ class DeliverySetupStatusService
                 if ($account !== null && $account->isManualProvider()) {
                     $healthItems[] = $this->healthItem(
                         id: 'delivery_option_manual_carrier_pricing_'.$method->id,
-                        label: 'Delivery provider',
+                        label: 'Delivery pricing',
                         severity: 'error',
-                        message: 'Checkout method uses carrier pricing but is still linked to Manual Delivery.',
-                        actionLabel: 'Fix provider',
+                        message: '"'.$method->name.'" is set to live carrier pricing but still uses fixed/manual delivery. Choose FedEx live rates or a fixed price.',
+                        actionLabel: 'Fix checkout shipping',
                         actionHref: route('settings.delivery.setup.delivery-option'),
                     );
                 } elseif ($account !== null
@@ -379,8 +388,8 @@ class DeliverySetupStatusService
                         id: 'fedex_checkout_platform_off_'.$method->id,
                         label: 'FedEx checkout rates',
                         severity: 'warning',
-                        message: 'FedEx checkout rates are off at the platform. Saved options will show live prices once checkout rates are enabled.',
-                        actionLabel: 'Open FedEx Center',
+                        message: 'FedEx live rates are temporarily unavailable. Your fixed delivery options remain available.',
+                        actionLabel: 'Manage FedEx',
                         actionHref: route('settings.shipping.fedex-integrator.manage', $account),
                     );
                 }
@@ -391,11 +400,11 @@ class DeliverySetupStatusService
                 if ($account === null || (int) $account->store_id !== (int) $method->store_id) {
                     $healthItems[] = $this->healthItem(
                         id: 'delivery_option_invalid_provider_'.$method->id,
-                        label: 'Delivery provider',
+                        label: 'Delivery option',
                         severity: 'error',
-                        message: '"'.$method->name.'" points to a delivery provider that is missing or unavailable.',
-                        actionLabel: 'Open advanced delivery settings',
-                        actionTab: 'providers',
+                        message: '"'.$method->name.'" needs a valid pricing setup before it can be offered at checkout.',
+                        actionLabel: 'Fix checkout shipping',
+                        actionHref: route('settings.delivery.setup.delivery-option'),
                     );
                 }
             }
@@ -456,18 +465,18 @@ class DeliverySetupStatusService
                 id: 'fedex_checkout_platform_off',
                 label: 'FedEx checkout rates',
                 severity: 'warning',
-                message: 'FedEx checkout rates are not currently available on this platform.',
-                actionLabel: 'Open FedEx Center',
-                actionHref: $account ? route('settings.shipping.fedex-integrator.manage', $account) : route('settings.delivery.setup.delivery-option'),
+                message: 'FedEx live rates are temporarily unavailable. Your fixed delivery options remain available.',
+                actionLabel: 'Manage FedEx',
+                actionHref: $account ? route('settings.shipping.fedex-integrator.manage', $account) : route('shippingAutomation'),
             );
         } elseif (! $accountCheckoutOn) {
             $healthItems[] = $this->healthItem(
                 id: 'fedex_checkout_account_capability_off',
                 label: 'FedEx checkout rates',
                 severity: 'warning',
-                message: 'FedEx is connected, but checkout rates are not enabled for this account yet.',
-                actionLabel: 'Configure checkout shipping',
-                actionHref: route('settings.delivery.setup.delivery-option'),
+                message: 'FedEx is connected, but live checkout rates are not turned on for this account yet.',
+                actionLabel: 'Manage FedEx',
+                actionHref: $account ? route('settings.shipping.fedex-integrator.manage', $account) : route('settings.delivery.setup.delivery-option'),
             );
         }
 
@@ -510,6 +519,21 @@ class DeliverySetupStatusService
             return;
         }
 
+        $hasFixedFreeFallback = $shippingMethods->contains(function (ShippingMethod $method): bool {
+            if ($method->isFedExLiveRateMethod()) {
+                return false;
+            }
+            if (! $method->is_active || ! $method->enabled_for_checkout) {
+                return false;
+            }
+
+            return in_array($method->rate_type, [
+                ShippingMethod::RATE_FLAT,
+                ShippingMethod::RATE_FREE,
+                ShippingMethod::RATE_MANUAL,
+            ], true);
+        });
+
         if (Schema::hasTable('shipping_package_presets')) {
             $defaultPreset = app(StoreShippingPreferences::class)->defaultPackagePreset($store);
             if (! $defaultPreset) {
@@ -519,7 +543,7 @@ class DeliverySetupStatusService
                     severity: 'warning',
                     message: 'Set a default shipping package before FedEx live rates can use real dimensions.',
                     actionLabel: 'Add a default package',
-                    actionTab: 'packages',
+                    actionHref: route('settings.shipping.packages'),
                 );
             }
         }
@@ -535,13 +559,18 @@ class DeliverySetupStatusService
             ->count();
 
         if ($missingWeightCount > 0) {
+            $fedExOnly = ! $hasFixedFreeFallback;
             $healthItems[] = $this->healthItem(
                 id: 'products_missing_shipping_weight',
                 label: 'Product shipping weight',
-                severity: 'warning',
+                severity: $fedExOnly ? 'error' : 'warning',
                 message: $missingWeightCount === 1
-                    ? '1 product is missing shipping weight. FedEx live rates stay hidden for carts that include it.'
-                    : $missingWeightCount.' products are missing shipping weight. FedEx live rates stay hidden for carts that include them.',
+                    ? ($fedExOnly
+                        ? '1 product is missing shipping weight. FedEx is your only checkout path, so that product cannot get a delivery rate.'
+                        : '1 product is missing shipping weight. FedEx live rates stay hidden for carts that include it.')
+                    : ($fedExOnly
+                        ? $missingWeightCount.' products are missing shipping weight. FedEx is your only checkout path, so those carts cannot get a delivery rate.'
+                        : $missingWeightCount.' products are missing shipping weight. FedEx live rates stay hidden for carts that include them.'),
                 actionLabel: 'Review products',
                 actionHref: route('products'),
             );
@@ -650,7 +679,7 @@ class DeliverySetupStatusService
             return [
                 'status' => 'complete',
                 'title' => 'FedEx connected',
-                'detail' => 'Manual Delivery remains available as a fixed-price or fallback option.',
+                'detail' => 'Fixed or free shipping remains available as a checkout option.',
                 'count' => $carrierAccounts->count(),
             ];
         }
@@ -662,7 +691,7 @@ class DeliverySetupStatusService
         if ($manual) {
             return [
                 'status' => 'optional',
-                'title' => 'Manual Delivery',
+                'title' => 'Fixed / free shipping',
                 'detail' => 'Fixed or free shipping. Connect FedEx when you want live rates and labels.',
                 'count' => 1,
             ];
@@ -670,8 +699,8 @@ class DeliverySetupStatusService
 
         return [
             'status' => 'optional',
-            'title' => 'Manual delivery',
-            'detail' => 'Optional until you connect FedEx or another provider.',
+            'title' => 'Fixed / free shipping',
+            'detail' => 'Optional until you connect FedEx.',
             'count' => 0,
         ];
     }

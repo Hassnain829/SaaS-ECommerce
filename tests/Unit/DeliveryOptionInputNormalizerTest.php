@@ -43,4 +43,47 @@ class DeliveryOptionInputNormalizerTest extends TestCase
         $this->assertTrue($validated['is_active']);
         $this->assertFalse($validated['enabled_for_checkout']);
     }
+
+    public function test_apply_simple_availability_syncs_both_flags_from_single_control(): void
+    {
+        $normalizer = new DeliveryOptionInputNormalizer;
+        $method = new ShippingMethod([
+            'is_active' => true,
+            'enabled_for_checkout' => true,
+        ]);
+
+        $on = $normalizer->applySimpleAvailability(
+            Request::create('/', 'POST', ['available_to_customers' => '1']),
+            [],
+            $method
+        );
+        $this->assertTrue($on['is_active']);
+        $this->assertTrue($on['enabled_for_checkout']);
+
+        $off = $normalizer->applySimpleAvailability(
+            Request::create('/', 'POST', ['available_to_customers' => '0']),
+            [],
+            $method
+        );
+        $this->assertFalse($off['is_active']);
+        $this->assertFalse($off['enabled_for_checkout']);
+    }
+
+    public function test_apply_simple_availability_resolves_mismatch_via_single_control(): void
+    {
+        $normalizer = new DeliveryOptionInputNormalizer;
+        $method = new ShippingMethod([
+            'is_active' => true,
+            'enabled_for_checkout' => false,
+        ]);
+
+        $validated = $normalizer->applySimpleAvailability(
+            Request::create('/', 'POST', ['available_to_customers' => '1']),
+            [],
+            $method
+        );
+
+        $this->assertTrue($validated['is_active']);
+        $this->assertTrue($validated['enabled_for_checkout']);
+    }
 }

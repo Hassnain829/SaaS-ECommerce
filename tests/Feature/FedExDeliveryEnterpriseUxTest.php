@@ -521,7 +521,7 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.delivery.test-address'))
             ->assertOk()
-            ->assertSeeText('Test checkout shipping')
+            ->assertSeeText('Preview checkout delivery')
             ->assertDontSeeText('Test a customer address');
     }
 

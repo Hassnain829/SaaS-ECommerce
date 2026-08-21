@@ -87,6 +87,30 @@ final class FedExConfig
         return app()->environment(['local', 'testing']) && $this->modelBDeveloperFallbackEnabled();
     }
 
+    /**
+     * Merchants should not pick sandbox vs live. Local/testing operators may.
+     */
+    public function merchantMayChooseEnvironment(): bool
+    {
+        return app()->environment(['local', 'testing']);
+    }
+
+    /**
+     * Environment used when the merchant is not offered a choice.
+     */
+    public function merchantDefaultEnvironment(): string
+    {
+        if ($this->productionEnabled()) {
+            return CarrierAccount::ENVIRONMENT_LIVE;
+        }
+
+        if ($this->allowsIntegratorEnvironment(CarrierAccount::ENVIRONMENT_SANDBOX)) {
+            return CarrierAccount::ENVIRONMENT_SANDBOX;
+        }
+
+        return CarrierAccount::ENVIRONMENT_LIVE;
+    }
+
     public function productionEnabled(): bool
     {
         return $this->productionConfigurationErrors() === [];

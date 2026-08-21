@@ -49,11 +49,13 @@ class Store extends Model
         'category',
         'settings',
         'onboarding_completed',
+        'delivery_setup_completed_at',
     ];
 
     protected $casts = [
         'settings' => 'array',
         'onboarding_completed' => 'boolean',
+        'delivery_setup_completed_at' => 'datetime',
         'developer_storefront_token_created_at' => 'datetime',
         'developer_storefront_last_seen_at' => 'datetime',
     ];

@@ -22,10 +22,15 @@ use Illuminate\View\View;
 
 class USPSMerchantConnectionController extends Controller
 {
+    private function ensureMerchantAccessible(USPSMerchantConnectionService $connectionService): void
+    {
+        abort_unless($connectionService->merchantConnectionAvailable(), 404);
+    }
+
     public function start(Request $request, USPSMerchantConnectionService $connectionService): View|RedirectResponse
     {
         $store = $this->resolveStore($request);
-        abort_unless($connectionService->merchantConnectionAvailable(), 404);
+        $this->ensureMerchantAccessible($connectionService);
 
         $existing = $connectionService->findActiveMerchantAccount($store);
 
@@ -71,6 +76,7 @@ class USPSMerchantConnectionController extends Controller
         USPSMerchantConnectionService $connectionService,
     ): View|RedirectResponse {
         $store = $this->resolveStore($request);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         if ($account->usps_authorization_status === CarrierAccount::USPS_AUTH_DISABLED) {
@@ -132,7 +138,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
-        abort_unless($connectionService->merchantConnectionAvailable(), 404);
+        $this->ensureMerchantAccessible($connectionService);
 
         $validated = $request->validate([
             'origin_location_id' => [
@@ -175,6 +181,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         $validated = $request->validate([
@@ -208,6 +215,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         $validated = $request->validate([
@@ -244,6 +252,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         abort(404);
@@ -257,6 +266,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         $connectionService->resetAuthorization($account);
@@ -279,6 +289,7 @@ class USPSMerchantConnectionController extends Controller
         USPSMerchantConnectionService $connectionService,
     ): View|RedirectResponse {
         $store = $this->resolveStore($request);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         if ($account->usps_authorization_status === CarrierAccount::USPS_AUTH_DISABLED) {
@@ -319,6 +330,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         $verification = $shipSuiteVerificationService->verify($store, $account);
@@ -345,6 +357,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
         abort_unless($connectionService->merchantOAuthAvailable(), 404);
         abort_unless($account->hasUspsMerchantIdentifiers(), 422);
@@ -444,6 +457,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         $verification = $verificationService->verify($store, $account);
@@ -469,6 +483,7 @@ class USPSMerchantConnectionController extends Controller
     ): RedirectResponse {
         $store = $this->resolveStore($request);
         $this->authorizeManage($request, $store);
+        $this->ensureMerchantAccessible($connectionService);
         $account = $this->resolveMerchantAccount($store, $carrierAccount);
 
         $connectionService->disconnect($account);

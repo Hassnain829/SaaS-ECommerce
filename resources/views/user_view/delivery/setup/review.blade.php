@@ -48,17 +48,6 @@
                     <a href="{{ route('settings.delivery.setup.delivery-option') }}" class="text-sm font-semibold text-[#1D4ED8]">Edit</a>
                 </div>
             </article>
-
-            <article class="rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] p-4">
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-wide text-[#1D4ED8]">Checkout tax (read-only)</p>
-                        <p class="mt-2 text-sm font-semibold text-[#0F172A]">{{ $setup['tax_summary']['title'] ?? 'Tax is off' }}</p>
-                        <p class="mt-1 text-sm text-[#475569]">{{ $setup['tax_summary']['detail'] ?? '' }}</p>
-                    </div>
-                    <a href="{{ route('settings.taxes.index') }}" class="text-sm font-semibold text-[#1D4ED8]">Edit tax settings</a>
-                </div>
-            </article>
         </div>
 
         @if (! ($setup['is_ready'] ?? false))
@@ -86,7 +75,7 @@
         @endif
 
         <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#F1F5F9] pt-4">
-            <a href="{{ route('settings.delivery.test-address') }}" class="text-sm font-semibold text-[#1D4ED8]">Test checkout shipping</a>
+            <a href="{{ route('settings.delivery.test-address') }}" class="text-sm font-semibold text-[#1D4ED8]">Preview checkout delivery</a>
             <form method="POST" action="{{ route('settings.delivery.setup.finish') }}">
                 @csrf
                 <button

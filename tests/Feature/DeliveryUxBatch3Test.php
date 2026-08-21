@@ -279,7 +279,7 @@ class DeliveryUxBatch3Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.delivery.test-address'))
             ->assertOk()
-            ->assertSeeText('Test checkout shipping');
+            ->assertSeeText('Preview checkout delivery');
 
         $this->actingAs($staff)
             ->withSession(['current_store_id' => $store->id])
@@ -406,7 +406,7 @@ class DeliveryUxBatch3Test extends TestCase
             ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSeeText('Set up delivery')
-            ->assertSeeText('Test checkout shipping');
+            ->assertSeeText('Preview checkout delivery');
     }
 
     public function test_wizard_created_delivery_option_appears_in_storefront_delivery_options_api(): void

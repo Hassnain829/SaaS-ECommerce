@@ -1,9 +1,9 @@
 @extends('layouts.user.user-sidebar')
 
-@section('title', 'Test checkout shipping — '.config('app.name'))
+@section('title', 'Preview checkout delivery — '.config('app.name'))
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Test checkout shipping" lead="Preview the delivery options a customer would see for an address and package.">
+    <x-ui.merchant-topbar title="Preview checkout delivery" lead="See the delivery options a customer would see for an address and package.">
         <x-slot:actions>
             <a href="{{ route('shippingAutomation') }}" class="inline-flex h-9 items-center rounded-lg border border-stone-200 bg-white px-3 text-xs font-semibold text-stone-700">Back to Delivery</a>
         </x-slot:actions>
@@ -35,58 +35,63 @@
 
                 <div class="sm:col-span-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                     <p class="text-sm font-semibold text-[#0F172A]">Package for live rates</p>
-                    <p class="mt-1 text-xs text-[#64748B]">Choose a package preset, or enter custom weight and dimensions. Required for FedEx live quotes.</p>
+                    <p class="mt-1 text-xs text-[#64748B]">Uses your store default package automatically. Open custom package only when you need to override it.</p>
 
-                    <label class="mt-3 block space-y-1">
-                        <span class="text-xs font-semibold text-[#64748B]">Package preset</span>
-                        <select name="package_preset_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                            <option value="">Use custom package below{{ ($packagePresets ?? collect())->isEmpty() ? ' (no presets yet)' : ' or store default' }}</option>
-                            @foreach ($packagePresets ?? [] as $preset)
-                                <option value="{{ $preset->id }}" @selected($selectedPreset === (string) $preset->id)>
-                                    {{ $preset->name }}{{ $preset->is_default ? ' (default)' : '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </label>
+                    <details class="mt-3" @if(($input['package_weight'] ?? '') || ($input['package_length'] ?? '') || ($selectedPreset !== '')) open @endif>
+                        <summary class="cursor-pointer text-sm font-semibold text-[#1D4ED8]">Use a custom package</summary>
+                        <div class="mt-3 space-y-3">
+                            <label class="block space-y-1">
+                                <span class="text-xs font-semibold text-[#64748B]">Package preset</span>
+                                <select name="package_preset_id" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                    <option value="">Store default{{ ($packagePresets ?? collect())->isEmpty() ? ' (none yet)' : '' }}</option>
+                                    @foreach ($packagePresets ?? [] as $preset)
+                                        <option value="{{ $preset->id }}" @selected($selectedPreset === (string) $preset->id)>
+                                            {{ $preset->name }}{{ $preset->is_default ? ' (default)' : '' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </label>
 
-                    <div class="mt-3 grid gap-3 sm:grid-cols-4">
-                        <label class="block space-y-1 sm:col-span-1">
-                            <span class="text-xs font-semibold text-[#64748B]">Weight</span>
-                            <input name="package_weight" type="number" min="0.01" step="0.01" value="{{ $input['package_weight'] ?? '' }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
-                        </label>
-                        <label class="block space-y-1 sm:col-span-1">
-                            <span class="text-xs font-semibold text-[#64748B]">Unit</span>
-                            <select name="package_weight_unit" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                                @foreach (['LB', 'KG'] as $unit)
-                                    <option value="{{ $unit }}" @selected(strtoupper((string) ($input['package_weight_unit'] ?? 'LB')) === $unit)>{{ $unit }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <label class="block space-y-1">
-                            <span class="text-xs font-semibold text-[#64748B]">Length</span>
-                            <input name="package_length" type="number" min="0.01" step="0.01" value="{{ $input['package_length'] ?? '' }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
-                        </label>
-                        <label class="block space-y-1">
-                            <span class="text-xs font-semibold text-[#64748B]">Width</span>
-                            <input name="package_width" type="number" min="0.01" step="0.01" value="{{ $input['package_width'] ?? '' }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
-                        </label>
-                        <label class="block space-y-1">
-                            <span class="text-xs font-semibold text-[#64748B]">Height</span>
-                            <input name="package_height" type="number" min="0.01" step="0.01" value="{{ $input['package_height'] ?? '' }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
-                        </label>
-                        <label class="block space-y-1">
-                            <span class="text-xs font-semibold text-[#64748B]">Dim unit</span>
-                            <select name="package_dimension_unit" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
-                                @foreach (['IN', 'CM'] as $unit)
-                                    <option value="{{ $unit }}" @selected(strtoupper((string) ($input['package_dimension_unit'] ?? 'IN')) === $unit)>{{ $unit }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                    </div>
+                            <div class="grid gap-3 sm:grid-cols-4">
+                                <label class="block space-y-1 sm:col-span-1">
+                                    <span class="text-xs font-semibold text-[#64748B]">Weight</span>
+                                    <input name="package_weight" type="number" min="0.01" step="0.01" value="{{ $input['package_weight'] ?? '' }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                </label>
+                                <label class="block space-y-1 sm:col-span-1">
+                                    <span class="text-xs font-semibold text-[#64748B]">Unit</span>
+                                    <select name="package_weight_unit" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                        @foreach (['LB', 'KG'] as $unit)
+                                            <option value="{{ $unit }}" @selected(strtoupper((string) ($input['package_weight_unit'] ?? 'LB')) === $unit)>{{ $unit }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <label class="block space-y-1">
+                                    <span class="text-xs font-semibold text-[#64748B]">Length</span>
+                                    <input name="package_length" type="number" min="0.01" step="0.01" value="{{ $input['package_length'] ?? '' }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                </label>
+                                <label class="block space-y-1">
+                                    <span class="text-xs font-semibold text-[#64748B]">Width</span>
+                                    <input name="package_width" type="number" min="0.01" step="0.01" value="{{ $input['package_width'] ?? '' }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                </label>
+                                <label class="block space-y-1">
+                                    <span class="text-xs font-semibold text-[#64748B]">Height</span>
+                                    <input name="package_height" type="number" min="0.01" step="0.01" value="{{ $input['package_height'] ?? '' }}" class="h-10 w-full rounded-lg border border-[#CBD5E1] px-3 text-sm">
+                                </label>
+                                <label class="block space-y-1">
+                                    <span class="text-xs font-semibold text-[#64748B]">Dim unit</span>
+                                    <select name="package_dimension_unit" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
+                                        @foreach (['IN', 'CM'] as $unit)
+                                            <option value="{{ $unit }}" @selected(strtoupper((string) ($input['package_dimension_unit'] ?? 'IN')) === $unit)>{{ $unit }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+                    </details>
                 </div>
 
                 <div class="sm:col-span-2">
-                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Test checkout shipping</button>
+                    <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-5 text-sm font-bold text-white">Preview checkout delivery</button>
                 </div>
             </form>
         </section>

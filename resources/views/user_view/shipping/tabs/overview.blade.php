@@ -1,17 +1,27 @@
-    @php
-        $setup = $deliverySetup ?? [];
-        $healthItems = collect($setup['health_items'] ?? []);
-        $isReady = (bool) ($setup['is_ready'] ?? false);
-        $hasErrors = $healthItems->contains(fn ($i) => ($i['severity'] ?? '') === 'error');
-        $healthTitle = $isReady
-            ? 'Recommended improvements'
-            : ($hasErrors ? 'Action needed' : 'Suggestions');
-        $locationsList = collect($locations ?? []);
-    $originReadiness = $originReadinessByLocationId ?? [];
-    $zones = collect($shippingZones ?? [])->where('is_active', true)->values();
+@php
+    $setup = $deliverySetup ?? [];
+    $healthItems = collect($setup['health_items'] ?? []);
+    $isReady = (bool) ($setup['is_ready'] ?? false);
+    $storeRef = $selectedStore ?? $currentStore ?? null;
+    $hasCompletedSetup = $storeRef?->delivery_setup_completed_at !== null;
+    $hasErrors = $healthItems->contains(fn ($i) => ($i['severity'] ?? '') === 'error');
+    $statusBadgeLabel = $isReady
+        ? 'Ready'
+        : ($hasCompletedSetup ? 'Needs attention' : 'Setup in progress');
+    $showCompactRecommendations = $isReady && ! $hasErrors && $healthItems->isNotEmpty();
+    $showAttentionHealth = $healthItems->isNotEmpty() && (! $isReady || $hasErrors);
+
+    $locationsList = collect($locations ?? []);
+    $allZones = collect($shippingZones ?? [])->values();
     $methods = collect($shippingMethods ?? []);
-    $checkoutMethods = $methods->where('is_active', true)->where('enabled_for_checkout', true);
-    $fedExLiveMethods = $methods->filter(fn ($m) => method_exists($m, 'isFedExLiveRateMethod') && $m->isFedExLiveRateMethod() && ($m->is_active || $m->enabled_for_checkout));
+    $zonePresenter = app(\App\Services\Delivery\DeliveryAreaInputNormalizer::class);
+    $currency = $storeRef->currency ?? 'USD';
+
+    $fedExLiveMethods = $methods->filter(
+        fn ($m) => method_exists($m, 'isFedExLiveRateMethod')
+            && $m->isFedExLiveRateMethod()
+            && ($m->is_active || $m->enabled_for_checkout)
+    );
     $orphanMethods = $methods->filter(function ($m) {
         if (! ($m->is_active || $m->enabled_for_checkout)) {
             return false;
@@ -21,190 +31,139 @@
             ? $m->isOrphanedFromArea()
             : ($m->shipping_zone_id === null || ! $m->shippingZone);
     })->values();
-    $manageableZones = collect($shippingZones ?? [])->values();
-    $manageableMethods = $methods
-        ->filter(fn ($m) => $m->is_active || $m->enabled_for_checkout || (method_exists($m, 'isOrphanedFromArea') && $m->isOrphanedFromArea()))
-        ->values();
-
-    $statusTone = static function (array $summary): string {
-        return match ($summary['status'] ?? 'missing') {
-            'complete', 'added', 'included' => 'ready',
-            'optional', 'off' => 'optional',
-            'needs_attention' => 'attention',
-            default => 'missing',
-        };
-    };
-    $statusLabel = static fn (string $tone): string => match ($tone) {
-        'ready' => 'Ready',
-        'optional' => 'Optional',
-        'attention' => 'Needs attention',
-        default => 'Not set',
-    };
-
-    $checkoutSummaryLines = [];
-    foreach ($zones as $zone) {
-        $zoneFedEx = $fedExLiveMethods->where('shipping_zone_id', $zone->id);
-        $zoneFallback = $checkoutMethods->first(fn ($m) => (int) $m->shipping_zone_id === (int) $zone->id && ! (method_exists($m, 'isFedExLiveRateMethod') && $m->isFedExLiveRateMethod()));
-        if ($zoneFedEx->isEmpty() && ! $zoneFallback) {
-            continue;
-        }
-        $services = $zoneFedEx->pluck('carrier_service_name')->filter()->implode(', ');
-        $line = $zone->name.': ';
-        if ($zoneFedEx->isNotEmpty()) {
-            $line .= 'FedEx live — '.($services !== '' ? $services : 'services configured');
-        }
-        if ($zoneFallback) {
-            $price = ((float) ($zoneFallback->flat_rate ?? 0) > 0)
-                ? ' $'.number_format((float) $zoneFallback->flat_rate, 2)
-                : '';
-            $line .= ($zoneFedEx->isNotEmpty() ? ' · Fallback: ' : 'Fixed/free — ').$zoneFallback->name.$price;
-        }
-        $checkoutSummaryLines[] = $line;
-    }
 
     $fedExAccount = ($fedExAccounts ?? collect())->first(
         fn ($account) => $account->usesFedExIntegratorProvider()
             && $account->disconnected_at === null
             && $account->replaced_at === null
     ) ?? ($fedExAccounts ?? collect())->first();
-    $uspsAccount = ($uspsMerchantAccounts ?? collect())->first();
 
     $fedExStatus = 'setup';
-    $fedExLabel = 'Setup required';
-    $fedExDetail = 'Connect your FedEx account to offer live rates and labels.';
+    $fedExLabel = 'Not connected';
+    $fedExDetail = 'Connect your FedEx account to offer live rates and create labels with your own account.';
     $fedExHref = ($fedExConfig->modelAEnabled() ?? false)
         ? route('settings.shipping.fedex-integrator.start')
         : route('shipping.carriers.connect.show', 'fedex');
+    $fedExCaps = ['checkout' => false, 'labels' => false, 'tracking' => false];
+    $fedExConnected = false;
+
     if ($fedExAccount) {
         $fedExHref = $fedExAccount->usesFedExIntegratorProvider()
             ? route('settings.shipping.fedex-integrator.manage', $fedExAccount)
-            : route('shippingAutomation', ['tab' => 'providers']);
+            : route('shippingAutomation');
         $fedExDetail = 'Account '.$fedExAccount->maskedAccountNumber();
-        if (in_array($fedExAccount->connection_status, ['connected', 'sandbox_platform_fallback'], true)) {
-            $checkoutPlatformOn = (bool) config('carriers.fedex.checkout_rates_enabled', false);
-            $caps = is_array($fedExAccount->capabilities) ? $fedExAccount->capabilities : [];
-            $checkoutActive = $checkoutPlatformOn
-                && (bool) $fedExAccount->enabled_for_checkout
-                && (bool) ($caps['checkout_rates'] ?? false)
-                && $fedExLiveMethods->isNotEmpty();
-            if ($checkoutActive) {
-                $fedExStatus = 'connected';
-                $fedExLabel = 'Connected';
-                $fedExDetail .= ' · Checkout active';
-            } else {
-                $fedExStatus = 'attention';
-                $fedExLabel = 'Needs setup';
-                $fedExDetail .= ' · Checkout rates need setup';
-            }
+        $caps = is_array($fedExAccount->capabilities) ? $fedExAccount->capabilities : [];
+        $checkoutPlatformOn = (bool) config('carriers.fedex.checkout_rates_enabled', false);
+        $fedExCaps['checkout'] = $checkoutPlatformOn
+            && (bool) $fedExAccount->enabled_for_checkout
+            && (bool) ($caps['checkout_rates'] ?? false)
+            && $fedExLiveMethods->isNotEmpty();
+        $fedExCaps['labels'] = (bool) ($caps['labels'] ?? false);
+        $fedExCaps['tracking'] = (bool) ($caps['tracking'] ?? true);
+        $fedExConnected = in_array($fedExAccount->connection_status, ['connected', 'sandbox_platform_fallback'], true);
+
+        if ($fedExConnected) {
+            $fedExStatus = $fedExCaps['checkout'] ? 'connected' : 'attention';
+            $fedExLabel = 'Connected';
         } elseif (in_array($fedExAccount->connection_status, ['failed', 'blocked_by_fedex'], true)) {
             $fedExStatus = 'attention';
             $fedExLabel = 'Needs attention';
         }
     }
 
-    $uspsStatus = 'setup';
-    $uspsLabel = 'Coming later';
-    $uspsDetail = 'USPS merchant label purchasing stays deferred until platform approval is complete.';
-    $uspsHref = ($uspsMerchantConnectionEnabled ?? false)
-        ? route('settings.shipping.usps-merchant.start')
-        : route('shippingAutomation', ['tab' => 'providers']);
-    if ($uspsAccount) {
-        $uspsHref = route('settings.shipping.usps-merchant.manage', $uspsAccount);
-        $uspsDetail = $uspsAccount->display_name ?? 'USPS merchant account';
-        if ($uspsAccount->usps_authorization_status === \App\Models\CarrierAccount::USPS_AUTH_CONNECTED
-            || $uspsAccount->connection_status === 'connected') {
-            $uspsStatus = 'connected';
-            $uspsLabel = 'Connected';
-        } else {
-            $uspsLabel = 'Pending approval';
-            $uspsDetail .= ' · Platform approval still required for production labels';
-        }
-    }
+    $showPackages = $fedExLiveMethods->isNotEmpty()
+        || ($fedExConnected && ($fedExCaps['labels'] || $fedExCaps['checkout']));
 
-    $hubCards = [
-        [
-            'title' => 'Where do you ship from?',
-            'summary' => $setup['ship_from'] ?? [],
-            'empty' => 'Add the warehouse or store that packs and ships orders.',
-            'href' => route('settings.locations.index'),
-            'cta' => 'Manage locations',
-            'setup_href' => route('settings.delivery.setup.ship-from'),
-        ],
-        [
-            'title' => 'Where do you deliver?',
-            'summary' => $setup['delivery_areas'] ?? [],
-            'empty' => 'Choose countries and regions customers can receive orders in.',
-            'href' => route('shippingAutomation', ['tab' => 'areas']),
-            'cta' => 'Manage areas',
-            'setup_href' => route('settings.delivery.setup.deliver-to'),
-        ],
-        [
-            'title' => 'What do customers see at checkout?',
-            'summary' => $setup['delivery_options'] ?? [],
-            'empty' => 'Offer FedEx live rates, fixed prices, free shipping, or a mix.',
-            'href' => route('settings.delivery.setup.delivery-option'),
-            'cta' => 'Manage checkout shipping',
-            'setup_href' => route('settings.delivery.setup.delivery-option'),
-            'extra_lines' => $checkoutSummaryLines,
-        ],
-    ];
+    $defaultLocation = $locationsList->firstWhere('is_default', true)
+        ?? $locationsList->firstWhere('is_active', true)
+        ?? $locationsList->first();
+    $originComplete = $defaultLocation
+        && filled($defaultLocation->address_line1)
+        && filled($defaultLocation->city)
+        && filled($defaultLocation->country_code);
+    $originAddress = $defaultLocation
+        ? collect([
+            $defaultLocation->address_line1,
+            $defaultLocation->city,
+            $defaultLocation->state,
+            $defaultLocation->postal_code,
+            $defaultLocation->country_code,
+        ])->filter()->implode(', ')
+        : null;
+
+    $methodPriceLabel = static function ($method) use ($currency): string {
+        if (method_exists($method, 'isFedExLiveRateMethod') && $method->isFedExLiveRateMethod()) {
+            return 'Live rates';
+        }
+        if ($method->rate_type === \App\Models\ShippingMethod::RATE_FREE) {
+            return 'Free';
+        }
+        if ((float) ($method->free_over_amount ?? 0) > 0) {
+            return 'Free > '.$currency.' '.number_format((float) $method->free_over_amount, 2);
+        }
+        if ((float) ($method->flat_rate ?? 0) > 0) {
+            return $currency.' '.number_format((float) $method->flat_rate, 2);
+        }
+
+        return 'Fixed';
+    };
+
+    $methodDaysLabel = static function ($method): string {
+        if ($method->estimated_min_days !== null && $method->estimated_max_days !== null) {
+            return $method->estimated_min_days.'–'.$method->estimated_max_days.' days';
+        }
+
+        return $method->delivery_speed_label ?: '—';
+    };
+
+    $packagePresetsList = collect($packagePresets ?? []);
+    $defaultPreset = $packagePresetsList->firstWhere('is_default', true) ?? $packagePresetsList->first();
+    $primaryRecommendation = $healthItems->first();
 @endphp
 
-<section class="delivery-hub" aria-labelledby="delivery-console-title">
-    <header class="delivery-hub-hero">
-        <div class="delivery-hub-hero-copy">
-            <p class="delivery-console-crumb">Settings · Delivery</p>
-            <div class="mt-2 flex flex-wrap items-center gap-3">
-                <h2 id="delivery-console-title" class="delivery-console-title">Delivery setup</h2>
-                <span @class(['delivery-hub-status', 'is-ready' => $isReady, 'is-pending' => ! $isReady])>
-                    {{ $isReady ? 'Ready for checkout' : 'Setup in progress' }}
-                </span>
-            </div>
-            <p class="delivery-console-lede">
-                Manage ship-from locations, delivery areas, checkout delivery options, and optional delivery providers.
-            </p>
-        </div>
+<section class="dh w-full max-w-none" aria-label="Delivery settings">
+    {{-- Status strip (topbar already says Delivery) --}}
+    <header class="dh-status-bar">
+        <span @class(['dh-badge', 'is-ready' => $isReady, 'is-pending' => ! $isReady])>
+            {{ $statusBadgeLabel }}
+        </span>
         @if ($canManageShipping ?? false)
-            <div class="delivery-hub-hero-actions">
-                <a href="{{ route('settings.delivery.test-address') }}" class="ui-btn ui-btn-secondary">Test checkout shipping</a>
-                <x-ui.button :href="$isReady ? route('settings.delivery.setup.delivery-option') : route('settings.delivery.setup.ship-from')">
-                    {{ $isReady ? 'Edit delivery setup' : 'Set up delivery' }}
-                </x-ui.button>
-            </div>
+            @unless ($hasCompletedSetup)
+                <a href="{{ route('settings.delivery.setup') }}" class="dh-btn dh-btn-primary">Set up delivery</a>
+            @else
+                <button type="button" data-open-drawer="method-add" class="dh-btn dh-btn-primary" @if ($allZones->isEmpty()) disabled @endif>
+                    Add delivery option
+                </button>
+            @endunless
         @endif
     </header>
 
-    @if ($healthItems->isNotEmpty())
-        <aside class="delivery-hub-health" aria-label="Delivery health">
-            <p class="delivery-hub-health-title">{{ $healthTitle }}</p>
-            <ul class="delivery-hub-health-list">
+    @if ($showCompactRecommendations && $primaryRecommendation)
+        <aside class="dh-reco" aria-label="Delivery recommendations">
+            <div class="dh-reco-copy">
+                <p class="dh-reco-count">
+                    {{ $healthItems->count() }} {{ $healthItems->count() === 1 ? 'recommendation' : 'recommendations' }}
+                </p>
+                <p class="dh-reco-msg">{{ $primaryRecommendation['message'] ?? ($primaryRecommendation['label'] ?? '') }}</p>
+            </div>
+            @if (($canManageShipping ?? false) && ! empty($primaryRecommendation['action_href']))
+                <a href="{{ $primaryRecommendation['action_href'] }}" class="dh-link">
+                    {{ $primaryRecommendation['action_label'] ?? 'Review' }} →
+                </a>
+            @endif
+        </aside>
+    @elseif ($showAttentionHealth)
+        <aside class="dh-alert" aria-label="Delivery needs attention">
+            <p class="dh-alert-title">{{ $isReady ? 'Recommended improvements' : ($hasCompletedSetup ? 'Needs attention' : 'Action needed') }}</p>
+            <ul class="dh-alert-list">
                 @foreach ($healthItems->take(3) as $item)
-                    <li @class([
-                        'delivery-hub-health-item',
-                        'is-error' => ! $isReady && ($item['severity'] ?? '') === 'error',
-                    ])>
+                    <li class="dh-alert-item">
                         <div>
-                            <p class="font-semibold text-[color:var(--color-ink)]">{{ $item['label'] ?? 'Setup item' }}</p>
-                            <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">{{ $item['message'] ?? '' }}</p>
+                            <p class="dh-alert-item-title">{{ $item['label'] ?? 'Setup item' }}</p>
+                            <p class="dh-alert-item-msg">{{ $item['message'] ?? '' }}</p>
                         </div>
-                        @if ($canManageShipping ?? false)
-                            @if (! empty($item['remove_method_id']))
-                                <form method="POST" action="{{ route('settings.shipping.methods.destroy', $item['remove_method_id']) }}" onsubmit="return confirm('Remove this delivery option?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="delivery-hub-link text-[#991B1B]">{{ $item['action_label'] ?? 'Remove' }}</button>
-                                </form>
-                            @elseif (! empty($item['remove_zone_id']))
-                                <form method="POST" action="{{ route('settings.shipping.zones.destroy', $item['remove_zone_id']) }}" onsubmit="return confirm('Remove this delivery area and its checkout options?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="delivery-hub-link text-[#991B1B]">{{ $item['action_label'] ?? 'Remove' }}</button>
-                                </form>
-                            @elseif (! empty($item['action_href']))
-                                <a href="{{ $item['action_href'] }}" class="delivery-hub-link">{{ $item['action_label'] ?? 'Fix' }}</a>
-                            @elseif (! empty($item['action_tab']))
-                                <button type="button" data-shipping-tab="{{ $item['action_tab'] }}" class="delivery-hub-link">{{ $item['action_label'] ?? 'Fix' }}</button>
-                            @endif
+                        @if (($canManageShipping ?? false) && ! empty($item['action_href']))
+                            <a href="{{ $item['action_href'] }}" class="dh-link">{{ $item['action_label'] ?? 'Fix' }}</a>
                         @endif
                     </li>
                 @endforeach
@@ -212,249 +171,305 @@
         </aside>
     @endif
 
-    <div class="delivery-hub-grid delivery-hub-grid-3">
-        @foreach ($hubCards as $card)
-            @php
-                $summary = $card['summary'];
-                $tone = $statusTone($summary);
-            @endphp
-            <article class="delivery-hub-card" data-tone="{{ $tone }}">
-                <div class="delivery-hub-card-top">
-                    <p class="delivery-hub-card-eyebrow">Configuration</p>
-                    <span class="delivery-hub-card-badge tone-{{ $tone }}">{{ $statusLabel($tone) }}</span>
-                </div>
-                <h3 class="delivery-hub-card-title">{{ $card['title'] }}</h3>
-                @if (! empty($summary['title']) && ($summary['title'] ?? '') !== 'Not configured')
-                    <p class="delivery-hub-card-value">{{ $summary['title'] }}</p>
-                @endif
-                <p class="delivery-hub-card-detail">{{ $summary['detail'] ?? $card['empty'] }}</p>
-                @foreach (($card['extra_lines'] ?? []) as $extra)
-                    <p class="mt-1 text-xs text-[color:var(--color-ink-muted)]">{{ $extra }}</p>
-                @endforeach
-                @if ($canManageShipping ?? false)
-                    <div class="delivery-hub-card-actions">
-                        <a href="{{ $tone === 'missing' ? $card['setup_href'] : $card['href'] }}" class="delivery-hub-primary-link">{{ $card['cta'] }}</a>
-                    </div>
-                @endif
-            </article>
-        @endforeach
-    </div>
-
-    @if (($canManageShipping ?? false) && ($manageableZones->isNotEmpty() || $manageableMethods->isNotEmpty() || $orphanMethods->isNotEmpty()))
-        <section class="delivery-hub-section" aria-labelledby="delivery-manage-heading">
-            <div class="delivery-section-head">
-                <div>
-                    <h3 id="delivery-manage-heading" class="delivery-section-title">Manage areas and checkout options</h3>
-                    <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">Edit or remove delivery areas and checkout options without digging through advanced settings.</p>
-                </div>
-                @if ($orphanMethods->isNotEmpty())
-                    <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" onsubmit="return confirm('Remove all unused delivery options that are not linked to a delivery area?')">
-                        @csrf
-                        <button type="submit" class="ui-btn ui-btn-secondary">Remove unused options</button>
-                    </form>
-                @endif
-            </div>
-
-            @if ($manageableZones->isNotEmpty())
-                <div class="mb-4 space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)]">Delivery areas</p>
-                    @foreach ($manageableZones as $zone)
-                        <article class="delivery-location-card">
-                            <div class="flex flex-wrap items-start justify-between gap-2">
-                                <div class="min-w-0">
-                                    <p class="font-semibold text-[color:var(--color-ink)]">{{ $zone->name }}</p>
-                                    <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">
-                                        {{ collect($zone->countries)->filter()->implode(', ') ?: 'No country set' }}
-                                        · {{ $zone->shippingMethods->count() }} checkout {{ $zone->shippingMethods->count() === 1 ? 'option' : 'options' }}
-                                        @unless ($zone->is_active) · Inactive @endunless
-                                    </p>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <a href="{{ route('settings.delivery.setup.deliver-to', ['shipping_zone_id' => $zone->id]) }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Edit</a>
-                                    <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}" onsubmit="return confirm('Remove “{{ $zone->name }}” and its checkout options?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </article>
-                    @endforeach
-                </div>
-            @endif
-
-            @if ($manageableMethods->isNotEmpty())
-                <div class="space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-ink-muted)]">Checkout options</p>
-                    @foreach ($manageableMethods as $method)
-                        @php
-                            $isOrphan = method_exists($method, 'isOrphanedFromArea') && $method->isOrphanedFromArea();
-                        @endphp
-                        <article class="delivery-location-card">
-                            <div class="flex flex-wrap items-start justify-between gap-2">
-                                <div class="min-w-0">
-                                    <p class="font-semibold text-[color:var(--color-ink)]">{{ $method->name }}</p>
-                                    <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">
-                                        @if ($isOrphan)
-                                            Not linked to a delivery area
-                                        @else
-                                            Area: {{ $method->shippingZone?->name ?? '—' }}
-                                        @endif
-                                        · {{ $method->isFedExLiveRateMethod() ? 'FedEx live rates' : 'Fixed / free' }}
-                                    </p>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    @unless ($isOrphan)
-                                        <a href="{{ route('settings.delivery.setup.delivery-option', ['shipping_zone_id' => $method->shipping_zone_id, 'shipping_method_id' => $method->id]) }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Edit</a>
-                                    @endunless
-                                    <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}" onsubmit="return confirm('Remove “{{ $method->name }}”?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </article>
-                    @endforeach
-                </div>
-            @endif
-        </section>
+    @if ($orphanMethods->isNotEmpty() && ($canManageShipping ?? false))
+        <div class="dh-orphan">
+            <p>{{ $orphanMethods->count() }} unused delivery {{ $orphanMethods->count() === 1 ? 'option is' : 'options are' }} not linked to a delivery area.</p>
+            <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" onsubmit="return confirm('Remove all unused delivery options that are not linked to a delivery area?')">
+                @csrf
+                <button type="submit" class="dh-btn dh-btn-ghost">Remove unused options</button>
+            </form>
+        </div>
     @endif
 
-    @if (! $isReady && ($canManageShipping ?? false))
+    @if (! $isReady && ! $hasCompletedSetup && ($canManageShipping ?? false))
         <x-ui.empty-state
-            title="Finish delivery setup"
-            lead="Answer a few setup questions so customers can see delivery options at checkout."
-            action-label="Start delivery setup"
-            :action-href="route('settings.delivery.setup.ship-from')"
+            title="Delivery isn’t set up yet"
+            lead="Set where you ship from, where you deliver, and what customers see at checkout."
+            action-label="Set up delivery"
+            :action-href="route('settings.delivery.setup')"
         />
     @endif
 
-    <section class="delivery-hub-section" aria-labelledby="delivery-carriers-heading">
-        <div class="delivery-section-head">
-            <div>
-                <h3 id="delivery-carriers-heading" class="delivery-section-title">Delivery providers</h3>
-                <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">External carriers for live rates and labels. Manual fixed/free shipping is configured under checkout shipping — not listed here as a connected carrier.</p>
-            </div>
-        </div>
-        <div class="delivery-carrier-grid">
-            <a href="{{ ($canManageShipping ?? false) ? $fedExHref : '#' }}" @class(['delivery-carrier-card', 'is-connected' => $fedExStatus === 'connected', 'is-setup' => $fedExStatus === 'setup', 'is-attention' => $fedExStatus === 'attention'])>
-                <span class="delivery-carrier-logo">
-                    @if (file_exists(public_path('assets/carriers/fedex/fedex-unified-logo.svg')))
-                        <img src="{{ asset('assets/carriers/fedex/fedex-unified-logo.svg') }}" alt="">
-                    @else
-                        <span class="delivery-carrier-fallback">FX</span>
-                    @endif
-                </span>
-                <span class="min-w-0 flex-1">
-                    <span class="block font-semibold text-[color:var(--color-ink)]">FedEx</span>
-                    <span class="mt-0.5 block text-xs text-[color:var(--color-ink-muted)]">{{ $fedExDetail }}</span>
-                </span>
-                <span @class(['delivery-status-pill', 'is-connected' => $fedExStatus === 'connected', 'is-setup' => $fedExStatus === 'setup', 'is-attention' => $fedExStatus === 'attention'])>
-                    <span class="delivery-status-dot" aria-hidden="true"></span>{{ strtoupper($fedExLabel) }}
-                </span>
-            </a>
-            <a href="{{ ($canManageShipping ?? false) ? $uspsHref : '#' }}" @class(['delivery-carrier-card', 'is-connected' => $uspsStatus === 'connected', 'is-setup' => $uspsStatus !== 'connected'])>
-                <span class="delivery-carrier-logo"><span class="delivery-carrier-fallback">USPS</span></span>
-                <span class="min-w-0 flex-1">
-                    <span class="block font-semibold text-[color:var(--color-ink)]">USPS</span>
-                    <span class="mt-0.5 block text-xs text-[color:var(--color-ink-muted)]">{{ $uspsDetail }}</span>
-                </span>
-                <span @class(['delivery-status-pill', 'is-connected' => $uspsStatus === 'connected', 'is-setup' => $uspsStatus !== 'connected'])>
-                    <span class="delivery-status-dot" aria-hidden="true"></span>{{ strtoupper($uspsLabel) }}
-                </span>
-            </a>
-            <div class="delivery-carrier-card is-setup" aria-disabled="true">
-                <span class="delivery-carrier-logo"><span class="delivery-carrier-fallback">DHL</span></span>
-                <span class="min-w-0 flex-1">
-                    <span class="block font-semibold text-[color:var(--color-ink)]">DHL</span>
-                    <span class="mt-0.5 block text-xs text-[color:var(--color-ink-muted)]">Coming later — production integration is not available yet.</span>
-                </span>
-                <span class="delivery-status-pill is-setup">
-                    <span class="delivery-status-dot" aria-hidden="true"></span>COMING LATER
-                </span>
-            </div>
-        </div>
+    {{-- Shipping origin --}}
+    <section id="shipping-origin" class="dh-block">
+        <h3 class="dh-block-title">Shipping origin</h3>
+        @if ($defaultLocation)
+            <article class="dh-panel">
+                <div class="dh-panel-row">
+                    <div class="min-w-0">
+                        <div class="dh-panel-title-row">
+                            <p class="dh-panel-title">{{ $defaultLocation->name }}</p>
+                            <span @class(['dh-chip', 'is-ready' => $originComplete, 'is-blocked' => ! $originComplete])>
+                                {{ $originComplete ? 'Ready' : 'Needs attention' }}
+                            </span>
+                        </div>
+                        <p class="dh-panel-meta">{{ $originAddress ?: 'Address incomplete' }}</p>
+                    </div>
+                    <a href="{{ route('settings.locations.index') }}" class="dh-link">Manage locations</a>
+                </div>
+            </article>
+        @else
+            <div class="dh-empty">Add a ship-from location to continue.</div>
+        @endif
     </section>
 
-    <section class="delivery-hub-section" aria-labelledby="delivery-locations-heading">
-        <div class="delivery-section-head">
-            <div>
-                <h3 id="delivery-locations-heading" class="delivery-section-title">Ship-from locations</h3>
-                <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">Fulfillment locations</p>
-            </div>
-            <a href="{{ route('settings.locations.index') }}" class="ui-btn ui-btn-secondary">Manage locations</a>
+    {{-- Delivery areas & options --}}
+    <section id="delivery-areas" class="dh-block">
+        <div class="dh-block-head">
+            <h3 class="dh-block-title">Delivery areas &amp; options</h3>
+            @if ($canManageShipping ?? false)
+                @if ($hasCompletedSetup)
+                    <button type="button" data-open-drawer="zone-add" class="dh-btn dh-btn-ghost">Add delivery area</button>
+                @else
+                    <a href="{{ route('settings.delivery.setup.deliver-to') }}" class="dh-btn dh-btn-ghost">Add delivery area</a>
+                @endif
+            @endif
         </div>
-        <div class="space-y-3">
-            @forelse ($locationsList->take(3) as $location)
+
+        <div class="dh-stack">
+            @forelse ($allZones as $zone)
                 @php
-                    $readiness = $originReadiness[$location->id] ?? null;
+                    $zoneMethods = $methods
+                        ->where('shipping_zone_id', $zone->id)
+                        ->filter(fn ($m) => $m->is_active || $m->enabled_for_checkout)
+                        ->values();
+                    $zoneFedExMethods = $zoneMethods->filter(
+                        fn ($m) => method_exists($m, 'isFedExLiveRateMethod') && $m->isFedExLiveRateMethod()
+                    )->values();
+                    $zoneFixedMethods = $zoneMethods->reject(
+                        fn ($m) => method_exists($m, 'isFedExLiveRateMethod') && $m->isFedExLiveRateMethod()
+                    )->values();
+                    $regionCount = collect($zone->regions)->filter()->count();
+                    $coverage = $regionCount > 0
+                        ? $regionCount.' '.($regionCount === 1 ? 'state' : 'states')
+                        : (collect($zone->countries)->filter()->implode(', ') ?: 'No country set');
+                    $fedExManageHref = $hasCompletedSetup
+                        ? route('settings.delivery.checkout-options', ['shipping_zone_id' => $zone->id])
+                        : route('settings.delivery.setup.delivery-option', ['shipping_zone_id' => $zone->id]);
+                    $fedExCheckoutAvailable = $zone->is_active
+                        && $zoneFedExMethods->contains(fn ($m) => $m->is_active && $m->enabled_for_checkout);
                 @endphp
-                <article class="delivery-location-card">
-                    <div class="flex flex-wrap items-start justify-between gap-2">
+                <article class="dh-panel">
+                    <div class="dh-panel-row">
                         <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <p class="font-semibold text-[color:var(--color-ink)]">{{ $location->name }}</p>
-                                @if ($location->is_default)<span class="delivery-tag-default">Default origin</span>@endif
+                            <div class="dh-panel-title-row">
+                                <p class="dh-panel-title">{{ $zone->name }}</p>
+                                <span @class(['dh-chip', 'is-ready' => $zone->is_active, 'is-muted' => ! $zone->is_active])>
+                                    {{ $zone->is_active ? 'Active' : 'Inactive' }}
+                                </span>
                             </div>
-                            <p class="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
-                                {{ $readiness?->displayAddress ?: collect([$location->address_line1, $location->city, $location->state, $location->postal_code, $location->country_code])->filter()->implode(', ') }}
-                            </p>
+                            <p class="dh-panel-meta">{{ $coverage }}</p>
                         </div>
-                        @if ($readiness)
-                            <span @class(['delivery-ready-chip', 'is-ready' => $readiness->ready, 'is-blocked' => ! $readiness->ready])>{{ $readiness->badgeLabel }}</span>
+                        @if ($canManageShipping ?? false)
+                            <div class="dh-actions">
+                                @if ($hasCompletedSetup)
+                                    <button type="button" class="zone-edit-btn dh-btn dh-btn-ghost"
+                                        data-action="{{ route('settings.shipping.zones.update', $zone) }}"
+                                        data-zone-form="{{ e(json_encode($zonePresenter->presentationFromZone($zone))) }}">Edit</button>
+                                @else
+                                    <a href="{{ route('settings.delivery.setup.deliver-to', ['shipping_zone_id' => $zone->id]) }}" class="dh-btn dh-btn-ghost">Edit</a>
+                                @endif
+                                <details class="dh-menu">
+                                    <summary class="dh-menu-trigger" aria-label="More actions for {{ $zone->name }}">⋯</summary>
+                                    <div class="dh-menu-panel">
+                                        <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}" onsubmit="return confirm('Remove “{{ $zone->name }}” and its checkout options? This cannot be undone.')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="dh-menu-danger">Remove</button>
+                                        </form>
+                                    </div>
+                                </details>
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="dh-options">
+                        @if ($zoneFedExMethods->isEmpty() && $zoneFixedMethods->isEmpty())
+                            <p class="dh-empty-inline">No checkout options in this area yet.</p>
+                        @else
+                            @foreach ($zoneFixedMethods as $method)
+                                @php
+                                    $priceMode = $method->rate_type === 'free'
+                                        ? 'free'
+                                        : ((float) ($method->free_over_amount ?? 0) > 0 ? 'free_over' : 'fixed');
+                                    $flagMismatch = $method->is_active !== $method->enabled_for_checkout;
+                                @endphp
+                                <div class="dh-option-row">
+                                    <div class="dh-option-main">
+                                        <span class="dh-option-name">{{ $method->name }}</span>
+                                        <span class="dh-option-meta">
+                                            <span>{{ $methodPriceLabel($method) }}</span>
+                                            <span class="dh-dot" aria-hidden="true">·</span>
+                                            <span>{{ $methodDaysLabel($method) }}</span>
+                                        </span>
+                                    </div>
+                                    @if ($canManageShipping ?? false)
+                                        <details class="dh-menu">
+                                            <summary class="dh-menu-trigger" aria-label="More actions for {{ $method->name }}">⋯</summary>
+                                            <div class="dh-menu-panel">
+                                                <button type="button" class="method-edit-btn dh-menu-item"
+                                                    data-action="{{ route('settings.shipping.methods.update', $method) }}"
+                                                    data-name="{{ $method->name }}"
+                                                    data-zone="{{ $method->shipping_zone_id }}"
+                                                    data-carrier="{{ $method->carrier_account_id }}"
+                                                    data-rate-type="{{ $method->rate_type }}"
+                                                    data-price-mode="{{ $priceMode }}"
+                                                    data-label="{{ $method->delivery_speed_label }}"
+                                                    data-flat="{{ $method->flat_rate }}"
+                                                    data-free-over="{{ $method->free_over_amount }}"
+                                                    data-min-order="{{ $method->min_order_amount }}"
+                                                    data-max-order="{{ $method->max_order_amount }}"
+                                                    data-min-days="{{ $method->estimated_min_days }}"
+                                                    data-max-days="{{ $method->estimated_max_days }}"
+                                                    data-description="{{ $method->description }}"
+                                                    data-sort="{{ $method->sort_order }}"
+                                                    data-checkout="{{ $method->enabled_for_checkout ? '1' : '0' }}"
+                                                    data-active="{{ $method->is_active ? '1' : '0' }}"
+                                                    data-flag-mismatch="{{ $flagMismatch ? '1' : '0' }}">Edit</button>
+                                                <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}" onsubmit="return confirm('Remove “{{ $method->name }}”? Customers will no longer see this option at checkout.')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="dh-menu-danger">Remove</button>
+                                                </form>
+                                            </div>
+                                        </details>
+                                    @endif
+                                </div>
+                            @endforeach
+
+                            @if ($zoneFedExMethods->isNotEmpty())
+                                <div class="dh-option-row">
+                                    <div class="dh-option-main">
+                                        <span class="dh-option-name">FedEx live rates</span>
+                                        <span class="dh-option-meta">
+                                            <span>{{ $zoneFedExMethods->count() }} {{ $zoneFedExMethods->count() === 1 ? 'service' : 'services' }}</span>
+                                            <span class="dh-dot" aria-hidden="true">·</span>
+                                            <span>
+                                                @if (! $zone->is_active)
+                                                    Unavailable
+                                                @elseif ($fedExCheckoutAvailable)
+                                                    Live rates
+                                                @else
+                                                    Hidden
+                                                @endif
+                                            </span>
+                                        </span>
+                                    </div>
+                                    @if ($canManageShipping ?? false)
+                                        <a href="{{ $fedExManageHref }}" class="dh-link">Manage</a>
+                                    @endif
+                                </div>
+                            @endif
+                        @endif
+
+                        @if (($canManageShipping ?? false) && $hasCompletedSetup)
+                            <button type="button" data-open-drawer="method-add" data-zone-id="{{ $zone->id }}" class="dh-add-option">+ Add delivery option</button>
+                        @elseif (($canManageShipping ?? false) && ! $hasCompletedSetup)
+                            <a href="{{ route('settings.delivery.setup.delivery-option', ['shipping_zone_id' => $zone->id]) }}" class="dh-add-option">+ Add delivery option</a>
                         @endif
                     </div>
                 </article>
             @empty
-                <div class="delivery-empty-field text-center">No fulfillment locations yet.</div>
+                <div class="dh-empty">No delivery areas yet.</div>
             @endforelse
         </div>
     </section>
 
-    <section class="delivery-hub-section" aria-labelledby="delivery-packages-heading">
-        <div class="delivery-section-head">
-            <div>
-                <h3 id="delivery-packages-heading" class="delivery-section-title">Package sizes</h3>
-                <p class="mt-0.5 text-sm text-[color:var(--color-ink-muted)]">Default boxes for carrier rates when products do not list dimensions</p>
-            </div>
-            <a href="{{ route('shippingAutomation', ['tab' => 'packages']) }}" class="ui-btn ui-btn-secondary">Manage packages</a>
+    {{-- FedEx --}}
+    <section id="delivery-fedex" class="dh-block">
+        <div class="dh-block-head">
+            <h3 class="dh-block-title">FedEx</h3>
         </div>
-        @php
-            $packagePresetsList = collect($packagePresets ?? []);
-            $defaultPreset = $packagePresetsList->firstWhere('is_default', true) ?? $packagePresetsList->first();
-        @endphp
-        @if ($defaultPreset)
-            <article class="delivery-location-card">
-                <p class="font-semibold text-[color:var(--color-ink)]">{{ $defaultPreset->name }}</p>
-                <p class="mt-1.5 text-sm text-[color:var(--color-ink-muted)]">
-                    {{ number_format((float) $defaultPreset->length, 1) }}
-                    × {{ number_format((float) $defaultPreset->width, 1) }}
-                    × {{ number_format((float) $defaultPreset->height, 1) }}
-                    {{ $defaultPreset->dimension_unit ?: 'IN' }}
-                    @if ($defaultPreset->is_default) · Default @endif
-                </p>
-            </article>
-        @else
-            <div class="delivery-empty-field text-center">No default package size yet. Add one so FedEx live rates can use real dimensions.</div>
-        @endif
+        <article @class(['dh-fedex', 'is-connected' => $fedExStatus === 'connected', 'is-setup' => $fedExStatus === 'setup', 'is-attention' => $fedExStatus === 'attention'])>
+            <div class="dh-fedex-top">
+                <div class="dh-fedex-brand">
+                    <span class="dh-fedex-logo" aria-hidden="true">
+                        @if (file_exists(public_path('assets/carriers/fedex/fedex-unified-logo.svg')))
+                            <img src="{{ asset('assets/carriers/fedex/fedex-unified-logo.svg') }}" alt="">
+                        @else
+                            FX
+                        @endif
+                    </span>
+                    <div>
+                        <p class="dh-panel-title">FedEx</p>
+                        <p class="dh-panel-meta">{{ $fedExDetail }}</p>
+                    </div>
+                </div>
+                <span @class(['dh-chip', 'is-ready' => $fedExStatus === 'connected', 'is-warn' => $fedExStatus === 'setup', 'is-blocked' => $fedExStatus === 'attention'])>
+                    {{ $fedExLabel }}
+                </span>
+            </div>
+
+            @if ($fedExAccount && in_array($fedExStatus, ['connected', 'attention'], true))
+                <div class="dh-cap-grid">
+                    <div class="dh-cap">
+                        <p class="dh-cap-label">Checkout rates</p>
+                        <p class="dh-cap-value">{{ $fedExCaps['checkout'] ? 'Available' : 'Not active' }}</p>
+                    </div>
+                    <div class="dh-cap">
+                        <p class="dh-cap-label">Labels</p>
+                        <p class="dh-cap-value">{{ $fedExCaps['labels'] ? 'Available' : 'Needs attention' }}</p>
+                    </div>
+                    <div class="dh-cap">
+                        <p class="dh-cap-label">Tracking</p>
+                        <p class="dh-cap-value">{{ $fedExCaps['tracking'] ? 'Available' : 'Needs attention' }}</p>
+                    </div>
+                </div>
+            @endif
+
+            @if ($canManageShipping ?? false)
+                <div class="dh-fedex-foot">
+                    <a href="{{ $fedExHref }}" class="dh-link">{{ $fedExConnected ? 'Manage FedEx' : 'Connect FedEx' }} →</a>
+                </div>
+            @endif
+        </article>
     </section>
 
-    <div class="delivery-advanced-row">
-        <div class="flex items-center gap-3">
-            <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#f1f5f9] text-[color:var(--color-ink-muted)]" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h10M4 17h13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            </span>
-            <div>
-                <p class="font-semibold text-[color:var(--color-ink)]">Advanced settings</p>
-                <p class="text-xs text-[color:var(--color-ink-muted)]">Legacy tables and edge configuration — not for normal FedEx checkout setup</p>
-            </div>
-        </div>
-        <button type="button" class="delivery-toggle" x-bind:class="advancedOpen && 'is-on'" x-bind:aria-pressed="advancedOpen.toString()" x-on:click="advancedOpen = !advancedOpen; persist();" aria-controls="delivery-advanced-panel" aria-label="Toggle advanced delivery settings"></button>
-    </div>
+    {{-- Packages --}}
+    @if ($showPackages)
+        <section id="packages" class="dh-block">
+            <h3 class="dh-block-title">Packages</h3>
+            <article class="dh-panel">
+                <div class="dh-panel-row">
+                    @if ($defaultPreset)
+                        <p class="dh-packages-summary">
+                            <span class="dh-option-name">{{ $defaultPreset->name }}</span>
+                            <span class="dh-dot" aria-hidden="true">·</span>
+                            {{ number_format((float) $defaultPreset->length, 0) }}
+                            × {{ number_format((float) $defaultPreset->width, 0) }}
+                            × {{ number_format((float) $defaultPreset->height, 0) }}
+                            {{ strtolower($defaultPreset->dimension_unit ?: 'in') }}
+                            @if ($defaultPreset->is_default)
+                                <span class="dh-dot" aria-hidden="true">·</span>
+                                Default
+                            @endif
+                        </p>
+                    @else
+                        <p class="dh-panel-meta">Add a default package so live rates can use real dimensions.</p>
+                    @endif
+                    <a href="{{ route('settings.shipping.packages') }}" class="dh-link">Manage packages</a>
+                </div>
+            </article>
+        </section>
+    @endif
 
-    <p class="text-sm text-[color:var(--color-ink-muted)]">
-        Tax is configured separately in
-        <a href="{{ route('settings.taxes.index') }}" class="font-semibold text-[color:var(--color-brand)] hover:underline">Checkout &amp; tax</a>.
-    </p>
+    {{-- Troubleshooting --}}
+    <section id="delivery-troubleshooting" class="dh-block">
+        <details class="dh-trouble">
+            <summary class="dh-trouble-summary">
+                <span>Troubleshooting</span>
+                <span class="dh-trouble-hint">Preview checkout delivery</span>
+            </summary>
+            <div class="dh-trouble-body">
+                <a href="{{ route('settings.delivery.test-address') }}" class="dh-link">Preview checkout delivery →</a>
+                <p class="dh-panel-meta mt-2">
+                    See which delivery options a customer would get for an address — without changing orders or settings.
+                </p>
+                <p class="dh-panel-meta mt-2">
+                    Tax is managed under
+                    <a href="{{ route('settings.taxes.index') }}" class="dh-link">Checkout &amp; tax</a>.
+                </p>
+            </div>
+        </details>
+    </section>
 </section>

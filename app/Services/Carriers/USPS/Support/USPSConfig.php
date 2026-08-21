@@ -110,6 +110,26 @@ final class USPSConfig
         return (bool) config('carriers.usps.merchant_connection_enabled', false);
     }
 
+    /**
+     * Whether USPS appears in normal merchant Delivery navigation/UI.
+     */
+    public function merchantVisible(): bool
+    {
+        return (bool) config('carriers.usps.merchant_visible', false);
+    }
+
+    /**
+     * Direct USPS merchant routes: visible product flag, or local/testing while connection work is enabled.
+     */
+    public function merchantRoutesAccessible(): bool
+    {
+        if ($this->merchantVisible()) {
+            return true;
+        }
+
+        return app()->environment(['local', 'testing']) && $this->merchantConnectionEnabled();
+    }
+
     public function platformEpa(): ?string
     {
         $value = (string) config('carriers.usps.platform_epa', '');

@@ -52,13 +52,27 @@ class DeliveryOptionInputNormalizer
         }
 
         if ($existing->is_active !== $existing->enabled_for_checkout) {
-            if ($request->input('resolve_flag_mismatch') === 'available') {
+            $resolve = (string) $request->input('resolve_flag_mismatch', '');
+
+            // Single merchant control may resolve a legacy mismatch by syncing both flags.
+            if ($resolve === 'available'
+                || ($request->exists('available_to_customers') && $request->boolean('available_to_customers'))) {
                 $validated['enabled_for_checkout'] = true;
                 $validated['is_active'] = true;
-            } else {
-                $validated['enabled_for_checkout'] = $existing->enabled_for_checkout;
-                $validated['is_active'] = $existing->is_active;
+
+                return $validated;
             }
+
+            if ($resolve === 'hidden'
+                || ($request->exists('available_to_customers') && ! $request->boolean('available_to_customers'))) {
+                $validated['enabled_for_checkout'] = false;
+                $validated['is_active'] = false;
+
+                return $validated;
+            }
+
+            $validated['enabled_for_checkout'] = $existing->enabled_for_checkout;
+            $validated['is_active'] = $existing->is_active;
 
             return $validated;
         }

@@ -89,6 +89,7 @@
     </div>
 
     @if ($canManageShipping ?? false)
+        @unless ($hideShippingDefaults ?? false)
         @php($prefs = $shippingPreferences ?? [])
         <div class="border-t border-[#F1F5F9] px-5 py-5">
             <h3 class="text-sm font-semibold text-[#0F172A]">Shipping defaults</h3>
@@ -133,6 +134,7 @@
                 </div>
             </form>
         </div>
+        @endunless
 
         <div class="border-t border-[#F1F5F9] px-5 py-5">
             <h3 class="text-sm font-semibold text-[#0F172A]">Add package size</h3>

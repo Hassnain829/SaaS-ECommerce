@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/fedex-eula-viewer.js'],
+            input: ['resources/css/app.css', 'resources/js/app.js', 'resources/js/fedex-eula-viewer.js', 'resources/js/delivery/hub.js'],
             refresh: true,
         }),
         tailwindcss(),

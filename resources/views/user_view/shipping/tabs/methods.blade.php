@@ -20,12 +20,9 @@
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                         <h3 class="text-lg font-semibold text-[#0F172A]">{{ $method->name }}</h3>
-                        <span class="rounded-full {{ $statusBadge((bool) $method->is_active) }} px-2.5 py-1 text-xs font-bold">{{ $method->is_active ? 'Active' : 'Inactive' }}</span>
-                        @if ($method->enabled_for_checkout)<span class="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-bold text-[#1D4ED8]">At checkout</span>@endif
-                        @if ($method->is_active && ! $method->enabled_for_checkout)
-                            <span class="rounded-full bg-[#FEF3C7] px-2.5 py-1 text-xs font-bold text-[#92400E]">Hidden from checkout</span>
-                        @elseif (! $method->is_active && $method->enabled_for_checkout)
-                            <span class="rounded-full bg-[#FEF3C7] px-2.5 py-1 text-xs font-bold text-[#92400E]">Inactive at checkout</span>
+                        <span class="rounded-full {{ $statusBadge((bool) ($method->is_active && $method->enabled_for_checkout)) }} px-2.5 py-1 text-xs font-bold">{{ ($method->is_active && $method->enabled_for_checkout) ? 'Available at checkout' : 'Hidden from checkout' }}</span>
+                        @if ($method->is_active !== $method->enabled_for_checkout)
+                            <span class="rounded-full bg-[#FEF3C7] px-2.5 py-1 text-xs font-bold text-[#92400E]">Needs cleanup</span>
                         @endif
                     </div>
                     <p class="mt-2 text-sm text-[#64748B]">
@@ -33,7 +30,7 @@
                         · {{ $method->isFedExLiveRateMethod() ? 'FedEx live rates' : ($rateLabels[$method->rate_type] ?? $method->rate_type) }}
                         · {{ $method->isFedExLiveRateMethod()
                             ? ($method->carrier_service_name ?: 'FedEx service')
-                            : ('Provider: '.($method->carrierAccount?->display_name ?? 'Manual delivery')) }}
+                            : ('Fixed / free delivery') }}
                     </p>
                     <p class="mt-1 text-xs text-[#94A3B8]">
                         @if ((float) $method->flat_rate > 0) {{ $selectedStore->currency ?? 'USD' }} {{ number_format((float) $method->flat_rate, 2) }} @endif

@@ -293,7 +293,7 @@ class FedExIntegratorRegistrationOrchestrator
 
         if ($this->config->mfaPinValidationPath() === null) {
             throw ValidationException::withMessages([
-                'pin' => 'FedEx PIN validation endpoint is not configured yet. Set FEDEX_MFA_PIN_VALIDATION_PATH from the FedEx Developer Portal.',
+                'pin' => 'This verification method is temporarily unavailable. Choose another verification method or contact support.',
             ]);
         }
 
@@ -338,7 +338,7 @@ class FedExIntegratorRegistrationOrchestrator
 
         if ($this->config->mfaInvoiceValidationPath() === null) {
             throw ValidationException::withMessages([
-                'invoice_number' => 'FedEx invoice validation endpoint is not configured yet. Set FEDEX_MFA_INVOICE_VALIDATION_PATH from the FedEx Developer Portal.',
+                'invoice_number' => 'This verification method is temporarily unavailable. Choose another verification method or contact support.',
             ]);
         }
 

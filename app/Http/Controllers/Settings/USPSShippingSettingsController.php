@@ -23,6 +23,8 @@ class USPSShippingSettingsController extends Controller
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
 
+        abort_unless($uspsConfig->merchantRoutesAccessible(), 404);
+
         if (! $uspsConfig->isConfigured()) {
             return back()
                 ->withErrors(['usps' => 'USPS testing connection is not available on this platform environment yet. Contact the platform admin.'])
@@ -90,6 +92,7 @@ class USPSShippingSettingsController extends Controller
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $carrierAccount->store_id === (int) $store->id, 404);
         abort_unless($carrierAccount->isUsps(), 404);
+        abort_unless(app(USPSConfig::class)->merchantRoutesAccessible(), 404);
 
         try {
             $result = $providerManager->provider(CarrierAccount::PROVIDER_USPS)->testConnection(
@@ -131,6 +134,7 @@ class USPSShippingSettingsController extends Controller
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
+        abort_unless(app(USPSConfig::class)->merchantRoutesAccessible(), 404);
 
         $validated = $request->validate([
             'origin_location_id' => [
