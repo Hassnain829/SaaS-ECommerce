@@ -34,7 +34,12 @@ class DeliverySetupWizardController extends Controller
         $store = $this->store($request);
 
         if ($lifecycle->hasCompletedSetup($store)) {
-            return redirect()->route('shippingAutomation');
+            if ($lifecycle->isCurrentlyReady($store)) {
+                return redirect()->route('shippingAutomation');
+            }
+
+            // Repair path: send completed-but-broken stores to the first incomplete step.
+            return redirect()->route($lifecycle->nextIncompleteSetupRouteName($store));
         }
 
         $lifecycle->clearWizardSession($request);
@@ -109,7 +114,16 @@ class DeliverySetupWizardController extends Controller
         $this->authorizeManage($request, $store);
 
         if ($lifecycle->hasCompletedSetup($store)) {
-            return redirect()->route('settings.delivery.checkout-options', $request->query());
+            // Structural gaps (no area / no option) should use the repair setup step,
+            // not the ongoing checkout-options editor.
+            if (! $lifecycle->isCurrentlyReady($store)) {
+                $next = $lifecycle->nextIncompleteSetupRouteName($store);
+                if ($next !== 'settings.delivery.setup.delivery-option' && $next !== 'settings.delivery.setup.review') {
+                    return redirect()->route($next, $request->query());
+                }
+            } else {
+                return redirect()->route('settings.delivery.checkout-options', $request->query());
+            }
         }
 
         if ($request->isMethod('post')) {
@@ -482,7 +496,9 @@ class DeliverySetupWizardController extends Controller
 
     private function redirectCompletedSetupToHub($store, DeliverySetupLifecycleService $lifecycle): ?RedirectResponse
     {
-        if (! $lifecycle->hasCompletedSetup($store)) {
+        // Completed + currently ready stays on the hub.
+        // Completed + broken may re-enter setup steps to repair missing configuration.
+        if (! $lifecycle->hasCompletedSetup($store) || ! $lifecycle->isCurrentlyReady($store)) {
             return null;
         }
 

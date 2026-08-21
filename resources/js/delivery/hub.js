@@ -1,6 +1,5 @@
 /**
- * Delivery hub drawers + postal/region builders.
- * Expects #shipping-page[data-zone-store-url][data-method-store-url].
+ * Delivery hub: side drawers, availability toggles, area/option editors.
  */
 (function () {
     const boot = () => {
@@ -12,23 +11,11 @@
 
         const zoneStoreUrl = page.getAttribute('data-zone-store-url') || '';
         const methodStoreUrl = page.getAttribute('data-method-store-url') || '';
-
-        function applyHashTarget() {
-            const hash = window.location.hash.replace(/^#/, '');
-            if (! hash) {
-                return;
-            }
-            const el = document.getElementById(hash);
-            if (! el) {
-                return;
-            }
-            if (hash === 'delivery-troubleshooting') {
-                const details = el.querySelector('details');
-                if (details) {
-                    details.open = true;
-                }
-            }
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        let lastFocusEl = null;
+        let csrfToken = '';
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta) {
+            csrfToken = csrfMeta.getAttribute('content') || '';
         }
 
         function drawerKey(raw) {
@@ -40,6 +27,9 @@
             }
             if (raw.indexOf('method') === 0) {
                 return 'method';
+            }
+            if (raw.indexOf('fedex') === 0) {
+                return 'fedex-services';
             }
             return raw;
         }
@@ -54,6 +44,16 @@
             regionCatalog = {};
         }
 
+        let fedExCatalog = [];
+        try {
+            const fedExEl = document.getElementById('fedex-services-catalog');
+            if (fedExEl) {
+                fedExCatalog = JSON.parse(fedExEl.textContent || '[]');
+            }
+        } catch (e) {
+            fedExCatalog = [];
+        }
+
         function renderRegionMulti(countryCode, selectedRegions) {
             const host = document.getElementById('zone-region-multi-host');
             if (! host) {
@@ -63,25 +63,43 @@
             const regions = regionCatalog[countryCode] || {};
             const keys = Object.keys(regions);
             let html = '<div id="zone-region-multi" class="space-y-2" data-role="geo-region-multi" data-country="' + countryCode + '" data-name="region_codes">';
-            html += '<div class="flex items-center justify-between gap-2"><span class="text-xs font-semibold text-[#64748B]">States / provinces (optional)</span>';
+            html += '<div class="flex items-center justify-between gap-2"><span class="text-xs font-semibold text-[#64748B]">States / provinces</span>';
             if (keys.length) {
                 html += '<button type="button" class="text-[11px] font-semibold text-[#1D4ED8] hover:underline" data-region-action="clear">Clear all</button>';
             }
-            html += '</div><p class="text-[11px] text-[#94A3B8]">Leave empty to cover the entire country.</p>';
+            html += '</div>';
             if (! countryCode) {
-                html += '<p class="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-3 py-2 text-xs text-[#64748B]">Choose a country first to see states or provinces.</p>';
+                html += '<p class="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-3 py-2 text-xs text-[#64748B]">Choose a country first.</p>';
             } else if (! keys.length) {
-                html += '<p class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#64748B]">This country has no predefined regions. The entire country will be covered.</p>';
+                html += '<p class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#64748B]">This country has no predefined regions.</p>';
             } else {
                 html += '<div class="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2">';
                 keys.forEach((code) => {
                     const checked = selectedRegions.indexOf(code) !== -1 ? ' checked' : '';
-                    html += '<label class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-[#334155] hover:bg-white"><input type="checkbox" name="region_codes[]" value="' + code + '"' + checked + ' class="rounded border-[#CBD5E1]"><span>' + regions[code] + ' (' + code + ')</span></label>';
+                    html += '<label class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-[#334155] hover:bg-white"><input type="checkbox" name="region_codes[]" value="' + code + '"' + checked + ' class="rounded border-[#CBD5E1]"><span>' + regions[code] + '</span></label>';
                 });
                 html += '</div>';
             }
             html += '</div>';
             host.innerHTML = html;
+        }
+
+        function setEntireCountry(on, selectedRegions) {
+            const toggle = document.getElementById('zone-entire-country');
+            const host = document.getElementById('zone-region-multi-host');
+            const countrySelect = document.getElementById('zone-field-country');
+            if (toggle) {
+                toggle.classList.toggle('is-on', on);
+                toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+            }
+            if (host) {
+                host.classList.toggle('hidden', on);
+            }
+            if (on) {
+                renderRegionMulti(countrySelect ? countrySelect.value : '', []);
+            } else {
+                renderRegionMulti(countrySelect ? countrySelect.value : '', selectedRegions || []);
+            }
         }
 
         function syncPostalRulesJson(container) {
@@ -180,6 +198,28 @@
             }
         }
 
+        function syncCheckboxSwitch(checkbox, switchBtn) {
+            if (! checkbox || ! switchBtn) {
+                return;
+            }
+            switchBtn.classList.toggle('is-on', checkbox.checked);
+            switchBtn.setAttribute('aria-pressed', checkbox.checked ? 'true' : 'false');
+        }
+
+        function bindCheckboxSwitch(checkboxId, switchId) {
+            const checkbox = document.getElementById(checkboxId);
+            const switchBtn = document.getElementById(switchId);
+            if (! checkbox || ! switchBtn || switchBtn.dataset.bound === '1') {
+                return;
+            }
+            switchBtn.dataset.bound = '1';
+            switchBtn.addEventListener('click', () => {
+                checkbox.checked = ! checkbox.checked;
+                syncCheckboxSwitch(checkbox, switchBtn);
+            });
+            syncCheckboxSwitch(checkbox, switchBtn);
+        }
+
         function resetZoneFormForAdd() {
             const form = document.getElementById('zone-drawer-form');
             if (! form) {
@@ -193,7 +233,7 @@
             form.reset();
             document.getElementById('zone-field-active').checked = true;
             setZoneEditorMode('simple');
-            renderRegionMulti('', []);
+            setEntireCountry(true, []);
             renderPostalRules(document.getElementById('zone-postal-builder'), []);
         }
 
@@ -209,45 +249,18 @@
                 countrySelect.value = zoneData.country_code || '';
             }
             setZoneEditorMode(zoneData.editor_mode === 'legacy' ? 'legacy' : 'simple');
-            renderRegionMulti(zoneData.country_code || '', zoneData.region_codes || []);
+            const regions = zoneData.region_codes || [];
+            setEntireCountry(regions.length === 0, regions);
             renderPostalRules(document.getElementById('zone-postal-builder'), zoneData.postal_rules || []);
-        }
-
-        function resetMethodFormForAdd() {
-            const form = document.getElementById('method-drawer-form');
-            if (! form) {
-                return;
-            }
-            form.action = methodStoreUrl;
-            document.getElementById('method-drawer-title').textContent = 'Add delivery option';
-            const method = document.getElementById('method-form-method');
-            method.disabled = true;
-            method.value = 'POST';
-            form.reset();
-            const available = document.getElementById('method-field-available');
-            if (available) {
-                available.checked = true;
-            }
-            const simpleAvailability = document.getElementById('method-simple-availability');
-            if (simpleAvailability) {
-                simpleAvailability.classList.remove('hidden');
-            }
-            const warning = document.getElementById('method-flag-warning');
-            if (warning) {
-                warning.classList.add('hidden');
-                warning.textContent = '';
-            }
-            const advancedPanel = document.getElementById('method-advanced-panel');
-            if (advancedPanel) {
-                advancedPanel.open = false;
-            }
-            setMethodPriceMode('fixed');
-            syncMethodFields();
         }
 
         function setMethodPriceMode(mode) {
             document.querySelectorAll('[data-method-price-mode]').forEach((radio) => {
                 radio.checked = radio.value === mode;
+                const card = radio.closest('.dh-pricecard');
+                if (card) {
+                    card.classList.toggle('is-selected', radio.checked);
+                }
             });
             const fixed = document.getElementById('method-price-fixed');
             const freeOver = document.getElementById('method-price-free-over');
@@ -272,16 +285,47 @@
             }
         }
 
+        function resetMethodFormForAdd() {
+            const form = document.getElementById('method-drawer-form');
+            if (! form) {
+                return;
+            }
+            form.action = methodStoreUrl;
+            document.getElementById('method-drawer-title').textContent = 'Add delivery option';
+            const lead = document.getElementById('method-drawer-lead');
+            if (lead) {
+                lead.textContent = 'Create a customer-facing checkout choice.';
+            }
+            const method = document.getElementById('method-form-method');
+            method.disabled = true;
+            method.value = 'POST';
+            form.reset();
+            const available = document.getElementById('method-field-available');
+            if (available) {
+                available.checked = true;
+            }
+            bindCheckboxSwitch('method-field-available', 'method-available-switch');
+            syncCheckboxSwitch(available, document.getElementById('method-available-switch'));
+            const warning = document.getElementById('method-flag-warning');
+            if (warning) {
+                warning.classList.add('hidden');
+                warning.textContent = '';
+            }
+            setMethodPriceMode('fixed');
+        }
+
         function openDrawer(id) {
             const drawer = document.getElementById('shipping-drawer-' + id);
             if (! drawer) {
                 return;
             }
             drawer.classList.remove('hidden');
+            // force reflow so transform transition runs
+            void drawer.offsetWidth;
             drawer.classList.add('is-open');
             drawer.setAttribute('aria-hidden', 'false');
             document.body.classList.add('overflow-hidden');
-            const focusTarget = drawer.querySelector('input:not([type="hidden"]), select, textarea, button[data-close-drawer]');
+            const focusTarget = drawer.querySelector('input:not([type="hidden"]):not(.sr-only), select, textarea, button[data-close-drawer]');
             if (focusTarget) {
                 focusTarget.focus();
             }
@@ -294,33 +338,101 @@
                 d.setAttribute('aria-hidden', 'true');
             });
             document.body.classList.remove('overflow-hidden');
+            if (lastFocusEl && typeof lastFocusEl.focus === 'function') {
+                lastFocusEl.focus();
+            }
+            lastFocusEl = null;
         }
 
-        function syncMethodFields() {
-            const rateHidden = document.getElementById('method-field-rate-type-hidden');
-            const advancedRate = document.getElementById('method-field-rate-type-advanced');
-            const carrier = document.getElementById('method-field-carrier');
-            const advancedPanel = document.getElementById('method-advanced-panel');
-            const rt = (advancedRate && advancedPanel && advancedPanel.open && advancedRate.value)
-                ? advancedRate.value
-                : (rateHidden ? rateHidden.value : 'flat');
-            const rateCarrierNote = document.getElementById('method-rate-carrier-note');
-            if (rateCarrierNote) {
-                rateCarrierNote.classList.toggle('hidden', rt !== 'carrier_calculated_later');
+        function populateFedExServicesDrawer(trigger) {
+            const form = document.getElementById('fedex-services-drawer-form');
+            if (! form) {
+                return;
             }
-            if (carrier) {
-                const carrierNote = document.getElementById('method-carrier-note');
-                if (carrierNote) {
-                    carrierNote.classList.toggle('hidden', carrier.value !== '');
-                }
+            form.action = trigger.getAttribute('data-action') || '#';
+            const zoneName = trigger.getAttribute('data-zone-name') || 'Delivery area';
+            document.getElementById('fedex-services-drawer-title').textContent = 'FedEx live rates';
+            document.getElementById('fedex-services-drawer-lead').textContent = zoneName;
+            const available = trigger.getAttribute('data-available') === '1';
+            const availableInput = document.getElementById('fedex-services-available');
+            if (availableInput) {
+                availableInput.checked = available;
             }
+            bindCheckboxSwitch('fedex-services-available', 'fedex-services-available-switch');
+            syncCheckboxSwitch(availableInput, document.getElementById('fedex-services-available-switch'));
+
+            let selected = [];
+            try {
+                selected = JSON.parse(trigger.getAttribute('data-services') || '[]');
+            } catch (e) {
+                selected = [];
+            }
+            const list = document.getElementById('fedex-services-list');
+            if (! list) {
+                return;
+            }
+            list.innerHTML = '';
+            (fedExCatalog || []).forEach((service) => {
+                const code = service.code || '';
+                const checked = selected.indexOf(code) !== -1 ? ' checked' : '';
+                const row = document.createElement('div');
+                row.className = 'dh-service-row';
+                row.innerHTML = '<label><input type="checkbox" name="fedex_services[]" value="' + code + '"' + checked + ' class="mt-0.5 rounded border-[#CBD5E1]"><span><strong>' + (service.name || code) + '</strong><small>' + (service.description || '') + '</small></span></label>';
+                list.appendChild(row);
+            });
         }
+
+        async function patchAvailability(url, available) {
+            const response = await fetch(url, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ available: available }),
+            });
+            if (! response.ok) {
+                throw new Error('save_failed');
+            }
+            return response.json();
+        }
+
+        document.querySelectorAll('[data-availability-toggle]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                if (btn.disabled) {
+                    return;
+                }
+                const url = btn.getAttribute('data-toggle-url');
+                if (! url) {
+                    return;
+                }
+                const previous = btn.getAttribute('data-available') === '1';
+                const next = ! previous;
+                btn.disabled = true;
+                btn.classList.toggle('is-on', next);
+                btn.setAttribute('data-available', next ? '1' : '0');
+                btn.setAttribute('aria-pressed', next ? 'true' : 'false');
+                try {
+                    await patchAvailability(url, next);
+                } catch (e) {
+                    btn.classList.toggle('is-on', previous);
+                    btn.setAttribute('data-available', previous ? '1' : '0');
+                    btn.setAttribute('aria-pressed', previous ? 'true' : 'false');
+                    window.alert('Could not save that change. Please try again.');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        });
 
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') {
                 return;
             }
-            const openDrawerEl = document.querySelector('.shipping-drawer:not(.hidden)');
+            const openDrawerEl = document.querySelector('.shipping-drawer.is-open');
             if (openDrawerEl) {
                 event.preventDefault();
                 closeDrawers();
@@ -333,6 +445,7 @@
                 if (! drawerRaw) {
                     return;
                 }
+                lastFocusEl = el;
                 const key = drawerKey(drawerRaw);
                 if (drawerRaw.indexOf('-add') !== -1) {
                     if (key === 'zone') {
@@ -345,7 +458,14 @@
                         if (zoneId && zoneSelect) {
                             zoneSelect.value = zoneId;
                         }
+                        const lead = document.getElementById('method-drawer-lead');
+                        if (lead && zoneSelect && zoneSelect.selectedOptions[0]) {
+                            lead.textContent = zoneSelect.selectedOptions[0].textContent + ' · Simple shipping';
+                        }
                     }
+                }
+                if (key === 'fedex-services') {
+                    populateFedExServicesDrawer(el);
                 }
                 openDrawer(key);
             });
@@ -355,16 +475,9 @@
             el.addEventListener('click', closeDrawers);
         });
 
-        document.querySelectorAll('.shipping-drawer').forEach((drawer) => {
-            drawer.addEventListener('click', (event) => {
-                if (event.target === drawer) {
-                    closeDrawers();
-                }
-            });
-        });
-
         document.querySelectorAll('.zone-edit-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
+                lastFocusEl = btn;
                 document.getElementById('zone-drawer-form').action = btn.getAttribute('data-action');
                 document.getElementById('zone-drawer-title').textContent = 'Edit delivery area';
                 const zoneMethod = document.getElementById('zone-form-method');
@@ -383,6 +496,7 @@
 
         document.querySelectorAll('.method-edit-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
+                lastFocusEl = btn;
                 const menu = btn.closest('details.dh-menu');
                 if (menu) {
                     menu.open = false;
@@ -404,10 +518,6 @@
                 document.getElementById('method-field-max-days').value = btn.getAttribute('data-max-days') || '';
                 document.getElementById('method-field-description').value = btn.getAttribute('data-description') || '';
                 document.getElementById('method-field-sort').value = btn.getAttribute('data-sort') || '0';
-                const advancedRate = document.getElementById('method-field-rate-type-advanced');
-                if (advancedRate) {
-                    advancedRate.value = btn.getAttribute('data-rate-type') || 'flat';
-                }
                 setMethodPriceMode(btn.getAttribute('data-price-mode') || 'fixed');
 
                 const mismatch = btn.getAttribute('data-flag-mismatch') === '1';
@@ -417,31 +527,38 @@
                 if (available) {
                     available.checked = mismatch ? false : (active && checkout);
                 }
-                const simpleAvailability = document.getElementById('method-simple-availability');
-                if (simpleAvailability) {
-                    simpleAvailability.classList.remove('hidden');
-                }
+                bindCheckboxSwitch('method-field-available', 'method-available-switch');
+                syncCheckboxSwitch(available, document.getElementById('method-available-switch'));
                 const warning = document.getElementById('method-flag-warning');
                 if (warning) {
                     if (mismatch) {
                         warning.classList.remove('hidden');
-                        warning.textContent = active
-                            ? 'This option has mixed visibility settings. Turn on “Available at checkout” and save to show it to customers, or leave it off to hide it.'
-                            : 'This option has mixed visibility settings. Turn on “Available at checkout” and save to show it to customers, or leave it off to hide it.';
+                        warning.textContent = 'This option has mixed visibility settings. Turn on “Available at checkout” and save to show it, or leave it off to hide it.';
                     } else {
                         warning.classList.add('hidden');
                         warning.textContent = '';
                     }
                 }
-                syncMethodFields();
                 openDrawer('method');
             });
         });
 
+        const entireCountryBtn = document.getElementById('zone-entire-country');
+        if (entireCountryBtn && entireCountryBtn.dataset.bound !== '1') {
+            entireCountryBtn.dataset.bound = '1';
+            entireCountryBtn.addEventListener('click', () => {
+                const next = ! entireCountryBtn.classList.contains('is-on');
+                setEntireCountry(next, []);
+            });
+        }
+
         const countrySelect = document.getElementById('zone-field-country');
         if (countrySelect) {
             countrySelect.addEventListener('change', () => {
-                renderRegionMulti(countrySelect.value || '', []);
+                const entireOn = entireCountryBtn ? entireCountryBtn.classList.contains('is-on') : true;
+                if (! entireOn) {
+                    renderRegionMulti(countrySelect.value || '', []);
+                }
             });
         }
 
@@ -453,19 +570,13 @@
             }
         });
 
-        const zoneLegacyPanel = document.getElementById('zone-legacy-panel');
-        if (zoneLegacyPanel) {
-            zoneLegacyPanel.addEventListener('toggle', () => {
-                setZoneEditorMode(zoneLegacyPanel.open ? 'legacy' : 'simple');
-            });
-        }
-
         bindPostalRuleBuilder(document.getElementById('zone-postal-builder'));
+        bindCheckboxSwitch('method-field-available', 'method-available-switch');
+        bindCheckboxSwitch('fedex-services-available', 'fedex-services-available-switch');
 
         document.querySelectorAll('[data-method-price-mode]').forEach((radio) => {
             radio.addEventListener('change', () => {
                 setMethodPriceMode(radio.value);
-                syncMethodFields();
             });
         });
 
@@ -482,21 +593,17 @@
             });
         }
 
-        const rateAdvanced = document.getElementById('method-field-rate-type-advanced');
-        const carrierEl = document.getElementById('method-field-carrier');
-        if (rateAdvanced) {
-            rateAdvanced.addEventListener('change', syncMethodFields);
-        }
-        if (carrierEl) {
-            carrierEl.addEventListener('change', syncMethodFields);
-        }
-
         const zoneForm = document.getElementById('zone-drawer-form');
         if (zoneForm) {
             zoneForm.addEventListener('submit', () => {
                 syncPostalRulesJson(document.getElementById('zone-postal-builder'));
-                const legacyPanel = document.getElementById('zone-legacy-panel');
-                setZoneEditorMode(legacyPanel && legacyPanel.open ? 'legacy' : 'simple');
+                const entireOn = entireCountryBtn ? entireCountryBtn.classList.contains('is-on') : true;
+                if (entireOn) {
+                    document.querySelectorAll('#zone-region-multi input[type="checkbox"]').forEach((box) => {
+                        box.checked = false;
+                    });
+                }
+                setZoneEditorMode('simple');
             });
         }
 
@@ -512,12 +619,6 @@
                         flat.value = mirror.value;
                     }
                 }
-                const advancedPanel = document.getElementById('method-advanced-panel');
-                const advancedRate = document.getElementById('method-field-rate-type-advanced');
-                const rateHidden = document.getElementById('method-field-rate-type-hidden');
-                if (advancedPanel && advancedPanel.open && advancedRate && rateHidden) {
-                    rateHidden.value = advancedRate.value;
-                }
             });
         }
 
@@ -531,8 +632,17 @@
             });
         });
 
-        applyHashTarget();
-        syncMethodFields();
+        const hash = window.location.hash.replace(/^#/, '');
+        if (hash === 'delivery-troubleshooting') {
+            const el = document.getElementById(hash);
+            if (el) {
+                const details = el.querySelector('details');
+                if (details) {
+                    details.open = true;
+                }
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
     };
 
     document.addEventListener('DOMContentLoaded', boot);

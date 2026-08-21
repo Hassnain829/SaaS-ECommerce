@@ -27,6 +27,10 @@
         $next = $primaryNextAction ?? null;
         $labelsTone = in_array(($labelsBadge ?? ''), ['Working', 'Enabled — not tested', 'Available'], true) ? 'success' : 'warning';
         $trackingTone = in_array(($trackingBadge ?? ''), ['Working', 'Enabled — not tested', 'Available'], true) ? 'success' : 'warning';
+        $toggles = $accountCapabilityToggles ?? [];
+        $globals = $globalFlags ?? [];
+        $canToggleLabels = (bool) ($globals['ship_labels'] ?? false);
+        $canToggleTracking = (bool) ($globals['tracking'] ?? false);
     @endphp
     <div class="mx-auto max-w-[920px] space-y-6">
         @include('user_view.partials.flash_success')
@@ -92,12 +96,55 @@
                 <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] px-4 py-3">
                     <p class="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Labels</p>
                     <p class="mt-2"><x-ui.badge :tone="$labelsTone">{{ $labelsBadge ?? (($labelsEnabled ?? false) ? 'Available' : 'Needs attention') }}</x-ui.badge></p>
+                    <p class="mt-2 text-xs text-[#64748B]">{{ $labelsDetail ?? '' }}</p>
                 </div>
                 <div class="rounded-xl border border-[#F1F5F9] bg-[#F8FAFC] px-4 py-3">
                     <p class="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Tracking</p>
                     <p class="mt-2"><x-ui.badge :tone="$trackingTone">{{ $trackingBadge ?? (($trackingEnabled ?? false) ? 'Available' : 'Needs attention') }}</x-ui.badge></p>
+                    <p class="mt-2 text-xs text-[#64748B]">{{ $trackingDetail ?? '' }}</p>
                 </div>
             </div>
+
+            @if (($canManageShipping ?? false) && ($canToggleLabels || $canToggleTracking))
+                <form method="POST" action="{{ route('settings.shipping.fedex-integrator.capabilities', $account) }}" class="mt-5 rounded-xl border border-[#E2E8F0] bg-white px-4 py-4">
+                    @csrf
+                    <p class="text-sm font-semibold text-[#0F172A]">Account capabilities</p>
+                    <p class="mt-1 text-xs text-[#64748B]">Platform env flags only open these options. Each FedEx account must enable labels and tracking separately.</p>
+
+                    <input type="hidden" name="checkout_rates" value="{{ ! empty($toggles['checkout_rates']) ? '1' : '0' }}">
+                    <input type="hidden" name="enabled_for_checkout" value="{{ ! empty($toggles['enabled_for_checkout']) ? '1' : '0' }}">
+
+                    <div class="mt-4 space-y-3">
+                        @if ($canToggleLabels)
+                            <label class="flex items-start gap-3 text-sm text-[#334155]">
+                                <input type="hidden" name="labels" value="0">
+                                <input type="checkbox" name="labels" value="1" class="mt-1 rounded border-[#CBD5E1]" @checked(! empty($toggles['labels']))>
+                                <span>
+                                    <span class="font-semibold text-[#0F172A]">Enable label purchase</span>
+                                    <span class="mt-0.5 block text-xs text-[#64748B]">Buy shipping labels with this merchant-owned FedEx account.</span>
+                                </span>
+                            </label>
+                        @else
+                            <input type="hidden" name="labels" value="{{ ! empty($toggles['labels']) ? '1' : '0' }}">
+                        @endif
+
+                        @if ($canToggleTracking)
+                            <label class="flex items-start gap-3 text-sm text-[#334155]">
+                                <input type="hidden" name="tracking" value="0">
+                                <input type="checkbox" name="tracking" value="1" class="mt-1 rounded border-[#CBD5E1]" @checked(! empty($toggles['tracking']))>
+                                <span>
+                                    <span class="font-semibold text-[#0F172A]">Enable tracking updates</span>
+                                    <span class="mt-0.5 block text-xs text-[#64748B]">Refresh shipment tracking for labels created with this account.</span>
+                                </span>
+                            </label>
+                        @else
+                            <input type="hidden" name="tracking" value="{{ ! empty($toggles['tracking']) ? '1' : '0' }}">
+                        @endif
+                    </div>
+
+                    <button type="submit" class="mt-4 inline-flex h-9 items-center rounded-lg bg-brand px-4 text-xs font-bold text-white">Save capabilities</button>
+                </form>
+            @endif
 
             @if (($fedExCheckoutMethods ?? collect())->isNotEmpty())
                 <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-[#64748B]">Enabled checkout services</p>

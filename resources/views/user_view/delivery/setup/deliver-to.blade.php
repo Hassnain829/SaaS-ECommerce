@@ -68,7 +68,9 @@
                     <select name="shipping_zone_id" id="wizard-zone-select" class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm">
                         <option value="">Create a new delivery area</option>
                         @foreach ($shippingZones as $zone)
-                            @php($zoneIsLegacy = in_array($zone->id, $legacyZoneIds, true))
+                            @php
+                                $zoneIsLegacy = in_array($zone->id, $legacyZoneIds, true);
+                            @endphp
                             <option value="{{ $zone->id }}" @selected($wizardSelectedZoneId == $zone->id) @disabled($zoneIsLegacy)>
                                 {{ $zone->name }}@if ($zoneIsLegacy) (advanced only)@endif
                             </option>
@@ -84,16 +86,32 @@
 
             <x-geo.country-select id="wizard-zone-country" name="country_code" :selected="$wizardCountryCode" :countries="$countries" required />
 
-            <div id="wizard-zone-region-host">
+            @php
+                $wizardEntireCountry = count($wizardRegionCodes) === 0;
+            @endphp
+            <div class="flex items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold text-[#0F172A]">Entire country</p>
+                    <p class="mt-0.5 text-xs text-[#64748B]">Turn off only if you need selected states or provinces.</p>
+                </div>
+                <button type="button" id="wizard-entire-country" class="dh-switch {{ $wizardEntireCountry ? 'is-on' : '' }}" aria-pressed="{{ $wizardEntireCountry ? 'true' : 'false' }}" aria-label="Entire country"></button>
+            </div>
+
+            <div id="wizard-zone-region-host" @class(['hidden' => $wizardEntireCountry])>
                 <x-geo.region-multi-select id="wizard-zone-regions" :country-code="$wizardCountryCode" :selected="$wizardRegionCodes" />
             </div>
 
-            <x-geo.postal-rule-builder input-id="wizard-zone-postal-json" container-id="wizard-zone-postal-builder" :rules="$wizardPostalRules" />
+            <details class="rounded-xl border border-[#E2E8F0] bg-white px-4 py-3">
+                <summary class="cursor-pointer text-sm font-semibold text-[#0F172A]">Advanced postal coverage</summary>
+                <div class="mt-3">
+                    <x-geo.postal-rule-builder input-id="wizard-zone-postal-json" container-id="wizard-zone-postal-builder" :rules="$wizardPostalRules" />
+                </div>
+            </details>
 
             <label class="flex items-center gap-2 text-sm text-[#334155]">
                 <input type="hidden" name="is_active" value="0">
                 <input type="checkbox" name="is_active" value="1" @checked($wizardZoneIsActive) class="rounded border-[#CBD5E1]">
-                Active delivery area
+                Available for customers
             </label>
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#F1F5F9] pt-4">
@@ -115,7 +133,41 @@
         } catch (e) {}
 
         var select = document.getElementById('wizard-zone-select');
-        var form = select ? select.closest('form') : null;
+        var form = select ? select.closest('form') : document.querySelector('form[action*="deliver-to"]');
+        var entireBtn = document.getElementById('wizard-entire-country');
+        var regionHost = document.getElementById('wizard-zone-region-host');
+
+        function setEntire(on) {
+            if (entireBtn) {
+                entireBtn.classList.toggle('is-on', on);
+                entireBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            }
+            if (regionHost) {
+                regionHost.classList.toggle('hidden', on);
+            }
+            if (on && regionHost) {
+                regionHost.querySelectorAll('input[type="checkbox"]').forEach(function (box) {
+                    box.checked = false;
+                });
+            }
+        }
+
+        if (entireBtn) {
+            entireBtn.addEventListener('click', function () {
+                setEntire(!entireBtn.classList.contains('is-on'));
+            });
+        }
+
+        if (form) {
+            form.addEventListener('submit', function () {
+                if (entireBtn && entireBtn.classList.contains('is-on') && regionHost) {
+                    regionHost.querySelectorAll('input[type="checkbox"]').forEach(function (box) {
+                        box.checked = false;
+                    });
+                }
+            });
+        }
+
         if (!select || !form) return;
 
         select.addEventListener('change', function () {
@@ -135,6 +187,8 @@
 
             var activeField = form.querySelector('[name="is_active"][type="checkbox"]');
             if (activeField) activeField.checked = !!data.is_active;
+
+            setEntire(!(data.region_codes && data.region_codes.length));
 
             if (window.wizardHydratePostalRules) {
                 window.wizardHydratePostalRules(document.getElementById('wizard-zone-postal-builder'), data.postal_rules || []);

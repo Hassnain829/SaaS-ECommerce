@@ -112,16 +112,18 @@ class DeliverySetupLifecyclePass1Test extends TestCase
         $state = app(DeliverySetupLifecycleService::class)->state($store, false);
         $this->assertSame(DeliverySetupLifecycleService::STATE_CONFIGURED_NEEDS_ATTENTION, $state);
 
+        // Checkout shipping repair stays available after completion when setup is broken.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.delivery.setup.ship-from'))
-            ->assertRedirect(route('shippingAutomation'));
+            ->assertOk()
+            ->assertSeeText('Ship from');
 
-        // Checkout shipping is no longer the wizard Step 3 after completion.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.delivery.setup.delivery-option'))
-            ->assertRedirect(route('settings.delivery.checkout-options'));
+            ->assertOk()
+            ->assertSeeText('How should customers get shipping prices?');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -135,7 +137,7 @@ class DeliverySetupLifecyclePass1Test extends TestCase
             ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSeeText('Needs attention')
-            ->assertDontSeeText('Set up delivery')
+            ->assertSeeText('Continue setup')
             ->assertDontSeeText('Edit delivery setup')
             ->assertDontSeeText('Advanced settings');
     }

@@ -184,6 +184,7 @@
     </div>
 </main>
 
+@stack('overlays')
 @stack('scripts')
 </body>
 </html>

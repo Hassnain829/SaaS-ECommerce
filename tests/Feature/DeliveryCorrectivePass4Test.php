@@ -35,7 +35,42 @@ class DeliveryCorrectivePass4Test extends TestCase
     public function test_completed_merchant_leaves_wizard_for_checkout_options_editor(): void
     {
         [$owner, $store] = $this->ownerStore('Pass4 Checkout Editor Store');
-        $this->readyLocation($store);
+        $location = $store->locations()->orderByDesc('is_default')->orderBy('id')->first();
+        $locationAttributes = [
+            'name' => 'Main warehouse',
+            'type' => 'warehouse',
+            'address_line1' => '100 Main St',
+            'city' => 'Austin',
+            'state' => 'TX',
+            'postal_code' => '78701',
+            'country_code' => 'US',
+            'is_default' => true,
+            'is_active' => true,
+            'fulfills_online_orders' => true,
+        ];
+        if ($location !== null) {
+            $location->update($locationAttributes);
+        } else {
+            Location::query()->create(['store_id' => $store->id, ...$locationAttributes]);
+        }
+        $zone = ShippingZone::query()->create([
+            'store_id' => $store->id,
+            'name' => 'United States',
+            'countries' => ['US'],
+            'is_active' => true,
+            'sort_order' => 0,
+        ]);
+        ShippingMethod::query()->create([
+            'store_id' => $store->id,
+            'shipping_zone_id' => $zone->id,
+            'name' => 'Standard delivery',
+            'code' => 'standard-pass4',
+            'rate_type' => ShippingMethod::RATE_FLAT,
+            'flat_rate' => 8,
+            'is_active' => true,
+            'enabled_for_checkout' => true,
+            'sort_order' => 0,
+        ]);
         $store->forceFill(['delivery_setup_completed_at' => now()])->save();
 
         $this->actingAs($owner)
@@ -265,8 +300,8 @@ class DeliveryCorrectivePass4Test extends TestCase
 
     private function readyLocation(Store $store): Location
     {
-        return Location::query()->create([
-            'store_id' => $store->id,
+        $location = $store->locations()->orderByDesc('is_default')->orderBy('id')->first();
+        $attributes = [
             'name' => 'Main warehouse',
             'type' => 'warehouse',
             'address_line1' => '100 Main St',
@@ -277,6 +312,17 @@ class DeliveryCorrectivePass4Test extends TestCase
             'is_default' => true,
             'is_active' => true,
             'fulfills_online_orders' => true,
+        ];
+
+        if ($location !== null) {
+            $location->update($attributes);
+
+            return $location->fresh();
+        }
+
+        return Location::query()->create([
+            'store_id' => $store->id,
+            ...$attributes,
         ]);
     }
 }

@@ -438,6 +438,15 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::patch('/settings/shipping/zones/{shippingZone}', [ShippingSettingsController::class, 'updateZone'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.zones.update');
+    Route::patch('/settings/shipping/zones/{shippingZone}/availability', [ShippingSettingsController::class, 'updateZoneAvailability'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.zones.availability');
+    Route::patch('/settings/shipping/zones/{shippingZone}/fedex-live-rates/availability', [ShippingSettingsController::class, 'updateZoneFedExLiveRatesAvailability'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.zones.fedex-live-rates.availability');
+    Route::patch('/settings/shipping/zones/{shippingZone}/fedex-live-rates', [ShippingSettingsController::class, 'updateZoneFedExLiveRates'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.zones.fedex-live-rates.update');
     Route::delete('/settings/shipping/zones/{shippingZone}', [ShippingSettingsController::class, 'destroyZone'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.zones.destroy');
@@ -447,6 +456,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::patch('/settings/shipping/methods/{shippingMethod}', [ShippingSettingsController::class, 'updateMethod'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.methods.update');
+    Route::patch('/settings/shipping/methods/{shippingMethod}/availability', [ShippingSettingsController::class, 'updateMethodAvailability'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.shipping.methods.availability');
     Route::delete('/settings/shipping/methods/{shippingMethod}', [ShippingSettingsController::class, 'destroyMethod'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.shipping.methods.destroy');

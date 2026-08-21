@@ -510,26 +510,26 @@ class FedExIntegratorConnectionController extends Controller
 
         $labelsBadge = match (true) {
             ! $labelsPlatformOn => 'Disabled',
-            ! $labelsAccountOn => 'Unavailable',
+            ! $labelsAccountOn => 'Not enabled',
             $lastLabelSuccess !== null => 'Working',
             default => 'Enabled — not tested',
         };
         $labelsDetail = match (true) {
             ! $labelsPlatformOn => 'Label purchase is off at the platform.',
-            ! $labelsAccountOn => 'Label purchase is not enabled on this account yet.',
+            ! $labelsAccountOn => 'Platform labels are on, but this FedEx account still needs labels turned on.',
             $lastLabelSuccess !== null => 'Label purchase is enabled. Last successful label '.$lastLabelSuccess->created_at?->diffForHumans().'.',
             default => 'Label purchase is enabled for this account.',
         };
 
         $trackingBadge = match (true) {
             ! $trackingPlatformOn => 'Disabled',
-            ! $trackingAccountOn => 'Unavailable',
+            ! $trackingAccountOn => 'Not enabled',
             $lastTrackingSuccess !== null => 'Working',
             default => 'Enabled — not tested',
         };
         $trackingDetail = match (true) {
             ! $trackingPlatformOn => 'Tracking is off at the platform.',
-            ! $trackingAccountOn => 'Tracking is not enabled on this account yet.',
+            ! $trackingAccountOn => 'Platform tracking is on, but this FedEx account still needs tracking turned on.',
             $lastTrackingSuccess !== null => 'Tracking updates are enabled. Last successful sync '.$lastTrackingSuccess->created_at?->diffForHumans().'.',
             default => 'Tracking updates are enabled for this account.',
         };

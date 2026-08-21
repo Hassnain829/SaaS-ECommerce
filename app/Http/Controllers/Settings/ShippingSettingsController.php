@@ -22,6 +22,8 @@ use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\SecurityLogRecorder;
 use App\Services\Tax\TaxConfigurationService;
 use App\Support\Tax\TaxCountryCatalog;
+use App\Services\Delivery\DeliveryWizardPersistenceService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -340,6 +342,159 @@ class ShippingSettingsController extends Controller
         );
 
         return $this->zoneSavedRedirect('Delivery area updated.', $areaNormalizer);
+    }
+
+    public function updateZoneAvailability(Request $request, ShippingZone $shippingZone, SecurityLogRecorder $securityLogRecorder): JsonResponse|RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $shippingZone->store_id === (int) $store->id, 404);
+
+        $available = $request->boolean('available', $request->boolean('is_active'));
+        $shippingZone->update(['is_active' => $available]);
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.zone_availability_updated',
+            store: $store,
+            metadata: [
+                'shipping_zone_id' => $shippingZone->id,
+                'is_active' => $available,
+            ]
+        );
+
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'available' => $available,
+                'shipping_zone_id' => $shippingZone->id,
+            ]);
+        }
+
+        return back()
+            ->with('success', $available ? 'Delivery area is active.' : 'Delivery area hidden from checkout.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function updateMethodAvailability(Request $request, ShippingMethod $shippingMethod, SecurityLogRecorder $securityLogRecorder): JsonResponse|RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $shippingMethod->store_id === (int) $store->id, 404);
+
+        if ($shippingMethod->isFedExLiveRateMethod()) {
+            abort(422, 'Use the FedEx live rates toggle for this option.');
+        }
+
+        $available = $request->boolean('available', $request->boolean('available_to_customers'));
+        $shippingMethod->forceFill([
+            'enabled_for_checkout' => $available,
+            'is_active' => $available,
+        ])->save();
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.method_availability_updated',
+            store: $store,
+            metadata: [
+                'shipping_method_id' => $shippingMethod->id,
+                'available' => $available,
+            ]
+        );
+
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'available' => $available,
+                'shipping_method_id' => $shippingMethod->id,
+            ]);
+        }
+
+        return back()
+            ->with('success', $available ? 'Delivery option available at checkout.' : 'Delivery option hidden from checkout.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function updateZoneFedExLiveRatesAvailability(Request $request, ShippingZone $shippingZone, SecurityLogRecorder $securityLogRecorder): JsonResponse|RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $shippingZone->store_id === (int) $store->id, 404);
+
+        $available = $request->boolean('available');
+        $fedExMethods = $store->shippingMethods()
+            ->with('carrierAccount')
+            ->where('shipping_zone_id', $shippingZone->id)
+            ->get()
+            ->filter(fn (ShippingMethod $method): bool => $method->isFedExLiveRateMethod())
+            ->values();
+
+        foreach ($fedExMethods as $method) {
+            if ($available) {
+                // Restore checkout only for services still marked selected (is_active).
+                if ($method->is_active) {
+                    $method->forceFill(['enabled_for_checkout' => true])->save();
+                }
+            } else {
+                // Hide at checkout; keep is_active so Manage selection is preserved.
+                if ($method->is_active || $method->enabled_for_checkout) {
+                    $method->forceFill(['enabled_for_checkout' => false])->save();
+                }
+            }
+        }
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.zone_fedex_live_rates_availability_updated',
+            store: $store,
+            metadata: [
+                'shipping_zone_id' => $shippingZone->id,
+                'available' => $available,
+                'method_count' => $fedExMethods->count(),
+            ]
+        );
+
+        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'available' => $available,
+                'shipping_zone_id' => $shippingZone->id,
+            ]);
+        }
+
+        return back()
+            ->with('success', $available ? 'FedEx live rates available at checkout.' : 'FedEx live rates hidden from checkout.')
+            ->with('success_title', 'Shipping & delivery');
+    }
+
+    public function updateZoneFedExLiveRates(
+        Request $request,
+        ShippingZone $shippingZone,
+        SecurityLogRecorder $securityLogRecorder,
+        DeliveryWizardPersistenceService $wizardPersistence,
+    ): RedirectResponse {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $shippingZone->store_id === (int) $store->id, 404);
+
+        $request->merge([
+            'shipping_zone_id' => $shippingZone->id,
+            'checkout_shipping_mode' => 'fedex_live',
+            'fedex_services' => $request->input('fedex_services', []),
+            'available_to_customers' => $request->boolean('available_to_customers', true) ? '1' : '0',
+        ]);
+
+        $wizardPersistence->saveDeliveryOption($request, $store, $request->user());
+
+        $securityLogRecorder->record(
+            $request,
+            'shipping.zone_fedex_live_rates_updated',
+            store: $store,
+            metadata: [
+                'shipping_zone_id' => $shippingZone->id,
+                'services' => $request->input('fedex_services', []),
+            ]
+        );
+
+        return back()
+            ->with('success', 'FedEx live rates updated.')
+            ->with('success_title', 'Shipping & delivery');
     }
 
     private function zoneSavedRedirect(string $message, DeliveryAreaInputNormalizer $areaNormalizer): RedirectResponse

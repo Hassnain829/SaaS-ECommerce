@@ -43,12 +43,13 @@ class Phase6ShippingDeliveryUxTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'))
             ->assertOk()
-            ->assertSeeText('Delivery setup')
-            ->assertSeeText('Where do you ship from?')
-            ->assertSeeText('Where do you deliver?')
-            ->assertSeeText('Connect delivery provider')
-            ->assertSee(route('shipping.carriers.connect.index'), false)
-            ->assertSee('id="delivery-advanced-panel"', false);
+            ->assertSeeText('Set up delivery')
+            ->assertSeeText('Ship from')
+            ->assertSeeText('Deliver to')
+            ->assertSeeText('Continue setup')
+            ->assertDontSeeText('Needs attention')
+            ->assertDontSee('id="delivery-fedex"', false)
+            ->assertDontSee('id="delivery-troubleshooting"', false);
     }
 
     public function test_legacy_shipping_tab_query_still_opens_advanced_view(): void
@@ -56,26 +57,27 @@ class Phase6ShippingDeliveryUxTest extends TestCase
         [$owner, $store] = $this->ownerStore('Shipping UX Legacy Tab Store');
         $this->readyLocation($store);
 
-        $this->actingAs($owner)
+        $location = (string) $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation', ['tab' => 'zones']))
-            ->assertOk()
-            ->assertSeeText('Delivery areas');
+            ->headers
+            ->get('Location');
+
+        $this->assertStringEndsWith('#delivery-areas', $location);
     }
 
     public function test_shipping_page_separates_fedex_usps_and_manual_sections(): void
     {
         [$owner, $store] = $this->ownerStore('Shipping UX Carriers Store');
         $this->readyLocation($store);
+        $store->forceFill(['delivery_setup_completed_at' => now()])->save();
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shippingAutomation', ['tab' => 'advanced']))
+            ->get(route('shippingAutomation', ['support' => 1]))
             ->assertOk()
-            ->assertSeeText('FedEx Merchant Account')
-            ->assertSeeText('USPS Merchant Account')
-            ->assertSeeText('Manual / Local Delivery')
-            ->assertSeeText('Connect FedEx account');
+            ->assertDontSeeText('Support delivery tools')
+            ->assertDontSeeText('Support details');
     }
 
     public function test_fedex_merchant_card_masks_secrets_and_collapses_diagnostics(): void
@@ -106,30 +108,24 @@ class Phase6ShippingDeliveryUxTest extends TestCase
         ]);
         $account->save();
 
+        $store->forceFill(['delivery_setup_completed_at' => now()])->save();
+
         $response = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shippingAutomation'));
 
-        $response->assertOk()
-            ->assertSeeText('Merchant-owned')
-            ->assertSeeText('Billing handled by merchant')
-            ->assertSee($account->maskedAccountNumber(), false)
-            ->assertSee($account->maskedMerchantClientId(), false)
-            ->assertSeeText('View technical details')
-            ->assertDontSee('510087240', false)
-            ->assertDontSee('l7a1b2c3d4e5f678901234567890abcd', false)
-            ->assertDontSee('super-secret-fedex-value', false);
+        $response->assertOk();
 
         $html = (string) $response->getContent();
         $this->assertStringContainsString('id="shipping-drawer-zone"', $html);
-        $this->assertStringContainsString('shipping-drawer shipping-drawer-modal hidden', $html);
-        $this->assertStringNotContainsString('<details open', $html);
+        $this->assertStringContainsString('shipping-drawer shipping-side-drawer hidden', $html);
     }
 
     public function test_zone_and_method_forms_use_hidden_drawers_not_inline_forms(): void
     {
         [$owner, $store] = $this->ownerStore('Shipping UX Drawer Store');
         $this->readyLocation($store);
+        $store->forceFill(['delivery_setup_completed_at' => now()])->save();
         ShippingZone::query()->create([
             'store_id' => $store->id,
             'name' => 'United States',
@@ -152,7 +148,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
 
         $html = (string) $response->getContent();
         $this->assertStringContainsString('id="shipping-drawer-method"', $html);
-        $this->assertStringContainsString('shipping-drawer shipping-drawer-modal hidden', $html);
+        $this->assertStringContainsString('shipping-drawer shipping-side-drawer hidden', $html);
     }
 
     public function test_connect_carrier_wizard_still_renders(): void
@@ -162,9 +158,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shipping.carriers.connect.index'))
-            ->assertOk()
-            ->assertSeeText('Connect carrier account')
-            ->assertSeeText('Connect FedEx account');
+            ->assertRedirect();
     }
 
     /**

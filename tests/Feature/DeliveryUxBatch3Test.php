@@ -153,7 +153,7 @@ class DeliveryUxBatch3Test extends TestCase
             ->assertSeeText('Chicago warehouse')
             ->assertSeeText('Illinois delivery')
             ->assertSeeText('Standard delivery')
-            ->assertSeeText('Checkout tax (read-only)');
+            ->assertDontSeeText('Checkout tax (read-only)');
 
         $this->actingAs($owner)
             ->post(route('settings.delivery.setup.finish'))
@@ -406,7 +406,9 @@ class DeliveryUxBatch3Test extends TestCase
             ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSeeText('Set up delivery')
-            ->assertSeeText('Preview checkout delivery');
+            ->assertSeeText('Continue setup')
+            ->assertDontSeeText('Preview checkout delivery')
+            ->assertDontSeeText('Needs attention');
     }
 
     public function test_wizard_created_delivery_option_appears_in_storefront_delivery_options_api(): void

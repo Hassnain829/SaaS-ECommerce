@@ -124,15 +124,16 @@ class DeliveryUxBatch2Test extends TestCase
     public function test_delivery_page_renders_structured_zone_drawer_fields(): void
     {
         [$owner, $store] = $this->ownerStore('Batch2 UI Store');
+        $store->forceFill(['delivery_setup_completed_at' => now()])->save();
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shippingAutomation', ['support' => 1]))
+            ->get(route('shippingAutomation'))
             ->assertOk()
             ->assertSee('id="zone-field-country"', false)
-            ->assertSee('Exact postal code', false)
             ->assertSee('delivery_price_mode', false)
-            ->assertSee('data-zone-form', false);
+            ->assertDontSeeText('Support delivery tools')
+            ->assertDontSeeText('Support details');
     }
 
     /**
