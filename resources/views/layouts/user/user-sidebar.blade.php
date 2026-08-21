@@ -114,6 +114,10 @@
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4 3h8l4 4v10a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1zm7 1v3h3l-3-3zM6 10h8v1.5H6V10zm0 3h6v1.5H6V13z"/></svg>
                 <span>Checkout &amp; tax</span>
             </a>
+            <a href="{{ route('settings.payments.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.payments.*')])>
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm2 1v2h10V6H5zm0 5v4h10v-4H5z"/></svg>
+                <span>Payments</span>
+            </a>
             <a href="{{ route('settings.coupons.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.coupons.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 8a2 2 0 012-2h4.6l6.1 6.1a2 2 0 01-2.8 0L4 11.6V8zm3.2-.2a1.2 1.2 0 100-2.4 1.2 1.2 0 000 2.4z"/></svg>
                 <span>Discounts</span>
