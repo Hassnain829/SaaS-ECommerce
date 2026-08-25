@@ -69,6 +69,10 @@ class StorefrontCatalogChangeObserver
     public function deleted(Product|ProductVariant|Category|ProductImage $model): void
     {
         if ($model instanceof Product) {
+            if ($model->isForceDeleting()) {
+                return;
+            }
+
             $this->recorder->recordProductDeleted($model);
 
             return;

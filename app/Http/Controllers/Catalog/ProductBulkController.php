@@ -253,11 +253,48 @@ final class ProductBulkController extends Controller
      */
     private function bulkForceDelete(Store $store, $products, int $n): RedirectResponse
     {
-        DB::transaction(function () use ($products): void {
-            foreach ($products as $product) {
-                $product->forceDelete();
-            }
-        });
+        try {
+            app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDeleteMany($products);
+        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteBlockedException $e) {
+            return back()
+                ->with('error', $e->getMessage())
+                ->with('error_meta', 'Finish or cancel related checkouts before permanently deleting these products.');
+        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteStorageException $e) {
+            report($e);
+
+            return back()
+                ->with('error', 'Some products could not be permanently deleted. None of the selected products were removed.')
+                ->with('error_meta', 'Gallery file cleanup could not be completed safely.');
+        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException $e) {
+            report($e);
+
+            app(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class)
+                ->retryPendingCleanup($e->operationId);
+
+            app(SecurityLogRecorder::class)->record(
+                request(),
+                'product_bulk_action',
+                store: $store,
+                metadata: [
+                    'action' => 'force_delete',
+                    'product_count' => $n,
+                    'gallery_cleanup_pending' => true,
+                    'quarantine_operation_id' => $e->operationId,
+                    'pending_quarantine_paths' => $e->pendingPaths,
+                ]
+            );
+
+            return back()
+                ->with('success', $n.' product(s) permanently deleted. This cannot be undone.')
+                ->with('success_title', 'Permanently deleted')
+                ->with('success_meta', 'Some temporary gallery cleanup could not be completed and will be retried.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+
+            return back()
+                ->with('error', 'Some products could not be permanently deleted. None of the selected products were removed.')
+                ->with('error_meta', 'Try deleting one product at a time, or contact support if this continues.');
+        }
 
         app(SecurityLogRecorder::class)->record(
             request(),

@@ -3,11 +3,20 @@
 namespace Tests\Feature;
 
 use App\Models\Brand;
+use App\Models\Checkout;
+use App\Models\CheckoutItem;
+use App\Models\ConnectedSiteOutboxEvent;
+use App\Models\DraftOrder;
+use App\Models\DraftOrderItem;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\ProductImport;
+use App\Models\ProductImportRow;
 use App\Models\Role;
+use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\ConnectedSiteCatalogEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -114,7 +123,7 @@ class ProductsListUxTest extends TestCase
         $product->delete();
         Storage::disk('public')->assertExists($path);
 
-        $product->forceDelete();
+        app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDelete($product);
         Storage::disk('public')->assertMissing($path);
     }
 
@@ -250,6 +259,38 @@ class ProductsListUxTest extends TestCase
         $this->assertSame(10, $response->viewData('products')->perPage());
     }
 
+    public function test_force_delete_with_linked_variant_and_image_succeeds(): void
+    {
+        Storage::fake('public');
+
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Linked Gallery Delete');
+        $variant = $product->variants()->firstOrFail();
+        $path = 'products/'.$store->id.'/linked-delete.jpg';
+        Storage::disk('public')->put($path, 'bytes');
+
+        $image = ProductImage::query()->create([
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'image_path' => $path,
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_READY,
+        ]);
+        $variant->update(['product_image_id' => $image->id]);
+
+        $productId = $product->id;
+        $product->delete();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $productId]))
+            ->assertRedirect(route('products', ['view' => 'deleted']));
+
+        $this->assertDatabaseMissing('products', ['id' => $productId]);
+        Storage::disk('public')->assertMissing($path);
+    }
+
     public function test_bulk_restore_and_force_delete_on_deleted_products(): void
     {
         [$owner, $store] = $this->ownerStore();
@@ -301,6 +342,345 @@ class ProductsListUxTest extends TestCase
         foreach ($ids as $id) {
             $this->assertContains($id, $bulkIds);
         }
+    }
+
+    public function test_permanent_delete_keeps_import_session_while_sibling_products_remain(): void
+    {
+        Storage::fake('local');
+
+        [$owner, $store] = $this->ownerStore();
+        $import = ProductImport::query()->create([
+            'store_id' => $store->id,
+            'created_by' => $owner->id,
+            'original_filename' => 'batch.csv',
+            'stored_disk' => 'local',
+            'stored_path' => 'product-imports/'.$store->id.'/batch.csv',
+            'file_extension' => 'csv',
+            'source_site' => 'https://import.example.test',
+            'status' => ProductImport::STATUS_COMPLETED,
+        ]);
+        Storage::disk('local')->put($import->stored_path, 'csv');
+        ProductImportRow::query()->create([
+            'product_import_id' => $import->id,
+            'row_number' => 1,
+            'status' => 'processed',
+            'payload' => ['cells' => ['A']],
+        ]);
+
+        $keep = $this->makeImportedProduct($store, $import, 'Keep Import Product');
+        $remove = $this->makeImportedProduct($store, $import, 'Remove Import Product');
+        $remove->delete();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $remove->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']));
+
+        $this->assertDatabaseHas('product_imports', ['id' => $import->id]);
+        $this->assertDatabaseHas('product_import_rows', ['product_import_id' => $import->id]);
+        Storage::disk('local')->assertExists($import->stored_path);
+        $this->assertDatabaseHas('products', ['id' => $keep->id]);
+    }
+
+    public function test_permanent_delete_preserves_import_session_when_last_product_removed(): void
+    {
+        Storage::fake('local');
+
+        [$owner, $store] = $this->ownerStore();
+        $import = ProductImport::query()->create([
+            'store_id' => $store->id,
+            'created_by' => $owner->id,
+            'original_filename' => 'solo.csv',
+            'stored_disk' => 'local',
+            'stored_path' => 'product-imports/'.$store->id.'/solo.csv',
+            'file_extension' => 'csv',
+            'source_site' => 'https://solo-import.example.test',
+            'status' => ProductImport::STATUS_COMPLETED,
+        ]);
+        Storage::disk('local')->put($import->stored_path, 'csv');
+        ProductImportRow::query()->create([
+            'product_import_id' => $import->id,
+            'row_number' => 1,
+            'status' => 'processed',
+            'payload' => ['cells' => ['Only']],
+        ]);
+
+        $product = $this->makeImportedProduct($store, $import, 'Only Import Product');
+        $productId = $product->id;
+        $product->delete();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $productId]))
+            ->assertRedirect(route('products', ['view' => 'deleted']));
+
+        $this->assertDatabaseMissing('products', ['id' => $productId]);
+        $this->assertDatabaseHas('product_imports', ['id' => $import->id]);
+        $this->assertDatabaseHas('product_import_rows', ['product_import_id' => $import->id]);
+        Storage::disk('local')->assertExists($import->stored_path);
+    }
+
+    public function test_bulk_permanent_delete_preserves_import_session(): void
+    {
+        Storage::fake('local');
+
+        [$owner, $store] = $this->ownerStore();
+        $import = ProductImport::query()->create([
+            'store_id' => $store->id,
+            'created_by' => $owner->id,
+            'original_filename' => 'bulk.csv',
+            'stored_disk' => 'local',
+            'stored_path' => 'product-imports/'.$store->id.'/bulk.csv',
+            'file_extension' => 'csv',
+            'source_site' => 'https://bulk-import.example.test',
+            'status' => ProductImport::STATUS_COMPLETED,
+        ]);
+        Storage::disk('local')->put($import->stored_path, 'csv');
+        ProductImportRow::query()->create([
+            'product_import_id' => $import->id,
+            'row_number' => 1,
+            'status' => 'processed',
+            'payload' => ['cells' => ['Bulk']],
+        ]);
+
+        $first = $this->makeImportedProduct($store, $import, 'Bulk Import A');
+        $second = $this->makeImportedProduct($store, $import, 'Bulk Import B');
+        $first->delete();
+        $second->delete();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('products', ['view' => 'deleted']))
+            ->post(route('products.bulk'), [
+                'action' => 'force_delete',
+                'product_ids' => [$first->id, $second->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('product_imports', ['id' => $import->id]);
+        $this->assertDatabaseHas('product_import_rows', ['product_import_id' => $import->id]);
+        Storage::disk('local')->assertExists($import->stored_path);
+    }
+
+    public function test_permanent_delete_preserves_connected_site_outbox_events(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Outbox Retained');
+        $variant = $product->variants()->firstOrFail();
+        $product->delete();
+
+        $event = ConnectedSiteOutboxEvent::query()->create([
+            'store_id' => $store->id,
+            'public_id' => 'csevt_test_'.Str::lower(Str::random(16)),
+            'type' => ConnectedSiteCatalogEvent::PRODUCT_DELETED,
+            'payload' => [
+                'store_id' => $store->id,
+                'product_id' => $product->id,
+                'variant_id' => $variant->id,
+            ],
+            'catalog_version' => 1,
+            'occurred_at' => now(),
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $product->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']));
+
+        $this->assertDatabaseHas('connected_site_outbox_events', ['id' => $event->id]);
+    }
+
+    public function test_permanent_delete_preserves_draft_order_items_via_set_null(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Draft Line Retained');
+        $variant = $product->variants()->firstOrFail();
+        $product->delete();
+
+        $draft = DraftOrder::query()->create([
+            'store_id' => $store->id,
+            'draft_number' => 'DRF-'.Str::upper(Str::random(6)),
+            'status' => DraftOrder::STATUS_DRAFT,
+            'currency' => 'USD',
+            'subtotal' => 10,
+            'discount_total' => 0,
+            'tax_total' => 0,
+            'shipping_total' => 0,
+            'total' => 10,
+            'created_by' => $owner->id,
+        ]);
+        $line = DraftOrderItem::query()->create([
+            'store_id' => $store->id,
+            'draft_order_id' => $draft->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 10,
+            'line_total' => 10,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $product->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']));
+
+        $fresh = DraftOrderItem::query()->findOrFail($line->id);
+        $this->assertNull($fresh->product_id);
+        $this->assertNull($fresh->product_variant_id);
+        $this->assertSame('Draft Line Retained', $fresh->product_name);
+    }
+
+    public function test_permanent_delete_preserves_stock_movements_via_set_null(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Ledger Retained');
+        $variant = $product->variants()->firstOrFail();
+        $movement = StockMovement::query()->create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'variant_id' => $variant->id,
+            'movement_type' => 'adjustment',
+            'quantity_change' => 5,
+            'new_stock' => 5,
+            'product_name_snapshot' => $product->name,
+            'sku_snapshot' => $variant->sku,
+        ]);
+        $product->delete();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $product->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']));
+
+        $fresh = StockMovement::query()->findOrFail($movement->id);
+        $this->assertNull($fresh->product_id);
+        $this->assertNull($fresh->variant_id);
+        $this->assertSame('Ledger Retained', $fresh->product_name_snapshot);
+        $this->assertSame($variant->sku, $fresh->sku_snapshot);
+    }
+
+    public function test_permanent_delete_blocked_for_payment_pending_checkout(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Checkout Blocked');
+        $variant = $product->variants()->firstOrFail();
+        $product->delete();
+
+        $checkout = Checkout::query()->create([
+            'store_id' => $store->id,
+            'checkout_number' => 'CHK-'.Str::random(8),
+            'status' => Checkout::STATUS_PAYMENT_PENDING,
+            'currency_code' => 'USD',
+            'subtotal' => 10,
+            'discount_total' => 0,
+            'shipping_total' => 0,
+            'tax_total' => 0,
+            'grand_total' => 10,
+        ]);
+        CheckoutItem::query()->create([
+            'checkout_id' => $checkout->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 10,
+            'subtotal' => 10,
+            'total' => 10,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $product->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']))
+            ->assertSessionHas('error');
+
+        $this->assertSoftDeleted('products', ['id' => $product->id]);
+    }
+
+    public function test_permanent_delete_blocked_for_paid_unconverted_checkout(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Paid Checkout Blocked');
+        $variant = $product->variants()->firstOrFail();
+        $product->delete();
+
+        $checkout = Checkout::query()->create([
+            'store_id' => $store->id,
+            'checkout_number' => 'CHK-'.Str::random(8),
+            'status' => Checkout::STATUS_PAID,
+            'currency_code' => 'USD',
+            'subtotal' => 10,
+            'discount_total' => 0,
+            'shipping_total' => 0,
+            'tax_total' => 0,
+            'grand_total' => 10,
+        ]);
+        CheckoutItem::query()->create([
+            'checkout_id' => $checkout->id,
+            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 10,
+            'subtotal' => 10,
+            'total' => 10,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $product->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']))
+            ->assertSessionHas('error');
+
+        $this->assertSoftDeleted('products', ['id' => $product->id]);
+    }
+
+    private function makeImportedProduct(Store $store, ProductImport $import, string $name): Product
+    {
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => $name,
+            'slug' => str($name)->slug().'-'.fake()->unique()->numberBetween(1, 99999),
+            'description' => null,
+            'base_price' => 35,
+            'sku' => 'IMP-'.strtoupper(Str::random(6)),
+            'source_system' => 'woocommerce',
+            'source_site' => $import->source_site,
+            'source_product_id' => (string) fake()->unique()->numberBetween(1000, 9999),
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => [],
+        ]);
+        $variant = $product->variants()->create([
+            'store_id' => $store->id,
+            'sku' => $product->sku,
+            'price' => 35,
+            'stock' => 20,
+            'stock_alert' => 1,
+        ]);
+
+        ProductImage::query()->create([
+            'product_id' => $product->id,
+            'product_import_id' => $import->id,
+            'image_path' => 'products/'.$store->id.'/import-'.Str::random(8).'.png',
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_READY,
+        ]);
+
+        \App\Models\StockMovement::query()->create([
+            'store_id' => $store->id,
+            'product_id' => $product->id,
+            'variant_id' => $variant->id,
+            'movement_type' => 'import',
+            'quantity_change' => 20,
+            'new_stock' => 20,
+            'reference_type' => 'product_import',
+            'reference_id' => $import->id,
+        ]);
+
+        return $product;
     }
 
     /**

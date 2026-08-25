@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Gallery files live on disk; paths and ordering live in {@see ProductImage} (source of truth).
@@ -55,13 +55,16 @@ class Product extends Model
                 return;
             }
 
-            // DB cascade removes product_images rows without model events; delete files here.
-            $paths = $product->images()->pluck('image_path');
-            foreach ($paths as $path) {
-                if ($path && $path !== ProductImage::PENDING_DISK_PATH) {
-                    Storage::disk('public')->delete($path);
-                }
-            }
+            // Break variant<->image circular FKs before DB CASCADE (MySQL raises 1452; SQLite is lenient).
+            DB::table('product_variants')
+                ->where('product_id', $product->id)
+                ->update(['product_image_id' => null]);
+            DB::table('product_images')
+                ->where('product_id', $product->id)
+                ->update(['product_variant_id' => null]);
+
+            // Gallery files are removed by ProductPermanentDeleteGalleryPurgeService
+            // before forceDelete() so failed storage cleanup can abort the purge.
         });
     }
 

@@ -31,6 +31,7 @@ use App\Support\OrderLifecycle;
 use App\Support\RefundLifecycle;
 use App\Support\ReturnLifecycle;
 use App\Support\StockMovementIdentitySnapshot;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -431,6 +432,234 @@ class DeletionRetentionIntegrityTest extends TestCase
         $this->assertDatabaseHas('products', ['id' => $productA->id]);
     }
 
+    public function test_product_permanent_delete_aborts_on_hostile_cross_store_image_path(): void
+    {
+        Storage::fake('public');
+
+        [$owner, $storeA] = $this->ownerStore('Product Hostile A');
+        $storeB = $this->makeStore($owner, 'Product Hostile B');
+        $storeB->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
+
+        $pathB = 'products/'.$storeB->id.'/owned-by-b.jpg';
+        Storage::disk('public')->put($pathB, 'b-bytes');
+
+        $productA = $this->makeProduct($storeA, 'A With Hostile Path');
+        ProductImage::query()->create([
+            'product_id' => $productA->id,
+            'image_path' => $pathB,
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_READY,
+        ]);
+        $productA->delete();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $storeA->id])
+            ->delete(route('product.force-destroy', ['productId' => $productA->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']))
+            ->assertSessionHas('error');
+
+        Storage::disk('public')->assertExists($pathB);
+        $this->assertSoftDeleted('products', ['id' => $productA->id]);
+        $this->assertDatabaseHas('product_images', ['product_id' => $productA->id, 'image_path' => $pathB]);
+    }
+
+    public function test_product_permanent_delete_aborts_when_gallery_staging_move_fails(): void
+    {
+        Storage::fake('public');
+
+        [$owner, $store] = $this->ownerStore('Product Staging Fail');
+        $path = 'products/'.$store->id.'/stuck.jpg';
+        Storage::disk('public')->put($path, 'stuck');
+        $product = $this->makeProduct($store, 'Stuck Image Product');
+        ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => $path,
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_READY,
+        ]);
+        $product->delete();
+
+        $mock = \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class);
+        $mock->shouldReceive('exists')->andReturnUsing(fn (string $p): bool => $p === $path);
+        $mock->shouldReceive('move')->andReturn(false);
+        Storage::set('public', $mock);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $product->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']))
+            ->assertSessionHas('error');
+
+        $this->assertSoftDeleted('products', ['id' => $product->id]);
+        $this->assertDatabaseHas('product_images', ['product_id' => $product->id, 'image_path' => $path]);
+    }
+
+    public function test_product_permanent_delete_restores_gallery_when_db_transaction_fails(): void
+    {
+        Storage::fake('public');
+
+        [$owner, $store] = $this->ownerStore('Product DB Fail Restore');
+        $path = 'products/'.$store->id.'/restore-me.jpg';
+        Storage::disk('public')->put($path, 'restore-bytes');
+        $product = $this->makeProduct($store, 'Restore Gallery Product');
+        ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => $path,
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_READY,
+        ]);
+        $product->delete();
+
+        Product::deleting(function (Product $model): void {
+            if ($model->isForceDeleting()) {
+                throw new QueryException(
+                    'sqlite',
+                    'delete from products where id = ?',
+                    [$model->id],
+                    new \RuntimeException('simulated db failure')
+                );
+            }
+        });
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $product->id]))
+            ->assertRedirect(route('products', ['view' => 'deleted']))
+            ->assertSessionHas('error');
+
+        Storage::disk('public')->assertExists($path);
+        $this->assertSoftDeleted('products', ['id' => $product->id]);
+        $this->assertDatabaseHas('product_images', ['product_id' => $product->id, 'image_path' => $path]);
+        $this->assertEmpty(Storage::disk('public')->allFiles('product-delete-quarantine'));
+    }
+
+    public function test_bulk_product_permanent_delete_restores_all_galleries_when_db_transaction_fails(): void
+    {
+        Storage::fake('public');
+
+        [$owner, $store] = $this->ownerStore('Bulk DB Fail Restore');
+        $products = [];
+        $paths = [];
+
+        foreach (['Alpha', 'Beta', 'Gamma'] as $label) {
+            $path = 'products/'.$store->id.'/'.strtolower($label).'.jpg';
+            Storage::disk('public')->put($path, $label.'-bytes');
+            $paths[] = $path;
+
+            $product = $this->makeProduct($store, $label.' Product');
+            ProductImage::query()->create([
+                'product_id' => $product->id,
+                'image_path' => $path,
+                'sort_order' => 0,
+                'is_primary' => true,
+                'status' => ProductImage::STATUS_READY,
+            ]);
+            $product->delete();
+            $products[] = $product;
+        }
+
+        $remainingForceDeletes = 2;
+        Product::deleting(function (Product $model) use (&$remainingForceDeletes): void {
+            if (! $model->isForceDeleting()) {
+                return;
+            }
+
+            if (--$remainingForceDeletes === 0) {
+                throw new QueryException(
+                    'sqlite',
+                    'delete from products where id = ?',
+                    [$model->id],
+                    new \RuntimeException('simulated bulk db failure')
+                );
+            }
+        });
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('products', ['view' => 'deleted']))
+            ->post(route('products.bulk'), [
+                'action' => 'force_delete',
+                'product_ids' => collect($products)->pluck('id')->all(),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        foreach ($paths as $path) {
+            Storage::disk('public')->assertExists($path);
+        }
+
+        foreach ($products as $product) {
+            $this->assertSoftDeleted('products', ['id' => $product->id]);
+            $this->assertDatabaseHas('product_images', ['product_id' => $product->id]);
+        }
+
+        $this->assertEmpty(Storage::disk('public')->allFiles('product-delete-quarantine'));
+    }
+
+    public function test_product_permanent_delete_reports_success_when_post_commit_quarantine_cleanup_fails(): void
+    {
+        Storage::fake('public');
+
+        [$owner, $store] = $this->ownerStore('Post Commit Cleanup Fail');
+        $path = 'products/'.$store->id.'/post-commit.jpg';
+        Storage::disk('public')->put($path, 'post-commit-bytes');
+        $product = $this->makeProduct($store, 'Post Commit Product');
+        ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => $path,
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_READY,
+        ]);
+        $productId = $product->id;
+        $product->delete();
+
+        $realGallery = app(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class);
+        $sessionHolder = new \stdClass;
+
+        $gallery = \Mockery::mock(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class);
+        $gallery->shouldReceive('retryAllPendingCleanups')->andReturnNull();
+        $gallery->shouldReceive('beginQuarantine')->andReturnUsing(function ($products) use ($realGallery, $sessionHolder) {
+            $sessionHolder->session = $realGallery->beginQuarantine($products);
+
+            return $sessionHolder->session;
+        });
+        $gallery->shouldReceive('commitQuarantine')->andReturnUsing(function (\App\Services\Catalog\ProductGalleryQuarantineSession $session): void {
+            throw new \App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException(
+                $session->operationId,
+                array_column($session->entries, 'quarantine'),
+            );
+        });
+        $gallery->shouldReceive('retryPendingCleanup')->andReturn(false);
+        $this->app->instance(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class, $gallery);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('product.force-destroy', ['productId' => $productId]))
+            ->assertRedirect(route('products', ['view' => 'deleted']))
+            ->assertSessionHas('success')
+            ->assertSessionHas('success_title', 'Permanently deleted')
+            ->assertSessionHas('success_meta')
+            ->assertSessionMissing('error');
+
+        $this->assertDatabaseMissing('products', ['id' => $productId]);
+        Storage::disk('public')->assertMissing($path);
+        $this->assertNotEmpty(
+            Storage::disk('public')->allFiles('product-delete-quarantine/'.$sessionHolder->session->operationId)
+        );
+
+        $log = SecurityLog::query()
+            ->where('store_id', $store->id)
+            ->where('event_type', 'product_force_deleted')
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertTrue((bool) ($log->metadata['gallery_cleanup_pending'] ?? false));
+        $this->assertSame($sessionHolder->session->operationId, $log->metadata['quarantine_operation_id'] ?? null);
+    }
+
     public function test_store_close_rolls_back_when_audit_log_write_fails(): void
     {
         [$owner, $store] = $this->ownerStore('Audit Fail Close');
@@ -676,7 +905,7 @@ class DeletionRetentionIntegrityTest extends TestCase
         $product->delete();
         Storage::disk('public')->assertExists($path);
 
-        $product->forceDelete();
+        app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDelete($product);
         Storage::disk('public')->assertMissing($path);
 
         $other = $this->makeStore($owner, 'Other Store');

@@ -2224,7 +2224,53 @@ class OnboardingController extends Controller
             ->firstOrFail();
 
         $deletedProductName = $product->name;
-        $product->forceDelete();
+
+        try {
+            app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDelete($product);
+        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteBlockedException $e) {
+            return redirect()
+                ->route('products', ['view' => 'deleted'])
+                ->with('error', $e->getMessage())
+                ->with('error_meta', 'Finish or cancel related checkouts before permanently deleting this product.');
+        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteStorageException $e) {
+            report($e);
+
+            return redirect()
+                ->route('products', ['view' => 'deleted'])
+                ->with('error', "Could not permanently delete '{$deletedProductName}'. The product was kept in Deleted products.")
+                ->with('error_meta', 'Gallery file cleanup could not be completed safely.');
+        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException $e) {
+            report($e);
+
+            app(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class)
+                ->retryPendingCleanup($e->operationId);
+
+            app(SecurityLogRecorder::class)->record(
+                $request,
+                'product_force_deleted',
+                store: $currentStore,
+                metadata: [
+                    'product_id' => (int) $productId,
+                    'product_name' => $deletedProductName,
+                    'gallery_cleanup_pending' => true,
+                    'quarantine_operation_id' => $e->operationId,
+                    'pending_quarantine_paths' => $e->pendingPaths,
+                ]
+            );
+
+            return redirect()
+                ->route('products', ['view' => 'deleted'])
+                ->with('success', "Product '{$deletedProductName}' permanently deleted.")
+                ->with('success_title', 'Permanently deleted')
+                ->with('success_meta', 'Some temporary gallery cleanup could not be completed and will be retried.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+
+            return redirect()
+                ->route('products', ['view' => 'deleted'])
+                ->with('error', "Could not permanently delete '{$deletedProductName}'. The product was kept in Deleted products.")
+                ->with('error_meta', 'If this keeps happening, contact support.');
+        }
 
         app(SecurityLogRecorder::class)->record(
             $request,
