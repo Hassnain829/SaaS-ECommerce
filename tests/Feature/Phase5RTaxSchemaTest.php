@@ -383,7 +383,8 @@ class Phase5RTaxSchemaTest extends TestCase
             'calculated_at' => now(),
         ])->id;
 
-        $store->delete();
+        // Soft merchant close must not cascade; hard purge / forceDelete triggers DB cascades.
+        $store->forceDelete();
 
         $this->assertDatabaseMissing('tax_settings', ['id' => $settingsId]);
         $this->assertDatabaseMissing('tax_rates', ['id' => $rate->id]);

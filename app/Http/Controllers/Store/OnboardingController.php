@@ -1546,14 +1546,24 @@ class OnboardingController extends Controller
 
         $deletedStoreName = $store->name;
 
-        app(SecurityLogRecorder::class)->record(
-            $request,
-            'store_deleted',
-            store: $store,
-            metadata: ['store_id' => (int) $storeId, 'store_name' => $deletedStoreName]
-        );
+        DB::transaction(function () use ($request, $store, $storeId, $deletedStoreName): void {
+            $store->delete();
 
-        $store->delete();
+            $audit = app(SecurityLogRecorder::class)->record(
+                $request,
+                'store_closed',
+                store: $store,
+                metadata: [
+                    'store_id' => (int) $storeId,
+                    'store_name' => $deletedStoreName,
+                    'deletion_mode' => 'soft_close',
+                ]
+            );
+
+            if ($audit === null) {
+                throw new \RuntimeException('Store close aborted: failed to write store_closed audit log.');
+            }
+        });
 
         if ((int) $request->session()->get('onboarding_store_id') === (int) $storeId) {
             $request->session()->forget([
@@ -1572,8 +1582,8 @@ class OnboardingController extends Controller
 
         return redirect()
             ->route('store-management')
-            ->with('success', "Store '{$deletedStoreName}' deleted successfully.")
-            ->with('success_title', 'Store removed')
+            ->with('success', "Store '{$deletedStoreName}' has been closed and removed from normal access. Store data is retained internally until final purge.")
+            ->with('success_title', 'Store closed')
             ->with('success_meta', 'Store list refreshed');
     }
 

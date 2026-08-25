@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'store.role' => EnsureStoreRole::class,
             'role' => RoleMiddleware::class,
             'dev.storefront.token' => AuthenticateDeveloperStorefrontToken::class,
+            'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
         ]);
 
         $middleware->web(append: [

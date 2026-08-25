@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Store\ClosedStoreManagementController;
 use App\Http\Controllers\Store\OnboardingController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,6 +17,11 @@ Route::post('/onboarding-Step3-StoreReady', [OnboardingController::class, 'compl
 Route::put('/store/{storeId}', [OnboardingController::class, 'updateStoreFromManagement'])->name('store.update');
 Route::patch('/store/{storeId}/lifecycle', [OnboardingController::class, 'updateStoreLifecycleFromManagement'])->name('store.lifecycle');
 Route::delete('/store/{storeId}', [OnboardingController::class, 'destroyStoreFromManagement'])->name('store.destroy');
+Route::get('/management/stores/closed', [ClosedStoreManagementController::class, 'index'])->name('stores.closed');
+Route::post('/management/stores/{storeId}/restore', [ClosedStoreManagementController::class, 'restore'])->name('store.restore');
+Route::delete('/management/stores/{storeId}/permanent', [ClosedStoreManagementController::class, 'permanentDestroy'])
+    ->middleware('password.confirm')
+    ->name('store.permanent-destroy');
 Route::post('/products', [OnboardingController::class, 'storeProductFromCurrentStore'])
     ->middleware('store.permission:catalog.manage')
     ->name('product.store');

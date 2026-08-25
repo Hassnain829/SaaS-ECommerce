@@ -37,6 +37,14 @@ class ConnectedSiteCatalogEventDeliveryService
             return;
         }
 
+        // Soft-deleted (closed) stores must not receive outbound WordPress/catalog posts.
+        $site->loadMissing('store');
+        if (! $site->store) {
+            $this->markFailed($delivery, 'Store is closed or unavailable; outbound catalog delivery stopped.');
+
+            return;
+        }
+
         if (app()->environment('testing') && ! (bool) config('connected_sites.deliver_in_tests', false)) {
             return;
         }
@@ -94,7 +102,7 @@ class ConnectedSiteCatalogEventDeliveryService
 
         $processed = 0;
         ConnectedSiteEventDelivery::query()
-            ->with(['event', 'site'])
+            ->with(['event', 'site.store'])
             ->where('status', ConnectedSiteEventDelivery::STATUS_PENDING)
             ->where(function ($query): void {
                 $query->whereNull('next_retry_at')
@@ -104,6 +112,15 @@ class ConnectedSiteCatalogEventDeliveryService
             ->limit(max(1, $limit))
             ->get()
             ->each(function (ConnectedSiteEventDelivery $delivery) use (&$processed): void {
+                $site = $delivery->site;
+                // Closed stores: SoftDeletes makes site.store null — fail terminally, do not retry cycle.
+                if ($site && $site->isActive() && ! $site->store) {
+                    $this->markFailed($delivery, 'Store is closed or unavailable; outbound catalog delivery stopped.');
+                    $processed++;
+
+                    return;
+                }
+
                 $this->deliver($delivery);
                 $processed++;
             });
@@ -202,11 +219,13 @@ class ConnectedSiteCatalogEventDeliveryService
 
     private function markFailed(ConnectedSiteEventDelivery $delivery, string $error): void
     {
-        $delivery->forceFill([
+        ConnectedSiteEventDelivery::query()->whereKey($delivery->id)->update([
             'status' => ConnectedSiteEventDelivery::STATUS_FAILED,
             'attempt_count' => (int) $delivery->attempt_count + 1,
             'last_error' => mb_substr($error, 0, 500),
             'next_retry_at' => null,
-        ])->save();
+        ]);
+
+        $delivery->refresh();
     }
 }

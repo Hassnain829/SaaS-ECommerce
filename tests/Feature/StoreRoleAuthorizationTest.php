@@ -25,7 +25,7 @@ class StoreRoleAuthorizationTest extends TestCase
 
         $response->assertRedirect(route('store-management'));
 
-        $this->assertDatabaseMissing('stores', [
+        $this->assertSoftDeleted('stores', [
             'id' => $store->id,
         ]);
     }

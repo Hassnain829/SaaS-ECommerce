@@ -76,6 +76,9 @@ Route::post('/logout', [DashboardController::class, 'logout'])
     ->name('logout');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/confirm-password', [\App\Http\Controllers\Auth\PasswordConfirmationController::class, 'show'])->name('password.confirm');
+    Route::post('/confirm-password', [\App\Http\Controllers\Auth\PasswordConfirmationController::class, 'store'])->name('password.confirm.store');
+
     Route::get('/email/verify', EmailVerificationPromptController::class)->name('verification.notice');
     Route::get('/email/verify/{id}/{hash}', VerifyEmailController::class)
         ->middleware(['signed', 'throttle:6,1'])

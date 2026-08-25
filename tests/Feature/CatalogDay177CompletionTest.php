@@ -293,6 +293,7 @@ class CatalogDay177CompletionTest extends TestCase
                 'product_ids' => [$product->id],
                 'stock_mode' => 'set',
                 'stock_value' => 12,
+                'stock_apply_mode' => 'replace_all',
                 'bulk_variant_stock_scope' => 'all_variants_same',
             ])
             ->assertRedirect();

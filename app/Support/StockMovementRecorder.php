@@ -89,7 +89,7 @@ final class StockMovementRecorder
             return;
         }
 
-        StockMovement::query()->create([
+        StockMovement::query()->create(array_merge([
             'store_id' => $store->id,
             'product_id' => $product->id,
             'variant_id' => $variant->id,
@@ -100,7 +100,7 @@ final class StockMovementRecorder
             'reason' => $reason,
             'source' => $source,
             'performed_by' => $performedBy,
-        ]);
+        ], StockMovementIdentitySnapshot::resolve($product, $variant)));
     }
 
     public static function recordAdjustment(
@@ -139,7 +139,7 @@ final class StockMovementRecorder
             return;
         }
 
-        StockMovement::query()->create([
+        StockMovement::query()->create(array_merge([
             'store_id' => $store->id,
             'product_id' => $product->id,
             'variant_id' => $variant->id,
@@ -150,7 +150,7 @@ final class StockMovementRecorder
             'reason' => $reason,
             'source' => $source,
             'performed_by' => $performedBy,
-        ]);
+        ], StockMovementIdentitySnapshot::resolve($product, $variant)));
     }
 
     /**
@@ -213,7 +213,7 @@ final class StockMovementRecorder
 
         $delta = $previousStock === null ? $newStock : ($newStock - $previousStock);
 
-        StockMovement::query()->create([
+        StockMovement::query()->create(array_merge([
             'store_id' => $store->id,
             'product_id' => $product->id,
             'variant_id' => $variant->id,
@@ -226,7 +226,7 @@ final class StockMovementRecorder
             'reference_id' => $productImportId,
             'reference_type' => 'product_import',
             'performed_by' => $performedBy,
-        ]);
+        ], StockMovementIdentitySnapshot::resolve($product, $variant)));
     }
 
     /**
@@ -253,7 +253,7 @@ final class StockMovementRecorder
 
         foreach ($oldFingerprintToStock as $fp => $oldStock) {
             if (! isset($newByFp[$fp]) && (int) $oldStock !== 0) {
-                StockMovement::query()->create([
+                StockMovement::query()->create(array_merge([
                     'store_id' => $store->id,
                     'product_id' => $product->id,
                     'variant_id' => null,
@@ -265,7 +265,7 @@ final class StockMovementRecorder
                     'source' => $source,
                     'notes' => 'Fingerprint: '.$fp,
                     'performed_by' => $performedBy,
-                ]);
+                ], StockMovementIdentitySnapshot::resolve($product, null)));
             }
         }
 

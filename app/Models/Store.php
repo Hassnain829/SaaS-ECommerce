@@ -9,14 +9,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Schema;
 
 /**
  * `logo` is a storage-relative path string when set, not embedded image binary.
+ *
+ * SoftDeletes: merchant "delete store" closes the store. Final hard purge is
+ * StorePurgeService (internal) and must not be exposed as a normal merchant route.
  */
 class Store extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     public const ROLE_OWNER = 'owner';
 

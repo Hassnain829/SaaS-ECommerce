@@ -195,7 +195,7 @@
                 <div class="flex flex-col gap-4 border-t border-[#E2E8F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
                     @unless ($hideStoreDelete ?? false)
                         <button type="button" id="openDeleteStoreWarning" class="inline-flex items-center justify-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-4 py-3 text-sm font-bold text-[#B42318] transition hover:bg-[#FEEBEC]">
-                            Delete Store
+                            Close Store
                         </button>
                     @endunless
                     <div class="flex flex-col gap-3 sm:flex-row sm:ml-auto">
@@ -217,14 +217,14 @@
                     <path d="M12 9V13M12 17H12.01M10.29 3.85999L1.81999 18C1.6442 18.3045 1.5512 18.6496 1.55029 19.0012C1.54939 19.3528 1.64063 19.6984 1.81485 20.0037C1.98907 20.3089 2.24014 20.5632 2.5431 20.7413C2.84606 20.9194 3.19024 21.0151 3.54199 21.02H20.458C20.8097 21.0151 21.1539 20.9194 21.4569 20.7413C21.7598 20.5632 22.0109 20.3089 22.1851 20.0037C22.3593 19.6984 22.4506 19.3528 22.4497 19.0012C22.4488 18.6496 22.3558 18.3045 22.18 18L13.71 3.85999C13.5294 3.56428 13.2758 3.31986 12.9735 3.15044C12.6711 2.98102 12.3303 2.89233 11.9837 2.89282C11.6371 2.8933 11.2965 2.98295 10.9946 3.15322C10.6928 3.32349 10.4398 3.56863 10.26 3.86499L10.29 3.85999Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
-            <h3 class="mt-5 text-2xl font-semibold text-[#0F172A]">Delete this store?</h3>
-            <p class="mt-2 text-sm leading-6 text-[#64748B]">This action will permanently remove the store, its products, categories, and related onboarding data.</p>
+            <h3 class="mt-5 text-2xl font-semibold text-[#0F172A]">Close this store?</h3>
+            <p class="mt-2 text-sm leading-6 text-[#64748B]">The store will be removed from normal access immediately. Its storefront and connected operations will no longer be available. Store data is retained internally until final purge.</p>
         </div>
 
         <div class="px-6 pb-6 pt-2">
             <div class="rounded-2xl border border-[#FEE2E2] bg-[#FFF7F7] px-4 py-4">
                 <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#B42318]">Warning</p>
-                <p class="mt-2 text-sm text-[#7F1D1D]">You are about to delete <span id="deleteStoreName" class="font-bold"></span>. This cannot be undone.</p>
+                <p class="mt-2 text-sm text-[#7F1D1D]">You are about to close <span id="deleteStoreName" class="font-bold"></span>. It will disappear from your active stores. This does not instantly erase historical orders or payments.</p>
             </div>
 
             <form id="deleteStoreForm" method="POST" class="mt-6">
@@ -232,7 +232,7 @@
                 @method('DELETE')
                 <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
                     <button type="button" id="cancelDeleteStore" class="rounded-xl border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]">Keep Store</button>
-                    <button type="submit" class="rounded-xl bg-[#DC2626] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#DC2626]/20 transition hover:bg-[#B91C1C]">Delete Permanently</button>
+                    <button type="submit" class="rounded-xl bg-[#DC2626] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#DC2626]/20 transition hover:bg-[#B91C1C]">Close Store</button>
                 </div>
             </form>
         </div>

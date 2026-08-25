@@ -77,6 +77,11 @@
     x-init="$watch('sortBy', () => applySort()); applySort()"
     @click.outside="openMenu = null"
 >
+    <div class="flex flex-col gap-2">
+        <h2 class="text-lg font-bold text-slate-900">Active stores</h2>
+        <p class="text-sm text-slate-600">Open workspaces you can manage, edit, or close.</p>
+    </div>
+
     {{-- Tabs + search/sort --}}
     <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-4 border-b border-slate-200 sm:flex-row sm:items-end sm:justify-between">
@@ -414,6 +419,8 @@
         @endif
     </div>
 
+    @include('user_view.partials.closed_stores_section')
+
     {{-- Workspace summary + activity --}}
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div class="space-y-4 lg:col-span-2">
@@ -564,6 +571,7 @@
 
 @include('user_view.partials.store_create_modal')
 @include('user_view.partials.store_edit_modal')
+@include('user_view.partials.store_permanent_delete_modal')
 @endsection
 
 @push('scripts')

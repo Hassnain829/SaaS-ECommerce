@@ -1627,6 +1627,18 @@ class DashboardController extends Controller
             ->withCount(['products', 'brands'])
             ->get();
 
+        $ownedClosedStoreIds = \Illuminate\Support\Facades\DB::table('store_user')
+            ->where('user_id', $user->id)
+            ->where('role', Store::ROLE_OWNER)
+            ->pluck('store_id');
+
+        $closedStores = $ownedClosedStoreIds->isEmpty()
+            ? collect()
+            : Store::onlyTrashed()
+                ->whereIn('id', $ownedClosedStoreIds)
+                ->orderBy('name')
+                ->get(['id', 'name', 'deleted_at']);
+
         $storeIds = $stores->pluck('id');
         $liveStoresCount = $stores->where('onboarding_completed', true)->count();
         $draftStoresCount = $stores->where('onboarding_completed', false)->count();
@@ -1656,6 +1668,7 @@ class DashboardController extends Controller
 
         return view('user_view.store_management', [
             'stores' => $stores,
+            'closedStores' => $closedStores,
             'storeMetrics' => $storeMetrics,
             'storesNeedingCurrencyConversion' => $storesNeedingCurrencyConversion,
             'liveStoresCount' => $liveStoresCount,

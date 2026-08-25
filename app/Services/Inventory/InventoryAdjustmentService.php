@@ -122,13 +122,19 @@ class InventoryAdjustmentService
         ?User $actor = null,
         array $context = [],
     ): StockMovement {
-        $level->loadMissing('inventoryItem.product', 'inventoryItem.variant', 'location');
+        $level->loadMissing('inventoryItem.product', 'inventoryItem.variant.options.variationType', 'location');
         $item = $level->inventoryItem;
+        $product = $item?->product;
+        $variant = $item?->variant;
+        $identity = \App\Support\StockMovementIdentitySnapshot::resolve($product, $variant);
 
         return StockMovement::query()->create([
             'store_id' => $level->store_id,
             'product_id' => $item?->product_id,
             'variant_id' => $item?->variant_id,
+            'product_name_snapshot' => $identity['product_name_snapshot'],
+            'sku_snapshot' => $identity['sku_snapshot'],
+            'variant_label_snapshot' => $identity['variant_label_snapshot'],
             'location_id' => $level->location_id,
             'inventory_item_id' => $level->inventory_item_id,
             'inventory_level_id' => $level->id,
