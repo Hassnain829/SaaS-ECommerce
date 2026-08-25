@@ -89,11 +89,43 @@
     </div>
 
     @if ($canManageShipping ?? false)
-        @unless ($hideShippingDefaults ?? false)
         @php($prefs = $shippingPreferences ?? [])
+        <div id="checkout-weight-fallback" class="border-t border-[#F1F5F9] px-5 py-5">
+            <h3 class="text-sm font-semibold text-[#0F172A]">Checkout weight fallback</h3>
+            <p class="mt-1 text-xs text-[#64748B]">
+                Used only when a physical product or variant does not have its own shipping weight.
+                You can bulk-set more accurate weights from Products at any time.
+            </p>
+            <form method="POST" action="{{ route('settings.shipping.preferences.update') }}" class="mt-4 flex flex-wrap items-end gap-3">
+                @csrf
+                @method('PATCH')
+                <div>
+                    <label class="mb-1 block text-xs font-semibold text-[#475569]" for="fallback_item_weight">Fallback item weight</label>
+                    <div class="flex items-center gap-2">
+                        <input
+                            id="fallback_item_weight"
+                            name="fallback_item_weight"
+                            type="number"
+                            min="0.01"
+                            max="{{ \App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT }}"
+                            step="0.001"
+                            placeholder="e.g. 1.00"
+                            value="{{ old('fallback_item_weight', isset($prefs['fallback_item_weight']) ? number_format((float) $prefs['fallback_item_weight'], 3, '.', '') : '') }}"
+                            class="h-10 w-32 rounded-lg border border-[#CBD5E1] px-3 text-sm text-[#0F172A]"
+                        >
+                        <span class="text-sm font-semibold text-[#64748B]">{{ $prefs['weight_unit'] ?: 'LB' }}</span>
+                    </div>
+                </div>
+                <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-bold text-white">Save fallback</button>
+                @if (! empty($prefs['fallback_item_weight']))
+                    <button type="submit" name="clear_fallback_item_weight" value="1" class="inline-flex h-10 items-center rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#475569]">Clear</button>
+                @endif
+            </form>
+        </div>
+        @unless ($hideShippingDefaults ?? false)
         <div class="border-t border-[#F1F5F9] px-5 py-5">
             <h3 class="text-sm font-semibold text-[#0F172A]">Shipping defaults</h3>
-            <p class="mt-1 text-xs text-[#64748B]">Used for FedEx labels and checkout when a shipment does not override them.</p>
+            <p class="mt-1 text-xs text-[#64748B]">Used for FedEx labels when a shipment does not override them. Package size weight is for fulfillment parcels, not each product.</p>
             <form method="POST" action="{{ route('settings.shipping.preferences.update') }}" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 @csrf
                 @method('PATCH')
@@ -168,9 +200,10 @@
                     </select>
                 </div>
                 <div>
-                    <label class="mb-1 block text-xs font-semibold text-[#475569]" for="package_preset_weight">Weight (optional)</label>
+                    <label class="mb-1 block text-xs font-semibold text-[#475569]" for="package_preset_weight">Parcel weight (optional)</label>
                     <input id="package_preset_weight" name="weight_value" type="number" min="0.01" step="0.01"
                         class="w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A]" value="{{ old('weight_value') }}">
+                    <p class="mt-1 text-[11px] text-[#94A3B8]">Package size reference only — not each product’s shipping weight. Set product weights or the checkout weight fallback separately.</p>
                 </div>
                 <div>
                     <label class="mb-1 block text-xs font-semibold text-[#475569]" for="package_preset_weight_unit">Weight unit</label>

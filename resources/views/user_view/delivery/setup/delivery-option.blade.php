@@ -183,6 +183,42 @@
                 @enderror
             </div>
 
+            <div data-panel="checkout-weight-fallback" class="space-y-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 {{ in_array($defaultMode, ['fedex_live', 'both'], true) && ($missingExactShippingWeightCount ?? 0) > 0 ? '' : 'hidden' }}">
+                <div>
+                    <p class="text-sm font-semibold text-[#0F172A]">Checkout weight fallback</p>
+                    <p class="mt-1 text-xs leading-5 text-[#64748B]">
+                        @if (($missingExactShippingWeightCount ?? 0) === 1)
+                            1 product does not have its own shipping weight.
+                        @else
+                            {{ (int) ($missingExactShippingWeightCount ?? 0) }} products do not have their own shipping weight.
+                        @endif
+                        A fallback lets FedEx estimate checkout rates now. You can bulk-set more accurate product weights later.
+                    </p>
+                </div>
+                <div class="flex max-w-xs items-end gap-2">
+                    <label class="block flex-1 space-y-1">
+                        <span class="text-xs font-semibold text-[#64748B]">Fallback item weight</span>
+                        <input
+                            type="number"
+                            name="fallback_item_weight"
+                            min="0.01"
+                            max="150"
+                            step="0.01"
+                            value="{{ old('fallback_item_weight', isset($shippingPreferences['fallback_item_weight']) ? number_format((float) $shippingPreferences['fallback_item_weight'], 3, '.', '') : '') }}"
+                            class="h-10 w-full rounded-lg border border-[#CBD5E1] bg-white px-3 text-sm"
+                            inputmode="decimal"
+                        >
+                    </label>
+                    <span class="pb-2 text-sm font-semibold text-[#64748B]">{{ $shippingPreferences['weight_unit'] ?? 'LB' }}</span>
+                </div>
+                @error('fallback_item_weight')
+                    <p class="text-xs text-red-700">{{ $message }}</p>
+                @enderror
+                @if (\Illuminate\Support\Facades\Route::has('products'))
+                    <a href="{{ route('products', ['shipping_weight' => 'uses_fallback']) }}" class="inline-flex text-xs font-semibold text-brand hover:underline">Review products</a>
+                @endif
+            </div>
+
             <div data-panel="fixed" class="space-y-4 {{ in_array($defaultMode, ['fixed', 'both'], true) ? '' : 'hidden' }}">
                 @if ($shippingMethods->isNotEmpty())
                     <label class="block space-y-1" data-fixed-only>
@@ -275,8 +311,12 @@
 
         function syncPanels() {
             var mode = currentMode();
+            var missingWeights = {{ (int) ($missingExactShippingWeightCount ?? 0) }};
             form.querySelectorAll('[data-panel="fedex"]').forEach(function (el) {
                 el.classList.toggle('hidden', mode !== 'fedex_live' && mode !== 'both');
+            });
+            form.querySelectorAll('[data-panel="checkout-weight-fallback"]').forEach(function (el) {
+                el.classList.toggle('hidden', missingWeights < 1 || (mode !== 'fedex_live' && mode !== 'both'));
             });
             form.querySelectorAll('[data-panel="fixed"]').forEach(function (el) {
                 el.classList.toggle('hidden', mode !== 'fixed' && mode !== 'both');

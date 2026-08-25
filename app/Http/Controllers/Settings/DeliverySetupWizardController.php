@@ -14,6 +14,8 @@ use App\Services\Delivery\DeliveryAreaInputNormalizer;
 use App\Services\Delivery\DeliverySetupLifecycleService;
 use App\Services\Delivery\DeliverySetupStatusService;
 use App\Services\Delivery\DeliveryWizardPersistenceService;
+use App\Services\Delivery\ShippingWeightCoverageService;
+use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Tax\TaxConfigurationService;
 use App\Support\StorePermission;
 use App\Support\Tax\TaxCountryCatalog;
@@ -256,6 +258,10 @@ class DeliverySetupWizardController extends Controller
                 : ((float) ($manualInZone->free_over_amount ?? 0) > 0 ? 'free_over' : 'fixed');
         }
 
+        $shippingPreferences = app(StoreShippingPreferences::class)->get($store);
+        $missingExactShippingWeightCount = app(ShippingWeightCoverageService::class)
+            ->countProductsMissingExactCoverage($store);
+
         return view('user_view.delivery.setup.delivery-option', $this->wizardContext($request, $store, $taxConfiguration, [
             'step' => $manageMode ? null : 3,
             'manageMode' => $manageMode,
@@ -272,6 +278,8 @@ class DeliverySetupWizardController extends Controller
             'fedExServices' => FedExCheckoutServiceCatalog::services(),
             'checkoutShippingMode' => $checkoutShippingMode,
             'selectedFedExServices' => $selectedFedExServices,
+            'shippingPreferences' => $shippingPreferences,
+            'missingExactShippingWeightCount' => $missingExactShippingWeightCount,
         ]));
     }
 

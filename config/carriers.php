@@ -29,6 +29,8 @@ return [
         'checkout_rate_cache_seconds' => (int) env('FEDEX_CHECKOUT_RATE_CACHE_SECONDS', 120),
         'ops_rate_quote_ttl_seconds' => (int) env('FEDEX_OPS_RATE_QUOTE_TTL_SECONDS', 1800),
         'checkout_max_package_lines' => (int) env('FEDEX_CHECKOUT_MAX_PACKAGE_LINES', 20),
+        // Configured FedEx parcel ceiling in LB (converted to store unit at checkout).
+        'checkout_max_package_weight' => (float) env('FEDEX_CHECKOUT_MAX_PACKAGE_WEIGHT', 150),
         'checkout_default_package' => [
             'weight' => (float) env('FEDEX_CHECKOUT_DEFAULT_WEIGHT_LB', 1),
             'weight_unit' => 'LB',

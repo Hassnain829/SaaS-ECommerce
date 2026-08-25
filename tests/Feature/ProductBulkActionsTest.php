@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductVariationOption;
+use App\Models\ProductVariationType;
 use App\Models\Role;
 use App\Models\StockMovement;
 use App\Models\Store;
@@ -276,6 +278,286 @@ class ProductBulkActionsTest extends TestCase
         }
     }
 
+    public function test_bulk_shipping_weight_missing_only_preserves_existing_and_skips_non_shippable(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $missing = $this->makeProduct($store, 'Missing Weight');
+        $existing = $this->makeProduct($store, 'Has Weight');
+        $existing->forceFill(['meta' => ['shipping_weight' => 2.25]])->save();
+        $digital = $this->makeProduct($store, 'Digital');
+        $digital->forceFill(['requires_shipping' => false, 'product_type' => 'digital'])->save();
+        $variant = $existing->variants()->first();
+        $variant->forceFill(['meta' => ['shipping_weight' => 9.99]])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$missing->id, $existing->id, $digital->id],
+                'shipping_weight_value' => 0.7,
+                'shipping_weight_mode' => 'missing_only',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(0.7, (float) data_get($missing->fresh()->meta, 'shipping_weight'));
+        $this->assertSame(2.25, (float) data_get($existing->fresh()->meta, 'shipping_weight'));
+        $this->assertNull(data_get($digital->fresh()->meta, 'shipping_weight'));
+        $this->assertSame(9.99, (float) data_get($variant->fresh()->meta, 'shipping_weight'));
+    }
+
+    public function test_bulk_shipping_weight_replace_all_updates_product_level_only(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeProduct($store, 'Replace Weight');
+        $product->forceFill(['meta' => ['shipping_weight' => 1.1]])->save();
+        $variant = $product->variants()->first();
+        $variant->forceFill(['meta' => ['shipping_weight' => 5.5]])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$product->id],
+                'shipping_weight_value' => 15,
+                'shipping_weight_mode' => 'replace_all',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(15.0, (float) data_get($product->fresh()->meta, 'shipping_weight'));
+        $this->assertSame(5.5, (float) data_get($variant->fresh()->meta, 'shipping_weight'));
+    }
+
+    public function test_bulk_variant_shipping_weight_map_by_option_updates_matching_variants_only(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeSizedVariantProduct($store, [
+            'Small' => null,
+            'Large' => 9.0,
+        ]);
+        $product->forceFill(['meta' => ['shipping_weight' => 2.0]])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$product->id],
+                'shipping_weight_target' => 'variants',
+                'variant_bulk_mode' => 'map_by_option',
+                'variant_option_name' => 'Size',
+                'variant_weight_map_json' => json_encode(['Small' => 0.55, 'Large' => 0.85]),
+                'shipping_weight_mode' => 'missing_only',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $variants = $product->fresh()->variants()->with('options')->get()->keyBy(fn ($v) => $v->options->first()?->value);
+        $this->assertSame(0.55, (float) data_get($variants['Small']->meta, 'shipping_weight'));
+        $this->assertSame(9.0, (float) data_get($variants['Large']->meta, 'shipping_weight'));
+        $this->assertSame(2.0, (float) data_get($product->fresh()->meta, 'shipping_weight'));
+    }
+
+    public function test_bulk_variant_map_rejects_weights_above_store_maximum(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+            'weight_unit' => 'LB',
+        ]);
+        $product = $this->makeSizedVariantProduct($store, [
+            'Large' => null,
+            'XL' => null,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$product->id],
+                'shipping_weight_target' => 'variants',
+                'variant_bulk_mode' => 'map_by_option',
+                'variant_option_name' => 'Size',
+                'variant_weight_map_json' => json_encode(['Large' => 500, 'XL' => 600]),
+                'shipping_weight_mode' => 'replace_all',
+            ])
+            ->assertSessionHasErrors('bulk');
+
+        foreach ($product->fresh()->variants as $variant) {
+            $this->assertNull(data_get($variant->meta, 'shipping_weight'));
+        }
+    }
+
+    public function test_bulk_variant_use_option_values_bare_numbers_respect_store_kg_unit(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+            'weight_unit' => 'KG',
+        ]);
+        $product = $this->makeOptionVariantProduct($store, 'Weight', ['5', '10', '20']);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$product->id],
+                'shipping_weight_target' => 'variants',
+                'variant_bulk_mode' => 'use_option_values',
+                'variant_option_name' => 'Weight',
+                'shipping_weight_mode' => 'replace_all',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $variants = $product->fresh()->variants()->with('options')->get()->keyBy(fn ($v) => $v->options->first()?->value);
+        $this->assertSame(5.0, (float) data_get($variants['5']->meta, 'shipping_weight'));
+        $this->assertSame(10.0, (float) data_get($variants['10']->meta, 'shipping_weight'));
+        $this->assertSame(20.0, (float) data_get($variants['20']->meta, 'shipping_weight'));
+    }
+
+    public function test_bulk_variant_use_option_values_rejects_non_weight_bare_numbers(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeOptionVariantProduct($store, 'Size', ['10', '12', '14']);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$product->id],
+                'shipping_weight_target' => 'variants',
+                'variant_bulk_mode' => 'use_option_values',
+                'variant_option_name' => 'Size',
+                'shipping_weight_mode' => 'replace_all',
+            ])
+            ->assertSessionHasErrors('bulk');
+
+        foreach ($product->fresh()->variants as $variant) {
+            $this->assertNull(data_get($variant->meta, 'shipping_weight'));
+        }
+    }
+
+    public function test_bulk_variant_use_option_values_rejects_pack_size_bare_numbers(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeOptionVariantProduct($store, 'Pack size', ['6', '12', '24']);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$product->id],
+                'shipping_weight_target' => 'variants',
+                'variant_bulk_mode' => 'use_option_values',
+                'variant_option_name' => 'Pack size',
+                'shipping_weight_mode' => 'replace_all',
+            ])
+            ->assertSessionHasErrors('bulk');
+
+        foreach ($product->fresh()->variants as $variant) {
+            $this->assertNull(data_get($variant->meta, 'shipping_weight'));
+        }
+    }
+
+    public function test_products_page_escapes_variant_option_labels_in_bulk_weight_ui(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeOptionVariantProduct($store, 'Size', ['<img src=x onerror=alert(1)>']);
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products'));
+
+        $response->assertOk();
+        // Catalog option labels must not be emitted as raw HTML attributes/content in the page shell.
+        $response->assertDontSee('<img src=x onerror=alert(1)>', false);
+        $response->assertSee('createElement', false);
+        $response->assertSee('textContent', false);
+    }
+
+    public function test_bulk_variant_shipping_weight_use_option_values_parses_lb_labels(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+            'weight_unit' => 'LB',
+        ]);
+        $product = $this->makeOptionVariantProduct($store, 'Weight', ['5 lb', '10 lb']);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$product->id],
+                'shipping_weight_target' => 'variants',
+                'variant_bulk_mode' => 'use_option_values',
+                'variant_option_name' => 'Weight',
+                'shipping_weight_mode' => 'replace_all',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $variants = $product->fresh()->variants()->with('options')->get()->keyBy(fn ($v) => $v->options->first()?->value);
+        $this->assertSame(5.0, (float) data_get($variants['5 lb']->meta, 'shipping_weight'));
+        $this->assertSame(10.0, (float) data_get($variants['10 lb']->meta, 'shipping_weight'));
+        $this->assertNull(data_get($product->fresh()->meta, 'shipping_weight'));
+    }
+
+    public function test_bulk_variant_shipping_weight_clear_removes_variant_overrides(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeSizedVariantProduct($store, [
+            'Small' => 0.5,
+            'Large' => 2.5,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'shipping_weight',
+                'product_ids' => [$product->id],
+                'shipping_weight_target' => 'variants',
+                'variant_bulk_mode' => 'clear',
+                'shipping_weight_mode' => 'missing_only',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        foreach ($product->fresh()->variants as $variant) {
+            $this->assertNull(data_get($variant->meta, 'shipping_weight'));
+        }
+    }
+
+    public function test_bulk_variant_shipping_weight_preview_returns_option_groups(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeSizedVariantProduct($store, ['Small' => null, 'Large' => null]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->postJson(route('products.bulk.shipping-weight.preview'), [
+                'product_ids' => [$product->id],
+                'shipping_weight_target' => 'variants',
+                'variant_bulk_mode' => 'map_by_option',
+                'variant_option_name' => 'Size',
+                'shipping_weight_mode' => 'missing_only',
+                'variant_weight_map_json' => json_encode(['Small' => 0.5]),
+            ])
+            ->assertOk()
+            ->assertJsonPath('compatible_products_count', 1)
+            ->assertJsonPath('matching_variants_count', 1)
+            ->assertJsonFragment(['name' => 'Size']);
+    }
+
     public function test_product_workspace_is_store_scoped(): void
     {
         $owner = $this->makeUser();
@@ -340,5 +622,66 @@ class ProductBulkActionsTest extends TestCase
         ]);
 
         return $product;
+    }
+
+    /**
+     * @param  array<string, float|null>  $sizeWeights
+     */
+    private function makeSizedVariantProduct(Store $store, array $sizeWeights): Product
+    {
+        return $this->makeOptionVariantProduct($store, 'Size', array_keys($sizeWeights), $sizeWeights);
+    }
+
+    /**
+     * @param  list<string>  $optionValues
+     * @param  array<string, float|null>  $presetWeights
+     */
+    private function makeOptionVariantProduct(Store $store, string $groupName, array $optionValues, array $presetWeights = []): Product
+    {
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Variant '.fake()->unique()->word(),
+            'slug' => 'variant-'.fake()->unique()->numberBetween(1, 99999),
+            'description' => null,
+            'base_price' => 10,
+            'sku' => 'SKU-'.strtoupper(Str::random(6)),
+            'product_type' => 'physical',
+            'status' => true,
+            'requires_shipping' => true,
+            'meta' => [],
+        ]);
+
+        $variationType = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => $groupName,
+            'type' => 'select',
+        ]);
+
+        $options = [];
+        foreach ($optionValues as $index => $value) {
+            $options[$value] = ProductVariationOption::query()->create([
+                'variation_type_id' => $variationType->id,
+                'value' => $value,
+                'sort_order' => $index,
+            ]);
+        }
+
+        foreach ($options as $value => $option) {
+            $meta = [];
+            $preset = $presetWeights[$value] ?? null;
+            if ($preset !== null) {
+                $meta['shipping_weight'] = $preset;
+            }
+            $variant = $product->variants()->create([
+                'sku' => $product->sku.'-'.strtoupper(Str::slug($value, '')),
+                'price' => 10,
+                'stock' => 5,
+                'stock_alert' => 0,
+                'meta' => $meta,
+            ]);
+            $variant->options()->sync([$option->id]);
+        }
+
+        return $product->fresh(['variationTypes.options', 'variants.options']);
     }
 }

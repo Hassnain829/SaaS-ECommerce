@@ -482,6 +482,11 @@ class DashboardController extends Controller
             && ProductCustomFieldHelper::isValidKey($cfKey)
             && ProductCustomFieldHelper::isAllowedKey($cfKey);
 
+        $shippingWeightFilter = trim((string) $request->query('shipping_weight', ''));
+        if (! in_array($shippingWeightFilter, ['has', 'missing', 'uses_fallback'], true)) {
+            $shippingWeightFilter = '';
+        }
+
         $baseQuery = Product::query()
             ->where('store_id', $selectedStore->id)
             ->with([
@@ -543,6 +548,39 @@ class DashboardController extends Controller
 
         if ($attributeTermFilterId !== null) {
             $baseQuery->whereHas('productAttributes.terms', fn ($query) => $query->where('attribute_terms.id', $attributeTermFilterId));
+        }
+
+        if ($shippingWeightFilter === 'has' || $shippingWeightFilter === 'missing' || $shippingWeightFilter === 'uses_fallback') {
+            $baseQuery->where('requires_shipping', true);
+        }
+
+        if ($shippingWeightFilter === 'has') {
+            $baseQuery->where(function ($query): void {
+                $query->where(function ($inner): void {
+                    $inner->whereNotNull('meta->shipping_weight')
+                        ->where('meta->shipping_weight', '!=', '')
+                        ->where('meta->shipping_weight', '>', 0);
+                })->orWhere(function ($inner): void {
+                    $inner->whereNotNull('meta->weight')
+                        ->where('meta->weight', '!=', '')
+                        ->where('meta->weight', '>', 0);
+                });
+            });
+        } elseif ($shippingWeightFilter === 'missing') {
+            $baseQuery->where(function ($query): void {
+                $query->where(function ($inner): void {
+                    $inner->whereNull('meta->shipping_weight')
+                        ->orWhere('meta->shipping_weight', '')
+                        ->orWhere('meta->shipping_weight', '<=', 0);
+                })->where(function ($inner): void {
+                    $inner->whereNull('meta->weight')
+                        ->orWhere('meta->weight', '')
+                        ->orWhere('meta->weight', '<=', 0);
+                });
+            });
+        } elseif ($shippingWeightFilter === 'uses_fallback') {
+            $coverage = app(\App\Services\Delivery\ShippingWeightCoverageService::class);
+            $baseQuery->whereIn('id', $coverage->missingExactCoverageQuery($selectedStore)->select('products.id'));
         }
 
         if ($stockFilter === 'low') {
@@ -771,9 +809,13 @@ class DashboardController extends Controller
                 'attribute_term' => $attributeTermFilterId !== null ? (string) $attributeTermFilterId : '',
                 'cf_key' => $cfFilterActive ? $cfKey : '',
                 'cf_value' => $cfFilterActive ? $cfValue : '',
+                'shipping_weight' => $shippingWeightFilter,
                 'view' => $catalogView,
                 'per_page' => $perPage,
             ],
+            'shippingWeightUnit' => app(\App\Services\Delivery\StoreShippingPreferences::class)->weightUnitLabel($selectedStore),
+            'shippingWeightMax' => app(\App\Services\Delivery\StoreShippingPreferences::class)->maxItemWeightForStore($selectedStore),
+            'shippingWeightFallback' => app(\App\Services\Delivery\StoreShippingPreferences::class)->fallbackItemWeight($selectedStore),
             'catalogView' => $catalogView,
             'deletedCount' => $deletedCount,
             'productListDetailKeys' => $productListDetailKeys,
@@ -844,6 +886,7 @@ class DashboardController extends Controller
             'catalogAttributes' => $catalogAttributes,
             'createProductPayload' => $createProductPayload,
             'taxSetting' => $selectedStore->taxSetting,
+            'shippingPreferences' => app(\App\Services\Delivery\StoreShippingPreferences::class)->get($selectedStore),
         ]);
     }
 

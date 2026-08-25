@@ -68,6 +68,7 @@
                         'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
                         'catalogAttributes' => $catalogAttributes,
                         'workspaceReturnProductId' => $workspaceReturnProductId,
+                        'shippingPreferences' => $shippingPreferences ?? [],
                     ])
                 </div>
 

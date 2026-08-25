@@ -2,6 +2,8 @@
 
 namespace App\Services\Delivery;
 
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\ShippingPackagePreset;
 use App\Models\Store;
 
@@ -38,6 +40,9 @@ final class StoreShippingPreferences
         self::HANDOFF_DROPOFF,
     ];
 
+    /** Upper ceiling aligned with common FedEx parcel limits (LB). */
+    public const MAX_ITEM_WEIGHT = 150.0;
+
     /**
      * @return array{
      *     default_package_preset_id: int|null,
@@ -45,7 +50,8 @@ final class StoreShippingPreferences
      *     default_signature_option: string|null,
      *     saturday_delivery_default: bool,
      *     default_handoff_type: string,
-     *     weight_unit: string|null
+     *     weight_unit: string|null,
+     *     fallback_item_weight: float|null
      * }
      */
     public function get(Store $store): array
@@ -84,6 +90,7 @@ final class StoreShippingPreferences
             'saturday_delivery_default' => (bool) ($shipping['saturday_delivery_default'] ?? false),
             'default_handoff_type' => $handoff,
             'weight_unit' => $weightUnit,
+            'fallback_item_weight' => $this->normalizeFallbackWeight($shipping['fallback_item_weight'] ?? null),
         ];
     }
 
@@ -145,7 +152,27 @@ final class StoreShippingPreferences
 
         if (array_key_exists('weight_unit', $input)) {
             $unit = strtoupper(trim((string) ($input['weight_unit'] ?? '')));
-            $next['weight_unit'] = $unit !== '' ? $unit : null;
+            $requested = $unit !== '' ? $unit : null;
+            $existing = $current['weight_unit'];
+
+            if ($requested === null) {
+                // no-op
+            } elseif ($existing === null) {
+                if ($requested !== 'LB' && $this->storeHasCommittedWeightData($store, $current)) {
+                    $next['weight_unit'] = 'LB';
+                } else {
+                    $next['weight_unit'] = $requested;
+                }
+            } elseif ($requested !== $existing) {
+                $next['weight_unit'] = $existing;
+            }
+        }
+
+        if (array_key_exists('fallback_item_weight', $input)) {
+            $next['fallback_item_weight'] = $this->normalizeFallbackWeightForStore($store, $input['fallback_item_weight']);
+            if ($next['fallback_item_weight'] !== null && $next['weight_unit'] === null) {
+                $next['weight_unit'] = 'LB';
+            }
         }
 
         $settings = is_array($store->settings) ? $store->settings : [];
@@ -153,6 +180,114 @@ final class StoreShippingPreferences
         $store->forceFill(['settings' => $settings])->save();
 
         return $next;
+    }
+
+    public function fallbackItemWeight(Store $store): ?float
+    {
+        return $this->get($store)['fallback_item_weight'];
+    }
+
+    public function weightUnitLabel(Store $store): string
+    {
+        return $this->get($store)['weight_unit'] ?: 'LB';
+    }
+
+    public function maxItemWeightForUnit(string $unit): float
+    {
+        return strtoupper(trim($unit)) === 'KG'
+            ? round(self::MAX_ITEM_WEIGHT / 2.20462, 3)
+            : self::MAX_ITEM_WEIGHT;
+    }
+
+    public function maxItemWeightForStore(Store $store): float
+    {
+        return $this->maxItemWeightForUnit($this->weightUnitLabel($store));
+    }
+
+    public function normalizeFallbackWeightForStore(Store $store, mixed $raw): ?float
+    {
+        $normalized = $this->normalizeFallbackWeight($raw);
+        if ($normalized === null) {
+            return null;
+        }
+
+        $max = $this->maxItemWeightForStore($store);
+        if ($normalized > $max) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Persist LB once the store has fallback or catalog weights so null cannot be relabeled later.
+     */
+    public function commitWeightUnitIfNeeded(Store $store): void
+    {
+        if ($this->get($store)['weight_unit'] !== null) {
+            return;
+        }
+
+        $this->update($store, ['weight_unit' => 'LB']);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $current
+     */
+    public function storeHasCommittedWeightData(Store $store, ?array $current = null): bool
+    {
+        $prefs = $current ?? $this->get($store);
+        if ($prefs['fallback_item_weight'] !== null) {
+            return true;
+        }
+
+        $hasProductWeight = Product::query()
+            ->where('store_id', $store->id)
+            ->where(function ($query): void {
+                $query->where(function ($inner): void {
+                    $inner->whereNotNull('meta->shipping_weight')
+                        ->where('meta->shipping_weight', '>', 0);
+                })->orWhere(function ($inner): void {
+                    $inner->whereNotNull('meta->weight')
+                        ->where('meta->weight', '>', 0);
+                });
+            })
+            ->exists();
+
+        if ($hasProductWeight) {
+            return true;
+        }
+
+        return ProductVariant::query()
+            ->whereHas('product', fn ($query) => $query->where('store_id', $store->id))
+            ->where(function ($query): void {
+                $query->where(function ($inner): void {
+                    $inner->whereNotNull('meta->shipping_weight')
+                        ->where('meta->shipping_weight', '>', 0);
+                })->orWhere(function ($inner): void {
+                    $inner->whereNotNull('meta->weight')
+                        ->where('meta->weight', '>', 0);
+                });
+            })
+            ->exists();
+    }
+
+    public function normalizeFallbackWeight(mixed $raw): ?float
+    {
+        if ($raw === null || $raw === '' || $raw === false) {
+            return null;
+        }
+
+        if (! is_numeric($raw)) {
+            return null;
+        }
+
+        $value = (float) $raw;
+        if ($value <= 0 || $value > self::MAX_ITEM_WEIGHT) {
+            return null;
+        }
+
+        return round($value, 3);
     }
 
     public function defaultHandoffType(Store $store): string

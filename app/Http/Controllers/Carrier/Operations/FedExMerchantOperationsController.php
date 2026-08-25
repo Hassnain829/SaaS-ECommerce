@@ -160,7 +160,7 @@ class FedExMerchantOperationsController extends Controller
             'pickup_type' => ['nullable', 'string', 'max:40'],
             'package_source' => ['nullable', 'in:preset,custom'],
             'shipping_package_preset_id' => ['nullable', 'integer'],
-            'weight' => ['nullable', 'numeric', 'min:0.01', 'max:150'],
+            'weight' => ['required', 'numeric', 'min:0.01', 'max:150'],
             'length' => ['nullable', 'numeric', 'min:1', 'max:108'],
             'width' => ['nullable', 'numeric', 'min:1', 'max:108'],
             'height' => ['nullable', 'numeric', 'min:1', 'max:108'],

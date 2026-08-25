@@ -618,8 +618,24 @@
                     @else
                         <p class="dh-panel-meta">Add a default package so live rates can use real dimensions.</p>
                     @endif
-                    <a href="{{ route('settings.shipping.packages') }}" class="dh-link">Manage packages →</a>
+                    <a href="{{ route('settings.shipping.packages') }}#checkout-weight-fallback" class="dh-link">Manage packages →</a>
                 </div>
+                @php
+                    $fallbackWeight = $shippingPreferences['fallback_item_weight'] ?? null;
+                    $weightUnitLabel = $shippingPreferences['weight_unit'] ?? 'LB';
+                @endphp
+                @if ($fallbackWeight)
+                    <p class="mt-3 text-sm text-[#475569]">
+                        Checkout weight fallback: <span class="font-semibold text-[#0F172A]">{{ number_format((float) $fallbackWeight, 2) }} {{ $weightUnitLabel }}</span>
+                        · used only when a product has no shipping weight.
+                    </p>
+                @else
+                    <p class="mt-3 text-sm text-[#64748B]">
+                        No checkout weight fallback set.
+                        <a href="{{ route('settings.shipping.packages') }}#checkout-weight-fallback" class="font-semibold text-brand hover:underline">Add a fallback item weight</a>
+                        so FedEx can estimate rates for products without their own weight.
+                    </p>
+                @endif
             </article>
         </section>
     @endif

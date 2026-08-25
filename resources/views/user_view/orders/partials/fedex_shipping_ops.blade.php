@@ -26,6 +26,7 @@
     $selectedPresetId = (string) old('shipping_package_preset_id', $defaultPreset?->id ?? '');
     $defaultHandoff = old('pickup_type', $shippingPreferences['default_handoff_type'] ?? 'USE_SCHEDULED_PICKUP');
     $defaultSignature = old('signature_option', $shippingPreferences['default_signature_option'] ?? 'SERVICE_DEFAULT');
+    $storeWeightUnit = strtoupper((string) ($shippingPreferences['weight_unit'] ?? 'LB')) ?: 'LB';
     $shippingAddress = $order->addresses->firstWhere('type', 'shipping') ?? $order->addresses->first();
     $recipientPhonePrefill = old('recipient_phone', $shippingAddress->phone ?? '');
     $routedOriginLocationId = (int) data_get($order->meta ?? [], 'fulfillment_routing.origin_location_id', 0);
@@ -205,7 +206,7 @@
                 {{-- Section 2: Package --}}
                 <div class="rounded-xl border border-[#E2E8F0] bg-white p-4" data-fedex-package-section>
                     <p class="text-sm font-semibold text-[#0F172A]">2. Package</p>
-                    <p class="mt-1 text-xs leading-5 text-[#64748B]">Use a saved package size or enter custom dimensions. FedEx rates use this exact package.</p>
+                    <p class="mt-1 text-xs leading-5 text-[#64748B]">Saved packages supply dimensions. Always confirm the actual packed weight on the scale before requesting FedEx rates.</p>
 
                     <div class="mt-3 space-y-3">
                         <label class="flex items-start gap-2 rounded-lg border border-[#E2E8F0] px-3 py-2.5 {{ $shippingPackagePresets->isEmpty() ? 'opacity-60' : '' }}">
@@ -230,11 +231,9 @@
                                             <option
                                                 value="{{ $preset->id }}"
                                                 @selected((string) $selectedPresetId === (string) $preset->id)
-                                                data-weight="{{ $preset->weight_value }}"
                                                 data-length="{{ $preset->length }}"
                                                 data-width="{{ $preset->width }}"
                                                 data-height="{{ $preset->height }}"
-                                                data-weight-unit="{{ $preset->weight_unit ?: 'LB' }}"
                                                 data-dim-unit="{{ $preset->dimension_unit ?: 'IN' }}"
                                             >
                                                 {{ $preset->name }}{{ $preset->is_default ? ' (default)' : '' }}
@@ -243,13 +242,11 @@
                                     </select>
                                     <p class="mt-2 text-xs text-[#64748B]" data-package-preset-dims>
                                         @if ($defaultPreset)
+                                            Dimensions:
                                             {{ number_format((float) $defaultPreset->length, 1) }}
-                                            × {{ number_format((float) $defaultPreset->width, 1) }}
-                                            × {{ number_format((float) $defaultPreset->height, 1) }}
+                                            &times; {{ number_format((float) $defaultPreset->width, 1) }}
+                                            &times; {{ number_format((float) $defaultPreset->height, 1) }}
                                             {{ $defaultPreset->dimension_unit ?: 'IN' }}
-                                            @if ($defaultPreset->weight_value)
-                                                · {{ number_format((float) $defaultPreset->weight_value, 2) }} {{ $defaultPreset->weight_unit ?: 'LB' }}
-                                            @endif
                                         @endif
                                     </p>
                                 @else
@@ -269,11 +266,7 @@
                             >
                             <span class="min-w-0 flex-1">
                                 <span class="block text-sm font-semibold text-[#0F172A]">Custom package</span>
-                                <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4" data-custom-package-fields>
-                                    <div>
-                                        <label class="block text-[11px] font-semibold text-[#64748B]">Weight (lb)</label>
-                                        <input type="number" step="0.01" min="0.01" name="weight" value="{{ old('weight') }}" placeholder="—" class="mt-1 w-full rounded-lg border border-stone-200 px-2.5 py-2 text-sm" data-custom-package-input>
-                                    </div>
+                                <div class="mt-2 grid grid-cols-3 gap-2" data-custom-package-fields>
                                     <div>
                                         <label class="block text-[11px] font-semibold text-[#64748B]">Length</label>
                                         <input type="number" step="0.01" min="0.01" name="length" value="{{ old('length') }}" placeholder="—" class="mt-1 w-full rounded-lg border border-stone-200 px-2.5 py-2 text-sm" data-custom-package-input>
@@ -289,6 +282,27 @@
                                 </div>
                             </span>
                         </label>
+
+                        <div class="rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-3 py-3">
+                            <label class="block text-xs font-semibold text-[#0F172A]" for="fedex-actual-packed-weight">Actual packed weight</label>
+                            <p class="mt-0.5 text-[11px] text-[#64748B]">What the parcel weighs on the scale after packing. This is what FedEx rates and labels use.</p>
+                            <div class="mt-2 flex max-w-xs items-center gap-2">
+                                <input
+                                    id="fedex-actual-packed-weight"
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    max="150"
+                                    name="weight"
+                                    value="{{ old('weight') }}"
+                                    required
+                                    placeholder="e.g. 5.80"
+                                    class="w-full rounded-lg border border-stone-200 bg-white px-2.5 py-2 text-sm"
+                                    data-actual-packed-weight
+                                >
+                                <span class="text-sm font-semibold text-[#64748B]">{{ $storeWeightUnit }}</span>
+                            </div>
+                        </div>
                     </div>
 
                     @if ($shippingPackagePresets->isEmpty())
@@ -866,10 +880,7 @@
                     const width = option.getAttribute('data-width') || '—';
                     const height = option.getAttribute('data-height') || '—';
                     const dimUnit = option.getAttribute('data-dim-unit') || 'IN';
-                    const weight = option.getAttribute('data-weight');
-                    const weightUnit = option.getAttribute('data-weight-unit') || 'LB';
-                    dims.textContent = length + ' × ' + width + ' × ' + height + ' ' + dimUnit
-                        + (weight ? (' · ' + weight + ' ' + weightUnit) : '');
+                    dims.textContent = 'Dimensions: ' + length + ' × ' + width + ' × ' + height + ' ' + dimUnit;
                 }
 
                 if (packageSection) {

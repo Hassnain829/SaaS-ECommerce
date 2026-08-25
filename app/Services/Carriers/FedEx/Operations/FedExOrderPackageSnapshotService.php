@@ -33,7 +33,7 @@ final class FedExOrderPackageSnapshotService
 
         $source = strtolower(trim((string) ($input['package_source'] ?? 'preset')));
         $resolved = $source === 'custom'
-            ? $this->resolveCustom($input)
+            ? $this->resolveCustom($store, $input)
             : $this->resolvePreset($store, $input);
 
         return ShipmentPackage::query()->create([
@@ -119,25 +119,22 @@ final class FedExOrderPackageSnapshotService
             ]);
         }
 
-        $weight = $preset->weight_value;
-        if ((! is_numeric($weight) || (float) $weight <= 0) && isset($input['weight']) && is_numeric($input['weight'])) {
-            $weight = (float) $input['weight'];
-        }
-
-        if (! is_numeric($weight) || (float) $weight <= 0
-            || ! is_numeric($preset->length) || (float) $preset->length <= 0
+        if (! is_numeric($preset->length) || (float) $preset->length <= 0
             || ! is_numeric($preset->width) || (float) $preset->width <= 0
             || ! is_numeric($preset->height) || (float) $preset->height <= 0
         ) {
             throw ValidationException::withMessages([
-                'shipping_package_preset_id' => 'That saved package is missing weight or dimensions. Edit the package or enter a custom package.',
+                'shipping_package_preset_id' => 'That saved package is missing dimensions. Edit the package or enter a custom package.',
             ]);
         }
 
+        $weight = $this->requireActualPackedWeight($store, $input);
+        $weightUnit = $this->resolveActualPackedWeightUnit($store, $input);
+
         return [
             'name' => (string) $preset->name,
-            'weight' => (float) $weight,
-            'weight_unit' => strtoupper((string) ($preset->weight_unit ?: 'LB')),
+            'weight' => $weight,
+            'weight_unit' => $weightUnit,
             'length' => (float) $preset->length,
             'width' => (float) $preset->width,
             'height' => (float) $preset->height,
@@ -152,18 +149,12 @@ final class FedExOrderPackageSnapshotService
      * @param  array<string, mixed>  $input
      * @return array{name: string, weight: float, weight_unit: string, length: float, width: float, height: float, dimension_unit: string, package_type: string, source: string, preset_id: int|null}
      */
-    private function resolveCustom(array $input): array
+    private function resolveCustom(Store $store, array $input): array
     {
-        $weight = $input['weight'] ?? null;
+        $weight = $this->requireActualPackedWeight($store, $input);
         $length = $input['length'] ?? null;
         $width = $input['width'] ?? null;
         $height = $input['height'] ?? null;
-
-        if (! is_numeric($weight) || (float) $weight <= 0) {
-            throw ValidationException::withMessages([
-                'weight' => 'Enter a package weight greater than zero.',
-            ]);
-        }
 
         if (! is_numeric($length) || (float) $length <= 0
             || ! is_numeric($width) || (float) $width <= 0
@@ -176,8 +167,8 @@ final class FedExOrderPackageSnapshotService
 
         return [
             'name' => 'Custom package',
-            'weight' => (float) $weight,
-            'weight_unit' => strtoupper((string) ($input['weight_unit'] ?? 'LB')),
+            'weight' => $weight,
+            'weight_unit' => $this->resolveActualPackedWeightUnit($store, $input),
             'length' => (float) $length,
             'width' => (float) $width,
             'height' => (float) $height,
@@ -186,5 +177,43 @@ final class FedExOrderPackageSnapshotService
             'source' => 'custom',
             'preset_id' => null,
         ];
+    }
+
+    /**
+     * Actual packed weight always uses the store's canonical shipping unit,
+     * never a saved package preset's historical unit.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    private function resolveActualPackedWeightUnit(Store $store, array $input): string
+    {
+        return $this->shippingPreferences->weightUnitLabel($store);
+    }
+
+    /**
+     * Fulfillment rates/labels must use merchant-confirmed packed weight, never a saved preset's stale weight.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    private function requireActualPackedWeight(Store $store, array $input): float
+    {
+        $weight = $input['weight'] ?? null;
+        if (! is_numeric($weight) || (float) $weight <= 0) {
+            throw ValidationException::withMessages([
+                'weight' => 'Enter the actual packed weight before requesting FedEx rates.',
+            ]);
+        }
+
+        $value = (float) $weight;
+        $max = $this->shippingPreferences->maxItemWeightForUnit(
+            $this->resolveActualPackedWeightUnit($store, $input)
+        );
+        if ($value > $max) {
+            throw ValidationException::withMessages([
+                'weight' => 'Package weight cannot exceed '.$max.' '.$this->shippingPreferences->weightUnitLabel($store).' for this flow.',
+            ]);
+        }
+
+        return $value;
     }
 }

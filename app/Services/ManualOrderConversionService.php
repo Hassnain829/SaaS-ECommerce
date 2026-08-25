@@ -248,7 +248,9 @@ class ManualOrderConversionService
                     'discount_amount' => $lineDiscount,
                     'tax_amount' => $isCalculatedTax ? $item->tax_amount : 0,
                     'total' => $itemTotal,
-                    'weight_snapshot' => $this->shippingWeightResolver->resolveSnapshot($variant->product, $variant),
+                    'weight_snapshot' => $this->shippingWeightResolver->itemRequiresShipping($variant->product)
+                        ? $this->shippingWeightResolver->resolveSnapshotForStore($draft->store, $variant->product, $variant)
+                        : null,
                     'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
                     'meta' => $couponDiscount ? [
                         'coupon' => [

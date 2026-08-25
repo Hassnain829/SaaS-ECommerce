@@ -4,7 +4,6 @@ namespace App\Services\Delivery;
 
 use App\Models\CarrierAccount;
 use App\Models\Location;
-use App\Models\Product;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Models\Store;
@@ -56,7 +55,7 @@ class DeliverySetupStatusService
         $this->assessDeliveryAreas($activeZones, $healthItems);
         $this->assessDeliveryOptions($shippingMethods, $activeMethods, $checkoutMethods, $carrierAccounts, $healthItems);
         $this->assessDeliveryProviders($carrierAccounts, $healthItems);
-        $this->assessPackageAndProductReadiness($store, $shippingMethods, $healthItems);
+        $this->assessPackageAndProductReadiness($store, $shippingMethods, $activeZones, $carrierAccounts, $healthItems);
 
         $configurationReady = $this->hasConfigurationReadyCheckoutOption($checkoutMethods, $activeZones, $carrierAccounts);
 
@@ -506,10 +505,17 @@ class DeliverySetupStatusService
 
     /**
      * @param  Collection<int, ShippingMethod>  $shippingMethods
+     * @param  Collection<int, ShippingZone>  $activeZones
+     * @param  Collection<int, CarrierAccount>  $carrierAccounts
      * @param  list<array<string, mixed>>  $healthItems
      */
-    private function assessPackageAndProductReadiness(Store $store, Collection $shippingMethods, array &$healthItems): void
-    {
+    private function assessPackageAndProductReadiness(
+        Store $store,
+        Collection $shippingMethods,
+        Collection $activeZones,
+        Collection $carrierAccounts,
+        array &$healthItems,
+    ): void {
         $hasFedExLive = $shippingMethods->contains(
             fn (ShippingMethod $method): bool => $method->isFedExLiveRateMethod()
                 && ($method->is_active || $method->enabled_for_checkout)
@@ -519,19 +525,23 @@ class DeliverySetupStatusService
             return;
         }
 
-        $hasFixedFreeFallback = $shippingMethods->contains(function (ShippingMethod $method): bool {
+        $activeZoneIds = $activeZones->pluck('id')->all();
+        $hasFixedFreeFallback = $shippingMethods->contains(function (ShippingMethod $method) use ($activeZoneIds, $carrierAccounts): bool {
             if ($method->isFedExLiveRateMethod()) {
                 return false;
             }
             if (! $method->is_active || ! $method->enabled_for_checkout) {
                 return false;
             }
-
-            return in_array($method->rate_type, [
+            if (! in_array($method->rate_type, [
                 ShippingMethod::RATE_FLAT,
                 ShippingMethod::RATE_FREE,
                 ShippingMethod::RATE_MANUAL,
-            ], true);
+            ], true)) {
+                return false;
+            }
+
+            return $this->methodIsConfigurationReady($method, $activeZoneIds, $carrierAccounts);
         });
 
         if (Schema::hasTable('shipping_package_presets')) {
@@ -548,32 +558,44 @@ class DeliverySetupStatusService
             }
         }
 
-        $weightResolver = app(ShippingWeightResolver::class);
-        $missingWeightCount = Product::query()
-            ->where('store_id', $store->id)
-            ->where('requires_shipping', true)
-            ->where('status', true)
-            ->limit(200)
-            ->get(['id', 'name', 'meta'])
-            ->filter(fn (Product $product): bool => $weightResolver->resolve($product) === null)
-            ->count();
+        $shippingPreferences = app(StoreShippingPreferences::class);
+        $coverage = app(ShippingWeightCoverageService::class);
+        $fallbackWeight = $shippingPreferences->fallbackItemWeight($store);
+        $weightUnit = $shippingPreferences->weightUnitLabel($store);
+        $missingExactWeightCount = $coverage->countProductsMissingExactCoverage($store);
 
-        if ($missingWeightCount > 0) {
+        if ($missingExactWeightCount > 0) {
             $fedExOnly = ! $hasFixedFreeFallback;
-            $healthItems[] = $this->healthItem(
-                id: 'products_missing_shipping_weight',
-                label: 'Product shipping weight',
-                severity: $fedExOnly ? 'error' : 'warning',
-                message: $missingWeightCount === 1
-                    ? ($fedExOnly
-                        ? '1 product is missing shipping weight. FedEx is your only checkout path, so that product cannot get a delivery rate.'
-                        : '1 product is missing shipping weight. FedEx live rates stay hidden for carts that include it.')
-                    : ($fedExOnly
-                        ? $missingWeightCount.' products are missing shipping weight. FedEx is your only checkout path, so those carts cannot get a delivery rate.'
-                        : $missingWeightCount.' products are missing shipping weight. FedEx live rates stay hidden for carts that include them.'),
-                actionLabel: 'Review products',
-                actionHref: route('products'),
-            );
+            $reviewHref = route('products', ['shipping_weight' => 'uses_fallback']);
+
+            if ($fallbackWeight !== null) {
+                $formattedFallback = number_format($fallbackWeight, 2).' '.$weightUnit;
+                $healthItems[] = $this->healthItem(
+                    id: 'products_using_shipping_weight_fallback',
+                    label: 'Checkout weight fallback',
+                    severity: 'recommendation',
+                    message: $missingExactWeightCount === 1
+                        ? '1 product is using your '.$formattedFallback.' checkout fallback. Set a more accurate weight later if it is significantly heavier or lighter.'
+                        : $missingExactWeightCount.' products are using your '.$formattedFallback.' checkout fallback. Set more accurate weights later if these products are significantly heavier or lighter.',
+                    actionLabel: 'Review products',
+                    actionHref: $reviewHref,
+                );
+            } else {
+                $healthItems[] = $this->healthItem(
+                    id: 'products_missing_shipping_weight',
+                    label: 'Product shipping weight',
+                    severity: $fedExOnly ? 'error' : 'warning',
+                    message: $fedExOnly
+                        ? ($missingExactWeightCount === 1
+                            ? 'FedEx needs a weight estimate for 1 product. Set one fallback item weight for the store, or add a weight to that product.'
+                            : 'FedEx needs a weight estimate for '.$missingExactWeightCount.' products. Set one fallback item weight for the store, or add weights to the affected products.')
+                        : ($missingExactWeightCount === 1
+                            ? '1 product is missing shipping weight. FedEx live rates stay hidden for carts that include it.'
+                            : $missingExactWeightCount.' products are missing shipping weight. FedEx live rates stay hidden for carts that include them.'),
+                    actionLabel: 'Set fallback weight',
+                    actionHref: route('settings.shipping.packages').'#checkout-weight-fallback',
+                );
+            }
         }
     }
 

@@ -21,6 +21,7 @@
         'attribute_term' => $filters['attribute_term'] ?? '',
         'cf_key' => $filters['cf_key'] ?? '',
         'cf_value' => $filters['cf_value'] ?? '',
+        'shipping_weight' => $filters['shipping_weight'] ?? '',
         'view' => ($filters['view'] ?? 'active') === 'archived' ? 'deleted' : ($filters['view'] ?? 'active'),
         'per_page' => $filters['per_page'] ?? 25,
     ];
@@ -77,6 +78,7 @@
         $filters['attribute_term'] ?? '',
         $filters['status'] ?? '',
         $filters['stock'] ?? '',
+        $filters['shipping_weight'] ?? '',
         $activeSort !== 'latest' ? $activeSort : '',
     ])->filter(fn ($v) => trim((string) $v) !== '')->count();
     $filtersPanelOpen = $panelFilterCount > 0;
@@ -549,6 +551,45 @@
                         @else
                             <input type="hidden" name="attribute_term" value="">
                         @endif
+
+                        @php
+                            $shippingWeightUnit = $shippingWeightUnit ?? 'LB';
+                            $shippingWeightFallback = $shippingWeightFallback ?? null;
+                            $activeShippingWeightLabel = match ($filters['shipping_weight'] ?? '') {
+                                'has' => 'Has product weight',
+                                'missing' => $shippingWeightFallback
+                                    ? 'Missing product weight (uses store fallback)'
+                                    : 'Missing product weight',
+                                'uses_fallback' => $shippingWeightFallback
+                                    ? 'Uses store fallback at checkout'
+                                    : 'Needs shipping weight estimate',
+                                default => 'Any shipping weight',
+                            };
+                        @endphp
+                        <div class="relative" data-filter-picker id="filter-shipping-weight">
+                            <input type="hidden" name="shipping_weight" value="{{ $filters['shipping_weight'] ?? '' }}" data-picker-value>
+                            <p class="mb-1 text-[10px] font-bold uppercase tracking-wider text-[#64748B]">Shipping weight</p>
+                            <button type="button" data-picker-trigger class="{{ ($filters['shipping_weight'] ?? '') !== '' ? $pickerTriggerActive : $pickerTriggerIdle }}" aria-haspopup="listbox" aria-expanded="false">
+                                <span class="min-w-0 truncate" data-picker-label>{{ $activeShippingWeightLabel }}</span>
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="shrink-0 text-[#94A3B8]" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </button>
+                            <div data-picker-panel class="absolute left-0 right-0 z-30 mt-1 hidden overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-lg shadow-slate-200/60">
+                                <ul data-picker-list class="max-h-52 overflow-y-auto py-1" role="listbox">
+                                    <li>
+                                        <button type="button" data-picker-option data-value="" data-label="Any shipping weight" class="flex w-full px-3 py-2 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] {{ ($filters['shipping_weight'] ?? '') === '' ? 'bg-[#EEF4FF] text-[#0052CC]' : '' }}">Any</button>
+                                    </li>
+                                    <li>
+                                        <button type="button" data-picker-option data-value="has" data-label="Has product weight" class="flex w-full px-3 py-2 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] {{ ($filters['shipping_weight'] ?? '') === 'has' ? 'bg-[#E6F4EF] text-[#0A4335]' : '' }}">Has product weight</button>
+                                    </li>
+                                    <li>
+                                        <button type="button" data-picker-option data-value="missing" data-label="{{ $shippingWeightFallback ? 'Missing product weight (uses store fallback)' : 'Missing product weight' }}" class="flex w-full px-3 py-2 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] {{ ($filters['shipping_weight'] ?? '') === 'missing' ? 'bg-[#E6F4EF] text-[#0A4335]' : '' }}">{{ $shippingWeightFallback ? 'Missing product weight (uses store fallback)' : 'Missing product weight' }}</button>
+                                    </li>
+                                    <li>
+                                        <button type="button" data-picker-option data-value="uses_fallback" data-label="{{ $shippingWeightFallback ? 'Uses store fallback at checkout' : 'Needs shipping weight estimate' }}" class="flex w-full px-3 py-2 text-left text-sm font-medium text-[#334155] hover:bg-[#F8FAFC] {{ ($filters['shipping_weight'] ?? '') === 'uses_fallback' ? 'bg-[#E6F4EF] text-[#0A4335]' : '' }}">{{ $shippingWeightFallback ? 'Uses store fallback at checkout' : 'Needs shipping weight estimate' }}</button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
@@ -1575,6 +1616,9 @@
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="tags">
                                     Add tags
                                 </button>
+                                <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="shipping_weight">
+                                    Set shipping weight
+                                </button>
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#FECACA] bg-white px-3.5 py-2 text-sm font-semibold text-[#B91C1C] transition hover:border-[#FCA5A5] hover:bg-[#FFF5F5]" data-action="delete">
                                     Delete
                                 </button>
@@ -1592,6 +1636,7 @@
                                 <option value="brand">Assign brand</option>
                                 <option value="tags">Add tags</option>
                                 <option value="status">Publish or draft</option>
+                                <option value="shipping_weight">Set shipping weight</option>
                             @endif
                         </select>
                     </div>
@@ -1660,6 +1705,127 @@
                             </select>
                         </div>
 
+                        <div id="bulk-extra-shipping-weight" class="hidden space-y-3">
+                            <p class="text-sm font-semibold text-[#0F172A]">Set shipping weight</p>
+                            <p class="text-xs text-[#64748B]"><span id="bulk-shipping-weight-selected-count">0</span> products selected</p>
+
+                            <fieldset class="space-y-2">
+                                <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Apply weight to</legend>
+                                <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                    <input type="radio" name="bulk_shipping_weight_target_ui" value="products" class="mt-1" checked>
+                                    <span>
+                                        <span class="font-semibold text-[#0F172A]">Products</span>
+                                        <span class="mt-0.5 block text-xs text-[#64748B]">One weight per selected product. Variant overrides stay unchanged.</span>
+                                    </span>
+                                </label>
+                                <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                    <input type="radio" name="bulk_shipping_weight_target_ui" value="variants" class="mt-1">
+                                    <span>
+                                        <span class="font-semibold text-[#0F172A]">Variants</span>
+                                        <span class="mt-0.5 block text-xs text-[#64748B]">Assign weights by option value (for example Size or Weight). Product weights are not changed.</span>
+                                    </span>
+                                </label>
+                            </fieldset>
+
+                            <div id="bulk-shipping-weight-products-panel" class="space-y-3">
+                                <div class="flex flex-wrap items-end gap-3">
+                                    <div class="flex flex-col gap-1">
+                                        <label for="bulk-shipping-weight-value" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Shipping weight per item</label>
+                                        <div class="flex items-center gap-2">
+                            <input id="bulk-shipping-weight-value" type="number" min="0.01" max="{{ $shippingWeightMax ?? \App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT }}" step="0.001" class="w-28 rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="e.g. 0.80">
+                                            <span class="text-sm font-semibold text-[#64748B]">{{ $shippingWeightUnit ?? 'LB' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <fieldset class="space-y-2">
+                                    <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Apply to products</legend>
+                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                        <input type="radio" name="bulk_shipping_weight_mode_ui" value="missing_only" class="mt-1" checked>
+                                        <span>
+                                            <span class="font-semibold text-[#0F172A]">Products that do not already have a weight</span>
+                                            <span class="mt-0.5 block text-xs text-[#64748B]">Existing product weights will be preserved.</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                        <input type="radio" name="bulk_shipping_weight_mode_ui" value="replace_all" class="mt-1">
+                                        <span>
+                                            <span class="font-semibold text-[#0F172A]">Every selected product</span>
+                                            <span class="mt-0.5 block text-xs text-[#64748B]">Replaces the product-level shipping weight. Variant overrides stay unchanged.</span>
+                                        </span>
+                                    </label>
+                                </fieldset>
+                            </div>
+
+                            <div id="bulk-shipping-weight-variants-panel" class="hidden space-y-3">
+                                <fieldset class="space-y-2">
+                                    <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Variant bulk mode</legend>
+                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                        <input type="radio" name="bulk_variant_bulk_mode_ui" value="map_by_option" class="mt-1" checked>
+                                        <span>
+                                            <span class="font-semibold text-[#0F172A]">Map by option value</span>
+                                            <span class="mt-0.5 block text-xs text-[#64748B]">Enter one weight per option value (for example Small → 0.55).</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                        <input type="radio" name="bulk_variant_bulk_mode_ui" value="use_option_values" class="mt-1">
+                                        <span>
+                                            <span class="font-semibold text-[#0F172A]">Use option values as weights</span>
+                                            <span class="mt-0.5 block text-xs text-[#64748B]">Parse labels like 5 lb or 16 oz. Preview and confirm before applying.</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                        <input type="radio" name="bulk_variant_bulk_mode_ui" value="clear" class="mt-1">
+                                        <span>
+                                            <span class="font-semibold text-[#0F172A]">Clear variant weight overrides</span>
+                                            <span class="mt-0.5 block text-xs text-[#64748B]">Variants inherit product weight, then store fallback.</span>
+                                        </span>
+                                    </label>
+                                </fieldset>
+
+                                <div id="bulk-variant-option-panel" class="space-y-2">
+                                    <label for="bulk-variant-option-group" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Option group</label>
+                                    <select id="bulk-variant-option-group" class="w-full max-w-md rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#334155]">
+                                        <option value="">Choose an option group…</option>
+                                    </select>
+                                    <p id="bulk-variant-option-hint" class="text-xs text-[#64748B]">Load option groups from your selected products, then pick Size, Weight, or similar.</p>
+                                </div>
+
+                                <div id="bulk-variant-map-panel" class="space-y-2">
+                                    <p class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Weight by option value</p>
+                                    <div id="bulk-variant-weight-map-rows" class="space-y-2 max-h-56 overflow-y-auto rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3"></div>
+                                </div>
+
+                                <div id="bulk-variant-parse-panel" class="hidden space-y-2">
+                                    <button type="button" id="bulk-variant-preview-parse" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm font-semibold text-[#334155] hover:bg-[#F8FAFC]">Preview parsed weights</button>
+                                    <div id="bulk-variant-parse-preview" class="hidden rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#334155]"></div>
+                                </div>
+
+                                <div id="bulk-variant-clear-panel" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                                    Clears explicit variant shipping weights on selected products. Variants without overrides are unchanged.
+                                </div>
+
+                                <div id="bulk-variant-preview-stats" class="hidden rounded-lg border border-[#DDE7F3] bg-[#F0F7FF] px-3 py-2 text-xs text-[#334155]"></div>
+
+                                <fieldset id="bulk-variant-apply-mode-fieldset" class="space-y-2">
+                                    <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Apply to variants</legend>
+                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                        <input type="radio" name="bulk_variant_shipping_weight_mode_ui" value="missing_only" class="mt-1" checked>
+                                        <span>
+                                            <span class="font-semibold text-[#0F172A]">Only variants without shipping weight</span>
+                                            <span class="mt-0.5 block text-xs text-[#64748B]">Existing variant overrides will be preserved.</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                        <input type="radio" name="bulk_variant_shipping_weight_mode_ui" value="replace_all" class="mt-1">
+                                        <span>
+                                            <span class="font-semibold text-[#0F172A]">Replace matching variant weights</span>
+                                            <span class="mt-0.5 block text-xs text-[#64748B]">Updates every matching variant, including those with existing weights.</span>
+                                        </span>
+                                    </label>
+                                </fieldset>
+                            </div>
+                        </div>
+
                         <div id="bulk-extra-simple" class="hidden">
                             <p id="bulk-extra-simple-copy" class="text-sm text-[#475569]"></p>
                         </div>
@@ -1689,6 +1855,12 @@
                 <input type="hidden" name="bulk_variant_stock_scope" id="bulk-form-stock-variant-scope" value="default_variant_only">
                 <input type="hidden" name="brand_id" id="bulk-form-brand-id" value="">
                 <input type="hidden" name="product_status" id="bulk-form-product-status" value="">
+                <input type="hidden" name="shipping_weight_value" id="bulk-form-shipping-weight-value" value="">
+                <input type="hidden" name="shipping_weight_mode" id="bulk-form-shipping-weight-mode" value="missing_only">
+                <input type="hidden" name="shipping_weight_target" id="bulk-form-shipping-weight-target" value="products">
+                <input type="hidden" name="variant_bulk_mode" id="bulk-form-variant-bulk-mode" value="map_by_option">
+                <input type="hidden" name="variant_option_name" id="bulk-form-variant-option-name" value="">
+                <input type="hidden" name="variant_weight_map_json" id="bulk-form-variant-weight-map-json" value="">
                 <div id="bulk-form-category-inputs"></div>
                 <div id="bulk-form-tag-inputs"></div>
                 <div id="bulk-form-product-id-inputs"></div>
@@ -2058,6 +2230,10 @@
         'catalogTags' => $catalogTags ?? collect(),
         'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
         'catalogAttributes' => $catalogAttributes ?? collect(),
+        'shippingPreferences' => [
+            'fallback_item_weight' => $shippingWeightFallback ?? null,
+            'weight_unit' => $shippingWeightUnit ?? 'LB',
+        ],
     ])
 
     @if ($canManageBrands)
@@ -2112,6 +2288,7 @@
             const extraBrand = document.getElementById('bulk-extra-brand');
             const extraTags = document.getElementById('bulk-extra-tags');
             const extraStatus = document.getElementById('bulk-extra-status');
+            const extraShippingWeight = document.getElementById('bulk-extra-shipping-weight');
             const extraSimple = document.getElementById('bulk-extra-simple');
             const extraSimpleCopy = document.getElementById('bulk-extra-simple-copy');
             const applyBtn = document.getElementById('bulk-apply-btn');
@@ -2156,13 +2333,22 @@
                     chip.setAttribute('aria-pressed', 'false');
                 });
                 if (optionsPanel) optionsPanel.classList.add('hidden');
-                [extraStock, extraCategories, extraBrand, extraTags, extraStatus, extraSimple].forEach((el) => el && el.classList.add('hidden'));
+                [extraStock, extraCategories, extraBrand, extraTags, extraStatus, extraShippingWeight, extraSimple].forEach((el) => el && el.classList.add('hidden'));
             }
 
             function refreshBulkUi() {
                 const ids = effectiveSelectedIds();
+                const selectionKey = ids.join(',');
+                if (selectionKey !== lastVariantPreviewSelectionKey) {
+                    lastVariantPreviewSelectionKey = selectionKey;
+                    resetVariantParsePreview();
+                }
                 if (countEl) {
                     countEl.textContent = String(ids.length);
+                }
+                const shippingCount = document.getElementById('bulk-shipping-weight-selected-count');
+                if (shippingCount) {
+                    shippingCount.textContent = String(ids.length);
                 }
                 const label = document.getElementById('bulk-selected-label');
                 if (label) {
@@ -2239,20 +2425,25 @@
 
             function toggleExtras() {
                 const v = actionSelect ? actionSelect.value : '';
-                [extraStock, extraCategories, extraBrand, extraTags, extraStatus, extraSimple].forEach((el) => el && el.classList.add('hidden'));
+                [extraStock, extraCategories, extraBrand, extraTags, extraStatus, extraShippingWeight, extraSimple].forEach((el) => el && el.classList.add('hidden'));
                 if (!v) {
                     if (optionsPanel) optionsPanel.classList.add('hidden');
                     return;
                 }
                 if (optionsPanel) optionsPanel.classList.remove('hidden');
                 if (applyLabel) {
-                    applyLabel.textContent = (v === 'delete' || v === 'force_delete') ? 'Confirm' : 'Continue';
+                    applyLabel.textContent = (v === 'delete' || v === 'force_delete') ? 'Confirm' : (v === 'shipping_weight' ? 'Apply weight' : 'Continue');
                 }
                 if (v === 'stock' && extraStock) extraStock.classList.remove('hidden');
                 if (v === 'categories' && extraCategories) extraCategories.classList.remove('hidden');
                 if (v === 'brand' && extraBrand) extraBrand.classList.remove('hidden');
                 if (v === 'tags' && extraTags) extraTags.classList.remove('hidden');
                 if (v === 'status' && extraStatus) extraStatus.classList.remove('hidden');
+                if (v === 'shipping_weight' && extraShippingWeight) {
+                    extraShippingWeight.classList.remove('hidden');
+                    refreshShippingWeightPanels();
+                    loadVariantOptionGroups();
+                }
                 if ((v === 'delete' || v === 'force_delete' || v === 'restore') && extraSimple) {
                     extraSimple.classList.remove('hidden');
                     if (extraSimpleCopy) {
@@ -2266,6 +2457,285 @@
                     }
                 }
             }
+
+            const bulkShippingPreviewUrl = @json(route('products.bulk.shipping-weight.preview'));
+            const bulkShippingWeightUnit = @json($shippingWeightUnit ?? 'LB');
+            const bulkShippingWeightMax = @json((float) ($shippingWeightMax ?? \App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT));
+            let cachedVariantOptionGroups = [];
+            let variantParsePreviewConfirmed = false;
+            let lastVariantPreviewSelectionKey = '';
+
+            function shippingWeightTarget() {
+                return document.querySelector('input[name="bulk_shipping_weight_target_ui"]:checked')?.value || 'products';
+            }
+
+            function variantBulkMode() {
+                return document.querySelector('input[name="bulk_variant_bulk_mode_ui"]:checked')?.value || 'map_by_option';
+            }
+
+            function resetVariantParsePreview() {
+                variantParsePreviewConfirmed = false;
+                const preview = document.getElementById('bulk-variant-parse-preview');
+                if (preview) {
+                    preview.classList.add('hidden');
+                    preview.replaceChildren();
+                }
+            }
+
+            function refreshShippingWeightPanels() {
+                const target = shippingWeightTarget();
+                const productsPanel = document.getElementById('bulk-shipping-weight-products-panel');
+                const variantsPanel = document.getElementById('bulk-shipping-weight-variants-panel');
+                productsPanel?.classList.toggle('hidden', target !== 'products');
+                variantsPanel?.classList.toggle('hidden', target !== 'variants');
+                resetVariantParsePreview();
+                if (target === 'variants') {
+                    refreshVariantBulkModePanels();
+                }
+            }
+
+            function refreshVariantBulkModePanels() {
+                const mode = variantBulkMode();
+                const optionPanel = document.getElementById('bulk-variant-option-panel');
+                const mapPanel = document.getElementById('bulk-variant-map-panel');
+                const parsePanel = document.getElementById('bulk-variant-parse-panel');
+                const clearPanel = document.getElementById('bulk-variant-clear-panel');
+                const applyModeFieldset = document.getElementById('bulk-variant-apply-mode-fieldset');
+                const isClear = mode === 'clear';
+                optionPanel?.classList.toggle('hidden', isClear);
+                mapPanel?.classList.toggle('hidden', mode !== 'map_by_option');
+                parsePanel?.classList.toggle('hidden', mode !== 'use_option_values');
+                clearPanel?.classList.toggle('hidden', !isClear);
+                applyModeFieldset?.classList.toggle('hidden', isClear);
+                resetVariantParsePreview();
+            }
+
+            function collectVariantWeightMapFromUi() {
+                const map = {};
+                document.querySelectorAll('[data-bulk-variant-weight-row]').forEach((row) => {
+                    const value = row.getAttribute('data-option-value') || '';
+                    const input = row.querySelector('input[type="number"]');
+                    const weight = input?.value;
+                    if (value && weight !== '' && Number(weight) > 0) {
+                        map[value] = Number(weight);
+                    }
+                });
+                return map;
+            }
+
+            function renderVariantWeightMapRows(optionValues) {
+                const container = document.getElementById('bulk-variant-weight-map-rows');
+                if (!container) return;
+                container.replaceChildren();
+                if (!optionValues.length) {
+                    const empty = document.createElement('p');
+                    empty.className = 'text-xs text-[#64748B]';
+                    empty.textContent = 'Choose an option group to load values from selected products.';
+                    container.appendChild(empty);
+                    return;
+                }
+                optionValues.forEach((value) => {
+                    const row = document.createElement('div');
+                    row.setAttribute('data-bulk-variant-weight-row', '1');
+                    row.setAttribute('data-option-value', String(value));
+                    row.className = 'flex items-center gap-3';
+
+                    const label = document.createElement('span');
+                    label.className = 'min-w-[6rem] text-sm font-medium text-[#0F172A]';
+                    label.textContent = String(value);
+
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = '0.01';
+                    input.max = String(bulkShippingWeightMax);
+                    input.step = '0.001';
+                    input.className = 'w-28 rounded-lg border border-[#CBD5E1] px-3 py-1.5 text-sm';
+                    input.placeholder = 'Weight';
+
+                    const unit = document.createElement('span');
+                    unit.className = 'text-xs font-semibold text-[#64748B]';
+                    unit.textContent = String(bulkShippingWeightUnit);
+
+                    row.appendChild(label);
+                    row.appendChild(input);
+                    row.appendChild(unit);
+                    container.appendChild(row);
+                });
+            }
+
+            function populateVariantOptionGroupSelect(groups) {
+                const select = document.getElementById('bulk-variant-option-group');
+                if (!select) return;
+                const previous = select.value;
+                select.replaceChildren();
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = 'Choose an option group…';
+                select.appendChild(placeholder);
+                groups.forEach((group) => {
+                    const opt = document.createElement('option');
+                    opt.value = group.name;
+                    opt.textContent = `${group.name} (${group.product_count} products, ${group.variant_count} variants)`;
+                    if (group.weight_related) {
+                        opt.dataset.weightRelated = '1';
+                    }
+                    select.appendChild(opt);
+                });
+                if (previous && [...select.options].some((o) => o.value === previous)) {
+                    select.value = previous;
+                }
+            }
+
+            async function fetchVariantShippingPreview(extra = {}) {
+                const ids = effectiveSelectedIds();
+                const payload = {
+                    product_ids_json: JSON.stringify(ids),
+                    shipping_weight_target: 'variants',
+                    variant_bulk_mode: variantBulkMode(),
+                    variant_option_name: document.getElementById('bulk-variant-option-group')?.value || '',
+                    shipping_weight_mode: document.querySelector('input[name="bulk_variant_shipping_weight_mode_ui"]:checked')?.value || 'missing_only',
+                    variant_weight_map_json: JSON.stringify(collectVariantWeightMapFromUi()),
+                    ...extra,
+                };
+                const token = document.querySelector('#bulk-products-form input[name="_token"]')?.value || '';
+                const res = await fetch(bulkShippingPreviewUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': token,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload),
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.message || 'Could not load preview.');
+                }
+                return res.json();
+            }
+
+            function renderVariantPreviewStats(data) {
+                const el = document.getElementById('bulk-variant-preview-stats');
+                if (!el || !data) return;
+                el.classList.remove('hidden');
+                el.replaceChildren();
+                const lines = [
+                    ['Selected products:', data.selected_products_count ?? 0],
+                    ['Compatible with option:', data.compatible_products_count ?? 0],
+                    ['No matching option:', data.incompatible_products_count ?? 0],
+                    ['Matching variants:', data.matching_variants_count ?? 0],
+                    ['Would update:', data.would_update_count ?? 0],
+                ];
+                lines.forEach(([label, value]) => {
+                    const row = document.createElement('div');
+                    const strong = document.createElement('span');
+                    strong.className = 'font-semibold text-[#0F172A]';
+                    strong.textContent = label + ' ';
+                    row.appendChild(strong);
+                    row.appendChild(document.createTextNode(String(value)));
+                    el.appendChild(row);
+                });
+                if (data.would_skip_existing_count) {
+                    const skip = document.createElement('div');
+                    skip.textContent = `${data.would_skip_existing_count} variant(s) already have weights and would be skipped.`;
+                    el.appendChild(skip);
+                }
+            }
+
+            async function loadVariantOptionGroups() {
+                if (shippingWeightTarget() !== 'variants') return;
+                try {
+                    const data = await fetchVariantShippingPreview({ variant_bulk_mode: 'map_by_option', variant_option_name: '' });
+                    cachedVariantOptionGroups = Array.isArray(data.option_groups) ? data.option_groups : [];
+                    populateVariantOptionGroupSelect(cachedVariantOptionGroups);
+                } catch (error) {
+                    cachedVariantOptionGroups = [];
+                }
+            }
+
+            async function refreshVariantOptionValues() {
+                resetVariantParsePreview();
+                const groupName = document.getElementById('bulk-variant-option-group')?.value || '';
+                const group = cachedVariantOptionGroups.find((g) => g.name === groupName);
+                const values = group?.option_values || [];
+                renderVariantWeightMapRows(values);
+                if (groupName) {
+                    try {
+                        const data = await fetchVariantShippingPreview();
+                        renderVariantPreviewStats(data);
+                    } catch (error) {
+                        document.getElementById('bulk-variant-preview-stats')?.classList.add('hidden');
+                    }
+                }
+            }
+
+            document.querySelectorAll('input[name="bulk_shipping_weight_target_ui"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    resetVariantParsePreview();
+                    refreshShippingWeightPanels();
+                    if (shippingWeightTarget() === 'variants') {
+                        loadVariantOptionGroups();
+                    }
+                });
+            });
+            document.querySelectorAll('input[name="bulk_variant_bulk_mode_ui"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    refreshVariantBulkModePanels();
+                    refreshVariantOptionValues();
+                });
+            });
+            document.querySelectorAll('input[name="bulk_variant_shipping_weight_mode_ui"]').forEach((input) => {
+                input.addEventListener('change', () => {
+                    resetVariantParsePreview();
+                    refreshVariantOptionValues();
+                });
+            });
+            document.getElementById('bulk-variant-option-group')?.addEventListener('change', refreshVariantOptionValues);
+            document.getElementById('bulk-variant-preview-parse')?.addEventListener('click', async () => {
+                const groupName = document.getElementById('bulk-variant-option-group')?.value || '';
+                if (!groupName) {
+                    window.alert('Choose an option group first.');
+                    return;
+                }
+                try {
+                    const data = await fetchVariantShippingPreview({ variant_bulk_mode: 'use_option_values' });
+                    renderVariantPreviewStats(data);
+                    const preview = document.getElementById('bulk-variant-parse-preview');
+                    if (!preview) return;
+                    preview.replaceChildren();
+                    const heading = document.createElement('p');
+                    heading.className = 'mb-2 font-semibold text-[#0F172A]';
+                    heading.textContent = 'Detected option: ' + groupName;
+                    preview.appendChild(heading);
+                    const parsed = Array.isArray(data.parsed_weights) ? data.parsed_weights : [];
+                    if (!parsed.length) {
+                        const empty = document.createElement('p');
+                        empty.textContent = 'No parseable values found.';
+                        preview.appendChild(empty);
+                    } else {
+                        parsed.forEach((row) => {
+                            const line = document.createElement('div');
+                            line.className = 'flex justify-between gap-3 py-1';
+                            const left = document.createElement('span');
+                            left.textContent = String(row.option_value ?? '');
+                            const right = document.createElement('span');
+                            right.className = 'font-semibold';
+                            right.textContent = row.parse_ok
+                                ? `${Number(row.parsed_weight).toFixed(2)} ${data.weight_unit || bulkShippingWeightUnit}`
+                                : 'Could not parse';
+                            line.appendChild(left);
+                            line.appendChild(right);
+                            preview.appendChild(line);
+                        });
+                    }
+                    preview.classList.remove('hidden');
+                    variantParsePreviewConfirmed = parsed.some((row) => row.parse_ok);
+                } catch (error) {
+                    window.alert(error.message || 'Preview failed.');
+                }
+            });
 
             function selectAction(action) {
                 if (!actionSelect) return;
@@ -2369,6 +2839,18 @@
                 if (scopeEl) scopeEl.value = 'default_variant_only';
                 document.getElementById('bulk-form-brand-id').value = '';
                 document.getElementById('bulk-form-product-status').value = '';
+                const swValue = document.getElementById('bulk-form-shipping-weight-value');
+                const swMode = document.getElementById('bulk-form-shipping-weight-mode');
+                const swTarget = document.getElementById('bulk-form-shipping-weight-target');
+                const swVariantMode = document.getElementById('bulk-form-variant-bulk-mode');
+                const swVariantOption = document.getElementById('bulk-form-variant-option-name');
+                const swVariantMap = document.getElementById('bulk-form-variant-weight-map-json');
+                if (swValue) swValue.value = '';
+                if (swMode) swMode.value = 'missing_only';
+                if (swTarget) swTarget.value = 'products';
+                if (swVariantMode) swVariantMode.value = 'map_by_option';
+                if (swVariantOption) swVariantOption.value = '';
+                if (swVariantMap) swVariantMap.value = '';
                 setMultiHidden(document.getElementById('bulk-form-category-inputs'), 'category_ids[]', []);
                 setMultiHidden(document.getElementById('bulk-form-tag-inputs'), 'tag_ids[]', []);
 
@@ -2396,6 +2878,23 @@
                 }
                 if (action === 'status') {
                     document.getElementById('bulk-form-product-status').value = document.getElementById('bulk-status-value')?.value || 'published';
+                }
+                if (action === 'shipping_weight') {
+                    const target = shippingWeightTarget();
+                    if (swTarget) swTarget.value = target;
+                    if (target === 'products') {
+                        const val = document.getElementById('bulk-shipping-weight-value')?.value;
+                        const mode = document.querySelector('input[name="bulk_shipping_weight_mode_ui"]:checked')?.value || 'missing_only';
+                        if (swValue) swValue.value = String(val ?? '');
+                        if (swMode) swMode.value = mode;
+                    } else {
+                        const vMode = variantBulkMode();
+                        const vApplyMode = document.querySelector('input[name="bulk_variant_shipping_weight_mode_ui"]:checked')?.value || 'missing_only';
+                        if (swVariantMode) swVariantMode.value = vMode;
+                        if (swMode) swMode.value = vApplyMode;
+                        if (swVariantOption) swVariantOption.value = document.getElementById('bulk-variant-option-group')?.value || '';
+                        if (swVariantMap) swVariantMap.value = JSON.stringify(collectVariantWeightMapFromUi());
+                    }
                 }
                 if (applyBtn) applyBtn.disabled = true;
                 if (applySpinner) applySpinner.classList.remove('hidden');
@@ -2443,6 +2942,36 @@
                         return;
                     }
                 }
+                if (action === 'shipping_weight') {
+                    const target = shippingWeightTarget();
+                    if (target === 'products') {
+                        const val = document.getElementById('bulk-shipping-weight-value')?.value;
+                        if (val === '' || val === undefined || Number(val) <= 0) {
+                            window.alert('Enter a shipping weight greater than zero.');
+                            return;
+                        }
+                    } else {
+                        const vMode = variantBulkMode();
+                        if (vMode !== 'clear') {
+                            const group = document.getElementById('bulk-variant-option-group')?.value || '';
+                            if (!group) {
+                                window.alert('Choose an option group for variant weights.');
+                                return;
+                            }
+                        }
+                        if (vMode === 'map_by_option') {
+                            const map = collectVariantWeightMapFromUi();
+                            if (Object.keys(map).length === 0) {
+                                window.alert('Enter at least one option value weight.');
+                                return;
+                            }
+                        }
+                        if (vMode === 'use_option_values' && !variantParsePreviewConfirmed) {
+                            window.alert('Preview parsed weights and confirm they look correct before applying.');
+                            return;
+                        }
+                    }
+                }
 
                 const n = ids.length;
                 let msg = `Apply this change to ${n} product(s)?`;
@@ -2474,6 +3003,21 @@
                     msg = status === 'draft'
                         ? `Mark ${n} product(s) as draft (hidden for now)?`
                         : `Publish ${n} product(s) so they are ready to sell?`;
+                }
+                if (action === 'shipping_weight') {
+                    const target = shippingWeightTarget();
+                    if (target === 'variants') {
+                        const vMode = variantBulkMode();
+                        if (vMode === 'clear') {
+                            msg = `Clear variant shipping weight overrides on selected products? Product weights will not change. Continue for ${n} product(s)?`;
+                        } else if (vMode === 'use_option_values') {
+                            msg = `Apply parsed option values as variant shipping weights? Product weights will not change. Continue for ${n} product(s)?`;
+                        } else {
+                            msg = `Apply variant shipping weights by option value? Product weights will not change. Continue for ${n} product(s)?`;
+                        }
+                    } else {
+                        msg = `Set product shipping weight on ${n} selected product(s)? Variant overrides will stay unchanged.`;
+                    }
                 }
 
                 openConfirm(msg, () => prepareAndSubmit(action, ids));

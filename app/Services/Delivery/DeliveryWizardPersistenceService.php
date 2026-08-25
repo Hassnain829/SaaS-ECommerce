@@ -165,10 +165,50 @@ class DeliveryWizardPersistenceService
                 ]);
             }
 
-            return $this->saveFedExAwareCheckoutOptions($request, $store, $actor, $mode);
+            // Validate fallback before mutating FedEx methods so Step 3 stays atomic.
+            $this->validateCheckoutWeightFallback($request);
+
+            return DB::transaction(function () use ($request, $store, $actor, $mode): ShippingMethod {
+                $method = $this->saveFedExAwareCheckoutOptions($request, $store, $actor, $mode);
+                $this->persistCheckoutWeightFallback($request, $store);
+
+                return $method;
+            });
         }
 
         return $this->saveFixedDeliveryOption($request, $store, $actor);
+    }
+
+    private function validateCheckoutWeightFallback(Request $request): void
+    {
+        if (! $request->exists('fallback_item_weight')) {
+            return;
+        }
+
+        $raw = $request->input('fallback_item_weight');
+        if ($raw === null || $raw === '') {
+            return;
+        }
+
+        $request->validate([
+            'fallback_item_weight' => ['nullable', 'numeric', 'gt:0', 'max:'.StoreShippingPreferences::MAX_ITEM_WEIGHT],
+        ]);
+    }
+
+    private function persistCheckoutWeightFallback(Request $request, Store $store): void
+    {
+        if (! $request->exists('fallback_item_weight')) {
+            return;
+        }
+
+        $raw = $request->input('fallback_item_weight');
+        if ($raw === null || $raw === '') {
+            return;
+        }
+
+        app(StoreShippingPreferences::class)->update($store, [
+            'fallback_item_weight' => $raw,
+        ]);
     }
 
     private function saveFixedDeliveryOption(Request $request, Store $store, ?User $actor): ShippingMethod

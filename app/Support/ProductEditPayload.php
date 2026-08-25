@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\Store;
+use App\Services\Delivery\ShippingWeightResolver;
 use Illuminate\Support\Str;
 
 /**
@@ -58,6 +59,7 @@ final class ProductEditPayload
                     'compare_at_price' => '',
                     'stock' => '0',
                     'stock_alert' => 5,
+                    'shipping_weight' => '',
                     'product_image_id' => null,
                     'custom_fields' => [],
                 ],
@@ -128,6 +130,9 @@ final class ProductEditPayload
             ];
         })->values()->all();
 
+        $weightResolver = app(ShippingWeightResolver::class);
+        $productExactWeight = $weightResolver->resolveExactProductLevel($product);
+
         return [
             'id' => $product->id,
             'name' => $product->name,
@@ -138,8 +143,8 @@ final class ProductEditPayload
             'custom_product_type' => trim((string) (($product->meta['custom_product_type_label'] ?? ''))),
             'is_taxable' => (bool) $product->is_taxable,
             'requires_shipping' => (bool) $product->requires_shipping,
-            'shipping_weight' => isset($product->meta['shipping_weight']) && is_numeric($product->meta['shipping_weight'])
-                ? (string) $product->meta['shipping_weight']
+            'shipping_weight' => $productExactWeight !== null
+                ? (string) $productExactWeight
                 : '',
             'brand_id' => $product->brand_id,
             'tag_ids' => $product->tags->pluck('id')->values()->all(),
@@ -172,7 +177,7 @@ final class ProductEditPayload
                     && count($variationType['options']) > 0)
                 ->values()
                 ->all(),
-            'variants' => $product->variants->map(function ($variant) use ($product) {
+            'variants' => $product->variants->map(function ($variant) use ($product, $weightResolver) {
                 $optionMap = [];
                 foreach ($product->variationTypes as $variationIndex => $variationType) {
                     $selectedOption = $variant->options->first(
@@ -186,6 +191,8 @@ final class ProductEditPayload
                     }
                 }
 
+                $variantExactWeight = $weightResolver->resolveExactVariantLevel($variant);
+
                 return [
                     'id' => $variant->id,
                     'option_map' => $optionMap,
@@ -194,6 +201,9 @@ final class ProductEditPayload
                     'compare_at_price' => $variant->compare_at_price !== null ? (string) $variant->compare_at_price : '',
                     'stock' => (string) $variant->stock,
                     'stock_alert' => (int) $variant->stock_alert,
+                    'shipping_weight' => $variantExactWeight !== null
+                        ? (string) $variantExactWeight
+                        : '',
                     'product_image_id' => $variant->product_image_id
                         ? (int) $variant->product_image_id
                         : null,
@@ -379,6 +389,9 @@ final class ProductEditPayload
                         ? (string) $variantRow['compare_at_price'] : '',
                     'stock' => isset($variantRow['stock']) ? (string) $variantRow['stock'] : '',
                     'stock_alert' => isset($variantRow['stock_alert']) ? (int) $variantRow['stock_alert'] : 0,
+                    'shipping_weight' => isset($variantRow['shipping_weight']) && $variantRow['shipping_weight'] !== null && $variantRow['shipping_weight'] !== ''
+                        ? (string) $variantRow['shipping_weight']
+                        : '',
                     'product_image_id' => self::normalizeProductImageIdForPayload(
                         $variantRow['product_image_id'] ?? null
                     ),

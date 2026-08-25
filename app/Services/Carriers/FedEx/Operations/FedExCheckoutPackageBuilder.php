@@ -61,7 +61,7 @@ final class FedExCheckoutPackageBuilder
                 $qty = max(1, (int) ($item->quantity ?? 1));
                 $totalQuantity += $qty;
                 $physicalItemCount++;
-                $unitWeight = $this->resolveWeight($item, $variant, $product);
+                $unitWeight = $this->resolveWeight($store, $item, $variant, $product);
                 $label = $this->itemLabel($item, $product);
                 if ($unitWeight === null) {
                     $missingWeights[] = $label;
@@ -115,7 +115,7 @@ final class FedExCheckoutPackageBuilder
             $totalQuantity += $qty;
             $physicalItemCount++;
 
-            $unitWeight = $this->resolveWeight($item, $variant, $product);
+            $unitWeight = $this->resolveWeight($store, $item, $variant, $product);
             $label = $this->itemLabel($item, $product);
             if ($unitWeight === null) {
                 $missingWeights[] = $label;
@@ -210,6 +210,30 @@ final class FedExCheckoutPackageBuilder
                 missingWeights: [],
                 reason: 'too_many_packages',
             );
+        }
+
+        // Configured FedEx parcel ceiling is always expressed in LB; convert for KG stores.
+        $maxParcelWeightLb = (float) config(
+            'carriers.fedex.checkout_max_package_weight',
+            StoreShippingPreferences::MAX_ITEM_WEIGHT
+        );
+        if ($maxParcelWeightLb <= 0) {
+            $maxParcelWeightLb = StoreShippingPreferences::MAX_ITEM_WEIGHT;
+        }
+        $storeWeightUnit = strtoupper((string) $weightUnit) ?: 'LB';
+        $maxParcelWeight = $storeWeightUnit === 'KG'
+            ? round($maxParcelWeightLb / 2.20462, 3)
+            : $maxParcelWeightLb;
+        foreach ($packages as $package) {
+            if ((float) ($package['weight'] ?? 0) > $maxParcelWeight) {
+                return $this->notReady(
+                    fingerprintParts: array_merge($fingerprintParts, ['package-too-heavy:'.number_format((float) $package['weight'], 3, '.', '')]),
+                    itemCount: $physicalItemCount,
+                    totalQuantity: $totalQuantity,
+                    missingWeights: [],
+                    reason: 'package_weight_unsupported',
+                );
+            }
         }
 
         return [
@@ -428,9 +452,10 @@ final class FedExCheckoutPackageBuilder
         return $name !== '' ? $name : 'Product';
     }
 
-    private function resolveWeight(mixed $item, mixed $variant, mixed $product): ?float
+    private function resolveWeight(Store $store, mixed $item, mixed $variant, mixed $product): ?float
     {
         foreach ([
+            data_get($item, 'metadata.shipping_weight_snapshot'),
             data_get($item, 'weight'),
             data_get($item, 'meta.weight'),
             data_get($item, 'metadata.weight'),
@@ -440,7 +465,7 @@ final class FedExCheckoutPackageBuilder
             }
         }
 
-        return $this->weightResolver->resolve($product, $variant);
+        return $this->weightResolver->resolveForStore($store, $product, $variant);
     }
 
     /**

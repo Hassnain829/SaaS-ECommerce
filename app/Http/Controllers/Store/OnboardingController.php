@@ -235,7 +235,7 @@ class OnboardingController extends Controller
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
             'is_taxable' => ['nullable', 'boolean'],
-            'shipping_weight' => ['nullable', 'numeric', 'min:0.01'],
+            'shipping_weight' => ['nullable', 'numeric', 'min:0.01', 'max:'.\App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -1596,6 +1596,13 @@ class OnboardingController extends Controller
             'variation_types' => $this->sanitizeSubmittedVariationTypes($request->input('variation_types', [])),
         ]);
 
+        if ($request->has('shipping_weight') && $request->input('shipping_weight') === '') {
+            $request->merge(['shipping_weight' => null]);
+        }
+        $this->normalizeSubmittedVariantShippingWeights($request);
+
+        $shippingWeightRule = $this->shippingWeightValidationRule($currentStore);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:4000'],
@@ -1627,6 +1634,7 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.shipping_weight' => $shippingWeightRule,
             'variants.*.product_image_id' => ['nullable', 'regex:/^(?:[1-9]\d*|new:\d+)$/'],
             'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
             'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
@@ -1651,7 +1659,7 @@ class OnboardingController extends Controller
             'attribute_terms.*' => ['nullable', 'array'],
             'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
             'is_taxable' => ['nullable', 'boolean'],
-            'shipping_weight' => ['nullable', 'numeric', 'min:0.01'],
+            'shipping_weight' => $shippingWeightRule,
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -1797,11 +1805,13 @@ class OnboardingController extends Controller
             );
         }
 
-        if (array_key_exists('shipping_weight', $validated)) {
-            if ($validated['shipping_weight'] === null || $validated['shipping_weight'] === '') {
-                unset($meta['shipping_weight']);
-            } elseif (is_numeric($validated['shipping_weight']) && (float) $validated['shipping_weight'] > 0) {
-                $meta['shipping_weight'] = round((float) $validated['shipping_weight'], 3);
+        if ($request->exists('shipping_weight')) {
+            $shippingWeight = $validated['shipping_weight'] ?? null;
+            if ($shippingWeight === null || $shippingWeight === '') {
+                unset($meta['shipping_weight'], $meta['weight']);
+            } elseif (is_numeric($shippingWeight) && (float) $shippingWeight > 0) {
+                $meta['shipping_weight'] = round((float) $shippingWeight, 3);
+                app(\App\Services\Delivery\StoreShippingPreferences::class)->commitWeightUnitIfNeeded($currentStore);
             }
         }
 
@@ -1916,7 +1926,8 @@ class OnboardingController extends Controller
                     $product,
                     $validated['variants'] ?? [],
                     $variationOptionMapInPlace,
-                    $skuPlanSkus
+                    $skuPlanSkus,
+                    $currentStore,
                 );
             } else {
                 $product->variationTypes()->delete();
@@ -1983,6 +1994,9 @@ class OnboardingController extends Controller
                         );
 
                         try {
+                            $variantMeta = [];
+                            $this->applyVariantShippingWeightFromRow($variantMeta, $variantData, $currentStore);
+
                             $variant = ProductVariant::create([
                                 'product_id' => $product->id,
                                 'sku' => $resolvedSku,
@@ -1990,6 +2004,7 @@ class OnboardingController extends Controller
                                 'compare_at_price' => $variantData['compare_at_price'] ?? null,
                                 'stock' => $variantData['stock'],
                                 'stock_alert' => $variantData['stock_alert'],
+                                'meta' => $variantMeta !== [] ? $variantMeta : null,
                             ]);
                         } catch (UniqueConstraintViolationException) {
                             throw ValidationException::withMessages([
@@ -2003,6 +2018,7 @@ class OnboardingController extends Controller
                         ));
 
                         $this->carryVariantCustomFieldsOntoNewRow($variant, $oldFingerprintVariantCustomFields);
+                        $this->persistNewVariantShippingWeight($variant, $variantData, $currentStore);
 
                         $variantImageAssignmentsUpdate[] = [
                             'variant' => $variant,
@@ -2264,6 +2280,9 @@ class OnboardingController extends Controller
         $isCatalogQuickAdd = $request->boolean('_open_add_product_modal')
             || ($request->boolean('_from_product_create_page') && ! $isFullWorkspaceCreate);
 
+        $this->normalizeSubmittedVariantShippingWeights($request);
+        $shippingWeightRule = $this->shippingWeightValidationRule($store);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
             'description' => ['nullable', 'string', 'max:4000'],
@@ -2291,6 +2310,7 @@ class OnboardingController extends Controller
             'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
             'variants.*.option_map' => ['nullable', 'array'],
             'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.shipping_weight' => $shippingWeightRule,
             'variants.*.product_image_id' => ['nullable', 'regex:/^(?:[1-9]\d*|new:\d+)$/'],
             'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
             'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
@@ -2310,7 +2330,7 @@ class OnboardingController extends Controller
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
             'is_taxable' => ['nullable', 'boolean'],
-            'shipping_weight' => ['nullable', 'numeric', 'min:0.01'],
+            'shipping_weight' => $shippingWeightRule,
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -2589,6 +2609,7 @@ class OnboardingController extends Controller
                         if (! empty($variantData['custom_fields'])) {
                             $variantMeta['custom_fields'] = $variantData['custom_fields'];
                         }
+                        $this->applyVariantShippingWeightFromRow($variantMeta, $variantData, $store);
 
                         $variant = ProductVariant::create([
                             'product_id' => $product->id,
@@ -3107,6 +3128,7 @@ class OnboardingController extends Controller
         array $customVariants,
         array $variationOptionMap,
         array $skuPlanSkus,
+        Store $store,
     ): void {
         $variantImageAssignmentsUpdate = [];
         foreach ($customVariants as $rowIndex => $variantData) {
@@ -3124,6 +3146,7 @@ class OnboardingController extends Controller
                 if (isset($variantData['custom_fields']) && is_array($variantData['custom_fields'])) {
                     $variantMeta['custom_fields'] = $variantData['custom_fields'];
                 }
+                $this->applyVariantShippingWeightFromRow($variantMeta, $variantData, $store);
 
                 $variant->update([
                     'sku' => $resolvedSku,
@@ -3216,5 +3239,69 @@ class OnboardingController extends Controller
         }
 
         return [$normalizedType, null];
+    }
+
+    private function normalizeSubmittedVariantShippingWeights(\Illuminate\Http\Request $request): void
+    {
+        $variants = $request->input('variants');
+        if (! is_array($variants)) {
+            return;
+        }
+
+        foreach ($variants as $index => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            if (array_key_exists('shipping_weight', $row) && $row['shipping_weight'] === '') {
+                $variants[$index]['shipping_weight'] = null;
+            }
+        }
+
+        $request->merge(['variants' => $variants]);
+    }
+
+    /**
+     * @return list<string|numeric>
+     */
+    private function shippingWeightValidationRule(Store $store): array
+    {
+        $max = app(\App\Services\Delivery\StoreShippingPreferences::class)->maxItemWeightForStore($store);
+
+        return ['nullable', 'numeric', 'min:0.01', 'max:'.$max];
+    }
+
+    /**
+     * @param  array<string, mixed>  $variantMeta
+     * @param  array<string, mixed>  $variantData
+     */
+    private function applyVariantShippingWeightFromRow(array &$variantMeta, array $variantData, Store $store): void
+    {
+        if (! array_key_exists('shipping_weight', $variantData)) {
+            return;
+        }
+
+        app(\App\Services\Delivery\ShippingWeightResolver::class)->persistVariantShippingWeightMeta(
+            $variantMeta,
+            $variantData['shipping_weight'],
+        );
+
+        if (isset($variantMeta['shipping_weight'])) {
+            app(\App\Services\Delivery\StoreShippingPreferences::class)->commitWeightUnitIfNeeded($store);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $variantData
+     */
+    private function persistNewVariantShippingWeight(ProductVariant $variant, array $variantData, Store $store): void
+    {
+        if (! array_key_exists('shipping_weight', $variantData)) {
+            return;
+        }
+
+        $variantMeta = is_array($variant->meta) ? $variant->meta : [];
+        $this->applyVariantShippingWeightFromRow($variantMeta, $variantData, $store);
+        $variant->forceFill(['meta' => $variantMeta])->save();
     }
 }

@@ -12,6 +12,7 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Models\PaymentCapture;
 use App\Models\PaymentIntent as LocalPaymentIntent;
+use App\Models\Store;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Checkout\FinancialTotalsInvariantService;
@@ -208,9 +209,9 @@ class CheckoutConversionService
                         'discount_amount' => $item->discount_amount,
                         'tax_amount' => $item->tax_amount,
                         'total' => $item->total,
-                        'weight_snapshot' => $this->shippingWeightResolver->resolveSnapshot(
-                            $item->variant?->product ?? $item->product,
-                            $item->variant,
+                        'weight_snapshot' => $this->resolveOrderItemWeightSnapshot(
+                            $checkout->store,
+                            $item,
                         ),
                         'sku_snapshot' => $item->sku_snapshot,
                         'product_slug_snapshot' => $item->product_slug_snapshot,
@@ -609,6 +610,25 @@ class CheckoutConversionService
             'Checkout totals mismatch',
             'Stored checkout totals were inconsistent, so payment capture and order creation were blocked.',
             $exception->context(),
+        );
+    }
+
+    private function resolveOrderItemWeightSnapshot(Store $store, mixed $item): ?string
+    {
+        $product = $item->variant?->product ?? $item->product;
+        if (! $this->shippingWeightResolver->itemRequiresShipping($product)) {
+            return null;
+        }
+
+        $snapshot = data_get($item->metadata, 'shipping_weight_snapshot');
+        if (is_numeric($snapshot) && (float) $snapshot > 0) {
+            return number_format((float) $snapshot, 3, '.', '');
+        }
+
+        return $this->shippingWeightResolver->resolveSnapshotForStore(
+            $store,
+            $product,
+            $item->variant,
         );
     }
 }

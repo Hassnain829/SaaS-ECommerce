@@ -41,6 +41,7 @@
                         'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
                         'catalogAttributes' => $catalogAttributes,
                         'workspaceReturnProductId' => null,
+                        'shippingPreferences' => $shippingPreferences ?? [],
                     ])
                 </div>
                 <aside class="mt-10 space-y-6 lg:col-span-4 lg:mt-0">

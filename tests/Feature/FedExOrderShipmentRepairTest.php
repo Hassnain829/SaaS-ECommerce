@@ -58,18 +58,87 @@ class FedExOrderShipmentRepairTest extends TestCase
             input: [
                 'package_source' => 'preset',
                 'shipping_package_preset_id' => $preset->id,
+                'weight' => 5.8,
             ],
             actor: $user,
         );
 
-        $this->assertSame(5.0, (float) $snapshot->weight_value);
+        $this->assertSame(5.8, (float) $snapshot->weight_value);
         $this->assertSame(16.0, (float) $snapshot->length);
 
         $preset->forceFill(['weight_value' => 99, 'length' => 1])->save();
         $snapshot->refresh();
 
-        $this->assertSame(5.0, (float) $snapshot->weight_value);
+        $this->assertSame(5.8, (float) $snapshot->weight_value);
         $this->assertSame(16.0, (float) $snapshot->length);
+    }
+
+    public function test_preset_snapshot_requires_actual_packed_weight_not_preset_weight(): void
+    {
+        [$store, $order, $origin, $user] = $this->baseOrderContext();
+
+        $preset = ShippingPackagePreset::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Small Box',
+            'weight_value' => 2,
+            'weight_unit' => 'LB',
+            'length' => 10,
+            'width' => 15,
+            'height' => 7,
+            'dimension_unit' => 'IN',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $this->expectException(ValidationException::class);
+        app(FedExOrderPackageSnapshotService::class)->createFromOrderInput(
+            store: $store,
+            order: $order,
+            originLocationId: $origin->id,
+            input: [
+                'package_source' => 'preset',
+                'shipping_package_preset_id' => $preset->id,
+            ],
+            actor: $user,
+        );
+    }
+
+    public function test_actual_packed_weight_uses_store_unit_not_preset_unit(): void
+    {
+        [$store, $order, $origin, $user] = $this->baseOrderContext();
+
+        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+            'weight_unit' => 'LB',
+        ]);
+
+        $preset = ShippingPackagePreset::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Metric Box',
+            'weight_value' => 2,
+            'weight_unit' => 'KG',
+            'length' => 10,
+            'width' => 15,
+            'height' => 7,
+            'dimension_unit' => 'IN',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+
+        $snapshot = app(FedExOrderPackageSnapshotService::class)->createFromOrderInput(
+            store: $store->fresh(),
+            order: $order,
+            originLocationId: $origin->id,
+            input: [
+                'package_source' => 'preset',
+                'shipping_package_preset_id' => $preset->id,
+                'weight' => 5.8,
+                'weight_unit' => 'KG',
+            ],
+            actor: $user,
+        );
+
+        $this->assertSame(5.8, (float) $snapshot->weight_value);
+        $this->assertSame('LB', strtoupper((string) $snapshot->weight_unit));
     }
 
     public function test_five_pound_quote_package_binds_and_rejects_one_pound_purchase(): void

@@ -72,6 +72,7 @@ final class ProductWorkspaceController extends Controller
             'editProductPayload' => $editProductPayload,
             'workspaceReturnProductId' => $product->id,
             'taxSetting' => $store->taxSetting,
+            'shippingPreferences' => app(\App\Services\Delivery\StoreShippingPreferences::class)->get($store),
         ]);
     }
 

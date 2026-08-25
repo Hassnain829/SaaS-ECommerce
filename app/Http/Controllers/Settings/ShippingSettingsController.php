@@ -853,14 +853,38 @@ class ShippingSettingsController extends Controller
             'default_handoff_type' => ['nullable', 'string', Rule::in(StoreShippingPreferences::HANDOFF_TYPES)],
             'default_signature_option' => ['nullable', 'string', Rule::in(StoreShippingPreferences::SIGNATURE_OPTIONS)],
             'saturday_delivery_default' => ['nullable', 'boolean'],
+            'fallback_item_weight' => ['nullable', 'numeric', 'gt:0', 'max:'.StoreShippingPreferences::MAX_ITEM_WEIGHT],
+            'clear_fallback_item_weight' => ['nullable', 'boolean'],
         ]);
 
-        $shippingPreferences->update($store, [
-            'default_label_format' => $validated['default_label_format'] ?? 'PDF',
-            'default_handoff_type' => $validated['default_handoff_type'] ?? StoreShippingPreferences::HANDOFF_USE_SCHEDULED_PICKUP,
-            'default_signature_option' => $validated['default_signature_option'] ?? null,
-            'saturday_delivery_default' => $request->boolean('saturday_delivery_default'),
-        ]);
+        $payload = [];
+
+        // Patch semantics: only persist keys that were actually submitted.
+        if ($request->exists('default_label_format') && array_key_exists('default_label_format', $validated)) {
+            $payload['default_label_format'] = $validated['default_label_format'] ?? 'PDF';
+        }
+        if ($request->exists('default_handoff_type') && array_key_exists('default_handoff_type', $validated)) {
+            $payload['default_handoff_type'] = $validated['default_handoff_type']
+                ?? StoreShippingPreferences::HANDOFF_USE_SCHEDULED_PICKUP;
+        }
+        if ($request->exists('default_signature_option')) {
+            $payload['default_signature_option'] = $validated['default_signature_option'] ?? null;
+        }
+        if ($request->exists('saturday_delivery_default')) {
+            $payload['saturday_delivery_default'] = $request->boolean('saturday_delivery_default');
+        }
+
+        if ($request->boolean('clear_fallback_item_weight')) {
+            $payload['fallback_item_weight'] = null;
+        } elseif ($request->exists('fallback_item_weight')) {
+            $payload['fallback_item_weight'] = $validated['fallback_item_weight'] ?? null;
+        }
+
+        if ($payload === []) {
+            return back()->withErrors(['fallback_item_weight' => 'Nothing to update.'])->withInput();
+        }
+
+        $shippingPreferences->update($store, $payload);
 
         $securityLogRecorder->record(
             $request,
@@ -1045,6 +1069,7 @@ class ShippingSettingsController extends Controller
         return view('user_view.shipping.packages', [
             'selectedStore' => $store,
             'packagePresets' => $packagePresets,
+            'shippingPreferences' => app(StoreShippingPreferences::class)->get($store),
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
             'statusBadge' => fn (bool $active) => $active ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#F1F5F9] text-[#64748B]',
         ]);

@@ -12,6 +12,8 @@ use App\Models\TaxSetting;
 use App\Services\Checkout\CheckoutTotalsService;
 use App\Services\Checkout\FinancialTotalsInvariantService;
 use App\Services\Coupons\CouponService;
+use App\Services\Delivery\ShippingWeightResolver;
+use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
@@ -42,6 +44,8 @@ class CheckoutService
         private readonly CouponService $couponService,
         private readonly CheckoutShippingService $checkoutShippingService,
         private readonly FinancialTotalsInvariantService $financialTotalsInvariantService,
+        private readonly ShippingWeightResolver $shippingWeightResolver,
+        private readonly StoreShippingPreferences $shippingPreferences,
     ) {}
 
     /**
@@ -245,6 +249,7 @@ class CheckoutService
                             'code' => $couponDiscount->coupon->code,
                             'discount_amount' => $itemTotals->discountAmount,
                         ] : null,
+                        ...$this->shippingWeightMetadata($store, $product, $variant),
                     ],
                 ]);
             }
@@ -550,6 +555,7 @@ class CheckoutService
                             'code' => $couponDiscount->coupon->code,
                             'discount_amount' => $itemTotals->discountAmount,
                         ] : null,
+                        ...$this->shippingWeightMetadata($checkout->store, $product, $variant),
                     ],
                 ]);
             }
@@ -1052,5 +1058,40 @@ class CheckoutService
         return bccomp($rounded, '0', 6) < 0
             ? CurrencyPrecision::roundMajor('0', $currencyCode)
             : $rounded;
+    }
+
+    /**
+     * Freeze the resolved shipping weight used for rate estimates onto the checkout line.
+     *
+     * @return array{shipping_weight_snapshot?: string, shipping_weight_unit?: string, shipping_weight_source?: string}
+     */
+    private function shippingWeightMetadata(?Store $store, mixed $product, mixed $variant): array
+    {
+        if (! $store instanceof Store) {
+            return [];
+        }
+
+        if (! $this->shippingWeightResolver->itemRequiresShipping($product)) {
+            return [];
+        }
+
+        $exactVariant = $this->shippingWeightResolver->resolveExactVariantLevel($variant);
+        $exactProduct = $this->shippingWeightResolver->resolveExactProductLevel($product);
+        $fallback = $this->shippingPreferences->fallbackItemWeight($store);
+        $resolved = $exactVariant ?? $exactProduct ?? $fallback;
+
+        if ($resolved === null) {
+            return [];
+        }
+
+        $source = $exactVariant !== null
+            ? 'variant'
+            : ($exactProduct !== null ? 'product' : 'store_fallback');
+
+        return [
+            'shipping_weight_snapshot' => number_format($resolved, 3, '.', ''),
+            'shipping_weight_unit' => $this->shippingPreferences->weightUnitLabel($store),
+            'shipping_weight_source' => $source,
+        ];
     }
 }
