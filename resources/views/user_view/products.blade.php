@@ -1665,6 +1665,24 @@
                                     </select>
                                 </div>
                             </div>
+                            <fieldset id="bulk-stock-apply-mode-fieldset" class="space-y-2">
+                                <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Products that already have stock</legend>
+                                <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                    <input type="radio" name="bulk_stock_apply_mode_ui" value="empty_only" class="mt-1" checked>
+                                    <span>
+                                        <span class="font-semibold text-[#0F172A]">Skip products that already have stock</span>
+                                        <span class="mt-0.5 block text-xs text-[#64748B]">Only fill inventory rows that currently show 0. Existing quantities stay unchanged.</span>
+                                    </span>
+                                </label>
+                                <label class="flex items-start gap-2 text-sm text-[#334155]">
+                                    <input type="radio" name="bulk_stock_apply_mode_ui" value="replace_all" class="mt-1">
+                                    <span>
+                                        <span class="font-semibold text-[#0F172A]">Update every selected product</span>
+                                        <span class="mt-0.5 block text-xs text-[#64748B]">Replaces existing stock values, including products that already have inventory.</span>
+                                    </span>
+                                </label>
+                            </fieldset>
+                            <p id="bulk-stock-delta-apply-hint" class="hidden text-xs text-[#64748B]">Increase/decrease always applies to every selected product’s current stock.</p>
                         </div>
 
                         <div id="bulk-extra-categories" class="hidden space-y-2">
@@ -1853,6 +1871,7 @@
                 <input type="hidden" name="stock_mode" id="bulk-form-stock-mode" value="">
                 <input type="hidden" name="stock_value" id="bulk-form-stock-value" value="">
                 <input type="hidden" name="bulk_variant_stock_scope" id="bulk-form-stock-variant-scope" value="default_variant_only">
+                <input type="hidden" name="stock_apply_mode" id="bulk-form-stock-apply-mode" value="empty_only">
                 <input type="hidden" name="brand_id" id="bulk-form-brand-id" value="">
                 <input type="hidden" name="product_status" id="bulk-form-product-status" value="">
                 <input type="hidden" name="shipping_weight_value" id="bulk-form-shipping-weight-value" value="">
@@ -2434,7 +2453,10 @@
                 if (applyLabel) {
                     applyLabel.textContent = (v === 'delete' || v === 'force_delete') ? 'Confirm' : (v === 'shipping_weight' ? 'Apply weight' : 'Continue');
                 }
-                if (v === 'stock' && extraStock) extraStock.classList.remove('hidden');
+                if (v === 'stock' && extraStock) {
+                    extraStock.classList.remove('hidden');
+                    refreshBulkStockApplyModeUi();
+                }
                 if (v === 'categories' && extraCategories) extraCategories.classList.remove('hidden');
                 if (v === 'brand' && extraBrand) extraBrand.classList.remove('hidden');
                 if (v === 'tags' && extraTags) extraTags.classList.remove('hidden');
@@ -2464,6 +2486,15 @@
             let cachedVariantOptionGroups = [];
             let variantParsePreviewConfirmed = false;
             let lastVariantPreviewSelectionKey = '';
+
+            function refreshBulkStockApplyModeUi() {
+                const mode = document.getElementById('bulk-stock-mode')?.value || 'set';
+                const isSet = mode === 'set';
+                document.getElementById('bulk-stock-apply-mode-fieldset')?.classList.toggle('hidden', !isSet);
+                document.getElementById('bulk-stock-delta-apply-hint')?.classList.toggle('hidden', isSet);
+            }
+
+            document.getElementById('bulk-stock-mode')?.addEventListener('change', refreshBulkStockApplyModeUi);
 
             function shippingWeightTarget() {
                 return document.querySelector('input[name="bulk_shipping_weight_target_ui"]:checked')?.value || 'products';
@@ -2837,6 +2868,8 @@
                 document.getElementById('bulk-form-stock-value').value = '';
                 const scopeEl = document.getElementById('bulk-form-stock-variant-scope');
                 if (scopeEl) scopeEl.value = 'default_variant_only';
+                const applyModeEl = document.getElementById('bulk-form-stock-apply-mode');
+                if (applyModeEl) applyModeEl.value = 'empty_only';
                 document.getElementById('bulk-form-brand-id').value = '';
                 document.getElementById('bulk-form-product-status').value = '';
                 const swValue = document.getElementById('bulk-form-shipping-weight-value');
@@ -2862,6 +2895,12 @@
                     const sc = document.getElementById('bulk-stock-variant-scope')?.value || 'default_variant_only';
                     const scopeHidden = document.getElementById('bulk-form-stock-variant-scope');
                     if (scopeHidden) scopeHidden.value = sc;
+                    const applyHidden = document.getElementById('bulk-form-stock-apply-mode');
+                    if (applyHidden) {
+                        applyHidden.value = mode === 'set'
+                            ? (document.querySelector('input[name="bulk_stock_apply_mode_ui"]:checked')?.value || 'empty_only')
+                            : 'replace_all';
+                    }
                 }
                 if (action === 'categories') {
                     const sel = document.getElementById('bulk-category-ids');
@@ -2988,14 +3027,20 @@
                     const mode = document.getElementById('bulk-stock-mode')?.value || 'set';
                     const val = document.getElementById('bulk-stock-value')?.value;
                     const scope = document.getElementById('bulk-stock-variant-scope')?.value || 'default_variant_only';
+                    const applyMode = document.querySelector('input[name="bulk_stock_apply_mode_ui"]:checked')?.value || 'empty_only';
                     const scopeExplain = scope === 'all_variants_same'
                         ? 'Products with multiple variants will all get this same quantity.'
                         : scope === 'skip_multi_variant'
                             ? 'Products with multiple variants will be skipped.'
                             : 'Only the main variant is updated on multi-variant products.';
-                    const modeExplain = mode === 'delta'
-                        ? `Stock will change by ${val} units on each affected product.`
-                        : `Stock will be set to ${val} units on each affected product.`;
+                    let modeExplain;
+                    if (mode === 'delta') {
+                        modeExplain = `Stock will change by ${val} units on each affected product.`;
+                    } else if (applyMode === 'empty_only') {
+                        modeExplain = `Stock will be set to ${val} only on inventory rows that currently have 0. Products that already have stock will be skipped.`;
+                    } else {
+                        modeExplain = `Stock will be set to ${val} on every selected product, including those that already have stock.`;
+                    }
                     msg = `${modeExplain} ${scopeExplain} Continue for ${n} selected product(s)?`;
                 }
                 if (action === 'status') {

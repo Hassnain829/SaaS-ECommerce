@@ -111,6 +111,7 @@ class ProductBulkActionsTest extends TestCase
                 'product_ids' => [$product->id],
                 'stock_mode' => 'set',
                 'stock_value' => 11,
+                'stock_apply_mode' => 'replace_all',
             ])
             ->assertRedirect()
             ->assertSessionHas('success', fn ($msg): bool => str_contains((string) $msg, '1 product'));
@@ -126,6 +127,58 @@ class ProductBulkActionsTest extends TestCase
             'new_stock' => 11,
             'movement_type' => StockMovement::TYPE_EDIT_UPDATE,
         ]);
+    }
+
+    public function test_bulk_stock_set_empty_only_skips_products_that_already_have_stock(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $withStock = $this->makeProduct($store, 'Has Stock');
+        $empty = $this->makeProduct($store, 'Empty Stock');
+        $withStock->variants()->first()->update(['stock' => 20]);
+        $empty->variants()->first()->update(['stock' => 0]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'stock',
+                'product_ids' => [$withStock->id, $empty->id],
+                'stock_mode' => 'set',
+                'stock_value' => 10,
+                'stock_apply_mode' => 'empty_only',
+                'bulk_variant_stock_scope' => 'default_variant_only',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', fn ($msg): bool => str_contains((string) $msg, 'already had stock'));
+
+        $this->assertSame(20, (int) $withStock->variants()->first()->fresh()->stock);
+        $this->assertSame(10, (int) $empty->variants()->first()->fresh()->stock);
+    }
+
+    public function test_bulk_stock_set_replace_all_overwrites_existing_stock(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $withStock = $this->makeProduct($store, 'Overwrite Me');
+        $empty = $this->makeProduct($store, 'Also Set');
+        $withStock->variants()->first()->update(['stock' => 20]);
+        $empty->variants()->first()->update(['stock' => 0]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'stock',
+                'product_ids' => [$withStock->id, $empty->id],
+                'stock_mode' => 'set',
+                'stock_value' => 10,
+                'stock_apply_mode' => 'replace_all',
+                'bulk_variant_stock_scope' => 'default_variant_only',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(10, (int) $withStock->variants()->first()->fresh()->stock);
+        $this->assertSame(10, (int) $empty->variants()->first()->fresh()->stock);
     }
 
     public function test_bulk_categories_and_tags_are_store_scoped(): void
