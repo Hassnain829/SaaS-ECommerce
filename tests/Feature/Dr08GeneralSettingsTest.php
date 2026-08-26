@@ -16,7 +16,7 @@ class Dr08GeneralSettingsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_settings_get_is_read_only_and_does_not_create_locations(): void
+    public function test_settings_page_is_actionable_in_page_form_for_owners(): void
     {
         [$owner, $store] = $this->ownerStore('Read Only Settings');
         $beforeCount = $store->locations()->count();
@@ -25,12 +25,75 @@ class Dr08GeneralSettingsTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertSeeText('Edit settings')
-            ->assertSeeText('Default Inventory Location')
+            ->assertSeeText('Save store settings')
+            ->assertSeeText('What changing these settings affects')
+            ->assertSeeText('Past order amounts, currencies, and saved timestamps are never rewritten')
+            ->assertSeeText('Default inventory location')
+            ->assertSeeText('Read-only fact')
+            ->assertSee('name="name"', false)
+            ->assertSee('name="contact_email"', false)
+            ->assertSee('name="currency"', false)
+            ->assertSee('name="timezone"', false)
+            ->assertSee('name="store_logo"', false)
+            ->assertDontSeeText('editable later')
+            ->assertDontSeeText('Edit settings')
             ->assertDontSeeText('Delete Store')
-            ->assertDontSeeText('Primary Market');
+            ->assertDontSeeText('Primary Market')
+            ->assertDontSeeText('Edit Store');
 
         $this->assertSame($beforeCount, $store->locations()->count());
+    }
+
+    public function test_staff_sees_read_only_store_settings(): void
+    {
+        [$owner, $store] = $this->ownerStore('Staff Read Only Store');
+        $staff = $this->merchant('staff-dr08@example.test');
+        $store->members()->attach($staff->id, ['role' => Store::ROLE_STAFF]);
+
+        $this->actingAs($staff)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('generalSettings'))
+            ->assertOk()
+            ->assertSeeText('Read-only for your role')
+            ->assertSeeText('Ask a store owner to change them')
+            ->assertDontSeeText('Save store settings')
+            ->assertDontSee('name="contact_email"', false);
+    }
+
+    public function test_acceptance_every_shown_setting_is_editable_or_labeled_read_only(): void
+    {
+        [$owner, $store] = $this->ownerStore('Acceptance Matrix Store');
+
+        Location::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Main Warehouse',
+            'type' => Location::TYPE_WAREHOUSE,
+            'is_default' => true,
+            'is_active' => true,
+            'fulfills_online_orders' => true,
+            'pickup_enabled' => false,
+            'routing_priority' => 100,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('generalSettings'))
+            ->assertOk()
+            // Editable configuration for authorized owner
+            ->assertSee('name="name"', false)
+            ->assertSee('name="contact_email"', false)
+            ->assertSee('name="address"', false)
+            ->assertSee('name="store_logo"', false)
+            ->assertSee('name="currency"', false)
+            ->assertSee('name="timezone"', false)
+            ->assertSee('name="custom_category"', false)
+            ->assertSee('name="business_models[]"', false)
+            ->assertSee('name="default_location_id"', false)
+            ->assertSeeText('Save store settings')
+            // Explicitly non-editable fact
+            ->assertSeeText('Setup status')
+            ->assertSeeText('Read-only fact')
+            ->assertDontSeeText('editable later');
     }
 
     public function test_default_location_can_be_selected_from_general_settings_update(): void
@@ -169,13 +232,14 @@ class Dr08GeneralSettingsTest extends TestCase
         $this->assertSame('0.5', (string) data_get($store->settings, 'last_currency_conversion.rate'));
     }
 
-    public function test_store_validation_errors_do_not_force_account_tab(): void
+    public function test_store_validation_errors_stay_on_store_tab_without_modal(): void
     {
         [$owner, $store] = $this->ownerStore('Tab Guard Store');
 
-        $response = $this->actingAs($owner)
+        $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->from(route('generalSettings', ['tab' => 'store']))
+            ->followingRedirects()
             ->put(route('store.update', ['storeId' => $store->id]), [
                 'name' => '',
                 'address' => $store->address,
@@ -183,19 +247,12 @@ class Dr08GeneralSettingsTest extends TestCase
                 'timezone' => 'UTC',
                 'category' => 'physical',
                 'redirect_to' => 'generalSettings',
-                '_open_edit_store_modal' => '1',
-                '_edit_store_id' => (string) $store->id,
-            ]);
-
-        $response->assertRedirect(route('generalSettings', ['tab' => 'store']));
-        $response->assertSessionHasErrors('name');
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->get(route('generalSettings', ['tab' => 'store']))
+            ])
             ->assertOk()
+            ->assertSeeText('Could not save settings')
             ->assertSeeText('Store Profile')
-            ->assertDontSeeText('Personal information');
+            ->assertDontSeeText('Personal information')
+            ->assertDontSeeText('Edit Store');
     }
 
     /**

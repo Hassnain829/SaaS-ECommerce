@@ -42,7 +42,7 @@ The final onboarding page says the marketplace is live, ready for customers, and
 
 ### 4. Unfinished scope remains in normal navigation and setup readiness
 
-Billing and Payments are normal sidebar destinations. Payments are also part of the dashboard’s setup-completion calculation. General settings displays controls described as “editable later,” while Security says two-step verification is not configured.
+Billing and Payments are normal sidebar destinations. Payments are also part of the dashboard’s setup-completion calculation. General settings is actionable in-page for store owners (DR-08 complete). Security says two-step verification is not configured.
 
 **Risk:** Excluded roadmap scope prevents the current product from ever feeling complete.
 
@@ -183,12 +183,21 @@ Customer name/email/phone identity editing remains **DR-07**, not this ticket.
 
 #### DR-08 — Make General Settings actionable
 
+**Status:** Complete (in-page store settings form; focused coverage in `Dr08GeneralSettingsTest` and `MerchantReadinessBatch2Test`).
+
 - Provide one clear edit action for store name, contact email, logo, address, currency, timezone, and supported business defaults.
 - Remove “editable later” cards from the primary interface.
 - Explain which changes affect future orders versus historical records.
 - If full in-page editing is not ready yet, deep-link to a working edit surface with an unmistakable CTA instead of leaving Settings as inspection-only.
 
 **Acceptance:** Every setting shown as configuration can be changed by an authorized user, or is displayed as a clearly labeled read-only fact.
+
+Shipped behavior:
+
+- Owners/managers edit store settings in-page on Settings → Store (no modal bridge).
+- Staff see the same facts as read-only.
+- Setup status is labeled as a read-only fact.
+- Currency/timezone copy explains catalog vs historical order impact; past orders are never rewritten.
 
 ### P1 — Complete immediately after blockers
 
@@ -266,7 +275,7 @@ Keep these out of the development-readiness gate requested for this review:
 
 1. DR-01 Product truth and feature gating.
 2. DR-01A Single product workspace path.
-3. DR-08 Actionable General Settings.
+3. DR-08 Actionable General Settings — complete.
 4. DR-02 Onboarding completion.
 5. DR-03 Account recovery and legal routes.
 6. DR-04 Full test suite green.

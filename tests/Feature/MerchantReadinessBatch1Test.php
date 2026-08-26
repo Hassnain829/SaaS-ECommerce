@@ -41,7 +41,7 @@ class MerchantReadinessBatch1Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertSeeText('Edit settings')
+            ->assertSeeText('Save store settings')
             ->assertDontSeeText('editable later')
             ->assertDontSeeText('Branding colors');
 

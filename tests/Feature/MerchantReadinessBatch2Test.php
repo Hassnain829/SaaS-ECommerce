@@ -29,14 +29,14 @@ class MerchantReadinessBatch2Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertSeeText('Edit settings')
+            ->assertSeeText('Save store settings')
             ->assertDontSeeText('editable later')
             ->assertSeeText('Store Profile')
-            ->assertDontSeeText('Read-only fact')
+            ->assertSeeText('Read-only fact')
             ->assertDontSeeText('Branding colors')
             ->assertDontSeeText('Primary Market')
             ->assertDontSeeText('Manage via region settings')
-            ->assertSeeText('Setup Status')
+            ->assertSeeText('Setup status')
             ->assertDontSeeText('Live workspace');
 
         $this->actingAs($owner)
@@ -421,20 +421,20 @@ class MerchantReadinessBatch2Test extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertSeeText('Edit settings');
+            ->assertSeeText('Save store settings');
 
         $this->actingAs($manager)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertDontSeeText('Edit settings')
+            ->assertDontSeeText('Save store settings')
             ->assertSeeText('Read-only for your role');
 
         $this->actingAs($staff)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
-            ->assertDontSeeText('Edit settings')
+            ->assertDontSeeText('Save store settings')
             ->assertSeeText('Read-only for your role');
     }
 
@@ -452,7 +452,7 @@ class MerchantReadinessBatch2Test extends TestCase
             ->assertSeeText('Store access')
             ->assertSee('id="profileForm"', false)
             ->assertSee('id="password"', false)
-            ->assertDontSeeText('Edit settings');
+            ->assertDontSeeText('Save store settings');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
