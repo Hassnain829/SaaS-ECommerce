@@ -11,6 +11,7 @@ use App\Models\Store;
 use App\Support\Catalog\ProductImportMerchantMessages;
 use App\Support\Catalog\ProductImportQueue;
 use App\Support\Catalog\ProductImportRowPayloadSanitizer;
+use App\Support\Catalog\ProductRichText;
 use App\Support\Catalog\SpreadsheetValueNormalizer;
 use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\ProductTypeBehavior;
@@ -1027,8 +1028,8 @@ final class ProductImportProcessor
         $basePrice = SpreadsheetValueNormalizer::normalizeDecimal($fields[ProductImportField::BASE_PRICE] ?? '') ?? 0.0;
         $stock = SpreadsheetValueNormalizer::normalizeInteger($fields[ProductImportField::STOCK] ?? '') ?? 0;
         $stockAlert = SpreadsheetValueNormalizer::normalizeInteger($fields[ProductImportField::LOW_STOCK_THRESHOLD] ?? '') ?? 0;
-        $description = trim((string) ($fields[ProductImportField::DESCRIPTION] ?? ''));
-        $shortDesc = trim((string) ($fields[ProductImportField::SHORT_DESCRIPTION] ?? ''));
+        $description = ProductRichText::prepareForStorage((string) ($fields[ProductImportField::DESCRIPTION] ?? '')) ?? '';
+        $shortDesc = ProductRichText::prepareForStorage((string) ($fields[ProductImportField::SHORT_DESCRIPTION] ?? '')) ?? '';
         $productType = $this->normalizeProductType(trim((string) ($fields[ProductImportField::PRODUCT_TYPE] ?? '')));
         $status = $this->parseStatus($fields[ProductImportField::STATUS] ?? '', $fields[ProductImportField::VISIBILITY] ?? '');
 

@@ -12,6 +12,7 @@ use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
 use App\Support\Catalog\ProductImportMerchantMessages;
+use App\Support\Catalog\ProductRichText;
 use App\Support\Catalog\SpreadsheetValueNormalizer;
 use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
@@ -463,11 +464,11 @@ final class ProductImportVariantFinalizer
                     }
                 }
             }
-            $d = trim((string) ($f[ProductImportField::DESCRIPTION] ?? ''));
+            $d = ProductRichText::prepareForStorage((string) ($f[ProductImportField::DESCRIPTION] ?? '')) ?? '';
             if ($d !== '' && strlen($d) > strlen($mergedDescription)) {
                 $mergedDescription = $d;
             }
-            $sd = trim((string) ($f[ProductImportField::SHORT_DESCRIPTION] ?? ''));
+            $sd = ProductRichText::prepareForStorage((string) ($f[ProductImportField::SHORT_DESCRIPTION] ?? '')) ?? '';
             if ($sd !== '' && strlen($sd) > strlen($mergedShort)) {
                 $mergedShort = $sd;
             }
@@ -826,7 +827,7 @@ final class ProductImportVariantFinalizer
                 'barcode' => trim((string) ($f[ProductImportField::BARCODE] ?? '')) ?: null,
                 'compare_at_price' => SpreadsheetValueNormalizer::normalizeDecimal($f[ProductImportField::COMPARE_AT_PRICE] ?? ''),
                 'cost_price' => SpreadsheetValueNormalizer::normalizeDecimal($f[ProductImportField::COST_PRICE] ?? ''),
-                'short_description' => trim((string) ($f[ProductImportField::SHORT_DESCRIPTION] ?? '')) ?: null,
+                'short_description' => ProductRichText::prepareForStorage((string) ($f[ProductImportField::SHORT_DESCRIPTION] ?? '')),
                 'weight' => trim((string) ($f[ProductImportField::WEIGHT] ?? '')) ?: null,
                 'length' => trim((string) ($f[ProductImportField::LENGTH] ?? '')) ?: null,
                 'width' => trim((string) ($f[ProductImportField::WIDTH] ?? '')) ?: null,

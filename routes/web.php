@@ -102,6 +102,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         ->name('products.catalog-list-highlights');
     Route::get('/products/primary-images', [DashboardController::class, 'productPrimaryImages'])->name('products.primary-images');
     Route::get('/products/view/{product}', [ProductWorkspaceController::class, 'show'])->name('products.show');
+    Route::post('/products/description/preview', [ProductWorkspaceController::class, 'previewDescription'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('products.description.preview');
     Route::get('/products/{product}/edit', [ProductWorkspaceController::class, 'edit'])
         ->middleware('store.permission:catalog.manage')
         ->name('products.edit');

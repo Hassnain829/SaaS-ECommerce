@@ -7,11 +7,13 @@ use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Store;
 use App\Services\Inventory\InventorySyncService;
+use App\Support\Catalog\ProductRichText;
 use App\Support\ProductDetailPresenter;
 use App\Support\ProductEditPayload;
 use App\Support\ProductTypeBehavior;
 use App\Support\ProductVariantLabel;
 use App\Support\StorePermission;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -73,6 +75,26 @@ final class ProductWorkspaceController extends Controller
             'workspaceReturnProductId' => $product->id,
             'taxSetting' => $store->taxSetting,
             'shippingPreferences' => app(\App\Services\Delivery\StoreShippingPreferences::class)->get($store),
+        ]);
+    }
+
+    public function previewDescription(Request $request): JsonResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store instanceof Store, 404);
+
+        $user = $request->user();
+        abort_unless(
+            $user !== null && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE),
+            403
+        );
+
+        $validated = $request->validate([
+            'content' => ['nullable', 'string', 'max:50000'],
+        ]);
+
+        return response()->json([
+            'html' => ProductRichText::toSafeHtml($validated['content'] ?? null),
         ]);
     }
 

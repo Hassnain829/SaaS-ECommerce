@@ -177,8 +177,12 @@
                                 <input id="edit_product_name" name="name" type="text" value="{{ old('name', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]">
                             </div>
                             <div>
-                                <label for="edit_product_description" class="mb-2 block text-sm font-medium text-[#334155]">Description</label>
-                                <textarea id="edit_product_description" name="description" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]">{{ old('description', '') }}</textarea>
+                                <x-catalog.product-description-field
+                                    id="edit_product_description"
+                                    name="description"
+                                    :value="old('description', '')"
+                                    :rows="12"
+                                />
                             </div>
                         </div>
                     </div>
@@ -218,8 +222,12 @@
                                 <input id="edit_product_name" name="name" type="text" value="{{ old('name', '') }}" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]">
                             </div>
                             <div>
-                                <label for="edit_product_description" class="mb-2 block text-sm font-medium text-[#334155]">Description</label>
-                                <textarea id="edit_product_description" name="description" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]">{{ old('description', '') }}</textarea>
+                                <x-catalog.product-description-field
+                                    id="edit_product_description"
+                                    name="description"
+                                    :value="old('description', '')"
+                                    :rows="12"
+                                />
                             </div>
                         @endunless
                     </div>

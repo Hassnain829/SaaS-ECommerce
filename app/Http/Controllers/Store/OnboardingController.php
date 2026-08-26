@@ -18,6 +18,7 @@ use App\Services\SecurityLogRecorder;
 use App\Services\Store\StoreCurrencyChangeGuard;
 use App\Services\StorefrontCatalogEventRecorder;
 use App\Support\CatalogRules;
+use App\Support\Catalog\ProductRichText;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
 use App\Support\ProductTypeBehavior;
@@ -202,7 +203,7 @@ class OnboardingController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:4000'],
+            'description' => ['nullable', 'string', 'max:50000'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
             'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
@@ -305,7 +306,7 @@ class OnboardingController extends Controller
             }
             $productPayload = [
                 'name' => $validated['name'],
-                'description' => $validated['description'] ?? null,
+                'description' => ProductRichText::prepareForStorage($validated['description'] ?? null),
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],
@@ -1615,7 +1616,7 @@ class OnboardingController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:4000'],
+            'description' => ['nullable', 'string', 'max:50000'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
             'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
@@ -1915,7 +1916,7 @@ class OnboardingController extends Controller
             $productUpdatePayload = [
                 'name' => $validated['name'],
                 'slug' => $this->uniqueProductSlug($currentStore->id, $validated['name'], $product->id),
-                'description' => $validated['description'] ?? null,
+                'description' => ProductRichText::prepareForStorage($validated['description'] ?? null),
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],
@@ -2341,7 +2342,7 @@ class OnboardingController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:4000'],
+            'description' => ['nullable', 'string', 'max:50000'],
             'bulk_price' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'numeric', 'min:0'],
             'base_price' => ['nullable', 'numeric', 'min:0'],
             'sku' => ['nullable', 'string', 'max:120'],
@@ -2530,7 +2531,7 @@ class OnboardingController extends Controller
             }
             $productPayload = [
                 'name' => $validated['name'],
-                'description' => $validated['description'] ?? null,
+                'description' => ProductRichText::prepareForStorage($validated['description'] ?? null),
                 'base_price' => $validated['base_price'],
                 'sku' => $validated['sku'] ?? null,
                 'product_type' => $validated['product_type'],

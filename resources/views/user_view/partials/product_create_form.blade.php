@@ -109,8 +109,13 @@
                 <input id="product-name" name="name" type="text" value="{{ $productFormData['name'] ?? '' }}" placeholder="e.g. Premium Cotton T-Shirt" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0052CC]/20">
             </div>
             <div>
-                <label for="product-description" class="mb-2 block text-sm font-medium text-[#334155]">Description</label>
-                <textarea id="product-description" name="description" rows="3" class="w-full rounded-lg border border-[#CBD5E1] px-4 py-3 text-sm text-[#0F172A]" placeholder="Optional short description">{{ $productFormData['description'] ?? '' }}</textarea>
+                <x-catalog.product-description-field
+                    id="product-description"
+                    name="description"
+                    :value="$productFormData['description'] ?? ''"
+                    :rows="8"
+                    placeholder="Optional product description"
+                />
             </div>
         </div>
 
