@@ -37,6 +37,14 @@
     'user_session_revoked' => 'Session revoked',
     'store_settings_updated' => 'Store settings updated',
     'store_deleted' => 'Store removed',
+    'customer_created' => 'Customer created',
+    'customer_identity_updated' => 'Customer contact details updated',
+    'customer_note_added' => 'Customer note added',
+    'customer_tags_updated' => 'Customer tags updated',
+    'customer_address_changed' => 'Customer address changed',
+    'customer_blocked' => 'Customer blocked',
+    'customer_unblocked' => 'Customer unblocked',
+    'marketing_consent_updated' => 'Marketing consent updated',
   ];
 @endphp
 

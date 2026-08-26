@@ -16,6 +16,12 @@
     $initials = collect(explode(' ', $customer->full_name ?: $customer->email))->filter()->map(fn ($part) => substr($part, 0, 1))->take(2)->join('');
     $defaultShipping = $customer->addresses->where('type', 'shipping')->where('is_default', true)->first() ?? $customer->addresses->where('type', 'shipping')->first();
     $defaultBilling = $customer->addresses->where('type', 'billing')->where('is_default', true)->first() ?? $customer->addresses->where('type', 'billing')->first();
+    $identityErrorKeys = ['first_name', 'last_name', 'email', 'phone'];
+    $showIdentityEditor = $canManageCustomers && (
+        collect($identityErrorKeys)->contains(fn ($key) => $errors->has($key))
+        || old('_edit_customer_identity') === '1'
+        || request()->query('edit') === 'contact'
+    );
 @endphp
 
 <div class="w-full py-2 md:py-4 space-y-4">
@@ -25,64 +31,130 @@
         <div class="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]">{{ $errors->first() }}</div>
     @endif
 
-    <section class="merchant-card p-5 md:p-6">
-        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div class="flex items-start gap-4 min-w-0">
-                <div class="h-16 w-16 rounded-md bg-brand-soft text-brand-ink grid place-items-center text-xl font-bold shrink-0">{{ strtoupper($initials) ?: 'C' }}</div>
-                <div class="min-w-0">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <h2 class="truncate text-xl font-semibold tracking-tight text-ink md:text-2xl">{{ $customer->full_name ?: $customer->email }}</h2>
-                        @if($customer->status === 'blocked')
-                            <span class="rounded-md bg-danger-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger">Blocked</span>
-                        @elseif($customer->status === 'active')
-                            <span class="rounded-md bg-success-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success">Active</span>
-                        @else
-                            <span class="rounded-md bg-surface-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">{{ ucfirst($customer->status) }}</span>
+    <section class="merchant-card overflow-hidden" id="customer-identity">
+        <div class="p-5 md:p-6">
+            <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div class="flex items-start gap-4 min-w-0">
+                    <div class="h-16 w-16 rounded-md bg-brand-soft text-brand-ink grid place-items-center text-xl font-bold shrink-0">{{ strtoupper($initials) ?: 'C' }}</div>
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h2 class="truncate text-xl font-semibold tracking-tight text-ink md:text-2xl">{{ $customer->full_name ?: $customer->email }}</h2>
+                            @if($customer->status === 'blocked')
+                                <span class="rounded-md bg-danger-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger">Blocked</span>
+                            @elseif($customer->status === 'active')
+                                <span class="rounded-md bg-success-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success">Active</span>
+                            @else
+                                <span class="rounded-md bg-surface-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">{{ ucfirst($customer->status) }}</span>
+                            @endif
+                        </div>
+                        @unless($showIdentityEditor)
+                            <p class="mt-1 text-sm text-ink-muted">{{ $customer->email }}</p>
+                            @if($customer->phone)
+                                <p class="text-sm text-ink-muted">{{ $customer->phone }}</p>
+                            @endif
+                        @endunless
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            @forelse($customer->tags as $tag)
+                                <span class="inline-flex items-center gap-2 rounded-md bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand-ink">
+                                    {{ $tag->name }}
+                                    @if($canManageCustomers)
+                                        <form action="{{ route('customers.tags.destroy', [$customer, $tag]) }}" method="POST">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="font-bold text-ink-muted" aria-label="Remove tag">x</button>
+                                        </form>
+                                    @endif
+                                </span>
+                            @empty
+                                <span class="text-sm text-[#94A3B8]">No tags yet</span>
+                            @endforelse
+                        </div>
+                        @if($canManageCustomers && ! $showIdentityEditor)
+                            <div class="mt-3">
+                                <a
+                                    href="{{ route('customersProfile', ['customer' => $customer, 'edit' => 'contact']) }}#customer-identity"
+                                    class="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink"
+                                >
+                                    Edit contact details
+                                </a>
+                            </div>
+                        @elseif(! $canManageCustomers)
+                            <p class="mt-3 rounded-md bg-surface-muted px-2.5 py-1 text-xs font-semibold text-ink-muted inline-block">Read-only for your role</p>
                         @endif
                     </div>
-                    <p class="mt-1 text-sm text-ink-muted">{{ $customer->email }}</p>
-                    @if($customer->phone)
-                        <p class="text-sm text-ink-muted">{{ $customer->phone }}</p>
-                    @endif
-                    <div class="mt-3 flex flex-wrap gap-2">
-                        @forelse($customer->tags as $tag)
-                            <span class="inline-flex items-center gap-2 rounded-md bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand-ink">
-                                {{ $tag->name }}
-                                @if($canManageCustomers)
-                                    <form action="{{ route('customers.tags.destroy', [$customer, $tag]) }}" method="POST">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="font-bold text-ink-muted" aria-label="Remove tag">x</button>
-                                    </form>
-                                @endif
-                            </span>
-                        @empty
-                            <span class="text-sm text-[#94A3B8]">No tags yet</span>
-                        @endforelse
+                </div>
+
+                @if($canManageCustomers)
+                    <div class="w-full lg:w-72 space-y-3">
+                        <form action="{{ route('customers.tags.store', $customer) }}" method="POST" class="flex gap-2">
+                            @csrf
+                            <input name="name" class="h-10 min-w-0 flex-1 rounded-lg border border-border px-3 text-sm" placeholder="Add tag">
+                            <button class="h-10 rounded-lg bg-brand px-3 text-sm font-semibold text-white">Add</button>
+                        </form>
+                        <form action="{{ route('customers.marketing.update', $customer) }}" method="POST" class="rounded-xl border border-[#E2E8F0] bg-surface-muted p-3 text-sm">
+                            @csrf
+                            @method('PATCH')
+                            <label class="flex items-center gap-2 text-[#475569]">
+                                <input type="checkbox" name="marketing_consent" value="1" @checked($customer->marketing_consent || $customer->accepts_marketing) class="rounded border-border">
+                                Marketing consent accepted
+                            </label>
+                            <input name="marketing_consent_source" value="{{ $customer->marketing_consent_source ?? 'dashboard' }}" class="mt-2 h-9 w-full rounded-lg border border-border px-3 text-sm" placeholder="Consent source">
+                            <button class="mt-2 h-9 w-full rounded-lg border border-border bg-white text-sm font-semibold text-ink">Save consent</button>
+                        </form>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        @if($showIdentityEditor)
+            <form
+                action="{{ route('customers.identity.update', $customer) }}"
+                method="POST"
+                class="space-y-4 border-t border-[#E2E8F0] bg-surface-muted/40 p-5 md:p-6"
+            >
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="_edit_customer_identity" value="1">
+                <div>
+                    <h3 class="text-sm font-semibold text-ink">Edit contact details</h3>
+                    <p class="mt-0.5 text-xs text-ink-muted">Correct name, email, and phone without recreating this customer.</p>
+                </div>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">First name</span>
+                        <input type="text" name="first_name" value="{{ old('first_name', $customer->first_name) }}" maxlength="80" class="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Last name</span>
+                        <input type="text" name="last_name" value="{{ old('last_name', $customer->last_name) }}" maxlength="80" class="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Email</span>
+                        <input type="email" name="email" value="{{ old('email', $customer->email) }}" required maxlength="255" class="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 @error('email') border-[#F87171] @enderror">
+                        @error('email')
+                            <span class="mt-1 block text-xs text-[#B91C1C]">{{ $message }}</span>
+                        @enderror
+                        <span class="mt-1 block text-xs text-ink-muted">Must be unique within this store. Past order snapshots keep the email recorded at purchase time.</span>
+                    </label>
+                    <label class="block">
+                        <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-muted">Phone</span>
+                        <input type="text" name="phone" value="{{ old('phone', $customer->phone) }}" maxlength="80" placeholder="+1 (555) 000-0000" class="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20">
+                    </label>
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[#E2E8F0] pt-4">
+                    <p class="text-xs text-ink-muted">Identity changes are recorded in Security activity.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <a
+                            href="{{ route('customersProfile', $customer) }}#customer-identity"
+                            class="inline-flex h-10 items-center rounded-lg border border-border bg-surface px-4 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted"
+                        >
+                            Cancel
+                        </a>
+                        <button type="submit" class="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-semibold text-white transition hover:bg-brand-hover">Save contact details</button>
                     </div>
                 </div>
-            </div>
-
-            @if($canManageCustomers)
-                <div class="w-full lg:w-72 space-y-3">
-                    <form action="{{ route('customers.tags.store', $customer) }}" method="POST" class="flex gap-2">
-                        @csrf
-                        <input name="name" class="h-10 min-w-0 flex-1 rounded-lg border border-border px-3 text-sm" placeholder="Add tag">
-                        <button class="h-10 rounded-lg bg-brand px-3 text-sm font-semibold text-white">Add</button>
-                    </form>
-                    <form action="{{ route('customers.marketing.update', $customer) }}" method="POST" class="rounded-xl border border-[#E2E8F0] bg-surface-muted p-3 text-sm">
-                        @csrf
-                        @method('PATCH')
-                        <label class="flex items-center gap-2 text-[#475569]">
-                            <input type="checkbox" name="marketing_consent" value="1" @checked($customer->marketing_consent || $customer->accepts_marketing) class="rounded border-border">
-                            Marketing consent accepted
-                        </label>
-                        <input name="marketing_consent_source" value="{{ $customer->marketing_consent_source ?? 'dashboard' }}" class="mt-2 h-9 w-full rounded-lg border border-border px-3 text-sm" placeholder="Consent source">
-                        <button class="mt-2 h-9 w-full rounded-lg border border-border bg-white text-sm font-semibold text-ink">Save consent</button>
-                    </form>
-                </div>
-            @endif
-        </div>
+            </form>
+        @endif
     </section>
 
     <section class="grid grid-cols-1 gap-4 md:grid-cols-4">

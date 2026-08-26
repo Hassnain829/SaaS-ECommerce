@@ -67,7 +67,7 @@ The visible surface is explicitly a “Developer test storefront” using one br
 
 ### 7. Customer identity is not fully manageable
 
-Merchants can manage customer addresses, status, tags, notes, and marketing consent, but cannot directly correct the customer’s name, email, or phone from the customer profile.
+Merchants can manage customer addresses, status, tags, notes, marketing consent, and core identity (name, email, phone) from the customer profile (DR-07 complete).
 
 **Risk:** Real customer service work reaches a dead end.
 
@@ -177,7 +177,7 @@ Focused coverage in `tests/Feature/Dr06MerchantAcceptanceTest.php` (9 tests, 83 
 8. Configure a manual delivery area and option (ship-from → deliver-to → delivery-option → review).
 9–10. Invite a teammate and verify owner/manager/staff restricted actions across two stores.
 
-Customer name/email/phone identity editing remains **DR-07**, not this ticket.
+Customer name/email/phone identity editing is **DR-07** (complete).
 
 **Acceptance:** No cross-store leakage on the exercised paths; staff cannot import, invite, or open Website manage surfaces; draft conversion and stock movements stay on the current store; developer-only wording is not required for these flows.
 
@@ -203,6 +203,8 @@ Shipped behavior:
 
 #### DR-07 — Finish customer profile editing
 
+**Status:** Complete (store-scoped identity create/edit; focused coverage in `Dr07CustomerIdentityEditingTest`).
+
 - Add a direct Add customer action, or explicitly guide merchants to create a customer from a manual order.
 - Add store-scoped editing for name, email, and phone.
 - Define duplicate-email behavior per store.
@@ -210,6 +212,14 @@ Shipped behavior:
 - Add clear validation and success feedback.
 
 **Acceptance:** Authorized merchants can correct customer identity without recreating the customer.
+
+Shipped behavior:
+
+- Customers list includes **Add customer** for authorized roles, plus guidance to create from a manual order.
+- Customer profile includes **Contact details** editing for first name, last name, email, and phone.
+- Email uniqueness is enforced per store (`customers.store_id + email`).
+- Identity creates/updates write `customer_created` / `customer_identity_updated` security logs.
+- Past order `customer_email` / `customer_phone` snapshots are not rewritten.
 
 #### DR-09 — Build real operational analytics or keep it hidden
 
@@ -283,7 +293,7 @@ Keep these out of the development-readiness gate requested for this review:
 8. DR-05 Batch 7 merchant migration/cutover — complete (Website go-live checklist).
 9. DR-05 Batch 8 release recovery/acceptance mapping — complete; DR-05 signed off.
 10. Continue DR-06 cross-role/two-store merchant acceptance — complete (automated acceptance, 2026-08-20).
-11. DR-07 and DR-09 through DR-12.
+11. DR-07 — complete. Continue DR-09 through DR-12.
 12. DR-13 and DR-14 after merchant sign-off.
 
 ## Sign-off standard

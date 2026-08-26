@@ -58,7 +58,7 @@ Current work priority:
 6. DR-05 WordPress connection: **complete** (Batches 1–8). Ten browser scenarios closed by merchant confirmation; go-live checklist ships on Website; Batch 8 mapping in `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`
 7. DR-06 owner/manager/staff and two-store acceptance: **complete** (automated journey in `Dr06MerchantAcceptanceTest`; DR-07 identity editing still open)
 8. Actionable settings — **complete** (DR-08 in-page General Settings form)
-9. Customer identity editing
+9. Customer identity editing — **complete** (DR-07)
 10. Real or hidden analytics/admin surfaces
 
 ## Connected websites (current code)

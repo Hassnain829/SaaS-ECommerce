@@ -267,7 +267,13 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
         ->name('draft-orders.destroy');
 
     Route::get('/customers', [DashboardController::class, 'customers'])->name('customers');
+    Route::post('/customers', [CustomerController::class, 'store'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.store');
     Route::get('/customers/{customer}', [DashboardController::class, 'customersProfile'])->name('customersProfile');
+    Route::patch('/customers/{customer}/identity', [CustomerController::class, 'updateIdentity'])
+        ->middleware('store.permission:customers.manage')
+        ->name('customers.identity.update');
     Route::post('/customers/{customer}/notes', [CustomerController::class, 'storeNote'])
         ->middleware('store.permission:customers.manage')
         ->name('customers.notes.store');

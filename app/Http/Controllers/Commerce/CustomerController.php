@@ -15,6 +15,126 @@ use Illuminate\Validation\Rule;
 
 class CustomerController extends Controller
 {
+    public function store(Request $request): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+
+        $validated = $request->validate([
+            'first_name' => ['nullable', 'string', 'max:80'],
+            'last_name' => ['nullable', 'string', 'max:80'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('customers', 'email')->where(fn ($query) => $query->where('store_id', $store->id)),
+            ],
+            'phone' => ['nullable', 'string', 'max:80'],
+        ], [
+            'email.unique' => 'Another customer in this store already uses this email.',
+        ]);
+
+        $firstName = filled($validated['first_name'] ?? null) ? trim((string) $validated['first_name']) : null;
+        $lastName = filled($validated['last_name'] ?? null) ? trim((string) $validated['last_name']) : null;
+        $fullName = trim(collect([$firstName, $lastName])->filter()->implode(' '));
+
+        $customer = Customer::query()->create([
+            'store_id' => $store->id,
+            'email' => strtolower(trim((string) $validated['email'])),
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'full_name' => $fullName !== '' ? $fullName : null,
+            'phone' => filled($validated['phone'] ?? null) ? trim((string) $validated['phone']) : null,
+            'status' => 'active',
+            'source' => 'dashboard',
+        ]);
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'customer_created',
+            store: $store,
+            metadata: [
+                'customer_id' => $customer->id,
+                'email' => $customer->email,
+            ]
+        );
+
+        return redirect()
+            ->route('customersProfile', $customer)
+            ->with('success', 'Customer created.')
+            ->with('success_title', 'Customer added')
+            ->with('success_meta', 'You can update their contact details anytime from this profile.');
+    }
+
+    public function updateIdentity(Request $request, Customer $customer): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        $this->assertCustomerBelongsToStore($customer, $store->id);
+
+        $validated = $request->validate([
+            'first_name' => ['nullable', 'string', 'max:80'],
+            'last_name' => ['nullable', 'string', 'max:80'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('customers', 'email')
+                    ->where(fn ($query) => $query->where('store_id', $store->id))
+                    ->ignore($customer->id),
+            ],
+            'phone' => ['nullable', 'string', 'max:80'],
+        ], [
+            'email.unique' => 'Another customer in this store already uses this email.',
+        ]);
+
+        $firstName = filled($validated['first_name'] ?? null) ? trim((string) $validated['first_name']) : null;
+        $lastName = filled($validated['last_name'] ?? null) ? trim((string) $validated['last_name']) : null;
+        $fullName = trim(collect([$firstName, $lastName])->filter()->implode(' '));
+        $email = strtolower(trim((string) $validated['email']));
+        $phone = filled($validated['phone'] ?? null) ? trim((string) $validated['phone']) : null;
+
+        $previous = [
+            'first_name' => $customer->first_name,
+            'last_name' => $customer->last_name,
+            'full_name' => $customer->full_name,
+            'email' => $customer->email,
+            'phone' => $customer->phone,
+        ];
+
+        $customer->update([
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'full_name' => $fullName !== '' ? $fullName : null,
+            'email' => $email,
+            'phone' => $phone,
+        ]);
+
+        $changed = [];
+        foreach (['first_name', 'last_name', 'email', 'phone'] as $field) {
+            if ((string) ($previous[$field] ?? '') !== (string) ($customer->{$field} ?? '')) {
+                $changed[] = $field;
+            }
+        }
+
+        if ($changed !== []) {
+            app(SecurityLogRecorder::class)->record(
+                $request,
+                'customer_identity_updated',
+                store: $store,
+                metadata: [
+                    'customer_id' => $customer->id,
+                    'changed' => $changed,
+                    'previous_email' => $previous['email'],
+                    'email' => $customer->email,
+                ]
+            );
+        }
+
+        return back()
+            ->with('success', 'Customer contact details updated.')
+            ->with('success_title', 'Customer updated')
+            ->with('success_meta', 'Name, email, and phone changes apply to this customer profile going forward. Past orders keep their original snapshots.');
+    }
+
     public function storeNote(Request $request, Customer $customer): RedirectResponse
     {
         $store = $request->attributes->get('currentStore');

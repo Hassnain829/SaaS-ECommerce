@@ -1289,6 +1289,7 @@ class DashboardController extends Controller
             'statusCounts' => $statusCounts,
             'customerTags' => $customerTags,
             'canManageOrders' => $request->user()?->canManageOrders($selectedStore) ?? false,
+            'canManageCustomers' => $request->user()?->canManageCustomers($selectedStore) ?? false,
         ]);
     }
 
