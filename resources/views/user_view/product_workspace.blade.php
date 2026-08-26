@@ -51,8 +51,9 @@
 @section('sidebar_brand_subtitle', optional($selectedStore)->name ?? 'E-commerce Portal')
 
 @section('content')
-    <div class="ui-page-enter flex-1 overflow-y-auto bg-[color:var(--color-canvas)] p-4 lg:p-8">
-        <div class="w-full space-y-5">
+    <div id="product-workspace" class="product-workspace -m-4 flex min-h-full flex-col lg:-m-8">
+        <div class="w-full flex-1">
+            <div class="w-full space-y-5 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
             @include('user_view.partials.flash_success')
 
             {{-- Breadcrumb + header --}}
@@ -654,6 +655,7 @@
                         @endif
                     </details>
                 </aside>
+            </div>
             </div>
         </div>
     </div>
