@@ -34,6 +34,12 @@ jobs:
         (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
       )
 
+    env:
+      CPANEL_SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+      CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+      CPANEL_SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+      CPANEL_DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
+
     steps:
       - name: Resolve deploy ref
         id: ref
@@ -85,27 +91,31 @@ jobs:
           test -d public/build
           test "$(find public/build -type f | wc -l)" -gt 0
 
-      - name: Deploy release to cPanel (rsync)
-        uses: burnett01/rsync-deployments@7.1.0
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.1
         with:
-          switches: -avzr --delete --exclude-from=scripts/deploy/rsync-exclude.txt
-          path: ./
-          remote_path: ${{ secrets.CPANEL_DEPLOY_PATH }}
-          remote_host: ${{ secrets.CPANEL_SSH_HOST }}
-          remote_user: ${{ secrets.CPANEL_SSH_USER }}
-          remote_key: ${{ secrets.CPANEL_SSH_KEY }}
-          remote_port: ${{ secrets.CPANEL_SSH_PORT }}
+          ssh-private-key: ${{ secrets.CPANEL_SSH_KEY }}
+
+      - name: Register server host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${CPANEL_SSH_PORT}" -H "${CPANEL_SSH_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Verify SSH connection
+        run: |
+          ssh -p "${CPANEL_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" \
+            "echo SSH_OK && whoami && test -d '${CPANEL_DEPLOY_PATH}' && echo DEPLOY_PATH_OK"
+
+      - name: Deploy release to cPanel (rsync)
+        run: |
+          rsync -avzr --delete \
+            --exclude-from=scripts/deploy/rsync-exclude.txt \
+            -e "ssh -p ${CPANEL_SSH_PORT} -o BatchMode=yes -o StrictHostKeyChecking=yes" \
+            ./ "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:${CPANEL_DEPLOY_PATH}/"
 
       - name: Run post-deploy commands on server
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.CPANEL_SSH_HOST }}
-          username: ${{ secrets.CPANEL_SSH_USER }}
-          key: ${{ secrets.CPANEL_SSH_KEY }}
-          port: ${{ secrets.CPANEL_SSH_PORT }}
-          script_stop: true
-          script: |
-            export CPANEL_DEPLOY_PATH="${{ secrets.CPANEL_DEPLOY_PATH }}"
-            export CPANEL_PHP_BIN="${{ secrets.CPANEL_PHP_BIN }}"
-            cd "${CPANEL_DEPLOY_PATH}"
-            bash scripts/deploy/cpanel-post-deploy.sh
+        run: |
+          ssh -p "${CPANEL_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" \
+            "export CPANEL_DEPLOY_PATH='${CPANEL_DEPLOY_PATH}' && export CPANEL_PHP_BIN='${{ secrets.CPANEL_PHP_BIN }}' && cd '${CPANEL_DEPLOY_PATH}' && bash scripts/deploy/cpanel-post-deploy.sh"

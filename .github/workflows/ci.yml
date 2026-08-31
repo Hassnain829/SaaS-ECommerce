@@ -29,7 +29,7 @@ jobs:
           while IFS= read -r f; do
             [[ -z "$f" ]] && continue
             case "$f" in
-              .env.example|.env.testing.example|dev-test-storefront/.env.example) continue ;;
+              .env.example|.env.testing.example|dev-test-storefront/.env.example|dev-test-wordpress/.env.example) continue ;;
             esac
             if [[ "$f" == .env* ]] || [[ "$f" == */.env ]] || [[ "$f" == */.env.* ]]; then
               echo "Tracked non-example env file: $f"
