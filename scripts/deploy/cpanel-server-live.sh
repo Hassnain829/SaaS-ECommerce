@@ -59,6 +59,12 @@ run_npm() {
   return 1
 }
 
+install_cpanel_docroot_files() {
+  echo "==> Installing cPanel docroot index.php and .htaccess (project root = web root)"
+  cp scripts/deploy/cpanel-docroot-index.php "${APP_DIR}/index.php"
+  cp scripts/deploy/cpanel-docroot.htaccess "${APP_DIR}/.htaccess"
+}
+
 resolve_php_bin
 cd "${APP_DIR}"
 
@@ -75,6 +81,8 @@ if [[ -d .git ]]; then
 fi
 
 run_composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+install_cpanel_docroot_files
 
 if run_npm ci && run_npm run build; then
   echo "==> Frontend build complete"
