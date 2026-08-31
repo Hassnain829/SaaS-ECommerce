@@ -43,8 +43,31 @@ mkdir -p \
 
 $PHP_BIN artisan migrate --force --no-interaction
 
+link_public_storage() {
+  local target="${APP_DIR}/storage/app/public"
+  local link_path="${APP_DIR}/public/storage"
+
+  mkdir -p "${target}"
+
+  if [[ -L "${link_path}" ]]; then
+    return 0
+  fi
+
+  if [[ -e "${link_path}" && ! -L "${link_path}" ]]; then
+    rm -rf "${link_path}"
+  fi
+
+  ln -sfn "${target}" "${link_path}"
+  echo "==> Linked public/storage -> storage/app/public"
+}
+
 if [[ ! -L public/storage ]]; then
-  $PHP_BIN artisan storage:link --force
+  if $PHP_BIN artisan storage:link --force 2>/dev/null; then
+    echo "==> storage:link via artisan"
+  else
+    echo "==> artisan storage:link unavailable (exec disabled?) — linking manually"
+    link_public_storage
+  fi
 fi
 
 $PHP_BIN artisan config:clear
