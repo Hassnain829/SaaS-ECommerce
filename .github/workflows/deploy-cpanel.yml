@@ -1,0 +1,111 @@
+name: Deploy to cPanel
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy (branch, tag, or SHA). Defaults to the branch you run this workflow from.
+        required: false
+        default: ''
+
+concurrency:
+  group: deploy-cpanel-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
+      )
+
+    steps:
+      - name: Resolve deploy ref
+        id: ref
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            REF="${{ inputs.ref }}"
+            if [[ -z "$REF" ]]; then
+              REF="${{ github.ref_name }}"
+            fi
+            echo "sha=$REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, ctype, curl, dom, fileinfo, intl, mbstring, openssl, pdo, pdo_mysql, tokenizer, xml, xmlwriter, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies (production)
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Composer validate
+        run: composer validate --strict
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install npm dependencies and build assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify production build output
+        run: |
+          test -d public/build
+          test "$(find public/build -type f | wc -l)" -gt 0
+
+      - name: Deploy release to cPanel (rsync)
+        uses: burnett01/rsync-deployments@7.1.0
+        with:
+          switches: -avzr --delete --exclude-from=scripts/deploy/rsync-exclude.txt
+          path: ./
+          remote_path: ${{ secrets.CPANEL_DEPLOY_PATH }}
+          remote_host: ${{ secrets.CPANEL_SSH_HOST }}
+          remote_user: ${{ secrets.CPANEL_SSH_USER }}
+          remote_key: ${{ secrets.CPANEL_SSH_KEY }}
+          remote_port: ${{ secrets.CPANEL_SSH_PORT }}
+
+      - name: Run post-deploy commands on server
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.CPANEL_SSH_HOST }}
+          username: ${{ secrets.CPANEL_SSH_USER }}
+          key: ${{ secrets.CPANEL_SSH_KEY }}
+          port: ${{ secrets.CPANEL_SSH_PORT }}
+          script_stop: true
+          script: |
+            export CPANEL_DEPLOY_PATH="${{ secrets.CPANEL_DEPLOY_PATH }}"
+            export CPANEL_PHP_BIN="${{ secrets.CPANEL_PHP_BIN }}"
+            cd "${CPANEL_DEPLOY_PATH}"
+            bash scripts/deploy/cpanel-post-deploy.sh

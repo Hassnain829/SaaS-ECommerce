@@ -1,0 +1,21 @@
+---
+# Optional: cPanel "Git Version Control" deployment tasks.
+# Use this ONLY if you deploy by pulling Git inside cPanel instead of GitHub Actions rsync.
+# Replace DEPLOYPATH with your Laravel app root (outside public_html is recommended).
+#
+# GitHub Actions deploy (.github/workflows/deploy-cpanel.yml) is the primary CI/CD path.
+# After changing this file, trigger "Deploy HEAD Commit" from cPanel Git Version Control.
+
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/resolutedigita2/public_html/ecom.resolutedigitalspk.com
+    - export PHP_BIN=/usr/local/bin/ea-php83
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -R app bootstrap config database docs public resources routes scripts storage vendor artisan composer.json composer.lock package.json package-lock.json vite.config.js .env.example $DEPLOYPATH/
+    - cd $DEPLOYPATH
+    - $PHP_BIN /usr/local/bin/composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+    - /usr/local/bin/npm ci
+    - /usr/local/bin/npm run build
+    - test -f .env || /bin/cp .env.example .env
+    - $PHP_BIN artisan key:generate --force --no-interaction
+    - bash scripts/deploy/cpanel-post-deploy.sh
