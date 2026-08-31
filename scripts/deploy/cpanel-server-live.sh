@@ -86,6 +86,8 @@ install_cpanel_docroot_files
 
 if run_npm ci && run_npm run build; then
   echo "==> Frontend build complete"
+elif [[ -d public/build ]] && [[ -f public/build/manifest.json ]]; then
+  echo "==> Using committed public/build assets from git"
 else
   echo "WARN: npm not available — ensure public/build exists (GitHub Actions deploy can supply it)." >&2
   if [[ ! -d public/build ]] || [[ "$(find public/build -type f 2>/dev/null | wc -l)" -eq 0 ]]; then
