@@ -34,7 +34,22 @@ if [[ ! -f composer.phar ]]; then
   curl -sS https://getcomposer.org/download/latest-stable/composer.phar -o composer.phar
 fi
 
-"${PHP_BIN}" composer.phar install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+# cPanel often disables proc_open. Composer post-scripts (package:discover) then fail.
+# Install without scripts, then discover packages best-effort.
+"${PHP_BIN}" composer.phar install \
+  --no-dev \
+  --no-interaction \
+  --prefer-dist \
+  --optimize-autoloader \
+  --no-scripts
+
+"${PHP_BIN}" artisan package:discover --ansi 2>/dev/null || \
+  echo "WARN: package:discover skipped (proc_open disabled). Using existing bootstrap cache if present."
+
+if [[ ! -f vendor/autoload.php ]]; then
+  echo "ERROR: vendor/autoload.php missing after composer install." >&2
+  exit 1
+fi
 
 if [[ ! -f public/build/manifest.json ]]; then
   echo "ERROR: public/build/manifest.json missing after git pull." >&2

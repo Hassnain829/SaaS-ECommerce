@@ -80,7 +80,9 @@ if [[ -d .git ]]; then
   git pull origin main || git pull origin master
 fi
 
-run_composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+run_composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-scripts
+"${PHP_BIN}" artisan package:discover --ansi 2>/dev/null || \
+  echo "WARN: package:discover skipped (proc_open disabled)."
 
 install_cpanel_docroot_files
 
