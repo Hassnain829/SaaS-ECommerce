@@ -1,17 +1,9 @@
 ---
 # Runs automatically after "Update from Remote" in cPanel Git Version Control.
-# GitHub Actions rsync deploy is primary when SSH secrets work; this is the fallback.
 
 deployment:
   tasks:
     - export DEPLOYPATH=/home/resolutedigita2/public_html/ecom.resolutedigitalspk.com
-    - export PHP_BIN=/usr/local/bin/ea-php83
+    - export CPANEL_PHP_BIN=/usr/local/bin/ea-php83
     - cd $DEPLOYPATH
-    - cp scripts/deploy/cpanel-docroot-index.php index.php
-    - cp scripts/deploy/cpanel-docroot.htaccess .htaccess
-    - test -f composer.phar || curl -sS https://getcomposer.org/download/latest-stable/composer.phar -o composer.phar
-    - $PHP_BIN composer.phar install --no-dev --no-interaction --prefer-dist --optimize-autoloader
-    - mkdir -p storage/app/public
-    - ln -sfn ../storage/app/public public/storage
-    - /bin/chmod -R ug+rwx storage bootstrap/cache
-    - /bin/bash scripts/deploy/cpanel-post-deploy.sh
+    - /bin/bash scripts/deploy/cpanel-go-live-now.sh

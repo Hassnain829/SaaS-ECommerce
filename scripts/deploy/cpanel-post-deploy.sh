@@ -70,18 +70,12 @@ if [[ ! -L public/storage ]]; then
   fi
 fi
 
-$PHP_BIN artisan config:clear
-$PHP_BIN artisan route:clear
-$PHP_BIN artisan view:clear
+$PHP_BIN artisan config:clear || true
+$PHP_BIN artisan route:clear || true
+$PHP_BIN artisan view:clear || true
+rm -f bootstrap/cache/*.php
 
-$PHP_BIN artisan config:cache
-$PHP_BIN artisan route:cache
-$PHP_BIN artisan view:cache
-
-if $PHP_BIN artisan list --raw 2>/dev/null | grep -q '^event:cache$'; then
-  $PHP_BIN artisan event:cache
-fi
-
-$PHP_BIN artisan optimize
+# Avoid route:cache / optimize / event:cache on hosts where proc_open is disabled.
+$PHP_BIN artisan config:cache || true
 
 echo "==> Post-deploy finished at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
