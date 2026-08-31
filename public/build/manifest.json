@@ -1,0 +1,36 @@
+{
+  "node_modules/pdfjs-dist/build/pdf.worker.min.mjs": {
+    "file": "assets/pdf.worker.min-DEtVeC4l.mjs",
+    "src": "node_modules/pdfjs-dist/build/pdf.worker.min.mjs"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-DsDYGHxL.css",
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "name": "app",
+    "names": [
+      "app.css"
+    ]
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-krAy-NhQ.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/js/delivery/hub.js": {
+    "file": "assets/hub-BxbV3vXf.js",
+    "name": "hub",
+    "src": "resources/js/delivery/hub.js",
+    "isEntry": true
+  },
+  "resources/js/fedex-eula-viewer.js": {
+    "file": "assets/fedex-eula-viewer-CXH__DM4.js",
+    "name": "fedex-eula-viewer",
+    "src": "resources/js/fedex-eula-viewer.js",
+    "isEntry": true,
+    "assets": [
+      "assets/pdf.worker.min-DEtVeC4l.mjs"
+    ]
+  }
+}
