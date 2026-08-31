@@ -37,8 +37,8 @@ run_composer() {
   fi
 
   echo "==> Bootstrapping composer.phar"
-  curl -sS https://getcomposer.org/installer | "${PHP_BIN}"
-  "${PHP_BIN}" composer.phar "$@"
+  curl -sS https://getcomposer.org/download/latest-stable/composer.phar -o "${APP_DIR}/composer.phar"
+  "${PHP_BIN}" "${APP_DIR}/composer.phar" "$@"
 }
 
 run_npm() {
