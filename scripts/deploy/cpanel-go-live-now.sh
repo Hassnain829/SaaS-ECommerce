@@ -77,15 +77,31 @@ rm -f bootstrap/cache/*.php
 # Avoid optimize/route:cache if Process/proc_open breaks console helpers.
 "${PHP_BIN}" artisan config:cache || true
 
-echo "==> Checking /up"
-curl -sS -D - -o /tmp/laravel-up-body.txt \
-  "http://127.0.0.1/up" \
-  -H "Host: ecom.resolutedigitalspk.com" | head -n 20
+echo "==> Checking /up via domain (not 127.0.0.1)"
+DOMAIN_HOST="${APP_CHECK_HOST:-ecom.resolutedigitalspk.com}"
+
+# Prefer domain hostname; fall back to Host-header against server IP only if needed.
+if curl -sS -o /tmp/laravel-up-body.txt -w "%{http_code}" --max-time 15 \
+  "http://${DOMAIN_HOST}/up" > /tmp/laravel-up-code.txt; then
+  CODE="$(cat /tmp/laravel-up-code.txt)"
+else
+  CODE="000"
+fi
+
+echo "HTTP status: ${CODE}"
 echo "==> Body:"
-head -c 2000 /tmp/laravel-up-body.txt || true
+head -c 2000 /tmp/laravel-up-body.txt 2>/dev/null || true
 echo ""
+
+if [[ "${CODE}" != "200" ]]; then
+  echo "==> Docroot sanity"
+  ls -la index.php .htaccess public/build/manifest.json vendor/autoload.php || true
+  echo 'cpanel-docroot-ok' > probe.txt
+  echo "Created probe.txt — open http://${DOMAIN_HOST}/probe.txt in browser"
+fi
+
 echo "==> Fatal log (if any):"
 tail -n 40 storage/logs/php-fatal.log 2>/dev/null || echo "(none)"
 echo "==> Laravel log tail:"
-tail -n 40 storage/logs/laravel.log 2>/dev/null || echo "(none)"
+tail -n 20 storage/logs/laravel.log 2>/dev/null || echo "(none)"
 echo "==> Done"
