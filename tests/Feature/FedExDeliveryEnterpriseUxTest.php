@@ -4,7 +4,12 @@ namespace Tests\Feature;
 
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\Checkout;
+use App\Models\CheckoutItem;
 use App\Models\Location;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
@@ -12,13 +17,21 @@ use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\Connection\FedExMerchantConnectionLifecycleService;
+use App\Services\Carriers\FedEx\Operations\FedExCheckoutPackageBuilder;
 use App\Services\Carriers\FedEx\Operations\FedExCheckoutRateResolver;
+use App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService;
 use App\Services\Delivery\DeliveryOptionInputNormalizer;
 use App\Services\Delivery\DeliverySetupStatusService;
+use App\Services\Delivery\ManualDeliveryProviderResolver;
+use App\Services\Fulfillment\ShipmentService;
+use App\Support\OrderLifecycle;
 use Database\Seeders\CarrierSeeder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use ReflectionMethod;
 use Tests\TestCase;
 
@@ -239,7 +252,7 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
     public function test_health_flags_carrier_pricing_linked_to_manual(): void
     {
         [$owner, $store] = $this->ownerStore('Manual Carrier Pricing');
-        $manual = app(\App\Services\Delivery\ManualDeliveryProviderResolver::class)
+        $manual = app(ManualDeliveryProviderResolver::class)
             ->resolveForStore($store, $owner);
 
         $zone = ShippingZone::query()->create([
@@ -349,7 +362,7 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
         config(['carriers.fedex.checkout_rates_enabled' => false]);
         [, , $account] = $this->connectedFedExAccount('Capability Gate');
 
-        $enabled = app(\App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::class)
+        $enabled = app(FedExCheckoutCapabilityService::class)
             ->enableAccountCheckoutRatesIfAllowed($account->fresh());
 
         $this->assertFalse($enabled);
@@ -391,7 +404,7 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
     public function test_shipment_service_rejects_model_a_manual_create(): void
     {
         [$owner, $store, $account] = $this->connectedFedExAccount('Reject Model A Create');
-        $product = \App\Models\Product::query()->create([
+        $product = Product::query()->create([
             'store_id' => $store->id,
             'name' => 'Ship item',
             'slug' => 'ship-item-'.Str::random(6),
@@ -401,18 +414,18 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
             'status' => true,
             'meta' => [],
         ]);
-        $variant = \App\Models\ProductVariant::query()->create([
+        $variant = ProductVariant::query()->create([
             'product_id' => $product->id,
             'sku' => $product->sku.'-D',
             'price' => 10,
             'stock' => 5,
         ]);
-        $order = \App\Models\Order::query()->create([
+        $order = Order::query()->create([
             'store_id' => $store->id,
             'order_number' => 'ORD-MODEL-A-'.Str::upper(Str::random(4)),
-            'status' => \App\Models\Order::STATUS_CONFIRMED,
-            'fulfillment_status' => \App\Support\OrderLifecycle::FULFILLMENT_UNFULFILLED,
-            'payment_status' => \App\Support\OrderLifecycle::PAYMENT_PAID,
+            'status' => Order::STATUS_CONFIRMED,
+            'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+            'payment_status' => OrderLifecycle::PAYMENT_PAID,
             'currency_code' => 'USD',
             'subtotal' => 10,
             'total' => 10,
@@ -436,12 +449,12 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
         ]);
 
         try {
-            app(\App\Services\Fulfillment\ShipmentService::class)->createShipment($order, [
+            app(ShipmentService::class)->createShipment($order, [
                 'carrier_account_id' => $account->id,
                 'items' => [$item->id => 1],
             ], $owner);
             $this->fail('Expected ValidationException for Model A FedEx manual create');
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             $this->assertArrayHasKey('carrier_account_id', $e->errors());
         }
     }
@@ -451,12 +464,12 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
         [$ownerA, $storeA] = $this->ownerStore('Shipments Store A');
         [, $storeB] = $this->ownerStore('Shipments Store B');
 
-        $orderB = \App\Models\Order::query()->create([
+        $orderB = Order::query()->create([
             'store_id' => $storeB->id,
             'order_number' => 'ORD-B-'.Str::upper(Str::random(4)),
-            'status' => \App\Models\Order::STATUS_CONFIRMED,
-            'fulfillment_status' => \App\Support\OrderLifecycle::FULFILLMENT_UNFULFILLED,
-            'payment_status' => \App\Support\OrderLifecycle::PAYMENT_PAID,
+            'status' => Order::STATUS_CONFIRMED,
+            'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+            'payment_status' => OrderLifecycle::PAYMENT_PAID,
             'currency_code' => 'USD',
             'subtotal' => 10,
             'total' => 10,
@@ -481,21 +494,21 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
 
     public function test_shipment_order_return_relationship_exists_when_migrated(): void
     {
-        if (! \Illuminate\Support\Facades\Schema::hasColumn('shipments', 'order_return_id')) {
+        if (! Schema::hasColumn('shipments', 'order_return_id')) {
             $this->markTestSkipped('order_return_id migration not applied yet');
         }
 
         $this->assertTrue(method_exists(Shipment::class, 'orderReturn'));
         $relation = (new Shipment)->orderReturn();
-        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Relations\BelongsTo::class, $relation);
+        $this->assertInstanceOf(BelongsTo::class, $relation);
     }
 
     public function test_package_builder_ready_false_without_fake_defaults_when_weights_missing(): void
     {
         [$owner, $store] = $this->ownerStore('Package Builder Missing Weight');
-        $checkout = new \App\Models\Checkout(['store_id' => $store->id]);
+        $checkout = new Checkout(['store_id' => $store->id]);
         $checkout->setRelation('store', $store);
-        $item = new \App\Models\CheckoutItem([
+        $item = new CheckoutItem([
             'id' => 1,
             'quantity' => 1,
             'product_variant_id' => 99,
@@ -504,7 +517,7 @@ class FedExDeliveryEnterpriseUxTest extends TestCase
         ]);
         $checkout->setRelation('items', collect([$item]));
 
-        $build = app(\App\Services\Carriers\FedEx\Operations\FedExCheckoutPackageBuilder::class)
+        $build = app(FedExCheckoutPackageBuilder::class)
             ->buildFromCheckout($checkout);
 
         $this->assertFalse($build['ready']);

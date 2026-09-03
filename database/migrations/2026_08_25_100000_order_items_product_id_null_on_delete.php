@@ -41,7 +41,7 @@ return new class extends Migration
 
         // Cannot safely restore NOT NULL + CASCADE if any product_id is already NULL.
         if (DB::table('order_items')->whereNull('product_id')->exists()) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'Cannot safely roll back order_items.product_id nullOnDelete: historical rows contain NULL product references.'
             );
         }

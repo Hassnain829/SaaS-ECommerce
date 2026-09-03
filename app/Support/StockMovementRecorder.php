@@ -2,11 +2,14 @@
 
 namespace App\Support;
 
+use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ProductVariationOption;
 use App\Models\StockMovement;
 use App\Models\Store;
 use App\Services\Inventory\InventoryAdjustmentService;
+use App\Services\Inventory\InventorySyncService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -34,7 +37,7 @@ final class StockMovementRecorder
     {
         $variant->loadMissing(['options.variationType']);
 
-        /** @var Collection<int, \App\Models\ProductVariationOption> $options */
+        /** @var Collection<int, ProductVariationOption> $options */
         $options = $variant->options;
 
         if ($options->isEmpty()) {
@@ -165,7 +168,7 @@ final class StockMovementRecorder
         ?int $performedBy,
         int $productImportId,
         ?string $reason = null,
-        ?\App\Models\Location $location = null,
+        ?Location $location = null,
     ): void {
         if ($previousStock !== null && $previousStock === $newStock) {
             return;
@@ -186,7 +189,7 @@ final class StockMovementRecorder
             ];
             $adjustment = app(InventoryAdjustmentService::class);
             if ($location !== null) {
-                $item = app(\App\Services\Inventory\InventorySyncService::class)
+                $item = app(InventorySyncService::class)
                     ->ensureInventoryItemForVariant($variant);
                 $adjustment->setAvailable(
                     $item,

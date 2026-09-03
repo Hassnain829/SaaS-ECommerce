@@ -8,6 +8,7 @@ use App\Models\CarrierAccount;
 use App\Models\Checkout;
 use App\Models\CheckoutItem;
 use App\Models\CheckoutTaxLine;
+use App\Models\InventoryReservation;
 use App\Models\PaymentIntent;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -20,6 +21,8 @@ use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Models\User;
 use App\Services\Checkout\CheckoutTotalsService;
+use App\Services\ConnectedSiteService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -54,7 +57,7 @@ class PlatformCheckoutTaxTest extends TestCase
             ],
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -128,7 +131,7 @@ class PlatformCheckoutTaxTest extends TestCase
 
         $this->assertSame(0, Checkout::query()->where('store_id', $store->id)->count());
         $this->assertSame(0, CheckoutTaxLine::query()->where('store_id', $store->id)->count());
-        $this->assertSame(0, \App\Models\InventoryReservation::query()->where('store_id', $store->id)->count());
+        $this->assertSame(0, InventoryReservation::query()->where('store_id', $store->id)->count());
     }
 
     public function test_cross_store_tax_rates_never_apply(): void
@@ -315,7 +318,7 @@ class PlatformCheckoutTaxTest extends TestCase
         $this->assertSame(0, CheckoutItem::query()->where('store_id', $store->id)->count());
         $this->assertSame(0, CheckoutTaxLine::query()->where('store_id', $store->id)->count());
         $this->assertSame(0, PaymentIntent::query()->where('store_id', $store->id)->count());
-        $this->assertSame(0, \App\Models\InventoryReservation::query()->where('store_id', $store->id)->count());
+        $this->assertSame(0, InventoryReservation::query()->where('store_id', $store->id)->count());
     }
 
     public function test_two_letter_country_field_applies_tax_when_country_code_missing(): void
@@ -660,7 +663,7 @@ class PlatformCheckoutTaxTest extends TestCase
         $this->assertSame(0, Checkout::query()->where('store_id', $store->id)->count());
         $this->assertSame(0, CheckoutItem::query()->count());
         $this->assertSame(0, CheckoutTaxLine::query()->where('store_id', $store->id)->count());
-        $this->assertSame(0, \App\Models\InventoryReservation::query()->where('store_id', $store->id)->count());
+        $this->assertSame(0, InventoryReservation::query()->where('store_id', $store->id)->count());
     }
 
     public function test_duplicate_variant_rows_merge_with_correct_tax(): void
@@ -772,7 +775,7 @@ class PlatformCheckoutTaxTest extends TestCase
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
         $this->connectReadyStripeForCheckout($store);
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
+use App\Models\ConnectedSite;
 use App\Models\ConnectedSiteEventDelivery;
 use App\Models\ConnectedSiteOutboxEvent;
 use App\Models\Product;
@@ -354,7 +355,7 @@ class CatalogCacheInvalidationTest extends TestCase
     }
 
     /**
-     * @return array{0: User, 1: Store, 2: string, 3: \App\Models\ConnectedSite}
+     * @return array{0: User, 1: Store, 2: string, 3: ConnectedSite}
      */
     private function connectedStore(string $name, string $url = 'http://127.0.0.1:8080'): array
     {

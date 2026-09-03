@@ -198,7 +198,6 @@ final class FedExProductionShipRequestBuilder
     }
 
     /**
-     * @param  mixed  $packages
      * @return list<array<string, mixed>>
      */
     private function normalizePackages(mixed $packages): array

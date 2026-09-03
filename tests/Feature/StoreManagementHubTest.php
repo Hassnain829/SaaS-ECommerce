@@ -3,11 +3,19 @@
 namespace Tests\Feature;
 
 use App\Models\Customer;
+use App\Models\Location;
 use App\Models\Order;
+use App\Models\PaymentProviderAccount;
+use App\Models\Product;
 use App\Models\Role;
+use App\Models\ShippingMethod;
+use App\Models\ShippingZone;
 use App\Models\Store;
+use App\Models\TaxRate;
+use App\Models\TaxSetting;
 use App\Models\User;
 use App\Services\OrderEventRecorder;
+use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -115,9 +123,9 @@ class StoreManagementHubTest extends TestCase
 
         $this->seedOperationalSetup($store);
 
-        $this->assertSame(\App\Support\CheckoutMode::PLATFORM, \App\Support\CheckoutMode::forStore($store->fresh()));
+        $this->assertSame(CheckoutMode::PLATFORM, CheckoutMode::forStore($store->fresh()));
         $this->assertFalse(
-            \App\Models\PaymentProviderAccount::query()->where('store_id', $store->id)->exists()
+            PaymentProviderAccount::query()->where('store_id', $store->id)->exists()
         );
 
         $this->actingAs($owner)
@@ -244,7 +252,7 @@ class StoreManagementHubTest extends TestCase
         $store = $this->store($owner, 'Metrics Hub Store', onboardingCompleted: true);
         $this->attach($store, $owner, Store::ROLE_OWNER);
 
-        \App\Models\Product::query()->create([
+        Product::query()->create([
             'store_id' => $store->id,
             'name' => 'Hub Product',
             'slug' => 'hub-product-'.fake()->unique()->numberBetween(1000, 9999),
@@ -281,7 +289,7 @@ class StoreManagementHubTest extends TestCase
 
     private function seedOperationalSetup(Store $store): void
     {
-        \App\Models\Product::query()->create([
+        Product::query()->create([
             'store_id' => $store->id,
             'name' => 'Ready Product',
             'slug' => 'ready-product-'.fake()->unique()->numberBetween(1000, 9999),
@@ -293,10 +301,10 @@ class StoreManagementHubTest extends TestCase
             'meta' => [],
         ]);
 
-        \App\Models\Location::query()->create([
+        Location::query()->create([
             'store_id' => $store->id,
             'name' => 'Main warehouse',
-            'type' => \App\Models\Location::TYPE_WAREHOUSE,
+            'type' => Location::TYPE_WAREHOUSE,
             'address_line1' => '100 Main St',
             'city' => 'Austin',
             'state' => 'TX',
@@ -307,18 +315,18 @@ class StoreManagementHubTest extends TestCase
             'fulfills_online_orders' => true,
         ]);
 
-        \App\Models\TaxSetting::query()->updateOrCreate(
+        TaxSetting::query()->updateOrCreate(
             ['store_id' => $store->id],
             [
                 'enabled' => true,
                 'prices_include_tax' => false,
                 'default_product_taxable' => true,
                 'shipping_taxable' => false,
-                'calculation_address' => \App\Models\TaxSetting::CALCULATION_ADDRESS_SHIPPING,
+                'calculation_address' => TaxSetting::CALCULATION_ADDRESS_SHIPPING,
             ]
         );
 
-        \App\Models\TaxRate::query()->create([
+        TaxRate::query()->create([
             'store_id' => $store->id,
             'country_code' => 'US',
             'region_code' => 'TX',
@@ -328,20 +336,20 @@ class StoreManagementHubTest extends TestCase
             'is_active' => true,
         ]);
 
-        $zone = \App\Models\ShippingZone::query()->create([
+        $zone = ShippingZone::query()->create([
             'store_id' => $store->id,
             'name' => 'Domestic',
             'countries' => ['US'],
             'is_active' => true,
         ]);
 
-        \App\Models\ShippingMethod::query()->create([
+        ShippingMethod::query()->create([
             'store_id' => $store->id,
             'shipping_zone_id' => $zone->id,
             'carrier_account_id' => null,
             'name' => 'Standard',
             'code' => 'standard-'.fake()->unique()->numberBetween(1000, 9999),
-            'rate_type' => \App\Models\ShippingMethod::RATE_FLAT,
+            'rate_type' => ShippingMethod::RATE_FLAT,
             'flat_rate' => 5,
             'enabled_for_checkout' => true,
             'is_active' => true,
@@ -350,7 +358,7 @@ class StoreManagementHubTest extends TestCase
         // Hub operational checklist does not include Stripe. Checkout is still blocked until Stripe is connected.
         $store->forceFill([
             'settings' => array_merge($store->settings ?? [], [
-                'checkout_mode' => \App\Support\CheckoutMode::PLATFORM,
+                'checkout_mode' => CheckoutMode::PLATFORM,
             ]),
         ])->save();
     }

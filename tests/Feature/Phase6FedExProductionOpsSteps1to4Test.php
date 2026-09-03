@@ -6,17 +6,24 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Models\CarrierRateQuote;
+use App\Models\Checkout;
+use App\Models\CheckoutItem;
+use App\Models\InventoryLevel;
 use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderAddress;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\ShippingMethod;
+use App\Models\ShippingPackagePreset;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
+use App\Services\Delivery\StoreShippingPreferences;
+use App\Services\Inventory\InventorySyncService;
 use App\Services\Shipping\DeliveryOptionService;
 use App\Support\OrderLifecycle;
 use Database\Seeders\CarrierSeeder;
@@ -250,7 +257,7 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
         ])->save();
         config(['carriers.fedex.checkout_rates_enabled' => true]);
 
-        $preset = \App\Models\ShippingPackagePreset::query()->create([
+        $preset = ShippingPackagePreset::query()->create([
             'store_id' => $store->id,
             'name' => 'Default box',
             'length' => 10,
@@ -262,7 +269,7 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             'is_default' => true,
             'is_active' => true,
         ]);
-        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+        app(StoreShippingPreferences::class)->update($store, [
             'default_package_preset_id' => $preset->id,
             'weight_unit' => 'LB',
         ]);
@@ -289,12 +296,12 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             'sort_order' => 1,
         ]);
 
-        $checkout = \App\Models\Checkout::query()->create([
+        $checkout = Checkout::query()->create([
             'store_id' => $store->id,
             'checkout_number' => 'CHK-'.Str::upper(Str::random(8)),
             'source_channel' => 'web',
             'mode' => 'hosted',
-            'status' => \App\Models\Checkout::STATUS_PAYMENT_PENDING,
+            'status' => Checkout::STATUS_PAYMENT_PENDING,
             'currency_code' => 'USD',
             'subtotal' => '50.00',
             'discount_total' => '0.00',
@@ -303,7 +310,7 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             'grand_total' => '50.00',
         ]);
 
-        $product = \App\Models\Product::query()->create([
+        $product = Product::query()->create([
             'store_id' => $store->id,
             'name' => 'Checkout Rate Product',
             'slug' => 'checkout-rate-'.Str::random(6),
@@ -313,7 +320,7 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             'status' => true,
             'meta' => ['weight' => 2, 'length' => 10, 'width' => 8, 'height' => 4],
         ]);
-        $variant = \App\Models\ProductVariant::query()->create([
+        $variant = ProductVariant::query()->create([
             'store_id' => $store->id,
             'product_id' => $product->id,
             'sku' => $product->sku.'-D',
@@ -321,10 +328,10 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
             'stock' => 10,
             'meta' => ['weight' => 2, 'length' => 10, 'width' => 8, 'height' => 4],
         ]);
-        $sync = app(\App\Services\Inventory\InventorySyncService::class);
+        $sync = app(InventorySyncService::class);
         $inventoryItem = $sync->ensureInventoryItemForVariant($variant);
         $sync->ensureDefaultLevelForVariant($variant->fresh(), 10);
-        \App\Models\InventoryLevel::query()
+        InventoryLevel::query()
             ->where('inventory_item_id', $inventoryItem->id)
             ->update([
                 'location_id' => $location->id,
@@ -334,7 +341,7 @@ class Phase6FedExProductionOpsSteps1to4Test extends TestCase
                 'incoming' => 0,
             ]);
 
-        \App\Models\CheckoutItem::query()->create([
+        CheckoutItem::query()->create([
             'checkout_id' => $checkout->id,
             'product_id' => $product->id,
             'product_variant_id' => $variant->id,

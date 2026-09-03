@@ -4,8 +4,13 @@ namespace Tests\Unit;
 
 use App\Models\Checkout;
 use App\Models\CheckoutItem;
+use App\Models\Location;
+use App\Models\Order;
+use App\Models\OrderAddress;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ProductVariationOption;
+use App\Models\ProductVariationType;
 use App\Models\Role;
 use App\Models\ShippingPackagePreset;
 use App\Models\Store;
@@ -15,6 +20,7 @@ use App\Services\Carriers\FedEx\Operations\FedExProductionShipRequestBuilder;
 use App\Services\Carriers\FedEx\Operations\FedExServiceAvailabilityService;
 use App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog;
 use App\Services\Delivery\StoreShippingPreferences;
+use App\Services\Delivery\VariantShippingWeightBulkService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -165,17 +171,17 @@ class FedExLiveProductionFinalizationTest extends TestCase
             'requires_shipping' => true,
             'meta' => [],
         ]);
-        $variationType = \App\Models\ProductVariationType::query()->create([
+        $variationType = ProductVariationType::query()->create([
             'product_id' => $product->id,
             'name' => 'Weight',
             'type' => 'select',
         ]);
-        $five = \App\Models\ProductVariationOption::query()->create([
+        $five = ProductVariationOption::query()->create([
             'variation_type_id' => $variationType->id,
             'value' => '5 lb',
             'sort_order' => 0,
         ]);
-        $ten = \App\Models\ProductVariationOption::query()->create([
+        $ten = ProductVariationOption::query()->create([
             'variation_type_id' => $variationType->id,
             'value' => '10 lb',
             'sort_order' => 1,
@@ -199,7 +205,7 @@ class FedExLiveProductionFinalizationTest extends TestCase
         $variantFive->options()->sync([$five->id]);
         $variantTen->options()->sync([$ten->id]);
 
-        app(\App\Services\Delivery\VariantShippingWeightBulkService::class)->apply(
+        app(VariantShippingWeightBulkService::class)->apply(
             $store,
             [$product->id],
             'use_option_values',
@@ -280,7 +286,7 @@ class FedExLiveProductionFinalizationTest extends TestCase
         ]);
         $store->refresh();
 
-        $product = \App\Models\Product::query()->create([
+        $product = Product::query()->create([
             'store_id' => $store->id,
             'name' => 'No Weight Shirt',
             'slug' => 'no-weight-shirt-'.Str::lower(Str::random(4)),
@@ -492,7 +498,7 @@ class FedExLiveProductionFinalizationTest extends TestCase
     }
 
     /**
-     * @return array{0: Store, 1: \App\Models\Order, 2: \App\Models\Location, 3: \App\Models\OrderAddress}
+     * @return array{0: Store, 1: Order, 2: Location, 3: OrderAddress}
      */
     private function minimalOrderContext(): array
     {
@@ -512,10 +518,10 @@ class FedExLiveProductionFinalizationTest extends TestCase
         ]);
         $store->members()->syncWithoutDetaching([$owner->id => ['role' => Store::ROLE_OWNER]]);
 
-        $origin = \App\Models\Location::query()->create([
+        $origin = Location::query()->create([
             'store_id' => $store->id,
             'name' => 'Warehouse',
-            'type' => \App\Models\Location::TYPE_WAREHOUSE,
+            'type' => Location::TYPE_WAREHOUSE,
             'address_line1' => '100 Commerce',
             'city' => 'Dallas',
             'state' => 'TX',
@@ -527,7 +533,7 @@ class FedExLiveProductionFinalizationTest extends TestCase
             'fulfills_online_orders' => true,
         ]);
 
-        $order = \App\Models\Order::query()->create([
+        $order = Order::query()->create([
             'store_id' => $store->id,
             'order_number' => 'ORD-ETD-'.Str::upper(Str::random(6)),
             'status' => 'paid',
@@ -540,7 +546,7 @@ class FedExLiveProductionFinalizationTest extends TestCase
             'grand_total' => 25,
         ]);
 
-        $recipient = \App\Models\OrderAddress::query()->create([
+        $recipient = OrderAddress::query()->create([
             'order_id' => $order->id,
             'type' => 'shipping',
             'name' => 'Customer',

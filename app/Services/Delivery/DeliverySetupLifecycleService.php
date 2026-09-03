@@ -4,6 +4,7 @@ namespace App\Services\Delivery;
 
 use App\Models\Store;
 use App\Services\Tax\TaxConfigurationService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
@@ -120,7 +121,7 @@ class DeliverySetupLifecycleService
         ])->save();
     }
 
-    public function clearWizardSession(\Illuminate\Http\Request $request): void
+    public function clearWizardSession(Request $request): void
     {
         $request->session()->forget([
             'delivery_wizard.location_id',

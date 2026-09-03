@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Catalog\ProductImportField;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Merchant "additional details" stored on products.meta.custom_fields and variant meta.
@@ -184,7 +185,7 @@ final class ProductCustomFieldHelper
     /**
      * Portable filter: JSON text contains key token and value token (Day 17 — simple).
      */
-    public static function metaJsonContainsCustomField(\Illuminate\Database\Eloquent\Builder $query, string $key, string $value): void
+    public static function metaJsonContainsCustomField(Builder $query, string $key, string $value): void
     {
         $key = trim($key);
         $value = trim($value);

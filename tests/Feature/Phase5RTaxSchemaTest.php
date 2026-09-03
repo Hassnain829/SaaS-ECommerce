@@ -14,6 +14,7 @@ use App\Models\TaxSetting;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -441,7 +442,7 @@ class Phase5RTaxSchemaTest extends TestCase
         $this->assertSame('8.1250', $line->rate_percent);
         $this->assertSame('123.45', $line->taxable_amount);
         $this->assertSame('10.03', $line->tax_amount);
-        $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $line->calculated_at);
+        $this->assertInstanceOf(Carbon::class, $line->calculated_at);
     }
 
     public function test_existing_products_default_to_taxable_after_migration(): void

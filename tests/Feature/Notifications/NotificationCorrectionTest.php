@@ -26,8 +26,11 @@ use App\Models\User;
 use App\Services\Inventory\InventoryAdjustmentService;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Notifications\CommerceNotificationEmitter;
+use App\Services\Notifications\LowStockNotifier;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Notifications\NotificationPreferenceService;
+use App\Services\Payments\StripePlatformPaymentProvider;
+use App\Services\RefundService;
 use App\Services\ReturnService;
 use App\Support\NotificationEvent;
 use App\Support\OrderLifecycle;
@@ -35,6 +38,7 @@ use App\Support\RefundLifecycle;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
@@ -58,7 +62,7 @@ class NotificationCorrectionTest extends TestCase
 
         $this->app->instance(PaymentProviderInterface::class, $this->succeedingRefundProvider());
         $this->app->bind(
-            \App\Services\Payments\StripePlatformPaymentProvider::class,
+            StripePlatformPaymentProvider::class,
             fn () => $this->app->make(PaymentProviderInterface::class)
         );
 
@@ -256,7 +260,7 @@ class NotificationCorrectionTest extends TestCase
         $this->assertInstanceOf(ShouldBeUnique::class, $job);
         $this->assertSame('send-notification-email:'.$row->id, $job->uniqueId());
         $this->assertInstanceOf(
-            \Illuminate\Queue\Middleware\WithoutOverlapping::class,
+            WithoutOverlapping::class,
             $job->middleware()[0] ?? null
         );
 
@@ -498,10 +502,10 @@ class NotificationCorrectionTest extends TestCase
         $mock->shouldReceive('retryEmail')->andReturn(false);
         $this->app->instance(NotificationDispatcher::class, $mock);
         $this->app->forgetInstance(CommerceNotificationEmitter::class);
-        $this->app->forgetInstance(\App\Services\Notifications\LowStockNotifier::class);
-        $this->app->forgetInstance(\App\Services\RefundService::class);
-        $this->app->forgetInstance(\App\Services\ReturnService::class);
-        $this->app->forgetInstance(\App\Services\Inventory\InventoryAdjustmentService::class);
+        $this->app->forgetInstance(LowStockNotifier::class);
+        $this->app->forgetInstance(RefundService::class);
+        $this->app->forgetInstance(ReturnService::class);
+        $this->app->forgetInstance(InventoryAdjustmentService::class);
     }
 
     private function succeedingRefundProvider(): PaymentProviderInterface

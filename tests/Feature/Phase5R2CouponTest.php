@@ -2,13 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Data\Payments\PaymentIntentResult;
-use App\Data\Payments\PaymentWebhookResult;
 use App\Data\Coupons\CouponDiscountResult;
+use App\Data\Payments\PaymentIntentResult;
+use App\Data\Payments\PaymentIntentUpdateResult;
+use App\Data\Payments\PaymentWebhookResult;
 use App\Models\Category;
 use App\Models\Checkout;
 use App\Models\Coupon;
 use App\Models\CouponRedemption;
+use App\Models\DraftOrder;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Role;
@@ -16,9 +18,12 @@ use App\Models\Store;
 use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Models\User;
-use App\Services\CheckoutConversionService;
 use App\Services\Checkout\CheckoutTotalsService;
+use App\Services\CheckoutConversionService;
+use App\Services\ConnectedSiteService;
 use App\Services\Coupons\CouponService;
+use App\Services\ManualOrderConversionService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,7 +46,7 @@ class Phase5R2CouponTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_coupons',
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -61,8 +66,8 @@ class Phase5R2CouponTest extends TestCase
                 int $amountMinor,
                 string $currencyCode,
                 array $options = [],
-            ): \App\Data\Payments\PaymentIntentUpdateResult {
-                return new \App\Data\Payments\PaymentIntentUpdateResult(
+            ): PaymentIntentUpdateResult {
+                return new PaymentIntentUpdateResult(
                     providerIntentId: $providerIntentId,
                     amountMinor: $amountMinor,
                     currencyCode: strtoupper($currencyCode),
@@ -643,11 +648,11 @@ class Phase5R2CouponTest extends TestCase
         $response->assertRedirect();
         $response->assertSessionHasNoErrors();
 
-        $draft = \App\Models\DraftOrder::query()->where('store_id', $store->id)->latest('id')->firstOrFail();
+        $draft = DraftOrder::query()->where('store_id', $store->id)->latest('id')->firstOrFail();
         $this->assertSame('10.00', (string) $draft->discount_total);
         $this->assertSame('DRAFT25', data_get($draft->metadata, 'coupon_snapshot.code'));
 
-        $order = app(\App\Services\ManualOrderConversionService::class)->convert($draft, $store, $owner);
+        $order = app(ManualOrderConversionService::class)->convert($draft, $store, $owner);
         $this->assertSame('10.00', (string) $order->discount);
         $this->assertSame('DRAFT25', data_get($order->meta, 'coupon_snapshot.code'));
         $this->assertDatabaseHas('coupon_redemptions', [
@@ -674,7 +679,7 @@ class Phase5R2CouponTest extends TestCase
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
         $this->connectReadyStripeForCheckout($store);
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

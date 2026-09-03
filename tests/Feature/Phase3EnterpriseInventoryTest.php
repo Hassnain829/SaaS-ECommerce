@@ -18,6 +18,7 @@ use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class Phase3EnterpriseInventoryTest extends TestCase
@@ -190,7 +191,7 @@ class Phase3EnterpriseInventoryTest extends TestCase
             'new_stock' => 12,
         ]);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
 
         app(InventoryAdjustmentService::class)->adjustAvailable(
             $item,
@@ -218,7 +219,7 @@ class Phase3EnterpriseInventoryTest extends TestCase
             'reserved' => 3,
         ]);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
         app(InventoryReservationService::class)->reserve($item, 3, 'checkout', 'abc-2');
     }
 
@@ -278,5 +279,4 @@ class Phase3EnterpriseInventoryTest extends TestCase
 
         return [$product, $variant];
     }
-
 }

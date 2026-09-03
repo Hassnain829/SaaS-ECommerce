@@ -12,6 +12,7 @@ use App\Models\Customer;
 use App\Models\Exchange;
 use App\Models\Location;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\OrderReturn;
 use App\Models\PaymentIntent;
 use App\Models\Product;
@@ -23,6 +24,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\CustomerMetricsService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\OrderLifecycle;
 use App\Support\RefundLifecycle;
 use App\Support\ReturnLifecycle;
@@ -160,7 +162,7 @@ class Phase7RefundRestockExchangeTest extends TestCase
         });
 
         // Manager resolves Stripe via driver(); bind manager driver by swapping Stripe provider class.
-        $this->app->bind(\App\Services\Payments\StripePlatformPaymentProvider::class, fn () => $this->app->make(PaymentProviderInterface::class));
+        $this->app->bind(StripePlatformPaymentProvider::class, fn () => $this->app->make(PaymentProviderInterface::class));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -185,7 +187,7 @@ class Phase7RefundRestockExchangeTest extends TestCase
             withPaymentIntent: true
         );
 
-        $this->app->bind(\App\Services\Payments\StripePlatformPaymentProvider::class, fn () => new class implements PaymentProviderInterface
+        $this->app->bind(StripePlatformPaymentProvider::class, fn () => new class implements PaymentProviderInterface
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -287,7 +289,6 @@ class Phase7RefundRestockExchangeTest extends TestCase
         ]);
         $this->assertSame(1, (int) $return->items()->first()->restocked_quantity);
 
-
         // Second restock attempt via restock endpoint should be idempotent.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -365,7 +366,7 @@ class Phase7RefundRestockExchangeTest extends TestCase
     }
 
     /**
-     * @return array{0: User, 1: Store, 2: Order, 3: \App\Models\OrderItem, 4: Customer}
+     * @return array{0: User, 1: Store, 2: Order, 3: OrderItem, 4: Customer}
      */
     private function seedPaidOrder(
         string $grandTotal = '100.00',

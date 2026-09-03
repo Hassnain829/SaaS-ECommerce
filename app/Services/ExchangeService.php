@@ -10,7 +10,6 @@ use App\Models\ProductVariant;
 use App\Models\Refund;
 use App\Models\Store;
 use App\Models\User;
-use Throwable;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Inventory\InventoryReservationService;
 use App\Services\Inventory\InventorySyncService;
@@ -26,6 +25,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class ExchangeService
 {

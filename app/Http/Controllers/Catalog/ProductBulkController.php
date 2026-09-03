@@ -2,23 +2,32 @@
 
 namespace App\Http\Controllers\Catalog;
 
+use App\Exceptions\Catalog\ProductPermanentDeleteBlockedException;
+use App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException;
+use App\Exceptions\Catalog\ProductPermanentDeleteStorageException;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\Tag;
+use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
+use App\Services\Catalog\ProductPermanentDeleteService;
 use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Delivery\VariantShippingWeightBulkService;
 use App\Services\Inventory\InventoryAdjustmentService;
+use App\Services\Inventory\InventoryAvailabilityService;
 use App\Services\SecurityLogRecorder;
 use App\Services\StorefrontCatalogEventRecorder;
 use App\Support\StorePermission;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -203,7 +212,7 @@ final class ProductBulkController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      */
     private function bulkDelete(Store $store, $products, int $n): RedirectResponse
     {
@@ -225,7 +234,7 @@ final class ProductBulkController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      */
     private function bulkRestore(Store $store, $products, int $n): RedirectResponse
     {
@@ -249,26 +258,26 @@ final class ProductBulkController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      */
     private function bulkForceDelete(Store $store, $products, int $n): RedirectResponse
     {
         try {
-            app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDeleteMany($products);
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteBlockedException $e) {
+            app(ProductPermanentDeleteService::class)->forceDeleteMany($products);
+        } catch (ProductPermanentDeleteBlockedException $e) {
             return back()
                 ->with('error', $e->getMessage())
                 ->with('error_meta', 'Finish or cancel related checkouts before permanently deleting these products.');
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteStorageException $e) {
+        } catch (ProductPermanentDeleteStorageException $e) {
             report($e);
 
             return back()
                 ->with('error', 'Some products could not be permanently deleted. None of the selected products were removed.')
                 ->with('error_meta', 'Gallery file cleanup could not be completed safely.');
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException $e) {
+        } catch (ProductPermanentDeleteCleanupPendingException $e) {
             report($e);
 
-            app(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class)
+            app(ProductPermanentDeleteGalleryPurgeService::class)
                 ->retryPendingCleanup($e->operationId);
 
             app(SecurityLogRecorder::class)->record(
@@ -288,7 +297,7 @@ final class ProductBulkController extends Controller
                 ->with('success', $n.' product(s) permanently deleted. This cannot be undone.')
                 ->with('success_title', 'Permanently deleted')
                 ->with('success_meta', 'Some temporary gallery cleanup could not be completed and will be retried.');
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             report($e);
 
             return back()
@@ -308,7 +317,7 @@ final class ProductBulkController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      * @param  array<string, mixed>  $validated
      */
     private function bulkStock(Request $request, Store $store, $products, array $validated, int $n): RedirectResponse
@@ -333,7 +342,7 @@ final class ProductBulkController extends Controller
         $updatedVariants = 0;
 
         DB::transaction(function () use ($products, $mode, $value, $actor, $userId, $scope, $applyMode, &$skippedMulti, &$skippedExisting, &$updatedVariants): void {
-            $availability = app(\App\Services\Inventory\InventoryAvailabilityService::class);
+            $availability = app(InventoryAvailabilityService::class);
             $adjuster = app(InventoryAdjustmentService::class);
 
             foreach ($products as $product) {
@@ -375,7 +384,7 @@ final class ProductBulkController extends Controller
                         $mode === 'set' ? 'Bulk stock: set to '.$new : 'Bulk stock: adjust by '.$value,
                         $actor,
                         [
-                            'movement_type' => \App\Models\StockMovement::TYPE_EDIT_UPDATE,
+                            'movement_type' => StockMovement::TYPE_EDIT_UPDATE,
                             'source' => 'catalog',
                             'performed_by' => $userId,
                             'previous_stock_for_movement' => $previous,
@@ -421,7 +430,7 @@ final class ProductBulkController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      * @param  array<string, mixed>  $validated
      */
     private function bulkCategories(Store $store, $products, array $validated, int $n): RedirectResponse
@@ -454,7 +463,7 @@ final class ProductBulkController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      * @param  array<string, mixed>  $validated
      */
     private function bulkBrand(Store $store, $products, array $validated, int $n): RedirectResponse
@@ -483,7 +492,7 @@ final class ProductBulkController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      * @param  array<string, mixed>  $validated
      */
     private function bulkTags(Store $store, $products, array $validated, int $n): RedirectResponse
@@ -516,7 +525,7 @@ final class ProductBulkController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      * @param  array<string, mixed>  $validated
      */
     private function bulkStatus(Store $store, $products, array $validated, int $n): RedirectResponse
@@ -809,7 +818,7 @@ final class ProductBulkController extends Controller
             ->with('success_title', 'Bulk shipping weight');
     }
 
-    private function defaultCatalogVariant(Product $product): ?\App\Models\ProductVariant
+    private function defaultCatalogVariant(Product $product): ?ProductVariant
     {
         $v = $product->variants()->whereDoesntHave('options')->orderBy('id')->first();
 

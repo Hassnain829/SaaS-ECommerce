@@ -6,6 +6,7 @@ use App\Models\CarrierAccount;
 use App\Models\CarrierApiEvent;
 use App\Services\Carriers\Core\CarrierApiEventLogger;
 use App\Services\Carriers\Core\Contracts\CarrierProviderInterface;
+use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\Core\DTO\CarrierConnectionTestResult;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use App\Services\Carriers\FedEx\Auth\FedExMerchantCredentialsOAuthService;
@@ -419,7 +420,7 @@ class FedExCarrierProvider implements CarrierProviderInterface
         );
     }
 
-    private function isCredentialRegistrationBlocked(\App\Services\Carriers\Core\DTO\CarrierApiResult $registration): bool
+    private function isCredentialRegistrationBlocked(CarrierApiResult $registration): bool
     {
         return (int) ($registration->responseSummary['http_status'] ?? 0) === 422;
     }

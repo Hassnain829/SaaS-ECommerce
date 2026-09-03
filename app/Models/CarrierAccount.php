@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 class CarrierAccount extends Model
 {
@@ -952,7 +953,7 @@ class CarrierAccount extends Model
         }
 
         try {
-            return now()->greaterThanOrEqualTo(\Illuminate\Support\Carbon::parse($expiresAt)->subSeconds(60));
+            return now()->greaterThanOrEqualTo(Carbon::parse($expiresAt)->subSeconds(60));
         } catch (\Throwable) {
             return true;
         }

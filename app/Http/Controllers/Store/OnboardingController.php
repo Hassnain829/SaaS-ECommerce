@@ -2,29 +2,37 @@
 
 namespace App\Http\Controllers\Store;
 
+use App\Exceptions\Catalog\ProductPermanentDeleteBlockedException;
+use App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException;
+use App\Exceptions\Catalog\ProductPermanentDeleteStorageException;
 use App\Http\Controllers\Controller;
+use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
-use App\Models\Location;
 use App\Services\Catalog\ProductAttributeAssigner;
+use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
+use App\Services\Catalog\ProductPermanentDeleteService;
 use App\Services\Catalog\ProductTaxableDefaultResolver;
 use App\Services\Currency\StoreCatalogCurrencyConverter;
+use App\Services\Delivery\ShippingWeightResolver;
+use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
 use App\Services\Store\StoreCurrencyChangeGuard;
 use App\Services\StorefrontCatalogEventRecorder;
-use App\Support\CatalogRules;
 use App\Support\Catalog\ProductRichText;
+use App\Support\CatalogRules;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
 use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
 use App\Support\StoreBusinessDefaults;
 use App\Support\StorePermission;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -236,7 +244,7 @@ class OnboardingController extends Controller
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
             'is_taxable' => ['nullable', 'boolean'],
-            'shipping_weight' => ['nullable', 'numeric', 'min:0.01', 'max:'.\App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT],
+            'shipping_weight' => ['nullable', 'numeric', 'min:0.01', 'max:'.StoreShippingPreferences::MAX_ITEM_WEIGHT],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -1064,7 +1072,6 @@ class OnboardingController extends Controller
     /**
      * Drop incomplete option groups so simple products are not blocked by orphan variation_types.0.options.
      *
-     * @param  mixed  $variationTypes
      * @return array<int, array{name: string, type: string, options: array<int, string>}>
      */
     private function sanitizeSubmittedVariationTypes(mixed $variationTypes): array
@@ -1365,7 +1372,7 @@ class OnboardingController extends Controller
 
         try {
             DB::transaction(function () use (
-                $request,
+
                 $store,
                 $validated,
                 $logoPath,
@@ -1822,7 +1829,7 @@ class OnboardingController extends Controller
                 unset($meta['shipping_weight'], $meta['weight']);
             } elseif (is_numeric($shippingWeight) && (float) $shippingWeight > 0) {
                 $meta['shipping_weight'] = round((float) $shippingWeight, 3);
-                app(\App\Services\Delivery\StoreShippingPreferences::class)->commitWeightUnitIfNeeded($currentStore);
+                app(StoreShippingPreferences::class)->commitWeightUnitIfNeeded($currentStore);
             }
         }
 
@@ -2227,23 +2234,23 @@ class OnboardingController extends Controller
         $deletedProductName = $product->name;
 
         try {
-            app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDelete($product);
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteBlockedException $e) {
+            app(ProductPermanentDeleteService::class)->forceDelete($product);
+        } catch (ProductPermanentDeleteBlockedException $e) {
             return redirect()
                 ->route('products', ['view' => 'deleted'])
                 ->with('error', $e->getMessage())
                 ->with('error_meta', 'Finish or cancel related checkouts before permanently deleting this product.');
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteStorageException $e) {
+        } catch (ProductPermanentDeleteStorageException $e) {
             report($e);
 
             return redirect()
                 ->route('products', ['view' => 'deleted'])
                 ->with('error', "Could not permanently delete '{$deletedProductName}'. The product was kept in Deleted products.")
                 ->with('error_meta', 'Gallery file cleanup could not be completed safely.');
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException $e) {
+        } catch (ProductPermanentDeleteCleanupPendingException $e) {
             report($e);
 
-            app(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class)
+            app(ProductPermanentDeleteGalleryPurgeService::class)
                 ->retryPendingCleanup($e->operationId);
 
             app(SecurityLogRecorder::class)->record(
@@ -2264,7 +2271,7 @@ class OnboardingController extends Controller
                 ->with('success', "Product '{$deletedProductName}' permanently deleted.")
                 ->with('success_title', 'Permanently deleted')
                 ->with('success_meta', 'Some temporary gallery cleanup could not be completed and will be retried.');
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             report($e);
 
             return redirect()
@@ -3298,7 +3305,7 @@ class OnboardingController extends Controller
         return [$normalizedType, null];
     }
 
-    private function normalizeSubmittedVariantShippingWeights(\Illuminate\Http\Request $request): void
+    private function normalizeSubmittedVariantShippingWeights(Request $request): void
     {
         $variants = $request->input('variants');
         if (! is_array($variants)) {
@@ -3323,7 +3330,7 @@ class OnboardingController extends Controller
      */
     private function shippingWeightValidationRule(Store $store): array
     {
-        $max = app(\App\Services\Delivery\StoreShippingPreferences::class)->maxItemWeightForStore($store);
+        $max = app(StoreShippingPreferences::class)->maxItemWeightForStore($store);
 
         return ['nullable', 'numeric', 'min:0.01', 'max:'.$max];
     }
@@ -3338,13 +3345,13 @@ class OnboardingController extends Controller
             return;
         }
 
-        app(\App\Services\Delivery\ShippingWeightResolver::class)->persistVariantShippingWeightMeta(
+        app(ShippingWeightResolver::class)->persistVariantShippingWeightMeta(
             $variantMeta,
             $variantData['shipping_weight'],
         );
 
         if (isset($variantMeta['shipping_weight'])) {
-            app(\App\Services\Delivery\StoreShippingPreferences::class)->commitWeightUnitIfNeeded($store);
+            app(StoreShippingPreferences::class)->commitWeightUnitIfNeeded($store);
         }
     }
 

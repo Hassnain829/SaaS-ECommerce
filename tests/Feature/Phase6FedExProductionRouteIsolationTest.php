@@ -2,16 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Models\Carrier;
-use App\Models\CarrierAccount;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 class Phase6FedExProductionRouteIsolationTest extends TestCase
@@ -136,11 +136,11 @@ class Phase6FedExProductionRouteIsolationTest extends TestCase
 
     /**
      * @param  array<string, string>  $env
-     * @return \Illuminate\Support\Collection<int, string>
+     * @return Collection<int, string>
      */
-    private function routeNamesFromArtisanChildProcess(array $env): \Illuminate\Support\Collection
+    private function routeNamesFromArtisanChildProcess(array $env): Collection
     {
-        $process = new \Symfony\Component\Process\Process(
+        $process = new Process(
             [PHP_BINARY, 'artisan', 'route:list', '--json'],
             base_path(),
             array_merge($_ENV, $_SERVER, $env),
@@ -163,9 +163,9 @@ class Phase6FedExProductionRouteIsolationTest extends TestCase
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, string>  $names
+     * @param  Collection<int, string>  $names
      */
-    private function assertModelALifecycleRoutesPresent(\Illuminate\Support\Collection $names): void
+    private function assertModelALifecycleRoutesPresent(Collection $names): void
     {
         foreach ([
             'settings.shipping.fedex-integrator.manage',

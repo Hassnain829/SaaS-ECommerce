@@ -12,6 +12,7 @@ use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\DTO\FedExComprehensiveRateResult;
 use App\Services\Carriers\FedEx\DTO\FedExShipmentRateRequest;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -132,7 +133,7 @@ class FedExNegotiatedRateService
             );
         }
 
-        $resolvedPickup = app(\App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver::class)
+        $resolvedPickup = app(FedExHandoffTypeResolver::class)
             ->resolve($store, $pickupType);
 
         $request = new FedExShipmentRateRequest(

@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class FedExTradeDocumentUploadServiceTest extends TestCase
@@ -79,7 +80,7 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
                 ],
             ]);
             $this->fail('tiny PDF should be rejected');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
     }
@@ -156,7 +157,7 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
         try {
             app(FedExTradeDocumentUploadService::class)->executePreparedUpload($account->store, $account, $prepared, allowLive: false);
             $this->fail('expected gate');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 
@@ -223,7 +224,7 @@ class FedExTradeDocumentUploadServiceTest extends TestCase
                 ],
             ]);
             $this->fail('Relative fixture paths must be rejected.');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
     }

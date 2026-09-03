@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Services\Notifications\LowStockNotifier;
+use App\Support\StockMovementIdentitySnapshot;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -126,7 +127,7 @@ class InventoryAdjustmentService
         $item = $level->inventoryItem;
         $product = $item?->product;
         $variant = $item?->variant;
-        $identity = \App\Support\StockMovementIdentitySnapshot::resolve($product, $variant);
+        $identity = StockMovementIdentitySnapshot::resolve($product, $variant);
 
         return StockMovement::query()->create([
             'store_id' => $level->store_id,

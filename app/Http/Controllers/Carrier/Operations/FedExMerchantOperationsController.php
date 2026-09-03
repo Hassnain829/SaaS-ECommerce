@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Carrier\Operations;
 
 use App\Http\Controllers\Controller;
 use App\Models\CarrierAccount;
+use App\Models\CarrierRateQuote;
 use App\Models\Location;
 use App\Models\Order;
 use App\Models\Shipment;
@@ -18,6 +19,7 @@ use App\Services\Carriers\FedEx\Operations\FedExServiceAvailabilityService;
 use App\Services\Carriers\FedEx\Operations\FedExShipmentCancelService;
 use App\Services\Carriers\FedEx\Operations\FedExShipmentPurchaseService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver;
 use App\Services\Carriers\FedEx\Support\FedExShipperPhoneResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -146,7 +148,7 @@ class FedExMerchantOperationsController extends Controller
         FedExAddressValidationService $addressValidation,
         FedExServiceAvailabilityService $availability,
         FedExOrderPackageSnapshotService $packageSnapshots,
-        \App\Services\Carriers\FedEx\Support\FedExHandoffTypeResolver $handoffResolver,
+        FedExHandoffTypeResolver $handoffResolver,
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless((int) $order->store_id === (int) $store->id, 404);
@@ -358,11 +360,11 @@ class FedExMerchantOperationsController extends Controller
 
         // Persist destination snapshot onto each quote for label purchase.
         if ($quoteIds !== []) {
-            \App\Models\CarrierRateQuote::query()
+            CarrierRateQuote::query()
                 ->where('store_id', $store->id)
                 ->whereIn('id', array_values(array_filter($quoteIds)))
                 ->get()
-                ->each(function (\App\Models\CarrierRateQuote $quote) use ($destination, $addressChoice, $pickupType, $selectedItems, $availabilityChecked, $availableServiceTypes): void {
+                ->each(function (CarrierRateQuote $quote) use ($destination, $addressChoice, $pickupType, $selectedItems, $availabilityChecked, $availableServiceTypes): void {
                     $summary = is_array($quote->request_summary) ? $quote->request_summary : [];
                     $summary['destination_address'] = $destination;
                     $summary['address_choice'] = $addressChoice;
@@ -511,7 +513,7 @@ class FedExMerchantOperationsController extends Controller
             ->whereKey($validated['origin_location_id'])
             ->firstOrFail();
 
-        $quote = \App\Models\CarrierRateQuote::query()
+        $quote = CarrierRateQuote::query()
             ->where('store_id', $store->id)
             ->where('order_id', $order->id)
             ->whereKey($validated['carrier_rate_quote_id'])

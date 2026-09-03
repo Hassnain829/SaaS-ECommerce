@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Store;
+use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Inventory\InventorySyncService;
 use App\Support\Catalog\ProductRichText;
 use App\Support\ProductDetailPresenter;
@@ -74,7 +75,7 @@ final class ProductWorkspaceController extends Controller
             'editProductPayload' => $editProductPayload,
             'workspaceReturnProductId' => $product->id,
             'taxSetting' => $store->taxSetting,
-            'shippingPreferences' => app(\App\Services\Delivery\StoreShippingPreferences::class)->get($store),
+            'shippingPreferences' => app(StoreShippingPreferences::class)->get($store),
         ]);
     }
 

@@ -14,6 +14,7 @@ use App\Models\Store;
 use App\Models\StoreNotification;
 use App\Models\User;
 use App\Services\Notifications\CommerceNotificationEmitter;
+use App\Services\Notifications\LowStockNotifier;
 use App\Services\ReturnService;
 use App\Support\NotificationEvent;
 use App\Support\OrderLifecycle;
@@ -91,7 +92,7 @@ class NotificationDomainEmitTest extends TestCase
         [$product, $variant] = $this->product($store);
         $variant->update(['stock' => 2, 'stock_alert' => 5]);
 
-        app(\App\Services\Notifications\LowStockNotifier::class)->checkVariant($variant->fresh());
+        app(LowStockNotifier::class)->checkVariant($variant->fresh());
 
         $this->assertDatabaseHas('notifications', [
             'store_id' => $store->id,

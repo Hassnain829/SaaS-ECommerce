@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\CatalogRevision;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class Dr08GeneralSettingsTest extends TestCase
@@ -182,8 +183,8 @@ class Dr08GeneralSettingsTest extends TestCase
             'is_default' => true,
         ]);
 
-        \Illuminate\Support\Facades\Http::fake([
-            'open.er-api.com/*' => \Illuminate\Support\Facades\Http::response([
+        Http::fake([
+            'open.er-api.com/*' => Http::response([
                 'result' => 'success',
                 'base_code' => 'USD',
                 'rates' => ['EUR' => 0.5],

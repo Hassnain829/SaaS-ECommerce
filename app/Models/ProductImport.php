@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Catalog\WooCommerceCsvDetector;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -81,7 +82,7 @@ class ProductImport extends Model
             return true;
         }
 
-        return \App\Support\Catalog\WooCommerceCsvDetector::detect($this->headers ?? []);
+        return WooCommerceCsvDetector::detect($this->headers ?? []);
     }
 
     /**

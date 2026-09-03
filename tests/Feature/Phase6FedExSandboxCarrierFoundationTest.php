@@ -17,6 +17,7 @@ use App\Services\Carriers\FedEx\Support\FedExConfig;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -898,7 +899,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
             ->assertDontSeeText('Legacy FedEx integrator registration diagnostic')
             ->assertDontSeeText('Export legacy registration diagnostic');
 
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.debug-payload'));
+        $this->assertFalse(Route::has('settings.shipping.carrier-accounts.fedex.debug-payload'));
     }
 
     public function test_legacy_fedex_store_rejects_invalid_country_un(): void
@@ -1012,7 +1013,7 @@ class Phase6FedExSandboxCarrierFoundationTest extends TestCase
 
     public function test_sandbox_platform_fallback_route_is_fully_retired(): void
     {
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback'));
+        $this->assertFalse(Route::has('settings.shipping.carrier-accounts.fedex.sandbox-platform-fallback'));
     }
 
     public function test_sandbox_platform_fallback_uses_platform_oauth_only_without_child_credentials(): void

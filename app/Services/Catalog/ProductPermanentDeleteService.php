@@ -2,8 +2,8 @@
 
 namespace App\Services\Catalog;
 
-use App\Models\Product;
 use App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException;
+use App\Models\Product;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;

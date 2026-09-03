@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Carrier\Connection\CarrierConnectionWizardController;
 use App\Http\Controllers\Carrier\Connection\FedExIntegratorConnectionController;
+use App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController;
 use App\Http\Controllers\Settings\FedExShippingSettingsController;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use Illuminate\Support\Facades\Route;
@@ -77,31 +78,31 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/disconne
     ->middleware('store.permission:settings.manage')
     ->name('settings.shipping.fedex-integrator.disconnect');
 
-Route::post('/orders/{order}/fedex/validate-address', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'validateOrderAddress'])
+Route::post('/orders/{order}/fedex/validate-address', [FedExMerchantOperationsController::class, 'validateOrderAddress'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('orders.fedex.validate-address');
-Route::post('/orders/{order}/fedex/service-availability', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'checkOrderServiceAvailability'])
+Route::post('/orders/{order}/fedex/service-availability', [FedExMerchantOperationsController::class, 'checkOrderServiceAvailability'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('orders.fedex.service-availability');
-Route::post('/orders/{order}/fedex/rates', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'quoteOrderRates'])
+Route::post('/orders/{order}/fedex/rates', [FedExMerchantOperationsController::class, 'quoteOrderRates'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('orders.fedex.rates');
-Route::post('/orders/{order}/fedex/shipments', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'createOrderShipment'])
+Route::post('/orders/{order}/fedex/shipments', [FedExMerchantOperationsController::class, 'createOrderShipment'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('orders.fedex.shipments.create');
-Route::post('/orders/{order}/fedex/return-label', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'createReturnLabel'])
+Route::post('/orders/{order}/fedex/return-label', [FedExMerchantOperationsController::class, 'createReturnLabel'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('orders.fedex.return-label');
-Route::post('/orders/{order}/fedex/etd', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'uploadEtdDocument'])
+Route::post('/orders/{order}/fedex/etd', [FedExMerchantOperationsController::class, 'uploadEtdDocument'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('orders.fedex.etd.upload');
-Route::post('/shipments/{shipment}/fedex/cancel', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'cancelShipment'])
+Route::post('/shipments/{shipment}/fedex/cancel', [FedExMerchantOperationsController::class, 'cancelShipment'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('shipments.fedex.cancel');
-Route::post('/shipments/{shipment}/fedex/tracking/refresh', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'refreshTracking'])
+Route::post('/shipments/{shipment}/fedex/tracking/refresh', [FedExMerchantOperationsController::class, 'refreshTracking'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('shipments.fedex.tracking.refresh');
-Route::get('/shipments/{shipment}/fedex/label', [\App\Http\Controllers\Carrier\Operations\FedExMerchantOperationsController::class, 'downloadLabel'])
+Route::get('/shipments/{shipment}/fedex/label', [FedExMerchantOperationsController::class, 'downloadLabel'])
     ->middleware(['store.permission:orders.manage', 'throttle:fedex-ops'])
     ->name('shipments.fedex.label.download');
 

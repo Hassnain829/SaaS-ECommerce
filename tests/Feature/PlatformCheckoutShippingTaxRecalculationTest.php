@@ -19,6 +19,8 @@ use App\Models\Store;
 use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -55,11 +57,11 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
         ]);
 
         $test = $this;
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class), $test) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class), $test) extends StripePlatformPaymentProvider
         {
             private int $counter = 0;
 
-            public function __construct(\App\Services\Payments\StripeConfig $stripeConfig, private PlatformCheckoutShippingTaxRecalculationTest $test)
+            public function __construct(StripeConfig $stripeConfig, private PlatformCheckoutShippingTaxRecalculationTest $test)
             {
                 parent::__construct($stripeConfig);
             }
@@ -654,7 +656,7 @@ class PlatformCheckoutShippingTaxRecalculationTest extends TestCase
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
         $this->connectReadyStripeForCheckout($store);
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

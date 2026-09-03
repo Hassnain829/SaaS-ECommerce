@@ -24,6 +24,8 @@ use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Models\User;
 use App\Services\CheckoutConversionService;
+use App\Services\ConnectedSiteService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
 use App\Support\Money\CurrencyPrecision;
@@ -47,7 +49,7 @@ class CheckoutPaymentInvariantTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_invariant',
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -289,7 +291,7 @@ class CheckoutPaymentInvariantTest extends TestCase
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
         $this->connectReadyStripeForCheckout($store);
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

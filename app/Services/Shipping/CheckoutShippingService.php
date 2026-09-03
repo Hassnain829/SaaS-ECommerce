@@ -2,12 +2,15 @@
 
 namespace App\Services\Shipping;
 
+use App\Data\Checkout\CheckoutTotalsResult;
+use App\Data\Coupons\CouponDiscountResult;
 use App\Data\Payments\PaymentIntentUpdateResult;
 use App\Exceptions\CheckoutPaymentSynchronizationException;
 use App\Models\Checkout;
 use App\Models\InventoryReservation;
 use App\Models\Location;
 use App\Models\PaymentIntent;
+use App\Models\PaymentProviderAccount;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
 use App\Models\TaxSetting;
@@ -691,7 +694,7 @@ class CheckoutShippingService
         );
     }
 
-    private function createPaymentIntentForCheckout(Checkout $checkout, \App\Models\PaymentProviderAccount $providerAccount): void
+    private function createPaymentIntentForCheckout(Checkout $checkout, PaymentProviderAccount $providerAccount): void
     {
         $paymentMode = $this->paymentProviderManager->platformPaymentModeForStore($checkout->store);
         $driver = $this->paymentProviderManager->driver((string) $checkout->payment_provider);
@@ -827,7 +830,7 @@ class CheckoutShippingService
     }
 
     /**
-     * @return array{0: ?\App\Data\Coupons\CouponDiscountResult, 1: bool}
+     * @return array{0: ?CouponDiscountResult, 1: bool}
      */
     private function resolveCouponDiscount(Checkout $checkout): array
     {
@@ -873,7 +876,7 @@ class CheckoutShippingService
 
     private function applyCouponDiscountsToCheckoutItems(
         Checkout $checkout,
-        ?\App\Data\Coupons\CouponDiscountResult $couponDiscount,
+        ?CouponDiscountResult $couponDiscount,
         string $currencyCode,
     ): void {
         $zero = CurrencyPrecision::roundMajor('0', $currencyCode);
@@ -909,9 +912,9 @@ class CheckoutShippingService
 
     private function applyItemTotals(
         Checkout $checkout,
-        \App\Data\Checkout\CheckoutTotalsResult $totalsResult,
+        CheckoutTotalsResult $totalsResult,
         TaxSetting $taxSetting,
-        ?\App\Data\Coupons\CouponDiscountResult $couponDiscount = null,
+        ?CouponDiscountResult $couponDiscount = null,
     ): void {
         $currencyCode = (string) $checkout->currency_code;
         foreach ($checkout->items as $item) {

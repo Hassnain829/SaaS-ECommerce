@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Role;
-use App\Models\SecurityLog;
 use App\Models\Store;
 use App\Models\User;
 use App\Support\OrderLifecycle;

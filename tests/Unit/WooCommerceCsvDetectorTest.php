@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\Catalog\WooCommerceImportNormalizer;
+use App\Services\Catalog\WooCommerceImportPreset;
 use App\Support\Catalog\WooCommerceCsvDetector;
 use PHPUnit\Framework\TestCase;
 
@@ -72,7 +73,7 @@ class WooCommerceCsvDetectorTest extends TestCase
 
     public function test_catalog_unit_hints_read_imperial_headers(): void
     {
-        $hints = \App\Services\Catalog\WooCommerceImportPreset::catalogUnitHints(
+        $hints = WooCommerceImportPreset::catalogUnitHints(
             [
                 'weight' => 'Weight (lbs)',
                 'length' => 'Length (in)',

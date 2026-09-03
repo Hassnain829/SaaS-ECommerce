@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Store;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
 
 final class CatalogRules
@@ -20,7 +21,7 @@ final class CatalogRules
     }
 
     /**
-     * @return array<string, array<int, \Illuminate\Contracts\Validation\ValidationRule|string>>
+     * @return array<string, array<int, ValidationRule|string>>
      */
     public static function tagIdsForStore(Store $store): array
     {
@@ -34,7 +35,7 @@ final class CatalogRules
     }
 
     /**
-     * @return array<string, array<int, \Illuminate\Contracts\Validation\ValidationRule|string>>
+     * @return array<string, array<int, ValidationRule|string>>
      */
     public static function categoryIdsForStore(Store $store): array
     {

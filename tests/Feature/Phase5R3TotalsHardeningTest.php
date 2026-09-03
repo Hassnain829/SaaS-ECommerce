@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Data\Payments\PaymentIntentResult;
+use App\Data\Payments\PaymentIntentUpdateResult;
 use App\Data\Payments\PaymentWebhookResult;
+use App\Exceptions\CheckoutPaymentAmountMismatchException;
 use App\Exceptions\CheckoutTotalsMismatchException;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
@@ -25,8 +27,10 @@ use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Models\User;
 use App\Services\CheckoutConversionService;
+use App\Services\ConnectedSiteService;
 use App\Services\Draft\DraftTaxService;
 use App\Services\ManualOrderConversionService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Services\Shipping\DeliveryOptionService;
 use App\Support\CheckoutMode;
@@ -52,7 +56,7 @@ class Phase5R3TotalsHardeningTest extends TestCase
             'payments.stripe.webhook_secret' => 'whsec_5r3',
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -72,8 +76,8 @@ class Phase5R3TotalsHardeningTest extends TestCase
                 int $amountMinor,
                 string $currencyCode,
                 array $options = [],
-            ): \App\Data\Payments\PaymentIntentUpdateResult {
-                return new \App\Data\Payments\PaymentIntentUpdateResult(
+            ): PaymentIntentUpdateResult {
+                return new PaymentIntentUpdateResult(
                     providerIntentId: $providerIntentId,
                     amountMinor: $amountMinor,
                     currencyCode: strtoupper($currencyCode),
@@ -233,7 +237,7 @@ class Phase5R3TotalsHardeningTest extends TestCase
                 $this->paymentResult($checkout, $correctMinor)
             );
             $this->fail('Expected payment amount mismatch.');
-        } catch (\App\Exceptions\CheckoutPaymentAmountMismatchException $exception) {
+        } catch (CheckoutPaymentAmountMismatchException $exception) {
             $this->assertSame($correctMinor, $exception->localPaymentIntentMinor);
             $this->assertSame(
                 CurrencyPrecision::toMinorUnits('21.00', 'USD'),
@@ -540,7 +544,7 @@ class Phase5R3TotalsHardeningTest extends TestCase
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
         $this->connectReadyStripeForCheckout($store);
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

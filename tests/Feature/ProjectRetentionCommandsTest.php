@@ -6,6 +6,8 @@ use App\Console\Scheduling\ProjectRetentionScheduleConfigurator;
 use App\Models\CarrierApiEvent;
 use App\Support\ProjectHygiene\ProjectPathGuard;
 use App\Support\ProjectHygiene\ProjectRetentionService;
+use App\Support\ProjectHygiene\ProjectStorageProtection;
+use App\Support\ProjectHygiene\ProjectTrackedFiles;
 use App\Support\ProjectHygiene\UnsafeRetentionTestRootException;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,7 +23,7 @@ class ProjectRetentionCommandsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        \App\Support\ProjectHygiene\ProjectTrackedFiles::clearCache();
+        ProjectTrackedFiles::clearCache();
     }
 
     public function test_retention_defaults_are_conservative(): void
@@ -287,7 +289,7 @@ class ProjectRetentionCommandsTest extends TestCase
         config(['project_retention.enabled' => true]);
 
         $paths = ProjectPathGuard::forProject(base_path());
-        $service = new ProjectRetentionService($paths, new \App\Support\ProjectHygiene\ProjectStorageProtection($paths));
+        $service = new ProjectRetentionService($paths, new ProjectStorageProtection($paths));
 
         $this->expectException(UnsafeRetentionTestRootException::class);
         $service->run(force: true, dryRun: false, categories: ['logs']);

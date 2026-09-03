@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\OrderReturn;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -220,7 +221,7 @@ class Phase7ReturnLifecycleTest extends TestCase
     }
 
     /**
-     * @return array{0: User, 1: Store, 2: Order, 3?: \App\Models\OrderItem}
+     * @return array{0: User, 1: Store, 2: Order, 3?: OrderItem}
      */
     private function seedOrderContext(int $quantity = 2, string $productType = 'physical'): array
     {

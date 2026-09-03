@@ -34,8 +34,7 @@ class FedExConnectionFailurePresenterTest extends TestCase
     private function registrationSession(
         string $environment,
         string $countryCode,
-    ): CarrierAccountRegistrationSession
-    {
+    ): CarrierAccountRegistrationSession {
         return new CarrierAccountRegistrationSession([
             'environment' => $environment,
             'registration_address_json' => ['country_code' => $countryCode],

@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\Checkout;
+use App\Models\CheckoutItem;
 use App\Models\Location;
 use App\Models\Role;
+use App\Models\ShippingMethod;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\Operations\FedExCheckoutPackageBuilder;
@@ -205,10 +208,10 @@ class Phase6FedExStep4DefectCorrectionsTest extends TestCase
         ])->save();
         config(['carriers.fedex.checkout_rates_enabled' => true]);
 
-        $method = new \App\Models\ShippingMethod([
+        $method = new ShippingMethod([
             'store_id' => $store->id,
             'name' => 'FedEx Ground',
-            'rate_type' => \App\Models\ShippingMethod::RATE_CARRIER_CALCULATED_LATER,
+            'rate_type' => ShippingMethod::RATE_CARRIER_CALCULATED_LATER,
             'carrier_account_id' => $account->id,
         ]);
         $method->setRelation('carrierAccount', $account->fresh());
@@ -256,10 +259,10 @@ class Phase6FedExStep4DefectCorrectionsTest extends TestCase
         ])->save();
         config(['carriers.fedex.checkout_rates_enabled' => true]);
 
-        $method = new \App\Models\ShippingMethod([
+        $method = new ShippingMethod([
             'store_id' => $store->id,
             'name' => 'FedEx Ground',
-            'rate_type' => \App\Models\ShippingMethod::RATE_CARRIER_CALCULATED_LATER,
+            'rate_type' => ShippingMethod::RATE_CARRIER_CALCULATED_LATER,
             'carrier_account_id' => $account->id,
         ]);
         $method->setRelation('carrierAccount', $account->fresh());
@@ -320,10 +323,10 @@ class Phase6FedExStep4DefectCorrectionsTest extends TestCase
         ])->save();
         config(['carriers.fedex.checkout_rates_enabled' => true]);
 
-        $method = new \App\Models\ShippingMethod([
+        $method = new ShippingMethod([
             'store_id' => $store->id,
             'name' => 'FedEx Ground',
-            'rate_type' => \App\Models\ShippingMethod::RATE_CARRIER_CALCULATED_LATER,
+            'rate_type' => ShippingMethod::RATE_CARRIER_CALCULATED_LATER,
             'carrier_account_id' => $account->id,
         ]);
         $method->setRelation('carrierAccount', $account->fresh());
@@ -404,9 +407,9 @@ class Phase6FedExStep4DefectCorrectionsTest extends TestCase
             'timezone' => 'UTC',
         ]);
 
-        $checkoutOne = new \App\Models\Checkout(['store_id' => $store->id]);
+        $checkoutOne = new Checkout(['store_id' => $store->id]);
         $checkoutOne->setRelation('store', $store);
-        $itemOne = new \App\Models\CheckoutItem([
+        $itemOne = new CheckoutItem([
             'id' => 1,
             'quantity' => 1,
             'product_variant_id' => 10,
@@ -416,9 +419,9 @@ class Phase6FedExStep4DefectCorrectionsTest extends TestCase
         $checkoutOne->setRelation('items', collect([$itemOne]));
         $one = app(FedExCheckoutPackageBuilder::class)->buildFromCheckout($checkoutOne);
 
-        $checkoutThree = new \App\Models\Checkout(['store_id' => $store->id]);
+        $checkoutThree = new Checkout(['store_id' => $store->id]);
         $checkoutThree->setRelation('store', $store);
-        $itemThree = new \App\Models\CheckoutItem([
+        $itemThree = new CheckoutItem([
             'id' => 1,
             'quantity' => 3,
             'product_variant_id' => 10,

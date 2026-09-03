@@ -23,6 +23,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\CustomerMetricsService;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Services\RefundService;
 use App\Support\OrderLifecycle;
 use App\Support\RefundLifecycle;
@@ -100,7 +101,7 @@ class Phase7CorrectionTest extends TestCase
         );
 
         $calls = 0;
-        $this->app->bind(\App\Services\Payments\StripePlatformPaymentProvider::class, function () use (&$calls) {
+        $this->app->bind(StripePlatformPaymentProvider::class, function () use (&$calls) {
             return new class($calls) implements PaymentProviderInterface
             {
                 public function __construct(private int &$calls) {}
@@ -495,7 +496,7 @@ class Phase7CorrectionTest extends TestCase
 
     private function bindProvider(callable $resultFactory): void
     {
-        $this->app->bind(\App\Services\Payments\StripePlatformPaymentProvider::class, function () use ($resultFactory) {
+        $this->app->bind(StripePlatformPaymentProvider::class, function () use ($resultFactory) {
             return new class($resultFactory) implements PaymentProviderInterface
             {
                 public function __construct(private $resultFactory) {}

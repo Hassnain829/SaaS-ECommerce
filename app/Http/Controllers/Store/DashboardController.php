@@ -3,28 +3,43 @@
 namespace App\Http\Controllers\Store;
 
 use App\Http\Controllers\Controller;
+use App\Models\AttributeTerm;
 use App\Models\Brand;
 use App\Models\CarrierAccount;
+use App\Models\CarrierApiEvent;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerTag;
 use App\Models\DraftOrder;
+use App\Models\Exchange;
+use App\Models\FedExTradeDocument;
 use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderEvent;
-use App\Models\PaymentProviderAccount;
+use App\Models\OrderReturn;
 use App\Models\Product;
+use App\Models\Refund;
 use App\Models\Role;
 use App\Models\SecurityLog;
+use App\Models\ShippingMethod;
+use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\Tag;
+use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Models\User;
 use App\Models\UserSession;
+use App\Notifications\QueuedVerifyEmail;
+use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
+use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Currency\ReportingMoneyConverter;
 use App\Services\CustomerMetricsService;
+use App\Services\Delivery\ShippingWeightCoverageService;
+use App\Services\Delivery\StoreShippingPreferences;
+use App\Services\ExchangeService;
 use App\Services\Fulfillment\FulfillmentStatusService;
 use App\Services\OrderEventRecorder;
+use App\Services\RefundService;
 use App\Services\ReturnService;
 use App\Services\SecurityLogRecorder;
 use App\Services\Store\StoreCurrencyChangeGuard;
@@ -32,8 +47,10 @@ use App\Services\UserSessionTracker;
 use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductEditPayload;
+use App\Support\ProductInventoryState;
 use App\Support\ProductTypeBehavior;
 use App\Support\StorePermission;
+use App\Support\Tax\TaxDisplayPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,6 +58,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -50,7 +68,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
 {
-    public function signin(): RedirectResponse|\Illuminate\View\View
+    public function signin(): RedirectResponse|View
     {
         if (Auth::check()) {
             return $this->redirectByRole();
@@ -59,7 +77,7 @@ class DashboardController extends Controller
         return view('user_view.signin');
     }
 
-    public function register(): RedirectResponse|\Illuminate\View\View
+    public function register(): RedirectResponse|View
     {
         if (Auth::check()) {
             return $this->redirectByRole();
@@ -164,7 +182,7 @@ class DashboardController extends Controller
         try {
             // sendNow so SMTP failures stay inside this try/catch even when the notification is queueable
             // and the sync driver uses after-commit dispatch.
-            $user->notifyNow(new \App\Notifications\QueuedVerifyEmail);
+            $user->notifyNow(new QueuedVerifyEmail);
         } catch (\Throwable $exception) {
             report($exception);
             $status = 'Account created. We could not send the verification email yet. Use Resend on the next screen.';
@@ -412,7 +430,7 @@ class DashboardController extends Controller
         ];
     }
 
-    public function product(Request $request): \Illuminate\View\View|RedirectResponse|StreamedResponse
+    public function product(Request $request): View|RedirectResponse|StreamedResponse
     {
         $stores = $request->attributes->get('availableStores')
             ?? $request->user()->memberStores()->orderBy('stores.name')->get();
@@ -468,7 +486,7 @@ class DashboardController extends Controller
         $attributeTermFilterId = null;
         if ($attributeTermQuery !== null && $attributeTermQuery !== '' && ctype_digit((string) $attributeTermQuery)) {
             $candidateTerm = (int) $attributeTermQuery;
-            if (\App\Models\AttributeTerm::query()
+            if (AttributeTerm::query()
                 ->where('id', $candidateTerm)
                 ->whereHas('attribute', fn ($query) => $query->where('store_id', $selectedStore->id))
                 ->exists()) {
@@ -579,7 +597,7 @@ class DashboardController extends Controller
                 });
             });
         } elseif ($shippingWeightFilter === 'uses_fallback') {
-            $coverage = app(\App\Services\Delivery\ShippingWeightCoverageService::class);
+            $coverage = app(ShippingWeightCoverageService::class);
             $baseQuery->whereIn('id', $coverage->missingExactCoverageQuery($selectedStore)->select('products.id'));
         }
 
@@ -688,10 +706,10 @@ class DashboardController extends Controller
 
         $totalProducts = $statsProducts->count();
         $outOfStockCount = $statsProducts->filter(function (Product $product): bool {
-            return \App\Support\ProductInventoryState::forProduct($product)['is_out'];
+            return ProductInventoryState::forProduct($product)['is_out'];
         })->count();
         $lowStockCount = $statsProducts->filter(function (Product $product): bool {
-            return \App\Support\ProductInventoryState::forProduct($product)['is_low'];
+            return ProductInventoryState::forProduct($product)['is_low'];
         })->count();
         $distinctProductTypeCount = $statsProducts->pluck('product_type')->filter()->unique()->count();
 
@@ -813,9 +831,9 @@ class DashboardController extends Controller
                 'view' => $catalogView,
                 'per_page' => $perPage,
             ],
-            'shippingWeightUnit' => app(\App\Services\Delivery\StoreShippingPreferences::class)->weightUnitLabel($selectedStore),
-            'shippingWeightMax' => app(\App\Services\Delivery\StoreShippingPreferences::class)->maxItemWeightForStore($selectedStore),
-            'shippingWeightFallback' => app(\App\Services\Delivery\StoreShippingPreferences::class)->fallbackItemWeight($selectedStore),
+            'shippingWeightUnit' => app(StoreShippingPreferences::class)->weightUnitLabel($selectedStore),
+            'shippingWeightMax' => app(StoreShippingPreferences::class)->maxItemWeightForStore($selectedStore),
+            'shippingWeightFallback' => app(StoreShippingPreferences::class)->fallbackItemWeight($selectedStore),
             'catalogView' => $catalogView,
             'deletedCount' => $deletedCount,
             'productListDetailKeys' => $productListDetailKeys,
@@ -886,7 +904,7 @@ class DashboardController extends Controller
             'catalogAttributes' => $catalogAttributes,
             'createProductPayload' => $createProductPayload,
             'taxSetting' => $selectedStore->taxSetting,
-            'shippingPreferences' => app(\App\Services\Delivery\StoreShippingPreferences::class)->get($selectedStore),
+            'shippingPreferences' => app(StoreShippingPreferences::class)->get($selectedStore),
         ]);
     }
 
@@ -1044,17 +1062,17 @@ class DashboardController extends Controller
             'exchanges.items',
         ]);
 
-        $channelOwnership = app(\App\Services\Channels\ChannelOwnershipService::class);
+        $channelOwnership = app(ChannelOwnershipService::class);
         $returnService = app(ReturnService::class);
-        $refundService = app(\App\Services\RefundService::class);
-        $exchangeService = app(\App\Services\ExchangeService::class);
+        $refundService = app(RefundService::class);
+        $exchangeService = app(ExchangeService::class);
 
         $returnEligibility = $returnService->eligibilityForReturn($order);
         $exchangeEligibility = $exchangeService->eligibilityForExchange($order, $selectedStore);
 
         return view('user_view.orderViewDetails', [
             'order' => $order,
-            'taxDisplay' => \App\Support\Tax\TaxDisplayPresenter::forOrder($order),
+            'taxDisplay' => TaxDisplayPresenter::forOrder($order),
             'orderStatuses' => OrderLifecycle::orderStatuses(),
             'selectedStore' => $selectedStore,
             'isOrderExternallyManaged' => $channelOwnership->isOrderExternallyManaged($order),
@@ -1068,8 +1086,8 @@ class DashboardController extends Controller
             'carrierAccounts' => $selectedStore->carrierAccounts()
                 ->with('carrier')
                 ->whereIn('status', [
-                    \App\Models\CarrierAccount::STATUS_ENABLED,
-                    \App\Models\CarrierAccount::STATUS_INTERNAL_ONLY,
+                    CarrierAccount::STATUS_ENABLED,
+                    CarrierAccount::STATUS_INTERNAL_ONLY,
                 ])
                 ->orderBy('display_name')
                 ->get()
@@ -1095,25 +1113,25 @@ class DashboardController extends Controller
             'canCreateExchange' => $exchangeEligibility['eligible'],
             'exchangeEligibilityMessage' => $exchangeEligibility['reason'],
             'exchangeVariants' => $exchangeEligibility['replacement_variants'],
-            'fedExActiveAccount' => app(\App\Services\Carriers\FedEx\Operations\FedExOperationGuard::class)
+            'fedExActiveAccount' => app(FedExOperationGuard::class)
                 ->resolveActiveModelAAccount($selectedStore),
-            'shippingPackagePresets' => \Illuminate\Support\Facades\Schema::hasTable('shipping_package_presets')
+            'shippingPackagePresets' => Schema::hasTable('shipping_package_presets')
                 ? $selectedStore->shippingPackagePresets()
                     ->where('is_active', true)
                     ->orderByDesc('is_default')
                     ->orderBy('name')
                     ->get()
                 : collect(),
-            'shippingPreferences' => app(\App\Services\Delivery\StoreShippingPreferences::class)->get($selectedStore),
-            'fedExTradeDocuments' => \App\Models\FedExTradeDocument::query()
+            'shippingPreferences' => app(StoreShippingPreferences::class)->get($selectedStore),
+            'fedExTradeDocuments' => FedExTradeDocument::query()
                 ->where('store_id', $selectedStore->id)
                 ->where('order_id', $order->id)
                 ->orderByDesc('id')
                 ->limit(10)
                 ->get(['id', 'shipment_id', 'document_type', 'status', 'fedex_document_id', 'destination_country_code', 'uploaded_at', 'created_at']),
-            'fedExOrderApiEvents' => \App\Models\CarrierApiEvent::query()
+            'fedExOrderApiEvents' => CarrierApiEvent::query()
                 ->where('store_id', $selectedStore->id)
-                ->where('provider', \App\Models\CarrierAccount::PROVIDER_FEDEX)
+                ->where('provider', CarrierAccount::PROVIDER_FEDEX)
                 ->where(function ($q) use ($order): void {
                     $q->where('response_summary->order_id', $order->id)
                         ->orWhere('request_summary->order_id', $order->id);
@@ -1315,7 +1333,7 @@ class DashboardController extends Controller
             },
         ]);
 
-        $customerReturns = \App\Models\OrderReturn::query()
+        $customerReturns = OrderReturn::query()
             ->where('store_id', $selectedStore->id)
             ->where('customer_id', $customer->id)
             ->with('order:id,order_number')
@@ -1323,7 +1341,7 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        $customerRefunds = \App\Models\Refund::query()
+        $customerRefunds = Refund::query()
             ->where('store_id', $selectedStore->id)
             ->whereHas('order', fn ($q) => $q->where('customer_id', $customer->id))
             ->with('order:id,order_number')
@@ -1331,7 +1349,7 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        $customerExchanges = \App\Models\Exchange::query()
+        $customerExchanges = Exchange::query()
             ->where('store_id', $selectedStore->id)
             ->whereHas('order', fn ($q) => $q->where('customer_id', $customer->id))
             ->with('order:id,order_number')
@@ -1628,7 +1646,7 @@ class DashboardController extends Controller
             ->withCount(['products', 'brands'])
             ->get();
 
-        $ownedClosedStoreIds = \Illuminate\Support\Facades\DB::table('store_user')
+        $ownedClosedStoreIds = DB::table('store_user')
             ->where('user_id', $user->id)
             ->where('role', Store::ROLE_OWNER)
             ->pluck('store_id');
@@ -1805,21 +1823,21 @@ class DashboardController extends Controller
             ->pluck('store_id')
             ->flip();
 
-        $taxRateCounts = \App\Models\TaxRate::query()
+        $taxRateCounts = TaxRate::query()
             ->whereIn('store_id', $storeIds)
             ->where('is_active', true)
             ->selectRaw('store_id, COUNT(*) as aggregate')
             ->groupBy('store_id')
             ->pluck('aggregate', 'store_id');
 
-        $zoneCounts = \App\Models\ShippingZone::query()
+        $zoneCounts = ShippingZone::query()
             ->whereIn('store_id', $storeIds)
             ->where('is_active', true)
             ->selectRaw('store_id, COUNT(*) as aggregate')
             ->groupBy('store_id')
             ->pluck('aggregate', 'store_id');
 
-        $checkoutMethodCounts = \App\Models\ShippingMethod::query()
+        $checkoutMethodCounts = ShippingMethod::query()
             ->whereIn('store_id', $storeIds)
             ->where('is_active', true)
             ->where('enabled_for_checkout', true)

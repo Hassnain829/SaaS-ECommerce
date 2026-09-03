@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\ShippingMethod;
@@ -226,21 +228,21 @@ class DeliverySetupLifecyclePass1Test extends TestCase
         config(['carriers.fedex.checkout_rates_enabled' => false]);
 
         // Attach a FedEx live method so platform-off messaging can appear.
-        $fedEx = \App\Models\Carrier::query()->where('code', 'fedex')->firstOrFail();
-        $account = \App\Models\CarrierAccount::query()->create([
+        $fedEx = Carrier::query()->where('code', 'fedex')->firstOrFail();
+        $account = CarrierAccount::query()->create([
             'store_id' => $store->id,
             'carrier_id' => $fedEx->id,
-            'provider' => \App\Models\CarrierAccount::PROVIDER_FEDEX,
+            'provider' => CarrierAccount::PROVIDER_FEDEX,
             'display_name' => 'FedEx account',
-            'ownership_mode' => \App\Models\CarrierAccount::OWNERSHIP_MERCHANT_OWNED,
-            'credentials_source' => \App\Models\CarrierAccount::CREDENTIALS_MERCHANT_ACCOUNT,
-            'connection_mode' => \App\Models\CarrierAccount::CONNECTION_MODE_FEDEX_INTEGRATOR,
-            'connection_model' => \App\Models\CarrierAccount::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
+            'ownership_mode' => CarrierAccount::OWNERSHIP_MERCHANT_OWNED,
+            'credentials_source' => CarrierAccount::CREDENTIALS_MERCHANT_ACCOUNT,
+            'connection_mode' => CarrierAccount::CONNECTION_MODE_FEDEX_INTEGRATOR,
+            'connection_model' => CarrierAccount::CONNECTION_MODEL_INTEGRATOR_PROVIDER,
             'fedex_integrator_account' => true,
-            'billing_owner' => \App\Models\CarrierAccount::BILLING_OWNER_MERCHANT,
-            'environment' => \App\Models\CarrierAccount::ENVIRONMENT_SANDBOX,
-            'connection_status' => \App\Models\CarrierAccount::CONNECTION_CONNECTED,
-            'status' => \App\Models\CarrierAccount::STATUS_ENABLED,
+            'billing_owner' => CarrierAccount::BILLING_OWNER_MERCHANT,
+            'environment' => CarrierAccount::ENVIRONMENT_SANDBOX,
+            'connection_status' => CarrierAccount::CONNECTION_CONNECTED,
+            'status' => CarrierAccount::STATUS_ENABLED,
             'enabled_for_checkout' => true,
             'capabilities' => ['rates' => true, 'checkout_rates' => true, 'labels' => true],
         ]);

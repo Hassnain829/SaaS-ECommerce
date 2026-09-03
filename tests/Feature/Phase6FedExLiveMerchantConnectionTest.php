@@ -9,9 +9,9 @@ use App\Models\Location;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
-use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
+use App\Services\Carriers\FedEx\Connection\FedExEulaService;
+use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
 use App\Services\Carriers\FedEx\Connection\FedExMerchantConnectionLifecycleService;
-use App\Services\Carriers\FedEx\Support\FedExConfig;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -127,7 +127,7 @@ class Phase6FedExLiveMerchantConnectionTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.shipping.fedex-integrator.eula.accept', $session), [
                 'read_and_accept_eula' => '1',
-                'document_hash' => app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->hash(),
+                'document_hash' => app(FedExEulaService::class)->hash(),
             ])
             ->assertRedirect();
 
@@ -284,10 +284,10 @@ class Phase6FedExLiveMerchantConnectionTest extends TestCase
 
     private function completeEulaScroll(CarrierAccountRegistrationSession $session): void
     {
-        app(\App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator::class)->markEulaScrollComplete(
+        app(FedExIntegratorRegistrationOrchestrator::class)->markEulaScrollComplete(
             $session,
-            app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->hash(),
-            app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->expectedPages(),
+            app(FedExEulaService::class)->hash(),
+            app(FedExEulaService::class)->expectedPages(),
         );
     }
 

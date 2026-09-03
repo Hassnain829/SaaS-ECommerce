@@ -8,6 +8,7 @@ use App\Models\ProductImage;
 use App\Models\ProductImport;
 use App\Models\Shipment;
 use App\Models\Store;
+use App\Models\User;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -39,7 +40,7 @@ final class StorePurgeService
      *     force_deleted: bool
      * }
      */
-    public function purge(Store $store, ?\App\Models\User $actor = null): array
+    public function purge(Store $store, ?User $actor = null): array
     {
         if (! $store->trashed()) {
             throw new InvalidArgumentException('Only a closed (soft-deleted) store can be hard-purged.');

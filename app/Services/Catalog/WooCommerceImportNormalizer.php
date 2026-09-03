@@ -3,6 +3,7 @@
 namespace App\Services\Catalog;
 
 use App\Support\Catalog\ProductImportHeaderNormalizer;
+use Illuminate\Support\Str;
 
 /**
  * Rewrites a WooCommerce product-export row into catalog import cells.
@@ -185,7 +186,7 @@ final class WooCommerceImportNormalizer
         $originalSlug = trim((string) ($row[$slugHeader] ?? ''));
         if ($originalSlug === '') {
             $nameHeader = self::headerNamed($headers, ['name', 'product name', 'title']);
-            $originalSlug = \Illuminate\Support\Str::slug(trim((string) ($row[$nameHeader] ?? '')));
+            $originalSlug = Str::slug(trim((string) ($row[$nameHeader] ?? '')));
         }
 
         foreach ($context['extra_attribute_headers'] as $header) {

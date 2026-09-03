@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Mockery;
 use RuntimeException;
@@ -113,7 +114,7 @@ class NotificationEmailRetryTest extends TestCase
             'error_message' => 'smtp down',
         ])->save();
 
-        \Illuminate\Support\Facades\Queue::fake();
+        Queue::fake();
         Mail::fake();
 
         $this->assertTrue(app(NotificationDispatcher::class)->retryEmail($store, $row->fresh()));
@@ -267,7 +268,7 @@ class NotificationEmailRetryTest extends TestCase
             ->assertSeeText('Queued mail')
             ->assertSeeText('uncertain after an interrupted worker');
 
-        \Illuminate\Support\Facades\Queue::fake();
+        Queue::fake();
         $this->assertTrue(app(NotificationDispatcher::class)->retryEmail($store, $fresh));
         $this->assertSame(NotificationEvent::STATUS_QUEUED, $row->fresh()->status);
     }
@@ -342,9 +343,6 @@ class NotificationEmailRetryTest extends TestCase
         $this->assertSame(NotificationEvent::STATUS_FAILED, $row2->fresh()->status);
     }
 
-    /**
-     * @return SendNotificationEmailJob
-     */
     private function jobWithAttempt(int $notificationId, int $attempt): SendNotificationEmailJob
     {
         return new class($notificationId, $attempt) extends SendNotificationEmailJob

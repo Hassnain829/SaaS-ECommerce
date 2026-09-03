@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use LogicException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class Phase6FedExLifecycleSafetyPassTest extends TestCase
@@ -147,7 +148,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($other, $session);
             $this->fail('Expected cross-store abort');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(404, $e->getStatusCode());
         }
 
@@ -155,7 +156,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($store, $session->fresh());
             $this->fail('Expected wrong provider abort');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(404, $e->getStatusCode());
         }
 
@@ -166,7 +167,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($store, $session->fresh());
             $this->fail('Expected wrong model abort');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(404, $e->getStatusCode());
         }
     }
@@ -179,7 +180,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($store, $session->fresh());
             $this->fail('Expected pairing abort');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 
@@ -190,7 +191,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($store, $session->fresh());
             $this->fail('Expected environment abort');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 
@@ -201,7 +202,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($store, $session->fresh());
             $this->fail('Expected missing credentials abort');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
     }
@@ -341,7 +342,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($store, $session);
             $this->fail('Expected abort for disconnected incoming');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 
@@ -362,7 +363,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($store, $session);
             $this->fail('Expected abort for missing credentials');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 
@@ -403,7 +404,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
         try {
             app(FedExMerchantConnectionLifecycleService::class)->resumeChildOAuthVerification($store, $session->fresh());
             $this->fail('Expected abort for outgoing key mismatch');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 
@@ -482,7 +483,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
             app(FedExMerchantConnectionLifecycleService::class)
                 ->resumeChildOAuthVerification($store, $session->fresh());
             $this->fail('Expected 422 for incorrect active key');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 
@@ -524,7 +525,7 @@ class Phase6FedExLifecycleSafetyPassTest extends TestCase
             app(FedExMerchantConnectionLifecycleService::class)
                 ->resumeChildOAuthVerification($store, $session->fresh());
             $this->fail('Expected 422 when outgoing no longer owns active key');
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             $this->assertSame(422, $e->getStatusCode());
         }
 

@@ -9,14 +9,17 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderAddress;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\ShipmentPackage;
 use App\Models\ShippingMethod;
 use App\Models\ShippingPackagePreset;
+use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\Operations\FedExOrderPackageSnapshotService;
 use App\Services\Carriers\FedEx\Operations\FedExShipQuoteBindingService;
+use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Fulfillment\ShipmentService;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -107,7 +110,7 @@ class FedExOrderShipmentRepairTest extends TestCase
     {
         [$store, $order, $origin, $user] = $this->baseOrderContext();
 
-        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+        app(StoreShippingPreferences::class)->update($store, [
             'weight_unit' => 'LB',
         ]);
 
@@ -256,7 +259,7 @@ class FedExOrderShipmentRepairTest extends TestCase
         [$store, $order, $origin, $user] = $this->baseOrderContext();
         $account = $this->fedExAccount($store, $user);
 
-        $zone = \App\Models\ShippingZone::query()->create([
+        $zone = ShippingZone::query()->create([
             'store_id' => $store->id,
             'name' => 'United States',
             'countries' => ['US'],
@@ -364,7 +367,7 @@ class FedExOrderShipmentRepairTest extends TestCase
             'country_code' => 'US',
         ]);
 
-        $product = \App\Models\Product::query()->create([
+        $product = Product::query()->create([
             'store_id' => $store->id,
             'name' => 'Widget',
             'slug' => 'widget-'.Str::random(6),

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\ProductImport;
 use App\Models\ProductImportRow;
 use App\Models\Role;
 use App\Models\Store;
@@ -34,7 +35,7 @@ class ProductImportLargePayloadTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('products.import.store'), ['file' => $file]);
 
-        $import = \App\Models\ProductImport::query()->firstOrFail();
+        $import = ProductImport::query()->firstOrFail();
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -53,7 +54,7 @@ class ProductImportLargePayloadTest extends TestCase
             ->post(route('products.import.confirm', ['productImportId' => $import->id]));
 
         $import->refresh();
-        $this->assertSame(\App\Models\ProductImport::STATUS_COMPLETED, $import->status);
+        $this->assertSame(ProductImport::STATUS_COMPLETED, $import->status);
 
         $row = ProductImportRow::query()->where('product_import_id', $import->id)->first();
         $this->assertNotNull($row);

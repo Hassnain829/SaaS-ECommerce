@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Checkout;
 use App\Models\CheckoutItem;
 use App\Models\ConnectedSiteOutboxEvent;
@@ -16,6 +17,7 @@ use App\Models\Role;
 use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Catalog\ProductPermanentDeleteService;
 use App\Support\ConnectedSiteCatalogEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -123,7 +125,7 @@ class ProductsListUxTest extends TestCase
         $product->delete();
         Storage::disk('public')->assertExists($path);
 
-        app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDelete($product);
+        app(ProductPermanentDeleteService::class)->forceDelete($product);
         Storage::disk('public')->assertMissing($path);
     }
 
@@ -211,7 +213,7 @@ class ProductsListUxTest extends TestCase
     public function test_category_filter_shows_product_counts(): void
     {
         [$owner, $store] = $this->ownerStore();
-        $category = \App\Models\Category::query()->create([
+        $category = Category::query()->create([
             'store_id' => $store->id,
             'name' => 'Counted Cats',
             'slug' => 'counted-cats-'.Str::random(4),
@@ -669,7 +671,7 @@ class ProductsListUxTest extends TestCase
             'status' => ProductImage::STATUS_READY,
         ]);
 
-        \App\Models\StockMovement::query()->create([
+        StockMovement::query()->create([
             'store_id' => $store->id,
             'product_id' => $product->id,
             'variant_id' => $variant->id,

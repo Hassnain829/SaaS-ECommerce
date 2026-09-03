@@ -3,6 +3,7 @@
 namespace App\Services\Delivery;
 
 use App\Models\Store;
+use App\Support\ProductTypeBehavior;
 
 /**
  * Resolves catalog shipping weight for rates and order line snapshots.
@@ -140,8 +141,8 @@ final class ShippingWeightResolver
             return (bool) $product->requires_shipping;
         }
 
-        return \App\Support\ProductTypeBehavior::requiresShipping(
-            (string) (data_get($product, 'product_type') ?: \App\Support\ProductTypeBehavior::PHYSICAL)
+        return ProductTypeBehavior::requiresShipping(
+            (string) (data_get($product, 'product_type') ?: ProductTypeBehavior::PHYSICAL)
         );
     }
 }

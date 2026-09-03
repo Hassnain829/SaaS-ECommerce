@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Notifications\QueuedVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -17,7 +18,7 @@ class EmailVerificationNotificationController extends Controller
         }
 
         try {
-            $request->user()->notifyNow(new \App\Notifications\QueuedVerifyEmail);
+            $request->user()->notifyNow(new QueuedVerifyEmail);
         } catch (\Throwable $exception) {
             report($exception);
 

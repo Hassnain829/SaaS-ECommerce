@@ -93,8 +93,9 @@ final class FedExCustomsValidationService
 
     /**
      * @param  array<string, mixed>  $customsClearance
-     * @throws ValidationException
      * @return array<string, mixed>|null
+     *
+     * @throws ValidationException
      */
     public function assertValidOrNull(string $originCountry, string $destinationCountry, array $customsClearance): ?array
     {

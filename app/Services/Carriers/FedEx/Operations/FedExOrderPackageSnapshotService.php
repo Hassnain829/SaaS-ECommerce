@@ -3,8 +3,8 @@
 namespace App\Services\Carriers\FedEx\Operations;
 
 use App\Models\Order;
-use App\Models\ShippingPackagePreset;
 use App\Models\ShipmentPackage;
+use App\Models\ShippingPackagePreset;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Delivery\StoreShippingPreferences;
