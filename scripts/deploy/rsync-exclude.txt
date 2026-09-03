@@ -6,6 +6,7 @@
 .phpunit.result.cache
 node_modules/
 dev-test-storefront/
+# Full local WP tree (GB-scale). Connector is staged into deploy/wordpress-jiggy/ in Actions.
 dev-test-wordpress/
 tests/
 docs/archive/

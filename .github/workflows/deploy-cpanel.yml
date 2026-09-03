@@ -91,6 +91,16 @@ jobs:
           test -d public/build
           test "$(find public/build -type f | wc -l)" -gt 0
 
+      # Stage connector into deploy/ (rsync excludes full dev-test-wordpress/).
+      # Post-deploy syncs it into $DEPLOYPATH/jiggy when WordPress is present.
+      - name: Stage Eco Portal Connector for /jiggy sync
+        run: |
+          mkdir -p deploy/wordpress-jiggy/eco-portal-connector
+          rsync -a --delete \
+            dev-test-wordpress/wp-content/plugins/eco-portal-connector/ \
+            deploy/wordpress-jiggy/eco-portal-connector/
+          test -f deploy/wordpress-jiggy/eco-portal-connector/eco-portal-connector.php
+
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.9.1
         with:

@@ -77,6 +77,10 @@ rm -f bootstrap/cache/*.php
 # Avoid optimize/route:cache if Process/proc_open breaks console helpers.
 "${PHP_BIN}" artisan config:cache || true
 
+# Refresh /jiggy WordPress connector + brand pack when that install exists (no-op otherwise).
+export CPANEL_DEPLOY_PATH="${CPANEL_DEPLOY_PATH:-$(pwd)}"
+bash scripts/deploy/sync-wordpress-jiggy.sh
+
 echo "==> Checking /up via domain (not 127.0.0.1)"
 DOMAIN_HOST="${APP_CHECK_HOST:-ecom.resolutedigitalspk.com}"
 

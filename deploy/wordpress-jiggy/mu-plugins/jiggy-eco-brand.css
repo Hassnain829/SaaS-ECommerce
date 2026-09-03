@@ -1,0 +1,61 @@
+/* Jiggy Jerky brand pack — this site only. Not part of the shared connector. */
+
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap");
+
+.eco-portal {
+  font-family: Lato, Roboto, system-ui, sans-serif;
+}
+
+.eco-portal__button {
+  border-radius: 999px;
+  font-family: "Bebas Neue", Impact, sans-serif;
+  letter-spacing: .06em;
+  font-weight: 400;
+  font-size: 1.15rem;
+}
+
+.eco-portal__button--secondary {
+  background: transparent;
+  border: 1.5px solid var(--eco-border);
+  color: var(--eco-text);
+}
+
+.eco-portal__button--secondary:hover,
+.eco-portal__button--secondary:focus {
+  background: #fff8ea;
+  color: var(--eco-text);
+  filter: none;
+}
+
+.eco-portal__product-story {
+  background: linear-gradient(135deg, #30230b, #1a1100);
+  border: 0;
+  color: #fff8ea;
+}
+
+.eco-portal__product-story p {
+  color: #f0e2c4;
+}
+
+.eco-portal__story-stats > div {
+  background: rgba(255, 255, 255, .08);
+  border-color: transparent;
+}
+
+.eco-portal__story-stats span {
+  color: #d9c49a;
+}
+
+.eco-portal__stats li {
+  background: #fff8ea;
+}
+
+.eco-portal__buy-form {
+  background: #fffdf8;
+}
+
+.eco-portal-notice--info {
+  background: #fff8ea;
+  color: #8a5a00;
+  border-color: #f0d9a0;
+}
