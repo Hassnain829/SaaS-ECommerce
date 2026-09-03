@@ -1,4 +1,4 @@
-﻿@php
+@php
     $visibleRoleOptions = ($currentUserStoreRole ?? null) === \App\Models\Store::ROLE_MANAGER
         ? [\App\Models\Store::ROLE_MANAGER, \App\Models\Store::ROLE_STAFF]
         : $memberRoleOptions;

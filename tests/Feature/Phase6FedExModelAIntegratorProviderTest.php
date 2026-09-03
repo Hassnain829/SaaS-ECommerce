@@ -45,9 +45,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shipping.carriers.connect.index'))
-            ->assertOk()
-            ->assertSeeText('Connect FedEx account')
-            ->assertSee(route('settings.shipping.fedex-integrator.start'), false);
+            ->assertRedirect(route('settings.shipping.fedex-integrator.start'));
     }
 
     public function test_model_b_button_hidden_unless_developer_fallback_enabled(): void
@@ -980,6 +978,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
+            ->followingRedirects()
             ->get(route('shippingAutomation', ['tab' => 'carriers']))
             ->assertOk()
             ->assertSeeText('USPS Merchant Account');

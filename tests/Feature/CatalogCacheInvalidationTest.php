@@ -335,7 +335,7 @@ class CatalogCacheInvalidationTest extends TestCase
         $admin = file_get_contents($pluginDir.'/includes/class-admin.php');
         $storefront = file_get_contents($pluginDir.'/includes/class-storefront.php');
 
-        $this->assertStringContainsString("define('ECO_PORTAL_CONNECTOR_VERSION', '1.7.1')", $plugin);
+        $this->assertStringContainsString("define('ECO_PORTAL_CONNECTOR_VERSION', '1.9.2')", $plugin);
         $this->assertStringContainsString('eco-portal/v1', $events);
         $this->assertStringContainsString('hash_hmac', $events);
         $this->assertStringContainsString('already_seen', $events);

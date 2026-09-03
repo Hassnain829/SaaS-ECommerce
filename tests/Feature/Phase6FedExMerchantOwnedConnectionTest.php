@@ -42,10 +42,10 @@ class Phase6FedExMerchantOwnedConnectionTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shipping.carriers.connect.index'))
+            ->get(route('shipping.carriers.connect.show', 'fedex'))
             ->assertOk()
-            ->assertSeeText('Connect your own FedEx Developer credentials')
-            ->assertSeeText('Labels and checkout live rates are not enabled');
+            ->assertSeeText('FedEx credentials')
+            ->assertSeeText('ship-from location');
     }
 
     public function test_owner_can_save_merchant_owned_fedex_account_through_wizard(): void

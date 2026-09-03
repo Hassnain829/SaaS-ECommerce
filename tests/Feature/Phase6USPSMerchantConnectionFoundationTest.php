@@ -33,6 +33,7 @@ class Phase6USPSMerchantConnectionFoundationTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
+            ->followingRedirects()
             ->get(route('shippingAutomation', ['tab' => 'advanced']))
             ->assertOk()
             ->assertSeeText('USPS Merchant Account')
@@ -226,6 +227,7 @@ class Phase6USPSMerchantConnectionFoundationTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
+            ->followingRedirects()
             ->get(route('shippingAutomation', ['tab' => 'advanced']))
             ->assertOk()
             ->assertSeeText('USPS sandbox diagnostics')

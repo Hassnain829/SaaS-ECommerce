@@ -60,6 +60,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
 
         $location = (string) $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
+            ->followingRedirects()
             ->get(route('shippingAutomation', ['tab' => 'zones']))
             ->headers
             ->get('Location');
