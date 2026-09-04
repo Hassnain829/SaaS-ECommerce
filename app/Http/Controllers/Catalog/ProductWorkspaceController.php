@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Store;
+use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Inventory\InventorySyncService;
 use App\Support\Catalog\ProductRichText;
 use App\Support\ProductDetailPresenter;
@@ -44,15 +45,34 @@ final class ProductWorkspaceController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'parent_id']);
 
+        $managementCategories = $store->categories()
+            ->withCount('products')
+            ->with('parent:id,name')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
         $catalogBrands = $store->brands()
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $managementBrands = $store->brands()
+            ->withCount('products')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
         $catalogTags = $store->tags()
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
+
+        $managementTags = $store->tags()
+            ->withCount('products')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
 
         $catalogAttributes = $store->attributes()
             ->with(['terms' => fn ($query) => $query->orderBy('sort_order')->orderBy('name')])
@@ -71,10 +91,16 @@ final class ProductWorkspaceController extends Controller
             'catalogTags' => $catalogTags,
             'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
             'catalogAttributes' => $catalogAttributes,
+            'managementBrands' => $managementBrands,
+            'managementTags' => $managementTags,
+            'managementCategories' => $managementCategories,
+            'canManageBrands' => true,
+            'canManageTags' => true,
+            'canManageCategories' => true,
             'editProductPayload' => $editProductPayload,
             'workspaceReturnProductId' => $product->id,
             'taxSetting' => $store->taxSetting,
-            'shippingPreferences' => app(\App\Services\Delivery\StoreShippingPreferences::class)->get($store),
+            'shippingPreferences' => app(StoreShippingPreferences::class)->get($store),
         ]);
     }
 

@@ -314,8 +314,7 @@ class Dr06MerchantAcceptanceTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('developer-storefront.settings'))
             ->assertOk()
-            ->assertSee('Connect your website')
-            ->assertSee('Go live checklist');
+            ->assertSee('Connect your website');
 
         $this->withToken($token)
             ->withHeader('Idempotency-Key', 'dr06-checkout-'.Str::uuid())

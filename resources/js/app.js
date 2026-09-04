@@ -134,6 +134,101 @@ const initMerchantProfileMenus = () => {
     });
 };
 
+const closeStoreSwitcherMenu = () => {
+    const menu = document.getElementById('sidebar-store-switch-menu');
+    const trigger = document.getElementById('sidebar-store-switch-trigger');
+    if (menu) menu.classList.add('hidden');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+};
+
+const initStoreSwitcher = () => {
+    const root = document.querySelector('[data-store-switcher]');
+    const form = document.getElementById('sidebar-store-switch-form');
+    const storeIdInput = document.getElementById('sidebar-store-switch-id');
+    const trigger = document.getElementById('sidebar-store-switch-trigger');
+    const menu = document.getElementById('sidebar-store-switch-menu');
+    const modal = document.getElementById('storeSwitchConfirmModal');
+    if (!root || !form || !storeIdInput || !trigger || !menu || !modal) {
+        return;
+    }
+    if (root.dataset.bound === 'true') {
+        return;
+    }
+    root.dataset.bound = 'true';
+
+    let pendingStoreId = '';
+    let pendingStoreName = '';
+
+    const openMenu = () => {
+        closeAllMerchantProfileMenus();
+        menu.classList.toggle('hidden');
+        trigger.setAttribute('aria-expanded', menu.classList.contains('hidden') ? 'false' : 'true');
+    };
+
+    const openModal = () => {
+        const nameEl = document.getElementById('storeSwitchConfirmName');
+        const createWarning = document.getElementById('storeSwitchCreateWarning');
+        if (nameEl) nameEl.textContent = pendingStoreName;
+        createWarning?.classList.toggle('hidden', ! document.querySelector('[data-product-create-guard]'));
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('overflow-hidden');
+        modal.querySelector('[data-store-switch-cancel]')?.focus();
+    };
+
+    const closeModal = () => {
+        pendingStoreId = '';
+        pendingStoreName = '';
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+    };
+
+    trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openMenu();
+    });
+
+    menu.querySelectorAll('[data-store-switch-option]').forEach((option) => {
+        option.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            closeStoreSwitcherMenu();
+            const nextId = String(option.getAttribute('data-store-id') || '');
+            const currentId = String(storeIdInput.value || '');
+            if (nextId === '' || nextId === currentId) {
+                return;
+            }
+            pendingStoreId = nextId;
+            pendingStoreName = option.getAttribute('data-store-name') || 'this store';
+            openModal();
+        });
+    });
+
+    modal.querySelector('[data-store-switch-cancel]')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        closeModal();
+    });
+
+    modal.querySelector('[data-store-switch-confirm]')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (pendingStoreId === '') {
+            closeModal();
+            return;
+        }
+        storeIdInput.value = pendingStoreId;
+        window.__releaseProductCreateGuard?.();
+        form.submit();
+    });
+
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            closeModal();
+        }
+    });
+};
+
 const disableTurboOnMultipartForms = (root = document) => {
     root.querySelectorAll('form[enctype="multipart/form-data"]').forEach((form) => {
         form.setAttribute('data-turbo', 'false');
@@ -230,12 +325,27 @@ window.closeSidebar = () => {
 const bootMerchantUi = (root = document) => {
     portalMerchantLayers();
     initMerchantProfileMenus();
+    initStoreSwitcher();
     disableTurboOnMultipartForms(root);
     syncMerchantSidebarActive();
 };
 
 document.addEventListener('click', () => {
     closeAllMerchantProfileMenus();
+    closeStoreSwitcherMenu();
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') {
+        return;
+    }
+    const storeModal = document.getElementById('storeSwitchConfirmModal');
+    if (storeModal && ! storeModal.classList.contains('hidden')) {
+        event.preventDefault();
+        storeModal.querySelector('[data-store-switch-cancel]')?.click();
+        return;
+    }
+    closeStoreSwitcherMenu();
 });
 
 window.addEventListener('resize', () => {
@@ -265,6 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.addEventListener('turbo:before-cache', () => {
     closeAllMerchantProfileMenus();
+    closeStoreSwitcherMenu();
     document.querySelectorAll('[data-ui-portal-ready="true"]').forEach((layer) => {
         if (layer.parentElement === document.body && ! layer.classList.contains('hidden')) {
             layer.classList.add('hidden');

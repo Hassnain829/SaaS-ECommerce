@@ -132,4 +132,53 @@ class ProductEditPayloadCatalogImagesTest extends TestCase
         $this->assertStringContainsString('upload failed', (string) $payload['catalog_images'][1]['picker_label']);
         $this->assertStringContainsString('pending download', (string) $payload['catalog_images'][2]['picker_label']);
     }
+
+    public function test_create_payload_restores_draft_photos_and_entered_fields_from_old_input(): void
+    {
+        $role = Role::firstOrCreate(['name' => 'user']);
+        $owner = User::factory()->create(['role_id' => $role->id]);
+        $store = Store::create([
+            'user_id' => $owner->id,
+            'name' => 'Draft Restore Store',
+            'slug' => 'draft-restore-'.Str::random(4),
+            'logo' => null,
+            'address' => 'A',
+            'currency' => 'USD',
+            'timezone' => 'UTC',
+            'category' => 'physical',
+            'settings' => [],
+            'onboarding_completed' => false,
+        ]);
+        $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
+
+        $path = 'products/'.$store->id.'/create-drafts/abc123/shot.jpg';
+        $payload = ProductEditPayload::withFormOldForCreate($store, [
+            'name' => 'Helen Osborne',
+            'description' => 'Kept after a failed save',
+            'sku' => 'DUP-SKU',
+            'base_price' => '547.00',
+            'bulk_stock' => '93',
+            'existing_image_paths' => [$path],
+            'custom_fields' => [
+                ['key' => 'material', 'type' => 'text', 'value' => 'cotton'],
+            ],
+            'variants' => [
+                ['sku' => '', 'price' => '547.00', 'stock' => '93', 'stock_alert' => 5, 'option_map' => []],
+            ],
+        ]);
+
+        $this->assertTrue($payload['is_create']);
+        $this->assertSame('Helen Osborne', $payload['name']);
+        $this->assertSame('Kept after a failed save', $payload['description']);
+        $this->assertSame('DUP-SKU', $payload['sku']);
+        $this->assertSame('547.00', $payload['base_price']);
+        $this->assertSame(93, $payload['default_stock']);
+        $this->assertSame('93', $payload['variants'][0]['stock']);
+        $this->assertSame('cotton', $payload['custom_fields'][0]['value']);
+        $this->assertSame([$path], $payload['image_paths']);
+        $this->assertCount(1, $payload['catalog_images']);
+        $this->assertSame($path, $payload['catalog_images'][0]['image_path']);
+        $this->assertSame('existing:'.$path, $payload['catalog_images'][0]['id']);
+        $this->assertNotEmpty($payload['catalog_images'][0]['thumb_url']);
+    }
 }

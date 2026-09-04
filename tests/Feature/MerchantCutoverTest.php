@@ -25,17 +25,17 @@ class MerchantCutoverTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_website_page_shows_go_live_checklist_and_blocks_activation_when_stripe_is_missing(): void
+    public function test_activation_is_blocked_when_stripe_is_missing(): void
     {
         [$owner, $store] = $this->ownerStore();
 
+        // The merchant connect page no longer renders the go-live checklist,
+        // but the activation gates still run on the server.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('developer-storefront.settings'))
             ->assertOk()
-            ->assertSee('Go live checklist')
-            ->assertSee('Mark website live becomes available')
-            ->assertSee('Connect Stripe for this store')
+            ->assertDontSee('Go live checklist')
             ->assertDontSee('deactivate plugin', false)
             ->assertDontSee('Delete WooCommerce');
 
@@ -83,7 +83,7 @@ class MerchantCutoverTest extends TestCase
             ->withSession(['current_store_id' => $storeA->id])
             ->get(route('developer-storefront.settings'))
             ->assertOk()
-            ->assertSee('Only a store owner can confirm backup steps');
+            ->assertSee('Only the store owner can create or remove the key.');
 
         $this->actingAs($manager)
             ->withSession(['current_store_id' => $storeA->id])

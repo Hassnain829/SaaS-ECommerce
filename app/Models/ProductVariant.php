@@ -35,6 +35,55 @@ class ProductVariant extends Model
         'meta' => 'array',
     ];
 
+    /**
+     * Selling price for this variant.
+     *
+     * A stored NULL means "inherit the product's base price", the same way a
+     * blank shipping weight inherits the product or store fallback. Reading
+     * `$variant->price` therefore always gives the price a shopper pays, while
+     * `priceOverride()` exposes the raw value the merchant actually set.
+     */
+    public function getPriceAttribute(mixed $value): ?string
+    {
+        if ($value !== null && $value !== '') {
+            return number_format((float) $value, 2, '.', '');
+        }
+
+        $basePrice = $this->resolveProductBasePrice();
+
+        return $basePrice === null ? null : number_format($basePrice, 2, '.', '');
+    }
+
+    /**
+     * The merchant's explicit price for this variant, or null when it inherits.
+     */
+    public function priceOverride(): ?string
+    {
+        $raw = $this->attributes['price'] ?? null;
+
+        return ($raw === null || $raw === '') ? null : number_format((float) $raw, 2, '.', '');
+    }
+
+    public function hasPriceOverride(): bool
+    {
+        return $this->priceOverride() !== null;
+    }
+
+    private function resolveProductBasePrice(): ?float
+    {
+        if ($this->relationLoaded('product')) {
+            return $this->product ? (float) $this->product->base_price : null;
+        }
+
+        if (! $this->product_id) {
+            return null;
+        }
+
+        $basePrice = Product::query()->whereKey($this->product_id)->value('base_price');
+
+        return $basePrice === null ? null : (float) $basePrice;
+    }
+
     protected static function booted(): void
     {
         static::saving(function (ProductVariant $variant): void {

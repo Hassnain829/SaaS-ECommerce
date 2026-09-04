@@ -107,6 +107,30 @@ class CurrentStoreTest extends TestCase
         $this->assertSame($accessibleStore->id, session('current_store_id'));
     }
 
+    public function test_store_switcher_requires_confirm_dialog_instead_of_auto_submitting_a_select(): void
+    {
+        $merchant = $this->createMerchantUser();
+        $alphaStore = $this->createMemberStore($merchant, 'Alpha Store');
+        $betaStore = $this->createMemberStore($merchant, 'Beta Store');
+        $alphaStore->forceFill(['onboarding_completed' => true])->save();
+        $betaStore->forceFill(['onboarding_completed' => true])->save();
+
+        $html = $this->actingAs($merchant)
+            ->withSession(['current_store_id' => $alphaStore->id])
+            ->get(route('products.create'))
+            ->assertOk()
+            ->getContent() ?: '';
+
+        $this->assertStringContainsString('id="storeSwitchConfirmModal"', $html);
+        $this->assertStringContainsString('id="sidebar-store-switch-trigger"', $html);
+        $this->assertStringContainsString('id="sidebar-store-switch-form"', $html);
+        $this->assertStringContainsString('Switch stores?', $html);
+        $this->assertStringContainsString('Unsaved product', $html);
+        $this->assertStringContainsString('data-store-id="'.$betaStore->id.'"', $html);
+        $this->assertStringNotContainsString('id="sidebar-store-switcher"', $html);
+        $this->assertDoesNotMatchRegularExpression('/sidebar-store-switch-form[^>]*>[\s\S]*onchange="this\.form\.submit\(\)"/', $html);
+    }
+
     protected function createMerchantUser(?string $email = null): User
     {
         $role = Role::firstOrCreate(['name' => 'user']);

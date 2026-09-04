@@ -1,17 +1,19 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\FedExAdminDiagnosticsController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordConfirmationController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\Catalog\AttributeController;
 use App\Http\Controllers\Catalog\BrandController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Catalog\ProductBulkController;
-use App\Http\Controllers\Catalog\ProductInlineController;
 use App\Http\Controllers\Catalog\ProductImportController;
+use App\Http\Controllers\Catalog\ProductInlineController;
 use App\Http\Controllers\Catalog\ProductWorkspaceController;
 use App\Http\Controllers\Catalog\ProductWorkspaceDataController;
 use App\Http\Controllers\Catalog\TagController;
@@ -24,9 +26,9 @@ use App\Http\Controllers\Commerce\ReturnController;
 use App\Http\Controllers\Commerce\ShipmentController;
 use App\Http\Controllers\Commerce\ShipmentsIndexController;
 use App\Http\Controllers\LegalPageController;
+use App\Http\Controllers\Settings\CouponController;
 use App\Http\Controllers\Settings\DeliverySetupWizardController;
 use App\Http\Controllers\Settings\DeveloperStorefrontSettingsController;
-use App\Http\Controllers\Settings\CouponController;
 use App\Http\Controllers\Settings\LocationController;
 use App\Http\Controllers\Settings\MerchantCutoverController;
 use App\Http\Controllers\Settings\PaymentSettingsController;
@@ -36,6 +38,7 @@ use App\Http\Controllers\Settings\TeamMemberController;
 use App\Http\Controllers\Store\CurrentStoreController;
 use App\Http\Controllers\Store\DashboardController;
 use App\Http\Controllers\Store\NotificationController;
+use App\Http\Controllers\Storefront\FedExPublicTrackingController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -76,8 +79,8 @@ Route::post('/logout', [DashboardController::class, 'logout'])
     ->name('logout');
 
 Route::middleware('auth')->group(function () {
-    Route::get('/confirm-password', [\App\Http\Controllers\Auth\PasswordConfirmationController::class, 'show'])->name('password.confirm');
-    Route::post('/confirm-password', [\App\Http\Controllers\Auth\PasswordConfirmationController::class, 'store'])->name('password.confirm.store');
+    Route::get('/confirm-password', [PasswordConfirmationController::class, 'show'])->name('password.confirm');
+    Route::post('/confirm-password', [PasswordConfirmationController::class, 'store'])->name('password.confirm.store');
 
     Route::get('/email/verify', EmailVerificationPromptController::class)->name('verification.notice');
     Route::get('/email/verify/{id}/{hash}', VerifyEmailController::class)
@@ -87,7 +90,7 @@ Route::middleware('auth')->group(function () {
         ->middleware('throttle:6,1')
         ->name('verification.send');
 });
-Route::get('/t/{storeSlug}/fedex/{token}', [\App\Http\Controllers\Storefront\FedExPublicTrackingController::class, 'show'])
+Route::get('/t/{storeSlug}/fedex/{token}', [FedExPublicTrackingController::class, 'show'])
     ->middleware('throttle:60,1')
     ->name('public.fedex.tracking');
 
@@ -508,6 +511,9 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::get('/developer-storefront', [DeveloperStorefrontSettingsController::class, 'show'])
         ->middleware('store.permission:developer_api.view')
         ->name('developer-storefront.settings');
+    Route::get('/developer-storefront/status', [DeveloperStorefrontSettingsController::class, 'status'])
+        ->middleware('store.permission:developer_api.view')
+        ->name('developer-storefront.status');
     Route::get('/developer-storefront/plugin', [DeveloperStorefrontSettingsController::class, 'downloadPlugin'])
         ->middleware('store.permission:developer_api.view')
         ->name('developer-storefront.plugin.download');
@@ -597,8 +603,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin-security', [AdminController::class, 'admin_settings_security'])->name('admin-security');
     Route::get('/admin-notifications', [AdminController::class, 'admin_settings_notifications'])->name('admin-notifications');
     Route::get('/admin-profile', [AdminController::class, 'admin_profile'])->name('admin-profile');
-    Route::get('/admin-fedex', [\App\Http\Controllers\Admin\FedExAdminDiagnosticsController::class, 'index'])
+    Route::get('/admin-fedex', [FedExAdminDiagnosticsController::class, 'index'])
         ->name('admin.fedex.index');
-    Route::get('/admin-fedex-diagnostics', [\App\Http\Controllers\Admin\FedExAdminDiagnosticsController::class, 'diagnosticsRedirect'])
+    Route::get('/admin-fedex-diagnostics', [FedExAdminDiagnosticsController::class, 'diagnosticsRedirect'])
         ->name('admin.fedex.diagnostics');
 });

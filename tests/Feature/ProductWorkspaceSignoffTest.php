@@ -53,6 +53,7 @@ class ProductWorkspaceSignoffTest extends TestCase
             ->assertSee('href="#catalog-edit-section-basics"', false)
             ->assertSee('href="#catalog-edit-section-media"', false)
             ->assertSee('href="#catalog-edit-section-pricing"', false)
+            ->assertSee('href="#catalog-edit-section-tax-shipping"', false)
             ->assertSee('href="#catalog-edit-section-organization"', false)
             ->assertSee('href="#catalog-edit-section-attributes"', false)
             ->assertSee('href="#catalog-edit-section-additional-details"', false)
@@ -63,9 +64,13 @@ class ProductWorkspaceSignoffTest extends TestCase
             ->assertSee('data-image-dropzone', false)
             ->assertSee('Drop photos here or click to browse', false)
             ->assertSee('Choose photos', false)
+            ->assertSee('up to 8 photos', false)
+            ->assertSee('id="productImageLightbox"', false)
+            ->assertSee('Drag to change photo order', false)
             ->assertSee('id="edit_product_image"', false)
             ->assertDontSee('No product images selected.', false)
             ->assertSee('data-product-edit-tab>Price &amp; inventory</a>', false)
+            ->assertSee('data-product-edit-tab>Tax &amp; shipping</a>', false)
             ->assertSee('data-product-edit-tab>Organization</a>', false)
             ->assertSee('data-product-edit-tab>Specifications</a>', false)
             ->assertSee('data-product-edit-tab>Additional details</a>', false)
@@ -89,6 +94,7 @@ class ProductWorkspaceSignoffTest extends TestCase
             'catalog-edit-section-basics',
             'catalog-edit-section-media',
             'catalog-edit-section-pricing',
+            'catalog-edit-section-tax-shipping',
             'catalog-edit-section-organization',
             'catalog-edit-section-attributes',
             'catalog-edit-section-additional-details',

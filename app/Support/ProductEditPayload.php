@@ -45,6 +45,7 @@ final class ProductEditPayload
                 ['key' => '', 'type' => 'text', 'value' => ''],
             ],
             'stock_alert' => 5,
+            'default_stock' => 0,
             'image_url' => null,
             'image_paths' => [],
             'image_urls' => [],
@@ -197,7 +198,7 @@ final class ProductEditPayload
                     'id' => $variant->id,
                     'option_map' => $optionMap,
                     'sku' => $variant->sku,
-                    'price' => (string) $variant->price,
+                    'price' => (string) ($variant->priceOverride() ?? ''),
                     'compare_at_price' => $variant->compare_at_price !== null ? (string) $variant->compare_at_price : '',
                     'stock' => (string) $variant->stock,
                     'stock_alert' => (int) $variant->stock_alert,
@@ -272,6 +273,16 @@ final class ProductEditPayload
 
         if (array_key_exists('bulk_price', $old) && (! array_key_exists('base_price', $old) || $old['base_price'] === '' || $old['base_price'] === null)) {
             $base['base_price'] = $old['bulk_price'];
+        }
+
+        if (array_key_exists('bulk_stock', $old) && $old['bulk_stock'] !== null && $old['bulk_stock'] !== '') {
+            $base['default_stock'] = (int) $old['bulk_stock'];
+            if (
+                (! isset($old['variants']) || ! is_array($old['variants']) || $old['variants'] === [])
+                && isset($base['variants'][0]) && is_array($base['variants'][0])
+            ) {
+                $base['variants'][0]['stock'] = (string) max(0, (int) $old['bulk_stock']);
+            }
         }
 
         if (array_key_exists('is_taxable', $old)) {
@@ -395,6 +406,7 @@ final class ProductEditPayload
                     'product_image_id' => self::normalizeProductImageIdForPayload(
                         $variantRow['product_image_id'] ?? null
                     ),
+                    'custom_fields' => [],
                 ];
 
                 if (isset($variantRow['custom_fields']) && is_array($variantRow['custom_fields'])) {
@@ -421,7 +433,61 @@ final class ProductEditPayload
             }
         }
 
+        if (($base['is_create'] ?? false) === true) {
+            $draftImages = self::catalogImagesFromOldExistingPaths($old);
+            if ($draftImages !== []) {
+                $paths = array_map(static fn (array $img): string => (string) $img['image_path'], $draftImages);
+                $base['image_paths'] = $paths;
+                $base['image_urls'] = array_map(
+                    static fn (string $path): string => asset('storage/'.$path),
+                    $paths
+                );
+                $base['image_url'] = $base['image_urls'][0] ?? null;
+                $base['catalog_images'] = $draftImages;
+            }
+        }
+
         return $base;
+    }
+
+    /**
+     * @param  array<string, mixed>  $old
+     * @return list<array{id: string, image_path: string, thumb_url: string, picker_label: string}>
+     */
+    private static function catalogImagesFromOldExistingPaths(array $old): array
+    {
+        if (! isset($old['existing_image_paths']) || ! is_array($old['existing_image_paths'])) {
+            return [];
+        }
+
+        $images = [];
+        $galleryOrdinal = 0;
+        foreach (array_values($old['existing_image_paths']) as $index => $path) {
+            if (! is_string($path) || $path === '' || str_contains($path, '..') || str_starts_with($path, '/')) {
+                continue;
+            }
+            $normalized = str_replace('\\', '/', $path);
+            if ($normalized === '') {
+                continue;
+            }
+            $file = basename($normalized);
+            $fileDisp = $file !== '' ? Str::limit($file, 40) : 'Photo';
+            if ($index === 0) {
+                $pickerLabel = 'Main product image — '.$fileDisp;
+            } else {
+                $galleryOrdinal++;
+                $pickerLabel = 'Gallery image '.$galleryOrdinal.' — '.$fileDisp;
+            }
+            $thumb = asset('storage/'.$normalized);
+            $images[] = [
+                'id' => 'existing:'.$normalized,
+                'image_path' => $normalized,
+                'thumb_url' => $thumb,
+                'picker_label' => $pickerLabel,
+            ];
+        }
+
+        return $images;
     }
 
     /**
@@ -506,6 +572,10 @@ final class ProductEditPayload
         }
 
         if (preg_match('/^new:\d+$/', $raw) === 1) {
+            return $raw;
+        }
+
+        if (str_starts_with($raw, 'existing:') && ! str_contains($raw, '..')) {
             return $raw;
         }
 

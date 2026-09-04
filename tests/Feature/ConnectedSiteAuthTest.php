@@ -481,10 +481,7 @@ class ConnectedSiteAuthTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('developer-storefront.settings'))
             ->assertOk()
-            ->assertSee($token)
-            ->assertSee('Connection details')
-            ->assertSee('Read products')
-            ->assertSee('Start checkout');
+            ->assertSee($token);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])

@@ -1,8 +1,10 @@
 @php
     $managementBrands = $managementBrands ?? collect();
-    $brands = $managementBrands->isNotEmpty() ? $managementBrands : ($brands ?? collect());
     $canManageBrands = $canManageBrands ?? false;
     $embedCatalogHubs = (bool) ($embedCatalogHubs ?? false);
+    $brands = $embedCatalogHubs
+        ? $managementBrands
+        : ($managementBrands->isNotEmpty() ? $managementBrands : ($brands ?? collect()));
     $reopenAdd = $errors->any() && (old('_open_brand_add_modal') == '1' || old('_open_brand_add_modal') === 1 || old('_open_brand_add_modal') === true);
     $reopenEdit = $errors->any() && old('_editing_brand_id');
     $editingBrand = $reopenEdit ? $brands->firstWhere('id', (int) old('_editing_brand_id')) : null;
@@ -50,7 +52,7 @@
                         <th class="py-3 pl-3 pr-1 text-right text-[11px] font-semibold uppercase tracking-wide text-[#64748B] sm:pr-2">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-[#F1F5F9]">
+                <tbody id="catalog-hub-brands-rows" class="divide-y divide-[#F1F5F9]" data-catalog-hub-rows="brands">
                     @forelse ($brands as $brand)
                         @php
                             $sc = $statusBadgeClasses[$brand->status] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
@@ -68,9 +70,10 @@
                                 'seo_title' => $brand->seo_title,
                                 'seo_description' => $brand->seo_description,
                                 'update_url' => route('brands.update', $brand),
+                                'destroy_url' => route('brands.destroy', $brand),
                             ];
                         @endphp
-                        <tr class="align-middle transition-colors hover:bg-[#F8FAFC]/90">
+                        <tr class="align-middle transition-colors hover:bg-[#F8FAFC]/90" data-catalog-row="brand" data-catalog-row-id="{{ $brand->id }}">
                             <td class="max-w-[9rem] py-3.5 pl-1 pr-3 font-medium text-[#0F172A] sm:max-w-none sm:pl-2">
                                 <span class="block truncate">{{ $brand->name }}</span>
                             </td>
@@ -91,7 +94,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
+                        <tr data-catalog-hub-empty="brands">
                             <td colspan="4" class="px-2 py-10 text-center sm:px-4">
                                 <p class="text-sm font-medium text-[#475569]">No brands yet</p>
                                 <p class="mt-1 text-xs text-[#94A3B8]">Create a brand to assign to products.</p>
@@ -114,8 +117,9 @@
                             </ul>
                         </div>
                     @endif
-                    <form method="POST" action="{{ route('brands.store') }}" class="space-y-3" id="brandHubAddForm">
+                    <form method="POST" action="{{ route('brands.store') }}" class="space-y-3" id="brandHubAddForm" data-catalog-kind="brand" data-turbo="false">
                         @csrf
+                        @include('user_view.partials.catalog_tools_return_field')
                         <input type="hidden" name="_open_brand_add_modal" value="1">
                         <div class="grid grid-cols-1 gap-2 sm:grid-cols-12 sm:items-end">
                             <div class="sm:col-span-5">
@@ -198,8 +202,9 @@
                     </ul>
                 </div>
             @endif
-            <form method="POST" action="{{ $reopenEdit ? route('brands.update', $editingBrand) : '#' }}" id="brandEditForm" class="space-y-3">
+            <form method="POST" action="{{ $reopenEdit ? route('brands.update', $editingBrand) : '#' }}" id="brandEditForm" class="space-y-3" data-catalog-kind="brand" data-turbo="false">
                 @csrf
+                @include('user_view.partials.catalog_tools_return_field')
                 @method('PATCH')
                 <input type="hidden" name="_open_brand_edit_modal" value="1">
                 <input type="hidden" name="_editing_brand_id" id="brand_edit_brand_id" value="{{ $reopenEdit ? old('_editing_brand_id', $editingBrand->id) : '' }}">
@@ -272,8 +277,9 @@
             <p class="mt-1.5 text-xs text-[#64748B]">Detach from products first if assigned.</p>
         </div>
         <div class="px-4 pb-4 pt-0">
-            <form id="deleteBrandForm" method="POST" class="mt-2">
+            <form id="deleteBrandForm" method="POST" class="mt-2" data-catalog-kind="brand" data-turbo="false">
                 @csrf
+                @include('user_view.partials.catalog_tools_return_field')
                 @method('DELETE')
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <button type="button" id="cancelDeleteBrand" class="rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Cancel</button>

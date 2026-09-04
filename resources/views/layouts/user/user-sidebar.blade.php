@@ -33,26 +33,50 @@
     </div>
 
     @if (!empty($availableStores) && count($availableStores) > 0)
-        <div class="shrink-0 px-3 pb-3">
-            <form method="POST" action="{{ route('current-store.update') }}" class="relative" data-turbo="false">
-                @csrf
-                <label for="sidebar-store-switcher" class="sr-only">Current store</label>
-                <select
-                    id="sidebar-store-switcher"
-                    name="store_id"
-                    onchange="this.form.submit()"
-                    class="w-full cursor-pointer appearance-none rounded-md border border-border bg-surface-muted px-2.5 py-2 pr-8 text-sm font-medium text-ink transition hover:bg-canvas focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20"
-                >
-                    @foreach ($availableStores as $storeOption)
-                        <option value="{{ $storeOption->id }}" @selected(optional($currentStore)->id === $storeOption->id)>
-                            {{ $storeOption->name }}
-                        </option>
-                    @endforeach
-                </select>
-                <svg class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted" width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                    <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
-                </svg>
-            </form>
+        <div class="shrink-0 px-3 pb-3" data-store-switcher>
+            @if (count($availableStores) === 1)
+                <p class="truncate rounded-md border border-border bg-surface-muted px-2.5 py-2 text-sm font-medium text-ink">{{ optional($currentStore)->name ?? $availableStores[0]->name }}</p>
+            @else
+                <form id="sidebar-store-switch-form" method="POST" action="{{ route('current-store.update') }}" class="hidden" data-turbo="false" autocomplete="off">
+                    @csrf
+                    <input type="hidden" name="store_id" id="sidebar-store-switch-id" value="{{ optional($currentStore)->id }}" autocomplete="off">
+                </form>
+                <div class="relative">
+                    <button
+                        type="button"
+                        id="sidebar-store-switch-trigger"
+                        class="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface-muted px-2.5 py-2 text-left text-sm font-medium text-ink transition hover:bg-canvas focus:border-brand focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                        aria-controls="sidebar-store-switch-menu"
+                    >
+                        <span id="sidebar-store-switch-label" class="min-w-0 truncate">{{ optional($currentStore)->name }}</span>
+                        <svg class="shrink-0 text-ink-muted" width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                            <path d="M7 9L3 5H11L7 9Z" fill="currentColor" />
+                        </svg>
+                    </button>
+                    <div
+                        id="sidebar-store-switch-menu"
+                        class="absolute z-30 mt-1 hidden max-h-64 w-full overflow-y-auto rounded-md border border-border bg-surface py-1 shadow-lg"
+                        role="listbox"
+                        aria-labelledby="sidebar-store-switch-trigger"
+                    >
+                        @foreach ($availableStores as $storeOption)
+                            <button
+                                type="button"
+                                role="option"
+                                class="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-surface-muted @if (optional($currentStore)->id === $storeOption->id) bg-brand-soft font-semibold @endif"
+                                data-store-switch-option
+                                data-store-id="{{ $storeOption->id }}"
+                                data-store-name="{{ $storeOption->name }}"
+                                @if (optional($currentStore)->id === $storeOption->id) aria-selected="true" @else aria-selected="false" @endif
+                            >
+                                {{ $storeOption->name }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
         </div>
     @elseif (request()->user()?->hasRole('user'))
         <div class="shrink-0 px-3 pb-3">
@@ -189,6 +213,35 @@
 </main>
 
 @stack('overlays')
+@if (!empty($availableStores) && count($availableStores) > 1)
+<div id="storeSwitchConfirmModal" class="ui-modal-shell ui-modal-shell--alert hidden" role="dialog" aria-modal="true" aria-labelledby="storeSwitchConfirmTitle">
+    <div class="ui-modal-panel ui-modal-panel--md border-[#BFDBFE]">
+        <div class="bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.16),_transparent_60%)] px-6 pb-4 pt-6">
+            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#EFF6FF] text-[#1D4ED8] shadow-sm" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 7L6 3H18L20 7V19C20 20.1 19.1 21 18 21H6C4.9 21 4 20.1 4 19V7ZM6 9V19H18V9H6ZM8 11H16V13H8V11Z" fill="currentColor"/>
+                </svg>
+            </div>
+            <h3 id="storeSwitchConfirmTitle" class="mt-5 text-2xl font-semibold text-[#0F172A]">Switch stores?</h3>
+            <p class="mt-2 text-sm leading-6 text-[#64748B]">You are about to work in a different store. Catalog, orders, and settings will show that store instead.</p>
+        </div>
+        <div class="px-6 pb-6 pt-2">
+            <div class="rounded-2xl border border-[#DBEAFE] bg-[#EFF6FF] px-4 py-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#1E40AF]">Switch to</p>
+                <p class="mt-2 text-sm text-[#1E3A8A]">You will open <span id="storeSwitchConfirmName" class="font-bold"></span>.</p>
+            </div>
+            <div id="storeSwitchCreateWarning" class="mt-3 hidden rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#92400E]">Unsaved product</p>
+                <p class="mt-2 text-sm text-[#78350F]">You are still adding a product. Switching stores discards what you entered on this page.</p>
+            </div>
+            <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button type="button" class="rounded-xl border border-[#E2E8F0] px-5 py-3 text-sm font-semibold text-[#475569] transition hover:bg-[#F8FAFC]" data-store-switch-cancel>Keep this store</button>
+                <button type="button" class="rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover" data-store-switch-confirm>Switch store</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 @stack('scripts')
 </body>
 </html>

@@ -98,6 +98,30 @@ class ProductInlineEditTest extends TestCase
         $this->assertTrue($response->json('ok'));
     }
 
+    public function test_inline_price_update_leaves_variant_price_overrides_alone(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeProduct($store, 'Mixed Pricing Item');
+
+        $inherits = $product->variants()->first();
+        $override = $product->variants()->create([
+            'sku' => $product->sku.'-XL',
+            'price' => 25,
+            'stock' => 3,
+            'stock_alert' => 1,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patchJson(route('products.inline.price', $product), ['base_price' => 42.5])
+            ->assertOk();
+
+        $this->assertSame('42.50', (string) $inherits->fresh()->price, 'inheriting variant follows the base price');
+        $this->assertSame('25.00', (string) $override->fresh()->price, 'a deliberate override is never repriced');
+        $this->assertSame('25.00', (string) $override->fresh()->priceOverride());
+    }
+
     public function test_owner_can_inline_update_stock_and_records_movement(): void
     {
         $owner = $this->makeUser();
@@ -311,7 +335,7 @@ class ProductInlineEditTest extends TestCase
         ]);
         $product->variants()->create([
             'sku' => $product->sku,
-            'price' => 10,
+            'price' => null, // inherits the product base price
             'stock' => 5,
             'stock_alert' => 1,
         ]);

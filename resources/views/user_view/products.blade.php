@@ -2249,6 +2249,9 @@
         'catalogTags' => $catalogTags ?? collect(),
         'catalogTaxonomyCategories' => $catalogTaxonomyCategories ?? collect(),
         'catalogAttributes' => $catalogAttributes ?? collect(),
+        'canManageBrands' => $canManageBrands,
+        'canManageTags' => $canManageTags,
+        'canManageCategories' => $canManageCategories,
         'shippingPreferences' => [
             'fallback_item_weight' => $shippingWeightFallback ?? null,
             'weight_unit' => $shippingWeightUnit ?? 'LB',

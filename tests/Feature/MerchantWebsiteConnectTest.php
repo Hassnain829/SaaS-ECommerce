@@ -16,7 +16,7 @@ class MerchantWebsiteConnectTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_website_page_leads_with_wordpress_steps_and_keeps_react_env_in_advanced_details(): void
+    public function test_website_page_shows_three_setup_steps_and_hides_developer_scaffolding(): void
     {
         [$owner, $store] = $this->ownerStore('PKR Store', 'PKR');
 
@@ -26,38 +26,31 @@ class MerchantWebsiteConnectTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder([
                 'Connect your website',
-                'Website for PKR Store',
-                'Get the WordPress plugin',
-                'Save the website address and create a key',
-                'Paste the key in WordPress',
+                'Website address',
+                'Connection key',
+                'Connect your site',
                 'Settings → Eco Portal',
-                'Open the shop and place a test order',
-                'Advanced details',
-                'Local React test app',
-                'VITE_API_BASE=',
-                'VITE_CHECKOUT_API_BASE=',
-                'VITE_STOREFRONT_TOKEN=',
             ])
-            ->assertSee('PKR')
-            ->assertSee('Website')
+            ->assertSee('Download plugin')
+            ->assertSee('Custom website')
+            ->assertDontSee('Local React test app')
+            ->assertDontSee('VITE_API_BASE=')
+            ->assertDontSee('VITE_CHECKOUT_API_BASE=')
+            ->assertDontSee('VITE_STOREFRONT_TOKEN=')
+            ->assertDontSee('Platform checkout sandbox')
+            ->assertDontSee('Go live checklist')
             ->assertDontSee('Connect a React dev app')
             ->assertDontSee('Developer test storefront')
-            ->assertDontSee('Test storefront')
             ->assertDontSee('VITE_EXTERNAL_API_BASE=')
             ->assertDontSee('/api/v1/external/orders')
-            ->assertDontSee('choose whether website orders reduce stock')
-            ->assertDontSee('keep dashboard stock unchanged when website orders arrive')
             ->content();
 
-        $advancedPos = strpos($html, 'Advanced details');
-        $vitePos = strpos($html, 'VITE_STOREFRONT_TOKEN=');
-        $wordpressPos = strpos($html, 'Get the WordPress plugin');
+        $stepsPos = strpos($html, 'Website address');
+        $wordpressPos = strpos($html, 'Settings → Eco Portal');
 
-        $this->assertNotFalse($advancedPos);
-        $this->assertNotFalse($vitePos);
+        $this->assertNotFalse($stepsPos);
         $this->assertNotFalse($wordpressPos);
-        $this->assertLessThan($advancedPos, $wordpressPos);
-        $this->assertLessThan($vitePos, $advancedPos);
+        $this->assertLessThan($wordpressPos, $stepsPos);
     }
 
     public function test_staff_cannot_generate_or_revoke_the_connection_key(): void
@@ -96,7 +89,7 @@ class MerchantWebsiteConnectTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('developer-storefront.settings'))
             ->assertOk()
-            ->assertSee('Only store owners can create or remove a connection key.');
+            ->assertSee('Only the store owner can create or remove the key.');
 
         $this->actingAs($manager)
             ->withSession(['current_store_id' => $store->id])
@@ -256,7 +249,15 @@ class MerchantWebsiteConnectTest extends TestCase
             ->get(route('developer-storefront.settings'))
             ->assertOk()
             ->assertSee('Connected')
-            ->assertSee('WordPress last checked your products');
+            ->assertSee('Last contact');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->getJson(route('developer-storefront.status'))
+            ->assertOk()
+            ->assertJsonPath('state', Store::WEBSITE_CONNECTED)
+            ->assertJsonPath('label', 'Connected')
+            ->assertJsonPath('steps_done.3', true);
     }
 
     public function test_external_order_endpoint_is_not_available(): void

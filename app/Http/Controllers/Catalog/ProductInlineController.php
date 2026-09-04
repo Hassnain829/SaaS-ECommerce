@@ -67,14 +67,14 @@ final class ProductInlineController extends Controller
 
         $price = round((float) $validated['base_price'], 2);
 
+        // Moving the base price is enough: every variant without its own price
+        // inherits it. Variants the merchant priced deliberately keep their
+        // override, so this can no longer reprice only the first variant.
         $variant = null;
         DB::transaction(function () use ($product, $price, &$variant): void {
             $product->update(['base_price' => $price]);
 
             $variant = $this->defaultCatalogVariant($product);
-            if ($variant) {
-                $variant->update(['price' => $price]);
-            }
         });
 
         app(SecurityLogRecorder::class)->record(

@@ -116,7 +116,9 @@ class Product extends Model
 
     public function variants(): HasMany
     {
-        return $this->hasMany(ProductVariant::class);
+        // chaperone() back-links the parent so a variant reading an inherited
+        // price does not have to re-query the product it already came from.
+        return $this->hasMany(ProductVariant::class)->chaperone();
     }
 
     public function productAttributes(): HasMany

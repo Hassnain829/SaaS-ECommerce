@@ -2,29 +2,38 @@
 
 namespace App\Http\Controllers\Store;
 
+use App\Exceptions\Catalog\ProductPermanentDeleteBlockedException;
+use App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException;
+use App\Exceptions\Catalog\ProductPermanentDeleteStorageException;
 use App\Http\Controllers\Controller;
+use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductVariant;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
-use App\Models\Location;
 use App\Services\Catalog\ProductAttributeAssigner;
+use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
+use App\Services\Catalog\ProductPermanentDeleteService;
 use App\Services\Catalog\ProductTaxableDefaultResolver;
 use App\Services\Currency\StoreCatalogCurrencyConverter;
+use App\Services\Delivery\ShippingWeightResolver;
+use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
 use App\Services\Store\StoreCurrencyChangeGuard;
 use App\Services\StorefrontCatalogEventRecorder;
-use App\Support\CatalogRules;
 use App\Support\Catalog\ProductRichText;
+use App\Support\CatalogRules;
+use App\Support\ProductCreateImageDraft;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
 use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
 use App\Support\StoreBusinessDefaults;
 use App\Support\StorePermission;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -236,7 +245,7 @@ class OnboardingController extends Controller
             ...CatalogRules::tagIdsForStore($store),
             ...CatalogRules::categoryIdsForStore($store),
             'is_taxable' => ['nullable', 'boolean'],
-            'shipping_weight' => ['nullable', 'numeric', 'min:0.01', 'max:'.\App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT],
+            'shipping_weight' => ['nullable', 'numeric', 'min:0.01', 'max:'.StoreShippingPreferences::MAX_ITEM_WEIGHT],
         ]);
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
@@ -463,7 +472,7 @@ class OnboardingController extends Controller
                 $defaultVariant = ProductVariant::create([
                     'product_id' => $product->id,
                     'sku' => $this->buildSku($store->name, $product->name),
-                    'price' => $validated['base_price'],
+                    'price' => null, // inherits the product base price
                     'compare_at_price' => null,
                     'stock' => $validated['default_stock'],
                     'stock_alert' => $validated['stock_alert'],
@@ -483,7 +492,7 @@ class OnboardingController extends Controller
                             $product->name,
                             implode('-', array_map(static fn ($entry) => $entry['option']->value, $combination))
                         ),
-                        'price' => $validated['base_price'],
+                        'price' => null, // inherits the product base price
                         'compare_at_price' => null,
                         'stock' => $validated['default_stock'],
                         'stock_alert' => $validated['stock_alert'],
@@ -1064,7 +1073,6 @@ class OnboardingController extends Controller
     /**
      * Drop incomplete option groups so simple products are not blocked by orphan variation_types.0.options.
      *
-     * @param  mixed  $variationTypes
      * @return array<int, array{name: string, type: string, options: array<int, string>}>
      */
     private function sanitizeSubmittedVariationTypes(mixed $variationTypes): array
@@ -1111,7 +1119,7 @@ class OnboardingController extends Controller
     /**
      * @param  array<int|string, mixed>  $variantRows
      * @param  array<int, array{name:string, type:string, options:array<int, string>}>  $variationTypes
-     * @return array{variants: array<int, array{option_map: array<int, int>, sku: string|null, price: float, compare_at_price: float|null, stock: int, stock_alert: int, product_image_id: int|null, product_image_upload_index: int|null}>, errors: array<string, string>}
+     * @return array{variants: array<int, array{option_map: array<int, int>, sku: string|null, price: float, compare_at_price: float|null, stock: int, stock_alert: int, product_image_id: int|null, product_image_upload_index: int|null, product_image_existing_path: string|null}>, errors: array<string, string>}
      */
     private function normalizeCustomVariants(
         array $variantRows,
@@ -1187,7 +1195,8 @@ class OnboardingController extends Controller
                 $seenCombinationKeys[$combinationKey] = true;
             }
 
-            $priceVal = isset($row['price']) && $row['price'] !== '' ? (float) $row['price'] : $basePrice;
+            $priceOverride = isset($row['price']) && $row['price'] !== '' ? (float) $row['price'] : null;
+            $priceVal = $priceOverride ?? $basePrice;
 
             $compareAtPrice = null;
             if (isset($row['compare_at_price']) && $row['compare_at_price'] !== '' && $row['compare_at_price'] !== null) {
@@ -1212,6 +1221,7 @@ class OnboardingController extends Controller
 
             $productImageId = null;
             $productImageUploadIndex = null;
+            $productImageExistingPath = null;
             if (isset($row['product_image_id']) && $row['product_image_id'] !== '' && $row['product_image_id'] !== null) {
                 $submittedImageReference = (string) $row['product_image_id'];
                 if (str_starts_with($submittedImageReference, 'new:')) {
@@ -1225,16 +1235,27 @@ class OnboardingController extends Controller
                         continue;
                     }
                     $productImageUploadIndex = (int) $uploadIndex;
+                } elseif (str_starts_with($submittedImageReference, 'existing:')) {
+                    $path = str_replace('\\', '/', substr($submittedImageReference, strlen('existing:')));
+                    if ($path === '' || str_contains($path, '..')) {
+                        $errors['variants.'.$rowIndex.'.product_image_id'] = sprintf(
+                            'Variant %d has an invalid catalog image.',
+                            $rowIndex + 1
+                        );
+
+                        continue;
+                    }
+                    $productImageExistingPath = $path;
                 } else {
                     $productImageId = (int) $submittedImageReference;
-                }
-                if ($productImageId !== null && $productImageId < 1) {
-                    $errors['variants.'.$rowIndex.'.product_image_id'] = sprintf(
-                        'Variant %d has an invalid catalog image.',
-                        $rowIndex + 1
-                    );
+                    if ($productImageId < 1) {
+                        $errors['variants.'.$rowIndex.'.product_image_id'] = sprintf(
+                            'Variant %d has an invalid catalog image.',
+                            $rowIndex + 1
+                        );
 
-                    continue;
+                        continue;
+                    }
                 }
             }
 
@@ -1247,12 +1268,13 @@ class OnboardingController extends Controller
                 'id' => $variantRowId,
                 'option_map' => $optionMap,
                 'sku' => isset($row['sku']) && trim((string) $row['sku']) !== '' ? trim((string) $row['sku']) : null,
-                'price' => $priceVal,
+                'price' => $priceOverride,
                 'compare_at_price' => $compareAtPrice,
                 'stock' => isset($row['stock']) && $row['stock'] !== '' ? (int) $row['stock'] : $defaultStock,
                 'stock_alert' => isset($row['stock_alert']) && $row['stock_alert'] !== '' ? (int) $row['stock_alert'] : $defaultStockAlert,
                 'product_image_id' => $productImageId,
                 'product_image_upload_index' => $productImageUploadIndex,
+                'product_image_existing_path' => $productImageExistingPath,
             ];
 
             if (isset($row['custom_fields']) && is_array($row['custom_fields'])) {
@@ -1365,7 +1387,7 @@ class OnboardingController extends Controller
 
         try {
             DB::transaction(function () use (
-                $request,
+
                 $store,
                 $validated,
                 $logoPath,
@@ -1633,6 +1655,8 @@ class OnboardingController extends Controller
             'bulk_stock' => ['nullable', 'integer', 'min:0'],
             'product_images' => ['nullable', 'array', 'max:8'],
             'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'image_order' => ['nullable', 'array', 'max:8'],
+            'image_order.*' => ['string', 'max:600'],
             'variation_types' => ['nullable', 'array'],
             'variation_types.*.name' => ['required', 'string', 'max:100'],
             'variation_types.*.type' => ['required', 'in:select,radio,checkbox'],
@@ -1672,6 +1696,14 @@ class OnboardingController extends Controller
             'is_taxable' => ['nullable', 'boolean'],
             'shipping_weight' => $shippingWeightRule,
         ]);
+
+        $this->assertProductImageCountWithinLimit(
+            $request,
+            collect($validated['existing_image_paths'] ?? [])
+                ->filter(static fn ($path): bool => is_string($path) && $path !== '')
+                ->unique()
+                ->count()
+        );
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
 
@@ -1822,7 +1854,7 @@ class OnboardingController extends Controller
                 unset($meta['shipping_weight'], $meta['weight']);
             } elseif (is_numeric($shippingWeight) && (float) $shippingWeight > 0) {
                 $meta['shipping_weight'] = round((float) $shippingWeight, 3);
-                app(\App\Services\Delivery\StoreShippingPreferences::class)->commitWeightUnitIfNeeded($currentStore);
+                app(StoreShippingPreferences::class)->commitWeightUnitIfNeeded($currentStore);
             }
         }
 
@@ -1891,7 +1923,12 @@ class OnboardingController extends Controller
                 $nextOrder++;
             }
 
-            $this->normalizePrimaryProductImage($product);
+            $this->applyProductImageGalleryOrder(
+                $product,
+                $uploadedImageIdsByIndex,
+                $validated['image_order'] ?? null,
+                $validated['existing_image_paths'] ?? [],
+            );
 
             foreach ($validated['variants'] as $rowIndex => &$variantData) {
                 $uploadIndex = $variantData['product_image_upload_index'] ?? null;
@@ -2047,7 +2084,7 @@ class OnboardingController extends Controller
                         $defaultVariant = ProductVariant::create([
                             'product_id' => $product->id,
                             'sku' => $defaultSku,
-                            'price' => $validated['base_price'],
+                            'price' => null, // inherits the product base price
                             'compare_at_price' => null,
                             'stock' => max(0, (int) ($validated['bulk_stock'] ?? $meta['default_stock'] ?? 0)),
                             'stock_alert' => $validated['stock_alert'],
@@ -2080,7 +2117,7 @@ class OnboardingController extends Controller
                             $variant = ProductVariant::create([
                                 'product_id' => $product->id,
                                 'sku' => $comboSku,
-                                'price' => $validated['base_price'],
+                                'price' => null, // inherits the product base price
                                 'compare_at_price' => null,
                                 'stock' => 0,
                                 'stock_alert' => $validated['stock_alert'],
@@ -2227,23 +2264,23 @@ class OnboardingController extends Controller
         $deletedProductName = $product->name;
 
         try {
-            app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDelete($product);
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteBlockedException $e) {
+            app(ProductPermanentDeleteService::class)->forceDelete($product);
+        } catch (ProductPermanentDeleteBlockedException $e) {
             return redirect()
                 ->route('products', ['view' => 'deleted'])
                 ->with('error', $e->getMessage())
                 ->with('error_meta', 'Finish or cancel related checkouts before permanently deleting this product.');
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteStorageException $e) {
+        } catch (ProductPermanentDeleteStorageException $e) {
             report($e);
 
             return redirect()
                 ->route('products', ['view' => 'deleted'])
                 ->with('error', "Could not permanently delete '{$deletedProductName}'. The product was kept in Deleted products.")
                 ->with('error_meta', 'Gallery file cleanup could not be completed safely.');
-        } catch (\App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException $e) {
+        } catch (ProductPermanentDeleteCleanupPendingException $e) {
             report($e);
 
-            app(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class)
+            app(ProductPermanentDeleteGalleryPurgeService::class)
                 ->retryPendingCleanup($e->operationId);
 
             app(SecurityLogRecorder::class)->record(
@@ -2264,7 +2301,7 @@ class OnboardingController extends Controller
                 ->with('success', "Product '{$deletedProductName}' permanently deleted.")
                 ->with('success_title', 'Permanently deleted')
                 ->with('success_meta', 'Some temporary gallery cleanup could not be completed and will be retried.');
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             report($e);
 
             return redirect()
@@ -2340,63 +2377,76 @@ class OnboardingController extends Controller
         $this->normalizeSubmittedVariantShippingWeights($request);
         $shippingWeightRule = $this->shippingWeightValidationRule($store);
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:180'],
-            'description' => ['nullable', 'string', 'max:50000'],
-            'bulk_price' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'numeric', 'min:0'],
-            'base_price' => ['nullable', 'numeric', 'min:0'],
-            'sku' => ['nullable', 'string', 'max:120'],
-            'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
-            'product_type_selector' => ['nullable', 'string', Rule::in(array_merge(ProductTypeBehavior::types(), ['__custom__']))],
-            'custom_product_type' => ['nullable', 'string', 'max:80'],
-            'custom_product_type_behavior' => ['nullable', 'string', Rule::in(ProductTypeBehavior::types())],
-            'product_images' => ['nullable', 'array', 'max:8'],
-            'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
-            'bulk_stock' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'integer', 'min:0'],
-            'stock_alert' => ['required', 'integer', 'min:0'],
-            'inventory_variant_stock_mode' => ['nullable', 'string', Rule::in(['split_total', 'repeat_each'])],
-            'variation_types' => ['nullable', 'array'],
-            'variation_types.*.name' => ['required', 'string', 'max:100'],
-            'variation_types.*.type' => ['required', 'in:select,radio,checkbox'],
-            'variation_types.*.options' => ['required', 'array', 'min:1'],
-            'variation_types.*.options.*' => ['required', 'string', 'max:80'],
-            'variants' => ['nullable', 'array'],
-            'variants.*.sku' => ['nullable', 'string', 'max:120'],
-            'variants.*.price' => ['nullable', 'numeric', 'min:0'],
-            'variants.*.stock' => ['nullable', 'integer', 'min:0'],
-            'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
-            'variants.*.option_map' => ['nullable', 'array'],
-            'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
-            'variants.*.shipping_weight' => $shippingWeightRule,
-            'variants.*.product_image_id' => ['nullable', 'regex:/^(?:[1-9]\d*|new:\d+)$/'],
-            'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
-            'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
-            'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
-            'variants.*.custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
-            'custom_fields' => ['nullable', 'array', 'max:40'],
-            'custom_fields.*.key' => ['nullable', 'string', 'max:128'],
-            'custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
-            'custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
-            'attribute_terms' => ['nullable', 'array'],
-            'attribute_terms.*' => ['nullable', 'array'],
-            'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
-            'inventory_stock_allocation_mode' => ['nullable', 'string', Rule::in(['manual', 'apply_same_each', 'split_total'])],
-            'inventory_apply_same_stock' => ['nullable', 'integer', 'min:0'],
-            'inventory_split_total' => ['nullable', 'integer', 'min:0'],
-            'brand_id' => CatalogRules::brandIdForStore($store),
-            ...CatalogRules::tagIdsForStore($store),
-            ...CatalogRules::categoryIdsForStore($store),
-            'is_taxable' => ['nullable', 'boolean'],
-            'shipping_weight' => $shippingWeightRule,
-        ]);
+        try {
+            $validated = $request->validate([
+                'name' => ['required', 'string', 'max:180'],
+                'description' => ['nullable', 'string', 'max:50000'],
+                'bulk_price' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'numeric', 'min:0'],
+                'base_price' => ['nullable', 'numeric', 'min:0'],
+                'sku' => ['nullable', 'string', 'max:120'],
+                'product_type' => ['required', 'string', Rule::in(ProductTypeBehavior::types())],
+                'product_type_selector' => ['nullable', 'string', Rule::in(array_merge(ProductTypeBehavior::types(), ['__custom__']))],
+                'custom_product_type' => ['nullable', 'string', 'max:80'],
+                'custom_product_type_behavior' => ['nullable', 'string', Rule::in(ProductTypeBehavior::types())],
+                'existing_image_paths' => ['nullable', 'array', 'max:8'],
+                'existing_image_paths.*' => ['nullable', 'string', 'max:600'],
+                'product_images' => ['nullable', 'array', 'max:8'],
+                'product_images.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+                'image_order' => ['nullable', 'array', 'max:8'],
+                'image_order.*' => ['string', 'max:600'],
+                'bulk_stock' => [$isFullWorkspaceCreate ? 'nullable' : 'required', 'integer', 'min:0'],
+                'stock_alert' => ['required', 'integer', 'min:0'],
+                'inventory_variant_stock_mode' => ['nullable', 'string', Rule::in(['split_total', 'repeat_each'])],
+                'variation_types' => ['nullable', 'array'],
+                'variation_types.*.name' => ['required', 'string', 'max:100'],
+                'variation_types.*.type' => ['required', 'in:select,radio,checkbox'],
+                'variation_types.*.options' => ['required', 'array', 'min:1'],
+                'variation_types.*.options.*' => ['required', 'string', 'max:80'],
+                'variants' => ['nullable', 'array'],
+                'variants.*.sku' => ['nullable', 'string', 'max:120'],
+                'variants.*.price' => ['nullable', 'numeric', 'min:0'],
+                'variants.*.stock' => ['nullable', 'integer', 'min:0'],
+                'variants.*.stock_alert' => ['nullable', 'integer', 'min:0'],
+                'variants.*.option_map' => ['nullable', 'array'],
+                'variants.*.compare_at_price' => ['nullable', 'numeric', 'min:0'],
+                'variants.*.shipping_weight' => $shippingWeightRule,
+                'variants.*.product_image_id' => ['nullable', 'string', 'max:600', 'regex:/^(?:[1-9]\d*|new:\d+|existing:.+)$/'],
+                'variants.*.custom_fields' => ['nullable', 'array', 'max:40'],
+                'variants.*.custom_fields.*.key' => ['nullable', 'string', 'max:128'],
+                'variants.*.custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
+                'variants.*.custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
+                'custom_fields' => ['nullable', 'array', 'max:40'],
+                'custom_fields.*.key' => ['nullable', 'string', 'max:128'],
+                'custom_fields.*.type' => ['nullable', 'string', 'in:text,number,boolean,list'],
+                'custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
+                'attribute_terms' => ['nullable', 'array'],
+                'attribute_terms.*' => ['nullable', 'array'],
+                'attribute_terms.*.*' => ['nullable', 'integer', 'min:1'],
+                'inventory_stock_allocation_mode' => ['nullable', 'string', Rule::in(['manual', 'apply_same_each', 'split_total'])],
+                'inventory_apply_same_stock' => ['nullable', 'integer', 'min:0'],
+                'inventory_split_total' => ['nullable', 'integer', 'min:0'],
+                'brand_id' => CatalogRules::brandIdForStore($store),
+                ...CatalogRules::tagIdsForStore($store),
+                ...CatalogRules::categoryIdsForStore($store),
+                'is_taxable' => ['nullable', 'boolean'],
+                'shipping_weight' => $shippingWeightRule,
+            ]);
+
+            $this->assertProductImageCountWithinLimit(
+                $request,
+                count(ProductCreateImageDraft::retainedPaths($request, $store))
+            );
+        } catch (ValidationException $e) {
+            return $this->redirectBackWithCreateDraftFromException($request, $store, $e);
+        }
 
         [$validated['product_type'], $customProductTypeLabel] = $this->resolveProductTypeInputs($validated);
 
         $resolvedPrice = $validated['base_price'] ?? $validated['bulk_price'] ?? null;
         if ($resolvedPrice === null || $resolvedPrice === '') {
-            return back()
-                ->withErrors(['base_price' => 'The base price field is required.'])
-                ->withInput($request->except(['product_images']));
+            return $this->redirectBackWithCreateDraft($request, $store, [
+                'base_price' => 'The base price field is required.',
+            ]);
         }
         $validated['base_price'] = (float) $resolvedPrice;
         $validated['bulk_price'] = $validated['base_price'];
@@ -2406,9 +2456,9 @@ class OnboardingController extends Controller
             ->where('store_id', $store->id)
             ->whereRaw('LOWER(sku) = ?', [mb_strtolower($productSku)])
             ->exists()) {
-            return back()
-                ->withErrors(['sku' => 'That product SKU is already used in this store. Use a different SKU or edit the existing product.'])
-                ->withInput($request->except(['product_images']));
+            return $this->redirectBackWithCreateDraft($request, $store, [
+                'sku' => 'That product SKU is already used in this store. Use a different SKU or edit the existing product.',
+            ]);
         }
 
         $validated['brand_id'] = $validated['brand_id'] ?? null;
@@ -2427,18 +2477,14 @@ class OnboardingController extends Controller
                     continue;
                 }
                 if (! ProductCustomFieldHelper::isValidKey($key)) {
-                    return back()
-                        ->withErrors([
-                            'custom_fields.'.$i.'.key' => 'Field name can only use letters, numbers, dots, dashes, and underscores (up to 128 characters).',
-                        ])
-                        ->withInput($request->except(['product_images']));
+                    return $this->redirectBackWithCreateDraft($request, $store, [
+                        'custom_fields.'.$i.'.key' => 'Field name can only use letters, numbers, dots, dashes, and underscores (up to 128 characters).',
+                    ]);
                 }
                 if (! ProductCustomFieldHelper::isAllowedKey($key)) {
-                    return back()
-                        ->withErrors([
-                            'custom_fields.'.$i.'.key' => 'This name is reserved for catalog or import data. Choose a different field name.',
-                        ])
-                        ->withInput($request->except(['product_images']));
+                    return $this->redirectBackWithCreateDraft($request, $store, [
+                        'custom_fields.'.$i.'.key' => 'This name is reserved for catalog or import data. Choose a different field name.',
+                    ]);
                 }
             }
         }
@@ -2489,7 +2535,7 @@ class OnboardingController extends Controller
         );
 
         if (! empty($normalizedVariants['errors'])) {
-            return back()->withErrors($normalizedVariants['errors'])->withInput($request->except(['product_images']));
+            return $this->redirectBackWithCreateDraft($request, $store, $normalizedVariants['errors']);
         }
 
         $validated['variants'] = $normalizedVariants['variants'];
@@ -2509,275 +2555,281 @@ class OnboardingController extends Controller
 
         $variationOptionErrorsCatalog = $this->validateVariationOptionUniqueness($validated['variation_types'] ?? []);
         if ($variationOptionErrorsCatalog !== []) {
-            return back()
-                ->withErrors($variationOptionErrorsCatalog)
-                ->withInput($request->except(['product_images']));
+            return $this->redirectBackWithCreateDraft($request, $store, $variationOptionErrorsCatalog);
         }
 
-        $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode, $customProductTypeLabel, $isFullWorkspaceCreate): int {
-            $oldFingerprintStocks = [];
-            $productMeta = [
-                'default_stock' => $validated['default_stock'],
-                'stock_alert' => $validated['stock_alert'],
-                'custom_product_type_label' => $customProductTypeLabel,
-            ];
-            if ($isFullWorkspaceCreate && $request->filled('_custom_fields_editor')) {
-                $productMeta['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
-                    $validated['custom_fields'] ?? []
-                );
-            }
-            if (isset($validated['shipping_weight']) && is_numeric($validated['shipping_weight']) && (float) $validated['shipping_weight'] > 0) {
-                $productMeta['shipping_weight'] = round((float) $validated['shipping_weight'], 3);
-            }
-            $productPayload = [
-                'name' => $validated['name'],
-                'description' => ProductRichText::prepareForStorage($validated['description'] ?? null),
-                'base_price' => $validated['base_price'],
-                'sku' => $validated['sku'] ?? null,
-                'product_type' => $validated['product_type'],
-                ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
-                'brand_id' => $validated['brand_id'] ?? null,
-                'is_taxable' => array_key_exists('is_taxable', $validated)
-                    ? (bool) $validated['is_taxable']
-                    : app(ProductTaxableDefaultResolver::class)->forStore($store),
-                'status' => true,
-                'meta' => $productMeta,
-            ];
+        $imageCapture = $this->createImageDraftCapture($request, $store);
 
-            $product = Product::create($productPayload + [
-                'store_id' => $store->id,
-                'slug' => $this->uniqueProductSlug($store->id, $validated['name']),
-            ]);
+        try {
+            $newProductId = DB::transaction(function () use ($validated, $store, $request, $tagIds, $categoryIds, $variantStockMode, $customProductTypeLabel, $isFullWorkspaceCreate, $imageCapture): int {
+                $oldFingerprintStocks = [];
+                $productMeta = [
+                    'default_stock' => $validated['default_stock'],
+                    'stock_alert' => $validated['stock_alert'],
+                    'custom_product_type_label' => $customProductTypeLabel,
+                ];
+                if ($isFullWorkspaceCreate && $request->filled('_custom_fields_editor')) {
+                    $productMeta['custom_fields'] = ProductCustomFieldHelper::associativeFromEditorRows(
+                        $validated['custom_fields'] ?? []
+                    );
+                }
+                if (isset($validated['shipping_weight']) && is_numeric($validated['shipping_weight']) && (float) $validated['shipping_weight'] > 0) {
+                    $productMeta['shipping_weight'] = round((float) $validated['shipping_weight'], 3);
+                }
+                $productPayload = [
+                    'name' => $validated['name'],
+                    'description' => ProductRichText::prepareForStorage($validated['description'] ?? null),
+                    'base_price' => $validated['base_price'],
+                    'sku' => $validated['sku'] ?? null,
+                    'product_type' => $validated['product_type'],
+                    ...ProductTypeBehavior::defaultColumnsFor($validated['product_type']),
+                    'brand_id' => $validated['brand_id'] ?? null,
+                    'is_taxable' => array_key_exists('is_taxable', $validated)
+                        ? (bool) $validated['is_taxable']
+                        : app(ProductTaxableDefaultResolver::class)->forStore($store),
+                    'status' => true,
+                    'meta' => $productMeta,
+                ];
 
-            $uploadedImageIdsByIndex = [];
-            $nextOrder = 0;
-            foreach ($request->file('product_images', []) as $uploadIndex => $imageFile) {
-                $uploadedImage = ProductImage::query()->create([
-                    'product_id' => $product->id,
-                    'image_path' => ProductImageStorage::store($imageFile, $store),
-                    'alt_text' => null,
-                    'sort_order' => $nextOrder,
-                    'is_primary' => false,
-                    'created_by' => $request->user()?->id,
-                    'updated_by' => $request->user()?->id,
+                $product = Product::create($productPayload + [
+                    'store_id' => $store->id,
+                    'slug' => $this->uniqueProductSlug($store->id, $validated['name']),
                 ]);
-                $uploadedImageIdsByIndex[(int) $uploadIndex] = (int) $uploadedImage->id;
-                $nextOrder++;
-            }
-            $this->normalizePrimaryProductImage($product);
 
-            foreach ($validated['variants'] as $rowIndex => &$variantData) {
-                $uploadIndex = $variantData['product_image_upload_index'] ?? null;
-                if ($uploadIndex === null) {
-                    continue;
-                }
-                if (! array_key_exists((int) $uploadIndex, $uploadedImageIdsByIndex)) {
-                    throw ValidationException::withMessages([
-                        'variants.'.$rowIndex.'.product_image_id' => 'Choose a newly uploaded image that is still attached under Media.',
-                    ]);
-                }
-                $variantData['product_image_id'] = $uploadedImageIdsByIndex[(int) $uploadIndex];
-                unset($variantData['product_image_upload_index']);
-            }
-            unset($variantData);
-
-            $imageErrorsCatalog = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
-            if ($imageErrorsCatalog !== []) {
-                throw ValidationException::withMessages($imageErrorsCatalog);
-            }
-
-            $skuPlanSkusCreate = [];
-            if (($validated['variants'] ?? []) !== []) {
-                $skuPlanCreate = $this->planVariantSkusForCatalogSave(
+                $attachedCreateImages = $this->attachCapturedCreateProductImages(
                     $product,
                     $store,
-                    $validated['name'],
-                    $validated['variation_types'] ?? [],
-                    $validated['variants']
+                    $request,
+                    $imageCapture,
+                    $validated['image_order'] ?? null
                 );
-                if ($skuPlanCreate['errors'] !== []) {
-                    throw ValidationException::withMessages($skuPlanCreate['errors']);
-                }
-                $skuPlanSkusCreate = $skuPlanCreate['skus'];
-            }
+                $uploadedImageIdsByIndex = $attachedCreateImages['uploadedImageIdsByIndex'];
+                $draftPathToImageId = $attachedCreateImages['draftPathToImageId'];
 
-            $variationOptionSets = [];
-            $variationOptionMap = [];
-
-            foreach (($validated['variation_types'] ?? []) as $variationIndex => $variationData) {
-                $variationType = ProductVariationType::create([
-                    'product_id' => $product->id,
-                    'name' => $variationData['name'],
-                    'type' => $variationData['type'],
-                ]);
-
-                $options = [];
-
-                foreach ($variationData['options'] as $optionIndex => $optionValue) {
-                    $option = ProductVariationOption::create([
-                        'variation_type_id' => $variationType->id,
-                        'value' => $optionValue,
-                        'sort_order' => $optionIndex,
-                    ]);
-
-                    $options[] = $option;
-                    $variationOptionMap[$variationIndex][$optionIndex] = $option;
-                }
-
-                if (! empty($options)) {
-                    $variationOptionSets[] = [
-                        'index' => $variationIndex,
-                        'variation_name' => $variationType->name,
-                        'options' => $options,
-                    ];
-                }
-            }
-
-            $combinations = $this->generateCombinations($variationOptionSets);
-            $customVariants = $validated['variants'] ?? [];
-            $variantImageAssignmentsCatalog = [];
-            $txnClaimedAutoCreate = [];
-            $txnSkuLowerBatchCreate = [];
-
-            if (! empty($customVariants)) {
-                foreach ($customVariants as $rowIndexCreate => $variantData) {
-                    $selectedOptions = [];
-
-                    foreach (($variantData['option_map'] ?? []) as $variationIndex => $optionIndex) {
-                        if (isset($variationOptionMap[$variationIndex][$optionIndex])) {
-                            $selectedOptions[] = $variationOptionMap[$variationIndex][$optionIndex];
+                foreach ($validated['variants'] as $rowIndex => &$variantData) {
+                    $uploadIndex = $variantData['product_image_upload_index'] ?? null;
+                    if ($uploadIndex !== null) {
+                        if (! array_key_exists((int) $uploadIndex, $uploadedImageIdsByIndex)) {
+                            throw ValidationException::withMessages([
+                                'variants.'.$rowIndex.'.product_image_id' => 'Choose a newly uploaded image that is still attached under Media.',
+                            ]);
                         }
+                        $variantData['product_image_id'] = $uploadedImageIdsByIndex[(int) $uploadIndex];
+                        unset($variantData['product_image_upload_index'], $variantData['product_image_existing_path']);
+
+                        continue;
                     }
 
-                    $suffix = implode('-', array_map(
-                        static fn (ProductVariationOption $option): string => $option->value,
-                        $selectedOptions
-                    ));
+                    $draftPath = $variantData['product_image_existing_path'] ?? null;
+                    if (is_string($draftPath) && $draftPath !== '' && isset($draftPathToImageId[$draftPath])) {
+                        $variantData['product_image_id'] = $draftPathToImageId[$draftPath];
+                        unset($variantData['product_image_upload_index'], $variantData['product_image_existing_path']);
+                    }
+                }
+                unset($variantData);
 
-                    $resolvedSkuCreate = $skuPlanSkusCreate[$rowIndexCreate] ?? $this->allocateUniqueAutoVariantSku(
-                        $this->buildSku($store->name, $product->name, $suffix !== '' ? $suffix : null),
-                        $product->id,
-                        $txnClaimedAutoCreate,
-                        $txnSkuLowerBatchCreate
+                $imageErrorsCatalog = $this->validateVariantProductImageIds($product, $validated['variants'] ?? []);
+                if ($imageErrorsCatalog !== []) {
+                    throw ValidationException::withMessages($imageErrorsCatalog);
+                }
+
+                $skuPlanSkusCreate = [];
+                if (($validated['variants'] ?? []) !== []) {
+                    $skuPlanCreate = $this->planVariantSkusForCatalogSave(
+                        $product,
+                        $store,
+                        $validated['name'],
+                        $validated['variation_types'] ?? [],
+                        $validated['variants']
                     );
-
-                    try {
-                        $variantMeta = [];
-                        if (! empty($variantData['custom_fields'])) {
-                            $variantMeta['custom_fields'] = $variantData['custom_fields'];
-                        }
-                        $this->applyVariantShippingWeightFromRow($variantMeta, $variantData, $store);
-
-                        $variant = ProductVariant::create([
-                            'product_id' => $product->id,
-                            'sku' => $resolvedSkuCreate,
-                            'price' => $variantData['price'],
-                            'compare_at_price' => $variantData['compare_at_price'] ?? null,
-                            'stock' => $variantData['stock'],
-                            'stock_alert' => $variantData['stock_alert'],
-                            'meta' => $variantMeta,
-                        ]);
-                    } catch (UniqueConstraintViolationException) {
-                        throw ValidationException::withMessages([
-                            'variants.'.$rowIndexCreate.'.sku' => 'That SKU is already used. Choose a unique SKU for each variant.',
-                        ]);
+                    if ($skuPlanCreate['errors'] !== []) {
+                        throw ValidationException::withMessages($skuPlanCreate['errors']);
                     }
-
-                    $variant->options()->sync(array_map(
-                        static fn (ProductVariationOption $option): int => $option->id,
-                        $selectedOptions
-                    ));
-
-                    $variantImageAssignmentsCatalog[] = [
-                        'variant' => $variant,
-                        'image_id' => $variantData['product_image_id'] ?? null,
-                    ];
+                    $skuPlanSkusCreate = $skuPlanCreate['skus'];
                 }
-            } elseif (empty($combinations)) {
-                $defaultSkuCreate = $this->allocateUniqueAutoVariantSku(
-                    $this->buildSku($store->name, $product->name),
-                    $product->id,
-                    $txnClaimedAutoCreate,
-                    $txnSkuLowerBatchCreate
-                );
-                try {
-                    $defaultVariant = ProductVariant::create([
+
+                $variationOptionSets = [];
+                $variationOptionMap = [];
+
+                foreach (($validated['variation_types'] ?? []) as $variationIndex => $variationData) {
+                    $variationType = ProductVariationType::create([
                         'product_id' => $product->id,
-                        'sku' => $defaultSkuCreate,
-                        'price' => $validated['base_price'],
-                        'compare_at_price' => null,
-                        'stock' => $validated['default_stock'],
-                        'stock_alert' => $validated['stock_alert'],
+                        'name' => $variationData['name'],
+                        'type' => $variationData['type'],
                     ]);
-                } catch (UniqueConstraintViolationException) {
-                    throw ValidationException::withMessages([
-                        'sku' => 'We could not assign a unique inventory SKU automatically. Set an explicit product SKU and try again.',
-                    ]);
+
+                    $options = [];
+
+                    foreach ($variationData['options'] as $optionIndex => $optionValue) {
+                        $option = ProductVariationOption::create([
+                            'variation_type_id' => $variationType->id,
+                            'value' => $optionValue,
+                            'sort_order' => $optionIndex,
+                        ]);
+
+                        $options[] = $option;
+                        $variationOptionMap[$variationIndex][$optionIndex] = $option;
+                    }
+
+                    if (! empty($options)) {
+                        $variationOptionSets[] = [
+                            'index' => $variationIndex,
+                            'variation_name' => $variationType->name,
+                            'options' => $options,
+                        ];
+                    }
                 }
 
-                $defaultVariant->options()->sync([]);
-                $variantImageAssignmentsCatalog[] = [
-                    'variant' => $defaultVariant,
-                    'image_id' => null,
-                ];
-            } else {
-                $comboCount = count($combinations);
-                $allocated = $this->allocateIntegerAcrossSlots((int) $validated['default_stock'], $comboCount, $variantStockMode);
-                foreach ($combinations as $idx => $combination) {
-                    $comboSkuCreate = $this->allocateUniqueAutoVariantSku(
-                        $this->buildSku(
-                            $store->name,
-                            $product->name,
-                            implode('-', array_map(static fn ($entry) => $entry['option']->value, $combination))
-                        ),
+                $combinations = $this->generateCombinations($variationOptionSets);
+                $customVariants = $validated['variants'] ?? [];
+                $variantImageAssignmentsCatalog = [];
+                $txnClaimedAutoCreate = [];
+                $txnSkuLowerBatchCreate = [];
+
+                if (! empty($customVariants)) {
+                    foreach ($customVariants as $rowIndexCreate => $variantData) {
+                        $selectedOptions = [];
+
+                        foreach (($variantData['option_map'] ?? []) as $variationIndex => $optionIndex) {
+                            if (isset($variationOptionMap[$variationIndex][$optionIndex])) {
+                                $selectedOptions[] = $variationOptionMap[$variationIndex][$optionIndex];
+                            }
+                        }
+
+                        $suffix = implode('-', array_map(
+                            static fn (ProductVariationOption $option): string => $option->value,
+                            $selectedOptions
+                        ));
+
+                        $resolvedSkuCreate = $skuPlanSkusCreate[$rowIndexCreate] ?? $this->allocateUniqueAutoVariantSku(
+                            $this->buildSku($store->name, $product->name, $suffix !== '' ? $suffix : null),
+                            $product->id,
+                            $txnClaimedAutoCreate,
+                            $txnSkuLowerBatchCreate
+                        );
+
+                        try {
+                            $variantMeta = [];
+                            if (! empty($variantData['custom_fields'])) {
+                                $variantMeta['custom_fields'] = $variantData['custom_fields'];
+                            }
+                            $this->applyVariantShippingWeightFromRow($variantMeta, $variantData, $store);
+
+                            $variant = ProductVariant::create([
+                                'product_id' => $product->id,
+                                'sku' => $resolvedSkuCreate,
+                                'price' => $variantData['price'],
+                                'compare_at_price' => $variantData['compare_at_price'] ?? null,
+                                'stock' => $variantData['stock'],
+                                'stock_alert' => $variantData['stock_alert'],
+                                'meta' => $variantMeta,
+                            ]);
+                        } catch (UniqueConstraintViolationException) {
+                            throw ValidationException::withMessages([
+                                'variants.'.$rowIndexCreate.'.sku' => 'That SKU is already used. Choose a unique SKU for each variant.',
+                            ]);
+                        }
+
+                        $variant->options()->sync(array_map(
+                            static fn (ProductVariationOption $option): int => $option->id,
+                            $selectedOptions
+                        ));
+
+                        $variantImageAssignmentsCatalog[] = [
+                            'variant' => $variant,
+                            'image_id' => $variantData['product_image_id'] ?? null,
+                        ];
+                    }
+                } elseif (empty($combinations)) {
+                    $defaultSkuCreate = $this->allocateUniqueAutoVariantSku(
+                        $this->buildSku($store->name, $product->name),
                         $product->id,
                         $txnClaimedAutoCreate,
                         $txnSkuLowerBatchCreate
                     );
                     try {
-                        $variant = ProductVariant::create([
+                        $defaultVariant = ProductVariant::create([
                             'product_id' => $product->id,
-                            'sku' => $comboSkuCreate,
-                            'price' => $validated['base_price'],
+                            'sku' => $defaultSkuCreate,
+                            'price' => null, // inherits the product base price
                             'compare_at_price' => null,
-                            'stock' => $allocated[$idx] ?? 0,
+                            'stock' => $validated['default_stock'],
                             'stock_alert' => $validated['stock_alert'],
                         ]);
                     } catch (UniqueConstraintViolationException) {
                         throw ValidationException::withMessages([
-                            'sku' => 'A generated variant SKU conflicted with another product. Add explicit SKUs or adjust the product name and try again.',
+                            'sku' => 'We could not assign a unique inventory SKU automatically. Set an explicit product SKU and try again.',
                         ]);
                     }
 
-                    $variant->options()->sync(array_map(static fn ($entry) => $entry['option']->id, $combination));
+                    $defaultVariant->options()->sync([]);
                     $variantImageAssignmentsCatalog[] = [
-                        'variant' => $variant,
+                        'variant' => $defaultVariant,
                         'image_id' => null,
                     ];
+                } else {
+                    $comboCount = count($combinations);
+                    $allocated = $this->allocateIntegerAcrossSlots((int) $validated['default_stock'], $comboCount, $variantStockMode);
+                    foreach ($combinations as $idx => $combination) {
+                        $comboSkuCreate = $this->allocateUniqueAutoVariantSku(
+                            $this->buildSku(
+                                $store->name,
+                                $product->name,
+                                implode('-', array_map(static fn ($entry) => $entry['option']->value, $combination))
+                            ),
+                            $product->id,
+                            $txnClaimedAutoCreate,
+                            $txnSkuLowerBatchCreate
+                        );
+                        try {
+                            $variant = ProductVariant::create([
+                                'product_id' => $product->id,
+                                'sku' => $comboSkuCreate,
+                                'price' => null, // inherits the product base price
+                                'compare_at_price' => null,
+                                'stock' => $allocated[$idx] ?? 0,
+                                'stock_alert' => $validated['stock_alert'],
+                            ]);
+                        } catch (UniqueConstraintViolationException) {
+                            throw ValidationException::withMessages([
+                                'sku' => 'A generated variant SKU conflicted with another product. Add explicit SKUs or adjust the product name and try again.',
+                            ]);
+                        }
+
+                        $variant->options()->sync(array_map(static fn ($entry) => $entry['option']->id, $combination));
+                        $variantImageAssignmentsCatalog[] = [
+                            'variant' => $variant,
+                            'image_id' => null,
+                        ];
+                    }
                 }
-            }
 
-            $this->syncVariantCatalogImages($product, $variantImageAssignmentsCatalog);
+                $this->syncVariantCatalogImages($product, $variantImageAssignmentsCatalog);
 
-            $product->tags()->sync($tagIds);
-            $product->categories()->sync($categoryIds);
+                $product->tags()->sync($tagIds);
+                $product->categories()->sync($categoryIds);
 
-            if ($isFullWorkspaceCreate) {
-                app(ProductAttributeAssigner::class)->syncTerms($product, $validated['attribute_terms'] ?? []);
-            }
+                if ($isFullWorkspaceCreate) {
+                    app(ProductAttributeAssigner::class)->syncTerms($product, $validated['attribute_terms'] ?? []);
+                }
 
-            $product->refresh();
-            $product->load(['variants.options.variationType']);
-            StockMovementRecorder::syncAfterVariantRebuild(
-                $store,
-                $product,
-                $oldFingerprintStocks,
-                $request->user()?->id,
-                'catalog'
-            );
+                $product->refresh();
+                $product->load(['variants.options.variationType']);
+                StockMovementRecorder::syncAfterVariantRebuild(
+                    $store,
+                    $product,
+                    $oldFingerprintStocks,
+                    $request->user()?->id,
+                    'catalog'
+                );
 
-            return (int) $product->id;
-        });
+                return (int) $product->id;
+            });
+        } catch (ValidationException $e) {
+            return $this->redirectBackWithCreateDraftFromException($request, $store, $e);
+        }
+
+        ProductCreateImageDraft::forget($request, $store);
 
         $createdProduct = Product::query()->find($newProductId);
         app(SecurityLogRecorder::class)->record(
@@ -3057,6 +3109,264 @@ class OnboardingController extends Controller
         }
     }
 
+    private function uploadedProductImageFiles(Request $request): array
+    {
+        $files = $request->file('product_images', []);
+        if (! is_array($files)) {
+            return $files ? [$files] : [];
+        }
+
+        return array_values(array_filter($files));
+    }
+
+    /**
+     * @param  array<string, mixed>  $errors
+     */
+    private function redirectBackWithCreateDraft(Request $request, Store $store, array $errors): RedirectResponse
+    {
+        $capture = $this->createImageDraftCapture($request, $store);
+
+        return back()
+            ->withErrors($errors)
+            ->withInput(ProductCreateImageDraft::mergeIntoOldInput($request, $capture));
+    }
+
+    private function redirectBackWithCreateDraftFromException(
+        Request $request,
+        Store $store,
+        ValidationException $e
+    ): RedirectResponse {
+        $stashNew = ! $this->createImageUploadsWereRejected($e);
+        $capture = $this->createImageDraftCapture($request, $store, $stashNew);
+
+        return back()
+            ->withErrors($e->errors(), $e->errorBag)
+            ->withInput(ProductCreateImageDraft::mergeIntoOldInput($request, $capture));
+    }
+
+    /**
+     * @return array{paths: list<string>, retained_paths: list<string>, new_index_to_path: array<int, string>, token: string}
+     */
+    private function createImageDraftCapture(Request $request, Store $store, bool $stashNewUploads = true): array
+    {
+        $memoKey = 'product_create_image_draft_capture';
+        if ($request->attributes->has($memoKey)) {
+            return $request->attributes->get($memoKey);
+        }
+
+        $capture = ProductCreateImageDraft::capture($request, $store, $stashNewUploads);
+        $request->attributes->set($memoKey, $capture);
+
+        return $capture;
+    }
+
+    private function createImageUploadsWereRejected(ValidationException $e): bool
+    {
+        foreach ($e->errors() as $key => $messages) {
+            $field = (string) $key;
+            if ($field !== 'product_images' && ! str_starts_with($field, 'product_images.')) {
+                continue;
+            }
+            foreach ($messages as $message) {
+                if (is_string($message) && str_contains(strtolower($message), 'up to 8 photos')) {
+                    continue;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array{paths?: list<string>, retained_paths?: list<string>, new_index_to_path?: array<int, string>}  $capture
+     * @param  list<mixed>|null  $imageOrder
+     * @return array{uploadedImageIdsByIndex: array<int, int>, draftPathToImageId: array<string, int>}
+     */
+    private function attachCapturedCreateProductImages(
+        Product $product,
+        Store $store,
+        Request $request,
+        array $capture,
+        ?array $imageOrder,
+    ): array {
+        $draftPathToImageId = [];
+        $draftToOfficial = [];
+        $createOrder = [];
+        $newIndexToPath = $capture['new_index_to_path'] ?? [];
+        ksort($newIndexToPath);
+        foreach ($newIndexToPath as $draftPath) {
+            if (is_string($draftPath) && $draftPath !== '') {
+                $createOrder[] = $draftPath;
+            }
+        }
+        foreach ($capture['paths'] ?? [] as $draftPath) {
+            if (is_string($draftPath) && $draftPath !== '' && ! in_array($draftPath, $createOrder, true)) {
+                $createOrder[] = $draftPath;
+            }
+        }
+
+        $nextOrder = 0;
+        foreach ($createOrder as $draftPath) {
+            if (! is_string($draftPath) || $draftPath === '') {
+                continue;
+            }
+
+            try {
+                $official = ProductCreateImageDraft::adoptIntoOfficialPath($draftPath, $store);
+            } catch (\RuntimeException $e) {
+                throw ValidationException::withMessages([
+                    'product_images' => $e->getMessage(),
+                ]);
+            }
+
+            $draftToOfficial[$draftPath] = $official;
+            $uploadedImage = ProductImage::query()->create([
+                'product_id' => $product->id,
+                'image_path' => $official,
+                'alt_text' => null,
+                'sort_order' => $nextOrder,
+                'is_primary' => false,
+                'created_by' => $request->user()?->id,
+                'updated_by' => $request->user()?->id,
+            ]);
+            $draftPathToImageId[$draftPath] = (int) $uploadedImage->id;
+            $nextOrder++;
+        }
+
+        $uploadedImageIdsByIndex = [];
+        foreach ($capture['new_index_to_path'] ?? [] as $index => $draftPath) {
+            if (isset($draftPathToImageId[$draftPath])) {
+                $uploadedImageIdsByIndex[(int) $index] = $draftPathToImageId[$draftPath];
+            }
+        }
+
+        $rewrittenOrder = null;
+        if (is_array($imageOrder)) {
+            $rewrittenOrder = [];
+            foreach ($imageOrder as $token) {
+                if (! is_string($token) || $token === '') {
+                    continue;
+                }
+                if (str_starts_with($token, 'existing:')) {
+                    $draft = str_replace('\\', '/', substr($token, strlen('existing:')));
+                    $official = $draftToOfficial[$draft] ?? null;
+                    $rewrittenOrder[] = $official ? 'existing:'.$official : $token;
+                } else {
+                    $rewrittenOrder[] = $token;
+                }
+            }
+        }
+
+        $existingOfficialPaths = [];
+        foreach ($capture['retained_paths'] ?? [] as $draftPath) {
+            if (isset($draftToOfficial[$draftPath])) {
+                $existingOfficialPaths[] = $draftToOfficial[$draftPath];
+            }
+        }
+
+        $this->applyProductImageGalleryOrder(
+            $product,
+            $uploadedImageIdsByIndex,
+            $rewrittenOrder,
+            $existingOfficialPaths,
+        );
+
+        return [
+            'uploadedImageIdsByIndex' => $uploadedImageIdsByIndex,
+            'draftPathToImageId' => $draftPathToImageId,
+        ];
+    }
+
+    private function assertProductImageCountWithinLimit(Request $request, int $retainedCount): void
+    {
+        if ($retainedCount + count($this->uploadedProductImageFiles($request)) > 8) {
+            throw ValidationException::withMessages([
+                'product_images' => 'You can attach up to 8 photos per product.',
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, int>  $uploadedImageIdsByIndex
+     * @param  list<mixed>|null  $imageOrder
+     * @param  list<mixed>  $existingImagePaths
+     */
+    private function applyProductImageGalleryOrder(
+        Product $product,
+        array $uploadedImageIdsByIndex,
+        ?array $imageOrder,
+        array $existingImagePaths = [],
+    ): void {
+        $product->unsetRelation('images');
+        $images = $product->images()->get();
+        if ($images->isEmpty()) {
+            return;
+        }
+
+        $ordered = [];
+        $usedIds = [];
+        $tokens = is_array($imageOrder) ? $imageOrder : [];
+
+        foreach ($tokens as $token) {
+            if (! is_string($token) || $token === '') {
+                continue;
+            }
+
+            $image = null;
+            if (str_starts_with($token, 'new:')) {
+                $uploadIndex = (int) substr($token, 4);
+                $imageId = $uploadedImageIdsByIndex[$uploadIndex] ?? null;
+                $image = $imageId ? $images->firstWhere('id', $imageId) : null;
+            } elseif (str_starts_with($token, 'existing:')) {
+                $path = substr($token, strlen('existing:'));
+                $image = $images->firstWhere('image_path', $path);
+            }
+
+            if ($image && ! isset($usedIds[$image->id])) {
+                $ordered[] = $image;
+                $usedIds[$image->id] = true;
+            }
+        }
+
+        if ($ordered === []) {
+            foreach ($existingImagePaths as $path) {
+                if (! is_string($path) || $path === '') {
+                    continue;
+                }
+                $image = $images->firstWhere('image_path', $path);
+                if ($image && ! isset($usedIds[$image->id])) {
+                    $ordered[] = $image;
+                    $usedIds[$image->id] = true;
+                }
+            }
+
+            ksort($uploadedImageIdsByIndex);
+            foreach ($uploadedImageIdsByIndex as $imageId) {
+                $image = $images->firstWhere('id', $imageId);
+                if ($image && ! isset($usedIds[$image->id])) {
+                    $ordered[] = $image;
+                    $usedIds[$image->id] = true;
+                }
+            }
+        }
+
+        foreach ($images as $image) {
+            if (! isset($usedIds[$image->id])) {
+                $ordered[] = $image;
+                $usedIds[$image->id] = true;
+            }
+        }
+
+        foreach (array_values($ordered) as $index => $row) {
+            $row->update([
+                'sort_order' => $index,
+                'is_primary' => $index === 0,
+            ]);
+        }
+    }
+
     private function normalizePrimaryProductImage(Product $product): void
     {
         $rows = $product->images()->orderBy('sort_order')->orderBy('id')->get();
@@ -3298,7 +3608,7 @@ class OnboardingController extends Controller
         return [$normalizedType, null];
     }
 
-    private function normalizeSubmittedVariantShippingWeights(\Illuminate\Http\Request $request): void
+    private function normalizeSubmittedVariantShippingWeights(Request $request): void
     {
         $variants = $request->input('variants');
         if (! is_array($variants)) {
@@ -3323,7 +3633,7 @@ class OnboardingController extends Controller
      */
     private function shippingWeightValidationRule(Store $store): array
     {
-        $max = app(\App\Services\Delivery\StoreShippingPreferences::class)->maxItemWeightForStore($store);
+        $max = app(StoreShippingPreferences::class)->maxItemWeightForStore($store);
 
         return ['nullable', 'numeric', 'min:0.01', 'max:'.$max];
     }
@@ -3338,13 +3648,13 @@ class OnboardingController extends Controller
             return;
         }
 
-        app(\App\Services\Delivery\ShippingWeightResolver::class)->persistVariantShippingWeightMeta(
+        app(ShippingWeightResolver::class)->persistVariantShippingWeightMeta(
             $variantMeta,
             $variantData['shipping_weight'],
         );
 
         if (isset($variantMeta['shipping_weight'])) {
-            app(\App\Services\Delivery\StoreShippingPreferences::class)->commitWeightUnitIfNeeded($store);
+            app(StoreShippingPreferences::class)->commitWeightUnitIfNeeded($store);
         }
     }
 

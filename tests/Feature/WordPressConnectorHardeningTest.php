@@ -43,7 +43,7 @@ class WordPressConnectorHardeningTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('developer-storefront.settings'))
             ->assertOk()
-            ->assertSeeText('WordPress is not ready for live shoppers')
+            ->assertSeeText('Your website reported a problem')
             ->assertSeeText('WooCommerce is still active')
             ->assertSeeText('Deactivate WooCommerce')
             ->assertDontSeeText('This portal turned WooCommerce off');
@@ -203,8 +203,8 @@ class WordPressConnectorHardeningTest extends TestCase
         $this->assertNotFalse($handlerStart);
         $this->assertNotFalse($handlerEnd);
         $statusHandler = substr($storefront, (int) $handlerStart, (int) $handlerEnd - (int) $handlerStart);
-        $this->assertStringContainsString("\$status === 410", $statusHandler);
-        $this->assertStringContainsString("\$status === 422", $statusHandler);
+        $this->assertStringContainsString('$status === 410', $statusHandler);
+        $this->assertStringContainsString('$status === 422', $statusHandler);
         $this->assertStringContainsString('processing_checkout_state', $statusHandler);
         $this->assertStringNotContainsString('usleep(', $statusHandler);
         $this->assertSame(1, substr_count($statusHandler, 'self::save_cart([])'));
@@ -225,7 +225,7 @@ class WordPressConnectorHardeningTest extends TestCase
         $this->assertStringContainsString("await requestStatus('begin')", $js);
         $this->assertTrue(strpos($js, "await requestStatus('begin')") < strpos($js, 'stripe.confirmPayment('));
         $this->assertStringContainsString('return_url: config.returnUrl', $js);
-        $this->assertStringContainsString("if (statusRoot) {", $js);
+        $this->assertStringContainsString('if (statusRoot) {', $js);
         $this->assertStringContainsString("requestStatus('poll')", $js);
         $this->assertStringContainsString("requestStatus('complete')", $js);
         $this->assertStringContainsString('pollingBudgetMs = 120000', $js);

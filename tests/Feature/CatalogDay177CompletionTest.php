@@ -102,9 +102,12 @@ class CatalogDay177CompletionTest extends TestCase
             ->assertOk()
             ->assertSee('Add product', false)
             ->assertSee('id="editProductForm"', false)
-            ->assertSee('Option groups', false)
-            ->assertSee('Sellable combinations', false)
+            ->assertSee('catalog-edit-section-option-groups', false)
+            ->assertSee('Option groups and variants', false)
+            ->assertSee('Add option group', false)
             ->assertSee('Additional details', false)
+            ->assertSee('Catalog tools', false)
+            ->assertSee('id="catalogToolsShellModal"', false)
             ->assertDontSee('Save and continue in full editor', false);
     }
 
@@ -553,7 +556,7 @@ class CatalogDay177CompletionTest extends TestCase
 
         $this->assertStringContainsString('id="editProductForm"', $html);
         $this->assertStringContainsString('name="variants[', $html);
-        $this->assertStringContainsString('Option groups', $html);
+        $this->assertStringContainsString('catalog-edit-section-option-groups', $html);
         $this->assertStringContainsString('Additional details', $html);
         $this->assertStringContainsString('_full_workspace_create', $html);
     }

@@ -1,8 +1,10 @@
 @php
     $managementTags = $managementTags ?? collect();
-    $tags = $managementTags->isNotEmpty() ? $managementTags : ($tags ?? collect());
     $canManageTags = $canManageTags ?? false;
     $embedCatalogHubs = (bool) ($embedCatalogHubs ?? false);
+    $tags = $embedCatalogHubs
+        ? $managementTags
+        : ($managementTags->isNotEmpty() ? $managementTags : ($tags ?? collect()));
     $reopenAdd = $errors->any() && (old('_open_tag_add_modal') == '1' || old('_open_tag_add_modal') === 1 || old('_open_tag_add_modal') === true);
     $reopenEdit = $errors->any() && old('_editing_tag_id');
     $editingTag = $reopenEdit ? $tags->firstWhere('id', (int) old('_editing_tag_id')) : null;
@@ -49,7 +51,7 @@
                         <th class="py-3 pl-3 pr-1 text-right text-[11px] font-semibold uppercase tracking-wide text-[#64748B] sm:pr-2">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-[#F1F5F9]">
+                <tbody id="catalog-hub-tags-rows" class="divide-y divide-[#F1F5F9]" data-catalog-hub-rows="tags">
                     @forelse ($tags as $tag)
                         @php
                             $sc = $statusBadgeClasses[$tag->status] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
@@ -64,9 +66,10 @@
                                 'sort_order' => (int) $tag->sort_order,
                                 'products_count' => $n,
                                 'update_url' => route('tags.update', $tag),
+                                'destroy_url' => route('tags.destroy', $tag),
                             ];
                         @endphp
-                        <tr class="align-middle transition-colors hover:bg-[#F8FAFC]/90">
+                        <tr class="align-middle transition-colors hover:bg-[#F8FAFC]/90" data-catalog-row="tag" data-catalog-row-id="{{ $tag->id }}">
                             <td class="max-w-[8rem] py-3.5 pl-1 pr-3 font-medium text-[#0F172A] sm:max-w-none sm:pl-2">
                                 <span class="flex items-center gap-2 truncate">
                                     @if ($tag->color)
@@ -92,7 +95,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
+                        <tr data-catalog-hub-empty="tags">
                             <td colspan="4" class="px-2 py-10 text-center sm:px-4">
                                 <p class="text-sm font-medium text-[#475569]">No tags yet</p>
                                 <p class="mt-1 text-xs text-[#94A3B8]">Use tags for quick merchandising labels.</p>
@@ -115,8 +118,9 @@
                             </ul>
                         </div>
                     @endif
-                    <form method="POST" action="{{ route('tags.store') }}" class="space-y-3">
+                    <form method="POST" action="{{ route('tags.store') }}" class="space-y-3" id="tagHubAddForm" data-catalog-kind="tag" data-turbo="false">
                         @csrf
+                        @include('user_view.partials.catalog_tools_return_field')
                         <input type="hidden" name="_open_tag_add_modal" value="1">
                         <div>
                             <label class="mb-1 block text-xs font-semibold text-[#64748B]">Name</label>
@@ -180,8 +184,9 @@
                     </ul>
                 </div>
             @endif
-            <form method="POST" action="{{ $reopenEdit ? route('tags.update', $editingTag) : '#' }}" id="tagEditForm" class="space-y-2">
+            <form method="POST" action="{{ $reopenEdit ? route('tags.update', $editingTag) : '#' }}" id="tagEditForm" class="space-y-2" data-catalog-kind="tag" data-turbo="false">
                 @csrf
+                @include('user_view.partials.catalog_tools_return_field')
                 @method('PATCH')
                 <input type="hidden" name="_editing_tag_id" id="tag_edit_tag_id" value="{{ $reopenEdit ? old('_editing_tag_id', $editingTag->id) : '' }}">
                 <div>
@@ -231,8 +236,9 @@
             <p class="mt-1.5 text-xs text-[#64748B]">Products keep their catalog data; this label is removed from them.</p>
         </div>
         <div class="px-4 pb-4 pt-0">
-            <form id="deleteTagForm" method="POST" class="mt-2">
+            <form id="deleteTagForm" method="POST" class="mt-2" data-catalog-kind="tag" data-turbo="false">
                 @csrf
+                @include('user_view.partials.catalog_tools_return_field')
                 @method('DELETE')
                 <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     <button type="button" id="cancelDeleteTag" class="rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm font-semibold text-[#475569] hover:bg-[#F8FAFC]">Cancel</button>

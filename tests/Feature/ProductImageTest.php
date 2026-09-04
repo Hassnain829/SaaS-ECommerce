@@ -288,6 +288,154 @@ class ProductImageTest extends TestCase
         $this->assertSame(0, (int) $primary->sort_order);
     }
 
+    public function test_create_honors_image_order_so_later_upload_can_be_main(): void
+    {
+        Storage::fake('public');
+
+        $owner = $this->createMerchantUser('owner-img-order@example.com');
+        $store = $this->createMemberStore($owner, 'Img Order Store', Store::ROLE_OWNER);
+
+        $first = UploadedFile::fake()->create('first.jpg', 12, 'image/jpeg');
+        $second = UploadedFile::fake()->create('second.jpg', 12, 'image/jpeg');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('product.store'), [
+                'name' => 'Ordered Img',
+                'description' => 'd',
+                'bulk_price' => 2,
+                'sku' => 'ORD-1',
+                'product_type' => 'physical',
+                'bulk_stock' => 1,
+                'stock_alert' => 1,
+                'product_images' => [$first, $second],
+                'image_order' => ['new:1', 'new:0'],
+            ])
+            ->assertRedirect(route('products'));
+
+        $product = Product::query()->where('store_id', $store->id)->where('name', 'Ordered Img')->firstOrFail();
+        $images = $product->images()->orderBy('id')->get();
+        $this->assertCount(2, $images);
+        $this->assertFalse((bool) $images[0]->is_primary);
+        $this->assertTrue((bool) $images[1]->is_primary);
+        $this->assertSame(1, (int) $images[0]->sort_order);
+        $this->assertSame(0, (int) $images[1]->sort_order);
+    }
+
+    public function test_update_reorders_existing_photos_from_existing_image_paths(): void
+    {
+        Storage::fake('public');
+
+        $owner = $this->createMerchantUser('owner-img-reorder@example.com');
+        $store = $this->createMemberStore($owner, 'Img Reorder Store', Store::ROLE_OWNER);
+
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Reorder Me',
+            'slug' => 'reorder-me-img',
+            'description' => 'x',
+            'base_price' => 10,
+            'sku' => 'REO-1',
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => ['default_stock' => 1, 'stock_alert' => 1],
+        ]);
+
+        $pathA = UploadedFile::fake()->create('a.jpg', 12, 'image/jpeg')->store('products/'.$store->id, 'public');
+        $pathB = UploadedFile::fake()->create('b.jpg', 12, 'image/jpeg')->store('products/'.$store->id, 'public');
+        $imageA = ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => $pathA,
+            'sort_order' => 0,
+            'is_primary' => true,
+        ]);
+        $imageB = ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => $pathB,
+            'sort_order' => 1,
+            'is_primary' => false,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => 'Reorder Me',
+                'description' => 'x',
+                'base_price' => 10,
+                'sku' => 'REO-1',
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'existing_image_paths' => [$pathB, $pathA],
+            ])
+            ->assertRedirect(route('products'));
+
+        $imageA->refresh();
+        $imageB->refresh();
+        $this->assertTrue((bool) $imageB->is_primary);
+        $this->assertFalse((bool) $imageA->is_primary);
+        $this->assertSame(0, (int) $imageB->sort_order);
+        $this->assertSame(1, (int) $imageA->sort_order);
+    }
+
+    public function test_update_can_place_a_new_upload_before_existing_photos(): void
+    {
+        Storage::fake('public');
+
+        $owner = $this->createMerchantUser('owner-img-mixed@example.com');
+        $store = $this->createMemberStore($owner, 'Img Mixed Store', Store::ROLE_OWNER);
+
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Mixed Gallery',
+            'slug' => 'mixed-gallery-img',
+            'description' => 'x',
+            'base_price' => 10,
+            'sku' => 'MIX-1',
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => ['default_stock' => 1, 'stock_alert' => 1],
+        ]);
+
+        $pathA = UploadedFile::fake()->create('keep.jpg', 12, 'image/jpeg')->store('products/'.$store->id, 'public');
+        $existing = ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => $pathA,
+            'sort_order' => 0,
+            'is_primary' => true,
+        ]);
+
+        $newFile = UploadedFile::fake()->create('fresh.jpg', 12, 'image/jpeg');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => 'Mixed Gallery',
+                'description' => 'x',
+                'base_price' => 10,
+                'sku' => 'MIX-1',
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'existing_image_paths' => [$pathA],
+                'product_images' => [$newFile],
+                'image_order' => ['new:0', 'existing:'.$pathA],
+            ])
+            ->assertRedirect(route('products'));
+
+        $product->refresh();
+        $this->assertCount(2, $product->images);
+        $existing->refresh();
+        $newImage = $product->images->firstWhere('id', '!=', $existing->id);
+        $this->assertNotNull($newImage);
+        $this->assertTrue((bool) $newImage->is_primary);
+        $this->assertSame(0, (int) $newImage->sort_order);
+        $this->assertFalse((bool) $existing->is_primary);
+        $this->assertSame(1, (int) $existing->sort_order);
+    }
+
     protected function createMerchantUser(string $email): User
     {
         $role = Role::firstOrCreate(['name' => 'user']);

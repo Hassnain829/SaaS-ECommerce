@@ -51,6 +51,7 @@
                             <a href="#catalog-edit-section-basics" class="product-edit-section-link is-active" data-product-edit-tab>Product details</a>
                             <a href="#catalog-edit-section-media" class="product-edit-section-link" data-product-edit-tab>Images</a>
                             <a href="#catalog-edit-section-pricing" class="product-edit-section-link" data-product-edit-tab>Price &amp; inventory</a>
+                            <a href="#catalog-edit-section-tax-shipping" class="product-edit-section-link" data-product-edit-tab>Tax &amp; shipping</a>
                             <a href="#catalog-edit-section-organization" class="product-edit-section-link" data-product-edit-tab>Organization</a>
                             <a href="#catalog-edit-section-attributes" class="product-edit-section-link" data-product-edit-tab>Specifications</a>
                             <a href="#catalog-edit-section-additional-details" class="product-edit-section-link" data-product-edit-tab>Additional details</a>
@@ -67,6 +68,9 @@
                         'catalogTags' => $catalogTags,
                         'catalogTaxonomyCategories' => $catalogTaxonomyCategories,
                         'catalogAttributes' => $catalogAttributes,
+                        'canManageBrands' => $canManageBrands ?? false,
+                        'canManageTags' => $canManageTags ?? false,
+                        'canManageCategories' => $canManageCategories ?? false,
                         'workspaceReturnProductId' => $workspaceReturnProductId,
                         'shippingPreferences' => $shippingPreferences ?? [],
                     ])
@@ -294,4 +298,18 @@
             });
         })();
     </script>
+
+    @if (($canManageBrands ?? false) || ($canManageTags ?? false) || ($canManageCategories ?? false))
+        @include('user_view.partials.catalog_tools_modal', [
+            'managementBrands' => $managementBrands ?? collect(),
+            'managementTags' => $managementTags ?? collect(),
+            'managementCategories' => $managementCategories ?? collect(),
+            'canManageBrands' => $canManageBrands ?? false,
+            'canManageTags' => $canManageTags ?? false,
+            'canManageCategories' => $canManageCategories ?? false,
+            'openCatalogToolsShell' => request()->boolean('openCatalogTools'),
+            'catalogToolsDefaultTab' => 'categories',
+            'catalogToolsStayOnPage' => true,
+        ])
+    @endif
 @endsection

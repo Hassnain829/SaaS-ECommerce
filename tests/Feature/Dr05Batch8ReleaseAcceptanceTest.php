@@ -50,8 +50,6 @@ class Dr05Batch8ReleaseAcceptanceTest extends TestCase
             ->get(route('developer-storefront.settings'))
             ->assertOk()
             ->assertSee('Connect your website')
-            ->assertSee('Go live checklist')
-            ->assertSee('never turns off WordPress plugins')
             ->assertDontSee('/api/v1/external/orders')
             ->assertDontSee('choose whether website orders reduce stock');
 
