@@ -2,6 +2,8 @@
 
 namespace App\Support\Catalog;
 
+use App\Catalog\ProductImportField;
+
 /**
  * Maps internal validation / system messages to plain-language copy for merchants.
  * Technical strings still appear in logs; DB may store either form until re-saved.
@@ -128,8 +130,8 @@ final class ProductImportMerchantMessages
             }
             $row[$key] = $cells[$i] ?? '';
         }
-        $nameKey = $columnMapping[\App\Catalog\ProductImportField::PRODUCT_NAME] ?? null;
-        $skuKey = $columnMapping[\App\Catalog\ProductImportField::SKU] ?? null;
+        $nameKey = $columnMapping[ProductImportField::PRODUCT_NAME] ?? null;
+        $skuKey = $columnMapping[ProductImportField::SKU] ?? null;
         $name = is_string($nameKey) ? trim((string) ($row[$nameKey] ?? '')) : '';
         $sku = is_string($skuKey) ? trim((string) ($row[$skuKey] ?? '')) : '';
         if ($name !== '' && $sku !== '') {

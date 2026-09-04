@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Data\Coupons\CouponDiscountResult;
 use App\Models\Checkout;
 use App\Models\Customer;
+use App\Models\InventoryReservation;
+use App\Models\Location;
 use App\Models\PaymentIntent;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
@@ -488,7 +491,7 @@ class CheckoutService
             $checkout->items()->delete();
 
             $origin = $checkout->fulfillmentOriginLocation
-                ?: \App\Models\Location::query()->whereKey($checkout->fulfillment_origin_location_id)->first();
+                ?: Location::query()->whereKey($checkout->fulfillment_origin_location_id)->first();
 
             $reservationCount = 0;
             foreach ($prepared as $item) {
@@ -608,7 +611,7 @@ class CheckoutService
     /**
      * Re-run coupon math for an existing checkout cart, or clear it when no longer valid.
      *
-     * @return array{0: ?\App\Data\Coupons\CouponDiscountResult, 1: bool}
+     * @return array{0: ?CouponDiscountResult, 1: bool}
      */
     public function resolveCouponDiscountForCheckout(Checkout $checkout): array
     {
@@ -636,13 +639,13 @@ class CheckoutService
 
     private function releaseCheckoutReservations(Checkout $checkout): void
     {
-        $reservations = \App\Models\InventoryReservation::query()
+        $reservations = InventoryReservation::query()
             ->where('store_id', $checkout->store_id)
             ->where('reference_type', 'checkout')
             ->where('reference_id', (string) $checkout->id)
             ->whereIn('status', [
-                \App\Models\InventoryReservation::STATUS_ACTIVE,
-                \App\Models\InventoryReservation::STATUS_COMMITTED,
+                InventoryReservation::STATUS_ACTIVE,
+                InventoryReservation::STATUS_COMMITTED,
             ])
             ->get();
 
@@ -710,7 +713,7 @@ class CheckoutService
         return $items;
     }
 
-    private function recalculateCheckoutWithCoupon(Checkout $checkout, ?\App\Data\Coupons\CouponDiscountResult $couponDiscount): void
+    private function recalculateCheckoutWithCoupon(Checkout $checkout, ?CouponDiscountResult $couponDiscount): void
     {
         $currencyCode = (string) $checkout->currency_code;
         $taxSetting = TaxSetting::query()

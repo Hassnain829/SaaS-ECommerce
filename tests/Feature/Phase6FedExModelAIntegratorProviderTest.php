@@ -10,6 +10,10 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
+use App\Services\Carriers\FedEx\Connection\FedExEulaService;
+use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
+use App\Services\Carriers\FedEx\Connection\FedExRegistrationInputValidator;
+use App\Services\Carriers\FedEx\Support\FedExConfig;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -41,9 +45,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shipping.carriers.connect.index'))
-            ->assertOk()
-            ->assertSeeText('Connect FedEx account')
-            ->assertSee(route('settings.shipping.fedex-integrator.start'), false);
+            ->assertRedirect(route('settings.shipping.fedex-integrator.start'));
     }
 
     public function test_model_b_button_hidden_unless_developer_fallback_enabled(): void
@@ -87,7 +89,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.shipping.fedex-integrator.eula.accept', $session), [
                 'read_and_accept_eula' => '1',
-                'document_hash' => app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->hash(),
+                'document_hash' => app(FedExEulaService::class)->hash(),
             ])
             ->assertRedirect(route('settings.shipping.fedex-integrator.account', $session));
 
@@ -118,7 +120,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('settings.shipping.fedex-integrator.eula.accept', $session), [
                 'read_and_accept_eula' => '1',
-                'document_hash' => app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->hash(),
+                'document_hash' => app(FedExEulaService::class)->hash(),
             ])
             ->assertSessionHasErrors('eula');
 
@@ -403,7 +405,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
     public function test_registration_validator_preserves_raw_nine_digit_postal_for_registration(): void
     {
-        $validator = app(\App\Services\Carriers\FedEx\Connection\FedExRegistrationInputValidator::class);
+        $validator = app(FedExRegistrationInputValidator::class);
         $result = $validator->validate([
             'provider_account_number' => '700257037',
             'company_name' => 'Unique Customer Name',
@@ -949,7 +951,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
     public function test_live_mode_disabled_unless_production_flag_and_credentials_exist(): void
     {
-        $config = app(\App\Services\Carriers\FedEx\Support\FedExConfig::class);
+        $config = app(FedExConfig::class);
         config([
             'carriers.fedex.integrator_production_enabled' => false,
             'carriers.fedex.live.client_id' => '',
@@ -976,6 +978,7 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
+            ->followingRedirects()
             ->get(route('shippingAutomation', ['tab' => 'carriers']))
             ->assertOk()
             ->assertSeeText('USPS Merchant Account');
@@ -1030,10 +1033,10 @@ class Phase6FedExModelAIntegratorProviderTest extends TestCase
 
     private function completeEulaScroll(CarrierAccountRegistrationSession $session): void
     {
-        app(\App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator::class)->markEulaScrollComplete(
+        app(FedExIntegratorRegistrationOrchestrator::class)->markEulaScrollComplete(
             $session,
-            app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->hash(),
-            app(\App\Services\Carriers\FedEx\Connection\FedExEulaService::class)->expectedPages(),
+            app(FedExEulaService::class)->hash(),
+            app(FedExEulaService::class)->expectedPages(),
         );
     }
 

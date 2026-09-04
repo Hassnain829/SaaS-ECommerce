@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Inventory\DefaultLocationService;
+use App\Services\Tax\TaxConfigurationService;
 use App\Support\StorePermissionResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -68,11 +70,11 @@ class Store extends Model
     {
         static::created(function (Store $store): void {
             if (Schema::hasTable('locations')) {
-                app(\App\Services\Inventory\DefaultLocationService::class)->ensureFromStoreDefaults($store);
+                app(DefaultLocationService::class)->ensureFromStoreDefaults($store);
             }
 
             if (Schema::hasTable('tax_settings')) {
-                app(\App\Services\Tax\TaxConfigurationService::class)->ensureSettingsForStore($store);
+                app(TaxConfigurationService::class)->ensureSettingsForStore($store);
             }
         });
     }

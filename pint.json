@@ -1,0 +1,12 @@
+{
+    "exclude": [
+        "dev-test-wordpress",
+        "deploy/wordpress-jiggy",
+        "dev-test-storefront",
+        "_cuba_inspect",
+        "storage",
+        "bootstrap/cache",
+        "vendor",
+        "node_modules"
+    ]
+}

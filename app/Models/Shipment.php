@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Route;
 
 class Shipment extends Model
 {
@@ -188,7 +189,7 @@ class Shipment extends Model
     public function publicFedExTrackingUrl(?string $storeSlug): ?string
     {
         $token = data_get($this->metadata, 'fedex.public_tracking_token');
-        if (! filled($token) || ! filled($storeSlug) || ! \Illuminate\Support\Facades\Route::has('public.fedex.tracking')) {
+        if (! filled($token) || ! filled($storeSlug) || ! Route::has('public.fedex.tracking')) {
             return null;
         }
 

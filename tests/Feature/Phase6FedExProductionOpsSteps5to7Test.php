@@ -11,6 +11,7 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderAddress;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
@@ -542,7 +543,7 @@ class Phase6FedExProductionOpsSteps5to7Test extends TestCase
             'phone' => '9015550199',
         ]);
 
-        $product = \App\Models\Product::query()->create([
+        $product = Product::query()->create([
             'store_id' => $store->id,
             'name' => 'Test Item',
             'slug' => 'test-item-'.Str::random(6),

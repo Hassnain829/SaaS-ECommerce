@@ -10,6 +10,7 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -341,7 +342,7 @@ class Phase2CatalogCompletionTest extends TestCase
     {
         $owner = $this->merchantUser(Str::slug($name).'-owner@example.test');
         $store = $this->storeFor($owner, $name);
-        $plain = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $plain = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $plain, $owner];
     }

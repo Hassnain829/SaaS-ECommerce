@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CarrierApiEvent;
 use App\Support\ProjectHygiene\ProjectCleanupService;
 use App\Support\ProjectHygiene\ProjectPathGuard;
 use App\Support\ProjectHygiene\ProjectRetentionService;
@@ -259,11 +260,11 @@ class RetentionTestIsolationTest extends TestCase
     public function test_carrier_api_events_unaffected_by_blocked_force_attempt(): void
     {
         config(['project_retention.enabled' => true]);
-        $before = \App\Models\CarrierApiEvent::count();
+        $before = CarrierApiEvent::count();
 
         $this->artisan('project:retention --force --category=validation-temp')->assertExitCode(1);
 
-        $this->assertSame($before, \App\Models\CarrierApiEvent::count());
+        $this->assertSame($before, CarrierApiEvent::count());
     }
 
     public function test_dry_run_against_real_worktree_remains_allowed(): void

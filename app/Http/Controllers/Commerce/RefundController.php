@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Refund;
 use App\Services\RefundService;
+use App\Support\RefundLifecycle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -49,8 +50,8 @@ class RefundController extends Controller
         $refund = $refundService->recheckOrRetryRefund($refund, $request->user(), $request);
 
         $message = match ($refund->status) {
-            \App\Support\RefundLifecycle::STATUS_SUCCEEDED => 'Refund '.$refund->refund_number.' is complete.',
-            \App\Support\RefundLifecycle::STATUS_FAILED => 'Refund '.$refund->refund_number.' still needs attention.',
+            RefundLifecycle::STATUS_SUCCEEDED => 'Refund '.$refund->refund_number.' is complete.',
+            RefundLifecycle::STATUS_FAILED => 'Refund '.$refund->refund_number.' still needs attention.',
             default => 'Refund '.$refund->refund_number.' was rechecked.',
         };
 

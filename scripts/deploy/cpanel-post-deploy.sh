@@ -78,4 +78,7 @@ rm -f bootstrap/cache/*.php
 # Avoid route:cache / optimize / event:cache on hosts where proc_open is disabled.
 $PHP_BIN artisan config:cache || true
 
+# Refresh /jiggy WordPress connector + brand pack when that install exists (no-op otherwise).
+bash "${SCRIPT_DIR}/sync-wordpress-jiggy.sh"
+
 echo "==> Post-deploy finished at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

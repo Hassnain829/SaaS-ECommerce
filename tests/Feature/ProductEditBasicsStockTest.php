@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
@@ -112,7 +113,7 @@ class ProductEditBasicsStockTest extends TestCase
     }
 
     /**
-     * @return array{0: User, 1: Store, 2: Product, 3: \App\Models\ProductVariant}
+     * @return array{0: User, 1: Store, 2: Product, 3: ProductVariant}
      */
     private function simpleProductSetup(int $stock, int $alert): array
     {

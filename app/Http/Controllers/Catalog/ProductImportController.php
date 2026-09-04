@@ -6,6 +6,7 @@ use App\Catalog\ProductImportField;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessProductImportJob;
 use App\Jobs\RetryFailedProductImportRowsJob;
+use App\Models\Location;
 use App\Models\ProductImport;
 use App\Models\ProductImportRow;
 use App\Services\Catalog\ProductImportAutoColumnMapper;
@@ -226,7 +227,7 @@ class ProductImportController extends Controller
         $locations = collect();
         if ($productImport->isWooCommercePreset() && $store) {
             app(DefaultLocationService::class)->ensureForStore($store);
-            $locations = \App\Models\Location::query()
+            $locations = Location::query()
                 ->where('store_id', $store->id)
                 ->where('is_active', true)
                 ->orderByDesc('is_default')
@@ -272,7 +273,7 @@ class ProductImportController extends Controller
                     'source_site' => 'Enter the exact WordPress/WooCommerce site URL, including http:// or https://.',
                 ]);
             }
-            $location = \App\Models\Location::query()
+            $location = Location::query()
                 ->where('store_id', $store->id)
                 ->where('is_active', true)
                 ->whereKey((int) $validatedStock['location_id'])

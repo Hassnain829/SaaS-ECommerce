@@ -7,6 +7,8 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
+use App\Models\Store;
+use App\Models\User;
 use App\Services\Inventory\InventoryAdjustmentService;
 use App\Services\Inventory\InventoryAvailabilityService;
 use App\Services\Inventory\InventorySyncService;
@@ -186,7 +188,7 @@ final class ProductInlineController extends Controller
     }
 
     /**
-     * @return array{0: \App\Models\Store, 1: \App\Models\User}
+     * @return array{0: Store, 1: User}
      */
     private function authorizeInlineCatalog(Request $request, Product $product): array
     {

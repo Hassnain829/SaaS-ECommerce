@@ -3,10 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Customer extends Model
 {
-    use \Illuminate\Database\Eloquent\SoftDeletes;
+    use SoftDeletes;
 
     protected $fillable = [
         'store_id',

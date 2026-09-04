@@ -12,6 +12,7 @@ use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\Delivery\StoreShippingPreferences;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -418,7 +419,7 @@ class ProductBulkActionsTest extends TestCase
     {
         $owner = $this->makeUser();
         $store = $this->makeStore($owner);
-        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+        app(StoreShippingPreferences::class)->update($store, [
             'weight_unit' => 'LB',
         ]);
         $product = $this->makeSizedVariantProduct($store, [
@@ -448,7 +449,7 @@ class ProductBulkActionsTest extends TestCase
     {
         $owner = $this->makeUser();
         $store = $this->makeStore($owner);
-        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+        app(StoreShippingPreferences::class)->update($store, [
             'weight_unit' => 'KG',
         ]);
         $product = $this->makeOptionVariantProduct($store, 'Weight', ['5', '10', '20']);
@@ -539,7 +540,7 @@ class ProductBulkActionsTest extends TestCase
     {
         $owner = $this->makeUser();
         $store = $this->makeStore($owner);
-        app(\App\Services\Delivery\StoreShippingPreferences::class)->update($store, [
+        app(StoreShippingPreferences::class)->update($store, [
             'weight_unit' => 'LB',
         ]);
         $product = $this->makeOptionVariantProduct($store, 'Weight', ['5 lb', '10 lb']);

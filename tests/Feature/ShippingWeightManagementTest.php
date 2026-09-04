@@ -12,8 +12,11 @@ use App\Models\ShippingPackagePreset;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\CheckoutService;
 use App\Services\Delivery\DeliverySetupStatusService;
+use App\Services\Delivery\ShippingWeightCoverageService;
 use App\Services\Delivery\StoreShippingPreferences;
+use App\Support\ProductEditPayload;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -126,7 +129,7 @@ class ShippingWeightManagementTest extends TestCase
             'meta' => ['shipping_weight' => 10],
         ]);
 
-        $coverage = app(\App\Services\Delivery\ShippingWeightCoverageService::class);
+        $coverage = app(ShippingWeightCoverageService::class);
         $this->assertTrue($coverage->productHasExactCoverage($product->fresh()->load('variants')));
         $this->assertSame(0, $coverage->countProductsMissingExactCoverage($store));
     }
@@ -196,7 +199,7 @@ class ShippingWeightManagementTest extends TestCase
             'meta' => [],
         ]);
 
-        $coverage = app(\App\Services\Delivery\ShippingWeightCoverageService::class);
+        $coverage = app(ShippingWeightCoverageService::class);
         $expectedCount = $coverage->countProductsMissingExactCoverage($store);
 
         $response = $this->actingAs($owner)
@@ -286,7 +289,7 @@ class ShippingWeightManagementTest extends TestCase
         $this->makeProduct($store, 'Missing A');
         $this->makeProduct($store, 'Missing B');
 
-        $coverage = app(\App\Services\Delivery\ShippingWeightCoverageService::class);
+        $coverage = app(ShippingWeightCoverageService::class);
         $count = $coverage->countProductsMissingExactCoverage($store);
         $filterCount = $coverage->missingExactCoverageQuery($store)->count();
 
@@ -301,7 +304,7 @@ class ShippingWeightManagementTest extends TestCase
         $product = $this->makeProduct($store, 'Legacy Display');
         $product->forceFill(['meta' => ['weight' => 3.5]])->save();
 
-        $payload = \App\Support\ProductEditPayload::forProduct($product->fresh());
+        $payload = ProductEditPayload::forProduct($product->fresh());
 
         $this->assertSame('3.5', $payload['shipping_weight']);
     }
@@ -314,7 +317,7 @@ class ShippingWeightManagementTest extends TestCase
         $variant = $product->variants()->first();
         $variant->forceFill(['meta' => ['shipping_weight' => 12.5]])->save();
 
-        $payload = \App\Support\ProductEditPayload::forProduct($product->fresh());
+        $payload = ProductEditPayload::forProduct($product->fresh());
 
         $this->assertSame('12.5', $payload['variants'][0]['shipping_weight']);
     }
@@ -343,10 +346,10 @@ class ShippingWeightManagementTest extends TestCase
             'stock_alert' => 0,
         ]);
 
-        $metadata = (new \ReflectionClass(\App\Services\CheckoutService::class))
+        $metadata = (new \ReflectionClass(CheckoutService::class))
             ->getMethod('shippingWeightMetadata');
         $metadata->setAccessible(true);
-        $result = $metadata->invoke(app(\App\Services\CheckoutService::class), $store, $product, $variant);
+        $result = $metadata->invoke(app(CheckoutService::class), $store, $product, $variant);
 
         $this->assertSame([], $result);
     }

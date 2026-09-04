@@ -8,8 +8,10 @@ use App\Models\CarrierApiEvent;
 use App\Models\FedExTradeDocument;
 use App\Models\IdempotencyKey;
 use App\Models\Shipment;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -111,7 +113,7 @@ class FedExAdminDiagnosticsController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, CarrierApiEvent>
+     * @return Collection<int, CarrierApiEvent>
      */
     private function recentSuccessEvents()
     {
@@ -127,7 +129,7 @@ class FedExAdminDiagnosticsController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, CarrierAccount>
+     * @return Collection<int, CarrierAccount>
      */
     private function failedConnections()
     {
@@ -173,7 +175,7 @@ class FedExAdminDiagnosticsController extends Controller
     }
 
     /**
-     * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<CarrierApiEvent>
+     * @return LengthAwarePaginator<CarrierApiEvent>
      */
     private function fedExApiEvents(Request $request)
     {
@@ -222,7 +224,7 @@ class FedExAdminDiagnosticsController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, IdempotencyKey>
+     * @return Collection<int, IdempotencyKey>
      */
     private function uncertainShipOperations()
     {
@@ -238,7 +240,7 @@ class FedExAdminDiagnosticsController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, Shipment>
+     * @return Collection<int, Shipment>
      */
     private function recentFedExShipments()
     {
@@ -251,7 +253,7 @@ class FedExAdminDiagnosticsController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, FedExTradeDocument>
+     * @return Collection<int, FedExTradeDocument>
      */
     private function tradeDocuments()
     {

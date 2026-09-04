@@ -17,12 +17,12 @@ $catalog_subtotal = $catalog_subtotal ?? Eco_Portal_Storefront::cart_subtotal($c
 $currency = $currency ?? Eco_Portal_Storefront::store_currency();
 $connection = is_array($connection ?? null) ? $connection : [];
 ?>
-<div class="eco-portal">
+<div class="eco-portal eco-portal--cart">
     <header class="eco-portal__header">
         <div>
-            <p class="eco-portal__eyebrow">Cart</p>
-            <h2 class="eco-portal__title">Portal cart</h2>
-            <p class="eco-portal__meta">This cart holds product options and quantities only. Delivery, tax, and the amount to pay come from the merchant portal at checkout.</p>
+            <p class="eco-portal__eyebrow">Your bag</p>
+            <h1 class="eco-portal__title">Cart</h1>
+            <p class="eco-portal__meta">Review your flavors, then continue to checkout.</p>
         </div>
         <a class="eco-portal__button eco-portal__button--secondary" href="<?php echo esc_url($shop_url); ?>">Continue shopping</a>
     </header>
@@ -33,18 +33,19 @@ $connection = is_array($connection ?? null) ? $connection : [];
 
     <?php if ($cart === []) : ?>
         <div class="eco-portal-notice eco-portal-notice--info">Your cart is empty.</div>
+        <p><a class="eco-portal__button eco-portal__button--cta" href="<?php echo esc_url($shop_url); ?>">Shop flavors</a></p>
     <?php else : ?>
-        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="eco-portal__cart-form">
             <input type="hidden" name="action" value="eco_portal_update_cart" />
             <?php wp_nonce_field('eco_portal_update_cart'); ?>
 
             <table class="eco-portal__table">
                 <thead>
                     <tr>
-                        <th>Item</th>
-                        <th>Catalog price</th>
-                        <th>Qty</th>
-                        <th>Line</th>
+                        <th>Product</th>
+                        <th>Price</th>
+                        <th>Quantity</th>
+                        <th>Subtotal</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -58,9 +59,11 @@ $connection = is_array($connection ?? null) ? $connection : [];
                         <tr>
                             <td>
                                 <strong><?php echo esc_html((string) ($line['product_name'] ?? 'Product')); ?></strong>
-                                <div class="eco-portal__meta"><?php echo esc_html((string) ($line['variant_label'] ?? 'Default')); ?></div>
+                                <?php if (! empty($line['variant_label']) && strtolower((string) $line['variant_label']) !== 'default') : ?>
+                                    <div class="eco-portal__meta"><?php echo esc_html((string) $line['variant_label']); ?></div>
+                                <?php endif; ?>
                                 <?php if (! $available) : ?>
-                                    <div class="eco-portal-notice eco-portal-notice--info">This option is no longer available in the merchant portal.</div>
+                                    <div class="eco-portal-notice eco-portal-notice--info">This option is no longer available.</div>
                                 <?php endif; ?>
                             </td>
                             <td>
@@ -75,19 +78,12 @@ $connection = is_array($connection ?? null) ? $connection : [];
                 </tbody>
             </table>
 
-            <div class="eco-portal__actions">
-                <p>
-                    <strong>Catalog subtotal:</strong> <?php echo esc_html(Eco_Portal_Storefront::format_money($catalog_subtotal, $currency)); ?>
-                    <span class="eco-portal__meta">Not the checkout total.</span>
-                </p>
-                <div class="eco-portal__action-buttons">
-                    <button type="submit" name="cart_action" value="update" class="eco-portal__button eco-portal__button--secondary">Update cart</button>
-                    <button type="submit" name="cart_action" value="clear" class="eco-portal__button eco-portal__button--secondary">Clear cart</button>
-                    <?php if (! empty($connection['ok'])) : ?>
-                        <a class="eco-portal__button" href="<?php echo esc_url($checkout_url); ?>">Checkout</a>
-                    <?php else : ?>
-                        <span class="eco-portal__button" style="opacity:0.55;pointer-events:none;">Checkout blocked</span>
-                    <?php endif; ?>
+            <div class="eco-portal__cart-footer">
+                <button type="submit" class="eco-portal__button eco-portal__button--secondary">Update cart</button>
+                <div class="eco-portal__cart-totals">
+                    <p><strong>Subtotal:</strong> <?php echo esc_html(Eco_Portal_Storefront::format_money($catalog_subtotal, $currency)); ?></p>
+                    <p class="eco-portal__meta">Shipping and tax are calculated at checkout.</p>
+                    <a class="eco-portal__button eco-portal__button--cta" href="<?php echo esc_url($checkout_url); ?>">Proceed to checkout</a>
                 </div>
             </div>
         </form>

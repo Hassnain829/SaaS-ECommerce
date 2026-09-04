@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\ProductImport;
 use App\Models\ProductVariant;
 use App\Models\Role;
+use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Catalog\ProductImportPreviewService;
@@ -71,7 +73,7 @@ CSV;
             ->post(route('products.import.confirm', ['productImportId' => $import->id]));
 
         $import->refresh();
-        $this->assertSame(\App\Models\ProductImport::STATUS_COMPLETED, $import->status);
+        $this->assertSame(ProductImport::STATUS_COMPLETED, $import->status);
 
         $product = Product::query()->where('store_id', $store->id)->where('sku', 'P-SHIRT-1')->first();
         $this->assertNotNull($product);
@@ -84,7 +86,7 @@ CSV;
         $this->assertSame('29.99', (string) $v->price);
         $this->assertSame('39.99', (string) $v->compare_at_price);
 
-        $this->assertSame(4, (int) \App\Models\StockMovement::query()
+        $this->assertSame(4, (int) StockMovement::query()
             ->where('store_id', $store->id)
             ->where('product_id', $product->id)
             ->where('movement_type', 'import')
@@ -246,7 +248,7 @@ CSV;
         $this->assertNotNull($v);
         $this->assertNotNull($v->product_image_id);
         $this->assertTrue(
-            \App\Models\ProductImage::query()->whereKey($v->product_image_id)->where('product_id', $v->product_id)->exists()
+            ProductImage::query()->whereKey($v->product_image_id)->where('product_id', $v->product_id)->exists()
         );
     }
 

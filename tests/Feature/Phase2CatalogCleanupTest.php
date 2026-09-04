@@ -6,8 +6,8 @@ use App\Models\Product;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class Phase2CatalogCleanupTest extends TestCase
@@ -142,7 +142,7 @@ class Phase2CatalogCleanupTest extends TestCase
     public function test_catalog_api_v1_exposes_custom_product_type_label(): void
     {
         [$owner, $store] = $this->ownerWithStore();
-        $plainToken = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $plainToken = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         Product::query()->create([
             'store_id' => $store->id,

@@ -103,7 +103,7 @@ return new class extends Migration
             $indexes = Schema::getConnection()->getSchemaBuilder()->getIndexes($table);
 
             return collect($indexes)->contains(fn (array $index): bool => ($index['name'] ?? null) === $indexName);
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return false;
         }
     }
@@ -436,7 +436,7 @@ return new class extends Migration
         foreach ($encryptedAccounts as $account) {
             try {
                 $plaintext = Crypt::decryptString((string) $account->provider_account_number_encrypted);
-            } catch (\Throwable $exception) {
+            } catch (Throwable $exception) {
                 throw new RuntimeException(sprintf(
                     'Rollback aborted before dropping provider_account_number_encrypted: carrier account id %d could not be '
                     .'decrypted (%s). Restore the APP_KEY used to encrypt these FedEx account numbers, then roll back again.',

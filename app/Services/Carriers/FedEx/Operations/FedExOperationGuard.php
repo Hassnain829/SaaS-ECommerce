@@ -5,6 +5,7 @@ namespace App\Services\Carriers\FedEx\Operations;
 use App\Models\CarrierAccount;
 use App\Models\Store;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -240,7 +241,7 @@ final class FedExOperationGuard
 
         $today = now()->startOfDay();
         try {
-            $parsed = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $date)->startOfDay();
+            $parsed = Carbon::createFromFormat('Y-m-d', $date)->startOfDay();
         } catch (\Throwable) {
             abort(422, 'Ship date is invalid.');
         }

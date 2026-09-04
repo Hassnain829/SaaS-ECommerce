@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\NotificationEvent;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -75,9 +76,9 @@ class NotificationPreference extends Model
 
         $timezone = (string) ($hours['timezone'] ?? 'UTC');
         try {
-            $now = \Carbon\Carbon::instance($at ?? now())->timezone($timezone);
+            $now = Carbon::instance($at ?? now())->timezone($timezone);
         } catch (\Throwable) {
-            $now = \Carbon\Carbon::instance($at ?? now())->timezone('UTC');
+            $now = Carbon::instance($at ?? now())->timezone('UTC');
         }
 
         $startAt = $now->copy()->setTimeFromTimeString($start);

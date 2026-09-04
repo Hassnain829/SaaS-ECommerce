@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
+use App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService;
 use App\Services\Carriers\FedEx\Support\FedExCheckoutServiceCatalog;
 use App\Services\Inventory\DefaultLocationService;
 use App\Support\Tax\TaxCountryCatalog;
@@ -157,7 +158,7 @@ class DeliveryWizardPersistenceService
         }
 
         if (in_array($mode, ['fedex_live', 'both'], true)) {
-            $platformOn = app(\App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::class)
+            $platformOn = app(FedExCheckoutCapabilityService::class)
                 ->platformCheckoutRatesEnabled();
             if (! $platformOn) {
                 throw ValidationException::withMessages([
@@ -459,7 +460,7 @@ class DeliveryWizardPersistenceService
 
     private function enableFedExCheckoutCapabilities(CarrierAccount $account): void
     {
-        app(\App\Services\Carriers\FedEx\Support\FedExCheckoutCapabilityService::class)
+        app(FedExCheckoutCapabilityService::class)
             ->enableAccountCheckoutRatesIfAllowed($account);
     }
 

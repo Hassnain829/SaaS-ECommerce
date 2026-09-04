@@ -51,6 +51,68 @@ final class Eco_Portal_Admin
             },
             'default' => '',
         ]);
+
+        $colorKeys = [
+            'eco_portal_ui_accent',
+            'eco_portal_ui_accent_2',
+            'eco_portal_ui_text',
+            'eco_portal_ui_background',
+            'eco_portal_ui_muted',
+            'eco_portal_ui_card',
+            'eco_portal_ui_border',
+            'eco_portal_ui_button_text',
+        ];
+        foreach ($colorKeys as $key) {
+            register_setting('eco_portal_connector', $key, [
+                'type' => 'string',
+                'sanitize_callback' => static function ($value) use ($key): string {
+                    $value = trim((string) $value);
+                    if (preg_match('/^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/', $value) === 1) {
+                        return strtolower($value);
+                    }
+
+                    return (string) get_option($key, '');
+                },
+                'default' => '',
+            ]);
+        }
+
+        register_setting('eco_portal_connector', 'eco_portal_ui_radius', [
+            'type' => 'string',
+            'sanitize_callback' => static function ($value): string {
+                $value = trim((string) $value);
+                if ($value === '') {
+                    return '14px';
+                }
+                if (ctype_digit($value)) {
+                    return $value.'px';
+                }
+                if (preg_match('/^\d+(\.\d+)?(px|rem|em)$/', $value) === 1) {
+                    return $value;
+                }
+
+                return '14px';
+            },
+            'default' => '14px',
+        ]);
+
+        register_setting('eco_portal_connector', 'eco_portal_ui_heading_font', [
+            'type' => 'string',
+            'sanitize_callback' => static function ($value): string {
+                $value = sanitize_key((string) $value);
+
+                return in_array($value, ['inherit', 'system', 'bebas', 'serif'], true) ? $value : 'inherit';
+            },
+            'default' => 'inherit',
+        ]);
+
+        register_setting('eco_portal_connector', 'eco_portal_ui_custom_css', [
+            'type' => 'string',
+            'sanitize_callback' => static function ($value): string {
+                return Eco_Portal_Templates::sanitize_custom_css((string) $value);
+            },
+            'default' => '',
+        ]);
     }
 
     public static function render_settings_page(): void
@@ -96,6 +158,7 @@ final class Eco_Portal_Admin
 
             <form method="post" action="options.php">
                 <?php settings_fields('eco_portal_connector'); ?>
+                <h2>Connection</h2>
                 <table class="form-table" role="presentation">
                     <tr>
                         <th scope="row"><label for="eco_portal_base_url">Portal website address</label></th>
@@ -139,7 +202,119 @@ final class Eco_Portal_Admin
                         </td>
                     </tr>
                 </table>
-                <?php submit_button('Save connection'); ?>
+
+                <h2>Shop appearance</h2>
+                <div class="notice notice-info inline" style="padding:12px 14px;margin:12px 0 18px;">
+                    <p style="margin:0 0 8px;"><strong>For CMS / Elementor developers — where to put CSS</strong></p>
+                    <table class="widefat striped" style="max-width:920px;">
+                        <thead>
+                            <tr>
+                                <th>What you are styling</th>
+                                <th>Put the CSS here</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Homepage layout, Elementor headings, columns, backgrounds, buttons built in Elementor</td>
+                                <td><strong>Elementor → Site Settings → Custom CSS</strong><br>or the widget’s own Custom CSS. Do <em>not</em> paste Elementor classes here.</td>
+                            </tr>
+                            <tr>
+                                <td>Shop, Cart, Checkout, Product pages (<code>.eco-portal …</code>)</td>
+                                <td><strong>This box (Custom CSS below)</strong> or theme file <code>eco-portal/storefront.css</code></td>
+                            </tr>
+                            <tr>
+                                <td>Portal Products blocks on the homepage (<code>.eco-section …</code>)</td>
+                                <td><strong>This box</strong> targeting <code>.eco-section</code> / <code>.eco-section-card</code>, or Elementor Custom CSS</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p style="margin:10px 0 0;">
+                        Elementor classes like <code>.elementor-heading-title</code> or <code>.elementor-widget-container</code>
+                        only work in Elementor. Eco Portal Custom CSS styles portal markup
+                        (<code>.eco-portal</code>, <code>.eco-section</code>).
+                    </p>
+                </div>
+                <p>
+                    Colors below apply on this WordPress site only. Catalog and payment still come from the merchant portal.
+                    For a full redesign of Shop/Cart/Checkout HTML, override templates in
+                    <code>wp-content/themes/your-theme/eco-portal/</code>.
+                </p>
+                <?php
+                $ui = Eco_Portal_Templates::appearance();
+                $fonts = [
+                    'inherit' => 'Match the website theme',
+                    'system' => 'System sans-serif',
+                    'bebas' => 'Bebas Neue (display)',
+                    'serif' => 'Classic serif',
+                ];
+                ?>
+                <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row">Accent color</th>
+                        <td><input type="color" name="eco_portal_ui_accent" value="<?php echo esc_attr($ui['accent']); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Accent gradient end</th>
+                        <td><input type="color" name="eco_portal_ui_accent_2" value="<?php echo esc_attr($ui['accent_2']); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Button text color</th>
+                        <td><input type="color" name="eco_portal_ui_button_text" value="<?php echo esc_attr($ui['button_text']); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Text color</th>
+                        <td><input type="color" name="eco_portal_ui_text" value="<?php echo esc_attr($ui['text']); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Muted text</th>
+                        <td><input type="color" name="eco_portal_ui_muted" value="<?php echo esc_attr($ui['muted']); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Page background</th>
+                        <td><input type="color" name="eco_portal_ui_background" value="<?php echo esc_attr($ui['background']); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Card background</th>
+                        <td><input type="color" name="eco_portal_ui_card" value="<?php echo esc_attr($ui['card']); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Border color</th>
+                        <td><input type="color" name="eco_portal_ui_border" value="<?php echo esc_attr($ui['border']); ?>" /></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="eco_portal_ui_radius">Corner radius</label></th>
+                        <td>
+                            <input name="eco_portal_ui_radius" id="eco_portal_ui_radius" type="text" class="small-text" value="<?php echo esc_attr($ui['radius']); ?>" placeholder="14px" />
+                            <p class="description">Example: <code>14px</code></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="eco_portal_ui_heading_font">Heading font</label></th>
+                        <td>
+                            <select name="eco_portal_ui_heading_font" id="eco_portal_ui_heading_font">
+                                <?php foreach ($fonts as $value => $label) : ?>
+                                    <option value="<?php echo esc_attr($value); ?>" <?php selected($ui['heading_font'], $value); ?>><?php echo esc_html($label); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="eco_portal_ui_custom_css">Custom CSS for portal blocks</label></th>
+                        <td>
+                            <textarea name="eco_portal_ui_custom_css" id="eco_portal_ui_custom_css" class="large-text code" rows="10" placeholder=".eco-portal__button{border-radius:999px;}&#10;.eco-section-card{box-shadow:none;}"><?php echo esc_textarea($ui['custom_css']); ?></textarea>
+                            <p class="description">
+                                Use portal selectors, for example:
+                                <code>.eco-portal__button</code>,
+                                <code>.eco-portal__title</code>,
+                                <code>.eco-section-card</code>,
+                                <code>.eco-section__btn</code>.
+                                After saving, hard-refresh the front page (Ctrl+F5). Clear Elementor cache if the homepage still looks old:
+                                Elementor → Tools → Regenerate CSS.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button('Save settings'); ?>
             </form>
 
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">

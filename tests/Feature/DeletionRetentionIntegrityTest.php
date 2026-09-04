@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException;
 use App\Models\Checkout;
 use App\Models\ConnectedSiteEventDelivery;
 use App\Models\Customer;
@@ -23,6 +24,9 @@ use App\Models\ShippingZone;
 use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Catalog\ProductGalleryQuarantineSession;
+use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
+use App\Services\Catalog\ProductPermanentDeleteService;
 use App\Services\ConnectedSiteCatalogEventDeliveryService;
 use App\Services\ConnectedSiteService;
 use App\Services\SecurityLogRecorder;
@@ -31,6 +35,7 @@ use App\Support\OrderLifecycle;
 use App\Support\RefundLifecycle;
 use App\Support\ReturnLifecycle;
 use App\Support\StockMovementIdentitySnapshot;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -481,7 +486,7 @@ class DeletionRetentionIntegrityTest extends TestCase
         ]);
         $product->delete();
 
-        $mock = \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class);
+        $mock = \Mockery::mock(Filesystem::class);
         $mock->shouldReceive('exists')->andReturnUsing(fn (string $p): bool => $p === $path);
         $mock->shouldReceive('move')->andReturn(false);
         Storage::set('public', $mock);
@@ -617,24 +622,24 @@ class DeletionRetentionIntegrityTest extends TestCase
         $productId = $product->id;
         $product->delete();
 
-        $realGallery = app(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class);
+        $realGallery = app(ProductPermanentDeleteGalleryPurgeService::class);
         $sessionHolder = new \stdClass;
 
-        $gallery = \Mockery::mock(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class);
+        $gallery = \Mockery::mock(ProductPermanentDeleteGalleryPurgeService::class);
         $gallery->shouldReceive('retryAllPendingCleanups')->andReturnNull();
         $gallery->shouldReceive('beginQuarantine')->andReturnUsing(function ($products) use ($realGallery, $sessionHolder) {
             $sessionHolder->session = $realGallery->beginQuarantine($products);
 
             return $sessionHolder->session;
         });
-        $gallery->shouldReceive('commitQuarantine')->andReturnUsing(function (\App\Services\Catalog\ProductGalleryQuarantineSession $session): void {
-            throw new \App\Exceptions\Catalog\ProductPermanentDeleteCleanupPendingException(
+        $gallery->shouldReceive('commitQuarantine')->andReturnUsing(function (ProductGalleryQuarantineSession $session): void {
+            throw new ProductPermanentDeleteCleanupPendingException(
                 $session->operationId,
                 array_column($session->entries, 'quarantine'),
             );
         });
         $gallery->shouldReceive('retryPendingCleanup')->andReturn(false);
-        $this->app->instance(\App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService::class, $gallery);
+        $this->app->instance(ProductPermanentDeleteGalleryPurgeService::class, $gallery);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -779,7 +784,7 @@ class DeletionRetentionIntegrityTest extends TestCase
         $store->delete();
         $storeId = (int) $store->id;
 
-        $mock = \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class);
+        $mock = \Mockery::mock(Filesystem::class);
         $mock->shouldReceive('exists')->andReturnUsing(function (string $p) use ($path, $storeId): bool {
             if ($p === $path) {
                 return true;
@@ -813,7 +818,7 @@ class DeletionRetentionIntegrityTest extends TestCase
         $storeId = (int) $store->id;
         $dir = 'products/'.$storeId;
 
-        $mock = \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class);
+        $mock = \Mockery::mock(Filesystem::class);
         $mock->shouldReceive('exists')->andReturnUsing(fn (string $p): bool => $p === $dir);
         $mock->shouldReceive('delete')->andReturn(true);
         $mock->shouldReceive('deleteDirectory')->andReturn(false);
@@ -905,7 +910,7 @@ class DeletionRetentionIntegrityTest extends TestCase
         $product->delete();
         Storage::disk('public')->assertExists($path);
 
-        app(\App\Services\Catalog\ProductPermanentDeleteService::class)->forceDelete($product);
+        app(ProductPermanentDeleteService::class)->forceDelete($product);
         Storage::disk('public')->assertMissing($path);
 
         $other = $this->makeStore($owner, 'Other Store');

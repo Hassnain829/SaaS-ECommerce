@@ -13,6 +13,7 @@ use App\Services\Carriers\Core\DTO\CarrierApiResult;
 use App\Services\Carriers\FedEx\Auth\FedExIntegratorChildOAuthService;
 use App\Services\Carriers\FedEx\Connection\FedExIntegratorRegistrationOrchestrator;
 use Database\Seeders\CarrierSeeder;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -163,7 +164,7 @@ class Phase6FedExConnectionSecurityIdempotencyTest extends TestCase
         $first->setFedExAccountNumber('700257037');
         $first->save();
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         CarrierAccount::query()->create(array_merge([
             'store_id' => $store->id,
@@ -434,7 +435,7 @@ class Phase6FedExConnectionSecurityIdempotencyTest extends TestCase
         $first->setFedExAccountNumber('222222222');
         $first->save();
 
-        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+        $this->expectException(UniqueConstraintViolationException::class);
 
         CarrierAccount::query()->create(array_merge([
             'store_id' => $store->id,

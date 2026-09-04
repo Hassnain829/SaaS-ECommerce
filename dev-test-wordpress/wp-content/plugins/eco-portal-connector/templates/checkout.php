@@ -39,13 +39,13 @@ $address = is_array($checkout_state['address'] ?? null) ? $checkout_state['addre
 $quoted_items = is_array($checkout['items'] ?? null) ? $checkout['items'] : [];
 $order_url = Eco_Portal_Storefront::page_url('portal-order');
 ?>
-<div class="eco-portal">
+<div class="eco-portal eco-portal--checkout">
     <header class="eco-portal__header">
         <div>
-            <p class="eco-portal__eyebrow">Checkout</p>
-            <h2 class="eco-portal__title">Pay through the merchant portal</h2>
+            <p class="eco-portal__eyebrow">Secure checkout</p>
+            <h1 class="eco-portal__title">Checkout</h1>
             <p class="eco-portal__meta">
-                Delivery rates and payment come from your merchant portal. When payment succeeds, the order and stock update there.
+                Enter your details, choose delivery, then pay securely. Your order is confirmed when payment succeeds.
             </p>
         </div>
         <a class="eco-portal__button eco-portal__button--secondary" href="<?php echo esc_url($shop_url); ?>">Back to shop</a>
@@ -62,7 +62,7 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
         <?php endif; ?>
     <?php endif; ?>
 
-    <?php if ($conflict_notice !== '') : ?>
+    <?php if ($conflict_notice !== '' && current_user_can('manage_options')) : ?>
         <div class="eco-portal-notice eco-portal-notice--info"><?php echo esc_html($conflict_notice); ?></div>
     <?php endif; ?>
 
@@ -102,7 +102,7 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
         </form>
     <?php elseif ($checkout_blocked) : ?>
         <div class="eco-portal-notice eco-portal-notice--info">
-            Checkout stays blocked until this website can reach the merchant portal and Stripe is connected there. This site will not take payment itself.
+            Checkout is temporarily unavailable. Please try again later or contact the store.
         </div>
         <p><a class="eco-portal__button eco-portal__button--secondary" href="<?php echo esc_url($order_url); ?>">Look up an order</a></p>
     <?php elseif ($cart === [] && $step === 'address') : ?>
@@ -110,8 +110,8 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
     <?php elseif ($step === 'pay' && ($payment['publishable_key'] ?? '') !== '' && ($payment['client_secret'] ?? '') !== '') : ?>
             <div class="eco-portal__checkout-layout">
                 <div class="eco-portal__form">
-                    <h3>Pay with card</h3>
-                    <p class="eco-portal__meta">Card details stay with Stripe. This site never sends raw card numbers to the portal.</p>
+                    <h3>Payment</h3>
+                    <p class="eco-portal__meta">Enter your card details below. Payment is processed securely.</p>
                     <p><strong>Total:</strong> <?php echo esc_html(Eco_Portal_Storefront::format_money((string) ($checkout['grand_total'] ?? '0'), $currency)); ?></p>
                     <div
                         id="eco-portal-stripe"
@@ -165,9 +165,9 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
                 <form class="eco-portal__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                     <input type="hidden" name="action" value="eco_portal_select_shipping" />
                     <?php wp_nonce_field('eco_portal_select_shipping'); ?>
-                    <h3>Delivery from the merchant portal</h3>
+                    <h3>Delivery options</h3>
                     <?php if ($delivery_options === []) : ?>
-                        <p>No rates were returned. Add a checkout-enabled delivery method in the merchant portal, then try again.</p>
+                        <p>No delivery options are available for this address right now. Try a different address or contact the store.</p>
                     <?php else : ?>
                         <div class="eco-portal-rates">
                             <?php foreach ($delivery_options as $index => $option) : ?>
@@ -220,7 +220,7 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
                         </ul>
                     <?php endif; ?>
                     <p><strong>Subtotal:</strong> <?php echo esc_html(Eco_Portal_Storefront::format_money((string) ($checkout['subtotal'] ?? '0'), $currency)); ?></p>
-                    <p class="eco-portal__meta">These amounts were calculated by the merchant portal.</p>
+                    <p class="eco-portal__meta">Shipping and tax are included in the totals below when available.</p>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                         <input type="hidden" name="action" value="eco_portal_reset_checkout" />
                         <?php wp_nonce_field('eco_portal_reset_checkout'); ?>
@@ -234,47 +234,49 @@ $order_url = Eco_Portal_Storefront::page_url('portal-order');
                     <input type="hidden" name="action" value="eco_portal_start_checkout" />
                     <input type="hidden" name="checkout_attempt_token" value="<?php echo esc_attr((string) ($checkout_state['attempt_token'] ?? '')); ?>" />
                     <?php wp_nonce_field('eco_portal_start_checkout'); ?>
-                    <h3>Customer</h3>
+                    <h3>Billing &amp; shipping details</h3>
                     <label>Full name
-                        <input type="text" name="customer_name" value="<?php echo esc_attr((string) ($address['customer_name'] ?? 'WP Test Buyer')); ?>" required />
+                        <input type="text" name="customer_name" value="<?php echo esc_attr((string) ($address['customer_name'] ?? '')); ?>" required placeholder="Your full name" />
                     </label>
                     <label>Email
-                        <input type="email" name="customer_email" value="<?php echo esc_attr((string) ($address['customer_email'] ?? 'wp.buyer@example.test')); ?>" required />
+                        <input type="email" name="customer_email" value="<?php echo esc_attr((string) ($address['customer_email'] ?? '')); ?>" required placeholder="you@example.com" />
                     </label>
                     <label>Phone
-                        <input type="text" name="customer_phone" value="<?php echo esc_attr((string) ($address['customer_phone'] ?? '+1 555-0100')); ?>" />
+                        <input type="text" name="customer_phone" value="<?php echo esc_attr((string) ($address['customer_phone'] ?? '')); ?>" placeholder="Optional" />
                     </label>
                     <h3>Shipping address</h3>
                     <label>Address line 1
-                        <input type="text" name="address_line1" value="<?php echo esc_attr((string) ($address['address_line1'] ?? '100 WordPress Avenue')); ?>" required />
+                        <input type="text" name="address_line1" value="<?php echo esc_attr((string) ($address['address_line1'] ?? '')); ?>" required />
                     </label>
                     <label>City
-                        <input type="text" name="city" value="<?php echo esc_attr((string) ($address['city'] ?? 'Austin')); ?>" required />
+                        <input type="text" name="city" value="<?php echo esc_attr((string) ($address['city'] ?? '')); ?>" required />
                     </label>
                     <label>State / region
-                        <input type="text" name="state" value="<?php echo esc_attr((string) ($address['state'] ?? 'TX')); ?>" />
+                        <input type="text" name="state" value="<?php echo esc_attr((string) ($address['state'] ?? '')); ?>" />
                     </label>
                     <label>Postal code
-                        <input type="text" name="postal_code" value="<?php echo esc_attr((string) ($address['postal_code'] ?? '73301')); ?>" required />
+                        <input type="text" name="postal_code" value="<?php echo esc_attr((string) ($address['postal_code'] ?? '')); ?>" required />
                     </label>
                     <label>Country
                         <input type="text" name="country" value="<?php echo esc_attr((string) ($address['country'] ?? 'United States')); ?>" required />
                     </label>
                     <input type="hidden" name="country_code" value="<?php echo esc_attr((string) ($address['country_code'] ?? 'US')); ?>" />
-                    <button type="submit" class="eco-portal__button">Get delivery rates</button>
+                    <button type="submit" class="eco-portal__button eco-portal__button--cta">Continue to delivery</button>
                 </form>
                 <aside class="eco-portal__summary">
-                    <h3>Items in this checkout</h3>
+                    <h3>Your order</h3>
                     <ul>
                         <?php foreach ($cart as $line) : ?>
                             <li>
                                 <?php echo esc_html((string) ($line['product_name'] ?? 'Product')); ?>
-                                (<?php echo esc_html((string) ($line['variant_label'] ?? 'Default')); ?>)
+                                <?php if (! empty($line['variant_label']) && strtolower((string) $line['variant_label']) !== 'default') : ?>
+                                    (<?php echo esc_html((string) $line['variant_label']); ?>)
+                                <?php endif; ?>
                                 × <?php echo esc_html((string) ($line['quantity'] ?? 1)); ?>
                             </li>
                         <?php endforeach; ?>
                     </ul>
-                    <p class="eco-portal__meta">Totals, tax, and delivery are calculated after you continue. This site does not decide the amount to pay.</p>
+                    <p class="eco-portal__meta">Shipping and tax are calculated on the next step.</p>
                     <?php if (! empty($checkout_state['request_fingerprint'])) : ?>
                         <p class="eco-portal__meta">Retry the unchanged form to resume this checkout, or start over before changing its details.</p>
                         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">

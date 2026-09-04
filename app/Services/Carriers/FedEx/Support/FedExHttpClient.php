@@ -211,18 +211,18 @@ class FedExHttpClient
                 );
             }
         } catch (Throwable) {
-                return CarrierApiResult::failure(
-                    message: 'Unable to reach FedEx right now. Please try again.',
-                    code: 'transport_error',
-                    requestId: $requestId,
-                    durationMs: (int) round((microtime(true) - $started) * 1000),
-                    requestSummary: $summary,
-                    responseSummary: [
-                        'http_status' => null,
-                        'fedex_transaction_id' => null,
-                        'customer_transaction_id' => $customerTransactionId,
-                    ],
-                );
+            return CarrierApiResult::failure(
+                message: 'Unable to reach FedEx right now. Please try again.',
+                code: 'transport_error',
+                requestId: $requestId,
+                durationMs: (int) round((microtime(true) - $started) * 1000),
+                requestSummary: $summary,
+                responseSummary: [
+                    'http_status' => null,
+                    'fedex_transaction_id' => null,
+                    'customer_transaction_id' => $customerTransactionId,
+                ],
+            );
         }
     }
 

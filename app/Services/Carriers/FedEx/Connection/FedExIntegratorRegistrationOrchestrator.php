@@ -17,6 +17,7 @@ use App\Services\Carriers\FedEx\Auth\FedExIntegratorParentOAuthService;
 use App\Services\Carriers\FedEx\DTO\FedExApiEventContext;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\FedEx\Support\FedExShipperPhoneResolver;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -505,7 +506,7 @@ class FedExIntegratorRegistrationOrchestrator
                             ],
                             'created_by' => $lockedSession->created_by,
                         ], CarrierAccount::ownershipAttributesForFedExIntegratorProvider()));
-                    } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+                    } catch (UniqueConstraintViolationException) {
                         $account = CarrierAccount::query()
                             ->where('registration_session_id', $lockedSession->id)
                             ->lockForUpdate()
@@ -840,7 +841,7 @@ class FedExIntegratorRegistrationOrchestrator
 
                 return $lockedAccount->refresh();
             });
-        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException) {
             $this->markActivationConflictAfterRollback($session, $account);
 
             throw ValidationException::withMessages([

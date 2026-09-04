@@ -18,10 +18,46 @@ On every successful CI run on `main` or `master`, the deploy workflow:
 4. Rsyncs the application to your cPanel server (excluding dev/test paths and secrets)
 5. Runs `scripts/deploy/cpanel-post-deploy.sh` over SSH:
    - `php artisan migrate --force`
-   - `php artisan storage:link`
-   - `php artisan config:cache`, `route:cache`, `view:cache`, `optimize`
+   - `php artisan storage:link` (or manual symlink when `exec` is disabled)
+   - `php artisan config:cache` (route/optimize caches avoided when `proc_open` is disabled)
+   - `scripts/deploy/sync-wordpress-jiggy.sh` — refreshes `/jiggy` connector + brand mu-plugins **only if** that WordPress tree already exists
 
 Manual deploy: GitHub → **Actions** → **Deploy to cPanel** → **Run workflow**.
+
+---
+
+## WordPress demo under `/jiggy` (manager storefront)
+
+The live manager demo WordPress site is a **subfolder** on the same cPanel docroot as the Laravel portal — not a separate domain and not part of the full app rsync.
+
+| Surface | URL |
+|---------|-----|
+| Laravel portal | `https://ecom.resolutedigitalspk.com` |
+| WordPress demo | `https://ecom.resolutedigitalspk.com/jiggy/` |
+
+Server path (this host): `/home/resolutedigita2/public_html/ecom.resolutedigitalspk.com/jiggy`
+
+### What stays out of every git push
+
+Full WordPress (core, uploads, Elementor data, DB) is **not** deployed with Laravel. `scripts/deploy/rsync-exclude.txt` excludes `dev-test-wordpress/`. That is intentional for a large local WP tree.
+
+### What the pipeline syncs every deploy
+
+1. GitHub Actions **stages** `dev-test-wordpress/wp-content/plugins/eco-portal-connector/` into `deploy/wordpress-jiggy/eco-portal-connector/` before rsync (that staged tree is gitignored).
+2. Brand helpers ship from the repo: `deploy/wordpress-jiggy/mu-plugins/` (`eco-portal-only.php`, `jiggy-eco-brand.css`). See `deploy/wordpress-jiggy/README.md`.
+3. After Laravel post-deploy, `sync-wordpress-jiggy.sh`:
+   - If `$CPANEL_DEPLOY_PATH/jiggy/wp-content/plugins` is missing → **no-op** (safe before the one-time WP install).
+   - If present → rsync connector → `jiggy/wp-content/plugins/eco-portal-connector/` and brand files → `jiggy/wp-content/mu-plugins/`.
+
+cPanel Git / `cpanel-go-live-now.sh` runs the same sync. If the staged pack is absent, the script falls back to `dev-test-wordpress/wp-content/plugins/eco-portal-connector/` when that path exists on the server.
+
+Laravel docroot `.htaccess` (`scripts/deploy/cpanel-docroot.htaccess`) already skips existing directories/files before front-controller routing, so `/jiggy` is not swallowed once the folder exists.
+
+### One-time install + Eco Portal connection
+
+Step-by-step DB, upload, URL replace, permalinks, Elementor CSS, and connection key wiring:
+
+→ **`docs/operations/JIGGY_CPANEL_DEMO_CHECKLIST.md`**
 
 ---
 
@@ -207,8 +243,10 @@ Scheduled tasks in this app include catalog event delivery, checkout expiry, and
 See `scripts/deploy/rsync-exclude.txt`. Notable exclusions:
 
 - `.env` (server keeps its own)
-- `node_modules/`, `tests/`, `dev-test-storefront/`, `dev-test-wordpress/`
+- `node_modules/`, `tests/`, `dev-test-storefront/`, `dev-test-wordpress/` (full local WP tree)
 - Local SQLite databases and log/cache files
+
+The Eco Portal Connector still reaches production for `/jiggy` via the **staged** copy under `deploy/wordpress-jiggy/eco-portal-connector/` (Actions only) plus post-deploy sync — not via deploying the whole `dev-test-wordpress/` tree.
 
 Production ships with **pre-built** `vendor/` and `public/build/` from GitHub Actions — you do not need Node or Composer on the server for the primary pipeline.
 
@@ -230,6 +268,8 @@ Production ships with **pre-built** `vendor/` and `public/build/` from GitHub Ac
 ## Related docs
 
 - `docs/operations/RELEASE_CHECKLIST.md` — pre-release verification
+- `docs/operations/JIGGY_CPANEL_DEMO_CHECKLIST.md` — one-time `/jiggy` WordPress + Eco Portal connection
+- `deploy/wordpress-jiggy/README.md` — brand pack + pipeline sync overview
 - `docs/LOCAL_SETUP.md` — local PHP/Node extension parity
 - `.github/workflows/ci.yml` — test gate before deploy
 - `SECURITY_ROTATION_REQUIRED.md` — secret rotation if leaked

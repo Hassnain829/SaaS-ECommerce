@@ -4,7 +4,9 @@ namespace App\Services\Delivery;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ProductVariationType;
 use App\Models\Store;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 final class VariantShippingWeightBulkService
@@ -227,7 +229,7 @@ final class VariantShippingWeightBulkService
 
     /**
      * @param  list<int>  $productIds
-     * @return \Illuminate\Support\Collection<int, Product>
+     * @return Collection<int, Product>
      */
     private function loadProductChunk(Store $store, array $productIds)
     {
@@ -274,7 +276,7 @@ final class VariantShippingWeightBulkService
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      * @param  array<string, array{name: string, product_count: int, variant_count: int, option_values: array<string, true>, weight_related: bool}>  $groups
      */
     private function accumulateOptionGroups($products, array &$groups): void
@@ -339,7 +341,7 @@ final class VariantShippingWeightBulkService
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Product>  $products
+     * @param  Collection<int, Product>  $products
      * @param  array<string, float>  $normalizedMap
      * @return array{
      *     compatible_products_count: int,
@@ -426,7 +428,7 @@ final class VariantShippingWeightBulkService
         ];
     }
 
-    private function findVariationType(Product $product, string $normalizedGroupName): ?\App\Models\ProductVariationType
+    private function findVariationType(Product $product, string $normalizedGroupName): ?ProductVariationType
     {
         if ($normalizedGroupName === '') {
             return null;
@@ -441,7 +443,7 @@ final class VariantShippingWeightBulkService
         return null;
     }
 
-    private function variantOptionValueForType(ProductVariant $variant, \App\Models\ProductVariationType $variationType): ?string
+    private function variantOptionValueForType(ProductVariant $variant, ProductVariationType $variationType): ?string
     {
         foreach ($variant->options as $option) {
             if ((int) $option->variation_type_id === (int) $variationType->id) {

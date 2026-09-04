@@ -9,15 +9,18 @@ use App\Models\Checkout;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Support\CheckoutMode;
 use App\Models\Role;
 use App\Models\ShippingMethod;
 use App\Models\ShippingZone;
 use App\Models\Store;
+use App\Models\TaxSetting;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Services\Shipping\DeliveryOptionService;
 use App\Services\Tax\TaxConfigurationService;
+use App\Support\CheckoutMode;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -38,7 +41,7 @@ class DeliveryUxBatch3Test extends TestCase
             'payments.stripe.key' => 'pk_test_delivery_batch3',
             'payments.stripe.secret' => 'sk_test_delivery_batch3',
         ]);
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -316,7 +319,7 @@ class DeliveryUxBatch3Test extends TestCase
     {
         [$owner, $store] = $this->ownerStore('Batch3 Readonly Hub Store');
         $locationCount = Location::query()->where('store_id', $store->id)->count();
-        $taxCount = \App\Models\TaxSetting::query()->where('store_id', $store->id)->count();
+        $taxCount = TaxSetting::query()->where('store_id', $store->id)->count();
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -324,7 +327,7 @@ class DeliveryUxBatch3Test extends TestCase
             ->assertOk();
 
         $this->assertSame($locationCount, Location::query()->where('store_id', $store->id)->count());
-        $this->assertSame($taxCount, \App\Models\TaxSetting::query()->where('store_id', $store->id)->count());
+        $this->assertSame($taxCount, TaxSetting::query()->where('store_id', $store->id)->count());
     }
 
     public function test_wizard_created_delivery_option_is_checkout_usable(): void
@@ -418,7 +421,7 @@ class DeliveryUxBatch3Test extends TestCase
             'settings' => ['checkout_mode' => CheckoutMode::PLATFORM],
         ])->save();
         $this->connectReadyStripeForCheckout($store);
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         $product = Product::query()->create([
             'store_id' => $store->id,
@@ -494,7 +497,7 @@ class DeliveryUxBatch3Test extends TestCase
             ])
             ->assertCreated();
 
-        $checkout = \App\Models\Checkout::query()->where('store_id', $store->id)->firstOrFail();
+        $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
 
         $this->withToken($token)
             ->postJson('/api/v1/checkout/'.$checkout->id.'/delivery-options', [

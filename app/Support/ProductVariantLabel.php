@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\ProductVariant;
+use App\Models\ProductVariationOption;
 use Illuminate\Support\Collection;
 
 /**
@@ -11,7 +12,7 @@ use Illuminate\Support\Collection;
 final class ProductVariantLabel
 {
     /**
-     * @param  Collection<int, \App\Models\ProductVariationOption>  $options
+     * @param  Collection<int, ProductVariationOption>  $options
      * @return array{label: string, short: string, chips: list<array{group: string, value: string}>}
      */
     public static function fromOptions(Collection $options): array

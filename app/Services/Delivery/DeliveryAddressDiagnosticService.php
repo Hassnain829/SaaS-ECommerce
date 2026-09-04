@@ -5,7 +5,6 @@ namespace App\Services\Delivery;
 use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\ShippingMethod;
-use App\Models\ShippingPackagePreset;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Services\Carriers\FedEx\Operations\FedExCheckoutPackageBuilder;
@@ -13,6 +12,7 @@ use App\Services\Carriers\FedEx\Operations\FedExCheckoutRateResolver;
 use App\Services\Shipping\DeliveryOptionService;
 use App\Services\Shipping\ShippingZoneMatcher;
 use App\Support\Tax\TaxCountryCatalog;
+use Illuminate\Support\Carbon;
 
 class DeliveryAddressDiagnosticService
 {
@@ -293,7 +293,7 @@ class DeliveryAddressDiagnosticService
     {
         if (filled($deliveryDate)) {
             try {
-                return 'Estimated '.\Illuminate\Support\Carbon::parse($deliveryDate)->format('D');
+                return 'Estimated '.Carbon::parse($deliveryDate)->format('D');
             } catch (\Throwable) {
                 // fall through
             }

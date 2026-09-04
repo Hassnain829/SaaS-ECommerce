@@ -10,6 +10,7 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Models\OrderAddress;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
@@ -17,6 +18,8 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
 use App\Services\Carriers\FedEx\Operations\FedExOrderTrackingSyncService;
+use App\Services\Carriers\FedEx\Operations\FedExReturnLabelService;
+use App\Services\Carriers\FedEx\Operations\FedExShipmentCancelService;
 use App\Services\Carriers\FedEx\Operations\FedExShipmentPurchaseService;
 use App\Services\Fulfillment\FulfillmentStatusService;
 use App\Support\OrderLifecycle;
@@ -27,6 +30,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class Phase6FedExProductionIntegritySteps13Test extends TestCase
@@ -446,7 +450,7 @@ class Phase6FedExProductionIntegritySteps13Test extends TestCase
         [$store, $account, $location, $order] = $this->readyOrder('Return Items Required');
 
         $this->expectException(ValidationException::class);
-        app(\App\Services\Carriers\FedEx\Operations\FedExReturnLabelService::class)->createReturnLabel(
+        app(FedExReturnLabelService::class)->createReturnLabel(
             store: $store,
             order: $order,
             account: $account,
@@ -509,8 +513,8 @@ class Phase6FedExProductionIntegritySteps13Test extends TestCase
             'quantity' => 1,
         ]);
 
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
-        app(\App\Services\Carriers\FedEx\Operations\FedExShipmentCancelService::class)
+        $this->expectException(HttpException::class);
+        app(FedExShipmentCancelService::class)
             ->cancel($store, $other, $shipment);
     }
 
@@ -601,7 +605,7 @@ class Phase6FedExProductionIntegritySteps13Test extends TestCase
             ], 200),
         ]);
 
-        $outcome = app(\App\Services\Carriers\FedEx\Operations\FedExShipmentCancelService::class)
+        $outcome = app(FedExShipmentCancelService::class)
             ->cancel($store, $successor->fresh(), $shipment->fresh());
 
         $this->assertTrue($outcome['result']->success);
@@ -727,7 +731,7 @@ class Phase6FedExProductionIntegritySteps13Test extends TestCase
             'phone' => '9015550199',
         ]);
 
-        $product = \App\Models\Product::query()->create([
+        $product = Product::query()->create([
             'store_id' => $store->id,
             'name' => 'Test Item',
             'slug' => 'test-item-'.Str::random(6),

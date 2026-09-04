@@ -42,19 +42,19 @@ final class Eco_Portal_Storefront
     {
         $pages = [
             'portal-shop' => [
-                'title' => 'Portal Shop',
+                'title' => 'Shop',
                 'content' => '[eco_portal_catalog]',
             ],
             'portal-cart' => [
-                'title' => 'Portal Cart',
+                'title' => 'Cart',
                 'content' => '[eco_portal_cart]',
             ],
             'portal-checkout' => [
-                'title' => 'Portal Checkout',
+                'title' => 'Checkout',
                 'content' => '[eco_portal_checkout]',
             ],
             'portal-order' => [
-                'title' => 'Portal order status',
+                'title' => 'Order status',
                 'content' => '[eco_portal_order]',
             ],
         ];
@@ -107,9 +107,38 @@ final class Eco_Portal_Storefront
             ECO_PORTAL_CONNECTOR_VERSION
         );
 
+        // Homepage Elementor sections also need section CSS when Portal Products is used.
+        wp_enqueue_style(
+            'eco-portal-sections',
+            ECO_PORTAL_CONNECTOR_URL.'assets/css/sections.css',
+            ['eco-portal-storefront'],
+            ECO_PORTAL_CONNECTOR_VERSION
+        );
+
+        $theme_css = trailingslashit(get_stylesheet_directory()).'eco-portal/storefront.css';
+        if (is_readable($theme_css)) {
+            wp_enqueue_style(
+                'eco-portal-theme',
+                trailingslashit(get_stylesheet_directory_uri()).'eco-portal/storefront.css',
+                ['eco-portal-storefront'],
+                (string) filemtime($theme_css)
+            );
+        }
+
+        Eco_Portal_Templates::enqueue_appearance_css('eco-portal-storefront');
+
+        /**
+         * Let themes / site plugins enqueue brand CSS after the base storefront.
+         *
+         * @param bool $is_commerce_page
+         */
+        do_action('eco_portal_enqueue_assets', true);
+
         global $post;
         $content = $post instanceof WP_Post ? (string) $post->post_content : '';
-        if (has_shortcode($content, 'eco_portal_checkout')) {
+        $needsCheckout = has_shortcode($content, 'eco_portal_checkout')
+            || ($post instanceof WP_Post && self::elementor_uses_portal($post->ID) && str_contains((string) get_post_meta($post->ID, '_elementor_data', true), 'eco_portal_checkout'));
+        if ($needsCheckout || self::is_checkout_page()) {
             wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
             wp_enqueue_script(
                 'eco-portal-checkout',
@@ -164,10 +193,15 @@ final class Eco_Portal_Storefront
         $currency = self::remember_store_currency((string) ($store['currency'] ?? ''));
         self::remember_checkout_settings($store);
 
-        ob_start();
-        include ECO_PORTAL_CONNECTOR_PATH.'templates/catalog.php';
-
-        return (string) ob_get_clean();
+        return Eco_Portal_Templates::render('catalog.php', compact(
+            'store',
+            'products',
+            'categories',
+            'catalog_meta',
+            'active_category',
+            'cart_url',
+            'currency'
+        ));
     }
 
     public static function render_product_shortcode($atts = []): string
@@ -197,10 +231,12 @@ final class Eco_Portal_Storefront
         $shop_url = self::page_url('portal-shop');
         $currency = self::remember_store_currency((string) ($store['currency'] ?? self::store_currency(false)));
 
-        ob_start();
-        include ECO_PORTAL_CONNECTOR_PATH.'templates/product.php';
-
-        return (string) ob_get_clean();
+        return Eco_Portal_Templates::render('product.php', compact(
+            'product',
+            'cart_url',
+            'shop_url',
+            'currency'
+        ));
     }
 
     public static function render_cart(): string
@@ -212,10 +248,14 @@ final class Eco_Portal_Storefront
         $currency = self::store_currency();
         $catalog_subtotal = self::cart_subtotal($cart);
 
-        ob_start();
-        include ECO_PORTAL_CONNECTOR_PATH.'templates/cart.php';
-
-        return (string) ob_get_clean();
+        return Eco_Portal_Templates::render('cart.php', compact(
+            'connection',
+            'cart',
+            'checkout_url',
+            'shop_url',
+            'currency',
+            'catalog_subtotal'
+        ));
     }
 
     public static function render_checkout(): string
@@ -237,10 +277,20 @@ final class Eco_Portal_Storefront
             $error = sanitize_text_field((string) wp_unslash($_GET['eco_error']));
         }
 
-        ob_start();
-        include ECO_PORTAL_CONNECTOR_PATH.'templates/checkout.php';
-
-        return (string) ob_get_clean();
+        return Eco_Portal_Templates::render('checkout.php', compact(
+            'connection',
+            'cart',
+            'shop_url',
+            'order_url',
+            'currency',
+            'checkout_mode',
+            'platform_ready',
+            'checkout_blocked',
+            'checkout_state',
+            'order_result',
+            'error',
+            'conflict_notice'
+        ));
     }
 
     public static function render_order(): string
@@ -269,10 +319,14 @@ final class Eco_Portal_Storefront
         $recent = self::recent_order_tokens();
         $shop_url = self::page_url('portal-shop');
 
-        ob_start();
-        include ECO_PORTAL_CONNECTOR_PATH.'templates/order.php';
-
-        return (string) ob_get_clean();
+        return Eco_Portal_Templates::render('order.php', compact(
+            'connection',
+            'order_result',
+            'error',
+            'token',
+            'recent',
+            'shop_url'
+        ));
     }
 
     public static function handle_add_to_cart(): void
@@ -967,7 +1021,7 @@ final class Eco_Portal_Storefront
     /**
      * @param  array{ok?:bool,code?:string,message?:string,reconnect?:bool}  $connection
      */
-    private static function reconnect_notice(array $connection): string
+    public static function reconnect_notice(array $connection): string
     {
         $message = (string) ($connection['message'] ?? 'This website is not connected to the merchant portal.');
         $html = self::notice($message, 'error');
@@ -1253,22 +1307,19 @@ final class Eco_Portal_Storefront
         $_COOKIE[self::ORDERS_COOKIE] = $json;
     }
 
-    private static function is_commerce_page(): bool
+    public static function is_commerce_page(): bool
     {
-        if (! is_singular('page')) {
+        if (! is_singular()) {
             return false;
         }
+
         global $post;
         if (! $post instanceof WP_Post) {
             return false;
         }
-        $content = (string) $post->post_content;
 
-        return has_shortcode($content, 'eco_portal_catalog')
-            || has_shortcode($content, 'eco_portal_product')
-            || has_shortcode($content, 'eco_portal_cart')
-            || has_shortcode($content, 'eco_portal_checkout')
-            || has_shortcode($content, 'eco_portal_order');
+        return self::content_uses_portal((string) $post->post_content)
+            || self::elementor_uses_portal($post->ID);
     }
 
     private static function is_checkout_page(): bool
@@ -1278,8 +1329,49 @@ final class Eco_Portal_Storefront
         }
 
         global $post;
+        if (! $post instanceof WP_Post) {
+            return false;
+        }
 
-        return $post instanceof WP_Post
-            && has_shortcode((string) $post->post_content, 'eco_portal_checkout');
+        if (has_shortcode((string) $post->post_content, 'eco_portal_checkout')) {
+            return true;
+        }
+
+        $data = (string) get_post_meta($post->ID, '_elementor_data', true);
+
+        return $data !== '' && (
+            str_contains($data, 'eco_portal_checkout')
+            || str_contains($data, '[eco_portal_checkout')
+        );
+    }
+
+    public static function content_uses_portal(string $content): bool
+    {
+        return has_shortcode($content, 'eco_portal_catalog')
+            || has_shortcode($content, 'eco_portal_product')
+            || has_shortcode($content, 'eco_portal_products')
+            || has_shortcode($content, 'eco_portal_cart')
+            || has_shortcode($content, 'eco_portal_checkout')
+            || has_shortcode($content, 'eco_portal_order');
+    }
+
+    public static function elementor_uses_portal(int $post_id): bool
+    {
+        if ($post_id < 1) {
+            return false;
+        }
+
+        $data = (string) get_post_meta($post_id, '_elementor_data', true);
+        if ($data === '') {
+            return false;
+        }
+
+        return str_contains($data, 'eco_portal_products')
+            || str_contains($data, 'eco_portal_catalog')
+            || str_contains($data, 'eco_portal_product')
+            || str_contains($data, 'eco_portal_cart')
+            || str_contains($data, 'eco_portal_checkout')
+            || str_contains($data, 'eco_portal_order')
+            || str_contains($data, '[eco_portal_');
     }
 }

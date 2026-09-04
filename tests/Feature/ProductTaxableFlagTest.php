@@ -2,16 +2,15 @@
 
 namespace Tests\Feature;
 
-use App\Models\OrderTaxLine;
 use App\Models\Product;
 use App\Models\ProductImport;
 use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Store;
-use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Models\User;
 use App\Services\Catalog\ProductTaxableDefaultResolver;
+use App\Services\ConnectedSiteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -346,7 +345,7 @@ CSV;
     {
         $owner = $this->merchant(Str::slug($name).'@example.test');
         $store = $this->store($owner, $name);
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

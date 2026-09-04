@@ -38,11 +38,11 @@ class Phase6FedExMerchantCredentialsModeTest extends TestCase
         [$owner, $store] = $this->ownerStore('FedEx Credentials Form Store');
         $location = $this->readyLocation($store);
 
+        // Connect hub is retired; Model A sends merchants to the FedEx integrator start.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shipping.carriers.connect.index'))
-            ->assertOk()
-            ->assertSeeText('Connect your own FedEx Developer credentials');
+            ->assertRedirect(route('settings.shipping.fedex-integrator.start'));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -269,9 +269,10 @@ class Phase6FedExMerchantCredentialsModeTest extends TestCase
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shipping.carriers.connect.index'))
+            ->get(route('shipping.carriers.connect.show', 'fedex'))
             ->assertOk()
-            ->assertSeeText('Connect FedEx credentials');
+            ->assertSeeText('FedEx credentials')
+            ->assertSeeText('ship-from location');
     }
 
     /**

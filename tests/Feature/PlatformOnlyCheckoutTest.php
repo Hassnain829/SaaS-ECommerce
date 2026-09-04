@@ -89,7 +89,8 @@ class PlatformOnlyCheckoutTest extends TestCase
         $this->assertStringNotContainsString('sync_external_order', $client);
         $this->assertStringNotContainsString('eco_portal_place_order', $storefront);
         $this->assertStringContainsString('/api/v1/checkout', $client);
-        $this->assertStringContainsString('Get delivery rates', $checkout);
+        $this->assertStringContainsString('eco_portal_start_checkout', $checkout);
+        $this->assertStringContainsString('choose delivery', $checkout);
         $this->assertStringNotContainsString('Place order & sync to portal', $checkout);
     }
 

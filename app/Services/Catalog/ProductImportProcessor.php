@@ -6,14 +6,15 @@ use App\Catalog\ProductImportField;
 use App\Models\Product;
 use App\Models\ProductImport;
 use App\Models\ProductImportRow;
+use App\Models\ProductUrlRedirect;
 use App\Models\ProductVariant;
 use App\Models\Store;
+use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\Catalog\ProductImportMerchantMessages;
 use App\Support\Catalog\ProductImportQueue;
 use App\Support\Catalog\ProductImportRowPayloadSanitizer;
 use App\Support\Catalog\ProductRichText;
 use App\Support\Catalog\SpreadsheetValueNormalizer;
-use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\ProductTypeBehavior;
 use App\Support\StockMovementRecorder;
 use Illuminate\Support\Facades\DB;
@@ -394,7 +395,7 @@ final class ProductImportProcessor
 
             $processedCap = min($rowIndex, $maxRows);
             $import->refresh();
-            $redirectRows = \App\Models\ProductUrlRedirect::query()
+            $redirectRows = ProductUrlRedirect::query()
                 ->where('store_id', $store->id)
                 ->where('product_import_id', $import->id)
                 ->orderBy('id')
@@ -1010,7 +1011,7 @@ final class ProductImportProcessor
      */
     private function persistProductCatalogRow(
         ProductImport $import,
-        \App\Models\Store $store,
+        Store $store,
         array $fields,
         array $extras,
         array $row,

@@ -280,7 +280,7 @@ class MerchantWebsiteConnectTest extends TestCase
         $this->assertStringNotContainsString('value="USD"', $checkout);
         $this->assertStringContainsString('$currency', $checkout);
         $this->assertStringContainsString('eco_portal_start_checkout', $checkout);
-        $this->assertStringContainsString('Get delivery rates', $checkout);
+        $this->assertStringContainsString('choose delivery', $checkout);
         $this->assertStringNotContainsString('Place order & sync to portal', $checkout);
 
         $client = file_get_contents(base_path('dev-test-wordpress/wp-content/plugins/eco-portal-connector/includes/class-api-client.php'));

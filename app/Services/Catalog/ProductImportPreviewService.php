@@ -101,7 +101,6 @@ final class ProductImportPreviewService
             &$extraAttributeWarnings,
             &$wooRoleCounts,
             &$emptyStockRows,
-            $headers,
             $mapping,
             $customMappings,
             $store,

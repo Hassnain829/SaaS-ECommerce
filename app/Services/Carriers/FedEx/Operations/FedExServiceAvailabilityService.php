@@ -24,7 +24,7 @@ class FedExServiceAvailabilityService
     /**
      * @param  array<string, mixed>  $destinationInput
      * @param  array<string, mixed>|null  $originAddressOverride  When set, use this shipper address instead of the Location readiness address
-     *                                                           (required for return flows: customer → merchant).
+     *                                                            (required for return flows: customer → merchant).
      * @return array{result: CarrierApiResult, presentation: array<string, mixed>, service_types: list<string>}
      */
     public function checkAvailability(

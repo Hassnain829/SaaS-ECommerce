@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Role;
@@ -59,6 +60,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
 
         $location = (string) $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
+            ->followingRedirects()
             ->get(route('shippingAutomation', ['tab' => 'zones']))
             ->headers
             ->get('Location');
@@ -85,7 +87,7 @@ class Phase6ShippingDeliveryUxTest extends TestCase
         [$owner, $store] = $this->ownerStore('Shipping UX FedEx Mask Store');
         $location = $this->readyLocation($store);
 
-        $fedExCarrier = \App\Models\Carrier::query()->where('code', 'fedex')->first();
+        $fedExCarrier = Carrier::query()->where('code', 'fedex')->first();
 
         $account = CarrierAccount::query()->create([
             'store_id' => $store->id,

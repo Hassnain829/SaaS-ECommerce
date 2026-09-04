@@ -8,11 +8,14 @@ use App\Models\Coupon;
 use App\Models\CouponRedemption;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Checkout\CheckoutTotalsService;
 use App\Services\SecurityLogRecorder;
 use App\Support\Money\CurrencyPrecision;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -69,7 +72,7 @@ class CouponService
     }
 
     /**
-     * @param  list<array{variant: \App\Models\ProductVariant, quantity: int}>  $preparedItems
+     * @param  list<array{variant: ProductVariant, quantity: int}>  $preparedItems
      */
     public function calculate(
         Store $store,
@@ -314,7 +317,7 @@ class CouponService
         }
     }
 
-    private function activeUsageQuery(Coupon $coupon): \Illuminate\Database\Eloquent\Builder
+    private function activeUsageQuery(Coupon $coupon): Builder
     {
         return CouponRedemption::query()
             ->where('coupon_id', $coupon->id)
@@ -336,7 +339,7 @@ class CouponService
      * @param  list<int>  $restrictedProductIds
      * @param  list<int>  $restrictedCategoryIds
      */
-    private function productIsEligible(?\App\Models\Product $product, array $restrictedProductIds, array $restrictedCategoryIds): bool
+    private function productIsEligible(?Product $product, array $restrictedProductIds, array $restrictedCategoryIds): bool
     {
         if (! $product) {
             return false;

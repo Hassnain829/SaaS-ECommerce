@@ -16,8 +16,10 @@ use App\Models\Shipment;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\ConnectedSiteService;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
+use App\Support\Money\CurrencyPrecision;
 use App\Support\OrderLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -58,7 +60,7 @@ class PlatformCheckoutHardeningTest extends TestCase
             ],
         ]);
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -299,7 +301,7 @@ class PlatformCheckoutHardeningTest extends TestCase
             ->assertCreated();
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
-        $amount = \App\Support\Money\CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, $checkout->currency_code);
+        $amount = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, $checkout->currency_code);
         $eventId = 'evt_duplicate_success';
         $success = $this->stripeEvent('payment_intent.succeeded', 'pi_test_checkout_'.$checkout->id, 'succeeded', $amount, eventId: $eventId);
 
@@ -334,7 +336,7 @@ class PlatformCheckoutHardeningTest extends TestCase
             ->assertCreated();
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
-        $amount = \App\Support\Money\CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, $checkout->currency_code);
+        $amount = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, $checkout->currency_code);
 
         $this->postStripeWebhook($this->stripeEvent(
             'payment_intent.payment_failed',
@@ -422,7 +424,7 @@ class PlatformCheckoutHardeningTest extends TestCase
             ->assertCreated();
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
-        $amount = \App\Support\Money\CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, $checkout->currency_code);
+        $amount = CurrencyPrecision::toMinorUnits((string) $checkout->grand_total, $checkout->currency_code);
         $this->postStripeWebhook($this->stripeEvent(
             'payment_intent.succeeded',
             'pi_test_checkout_'.$checkout->id,

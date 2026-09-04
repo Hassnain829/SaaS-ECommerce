@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Commerce;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderReturn;
+use App\Services\Returns\ReturnRestockService;
 use App\Services\ReturnService;
 use App\Support\ReturnLifecycle;
 use Illuminate\Http\RedirectResponse;
@@ -121,7 +122,7 @@ class ReturnController extends Controller
             ->with('success_title', 'Return updated');
     }
 
-    public function restock(Request $request, OrderReturn $orderReturn, \App\Services\Returns\ReturnRestockService $restockService): RedirectResponse
+    public function restock(Request $request, OrderReturn $orderReturn, ReturnRestockService $restockService): RedirectResponse
     {
         $this->authorizeReturn($request, $orderReturn);
 

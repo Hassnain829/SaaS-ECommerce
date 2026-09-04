@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\Carriers\FedEx\RefreshFedExShipmentTrackingJob;
+use App\Models\CarrierAccount;
 use App\Models\Shipment;
 use Illuminate\Console\Command;
 
@@ -30,7 +31,7 @@ class FedExRefreshTrackingCommand extends Command
                 Shipment::STATUS_RETURNED,
             ])
             ->whereHas('carrierAccount', function ($q): void {
-                $q->where('provider', \App\Models\CarrierAccount::PROVIDER_FEDEX);
+                $q->where('provider', CarrierAccount::PROVIDER_FEDEX);
             })
             ->orderBy('id')
             ->limit($limit);

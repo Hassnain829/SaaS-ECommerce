@@ -13,16 +13,17 @@ use App\Models\Order;
 use App\Models\PaymentCapture;
 use App\Models\PaymentIntent as LocalPaymentIntent;
 use App\Models\Store;
-use App\Services\Inventory\InventoryReservationService;
-use App\Services\Inventory\InventorySyncService;
 use App\Services\Checkout\FinancialTotalsInvariantService;
 use App\Services\Coupons\CouponService;
 use App\Services\Delivery\ShippingWeightResolver;
+use App\Services\Inventory\InventoryReservationService;
+use App\Services\Inventory\InventorySyncService;
 use App\Services\Notifications\CommerceNotificationEmitter;
 use App\Support\Money\CurrencyPrecision;
 use App\Support\Money\DecimalString;
 use App\Support\OrderLifecycle;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CheckoutConversionService
 {
@@ -248,7 +249,7 @@ class CheckoutConversionService
 
                 $this->couponService->redeem($checkout, $order);
 
-                $confirmationToken = 'ordconf_'.\Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(40));
+                $confirmationToken = 'ordconf_'.Str::lower(Str::random(40));
                 $orderMeta = is_array($order->meta) ? $order->meta : [];
                 $orderMeta['storefront'] = array_merge(
                     is_array($orderMeta['storefront'] ?? null) ? $orderMeta['storefront'] : [],

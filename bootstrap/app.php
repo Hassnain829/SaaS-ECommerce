@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureStorePermission;
 use App\Http\Middleware\EnsureStoreRole;
 use App\Http\Middleware\RecordUserSession;
 use App\Http\Middleware\RoleMiddleware;
+use Illuminate\Auth\Middleware\RequirePassword;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,7 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'store.role' => EnsureStoreRole::class,
             'role' => RoleMiddleware::class,
             'dev.storefront.token' => AuthenticateDeveloperStorefrontToken::class,
-            'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
+            'password.confirm' => RequirePassword::class,
         ]);
 
         $middleware->web(append: [

@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\Channels\ChannelOwnershipService;
+use App\Services\ConnectedSiteService;
 use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -162,7 +163,7 @@ class ExternalManagedChannelModeTest extends TestCase
         ]);
         $store->members()->attach($owner->id, ['role' => Store::ROLE_OWNER]);
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $token, $owner];
     }

@@ -8,6 +8,7 @@ use App\Http\Controllers\Carrier\Connection\USPSMerchantConnectionController;
 use App\Http\Controllers\Settings\FedExShippingSettingsController;
 use App\Http\Controllers\Settings\ShippingSettingsController;
 use App\Http\Controllers\Settings\USPSShippingSettingsController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
@@ -204,12 +205,12 @@ class CarrierRouteOwnershipSeparationTest extends TestCase
         );
 
         $matchedFedEx = Route::getRoutes()->match(
-            \Illuminate\Http\Request::create('/settings/shipping/carriers/connect/fedex-integrator', 'GET')
+            Request::create('/settings/shipping/carriers/connect/fedex-integrator', 'GET')
         );
         $this->assertSame('settings.shipping.fedex-integrator.start', $matchedFedEx->getName());
 
         $matchedUsps = Route::getRoutes()->match(
-            \Illuminate\Http\Request::create('/settings/shipping/carriers/connect/usps-merchant', 'GET')
+            Request::create('/settings/shipping/carriers/connect/usps-merchant', 'GET')
         );
         $this->assertSame('settings.shipping.usps-merchant.start', $matchedUsps->getName());
     }

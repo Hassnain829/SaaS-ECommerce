@@ -11,23 +11,25 @@ use App\Models\ShippingMethod;
 use App\Models\ShippingPackagePreset;
 use App\Models\ShippingZone;
 use App\Models\Store;
+use App\Models\User;
 use App\Services\Carriers\Core\CarrierOriginReadinessService;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\Carriers\USPS\Support\USPSConfig;
 use App\Services\Delivery\DeliveryAreaInputNormalizer;
 use App\Services\Delivery\DeliveryOptionInputNormalizer;
 use App\Services\Delivery\DeliverySetupStatusService;
+use App\Services\Delivery\DeliveryWizardPersistenceService;
 use App\Services\Delivery\ManualDeliveryProviderResolver;
 use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\SecurityLogRecorder;
 use App\Services\Tax\TaxConfigurationService;
 use App\Support\Tax\TaxCountryCatalog;
-use App\Services\Delivery\DeliveryWizardPersistenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ShippingSettingsController extends Controller
@@ -981,18 +983,18 @@ class ShippingSettingsController extends Controller
         Store $store,
         array $validated,
         ManualDeliveryProviderResolver $manualProviderResolver,
-        ?\App\Models\User $actor,
+        ?User $actor,
         ?int $existingCarrierAccountId = null,
     ): ?int {
         if (! empty($validated['carrier_account_id'])) {
             $accountId = (int) $validated['carrier_account_id'];
             if (($validated['rate_type'] ?? null) === ShippingMethod::RATE_CARRIER_CALCULATED_LATER) {
-                $account = \App\Models\CarrierAccount::query()
+                $account = CarrierAccount::query()
                     ->where('store_id', $store->id)
                     ->whereKey($accountId)
                     ->first();
                 if (! $account || ! $account->isFedEx() || ! $account->usesFedExIntegratorProvider()) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
+                    throw ValidationException::withMessages([
                         'carrier_account_id' => 'Live carrier pricing requires a connected FedEx account.',
                     ]);
                 }
@@ -1003,7 +1005,7 @@ class ShippingSettingsController extends Controller
 
         if (($validated['rate_type'] ?? null) === ShippingMethod::RATE_CARRIER_CALCULATED_LATER) {
             if ($existingCarrierAccountId) {
-                $existing = \App\Models\CarrierAccount::query()
+                $existing = CarrierAccount::query()
                     ->where('store_id', $store->id)
                     ->whereKey($existingCarrierAccountId)
                     ->first();
@@ -1012,7 +1014,7 @@ class ShippingSettingsController extends Controller
                 }
             }
 
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'carrier_account_id' => 'Select a connected FedEx account for live carrier pricing.',
             ]);
         }
@@ -1029,7 +1031,7 @@ class ShippingSettingsController extends Controller
     {
         $rateType = (string) ($validated['rate_type'] ?? '');
         if ($rateType === ShippingMethod::RATE_CARRIER_CALCULATED_LATER) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'rate_type' => 'Manage FedEx live services from Checkout Shipping.',
             ]);
         }
@@ -1045,7 +1047,7 @@ class ShippingSettingsController extends Controller
             ->first();
 
         if ($account && $account->isFedEx() && $account->usesFedExIntegratorProvider()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'carrier_account_id' => 'Manage FedEx live services from Checkout Shipping.',
             ]);
         }
@@ -1147,7 +1149,7 @@ class ShippingSettingsController extends Controller
     /**
      * @return array<int, array<string, array{status: string, endpoint: ?string, http_status: mixed, error_message: ?string}>>
      */
-    private function uspsLatestStepDiagnostics(\App\Models\Store $store): array
+    private function uspsLatestStepDiagnostics(Store $store): array
     {
         $actions = [
             CarrierApiEvent::ACTION_OAUTH_TOKEN,

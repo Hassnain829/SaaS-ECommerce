@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Data\Coupons\CouponDiscountResult;
 use App\Models\CustomerAddress;
 use App\Models\DraftOrder;
+use App\Models\DraftTaxLine;
 use App\Models\Order;
 use App\Models\Store;
 use App\Models\User;
@@ -390,7 +392,7 @@ class ManualOrderConversionService
         $currency = strtoupper((string) ($draft->currency ?: 'USD'));
         $total = CurrencyPrecision::roundMajor('0', $currency);
 
-        foreach ($draft->taxLines->where('applies_to', \App\Models\DraftTaxLine::APPLIES_TO_SHIPPING) as $line) {
+        foreach ($draft->taxLines->where('applies_to', DraftTaxLine::APPLIES_TO_SHIPPING) as $line) {
             $total = CurrencyPrecision::roundMajor(
                 bcadd($total, DecimalString::normalizeNonNegative((string) $line->tax_amount), 6),
                 $currency,
@@ -406,7 +408,7 @@ class ManualOrderConversionService
     private function assertDraftCouponMatchesStoredSnapshot(
         DraftOrder $draft,
         array $storedSnapshot,
-        \App\Data\Coupons\CouponDiscountResult $fresh,
+        CouponDiscountResult $fresh,
     ): void {
         $currencyCode = strtoupper((string) ($draft->currency ?: 'USD'));
         $headerDiscount = CurrencyPrecision::roundMajor(

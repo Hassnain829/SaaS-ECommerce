@@ -141,9 +141,9 @@ class WordPressConnectorHardeningTest extends TestCase
         $this->assertStringContainsString('/api/v1/catalog/products', $client);
         $this->assertStringContainsString('Live-shopper readiness', $admin);
         $this->assertStringContainsString('This plugin never turns other plugins off', $admin);
-        $this->assertStringContainsString('Catalog subtotal', $cart);
-        $this->assertStringContainsString('Not the checkout total', $cart);
-        $this->assertStringContainsString('This site will not take payment itself', $checkout);
+        $this->assertStringContainsString('<strong>Subtotal:</strong>', $cart);
+        $this->assertStringContainsString('Shipping and tax are calculated at checkout.', $cart);
+        $this->assertStringContainsString('This website will not take payment itself.', $storefront);
         $this->assertStringContainsString('confirmPayment', $js);
         $this->assertStringContainsString('request_fingerprint', $attempt);
         $this->assertStringContainsString('idempotency_key', $storefront);

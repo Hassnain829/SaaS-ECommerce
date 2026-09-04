@@ -6,6 +6,7 @@ use App\Support\OrderLifecycle;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
@@ -123,7 +124,7 @@ class Order extends Model
         return $this->hasMany(OrderTaxLine::class);
     }
 
-    public function couponRedemption(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function couponRedemption(): HasOne
     {
         return $this->hasOne(CouponRedemption::class);
     }

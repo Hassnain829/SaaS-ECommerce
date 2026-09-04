@@ -32,14 +32,16 @@ class Phase6MerchantCarrierConnectionWizardTest extends TestCase
     {
         [$owner, $store] = $this->ownerStore('Wizard Owner Store');
 
-        $this->actingAs($owner)
+        // Generic multi-carrier connect hub is retired; Delivery / Model A is the entry point.
+        $response = $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shipping.carriers.connect.index'))
-            ->assertOk()
-            ->assertSeeText('Connect carrier account')
-            ->assertSeeText('USPS')
-            ->assertSeeText('FedEx')
-            ->assertSeeText('Manual / Local delivery');
+            ->get(route('shipping.carriers.connect.index'));
+
+        $response->assertRedirect();
+        $this->assertTrue(in_array($response->headers->get('Location'), [
+            route('shippingAutomation'),
+            route('settings.shipping.fedex-integrator.start'),
+        ], true));
     }
 
     public function test_staff_cannot_open_carrier_connection_wizard(): void
@@ -61,14 +63,12 @@ class Phase6MerchantCarrierConnectionWizardTest extends TestCase
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shipping.carriers.connect.show', 'ups'))
-            ->assertRedirect(route('shipping.carriers.connect.index'));
+            ->assertRedirect(route('shippingAutomation'));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('shipping.carriers.connect.index'))
-            ->assertSeeText('Coming later')
-            ->assertDontSee('client secret')
-            ->assertDontSee('.env');
+            ->get(route('shipping.carriers.connect.show', 'dhl'))
+            ->assertRedirect(route('shippingAutomation'));
     }
 
     public function test_usps_platform_account_is_labeled_platform_testing_not_merchant_owned(): void
@@ -250,46 +250,12 @@ class Phase6MerchantCarrierConnectionWizardTest extends TestCase
     public function test_manual_local_delivery_setup_through_wizard(): void
     {
         [$owner, $store] = $this->ownerStore('Manual Wizard Setup Store');
-        $location = $this->readyLocation($store);
-        $manualCarrier = Carrier::query()->where('code', 'manual-delivery')->firstOrFail();
 
+        // Manual carrier wizard path is intentionally closed; Delivery setup owns local delivery.
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('shipping.carriers.connect.show', 'manual'))
-            ->assertOk()
-            ->assertSeeText('Manual / Local delivery');
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('shipping.carriers.connect.origin', 'manual'), [
-                'origin_location_id' => $location->id,
-            ])
-            ->assertRedirect();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->post(route('shipping.carriers.connect.ownership', 'manual'), [
-                'origin_location_id' => $location->id,
-                'ownership_mode' => CarrierAccount::OWNERSHIP_MANUAL,
-                'carrier_id' => $manualCarrier->id,
-                'display_name' => 'Local courier',
-                'supported_countries' => 'US',
-                'enabled_for_checkout' => '1',
-            ])
-            ->assertRedirect();
-
-        $account = CarrierAccount::query()
-            ->where('store_id', $store->id)
-            ->where('display_name', 'Local courier')
-            ->firstOrFail();
-
-        $this->assertSame(CarrierAccount::OWNERSHIP_MANUAL, $account->ownership_mode);
-        $this->assertSame(CarrierAccount::PROVIDER_MANUAL, $account->provider);
-        $this->assertFalse($account->supportsLabels());
-        $this->assertFalse($account->supportsTracking());
-        $this->assertTrue($account->enabled_for_checkout);
-        $this->assertSame(['US'], $account->supported_countries);
-        $this->assertSame('Manual/local delivery', CarrierAccountStatusPresenter::for($account)->ownershipLabel());
+            ->assertRedirect(route('shippingAutomation'));
     }
 
     public function test_merchant_ui_does_not_expose_secret_wording(): void

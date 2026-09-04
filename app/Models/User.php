@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Notifications\QueuedResetPassword;
+use App\Notifications\QueuedVerifyEmail;
 use App\Support\StorePermission;
 use App\Support\StorePermissionResolver;
+use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +17,7 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -170,12 +173,12 @@ class User extends Authenticatable implements MustVerifyEmail
     public function sendEmailVerificationNotification(): void
     {
         // Auth mail must not depend on a queue worker being online.
-        $this->notifyNow(new \App\Notifications\QueuedVerifyEmail);
+        $this->notifyNow(new QueuedVerifyEmail);
     }
 
     public function sendPasswordResetNotification($token): void
     {
         // Auth mail must not depend on a queue worker being online.
-        $this->notifyNow(new \App\Notifications\QueuedResetPassword($token));
+        $this->notifyNow(new QueuedResetPassword($token));
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Services\Carriers\Core\CarrierProviderManager;
 use App\Services\Carriers\FedEx\Connection\FedExAccountRegistrationService;
+use App\Services\Carriers\FedEx\Connection\FedExRegistrationInputValidator;
 use App\Services\Carriers\FedEx\Support\FedExConfig;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\JsonResponse;
@@ -49,7 +50,7 @@ class FedExShippingSettingsController extends Controller
             ],
         ]);
 
-        $validated = app(\App\Services\Carriers\FedEx\Connection\FedExRegistrationInputValidator::class)->validateOrFail($validated);
+        $validated = app(FedExRegistrationInputValidator::class)->validateOrFail($validated);
         $accountNumber = (string) $validated['provider_account_number'];
 
         $fedExCarrier = Carrier::query()->where('code', 'fedex')->where('is_active', true)->firstOrFail();

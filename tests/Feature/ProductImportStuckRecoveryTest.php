@@ -6,6 +6,7 @@ use App\Models\ProductImport;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Support\Catalog\ProductImportQueue;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -21,7 +22,7 @@ class ProductImportStuckRecoveryTest extends TestCase
         config(['queue.default' => 'sync']);
         config(['product_import.explicit_queue_connection' => null]);
         if (isset($this->app)) {
-            config(['product_import.queue_connection' => \App\Support\Catalog\ProductImportQueue::connection()]);
+            config(['product_import.queue_connection' => ProductImportQueue::connection()]);
         }
 
         parent::tearDown();
@@ -34,7 +35,7 @@ class ProductImportStuckRecoveryTest extends TestCase
 
         config(['queue.default' => 'database']);
         config(['product_import.explicit_queue_connection' => 'database']);
-        config(['product_import.queue_connection' => \App\Support\Catalog\ProductImportQueue::connection()]);
+        config(['product_import.queue_connection' => ProductImportQueue::connection()]);
 
         Carbon::setTestNow(Carbon::parse('2026-06-01 12:00:00'));
 
@@ -154,7 +155,7 @@ class ProductImportStuckRecoveryTest extends TestCase
 
         config(['queue.default' => 'database']);
         config(['product_import.explicit_queue_connection' => 'database']);
-        config(['product_import.queue_connection' => \App\Support\Catalog\ProductImportQueue::connection()]);
+        config(['product_import.queue_connection' => ProductImportQueue::connection()]);
 
         Carbon::setTestNow(Carbon::parse('2026-07-01 10:00:00'));
 
@@ -197,7 +198,7 @@ class ProductImportStuckRecoveryTest extends TestCase
 
         config(['queue.default' => 'sync']);
         config(['product_import.explicit_queue_connection' => null]);
-        config(['product_import.queue_connection' => \App\Support\Catalog\ProductImportQueue::connection()]);
+        config(['product_import.queue_connection' => ProductImportQueue::connection()]);
 
         Carbon::setTestNow(Carbon::parse('2026-08-01 14:00:00'));
 

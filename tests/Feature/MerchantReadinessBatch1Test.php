@@ -14,7 +14,7 @@ class MerchantReadinessBatch1Test extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_merchant_sidebar_hides_analytics_payments_and_billing(): void
+    public function test_merchant_sidebar_hides_analytics_and_billing(): void
     {
         [$owner, $store] = $this->ownerStore();
 
@@ -28,8 +28,8 @@ class MerchantReadinessBatch1Test extends TestCase
         $this->assertStringNotContainsString(route('analytics'), $html);
         $this->assertStringNotContainsString(route('billingSubscription'), $html);
         $this->assertStringNotContainsString('>Analytics</', $html);
-        $this->assertStringNotContainsString('>Payments</', $html);
         $this->assertStringNotContainsString('>Billing</', $html);
+        $this->assertStringContainsString('>Payments</', $html);
         $this->assertStringNotContainsString('Connect payments', $html);
     }
 

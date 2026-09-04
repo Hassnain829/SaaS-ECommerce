@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-Sidebar')
+@extends('layouts.admin.admin-Sidebar')
 
 @section('title', 'System Notifications')
 

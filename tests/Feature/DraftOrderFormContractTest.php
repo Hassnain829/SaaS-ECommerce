@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\DraftOrder;
-use App\Models\DraftTaxLine;
 use App\Models\Order;
 use App\Models\OrderTaxLine;
 use App\Models\Product;

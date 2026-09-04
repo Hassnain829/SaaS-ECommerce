@@ -12,7 +12,9 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use App\Services\Payments\PaymentProviderManager;
+use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
 use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
@@ -168,11 +170,11 @@ class StripeSandboxConnectSupportTest extends TestCase
             'payments.stripe.modes.live.secret' => 'sk_live_real',
         ]);
 
-        $stripeConfig = app(\App\Services\Payments\StripeConfig::class);
+        $stripeConfig = app(StripeConfig::class);
 
         $this->assertTrue($stripeConfig->hasDedicatedLiveKeys());
         $this->assertFalse($stripeConfig->liveKeysMirroredFromTest());
-        $this->assertSame(\App\Services\Payments\StripeConfig::LIVE_CONFIG_REAL, $stripeConfig->liveConfigSource());
+        $this->assertSame(StripeConfig::LIVE_CONFIG_REAL, $stripeConfig->liveConfigSource());
     }
 
     public function test_placeholder_live_keys_are_not_treated_as_real_config(): void
@@ -184,7 +186,7 @@ class StripeSandboxConnectSupportTest extends TestCase
             'payments.stripe.modes.live.secret' => 'sk_live_REPLACE_ME',
         ]);
 
-        $this->assertFalse(app(\App\Services\Payments\StripeConfig::class)->hasDedicatedLiveKeys());
+        $this->assertFalse(app(StripeConfig::class)->hasDedicatedLiveKeys());
     }
 
     public function test_real_live_config_shows_connect_without_local_simulation_copy(): void
@@ -375,7 +377,7 @@ class StripeSandboxConnectSupportTest extends TestCase
 
     private function mockStripeServices(): void
     {
-        $this->app->instance(StripeConnectService::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripeConnectService
+        $this->app->instance(StripeConnectService::class, new class(app(StripeConfig::class)) extends StripeConnectService
         {
             public function createOrRetrieveConnectedAccount(Store $store, User $user, string $mode = 'test'): PaymentProviderAccount
             {
@@ -406,7 +408,7 @@ class StripeSandboxConnectSupportTest extends TestCase
             }
         });
 
-        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(\App\Services\Payments\StripeConfig::class)) extends StripePlatformPaymentProvider
+        $this->app->instance(StripePlatformPaymentProvider::class, new class(app(StripeConfig::class)) extends StripePlatformPaymentProvider
         {
             public function createPaymentIntent(Checkout $checkout, array $options = []): PaymentIntentResult
             {
@@ -468,7 +470,7 @@ class StripeSandboxConnectSupportTest extends TestCase
             return [$store, $owner];
         }
 
-        $token = app(\App\Services\ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
 
         return [$store, $owner, $token];
     }

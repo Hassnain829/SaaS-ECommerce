@@ -193,7 +193,7 @@ class OutboundUrlGuard
 
         $first = ord($packed[0]);
 
-        return ($first & 0xfe) === 0xfc;
+        return ($first & 0xFE) === 0xFC;
     }
 
     private function inIpv4Range(int $address, string $network, int $prefix): bool
@@ -204,7 +204,7 @@ class OutboundUrlGuard
         }
 
         $networkValue = (int) sprintf('%u', $networkValue);
-        $mask = (0xffffffff << (32 - $prefix)) & 0xffffffff;
+        $mask = (0xFFFFFFFF << (32 - $prefix)) & 0xFFFFFFFF;
 
         return ($address & $mask) === ($networkValue & $mask);
     }
@@ -226,7 +226,7 @@ class OutboundUrlGuard
             return true;
         }
 
-        $mask = (0xff << (8 - $remainingBits)) & 0xff;
+        $mask = (0xFF << (8 - $remainingBits)) & 0xFF;
 
         return (ord($address[$wholeBytes]) & $mask) === (ord($networkBytes[$wholeBytes]) & $mask);
     }

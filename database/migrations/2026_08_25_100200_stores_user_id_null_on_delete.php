@@ -41,7 +41,7 @@ return new class extends Migration
 
         // Cannot safely restore NOT NULL + CASCADE if any store.user_id is already NULL.
         if (DB::table('stores')->whereNull('user_id')->exists()) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'Cannot safely roll back stores.user_id nullOnDelete: historical rows contain NULL user references.'
             );
         }

@@ -1,4 +1,4 @@
-﻿@extends('layouts.admin.admin-sidebar')
+@extends('layouts.admin.admin-sidebar')
 
 @section('title', 'Global Product Inventory')
 
