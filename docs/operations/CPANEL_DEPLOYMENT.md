@@ -163,15 +163,24 @@ Your cPanel user must own these directories.
 
 ### 5. SSH key for GitHub Actions
 
-On your **local machine**:
+On your **local machine**, generate a **passphrase-less** deploy key (GitHub Actions cannot unlock passphrase-protected keys):
 
 ```bash
+# Git Bash / macOS / Linux — empty -N "" is required
 ssh-keygen -t ed25519 -C "github-deploy-saas-ecommerce" -f ./cpanel_deploy_key -N ""
 ```
 
-Add the **public** key (`cpanel_deploy_key.pub`) in cPanel → **SSH Access** → **Manage SSH Keys** → **Import** → **Authorize**.
+PowerShell (Windows) — use `-N [string]::Empty`, not `-N '""'`:
 
-Keep the **private** key for GitHub secrets (next section).
+```powershell
+ssh-keygen -t ed25519 -C "github-deploy-saas-ecommerce" -f "$HOME\.ssh\cpanel_deploy_key" -N ([string]::Empty)
+```
+
+Add the **public** key (`cpanel_deploy_key.pub`) in cPanel → **SSH Access** → **Manage SSH Keys** → **Import** → **Authorize** (must be authorized, not only imported).
+
+Set `CPANEL_SSH_KEY` to the **full private** key file contents (including `BEGIN` / `END` lines). Do **not** paste a passphrase-protected personal key — Actions will fail with `Enter passphrase for (stdin)`.
+
+Keep the private key out of git.
 
 ---
 
@@ -258,6 +267,8 @@ Production ships with **pre-built** `vendor/` and `public/build/` from GitHub Ac
 |---------|-----|
 | 500 after deploy | Check `storage/logs/laravel.log`; verify `storage/` and `bootstrap/cache/` permissions |
 | Vite assets 404 | Confirm `public/build/` exists on server; re-run deploy workflow |
+| `Enter passphrase for (stdin)` in Actions | `CPANEL_SSH_KEY` is passphrase-protected — replace with a passphrase-less deploy key |
+| `Permission denied (publickey)` | Public key not **authorized** on cPanel for that user; import + authorize `cpanel_deploy_key.pub` |
 | `php` not found in SSH action | Set `CPANEL_PHP_BIN` secret to full path (`ea-php83`) |
 | Migration errors | Backup DB; run `php artisan migrate:status` on server |
 | Mixed content / wrong URLs | Set `APP_URL` to exact HTTPS origin |

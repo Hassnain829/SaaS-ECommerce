@@ -5,11 +5,19 @@
 
     RewriteEngine On
 
-    # Block web access to sensitive project paths (docroot = project root on cPanel).
-    RewriteRule ^(.*/)?\.env - [F,L]
-    RewriteRule ^(app|bootstrap|config|database|resources|routes|scripts|storage|tests|vendor)/ - [F,L]
+    # WordPress demo lives at /jiggy — never send it through Laravel.
+    RewriteRule ^jiggy(?:/|$) - [L]
 
-    # Serve static assets from public/ (build/, favicon, etc.).
+    # Public disk files (product images, logos) MUST come before the sensitive-path
+    # block. Laravel Storage::url() serves /storage/... via public/storage symlink.
+    RewriteRule ^storage/(.*)$ public/storage/$1 [L]
+
+    # Block web access to sensitive project paths (docroot = project root on cPanel).
+    # Do not include "storage" here — that URL is the public media mount above.
+    RewriteRule ^(.*/)?\.env - [F,L]
+    RewriteRule ^(app|bootstrap|config|database|resources|routes|scripts|tests|vendor)/ - [F,L]
+
+    # Serve other static assets from public/ (build/, favicon, etc.).
     RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -f [OR]
     RewriteCond %{DOCUMENT_ROOT}/public%{REQUEST_URI} -d
     RewriteRule ^(.*)$ public/$1 [L]
