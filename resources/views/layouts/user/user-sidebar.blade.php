@@ -28,7 +28,7 @@
         </div>
         <div class="min-w-0">
             <div class="truncate text-[15px] font-semibold leading-tight text-ink">@yield('sidebar_brand_title', config('app.name'))</div>
-            <div class="truncate text-[11px] text-ink-muted">Merchant adminaasdasdasassd</div>
+            <div class="truncate text-[11px] text-ink-muted">Merchant admin</div>
         </div>
     </div>
 
