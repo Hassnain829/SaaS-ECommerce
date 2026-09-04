@@ -27,6 +27,7 @@ class DeveloperStorefrontCatalogController extends Controller
             ->with([
                 'images' => fn ($query) => $query->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
                 'variants.options.variationType',
+                'variants.catalogImages:id,product_id,image_path,status,is_primary',
             ])
             ->orderByDesc('id')
             ->get();
@@ -81,6 +82,17 @@ class DeveloperStorefrontCatalogController extends Controller
                     'type' => $option->variationType?->name ?? 'Option',
                     'value' => $option->value,
                 ])->values()->all(),
+                'images' => $variant->catalogImages
+                    ->filter(fn ($image) => $image->isReady() && $image->image_path)
+                    ->map(fn ($image) => [
+                        'id' => $image->id,
+                        'url' => asset('storage/'.$image->image_path),
+                    ])
+                    ->values()
+                    ->all(),
+                'image_url' => (($primaryVariantImage = $variant->catalogImages->first(fn ($image) => $image->isReady() && $image->image_path)) !== null)
+                    ? asset('storage/'.$primaryVariantImage->image_path)
+                    : null,
             ])->values()->all(),
         ];
     }

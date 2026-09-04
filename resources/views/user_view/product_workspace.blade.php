@@ -42,7 +42,7 @@
     $hasImportExtra = $importExtraRows !== [];
     $hasCopy = filled($shortDesc) || filled($product->description);
     $variantCount = count($variantSummaries);
-    $multiVariant = $variantCount > 1;
+    $multiVariant = $variantCount > 1 || ($optionGroupSummaries ?? []) !== [];
     $card = 'rounded-lg border border-[color:var(--color-border)] bg-white shadow-[var(--shadow-ui)]';
 @endphp
 
@@ -79,6 +79,9 @@
                                 <x-ui.badge>Draft</x-ui.badge>
                             @endif
                         </div>
+                        @if (! $product->status)
+                            <p class="text-sm text-[color:var(--color-ink-muted)]">This product is not visible to customers yet. Continue editing, then publish it from Drafts.</p>
+                        @endif
                         <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[color:var(--color-ink-muted)]">
                             <span class="font-mono text-[color:var(--color-ink-secondary)]">{{ $product->sku ?: 'No SKU' }}</span>
                             <span aria-hidden="true">·</span>
@@ -95,9 +98,9 @@
                         </p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <a href="{{ route('products') }}" class="ui-btn ui-btn-secondary">Back to catalog</a>
+                        <a href="{{ route('products', $product->status ? [] : ['view' => 'drafts']) }}" class="ui-btn ui-btn-secondary">{{ $product->status ? 'Back to catalog' : 'Back to drafts' }}</a>
                         @if ($canManageCatalog)
-                            <x-ui.button :href="route('products.edit', $product)">Edit product</x-ui.button>
+                            <x-ui.button :href="route('products.edit', $product)">{{ $product->status ? 'Edit product' : 'Continue editing' }}</x-ui.button>
                         @endif
                     </div>
                 </div>
@@ -254,8 +257,16 @@
                                             <tr class="border-t border-[color:var(--color-border)]">
                                                 <td class="px-4 py-3">
                                                     <div class="flex items-center gap-3">
-                                                        @if (! empty($row['catalog_image_thumb']))
+                                                        @if (! empty($row['catalog_image_thumbs']))
+                                                            <div class="flex -space-x-1">
+                                                                @foreach (array_slice($row['catalog_image_thumbs'], 0, 3) as $thumb)
+                                                                    <img src="{{ $thumb }}" alt="" class="h-10 w-10 rounded border border-[color:var(--color-border)] object-cover">
+                                                                @endforeach
+                                                            </div>
+                                                        @elseif (! empty($row['catalog_image_thumb']))
                                                             <img src="{{ $row['catalog_image_thumb'] }}" alt="" class="h-10 w-10 rounded border border-[color:var(--color-border)] object-cover">
+                                                        @else
+                                                            <span class="flex h-10 w-10 items-center justify-center rounded border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] text-[10px] font-semibold text-[color:var(--color-ink-muted)]">No image</span>
                                                         @endif
                                                         <div>
                                                             <p class="font-medium text-[color:var(--color-ink)]">{{ $row['label'] }}</p>
@@ -318,8 +329,16 @@
                                                 <tr class="bg-white">
                                                     <td class="px-4 py-3 align-top">
                                                         <div class="flex items-start gap-3">
-                                                            @if (! empty($row['catalog_image_thumb']))
+                                                            @if (! empty($row['catalog_image_thumbs']))
+                                                                <div class="flex -space-x-1">
+                                                                    @foreach (array_slice($row['catalog_image_thumbs'], 0, 3) as $thumb)
+                                                                        <img src="{{ $thumb }}" alt="" class="h-10 w-10 rounded border border-[color:var(--color-border)] object-cover">
+                                                                    @endforeach
+                                                                </div>
+                                                            @elseif (! empty($row['catalog_image_thumb']))
                                                                 <img src="{{ $row['catalog_image_thumb'] }}" alt="" class="h-10 w-10 rounded border border-[color:var(--color-border)] object-cover">
+                                                            @else
+                                                                <span class="flex h-10 w-10 items-center justify-center rounded border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-surface-muted)] text-[10px] font-semibold text-[color:var(--color-ink-muted)]">No image</span>
                                                             @endif
                                                             <div>
                                                                 <div class="font-medium text-[color:var(--color-ink)]">{{ $row['label'] }}</div>
@@ -551,6 +570,17 @@
                                 <dt class="text-[color:var(--color-ink-muted)]">Shipping</dt>
                                 <dd class="font-medium text-[color:var(--color-ink)]">{{ ! empty($productBehavior['requires_shipping']) ? 'Required' : 'Not required' }}</dd>
                             </div>
+                            @if (! empty(($shippingWeightSummary ?? [])['visible']))
+                                <div class="flex justify-between gap-3 py-2">
+                                    <dt class="text-[color:var(--color-ink-muted)]">Shipping weight</dt>
+                                    <dd class="text-right font-medium text-[color:var(--color-ink)]">
+                                        {{ $shippingWeightSummary['value'] }}
+                                        @if (! empty($shippingWeightSummary['hint']))
+                                            <span class="mt-0.5 block text-xs font-normal text-[color:var(--color-ink-muted)]">{{ $shippingWeightSummary['hint'] }}</span>
+                                        @endif
+                                    </dd>
+                                </div>
+                            @endif
                             <div class="flex justify-between gap-3 py-2">
                                 <dt class="text-[color:var(--color-ink-muted)]">Inventory tracking</dt>
                                 <dd class="font-medium text-[color:var(--color-ink)]">{{ ! empty($productBehavior['track_inventory']) ? 'On' : 'Off' }}</dd>

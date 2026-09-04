@@ -448,7 +448,11 @@ class DashboardController extends Controller
 
         $search = trim((string) $request->query('q', ''));
         $viewQuery = trim((string) $request->query('view', ''));
-        $catalogView = in_array($viewQuery, ['deleted', 'archived'], true) ? 'deleted' : 'active';
+        $catalogView = match (true) {
+            in_array($viewQuery, ['deleted', 'archived'], true) => 'deleted',
+            $viewQuery === 'drafts' => 'drafts',
+            default => 'active',
+        };
         $perPageRaw = (int) $request->query('per_page', 25);
         $perPage = in_array($perPageRaw, [10, 25, 50, 100], true) ? $perPageRaw : 25;
         $taxonomyCategoryQuery = $request->query('category');
@@ -525,6 +529,11 @@ class DashboardController extends Controller
 
         if ($catalogView === 'deleted') {
             $baseQuery->onlyTrashed();
+        }
+
+        if ($catalogView === 'drafts') {
+            $baseQuery->where('status', false);
+            $status = '';
         }
 
         if ($search !== '') {
@@ -704,6 +713,11 @@ class DashboardController extends Controller
             ->where('store_id', $selectedStore->id)
             ->count();
 
+        $draftCount = Product::query()
+            ->where('store_id', $selectedStore->id)
+            ->where('status', false)
+            ->count();
+
         $totalProducts = $statsProducts->count();
         $outOfStockCount = $statsProducts->filter(function (Product $product): bool {
             return ProductInventoryState::forProduct($product)['is_out'];
@@ -716,9 +730,11 @@ class DashboardController extends Controller
         $catalogTaxonomyCategories = $selectedStore->categories()
             ->where('status', 'active')
             ->withCount(['products' => function ($query) use ($catalogView) {
-                // Match the Products / Deleted tab so counts reflect the list being filtered.
+                // Match the Products / Drafts / Deleted tab so counts reflect the list being filtered.
                 if ($catalogView === 'deleted') {
                     $query->onlyTrashed();
+                } elseif ($catalogView === 'drafts') {
+                    $query->where('status', false);
                 }
             }])
             ->orderBy('sort_order')
@@ -836,6 +852,7 @@ class DashboardController extends Controller
             'shippingWeightFallback' => app(StoreShippingPreferences::class)->fallbackItemWeight($selectedStore),
             'catalogView' => $catalogView,
             'deletedCount' => $deletedCount,
+            'draftCount' => $draftCount,
             'productListDetailKeys' => $productListDetailKeys,
             'catalogCustomFieldKeyOptions' => $catalogCustomFieldKeyOptions,
             'stats' => [

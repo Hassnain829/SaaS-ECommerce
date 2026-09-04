@@ -15,7 +15,7 @@
 <body class="merchant-shell flex min-h-screen flex-col overflow-x-hidden font-sans md:h-screen md:flex-row md:overflow-hidden">
 <div id="sidebarOverlay" class="fixed inset-0 z-40 hidden bg-ink/40 md:hidden" onclick="closeSidebar()" aria-hidden="true"></div>
 
-<aside id="sidebar" class="fixed inset-y-0 left-0 z-50 flex h-full min-h-0 w-[15rem] shrink-0 -translate-x-full flex-col border-r border-border bg-surface text-ink transition-transform duration-200 ease-out md:static md:z-auto md:translate-x-0">
+<aside id="sidebar" class="fixed inset-y-0 left-0 z-50 flex h-full min-h-0 w-[15rem] shrink-0 -translate-x-full flex-col border-r border-border bg-surface text-ink transition-transform duration-200 ease-out md:static md:z-auto md:translate-x-0" @if (request()->routeIs('products.create', 'products.edit')) data-turbo="false" @endif>
     <div class="flex shrink-0 items-center gap-2.5 px-3.5 py-3.5">
         <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand text-white" aria-hidden="true">
             @hasSection('sidebar_logo')

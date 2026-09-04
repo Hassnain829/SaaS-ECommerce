@@ -103,7 +103,7 @@ class CatalogDay177CompletionTest extends TestCase
             ->assertSee('Add product', false)
             ->assertSee('id="editProductForm"', false)
             ->assertSee('catalog-edit-section-option-groups', false)
-            ->assertSee('Option groups and variants', false)
+            ->assertSee('Option groups', false)
             ->assertSee('Add option group', false)
             ->assertSee('Additional details', false)
             ->assertSee('Catalog tools', false)
@@ -176,7 +176,8 @@ class CatalogDay177CompletionTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products.show', $product))
             ->assertOk()
-            ->assertSee('title="Variant catalog image"', false);
+            ->assertSee('ROW-IMG', false)
+            ->assertSee('/storage/products/', false);
     }
 
     public function test_promote_import_extra_and_apply_category_are_store_scoped(): void

@@ -94,6 +94,80 @@ class ProductEditBasicsStockTest extends TestCase
         $this->assertSame(7, (int) $fresh->stock_alert);
     }
 
+    public function test_bulk_stock_does_not_overwrite_a_single_option_variant(): void
+    {
+        [$owner, $store, $product, $variant] = $this->simpleProductSetup(stock: 160, alert: 20);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $this->updatePayload($product, [
+                'bulk_stock' => 160,
+                'stock_alert' => 20,
+                'variation_types' => [
+                    ['name' => 'color', 'type' => 'select', 'options' => ['r', 'g', 'b']],
+                ],
+                'variants' => [
+                    [
+                        'id' => $variant->id,
+                        'sku' => $variant->sku.'-R',
+                        'price' => '',
+                        'stock' => 0,
+                        'stock_alert' => 20,
+                        'option_map' => ['0' => 0],
+                    ],
+                    [
+                        'sku' => $variant->sku.'-G',
+                        'price' => '',
+                        'stock' => 0,
+                        'stock_alert' => 20,
+                        'option_map' => ['0' => 1],
+                    ],
+                    [
+                        'sku' => $variant->sku.'-B',
+                        'price' => '',
+                        'stock' => 0,
+                        'stock_alert' => 20,
+                        'option_map' => ['0' => 2],
+                    ],
+                ],
+            ]))
+            ->assertRedirect();
+
+        $product->refresh();
+        $this->assertSame(3, $product->variants()->count());
+        $this->assertSame(0, (int) $product->variants()->sum('stock'));
+    }
+
+    public function test_bulk_stock_does_not_fill_the_only_option_variant(): void
+    {
+        [$owner, $store, $product, $variant] = $this->simpleProductSetup(stock: 160, alert: 20);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), $this->updatePayload($product, [
+                'bulk_stock' => 160,
+                'stock_alert' => 20,
+                'variation_types' => [
+                    ['name' => 'color', 'type' => 'select', 'options' => ['r']],
+                ],
+                'variants' => [[
+                    'id' => $variant->id,
+                    'sku' => $variant->sku,
+                    'price' => '',
+                    'stock' => 0,
+                    'stock_alert' => 20,
+                    'option_map' => ['0' => 0],
+                ]],
+            ]))
+            ->assertRedirect();
+
+        $fresh = $product->fresh()->variants()->first();
+        $this->assertNotNull($fresh);
+        $this->assertSame(1, $product->fresh()->variants()->count());
+        $this->assertSame(0, (int) $fresh->stock);
+        $this->assertSame(1, $fresh->options()->count());
+    }
+
     public function test_edit_workspace_shows_simplified_section_nav(): void
     {
         [$owner, $store, $product] = $this->simpleProductSetup(stock: 4, alert: 1);
@@ -102,14 +176,13 @@ class ProductEditBasicsStockTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('products.edit', $product))
             ->assertOk()
-            ->assertSee('Price &amp; inventory', false)
-            ->assertSee('data-product-edit-tab>Options</a>', false)
-            ->assertSee('data-product-edit-tab>Inventory</a>', false)
-            ->assertSee('data-product-edit-tab>Specifications</a>', false)
-            ->assertDontSee('Price &amp; stock', false)
-            ->assertDontSee('Extra info', false)
+            ->assertSee('Price &amp; stock', false)
+            ->assertSee('Option groups', false)
+            ->assertSee('data-pf-step="pricing"', false)
             ->assertSee('Low stock alert', false)
-            ->assertSee('edit_product_stock', false);
+            ->assertSee('edit_product_stock', false)
+            ->assertDontSee('data-product-edit-tab>Options</a>', false)
+            ->assertDontSee('Extra info', false);
     }
 
     /**

@@ -17,21 +17,17 @@ use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
 use App\Services\Catalog\ProductPermanentDeleteService;
 use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Delivery\StoreShippingPreferences;
-use App\Services\Delivery\VariantShippingWeightBulkService;
 use App\Services\Inventory\InventoryAdjustmentService;
 use App\Services\Inventory\InventoryAvailabilityService;
 use App\Services\SecurityLogRecorder;
 use App\Services\StorefrontCatalogEventRecorder;
 use App\Support\StorePermission;
 use Illuminate\Database\QueryException;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
-use InvalidArgumentException;
 
 final class ProductBulkController extends Controller
 {
@@ -61,47 +57,13 @@ final class ProductBulkController extends Controller
             'tag_ids.*' => ['integer', 'min:1'],
             'product_status' => ['nullable', 'string', Rule::in(['published', 'draft'])],
             'shipping_weight_value' => ['nullable', 'numeric', 'gt:0', 'max:'.StoreShippingPreferences::MAX_ITEM_WEIGHT],
-            'shipping_weight_mode' => ['nullable', 'string', Rule::in(['missing_only', 'replace_all'])],
-            'shipping_weight_target' => ['nullable', 'string', Rule::in(['products', 'variants'])],
-            'variant_bulk_mode' => ['nullable', 'string', Rule::in(['map_by_option', 'use_option_values', 'clear'])],
-            'variant_option_name' => ['nullable', 'string', 'max:100'],
-            'variant_weight_map_json' => ['nullable', 'string', 'max:500000'],
         ]);
 
         if ($validated['action'] === 'shipping_weight') {
-            $target = (string) ($request->input('shipping_weight_target') ?: 'products');
-            $validated['shipping_weight_target'] = $target;
-
-            if ($target === 'products') {
-                $request->validate([
-                    'shipping_weight_value' => ['required', 'numeric', 'gt:0', 'max:'.StoreShippingPreferences::MAX_ITEM_WEIGHT],
-                    'shipping_weight_mode' => ['required', 'string', Rule::in(['missing_only', 'replace_all'])],
-                ]);
-                $validated['shipping_weight_value'] = $request->input('shipping_weight_value');
-                $validated['shipping_weight_mode'] = $request->input('shipping_weight_mode');
-            } else {
-                $request->validate([
-                    'variant_bulk_mode' => ['required', 'string', Rule::in(['map_by_option', 'use_option_values', 'clear'])],
-                    'shipping_weight_mode' => ['required', 'string', Rule::in(['missing_only', 'replace_all'])],
-                ]);
-                $validated['variant_bulk_mode'] = (string) $request->input('variant_bulk_mode');
-                $validated['shipping_weight_mode'] = (string) $request->input('shipping_weight_mode');
-
-                if ($validated['variant_bulk_mode'] !== 'clear') {
-                    $request->validate([
-                        'variant_option_name' => ['required', 'string', 'max:100'],
-                    ]);
-                    $validated['variant_option_name'] = trim((string) $request->input('variant_option_name'));
-                }
-
-                if ($validated['variant_bulk_mode'] === 'map_by_option') {
-                    $map = $this->decodeVariantWeightMap($request, $store);
-                    if ($map === []) {
-                        return back()->withErrors(['bulk' => 'Enter at least one option value weight to apply.'])->withInput();
-                    }
-                    $validated['variant_weight_map'] = $map;
-                }
-            }
+            $request->validate([
+                'shipping_weight_value' => ['required', 'numeric', 'gt:0', 'max:'.StoreShippingPreferences::MAX_ITEM_WEIGHT],
+            ]);
+            $validated['shipping_weight_value'] = $request->input('shipping_weight_value');
         }
 
         $uniqueIds = $this->resolveBulkProductIds($request, $validated);
@@ -158,10 +120,6 @@ final class ProductBulkController extends Controller
             $foundCount = (clone $productsQuery)->count();
             if ($foundCount !== count($uniqueIds)) {
                 return back()->withErrors(['bulk' => 'Some selected products are missing or do not belong to this store.'])->withInput();
-            }
-
-            if (($validated['shipping_weight_target'] ?? 'products') === 'variants') {
-                return $this->bulkVariantShippingWeight($request, $store, $uniqueIds, $validated, $foundCount);
             }
 
             return $this->bulkShippingWeight($request, $store, $uniqueIds, $validated, $foundCount);
@@ -550,233 +508,60 @@ final class ProductBulkController extends Controller
             ->with('success_title', 'Bulk status');
     }
 
-    public function previewShippingWeight(Request $request): JsonResponse
-    {
-        $store = $request->attributes->get('currentStore');
-        abort_unless($store, 404);
-
-        $user = $request->user();
-        if (! $user?->hasStorePermission($store, StorePermission::CATALOG_MANAGE)) {
-            abort(403);
-        }
-
-        $validated = $request->validate([
-            'product_ids' => ['nullable', 'array', 'min:1', 'max:20000'],
-            'product_ids.*' => ['integer', 'min:1'],
-            'product_ids_json' => ['nullable', 'string', 'max:2000000'],
-            'shipping_weight_target' => ['required', 'string', Rule::in(['variants'])],
-            'variant_bulk_mode' => ['required', 'string', Rule::in(['map_by_option', 'use_option_values', 'clear'])],
-            'variant_option_name' => ['nullable', 'string', 'max:100'],
-            'variant_weight_map_json' => ['nullable', 'string', 'max:500000'],
-            'shipping_weight_mode' => ['nullable', 'string', Rule::in(['missing_only', 'replace_all'])],
-        ]);
-
-        $productIds = $this->resolveBulkProductIds($request, $validated);
-        if ($productIds === []) {
-            return response()->json(['message' => 'Select at least one product.'], 422);
-        }
-
-        $foundCount = Product::query()->where('store_id', $store->id)->whereIn('id', $productIds)->count();
-        if ($foundCount !== count($productIds)) {
-            return response()->json(['message' => 'Some selected products are missing or do not belong to this store.'], 422);
-        }
-
-        $mode = (string) ($validated['shipping_weight_mode'] ?? 'missing_only');
-        $bulkMode = (string) $validated['variant_bulk_mode'];
-        $optionName = trim((string) ($validated['variant_option_name'] ?? ''));
-        try {
-            $map = $bulkMode === 'map_by_option' ? $this->decodeVariantWeightMap($request, $store) : [];
-        } catch (ValidationException $e) {
-            return response()->json([
-                'message' => collect($e->errors())->flatten()->first() ?: 'Invalid variant weight map.',
-            ], 422);
-        }
-
-        $preview = app(VariantShippingWeightBulkService::class)->preview(
-            $store,
-            $productIds,
-            $bulkMode,
-            $optionName,
-            $map,
-            $mode,
-        );
-
-        return response()->json($preview);
-    }
-
-    /**
-     * @param  list<int>  $productIds
-     * @param  array<string, mixed>  $validated
-     */
-    private function bulkVariantShippingWeight(Request $request, Store $store, array $productIds, array $validated, int $n): RedirectResponse
-    {
-        $bulkMode = (string) ($validated['variant_bulk_mode'] ?? 'map_by_option');
-        $applyMode = (string) ($validated['shipping_weight_mode'] ?? 'missing_only');
-        $optionName = trim((string) ($validated['variant_option_name'] ?? ''));
-        $map = $bulkMode === 'map_by_option' ? ($validated['variant_weight_map'] ?? []) : [];
-
-        $unit = app(StoreShippingPreferences::class)->weightUnitLabel($store);
-        $updatedIds = [];
-        $result = [
-            'updated_variant_count' => 0,
-            'skipped_existing_count' => 0,
-            'skipped_unmatched_count' => 0,
-            'skipped_non_shipping_count' => 0,
-            'updated_product_ids' => [],
-        ];
-
-        try {
-            DB::transaction(function () use ($store, $productIds, $bulkMode, $optionName, $map, $applyMode, &$result): void {
-                ProductVariant::withoutEvents(function () use ($store, $productIds, $bulkMode, $optionName, $map, $applyMode, &$result): void {
-                    $result = app(VariantShippingWeightBulkService::class)->apply(
-                        $store,
-                        $productIds,
-                        $bulkMode,
-                        $optionName,
-                        $map,
-                        $applyMode,
-                    );
-                });
-            });
-        } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['bulk' => $e->getMessage()])->withInput();
-        }
-
-        $updated = (int) $result['updated_variant_count'];
-        $updatedIds = $result['updated_product_ids'];
-
-        if ($updated > 0) {
-            app(StoreShippingPreferences::class)->commitWeightUnitIfNeeded($store);
-            app(StorefrontCatalogEventRecorder::class)->recordCatalogUpdated($store->id, $updatedIds);
-        }
-
-        app(SecurityLogRecorder::class)->record(
-            $request,
-            'product_bulk_action',
-            store: $store,
-            metadata: [
-                'action' => 'shipping_weight_variants',
-                'selected_product_count' => $n,
-                'updated_variant_count' => $updated,
-                'skipped_existing_count' => $result['skipped_existing_count'],
-                'skipped_unmatched_count' => $result['skipped_unmatched_count'],
-                'skipped_non_shipping_count' => $result['skipped_non_shipping_count'],
-                'variant_bulk_mode' => $bulkMode,
-                'variant_option_name' => $optionName !== '' ? $optionName : null,
-                'apply_mode' => $applyMode,
-                'unit' => $unit,
-            ]
-        );
-
-        $parts = [];
-        if ($bulkMode === 'clear') {
-            $parts[] = "Cleared variant shipping weights on {$updated} variant".($updated === 1 ? '' : 's').'.';
-        } else {
-            $parts[] = "Variant shipping weights updated on {$updated} variant".($updated === 1 ? '' : 's').'.';
-        }
-        if ($result['skipped_existing_count'] > 0) {
-            $parts[] = $result['skipped_existing_count'].' variant'.($result['skipped_existing_count'] === 1 ? '' : 's').' already had a weight and were left unchanged.';
-        }
-        if ($result['skipped_unmatched_count'] > 0) {
-            $parts[] = $result['skipped_unmatched_count'].' variant'.($result['skipped_unmatched_count'] === 1 ? '' : 's').' did not match the selected option or weight map.';
-        }
-
-        return back()
-            ->with('success', implode(' ', $parts))
-            ->with('success_title', 'Bulk variant shipping weight');
-    }
-
-    /**
-     * @return array<string, float>
-     */
-    private function decodeVariantWeightMap(Request $request, Store $store): array
-    {
-        $raw = $request->input('variant_weight_map_json');
-        if (! is_string($raw) || trim($raw) === '') {
-            return [];
-        }
-
-        $decoded = json_decode($raw, true);
-        if (! is_array($decoded)) {
-            return [];
-        }
-
-        $prefs = app(StoreShippingPreferences::class);
-        $max = $prefs->maxItemWeightForStore($store);
-        $unit = $prefs->weightUnitLabel($store);
-        $resolver = app(ShippingWeightResolver::class);
-        $map = [];
-
-        foreach ($decoded as $optionValue => $weight) {
-            if (! is_string($optionValue) && ! is_int($optionValue)) {
-                continue;
-            }
-            if (! is_numeric($weight)) {
-                throw ValidationException::withMessages([
-                    'bulk' => 'Each variant shipping weight must be a number greater than zero and at most '.$max.' '.$unit.'.',
-                ]);
-            }
-
-            $normalized = $resolver->normalizePositiveWeight($weight);
-            if ($normalized === null || $normalized > $max) {
-                throw ValidationException::withMessages([
-                    'bulk' => 'Each variant shipping weight must be greater than zero and at most '.$max.' '.$unit.'.',
-                ]);
-            }
-
-            $map[(string) $optionValue] = $normalized;
-        }
-
-        return $map;
-    }
-
     /**
      * @param  list<int>  $productIds
      * @param  array<string, mixed>  $validated
      */
     private function bulkShippingWeight(Request $request, Store $store, array $productIds, array $validated, int $n): RedirectResponse
     {
-        $mode = (string) ($validated['shipping_weight_mode'] ?? 'missing_only');
         $weight = app(ShippingWeightResolver::class)->normalizePositiveWeight($validated['shipping_weight_value'] ?? null);
-        if ($weight === null || $weight > app(StoreShippingPreferences::class)->maxItemWeightForStore($store)) {
-            return back()->withErrors(['bulk' => 'Enter a shipping weight greater than zero and at most '.app(StoreShippingPreferences::class)->maxItemWeightForStore($store).'.'])->withInput();
+        $max = app(StoreShippingPreferences::class)->maxItemWeightForStore($store);
+        if ($weight === null || $weight > $max) {
+            return back()->withErrors(['bulk' => 'Enter a shipping weight greater than zero and at most '.$max.'.'])->withInput();
         }
 
         $unit = app(StoreShippingPreferences::class)->weightUnitLabel($store);
         $resolver = app(ShippingWeightResolver::class);
         $updated = 0;
         $skippedNonShipping = 0;
-        $skippedExisting = 0;
         $updatedIds = [];
 
         // Chunked updates inside one transaction so partial commits cannot occur on failure.
-        DB::transaction(function () use ($productIds, $store, $mode, $weight, $resolver, &$updated, &$skippedNonShipping, &$skippedExisting, &$updatedIds): void {
+        DB::transaction(function () use ($productIds, $store, $weight, $resolver, &$updated, &$skippedNonShipping, &$updatedIds): void {
             foreach (array_chunk($productIds, 500) as $chunkIds) {
                 $chunk = Product::query()
                     ->where('store_id', $store->id)
                     ->whereIn('id', $chunkIds)
+                    ->with('variants')
                     ->get();
 
-                Product::withoutEvents(function () use ($chunk, $mode, $weight, $resolver, &$updated, &$skippedNonShipping, &$skippedExisting, &$updatedIds): void {
-                    foreach ($chunk as $product) {
-                        if (! (bool) $product->requires_shipping) {
-                            $skippedNonShipping++;
+                Product::withoutEvents(function () use ($chunk, $weight, $resolver, &$updated, &$skippedNonShipping, &$updatedIds): void {
+                    ProductVariant::withoutEvents(function () use ($chunk, $weight, $resolver, &$updated, &$skippedNonShipping, &$updatedIds): void {
+                        foreach ($chunk as $product) {
+                            if (! (bool) $product->requires_shipping) {
+                                $skippedNonShipping++;
 
-                            continue;
+                                continue;
+                            }
+
+                            $meta = is_array($product->meta) ? $product->meta : [];
+                            $meta['shipping_weight'] = $weight;
+                            unset($meta['weight']);
+                            $product->forceFill(['meta' => $meta])->save();
+                            $updated++;
+                            $updatedIds[] = (int) $product->id;
+
+                            foreach ($product->variants as $variant) {
+                                $variantMeta = is_array($variant->meta) ? $variant->meta : [];
+                                if (! array_key_exists('shipping_weight', $variantMeta) && ! array_key_exists('weight', $variantMeta)) {
+                                    continue;
+                                }
+
+                                $resolver->persistVariantShippingWeightMeta($variantMeta, null);
+                                $variant->forceFill(['meta' => $variantMeta])->save();
+                            }
                         }
-
-                        if ($mode === 'missing_only' && $resolver->resolveExactProductLevel($product) !== null) {
-                            $skippedExisting++;
-
-                            continue;
-                        }
-
-                        $meta = is_array($product->meta) ? $product->meta : [];
-                        $meta['shipping_weight'] = $weight;
-                        $product->forceFill(['meta' => $meta])->save();
-                        $updated++;
-                        $updatedIds[] = (int) $product->id;
-                    }
+                    });
                 });
             }
         });
@@ -798,19 +583,14 @@ final class ProductBulkController extends Controller
                 'selected_product_count' => $n,
                 'updated_product_count' => $updated,
                 'skipped_non_shipping_count' => $skippedNonShipping,
-                'skipped_existing_weight_count' => $skippedExisting,
-                'mode' => $mode,
                 'weight' => $weight,
                 'unit' => $unit,
             ]
         );
 
-        $parts = ["Shipping weight set for {$updated} product".($updated === 1 ? '' : 's').'.'];
-        if ($skippedExisting > 0) {
-            $parts[] = "{$skippedExisting} product".($skippedExisting === 1 ? '' : 's').' already had a weight and were left unchanged.';
-        }
+        $parts = ['Shipping weight set for '.$updated.' product'.($updated === 1 ? '' : 's').'. Variants now use this same product weight.'];
         if ($skippedNonShipping > 0) {
-            $parts[] = "{$skippedNonShipping} non-shippable product".($skippedNonShipping === 1 ? ' was' : 's were').' skipped.';
+            $parts[] = $skippedNonShipping.' non-shippable product'.($skippedNonShipping === 1 ? ' was' : 's were').' skipped.';
         }
 
         return back()

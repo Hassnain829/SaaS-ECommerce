@@ -67,6 +67,50 @@ class ProductsListUxTest extends TestCase
             ->assertDontSeeText('Archived');
     }
 
+    public function test_drafts_view_lists_unpublished_products_for_store(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $published = $this->makeProduct($store, 'Live Catalog Item');
+        $draft = $this->makeProduct($store, 'Unfinished Chair');
+        $draft->update(['status' => false]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products'))
+            ->assertOk()
+            ->assertSeeText('Drafts')
+            ->assertSeeText('Live Catalog Item')
+            ->assertSeeText('Unfinished Chair');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products', ['view' => 'drafts']))
+            ->assertOk()
+            ->assertSeeText('Draft products')
+            ->assertSeeText('Unfinished Chair')
+            ->assertDontSeeText('Live Catalog Item')
+            ->assertSeeText('Continue')
+            ->assertSee('>Publish</button>', false)
+            ->assertSee(route('products.edit', $draft), false);
+    }
+
+    public function test_empty_drafts_view_does_not_show_add_product_empty_state_button(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products', ['view' => 'drafts']))
+            ->assertOk()
+            ->assertSeeText('No draft products')
+            ->getContent();
+
+        $this->assertStringNotContainsString(
+            'inline-flex items-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover">Add product</a>',
+            $html
+        );
+    }
+
     public function test_restore_returns_product_to_active_catalog(): void
     {
         [$owner, $store] = $this->ownerStore();

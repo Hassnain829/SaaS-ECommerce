@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Store;
+use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Inventory\InventorySyncService;
 use App\Support\Catalog\ProductRichText;
@@ -25,8 +26,8 @@ use Illuminate\View\View;
 final class ProductWorkspaceController extends Controller
 {
     /**
-     * Dedicated store-scoped product edit (same save pipeline as the catalog list modal).
-     * After save, `OnboardingController::updateProductFromManagement` may redirect back to the workspace when `_workspace_return_product_id` is set.
+     * Dedicated store-scoped product edit (same wizard as Add product; PUT save pipeline).
+     * After save, `OnboardingController::updateProductFromManagement` may redirect back to the workspace when `_workspace_return_product_id` is set. Save draft unpublishes; leave without saving discards edits and keeps the current published or draft state.
      */
     public function edit(Request $request, Product $product): View
     {
@@ -141,6 +142,7 @@ final class ProductWorkspaceController extends Controller
             'variants.options' => fn ($q) => $q->orderBy('variation_type_id')->orderBy('sort_order'),
             'variants.options.variationType:id,name',
             'variants.linkedCatalogImage:id,product_id,product_variant_id,image_path,status,sort_order,is_primary',
+            'variants.catalogImages:id,product_id,image_path,status,sort_order,is_primary',
             'productAttributes.attribute:id,store_id,name,slug,display_type,is_filterable,is_visible',
             'productAttributes.terms:id,attribute_id,name,slug,swatch_value',
         ]);
@@ -187,9 +189,15 @@ final class ProductWorkspaceController extends Controller
             $optionsOrdered = $variant->options->sortBy(fn ($o) => [$o->variation_type_id, $o->sort_order])->values();
             $parsed = ProductVariantLabel::fromOptions($optionsOrdered);
             $label = ProductVariantLabel::forVariant($variant, $idx, $variantCount);
-            $img = $variant->linkedCatalogImage;
+            $img = $variant->catalogImages->first(fn ($image) => $image->isReady())
+                ?? $variant->linkedCatalogImage;
             $thumbUrl = null;
             $imageIsProductFallback = false;
+            $catalogImageThumbs = $variant->catalogImages
+                ->filter(fn ($image) => $image->isReady() && $image->image_path)
+                ->map(fn ($image) => asset('storage/'.$image->image_path))
+                ->values()
+                ->all();
             if ($img && $img->isReady() && $img->image_path) {
                 $thumbUrl = asset('storage/'.$img->image_path);
             } elseif ($primaryCatalogThumb !== null && $variantCount <= 1) {
@@ -216,6 +224,7 @@ final class ProductWorkspaceController extends Controller
                 'stock_alert' => (int) $variant->stock_alert,
                 'is_first' => $idx === 0,
                 'catalog_image_thumb' => $thumbUrl,
+                'catalog_image_thumbs' => $catalogImageThumbs,
                 'catalog_image_is_product_fallback' => $imageIsProductFallback,
                 'additional_detail_rows' => $variantCustomRows,
             ];
@@ -243,6 +252,11 @@ final class ProductWorkspaceController extends Controller
         $metaStockAlert = isset($meta['stock_alert']) ? (int) $meta['stock_alert'] : 0;
         $effectiveLowThreshold = max($maxVariantAlert, $metaStockAlert);
 
+        $productBehavior = array_merge(
+            ProductTypeBehavior::behaviorFor($product->product_type),
+            ['label' => ProductTypeBehavior::productTypeLabel($product->product_type, $customProductTypeLabel)]
+        );
+
         return view('user_view.product_workspace', [
             'selectedStore' => $store,
             'product' => $product,
@@ -254,14 +268,62 @@ final class ProductWorkspaceController extends Controller
             'sourceIdentity' => $sourceIdentity,
             'urlRedirects' => $urlRedirects,
             'attributeRows' => $attributeRows,
-            'productBehavior' => array_merge(
-                ProductTypeBehavior::behaviorFor($product->product_type),
-                ['label' => ProductTypeBehavior::productTypeLabel($product->product_type, $customProductTypeLabel)]
+            'productBehavior' => $productBehavior,
+            'shippingWeightSummary' => $this->shippingWeightSummary(
+                $store,
+                $product,
+                ! empty($productBehavior['requires_shipping'])
             ),
             'variantSummaries' => $variantSummaries,
             'optionGroupSummaries' => $optionGroupSummaries,
             'totalStock' => $totalStock,
             'effectiveLowThreshold' => $effectiveLowThreshold,
         ]);
+    }
+
+    /**
+     * @return array{visible: bool, value: string|null, hint: string|null}
+     */
+    private function shippingWeightSummary(Store $store, Product $product, bool $requiresShipping): array
+    {
+        if (! $requiresShipping) {
+            return [
+                'visible' => false,
+                'value' => null,
+                'hint' => null,
+            ];
+        }
+
+        $prefs = app(StoreShippingPreferences::class);
+        $unit = $prefs->weightUnitLabel($store);
+        $productWeight = app(ShippingWeightResolver::class)->resolveExactProductLevel($product);
+        $fallbackWeight = $prefs->fallbackItemWeight($store);
+
+        if ($productWeight !== null) {
+            return [
+                'visible' => true,
+                'value' => $this->formatWorkspaceWeight($productWeight).' '.$unit,
+                'hint' => 'Applies to every variant.',
+            ];
+        }
+
+        if ($fallbackWeight !== null) {
+            return [
+                'visible' => true,
+                'value' => 'Store fallback '.$this->formatWorkspaceWeight($fallbackWeight).' '.$unit,
+                'hint' => 'No product weight is set. Checkout uses the store fallback.',
+            ];
+        }
+
+        return [
+            'visible' => true,
+            'value' => 'Not set',
+            'hint' => 'No product weight yet.',
+        ];
+    }
+
+    private function formatWorkspaceWeight(float $weight): string
+    {
+        return rtrim(rtrim(number_format($weight, 3, '.', ''), '0'), '.');
     }
 }

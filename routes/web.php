@@ -120,9 +120,6 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
     Route::post('/products/bulk', [ProductBulkController::class, 'handle'])
         ->middleware('store.permission:catalog.manage')
         ->name('products.bulk');
-    Route::post('/products/bulk/shipping-weight/preview', [ProductBulkController::class, 'previewShippingWeight'])
-        ->middleware('store.permission:catalog.manage')
-        ->name('products.bulk.shipping-weight.preview');
     Route::delete('/products/{product}/categories/{category}', [ProductInlineController::class, 'detachCategory'])
         ->middleware('store.permission:catalog.manage')
         ->name('products.inline.detach-category');

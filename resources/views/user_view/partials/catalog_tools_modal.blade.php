@@ -2,6 +2,7 @@
     $canManageCatalogTools = ($canManageBrands ?? false) || ($canManageTags ?? false) || ($canManageCategories ?? false);
     $catalogToolsStayOnPage = (bool) ($catalogToolsStayOnPage ?? false);
     $catalogToolsReturn = $catalogToolsReturn ?? null;
+    $catalogToolsReturnProductId = $catalogToolsReturnProductId ?? null;
     if (!isset($catalogToolsDefaultTab) || $catalogToolsDefaultTab === null || $catalogToolsDefaultTab === '') {
         if ($canManageCategories ?? false) {
             $catalogToolsDefaultTab = 'categories';

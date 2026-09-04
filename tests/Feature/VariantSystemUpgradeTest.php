@@ -330,6 +330,155 @@ class VariantSystemUpgradeTest extends TestCase
         $variant = ProductVariant::query()->where('sku', 'IMG-1')->firstOrFail();
         $this->assertSame((int) $image->id, (int) $variant->product_image_id);
         $this->assertSame((int) $image->id, (int) $variant->linkedCatalogImage?->id);
+        $this->assertSame(
+            [(int) $image->id],
+            $variant->catalogImages()->orderByPivot('sort_order')->pluck('product_images.id')->map(fn ($id) => (int) $id)->all()
+        );
+    }
+
+    public function test_variant_can_keep_multiple_catalog_images_and_share_them(): void
+    {
+        Storage::fake('public');
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Multi Img Var Store');
+        $product = $this->createSimpleProduct($store);
+
+        $paths = [];
+        $images = [];
+        foreach (['one.jpg', 'two.jpg', 'three.jpg'] as $i => $name) {
+            $path = UploadedFile::fake()->create($name, 10, 'image/jpeg')->store('products/'.$store->id, 'public');
+            $paths[] = $path;
+            $images[] = ProductImage::query()->create([
+                'product_id' => $product->id,
+                'image_path' => $path,
+                'sort_order' => $i,
+                'is_primary' => $i === 0,
+            ]);
+        }
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => $product->name,
+                'description' => 'd',
+                'base_price' => 10,
+                'sku' => $product->sku,
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'existing_image_paths' => $paths,
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['S', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'option_map' => ['0' => 0],
+                        'sku' => 'MULTI-S',
+                        'price' => 10,
+                        'stock' => 1,
+                        'stock_alert' => 1,
+                        'product_image_ids' => [$images[0]->id, $images[1]->id],
+                    ],
+                    [
+                        'option_map' => ['0' => 1],
+                        'sku' => 'MULTI-M',
+                        'price' => 10,
+                        'stock' => 1,
+                        'stock_alert' => 1,
+                        'product_image_ids' => [$images[1]->id, $images[2]->id],
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('products'));
+
+        $small = ProductVariant::query()->where('sku', 'MULTI-S')->firstOrFail();
+        $medium = ProductVariant::query()->where('sku', 'MULTI-M')->firstOrFail();
+        $smallIds = $small->catalogImages()->orderByPivot('sort_order')->pluck('product_images.id')->map(fn ($id) => (int) $id)->all();
+        $mediumIds = $medium->catalogImages()->orderByPivot('sort_order')->pluck('product_images.id')->map(fn ($id) => (int) $id)->all();
+
+        $this->assertSame([(int) $images[0]->id, (int) $images[1]->id], $smallIds);
+        $this->assertSame([(int) $images[1]->id, (int) $images[2]->id], $mediumIds);
+        $this->assertSame((int) $images[0]->id, (int) $small->product_image_id);
+        $this->assertSame((int) $images[1]->id, (int) $medium->product_image_id);
+
+        $product->refresh();
+        $payload = ProductEditPayload::forProduct($product);
+        $bySku = collect($payload['variants'])->keyBy('sku');
+        $this->assertSame([(int) $images[0]->id, (int) $images[1]->id], array_map('intval', $bySku['MULTI-S']['product_image_ids']));
+        $this->assertSame([(int) $images[1]->id, (int) $images[2]->id], array_map('intval', $bySku['MULTI-M']['product_image_ids']));
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSee('storage/'.$paths[0], false)
+            ->assertSee('storage/'.$paths[1], false)
+            ->assertSee('storage/'.$paths[2], false);
+    }
+
+    public function test_create_can_assign_multiple_new_uploads_to_one_variant(): void
+    {
+        Storage::fake('public');
+        $owner = $this->createMerchantUser();
+        $store = $this->createMemberStore($owner, 'Create Multi Img Store');
+        $imageA = UploadedFile::fake()->create('create-a.jpg', 12, 'image/jpeg');
+        $imageB = UploadedFile::fake()->create('create-b.jpg', 12, 'image/jpeg');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('product.store'), [
+                '_full_workspace_create' => '1',
+                'name' => 'Create Multi Photo Tee',
+                'description' => 'd',
+                'base_price' => 15,
+                'bulk_price' => 15,
+                'bulk_stock' => 2,
+                'sku' => 'CMPT-001',
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'product_images' => [$imageA, $imageB],
+                'variation_types' => [
+                    ['name' => 'Size', 'type' => 'select', 'options' => ['L', 'M']],
+                ],
+                'variants' => [
+                    [
+                        'option_map' => ['0' => 0],
+                        'sku' => 'CMPT-L',
+                        'price' => 15,
+                        'stock' => 1,
+                        'stock_alert' => 1,
+                        'product_image_ids' => ['new:0', 'new:1'],
+                    ],
+                    [
+                        'option_map' => ['0' => 1],
+                        'sku' => 'CMPT-M',
+                        'price' => 15,
+                        'stock' => 1,
+                        'stock_alert' => 1,
+                        'product_image_ids' => ['new:1'],
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $product = Product::query()->where('store_id', $store->id)->where('name', 'Create Multi Photo Tee')->firstOrFail();
+        $this->assertSame(2, $product->images()->count());
+        $firstImage = $product->images()->orderBy('sort_order')->orderBy('id')->firstOrFail();
+        $secondImage = $product->images()->orderBy('sort_order')->orderBy('id')->skip(1)->firstOrFail();
+
+        $large = ProductVariant::query()->where('sku', 'CMPT-L')->firstOrFail();
+        $medium = ProductVariant::query()->where('sku', 'CMPT-M')->firstOrFail();
+        $this->assertSame(
+            [(int) $firstImage->id, (int) $secondImage->id],
+            $large->catalogImages()->orderByPivot('sort_order')->pluck('product_images.id')->map(fn ($id) => (int) $id)->all()
+        );
+        $this->assertSame(
+            [(int) $secondImage->id],
+            $medium->catalogImages()->orderByPivot('sort_order')->pluck('product_images.id')->map(fn ($id) => (int) $id)->all()
+        );
+        $this->assertSame((int) $firstImage->id, (int) $large->product_image_id);
+        $this->assertSame((int) $secondImage->id, (int) $medium->product_image_id);
     }
 
     public function test_same_catalog_image_can_be_shared_across_multiple_variants(): void

@@ -55,7 +55,7 @@ final class ShippingWeightResolver
     }
 
     /**
-     * Product-level exact weight only (ignores variants). Used by Products filters and bulk missing_only.
+     * Product-level exact weight only (ignores variants). Used by Products filters.
      */
     public function resolveExactProductLevel(mixed $product): ?float
     {
