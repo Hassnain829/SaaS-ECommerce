@@ -27,6 +27,15 @@ fi
 echo "==> Post-deploy: ${APP_DIR}"
 echo "==> PHP: $($PHP_BIN -v | head -n 1)"
 
+# When the subdomain document root is the Laravel project root (common on cPanel),
+# install front-controller files that are not part of the normal public/ tree.
+# Without these, rsync --delete leaves the site at 403 and /build assets 404.
+if [[ -f scripts/deploy/cpanel-docroot-index.php && -f scripts/deploy/cpanel-docroot.htaccess ]]; then
+  cp -f scripts/deploy/cpanel-docroot-index.php "${APP_DIR}/index.php"
+  cp -f scripts/deploy/cpanel-docroot.htaccess "${APP_DIR}/.htaccess"
+  echo "==> Installed cPanel docroot index.php and .htaccess"
+fi
+
 # Writable Laravel directories (tracked .gitignore placeholders may exist; ensure dirs are present)
 mkdir -p \
   storage/app/public \
@@ -35,6 +44,12 @@ mkdir -p \
   storage/framework/views \
   storage/logs \
   bootstrap/cache
+
+# Clear stale package/config caches BEFORE any artisan call. CI rsync excludes
+# bootstrap/cache/*.php, so an old packages.php can still reference --dev providers
+# (e.g. Laravel\Pail) that are absent from production vendor/.
+rm -f bootstrap/cache/*.php
+echo "==> Cleared bootstrap/cache/*.php"
 
 # Production dependencies should already be present from CI (vendor/ + public/build/).
 # If you deploy via cPanel Git pull instead of GitHub Actions, uncomment:
@@ -50,7 +65,13 @@ link_public_storage() {
   mkdir -p "${target}"
 
   if [[ -L "${link_path}" ]]; then
-    return 0
+    local current
+    current="$(readlink "${link_path}" || true)"
+    # Repair broken/local-machine symlinks left by bad deploys.
+    if [[ -n "${current}" && -d "${current}" ]]; then
+      return 0
+    fi
+    rm -f "${link_path}"
   fi
 
   if [[ -e "${link_path}" && ! -L "${link_path}" ]]; then
@@ -61,7 +82,7 @@ link_public_storage() {
   echo "==> Linked public/storage -> storage/app/public"
 }
 
-if [[ ! -L public/storage ]]; then
+if [[ ! -L public/storage ]] || [[ ! -d "$(readlink public/storage 2>/dev/null || true)" ]]; then
   if $PHP_BIN artisan storage:link --force 2>/dev/null; then
     echo "==> storage:link via artisan"
   else

@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class VariantPriceInheritanceTest extends TestCase
@@ -70,11 +71,11 @@ class VariantPriceInheritanceTest extends TestCase
         ProductVariant::create(['product_id' => $product->id, 'sku' => 'MUG-1-A', 'price' => 12, 'stock' => 1]);
         ProductVariant::create(['product_id' => $product->id, 'sku' => 'MUG-1-B', 'price' => 18, 'stock' => 1]);
 
-        \Illuminate\Support\Facades\DB::table('product_variants')
+        DB::table('product_variants')
             ->whereIn('id', function ($q) {
                 $q->select('product_variants.id')->from('product_variants')
-                  ->join('products', 'products.id', '=', 'product_variants.product_id')
-                  ->whereColumn('product_variants.price', 'products.base_price');
+                    ->join('products', 'products.id', '=', 'product_variants.product_id')
+                    ->whereColumn('product_variants.price', 'products.base_price');
             })->update(['price' => null]);
 
         $a = ProductVariant::where('sku', 'MUG-1-A')->first();

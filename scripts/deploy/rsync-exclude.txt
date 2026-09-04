@@ -21,6 +21,10 @@ storage/framework/sessions/*
 !storage/framework/sessions/.gitignore
 storage/framework/views/*
 !storage/framework/views/.gitignore
+# Never sync or delete merchant uploads (product images, logos, etc.).
+# GitHub Actions checkout has empty public disk; --delete would wipe live media.
+storage/app/public/**
+!storage/app/public/.gitignore
 bootstrap/cache/*.php
 !bootstrap/cache/.gitignore
 database/*.sqlite
