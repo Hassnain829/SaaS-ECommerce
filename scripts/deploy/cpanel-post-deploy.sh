@@ -45,6 +45,12 @@ mkdir -p \
   storage/logs \
   bootstrap/cache
 
+# Clear stale package/config caches BEFORE any artisan call. CI rsync excludes
+# bootstrap/cache/*.php, so an old packages.php can still reference --dev providers
+# (e.g. Laravel\Pail) that are absent from production vendor/.
+rm -f bootstrap/cache/*.php
+echo "==> Cleared bootstrap/cache/*.php"
+
 # Production dependencies should already be present from CI (vendor/ + public/build/).
 # If you deploy via cPanel Git pull instead of GitHub Actions, uncomment:
 # composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
