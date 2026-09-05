@@ -2660,6 +2660,7 @@ class OnboardingController extends Controller
             return redirect()
                 ->route('products', ['view' => 'deleted'])
                 ->with('error', $e->getMessage())
+                ->with('error_title', 'Could not permanently delete')
                 ->with('error_meta', 'Finish or cancel related checkouts before permanently deleting this product.');
         } catch (ProductPermanentDeleteStorageException $e) {
             report($e);
@@ -2667,6 +2668,7 @@ class OnboardingController extends Controller
             return redirect()
                 ->route('products', ['view' => 'deleted'])
                 ->with('error', "Could not permanently delete '{$deletedProductName}'. The product was kept in Deleted products.")
+                ->with('error_title', 'Could not permanently delete')
                 ->with('error_meta', 'Gallery file cleanup could not be completed safely.');
         } catch (ProductPermanentDeleteCleanupPendingException $e) {
             report($e);
@@ -2698,6 +2700,7 @@ class OnboardingController extends Controller
             return redirect()
                 ->route('products', ['view' => 'deleted'])
                 ->with('error', "Could not permanently delete '{$deletedProductName}'. The product was kept in Deleted products.")
+                ->with('error_title', 'Could not permanently delete')
                 ->with('error_meta', 'If this keeps happening, contact support.');
         }
 

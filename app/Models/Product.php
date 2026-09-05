@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Gallery files live on disk; paths and ordering live in {@see ProductImage} (source of truth).
@@ -62,6 +63,23 @@ class Product extends Model
             DB::table('product_images')
                 ->where('product_id', $product->id)
                 ->update(['product_variant_id' => null]);
+
+            if (Schema::hasTable('product_variant_images')) {
+                $variantIds = DB::table('product_variants')->where('product_id', $product->id)->pluck('id');
+                $imageIds = DB::table('product_images')->where('product_id', $product->id)->pluck('id');
+                if ($variantIds->isNotEmpty() || $imageIds->isNotEmpty()) {
+                    DB::table('product_variant_images')
+                        ->where(function ($query) use ($variantIds, $imageIds): void {
+                            if ($variantIds->isNotEmpty()) {
+                                $query->whereIn('product_variant_id', $variantIds);
+                            }
+                            if ($imageIds->isNotEmpty()) {
+                                $query->orWhereIn('product_image_id', $imageIds);
+                            }
+                        })
+                        ->delete();
+                }
+            }
 
             // Gallery files are removed by ProductPermanentDeleteGalleryPurgeService
             // before forceDelete() so failed storage cleanup can abort the purge.

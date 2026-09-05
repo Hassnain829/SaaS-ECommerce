@@ -324,6 +324,9 @@ class ProductsListUxTest extends TestCase
             'status' => ProductImage::STATUS_READY,
         ]);
         $variant->update(['product_image_id' => $image->id]);
+        $variant->catalogImages()->syncWithoutDetaching([
+            $image->id => ['sort_order' => 0],
+        ]);
 
         $productId = $product->id;
         $product->delete();
@@ -335,6 +338,125 @@ class ProductsListUxTest extends TestCase
 
         $this->assertDatabaseMissing('products', ['id' => $productId]);
         Storage::disk('public')->assertMissing($path);
+    }
+
+    public function test_bulk_force_delete_with_variant_catalog_images_uses_json_ids(): void
+    {
+        Storage::fake('public');
+
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Bulk Multi Photo Delete');
+        $variant = $product->variants()->firstOrFail();
+        $paths = [];
+        $imageIds = [];
+
+        for ($i = 0; $i < 3; $i++) {
+            $path = 'products/'.$store->id.'/bulk-multi-'.$i.'.jpg';
+            Storage::disk('public')->put($path, 'bytes-'.$i);
+            $paths[] = $path;
+            $image = ProductImage::query()->create([
+                'product_id' => $product->id,
+                'image_path' => $path,
+                'sort_order' => $i,
+                'is_primary' => $i === 0,
+                'status' => ProductImage::STATUS_READY,
+            ]);
+            $imageIds[] = (int) $image->id;
+        }
+
+        $variant->catalogImages()->attach([
+            $imageIds[0] => ['sort_order' => 0],
+            $imageIds[1] => ['sort_order' => 1],
+            $imageIds[2] => ['sort_order' => 2],
+        ]);
+        $variant->update(['product_image_id' => $imageIds[0]]);
+
+        $productId = (int) $product->id;
+        $variantId = (int) $variant->id;
+        $product->delete();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('products', ['view' => 'deleted']))
+            ->post(route('products.bulk'), [
+                'action' => 'force_delete',
+                'product_ids_json' => json_encode([$productId]),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success_title', 'Permanently deleted')
+            ->assertSessionMissing('error');
+
+        $this->assertDatabaseMissing('products', ['id' => $productId]);
+        $this->assertDatabaseMissing('product_images', ['product_id' => $productId]);
+        $this->assertDatabaseMissing('product_variant_images', ['product_variant_id' => $variantId]);
+        foreach ($paths as $path) {
+            Storage::disk('public')->assertMissing($path);
+        }
+    }
+
+    public function test_products_page_shows_session_error_flash(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+
+        $this->actingAs($owner)
+            ->withSession([
+                'current_store_id' => $store->id,
+                'error' => "Cannot permanently delete 'Checkout Blocked' while a customer checkout is waiting for payment.",
+                'error_title' => 'Could not permanently delete',
+                'error_meta' => 'Finish or cancel related checkouts before permanently deleting these products.',
+            ])
+            ->get(route('products', ['view' => 'deleted']))
+            ->assertOk()
+            ->assertSee('data-error-flash', false)
+            ->assertSeeText('Could not permanently delete')
+            ->assertSeeText('waiting for payment');
+    }
+
+    public function test_bulk_force_delete_removes_eligible_products_when_one_is_checkout_blocked(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $blocked = $this->makeProduct($store, 'Checkout Blocked Bulk');
+        $eligible = $this->makeProduct($store, 'Safe To Purge Bulk');
+        $blockedVariant = $blocked->variants()->firstOrFail();
+        $blocked->delete();
+        $eligible->delete();
+
+        $checkout = Checkout::query()->create([
+            'store_id' => $store->id,
+            'checkout_number' => 'CHK-'.Str::random(8),
+            'status' => Checkout::STATUS_PAYMENT_PENDING,
+            'currency_code' => 'USD',
+            'subtotal' => 10,
+            'discount_total' => 0,
+            'shipping_total' => 0,
+            'tax_total' => 0,
+            'grand_total' => 10,
+        ]);
+        CheckoutItem::query()->create([
+            'checkout_id' => $checkout->id,
+            'product_id' => $blocked->id,
+            'product_variant_id' => $blockedVariant->id,
+            'product_name' => $blocked->name,
+            'quantity' => 1,
+            'unit_price' => 10,
+            'subtotal' => 10,
+            'total' => 10,
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('products', ['view' => 'deleted']))
+            ->post(route('products.bulk'), [
+                'action' => 'force_delete',
+                'product_ids_json' => json_encode([$blocked->id, $eligible->id]),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success_title', 'Permanently deleted')
+            ->assertSessionHas('error')
+            ->assertSessionHas('error_title', 'Some products were kept');
+
+        $this->assertDatabaseMissing('products', ['id' => $eligible->id]);
+        $this->assertSoftDeleted('products', ['id' => $blocked->id]);
     }
 
     public function test_bulk_restore_and_force_delete_on_deleted_products(): void

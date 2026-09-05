@@ -13,6 +13,7 @@ use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\Tag;
+use App\Services\Catalog\ProductPermanentDeleteEligibilityService;
 use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
 use App\Services\Catalog\ProductPermanentDeleteService;
 use App\Services\Delivery\ShippingWeightResolver;
@@ -220,17 +221,43 @@ final class ProductBulkController extends Controller
      */
     private function bulkForceDelete(Store $store, $products, int $n): RedirectResponse
     {
+        $eligibility = app(ProductPermanentDeleteEligibilityService::class);
+        $deletable = collect();
+        $blockedReasons = [];
+        foreach ($products as $product) {
+            $reason = $eligibility->blockingReason($product);
+            if ($reason !== null) {
+                $blockedReasons[] = $reason;
+            } else {
+                $deletable->push($product);
+            }
+        }
+
+        $blockedCount = count($blockedReasons);
+        if ($deletable->isEmpty()) {
+            return back()
+                ->with('error', $blockedReasons[0] ?? 'These products cannot be permanently deleted yet.')
+                ->with('error_title', 'Could not permanently delete')
+                ->with('error_meta', $blockedCount > 1
+                    ? $blockedCount.' selected products are waiting on a customer checkout. Finish or cancel those checkouts first.'
+                    : 'Finish or cancel related checkouts before permanently deleting these products.');
+        }
+
+        $deletedCount = $deletable->count();
+
         try {
-            app(ProductPermanentDeleteService::class)->forceDeleteMany($products);
+            app(ProductPermanentDeleteService::class)->forceDeleteMany($deletable);
         } catch (ProductPermanentDeleteBlockedException $e) {
             return back()
                 ->with('error', $e->getMessage())
+                ->with('error_title', 'Could not permanently delete')
                 ->with('error_meta', 'Finish or cancel related checkouts before permanently deleting these products.');
         } catch (ProductPermanentDeleteStorageException $e) {
             report($e);
 
             return back()
                 ->with('error', 'Some products could not be permanently deleted. None of the selected products were removed.')
+                ->with('error_title', 'Could not permanently delete')
                 ->with('error_meta', 'Gallery file cleanup could not be completed safely.');
         } catch (ProductPermanentDeleteCleanupPendingException $e) {
             report($e);
@@ -242,24 +269,24 @@ final class ProductBulkController extends Controller
                 request(),
                 'product_bulk_action',
                 store: $store,
-                metadata: [
-                    'action' => 'force_delete',
-                    'product_count' => $n,
-                    'gallery_cleanup_pending' => true,
+            metadata: [
+                'action' => 'force_delete',
+                'selected_count' => $n,
+                'product_count' => $deletedCount,
+                'blocked_count' => $blockedCount,
+                'gallery_cleanup_pending' => true,
                     'quarantine_operation_id' => $e->operationId,
                     'pending_quarantine_paths' => $e->pendingPaths,
                 ]
             );
 
-            return back()
-                ->with('success', $n.' product(s) permanently deleted. This cannot be undone.')
-                ->with('success_title', 'Permanently deleted')
-                ->with('success_meta', 'Some temporary gallery cleanup could not be completed and will be retried.');
+            return $this->bulkForceDeleteOutcome($deletedCount, $blockedReasons, true);
         } catch (QueryException $e) {
             report($e);
 
             return back()
                 ->with('error', 'Some products could not be permanently deleted. None of the selected products were removed.')
+                ->with('error_title', 'Could not permanently delete')
                 ->with('error_meta', 'Try deleting one product at a time, or contact support if this continues.');
         }
 
@@ -267,11 +294,44 @@ final class ProductBulkController extends Controller
             request(),
             'product_bulk_action',
             store: $store,
-            metadata: ['action' => 'force_delete', 'product_count' => $n]
+            metadata: [
+                'action' => 'force_delete',
+                'selected_count' => $n,
+                'product_count' => $deletedCount,
+                'blocked_count' => $blockedCount,
+            ]
         );
 
-        return back()->with('success', $n.' product(s) permanently deleted. This cannot be undone.')
+        return $this->bulkForceDeleteOutcome($deletedCount, $blockedReasons, false);
+    }
+
+    /**
+     * @param  list<string>  $blockedReasons
+     */
+    private function bulkForceDeleteOutcome(int $deletedCount, array $blockedReasons, bool $galleryCleanupPending): RedirectResponse
+    {
+        $blockedCount = count($blockedReasons);
+        $response = back()
+            ->with('success', $deletedCount.' product(s) permanently deleted. This cannot be undone.')
             ->with('success_title', 'Permanently deleted');
+
+        $successMeta = $galleryCleanupPending
+            ? 'Some temporary gallery cleanup could not be completed and will be retried.'
+            : null;
+        if ($successMeta !== null) {
+            $response->with('success_meta', $successMeta);
+        }
+
+        if ($blockedCount === 0) {
+            return $response;
+        }
+
+        return $response
+            ->with('error', $blockedCount === 1
+                ? $blockedReasons[0]
+                : $blockedCount.' selected products could not be permanently deleted.')
+            ->with('error_title', 'Some products were kept')
+            ->with('error_meta', 'Finish or cancel related checkouts, then permanently delete those products.');
     }
 
     /**

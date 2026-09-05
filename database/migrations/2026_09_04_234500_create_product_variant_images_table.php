@@ -16,8 +16,13 @@ return new class extends Migration
                 $table->foreignId('product_image_id')->constrained('product_images')->cascadeOnDelete();
                 $table->unsignedInteger('sort_order')->default(0);
                 $table->timestamps();
-                $table->unique(['product_variant_id', 'product_image_id']);
-                $table->index(['product_image_id', 'sort_order']);
+                // MySQL identifiers max out at 64 characters; Laravel's default unique name is too long.
+                $table->unique(['product_variant_id', 'product_image_id'], 'pvi_variant_image_unique');
+                $table->index(['product_image_id', 'sort_order'], 'pvi_image_sort_index');
+            });
+        } elseif (! $this->hasIndex('product_variant_images', 'pvi_variant_image_unique')) {
+            Schema::table('product_variant_images', function (Blueprint $table) {
+                $table->unique(['product_variant_id', 'product_image_id'], 'pvi_variant_image_unique');
             });
         }
 
@@ -81,5 +86,12 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('product_variant_images');
+    }
+
+    private function hasIndex(string $table, string $index): bool
+    {
+        return collect(Schema::getIndexes($table))
+            ->pluck('name')
+            ->contains($index);
     }
 };
