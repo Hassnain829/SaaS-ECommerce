@@ -32,16 +32,16 @@ final class ServerSideImageHttpUrlValidator
         }
 
         $host = strtolower((string) $parts['host']);
-        if ($host === '' || $host === 'localhost') {
-            return false;
-        }
-
         if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
             $host = substr($host, 1, -1);
         }
 
-        if (str_contains($host, '%')) {
+        if ($host === '' || str_contains($host, '%')) {
             return false;
+        }
+
+        if (self::isLoopbackHost($host)) {
+            return self::allowsLoopbackImageUrls();
         }
 
         $ips = self::resolveHostToIps($host);
@@ -103,5 +103,40 @@ final class ServerSideImageHttpUrlValidator
             : (FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
 
         return filter_var($ip, FILTER_VALIDATE_IP, $flags) !== false;
+    }
+
+    public static function isLoopbackHttpUrl(string $url): bool
+    {
+        $parts = parse_url(trim($url));
+        if ($parts === false || ! isset($parts['host'])) {
+            return false;
+        }
+
+        $host = strtolower((string) $parts['host']);
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            $host = substr($host, 1, -1);
+        }
+
+        return self::isLoopbackHost($host);
+    }
+
+    public static function allowsLoopbackImageUrls(): bool
+    {
+        $flag = config('product_import.allow_loopback_image_urls');
+        if ($flag === true) {
+            return true;
+        }
+        if ($flag === false) {
+            return false;
+        }
+
+        return app()->environment('local');
+    }
+
+    private static function isLoopbackHost(string $host): bool
+    {
+        return $host === 'localhost'
+            || $host === '127.0.0.1'
+            || $host === '::1';
     }
 }

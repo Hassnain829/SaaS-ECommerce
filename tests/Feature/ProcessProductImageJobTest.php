@@ -81,6 +81,96 @@ class ProcessProductImageJobTest extends TestCase
         $this->assertSame(1, (int) ($import->result_summary['processed_images'] ?? 0));
     }
 
+    public function test_image_job_fails_localhost_without_retry_throw_when_loopback_disabled(): void
+    {
+        Storage::fake('public');
+        Http::fake();
+        config(['product_import.allow_loopback_image_urls' => false]);
+
+        [$import, $row] = $this->queuedImportImage(
+            'http://localhost:8080/wordpress/wp-content/uploads/2025/09/Pepper-Front-Rv-02-2-1.png'
+        );
+
+        $job = new ProcessProductImageJob($row->id, $import->id);
+        $job->handle(app(ProductCatalogImageDownloader::class));
+
+        $row->refresh();
+        $this->assertSame(ProductImage::STATUS_FAILED, $row->status);
+        $this->assertStringContainsString('localhost', (string) $row->failure_reason);
+        Http::assertNothingSent();
+        $import->refresh();
+        $this->assertSame(1, (int) ($import->result_summary['failed_images'] ?? 0));
+    }
+
+    public function test_image_job_downloads_localhost_when_loopback_is_enabled(): void
+    {
+        Storage::fake('public');
+        config(['product_import.allow_loopback_image_urls' => true]);
+        Http::fake([
+            'http://localhost:8080/wordpress/a.png' => Http::response("\x89PNG\r\n\x1a\n".str_repeat('x', 40), 200, ['Content-Type' => 'image/png']),
+        ]);
+
+        [$import, $row] = $this->queuedImportImage('http://localhost:8080/wordpress/a.png');
+
+        $job = new ProcessProductImageJob($row->id, $import->id);
+        $job->handle(app(ProductCatalogImageDownloader::class));
+
+        $row->refresh();
+        $this->assertSame(ProductImage::STATUS_READY, $row->status);
+        Storage::disk('public')->assertExists($row->image_path);
+    }
+
+    /**
+     * @return array{0: ProductImport, 1: ProductImage}
+     */
+    private function queuedImportImage(string $sourceUrl): array
+    {
+        $owner = $this->createMerchantUser('img-job-'.uniqid('', true).'@example.com');
+        $store = $this->createMemberStore($owner, 'Img Job Local', Store::ROLE_OWNER);
+
+        $import = ProductImport::query()->create([
+            'store_id' => $store->id,
+            'created_by' => $owner->id,
+            'original_filename' => 'x.csv',
+            'stored_disk' => 'local',
+            'stored_path' => 'x.csv',
+            'mime_type' => 'text/csv',
+            'file_extension' => 'csv',
+            'status' => ProductImport::STATUS_COMPLETED,
+            'headers' => [],
+            'column_mapping' => [],
+            'result_summary' => [
+                'total_images' => 1,
+                'processed_images' => 0,
+                'failed_images' => 0,
+            ],
+        ]);
+
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'P',
+            'slug' => 'p-'.uniqid(),
+            'description' => null,
+            'base_price' => 1,
+            'sku' => 'PJ-'.strtoupper(substr(uniqid(), -6)),
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => [],
+        ]);
+
+        $row = ProductImage::query()->create([
+            'product_id' => $product->id,
+            'image_path' => ProductImage::PENDING_DISK_PATH,
+            'source_url' => $sourceUrl,
+            'sort_order' => 0,
+            'is_primary' => true,
+            'status' => ProductImage::STATUS_QUEUED,
+            'product_import_id' => $import->id,
+        ]);
+
+        return [$import, $row];
+    }
+
     public function test_import_progress_endpoint_returns_snapshot_json(): void
     {
         $owner = $this->createMerchantUser('prog@example.com');

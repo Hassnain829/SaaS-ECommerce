@@ -9,6 +9,7 @@ use App\Services\Catalog\ProductCatalogImageDownloader;
 use App\Services\Catalog\ProductImportMediaProgress;
 use App\Support\Catalog\ProductImportMerchantMessages;
 use App\Support\Catalog\ProductImportQueue;
+use App\Support\Security\ServerSideImageHttpUrlValidator;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -68,6 +69,17 @@ class ProcessProductImageJob implements ShouldQueue
         }
         if ($url === '' || ! preg_match('#^https?://#i', $url)) {
             $this->markFailed($image, 'No valid image URL was stored for this row.');
+
+            return;
+        }
+
+        if (! ServerSideImageHttpUrlValidator::isSafeRemoteHttpUrl($url)) {
+            $this->markFailed(
+                $image,
+                ServerSideImageHttpUrlValidator::isLoopbackHttpUrl($url)
+                    ? 'This image URL points to a local WordPress address (localhost) and cannot be downloaded from this server. Keep WordPress running locally, or export images from a public site URL.'
+                    : 'This image URL is not a public web address and cannot be downloaded.'
+            );
 
             return;
         }

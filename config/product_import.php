@@ -48,6 +48,17 @@ return [
     ) ?? true,
 
     /*
+    | Local WordPress/WooCommerce CSV exports often use http://localhost:... image URLs.
+    | Those stay blocked in production (SSRF). When null, loopback is allowed only in the
+    | local app environment so a developer machine can fetch its own WordPress media.
+    */
+    'allow_loopback_image_urls' => filter_var(
+        env('PRODUCT_IMPORT_ALLOW_LOOPBACK_IMAGES'),
+        FILTER_VALIDATE_BOOL,
+        FILTER_NULL_ON_FAILURE
+    ),
+
+    /*
     |--------------------------------------------------------------------------
     | Stale import detection (result page + optional job guard)
     |--------------------------------------------------------------------------
