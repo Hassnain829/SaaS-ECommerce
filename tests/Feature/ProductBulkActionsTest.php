@@ -12,6 +12,7 @@ use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\Delivery\ShippingWeightResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -382,7 +383,7 @@ class ProductBulkActionsTest extends TestCase
         $product = $product->fresh()->load('variants');
         $this->assertSame(15.0, (float) data_get($product->meta, 'shipping_weight'));
 
-        $resolver = app(\App\Services\Delivery\ShippingWeightResolver::class);
+        $resolver = app(ShippingWeightResolver::class);
         foreach ($product->variants as $variant) {
             $this->assertArrayNotHasKey('shipping_weight', $variant->meta ?? []);
             $this->assertSame(15.0, $resolver->resolveExact($product, $variant));
