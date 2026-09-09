@@ -269,12 +269,12 @@ final class ProductBulkController extends Controller
                 request(),
                 'product_bulk_action',
                 store: $store,
-            metadata: [
-                'action' => 'force_delete',
-                'selected_count' => $n,
-                'product_count' => $deletedCount,
-                'blocked_count' => $blockedCount,
-                'gallery_cleanup_pending' => true,
+                metadata: [
+                    'action' => 'force_delete',
+                    'selected_count' => $n,
+                    'product_count' => $deletedCount,
+                    'blocked_count' => $blockedCount,
+                    'gallery_cleanup_pending' => true,
                     'quarantine_operation_id' => $e->operationId,
                     'pending_quarantine_paths' => $e->pendingPaths,
                 ]

@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\CheckoutService;
 use App\Services\Delivery\DeliverySetupStatusService;
 use App\Services\Delivery\ShippingWeightCoverageService;
+use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Delivery\StoreShippingPreferences;
 use App\Support\ProductEditPayload;
 use Database\Seeders\CarrierSeeder;
@@ -355,7 +356,7 @@ class ShippingWeightManagementTest extends TestCase
         $product = Product::query()->where('store_id', $store->id)->where('name', 'Weighted Tee')->firstOrFail();
         $this->assertSame(2.5, (float) data_get($product->meta, 'shipping_weight'));
 
-        $resolver = app(\App\Services\Delivery\ShippingWeightResolver::class);
+        $resolver = app(ShippingWeightResolver::class);
         foreach ($product->variants as $variant) {
             $this->assertArrayNotHasKey('shipping_weight', $variant->meta ?? [], $variant->sku);
             $this->assertSame(2.5, $resolver->resolveExact($product, $variant), $variant->sku);
@@ -399,7 +400,7 @@ class ShippingWeightManagementTest extends TestCase
 
         $this->assertArrayNotHasKey('shipping_weight', $variant->fresh()->meta ?? []);
         $this->assertSame(4.0, (float) data_get($product->fresh()->meta, 'shipping_weight'));
-        $this->assertSame(4.0, app(\App\Services\Delivery\ShippingWeightResolver::class)->resolveExact($product->fresh(), $variant->fresh()));
+        $this->assertSame(4.0, app(ShippingWeightResolver::class)->resolveExact($product->fresh(), $variant->fresh()));
     }
 
     public function test_digital_checkout_item_does_not_receive_weight_snapshot(): void

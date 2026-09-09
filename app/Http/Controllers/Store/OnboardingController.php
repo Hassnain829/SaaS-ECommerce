@@ -18,7 +18,6 @@ use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
 use App\Services\Catalog\ProductPermanentDeleteService;
 use App\Services\Catalog\ProductTaxableDefaultResolver;
 use App\Services\Currency\StoreCatalogCurrencyConverter;
-use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
@@ -31,10 +30,10 @@ use App\Support\ProductCreateImageDraft;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductImageStorage;
 use App\Support\ProductTypeBehavior;
-use App\Support\VariantProductImageTokens;
 use App\Support\StockMovementRecorder;
 use App\Support\StoreBusinessDefaults;
 use App\Support\StorePermission;
+use App\Support\VariantProductImageTokens;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
@@ -4092,5 +4091,4 @@ class OnboardingController extends Controller
 
         return ['nullable', 'numeric', 'min:0.01', 'max:'.$max];
     }
-
 }
