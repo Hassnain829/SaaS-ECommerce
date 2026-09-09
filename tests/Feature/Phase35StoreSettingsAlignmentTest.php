@@ -87,27 +87,23 @@ class Phase35StoreSettingsAlignmentTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.locations.index'))
             ->assertOk()
-            ->assertSee('Locations are places where you store or fulfill inventory, such as a warehouse, shop, stock room, restaurant branch, or third-party storage.', false)
-            ->assertSee('Locations control where stock is stored. Markets and currencies control where and how you sell. Market-specific selling settings will be added later.', false)
-            ->assertSee('What locations are used for', false)
-            ->assertSee('Inventory levels', false)
-            ->assertSee('Reservations', false)
-            ->assertSee('Stock movements', false)
-            ->assertSee('Future fulfillment origin', false)
-            ->assertSee('What locations do not control', false)
-            ->assertSee('Customer markets', false)
-            ->assertSee('Selling currencies', false)
-            ->assertSee('Regional pricing', false)
-            ->assertSee('Storefront availability', false)
+            ->assertSee('Location overview', false)
+            ->assertSee('Locations hold inventory and provide ship-from addresses.', false)
+            ->assertSee('They do not control customer markets, currencies, or storefront availability.', false)
+            ->assertSee('Customer delivery coverage is managed in Delivery.', false)
+            ->assertSee('Open Delivery', false)
             ->assertSee('Add location', false)
-            ->assertSee('Edit', false)
+            ->assertSee('Edit location', false)
             ->assertSee('Make default', false)
             ->assertSee('Deactivate', false)
+            ->assertSee('Customer pickup', false)
+            ->assertSee('Coming soon', false)
             ->assertDontSee('Carrier setup', false)
             ->assertDontSee('Configure Shipping', false)
             ->assertDontSee('Assign market', false)
             ->assertDontSee('Assign currency', false)
-            ->assertDontSee('Stock transfer', false);
+            ->assertDontSee('Stock transfer', false)
+            ->assertDontSee('FedEx pickup scheduling is live', false);
     }
 
     public function test_staff_can_view_locations_but_cannot_mutate_them(): void
@@ -122,7 +118,7 @@ class Phase35StoreSettingsAlignmentTest extends TestCase
             ->get(route('settings.locations.index'))
             ->assertOk()
             ->assertSee('You can view locations. Store owners manage location changes.', false)
-            ->assertSee('Locations control where stock is stored.', false);
+            ->assertSee('Locations hold inventory and provide ship-from addresses.', false);
 
         $this->actingAs($staff)
             ->withSession(['current_store_id' => $store->id])

@@ -48,9 +48,26 @@ class LocationController extends Controller
         $fedExAccount = $this->fedExGuard->resolveActiveModelAAccount($store);
         $fedExConnectPhone = $this->shipperPhoneResolver->fromAccount($fedExAccount);
 
+        $selectedLocationId = (int) $request->integer('location');
+        if (! $locations->contains(fn (Location $location): bool => (int) $location->id === $selectedLocationId)) {
+            $selectedLocationId = (int) ($locations->first()?->id ?? 0);
+        }
+
+        $activeLocations = $locations->where('is_active', true);
+        $locationMetrics = [
+            'total' => $locations->count(),
+            'active' => $activeLocations->count(),
+            'ship_from_ready' => $activeLocations
+                ->filter(fn (Location $location): bool => (bool) ($originReadinessByLocationId[$location->id]?->ready ?? false))
+                ->count(),
+            'pickup' => $activeLocations->where('pickup_enabled', true)->count(),
+        ];
+
         return view('user_view.locations', [
             'selectedStore' => $store,
             'locations' => $locations,
+            'selectedLocationId' => $selectedLocationId,
+            'locationMetrics' => $locationMetrics,
             'locationTypes' => Location::TYPES,
             'countries' => TaxCountryCatalog::all(),
             'canManageLocations' => $request->user()?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE) ?? false,
@@ -85,9 +102,7 @@ class LocationController extends Controller
             metadata: ['location_id' => $location->id, 'location_name' => $location->name]
         );
 
-        return back()
-            ->with('success', 'Location added.')
-            ->with('success_title', 'Inventory location');
+        return $this->workspaceRedirect($location, 'Location added.', 'Inventory location');
     }
 
     public function update(Request $request, Location $location): RedirectResponse
@@ -108,9 +123,7 @@ class LocationController extends Controller
             metadata: ['location_id' => $location->id, 'location_name' => $location->name]
         );
 
-        return back()
-            ->with('success', 'Location updated.')
-            ->with('success_title', 'Inventory location');
+        return $this->workspaceRedirect($location, 'Location updated.', 'Inventory location');
     }
 
     public function makeDefault(Request $request, Location $location): RedirectResponse
@@ -127,9 +140,11 @@ class LocationController extends Controller
             metadata: ['location_id' => $location->id, 'location_name' => $location->name]
         );
 
-        return back()
-            ->with('success', "{$location->name} is now the default inventory location.")
-            ->with('success_title', 'Default location changed');
+        return $this->workspaceRedirect(
+            $location,
+            "{$location->name} is now the default inventory location.",
+            'Default location changed',
+        );
     }
 
     public function deactivate(Request $request, Location $location): RedirectResponse
@@ -139,15 +154,19 @@ class LocationController extends Controller
 
         $activeCount = $store->locations()->where('is_active', true)->count();
         if ($activeCount <= 1 && $location->is_active) {
-            return back()->withErrors([
-                'location' => 'Keep at least one active inventory location for this store.',
-            ]);
+            return redirect()
+                ->route('settings.locations.index', ['location' => $location->id])
+                ->withErrors([
+                    'location' => 'Keep at least one active inventory location for this store.',
+                ]);
         }
 
         if ($location->is_default && $location->is_active) {
-            return back()->withErrors([
-                'location' => 'Choose another default location before deactivating this one.',
-            ]);
+            return redirect()
+                ->route('settings.locations.index', ['location' => $location->id])
+                ->withErrors([
+                    'location' => 'Choose another default location before deactivating this one.',
+                ]);
         }
 
         $location->update([
@@ -162,9 +181,37 @@ class LocationController extends Controller
             metadata: ['location_id' => $location->id, 'location_name' => $location->name]
         );
 
-        return back()
-            ->with('success', $location->is_active ? 'Location activated.' : 'Location deactivated.')
-            ->with('success_title', 'Inventory location');
+        return $this->workspaceRedirect(
+            $location,
+            $location->is_active ? 'Location activated.' : 'Location deactivated.',
+            'Inventory location',
+        );
+    }
+
+    public function togglePickup(Request $request, Location $location): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        abort_unless($store && (int) $location->store_id === (int) $store->id, 404);
+
+        $location->update([
+            'pickup_enabled' => ! $location->pickup_enabled,
+            'updated_by' => $request->user()?->id,
+        ]);
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            $location->pickup_enabled ? 'location_pickup_enabled' : 'location_pickup_disabled',
+            store: $store,
+            metadata: ['location_id' => $location->id, 'location_name' => $location->name]
+        );
+
+        return $this->workspaceRedirect(
+            $location,
+            $location->pickup_enabled
+                ? "{$location->name}: customer pickup is enabled."
+                : "{$location->name}: customer pickup is disabled.",
+            'Customer pickup updated',
+        );
     }
 
     /**
@@ -283,5 +330,13 @@ class LocationController extends Controller
         }
 
         return $token;
+    }
+
+    private function workspaceRedirect(Location $location, string $success, string $title): RedirectResponse
+    {
+        return redirect()
+            ->route('settings.locations.index', ['location' => $location->id])
+            ->with('success', $success)
+            ->with('success_title', $title);
     }
 }

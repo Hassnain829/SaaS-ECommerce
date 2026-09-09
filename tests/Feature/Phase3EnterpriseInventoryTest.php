@@ -41,7 +41,7 @@ class Phase3EnterpriseInventoryTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('settings.locations.index'))
             ->assertOk()
-            ->assertSee('Inventory locations', false)
+            ->assertSee('Location overview', false)
             ->assertSee('Main location', false);
 
         $this->actingAs($owner)

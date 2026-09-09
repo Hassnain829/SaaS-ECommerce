@@ -354,6 +354,9 @@ Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])-
     Route::patch('/settings/locations/{location}/deactivate', [LocationController::class, 'deactivate'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.locations.deactivate');
+    Route::patch('/settings/locations/{location}/pickup', [LocationController::class, 'togglePickup'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.locations.pickup');
     Route::get('/settings/taxes', [TaxSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('settings.taxes.index');

@@ -9675,6 +9675,911 @@
             flex-direction: column;
         }
     }
+
+    /* Locations workspace */
+    .locations-console [x-cloak] {
+        display: none !important;
+    }
+
+    .locations-console {
+        --lc-blue: #175cd3;
+        --lc-blue-soft: #eff8ff;
+        --lc-amber: #b54708;
+        --lc-amber-soft: #fff7e8;
+        --lc-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 4px rgb(16 24 40 / 0.03);
+    }
+
+    .locations-console .lc-intro {
+        margin: 0 0 0.55rem;
+    }
+
+    .locations-console .lc-intro h2 {
+        font-size: var(--text-section);
+        line-height: var(--text-section--line-height);
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .locations-console .lc-intro p {
+        margin-top: 0.15rem;
+        color: var(--color-ink-muted);
+        font-size: 0.8125rem;
+    }
+
+    .locations-console .lc-health {
+        padding: 0.8rem 1rem 1rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 0.625rem;
+        box-shadow: var(--lc-shadow);
+    }
+
+    .locations-console .lc-health-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.65rem;
+    }
+
+    .locations-console .lc-eyebrow {
+        color: #58708c;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.045em;
+        text-transform: uppercase;
+    }
+
+    .locations-console .lc-scope {
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .locations-console .lc-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .locations-console .lc-metric {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.2rem 1.25rem;
+    }
+
+    .locations-console .lc-metric:first-child {
+        padding-left: 0.25rem;
+    }
+
+    .locations-console .lc-metric + .lc-metric {
+        border-left: 1px solid var(--color-border);
+    }
+
+    .locations-console .lc-metric-icon {
+        width: 2.875rem;
+        height: 2.875rem;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: var(--lc-blue);
+        background: #edf5ff;
+        border-radius: 0.625rem;
+    }
+
+    .locations-console .lc-metric-icon.is-green {
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+    }
+
+    .locations-console .lc-metric-icon.is-amber {
+        color: #e66f00;
+        background: var(--lc-amber-soft);
+    }
+
+    .locations-console .lc-metric-label {
+        color: #475467;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .locations-console .lc-metric-value {
+        margin-top: 0.05rem;
+        font-size: 1.5rem;
+        line-height: 1.05;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .locations-console .lc-metric-note {
+        margin-top: 0.15rem;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .locations-console .lc-boundary {
+        min-height: 2.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        margin-top: 0.75rem;
+        padding: 0.55rem 0.9rem;
+        color: #28548a;
+        background: var(--lc-blue-soft);
+        border: 1px solid #b8d9ff;
+        border-radius: 0.55rem;
+        font-size: 0.8125rem;
+    }
+
+    .locations-console .lc-boundary p {
+        flex: 1;
+        margin: 0;
+    }
+
+    .locations-console .lc-boundary a {
+        color: #075dcc;
+        font-weight: 600;
+        white-space: nowrap;
+        text-decoration: none;
+    }
+
+    .locations-console .lc-boundary a:hover {
+        text-decoration: underline;
+    }
+
+    .locations-console .lc-workspace {
+        display: grid;
+        grid-template-columns: minmax(18.75rem, 34%) minmax(0, 66%);
+        min-height: 33.75rem;
+        margin-top: 0.75rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 0.625rem;
+        box-shadow: var(--lc-shadow);
+    }
+
+    .locations-console .lc-directory {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        padding: 1rem;
+        border-right: 1px solid var(--color-border);
+    }
+
+    .locations-console .lc-directory-head {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .locations-console .lc-directory-head h2 {
+        font-size: 1.125rem;
+        line-height: 1.3;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .locations-console .lc-count {
+        min-width: 1.375rem;
+        height: 1.375rem;
+        display: grid;
+        place-items: center;
+        padding: 0 0.4rem;
+        color: #475467;
+        background: #edf0f3;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .locations-console .lc-tools {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 8.25rem;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    .locations-console .lc-search {
+        position: relative;
+    }
+
+    .locations-console .lc-search svg {
+        position: absolute;
+        top: 50%;
+        left: 0.7rem;
+        width: 0.95rem;
+        height: 0.95rem;
+        transform: translateY(-50%);
+        color: #7b8ca4;
+        pointer-events: none;
+    }
+
+    .locations-console .lc-search input,
+    .locations-console .lc-tools select {
+        width: 100%;
+        height: 2.25rem;
+        color: var(--color-ink);
+        background: #fff;
+        border: 1px solid #cfd5dc;
+        border-radius: 0.5rem;
+    }
+
+    .locations-console .lc-search input {
+        padding: 0.45rem 0.7rem 0.45rem 2.25rem;
+    }
+
+    .locations-console .lc-tools select {
+        padding: 0.35rem 1.75rem 0.35rem 0.65rem;
+    }
+
+    .locations-console .lc-list {
+        display: grid;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    .locations-console .lc-item {
+        position: relative;
+        width: 100%;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.7rem;
+        padding: 0.8rem 1.9rem 0.8rem 0.8rem;
+        color: var(--color-ink);
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+        text-align: left;
+    }
+
+    .locations-console .lc-item:hover {
+        background: #f8faf9;
+    }
+
+    .locations-console .lc-item.is-selected {
+        background: #f3faf7;
+        border-color: #b7e3d5;
+        box-shadow: inset 3px 0 var(--color-brand);
+    }
+
+    .locations-console .lc-item-icon {
+        width: 2.75rem;
+        height: 2.75rem;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+        border-radius: 0.55rem;
+    }
+
+    .locations-console .lc-item-main {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .locations-console .lc-item-name {
+        display: block;
+        font-weight: 600;
+    }
+
+    .locations-console .lc-item-type,
+    .locations-console .lc-item-address,
+    .locations-console .lc-item-stock {
+        display: block;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .locations-console .lc-item-address {
+        margin-top: 0.45rem;
+        line-height: 1.4;
+    }
+
+    .locations-console .lc-badges {
+        display: flex;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+
+    .locations-console .lc-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.12rem 0.5rem;
+        color: #475467;
+        background: #f0f2f4;
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+    }
+
+    .locations-console .lc-badge.is-green {
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+    }
+
+    .locations-console .lc-badge.is-amber {
+        color: var(--lc-amber);
+        background: var(--lc-amber-soft);
+    }
+
+    .locations-console .lc-badge.is-blue {
+        color: var(--lc-blue);
+        background: var(--lc-blue-soft);
+    }
+
+    .locations-console .lc-item-stock {
+        margin-top: 0.4rem;
+    }
+
+    .locations-console .lc-item-chevron {
+        position: absolute;
+        top: 50%;
+        right: 0.75rem;
+        transform: translateY(-50%);
+        color: #475467;
+    }
+
+    .locations-console .lc-directory-footer {
+        margin-top: auto;
+        padding-top: 1rem;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .locations-console .lc-empty {
+        padding: 2.4rem 1rem;
+        text-align: center;
+        color: var(--color-ink-muted);
+        border: 1px dashed #cfd5dc;
+        border-radius: 0.55rem;
+    }
+
+    .locations-console .lc-empty strong {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--color-ink);
+    }
+
+    .locations-console .lc-detail {
+        min-width: 0;
+        padding: 1rem;
+    }
+
+    .locations-console .lc-detail-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1.1rem;
+    }
+
+    .locations-console .lc-detail-title {
+        margin-top: 0.25rem;
+        font-size: 1.3rem;
+        line-height: 1.25;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        color: var(--color-ink);
+    }
+
+    .locations-console .lc-detail-address {
+        margin-top: 0.1rem;
+        color: var(--color-ink-muted);
+        font-size: 0.8125rem;
+    }
+
+    .locations-console .lc-detail-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .locations-console .lc-menu-wrap {
+        position: relative;
+    }
+
+    .locations-console .lc-icon-btn {
+        width: 2.25rem;
+        height: 2.25rem;
+        display: grid;
+        place-items: center;
+        color: #475467;
+        background: transparent;
+        border: 0;
+        border-radius: 0.5rem;
+    }
+
+    .locations-console .lc-icon-btn:hover {
+        background: #f2f4f5;
+    }
+
+    .locations-console .lc-menu {
+        position: absolute;
+        top: 2.5rem;
+        right: 0;
+        z-index: 20;
+        width: 12.5rem;
+        padding: 0.3rem;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+        box-shadow: 0 12px 28px rgb(16 24 40 / 0.14);
+    }
+
+    .locations-console .lc-menu button,
+    .locations-console .lc-menu .lc-menu-item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.55rem;
+        color: #344054;
+        background: transparent;
+        border: 0;
+        border-radius: 0.4rem;
+        text-align: left;
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+
+    .locations-console .lc-menu button:hover,
+    .locations-console .lc-menu .lc-menu-item:hover {
+        background: #f3f5f6;
+    }
+
+    .locations-console .lc-menu-hint {
+        padding: 0.25rem 0.55rem 0.45rem;
+        color: var(--color-ink-muted);
+        font-size: 0.6875rem;
+    }
+
+    .locations-console .lc-readiness {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 0.9rem;
+        padding: 0.8rem 0.95rem;
+        color: var(--color-brand);
+        background: #f3faf7;
+        border: 1px solid #b7e3d5;
+        border-radius: 0.55rem;
+    }
+
+    .locations-console .lc-readiness.is-attention {
+        color: var(--lc-amber);
+        background: var(--lc-amber-soft);
+        border-color: #f2d39b;
+    }
+
+    .locations-console .lc-readiness-icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: #fff;
+        background: var(--color-brand);
+        border-radius: 50%;
+    }
+
+    .locations-console .lc-readiness.is-attention .lc-readiness-icon {
+        background: var(--lc-amber);
+    }
+
+    .locations-console .lc-readiness-copy {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .locations-console .lc-readiness-title {
+        display: block;
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+
+    .locations-console .lc-readiness-text {
+        display: block;
+        margin-top: 0.05rem;
+        color: #587169;
+        font-size: 0.8125rem;
+    }
+
+    .locations-console .lc-readiness.is-attention .lc-readiness-text {
+        color: #805b2c;
+    }
+
+    .locations-console .lc-readiness-btn {
+        padding: 0;
+        color: inherit;
+        background: transparent;
+        border: 0;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .locations-console .lc-checklist {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 0.65rem;
+        background: #f8faf9;
+        border: 1px solid var(--color-border);
+        border-radius: 0.5rem;
+    }
+
+    .locations-console .lc-check {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: #475467;
+        font-size: 0.75rem;
+    }
+
+    .locations-console .lc-check.is-ok {
+        color: var(--color-brand-ink);
+    }
+
+    .locations-console .lc-check.is-missing {
+        color: var(--lc-amber);
+    }
+
+    .locations-console .lc-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+    }
+
+    .locations-console .lc-card {
+        padding: 0.8rem 0.95rem;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+    }
+
+    .locations-console .lc-card h3,
+    .locations-console .lc-pickup-head h3 {
+        margin: 0 0 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .locations-console .lc-row {
+        min-height: 2.5rem;
+        display: grid;
+        grid-template-columns: 1.4rem minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--color-ink-muted);
+        border-top: 1px solid #edf0f2;
+        font-size: 0.8125rem;
+    }
+
+    .locations-console .lc-row:first-of-type {
+        border-top: 0;
+    }
+
+    .locations-console .lc-row-value {
+        color: var(--color-ink);
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .locations-console .lc-pickup,
+    .locations-console .lc-contact {
+        margin-top: 0.75rem;
+        padding: 0.8rem 0.95rem;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+    }
+
+    .locations-console .lc-pickup-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .locations-console .lc-pickup-row,
+    .locations-console .lc-contact {
+        display: grid;
+        grid-template-columns: 2rem minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.7rem;
+    }
+
+    .locations-console .lc-pickup-row {
+        min-height: 3.4rem;
+        border-top: 1px solid #edf0f2;
+    }
+
+    .locations-console .lc-pickup-head + .lc-pickup-row {
+        border-top: 0;
+    }
+
+    .locations-console .lc-pickup-icon {
+        width: 2rem;
+        height: 2rem;
+        display: grid;
+        place-items: center;
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+        border-radius: 0.5rem;
+    }
+
+    .locations-console .lc-pickup-icon.is-muted {
+        color: #7d8792;
+        background: #f0f2f4;
+    }
+
+    .locations-console .lc-pickup-name {
+        display: block;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .locations-console .lc-pickup-copy {
+        display: block;
+        margin-top: 0.1rem;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .locations-console .lc-toggle {
+        width: 2.625rem;
+        height: 1.5rem;
+        position: relative;
+        padding: 0;
+        background: #d0d5dd;
+        border: 0;
+        border-radius: 999px;
+    }
+
+    .locations-console .lc-toggle::after {
+        content: "";
+        position: absolute;
+        top: 0.2rem;
+        left: 0.2rem;
+        width: 1.125rem;
+        height: 1.125rem;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 2px rgb(16 24 40 / 0.18);
+        transition: left 0.15s ease;
+    }
+
+    .locations-console .lc-toggle.is-on {
+        background: var(--color-brand);
+    }
+
+    .locations-console .lc-toggle.is-on::after {
+        left: 1.3rem;
+    }
+
+    .locations-console .lc-soon {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.5rem;
+        color: #475467;
+        background: #f0f2f4;
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+    }
+
+    .locations-console .lc-contact {
+        margin-top: 0.75rem;
+    }
+
+    .locations-console .lc-available {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: var(--color-brand);
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .locations-console .lc-available.is-missing {
+        color: var(--lc-amber);
+    }
+
+    .locations-console .lc-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.9rem;
+        margin-top: 0.75rem;
+        padding-top: 0.7rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .locations-console .lc-updated {
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .locations-console .lc-footer-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .locations-console .lc-modal-form .form-section + .form-section {
+        margin-top: 1.1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .locations-console-modal .lc-form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+    }
+
+    .locations-console-modal .lc-form-grid .full {
+        grid-column: 1 / -1;
+    }
+
+    .locations-console-modal .lc-check-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.55rem;
+        padding: 0.7rem;
+        border: 1px solid var(--color-border);
+        border-radius: 0.5rem;
+    }
+
+    .locations-console-modal .lc-check-row input {
+        margin-top: 0.2rem;
+    }
+
+    .locations-console-modal .lc-check-row strong,
+    .locations-console-modal .lc-disabled-service strong {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--color-ink);
+    }
+
+    .locations-console-modal .lc-check-row span span,
+    .locations-console-modal .lc-disabled-service p {
+        display: block;
+        margin-top: 0.15rem;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .locations-console-modal .lc-disabled-service {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.9rem;
+        padding: 0.7rem;
+        color: #667085;
+        background: #f8f9fa;
+        border: 1px solid var(--color-border);
+        border-radius: 0.5rem;
+    }
+
+    .locations-console-modal .lc-phone-note {
+        min-height: 2.5rem;
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 0.7rem;
+        color: var(--color-ink-muted);
+        background: #f8f9fa;
+        border: 1px solid var(--color-border);
+        border-radius: 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .locations-console-modal .lc-soon {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.5rem;
+        color: #475467;
+        background: #f0f2f4;
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+    }
+
+    .locations-console-modal .lc-icon-btn {
+        width: 2.25rem;
+        height: 2.25rem;
+        display: grid;
+        place-items: center;
+        color: #475467;
+        background: transparent;
+        border: 0;
+        border-radius: 0.5rem;
+    }
+
+    .locations-console-modal .lc-icon-btn:hover {
+        background: #f2f4f5;
+    }
+
+    @media (max-width: 1260px) {
+        .locations-console .lc-workspace {
+            grid-template-columns: 20.6rem minmax(0, 1fr);
+        }
+
+        .locations-console .lc-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            row-gap: 0.75rem;
+        }
+
+        .locations-console .lc-metric:nth-child(3) {
+            border-left: 0;
+            padding-left: 0.25rem;
+        }
+
+        .locations-console .lc-checklist {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 980px) {
+        .locations-console .lc-workspace {
+            grid-template-columns: 1fr;
+        }
+
+        .locations-console .lc-directory {
+            min-height: 18.75rem;
+            border-right: 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .locations-console .lc-list {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 760px) {
+        .locations-console .lc-metrics {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .locations-console .lc-metric,
+        .locations-console .lc-metric:nth-child(3) {
+            padding: 0.3rem 0.65rem;
+        }
+
+        .locations-console .lc-boundary {
+            align-items: flex-start;
+        }
+
+        .locations-console .lc-list {
+            grid-template-columns: 1fr;
+        }
+
+        .locations-console .lc-detail-top {
+            flex-direction: column;
+        }
+
+        .locations-console .lc-detail-actions {
+            width: 100%;
+            justify-content: flex-end;
+        }
+
+        .locations-console .lc-cards {
+            grid-template-columns: 1fr;
+        }
+
+        .locations-console .lc-footer {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .locations-console-modal .lc-form-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 }
 
 @layer utilities {
