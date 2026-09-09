@@ -27,7 +27,7 @@
         <div class="flex items-center justify-between border-b border-[#E2E8F0] bg-white px-5 py-4 sm:px-6">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Store Setup</p>
-                <h2 class="mt-1 text-2xl font-medium text-[#0F172A]">Create a New Store</h2>
+                <h2 class="mt-1 text-section font-medium text-[#0F172A]">Create a New Store</h2>
             </div>
             <button
                 type="button"
@@ -57,7 +57,7 @@
 
             <div class="rounded-xl border border-[#E2E8F0] bg-white p-6 md:p-8">
                 <div class="mb-8">
-                    <h3 class="text-3xl font-medium text-[#0F172A]">Let's set up your store</h3>
+                    <h3 class="text-title font-medium text-[#0F172A]">Let's set up your store</h3>
                     <p class="mt-1 text-base text-[#64748B]">Fill in the essential details to create your digital storefront.</p>
                 </div>
 

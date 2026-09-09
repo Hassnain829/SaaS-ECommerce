@@ -51,15 +51,7 @@ class TaxSettingsController extends Controller
             'activeRatesCount' => $taxRates->where('is_active', true)->count(),
             'canManageTax' => $canManageTax,
             'countries' => TaxCountryCatalog::all(),
-            'regionCatalog' => TaxCountryCatalog::regionsFor('US') !== [] ? [
-                'US' => TaxCountryCatalog::regionsFor('US'),
-                'CA' => TaxCountryCatalog::regionsFor('CA'),
-                'AU' => TaxCountryCatalog::regionsFor('AU'),
-                'MX' => TaxCountryCatalog::regionsFor('MX'),
-                'IN' => TaxCountryCatalog::regionsFor('IN'),
-                'DE' => TaxCountryCatalog::regionsFor('DE'),
-                'GB' => TaxCountryCatalog::regionsFor('GB'),
-            ] : [],
+            'regionCatalog' => TaxCountryCatalog::allRegions(),
             'openCreateRateForm' => $openCreateRateForm,
             'editingRateId' => $editingRateId,
         ]);

@@ -245,7 +245,7 @@
             id="notification-prefs-card"
         >
             <div class="border-b border-stone-100 px-4 py-4 sm:px-5">
-                <h2 class="font-[Poppins] text-base font-bold text-stone-900">Settings</h2>
+                <h2 class="font-heading text-base font-bold text-stone-900">Settings</h2>
                 <p class="mt-0.5 text-xs leading-4 text-stone-500">Configure alert delivery preferences.</p>
                 <button
                     type="button"

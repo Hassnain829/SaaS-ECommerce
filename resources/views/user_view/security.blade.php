@@ -58,7 +58,7 @@
   @endif
 
   <section>
-    <h2 class="text-3xl text-[#0F172A]">Account security</h2>
+    <h2 class="text-section text-[#0F172A]">Account security</h2>
     <p class="text-[#64748B] text-sm md:text-base">Review signed-in devices and store-sensitive activity for {{ $selectedStore?->name ?? 'your account' }}.</p>
   </section>
 
@@ -67,7 +67,7 @@
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between gap-4">
           <div>
-            <h3 class="text-2xl text-[#0F172A]">Active sessions</h3>
+            <h3 class="text-section text-[#0F172A]">Active sessions</h3>
             <p class="text-sm text-[#64748B]">Sign out devices you do not recognize.</p>
           </div>
           <span class="rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-bold text-[#0052CC]">{{ $sessions->whereNull('revoked_at')->count() }} active</span>
@@ -129,7 +129,7 @@
 
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="px-6 py-4 border-b border-[#E2E8F0]">
-          <h3 class="text-2xl text-[#0F172A]">Recent security activity</h3>
+          <h3 class="text-section text-[#0F172A]">Recent security activity</h3>
           <p class="text-sm text-[#64748B]">Audit records from your account and the active store.</p>
         </div>
         <div class="divide-y divide-[#E2E8F0]">

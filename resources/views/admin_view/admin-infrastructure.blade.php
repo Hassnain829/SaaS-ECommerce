@@ -57,7 +57,7 @@
     <!-- Page Header with title, subtitle and action button -->
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-            <h1 class="text-2xl md:text-3xl lg:text-4xl font-medium text-[#0B1C30]">Integrations & Partner Management</h1>
+            <h1 class="text-section font-medium text-[#0B1C30]">Integrations & Partner Management</h1>
             <p class="text-sm md:text-base text-[#434654] mt-2 max-w-2xl">
                 Orchestrate your e-commerce ecosystem. Seamlessly connect logistics providers, payment gateways, and secondary services to power your global storefront.
             </p>
@@ -82,7 +82,7 @@
                     <span class="w-2 h-2 bg-[#004E33] rounded-full"></span>
                     <span class="text-[#005236] text-xs font-bold uppercase tracking-wider">AI Optimized</span>
                 </div>
-                <h3 class="text-xl md:text-2xl font-medium text-[#0B1C30] mb-2">Enable Automated Routing</h3>
+                <h3 class="text-xl font-medium text-[#0B1C30] mb-2">Enable Automated Routing</h3>
                 <p class="text-sm text-[#434654] max-w-lg">
                     Automatically assign orders to the most cost-effective courier based on weight, destination, and real-time carrier health.
                 </p>
@@ -107,7 +107,7 @@
             </div>
             <div>
                 <div class="text-[#C4D2FF]/70 text-xs font-bold uppercase tracking-wider">Active Integrations</div>
-                <div class="text-[#C4D2FF] text-4xl font-bold mt-1">14</div>
+                <div class="text-[#C4D2FF] text-title font-semibold mt-1">14</div>
                 <div class="flex items-center gap-1 mt-2 text-[#C4D2FF]">
                     <svg width="12" height="7" viewBox="0 0 12 7" fill="none">
                         <path d="M0.816667 7L0 6.18333L4.31667 1.8375L6.65 4.17083L9.68333 1.16667H8.16667V0H11.6667V3.5H10.5V1.98333L6.65 5.83333L4.31667 3.5L0.816667 7Z" fill="#C4D2FF"/>
@@ -368,7 +368,7 @@
     <div class="bg-[#EFF4FF] rounded-3xl p-6 md:p-8 border border-[#C3C6D6]/10">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
-                <h2 class="text-xl md:text-2xl font-medium text-[#0B1C30]">Marketplace Integrations</h2>
+                <h2 class="text-xl font-medium text-[#0B1C30]">Marketplace Integrations</h2>
                 <p class="text-sm text-[#434654]">Explore 200+ native connectors for your e-commerce stack.</p>
             </div>
             <!-- Filter input -->

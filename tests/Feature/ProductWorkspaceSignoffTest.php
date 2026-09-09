@@ -42,50 +42,53 @@ class ProductWorkspaceSignoffTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('Editable', false)
-            ->assertSee('Save and return to workspace', false)
-            ->assertSee('Save and exit', false)
+            ->assertSee('Edit product', false)
+            ->assertSee('Save product', false)
             ->assertSee('id="editProductForm"', false)
-            ->assertSee('id="catalog-editor-workspace-layout"', false)
-            ->assertSee('id="product-edit-workspace"', false)
-            ->assertSee('id="catalog-editor-section-nav"', false)
-            ->assertSee('class="product-edit-inline-footer', false)
-            ->assertSee('Editor status', false)
-            ->assertSee('href="#catalog-edit-section-basics"', false)
-            ->assertSee('href="#catalog-edit-section-media"', false)
-            ->assertSee('href="#catalog-edit-section-pricing"', false)
-            ->assertSee('href="#catalog-edit-section-tax-shipping"', false)
-            ->assertSee('href="#catalog-edit-section-organization"', false)
-            ->assertSee('href="#catalog-edit-section-attributes"', false)
-            ->assertSee('href="#catalog-edit-section-additional-details"', false)
-            ->assertSee('href="#catalog-edit-section-option-groups"', false)
-            ->assertSee('href="#catalog-edit-section-inventory"', false)
-            ->assertSee('data-product-edit-tab>Product details</a>', false)
-            ->assertSee('data-product-edit-tab>Images</a>', false)
+            ->assertSee('data-pf-shell', false)
+            ->assertSee('data-product-create-guard', false)
+            ->assertSee('id="productCreateLeaveModal"', false)
+            ->assertSee('data-wizard-kind="edit"', false)
+            ->assertSee('Keep editing', false)
+            ->assertSee('Leave without saving', false)
+            ->assertSee('Leave without saving discards these edits.', false)
+            ->assertSee('Save draft keeps your current edits as a draft.', false)
+            ->assertSee('data-product-create-save-draft', false)
+            ->assertSee('name="_save_as_draft"', false)
+            ->assertDontSee('Leave without saving keeps this product as a draft', false)
+            ->assertDontSee('Keep adding', false)
+            ->assertSee('name="_method" value="PUT"', false)
+            ->assertSee('data-pf-step="essentials"', false)
+            ->assertSee('data-pf-step="media"', false)
+            ->assertSee('data-pf-step="pricing"', false)
+            ->assertSee('data-pf-step="organization"', false)
+            ->assertSee('data-pf-step="tax-shipping"', false)
+            ->assertSee('data-pf-step="details"', false)
+            ->assertSee('Price &amp; stock', false)
             ->assertSee('data-image-dropzone', false)
             ->assertSee('Drop photos here or click to browse', false)
             ->assertSee('Choose photos', false)
-            ->assertSee('up to 8 photos', false)
+            ->assertSee('up to 32 photos', false)
+            ->assertSee('id="variantPhotoPicker"', false)
+            ->assertSee('Photos for this variant', false)
+            ->assertSee('id="variantPhotoPickerStatus"', false)
+            ->assertSee('id="variantPhotoPickerUpload"', false)
             ->assertSee('id="productImageLightbox"', false)
             ->assertSee('Drag to change photo order', false)
             ->assertSee('id="edit_product_image"', false)
-            ->assertDontSee('No product images selected.', false)
-            ->assertSee('data-product-edit-tab>Price &amp; inventory</a>', false)
-            ->assertSee('data-product-edit-tab>Tax &amp; shipping</a>', false)
-            ->assertSee('data-product-edit-tab>Organization</a>', false)
-            ->assertSee('data-product-edit-tab>Specifications</a>', false)
-            ->assertSee('data-product-edit-tab>Additional details</a>', false)
-            ->assertSee('data-product-edit-tab>Options</a>', false)
-            ->assertSee('data-product-edit-tab>Inventory</a>', false)
+            ->assertSee('Delete Product', false)
             ->assertSee('data-product-edit-section', false)
-            ->assertDontSee('data-product-edit-tab>Details</a>', false)
-            ->assertDontSee('data-product-edit-tab>Photos</a>', false)
-            ->assertDontSee('Price &amp; stock', false)
-            ->assertDontSee('Extra info', false)
             ->assertSee('aria-label="Notifications"', false)
             ->assertSee('aria-label="Help"', false)
             ->assertSee('aria-label="Open profile menu"', false)
+            ->assertDontSee('No product images selected.', false)
+            ->assertDontSee('Save and return to workspace', false)
+            ->assertDontSee('Editor status', false)
+            ->assertDontSee('id="product-edit-workspace"', false)
+            ->assertDontSee('id="catalog-editor-workspace-layout"', false)
             ->assertDontSee('Edit catalog item', false)
-            ->assertDontSee('Editing from product workspace', false);
+            ->assertDontSee('Editing from product workspace', false)
+            ->assertDontSee('Keep adding', false);
 
         $html = $response->getContent();
 
@@ -101,10 +104,11 @@ class ProductWorkspaceSignoffTest extends TestCase
             'catalog-edit-section-option-groups',
             'catalog-edit-section-inventory',
         ], $sectionIds[1]);
-        $this->assertStringNotContainsString(
-            'id="catalog-edit-section-media" class="mt-6',
-            $html
-        );
+        $this->assertStringContainsString('class="pf-section"', $html);
+        $this->assertStringContainsString('window.__productCreateGate', $html);
+        $appJs = (string) file_get_contents(base_path('resources/js/app.js'));
+        $this->assertStringContainsString('isProductEditWizard', $appJs);
+        $this->assertStringContainsString('continuePendingProductWizardLeave', $appJs);
     }
 
     public function test_catalog_edit_popup_collapses_advanced_fields_and_links_to_full_workspace(): void
@@ -179,6 +183,63 @@ class ProductWorkspaceSignoffTest extends TestCase
 
         $product->refresh();
         $this->assertSame('Return Product Renamed', $product->name);
+        $this->assertTrue((bool) $product->status);
+    }
+
+    public function test_save_as_draft_from_edit_unpublishes_and_redirects_to_drafts(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Draft Edit Store');
+        $product = $this->makeProduct($store, 'Live Lamp');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('products.edit', $product))
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                '_workspace_return_product_id' => (string) $product->id,
+                '_save_as_draft' => '1',
+                '_draft_leave_to' => route('products.edit', $product),
+                'name' => 'Live Lamp draft',
+                'description' => 'd',
+                'base_price' => 10,
+                'sku' => $product->sku,
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'variation_types' => [],
+            ])
+            ->assertRedirect(route('products', ['view' => 'drafts']));
+
+        $product->refresh();
+        $this->assertSame('Live Lamp draft', $product->name);
+        $this->assertFalse((bool) $product->status);
+    }
+
+    public function test_save_as_draft_from_edit_honors_same_origin_leave_path(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Draft Leave Store');
+        $product = $this->makeProduct($store, 'Stay Live');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_save_as_draft' => '1',
+                '_draft_leave_to' => route('dashboard'),
+                'name' => 'Stay Live',
+                'description' => 'd',
+                'base_price' => 12,
+                'sku' => $product->sku,
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'variation_types' => [],
+            ])
+            ->assertRedirect(route('dashboard'));
+
+        $product->refresh();
+        $this->assertFalse((bool) $product->status);
+        $this->assertSame('12.00', number_format((float) $product->base_price, 2, '.', ''));
     }
 
     public function test_catalog_list_does_not_show_workspace_bridge_banner_for_legacy_query(): void

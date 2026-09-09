@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add products — Merchant workspace</title>
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
@@ -22,7 +23,7 @@
         <div class="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-10 sm:px-6">
             <div class="mb-10">
                 <p class="text-xs font-bold uppercase tracking-[0.08em] text-[#64748B]">Onboarding · Step 2 of 3</p>
-                <h1 class="mt-2 text-3xl font-semibold tracking-tight">Add your first products</h1>
+                <h1 class="mt-2 text-title font-semibold tracking-tight">Add your first products</h1>
                 <p class="mt-3 text-sm leading-relaxed text-[#475569]">
                     Start with a single product form here, or import a catalog. You can also open the full product workspace later from Products.
                 </p>
@@ -117,10 +118,10 @@
                     @endif
                     <div class="min-w-0">
                     @if ($store->products->count() > 0)
-                        <h1 class="text-3xl font-medium text-[#0F172A]">Add Product to {{ $store->name }}</h1>
+                        <h1 class="text-title font-medium text-[#0F172A]">Add Product to {{ $store->name }}</h1>
                         <p class="text-base text-[#64748B] mt-1">Expand your store catalog. Define product basics, add variation types, then add variant rows by selecting options.</p>
                     @else
-                        <h1 class="text-3xl font-medium text-[#0F172A]">Add Product</h1>
+                        <h1 class="text-title font-medium text-[#0F172A]">Add Product</h1>
                         <p class="text-base text-[#64748B] mt-1">Define product basics, add variation types, then add
                             variant rows by selecting options.</p>
                     @endif

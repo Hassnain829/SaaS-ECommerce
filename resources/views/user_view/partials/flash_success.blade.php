@@ -1,3 +1,4 @@
+@include('user_view.partials.flash_error')
 @if (session('success'))
     @php
         $successMessage = session('success');
@@ -28,7 +29,7 @@
 
     <div
         data-success-flash
-        class="pointer-events-none fixed right-4 top-4 z-[200] w-[calc(100%-2rem)] max-w-sm opacity-0 translate-y-[-8px] transition-all duration-300 ease-out sm:right-6 sm:top-5"
+        class="pointer-events-none fixed right-4 {{ session('error') ? 'top-28 sm:top-32' : 'top-4 sm:top-5' }} z-[200] w-[calc(100%-2rem)] max-w-sm opacity-0 translate-y-[-8px] transition-all duration-300 ease-out sm:right-6"
         role="status"
         aria-live="polite"
     >

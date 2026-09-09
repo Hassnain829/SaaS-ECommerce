@@ -41,7 +41,7 @@
 @section('content')
 <div class="font-inter max-w-9xl mx-auto space-y-6">
     <div>
-        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30]">System Notifications</h1>
+        <h1 class="text-title font-medium text-[#0B1C30]">System Notifications</h1>
         <p class="text-[19px] text-[#434654] mt-2 max-w-4xl">Manage your global platform configurations and communication preferences.</p>
     </div>
 

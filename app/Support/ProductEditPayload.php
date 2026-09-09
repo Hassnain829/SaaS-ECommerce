@@ -62,6 +62,7 @@ final class ProductEditPayload
                     'stock_alert' => 5,
                     'shipping_weight' => '',
                     'product_image_id' => null,
+                    'product_image_ids' => [],
                     'custom_fields' => [],
                 ],
             ],
@@ -83,6 +84,7 @@ final class ProductEditPayload
             'variationTypes.options:id,variation_type_id,value,sort_order',
             'variants.options:id,variation_type_id,value',
             'variants.linkedCatalogImage:id,product_id,image_path,status,sort_order,is_primary',
+            'variants.catalogImages:id,product_id,image_path,status,sort_order,is_primary',
             'images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
             'productAttributes.terms:id,attribute_id,name',
         ]);
@@ -208,6 +210,19 @@ final class ProductEditPayload
                     'product_image_id' => $variant->product_image_id
                         ? (int) $variant->product_image_id
                         : null,
+                    'product_image_ids' => (static function ($variant): array {
+                        $ids = $variant->catalogImages
+                            ->sortBy(fn ($image) => [(int) ($image->pivot->sort_order ?? 0), (int) $image->id])
+                            ->pluck('id')
+                            ->map(static fn ($id): int => (int) $id)
+                            ->values()
+                            ->all();
+                        if ($ids === [] && $variant->product_image_id) {
+                            $ids = [(int) $variant->product_image_id];
+                        }
+
+                        return $ids;
+                    })($variant),
                     'custom_fields' => self::editorRowsFromMeta(is_array($variant->meta) ? $variant->meta : []),
                 ];
             })->values()->all(),
@@ -406,6 +421,7 @@ final class ProductEditPayload
                     'product_image_id' => self::normalizeProductImageIdForPayload(
                         $variantRow['product_image_id'] ?? null
                     ),
+                    'product_image_ids' => self::normalizeProductImageIdsForPayload($variantRow),
                     'custom_fields' => [],
                 ];
 
@@ -584,5 +600,30 @@ final class ProductEditPayload
         }
 
         return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $variantRow
+     * @return list<int|string>
+     */
+    private static function normalizeProductImageIdsForPayload(array $variantRow): array
+    {
+        $ids = [];
+        if (isset($variantRow['product_image_ids']) && is_array($variantRow['product_image_ids'])) {
+            foreach ($variantRow['product_image_ids'] as $value) {
+                $normalized = self::normalizeProductImageIdForPayload($value);
+                if ($normalized !== null) {
+                    $ids[] = $normalized;
+                }
+            }
+        }
+        if ($ids === []) {
+            $single = self::normalizeProductImageIdForPayload($variantRow['product_image_id'] ?? null);
+            if ($single !== null) {
+                $ids[] = $single;
+            }
+        }
+
+        return array_values(array_unique($ids, SORT_REGULAR));
     }
 }

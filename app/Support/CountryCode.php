@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Support\Tax\TaxCountryCatalog;
+
 final class CountryCode
 {
     public static function normalize(mixed $country): string
@@ -16,14 +18,35 @@ final class CountryCode
             return self::normalize($matches[1]);
         }
 
-        return match ($country) {
+        $mapped = match ($country) {
             'UNITED STATES', 'UNITED STATES OF AMERICA', 'USA', 'U.S.', 'U.S.A.', 'US' => 'US',
             'UNITED KINGDOM', 'UK', 'GREAT BRITAIN', 'GB' => 'GB',
             'CANADA', 'CA' => 'CA',
             'PAKISTAN', 'PK' => 'PK',
             'UNITED ARAB EMIRATES', 'UAE', 'AE' => 'AE',
-            default => strlen($country) === 2 ? $country : '',
+            default => null,
         };
+
+        if ($mapped !== null) {
+            return $mapped;
+        }
+
+        if (strlen($country) === 2) {
+            return $country;
+        }
+
+        return self::fromCatalogName($country);
+    }
+
+    private static function fromCatalogName(string $normalizedName): string
+    {
+        foreach (TaxCountryCatalog::all() as $code => $name) {
+            if (strtoupper(trim((string) $name)) === $normalizedName) {
+                return strtoupper((string) $code);
+            }
+        }
+
+        return '';
     }
 
     /**

@@ -436,6 +436,110 @@ class ProductImageTest extends TestCase
         $this->assertSame(1, (int) $existing->sort_order);
     }
 
+    public function test_owner_can_keep_nine_product_images(): void
+    {
+        Storage::fake('public');
+
+        $owner = $this->createMerchantUser('owner-img9@example.com');
+        $store = $this->createMemberStore($owner, 'Img Store 9', Store::ROLE_OWNER);
+
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Nine Photos',
+            'slug' => 'nine-photos-img',
+            'description' => 'x',
+            'base_price' => 10,
+            'sku' => 'IMG-9',
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => ['default_stock' => 1, 'stock_alert' => 1],
+        ]);
+
+        $paths = [];
+        for ($i = 1; $i <= 8; $i++) {
+            $path = UploadedFile::fake()->create('keep-'.$i.'.jpg', 12, 'image/jpeg')->store('products/'.$store->id, 'public');
+            $paths[] = $path;
+            ProductImage::query()->create([
+                'product_id' => $product->id,
+                'image_path' => $path,
+                'sort_order' => $i - 1,
+                'is_primary' => $i === 1,
+            ]);
+        }
+
+        $newFile = UploadedFile::fake()->create('ninth.jpg', 12, 'image/jpeg');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => 'Nine Photos',
+                'description' => 'x',
+                'base_price' => 10,
+                'sku' => 'IMG-9',
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'existing_image_paths' => $paths,
+                'product_images' => [$newFile],
+            ])
+            ->assertRedirect(route('products'));
+
+        $this->assertSame(9, $product->images()->count());
+    }
+
+    public function test_owner_cannot_keep_more_than_thirty_two_product_images(): void
+    {
+        Storage::fake('public');
+
+        $owner = $this->createMerchantUser('owner-img33@example.com');
+        $store = $this->createMemberStore($owner, 'Img Store 33', Store::ROLE_OWNER);
+
+        $product = Product::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Too Many Photos',
+            'slug' => 'too-many-photos-img',
+            'description' => 'x',
+            'base_price' => 10,
+            'sku' => 'IMG-33',
+            'product_type' => 'physical',
+            'status' => true,
+            'meta' => ['default_stock' => 1, 'stock_alert' => 1],
+        ]);
+
+        $paths = [];
+        for ($i = 1; $i <= 32; $i++) {
+            $path = UploadedFile::fake()->create('keep-'.$i.'.jpg', 12, 'image/jpeg')->store('products/'.$store->id, 'public');
+            $paths[] = $path;
+            ProductImage::query()->create([
+                'product_id' => $product->id,
+                'image_path' => $path,
+                'sort_order' => $i - 1,
+                'is_primary' => $i === 1,
+            ]);
+        }
+
+        $newFile = UploadedFile::fake()->create('fresh.jpg', 12, 'image/jpeg');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                '_open_edit_product_modal' => '1',
+                '_edit_product_id' => (string) $product->id,
+                'name' => 'Too Many Photos',
+                'description' => 'x',
+                'base_price' => 10,
+                'sku' => 'IMG-33',
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'existing_image_paths' => $paths,
+                'product_images' => [$newFile],
+            ])
+            ->assertSessionHasErrors('product_images');
+
+        $this->assertSame(32, $product->images()->count());
+    }
+
     protected function createMerchantUser(string $email): User
     {
         $role = Role::firstOrCreate(['name' => 'user']);

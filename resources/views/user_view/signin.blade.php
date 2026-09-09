@@ -4,12 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In — Merchant workspace</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="user-typography bg-white antialiased min-h-screen flex flex-col overflow-x-hidden font-[Inter]">
+<body class="user-typography bg-white antialiased min-h-screen flex flex-col overflow-x-hidden">
     <div class="flex-1 flex flex-col md:flex-row">
         <div class="w-full md:w-1/2 bg-white px-6 py-8 md:px-12 lg:px-16 xl:px-20 flex flex-col justify-center items-center">
             <div class="w-full max-w-[448px]">
@@ -20,13 +18,13 @@
                         </svg>
                     </div>
                     <div class="flex flex-col">
-                        <span class="text-[#0F172A] text-xl font-bold leading-5">Merchant workspace</span>
+                        <span class="font-heading text-[#0F172A] text-xl font-bold leading-5">Merchant workspace</span>
                         <span class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-[1px]">Store operations</span>
                     </div>
                 </div>
 
                 <div class="mb-8">
-                    <h1 class="text-[#0F172A] text-3xl font-medium leading-9">Welcome back</h1>
+                    <h1 class="font-heading text-[#0F172A] text-title font-semibold leading-tight">Welcome back</h1>
                     <p class="text-[#64748B] text-base leading-6 mt-1">Sign in to manage your store catalog, orders, and delivery.</p>
                 </div>
 
@@ -92,7 +90,7 @@
                     <span class="text-[#0052CC] text-xs font-bold uppercase tracking-[0.3px]">Merchant operations</span>
                 </div>
 
-                <h2 class="text-4xl md:text-5xl font-bold leading-tight text-[#0F172A]">
+                <h2 class="text-title font-bold leading-tight text-[#0F172A]">
                     Manage products, orders,<br>and delivery from one<br><span class="text-[#0052CC]">merchant workspace</span>.
                 </h2>
 

@@ -427,7 +427,7 @@
             <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="mb-6">
                     <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Workspace summary</p>
-                    <h3 class="mt-1 text-2xl font-bold text-slate-900">{{ $stores->count() }} {{ Str::plural('store', $stores->count()) }}</h3>
+                    <h3 class="mt-1 text-section font-bold text-slate-900">{{ $stores->count() }} {{ Str::plural('store', $stores->count()) }}</h3>
                 </div>
 
                 <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

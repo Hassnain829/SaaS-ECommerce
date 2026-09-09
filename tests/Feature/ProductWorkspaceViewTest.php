@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Delivery\StoreShippingPreferences;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -28,6 +29,58 @@ class ProductWorkspaceViewTest extends TestCase
             ->assertSee('Product workspace', false)
             ->assertSee('Alpha', false)
             ->assertSee('Default inventory', false);
+    }
+
+    public function test_workspace_shows_product_shipping_weight(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Weight Store');
+        $product = $this->makeProduct($store, 'Weighted Lamp');
+        $product->forceFill(['meta' => ['shipping_weight' => 2.5]])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSeeText('Shipping weight')
+            ->assertSeeText('2.5 LB')
+            ->assertSeeText('Applies to every variant.');
+    }
+
+    public function test_workspace_shows_store_fallback_when_product_weight_is_missing(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Fallback Store');
+        app(StoreShippingPreferences::class)->update($store, ['fallback_item_weight' => 1.25]);
+        $product = $this->makeProduct($store, 'No Weight Yet');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSeeText('Shipping weight')
+            ->assertSeeText('Store fallback 1.25 LB')
+            ->assertDontSeeText('Applies to every variant.');
+    }
+
+    public function test_workspace_hides_shipping_weight_for_digital_products(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Digital Store');
+        $product = $this->makeProduct($store, 'PDF Guide');
+        $product->forceFill([
+            'product_type' => 'digital',
+            'requires_shipping' => false,
+            'meta' => ['shipping_weight' => 9],
+        ])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSeeText('Not required')
+            ->assertDontSeeText('Shipping weight')
+            ->assertDontSeeText('9 LB');
     }
 
     public function test_cross_store_workspace_returns_404(): void
@@ -243,10 +296,12 @@ class ProductWorkspaceViewTest extends TestCase
             ->get(route('products.edit', $product))
             ->assertOk()
             ->assertSee('Native Edit Product', false)
-            ->assertSee('id="product-edit-workspace"', false)
-            ->assertSee('product-edit-section-nav', false)
+            ->assertSee('data-pf-shell', false)
+            ->assertSee('data-product-create-guard', false)
             ->assertSee('Additional details', false)
             ->assertSee('aria-label="Notifications"', false)
+            ->assertDontSee('id="product-edit-workspace"', false)
+            ->assertDontSee('product-edit-section-nav', false)
             ->assertDontSee('Edit catalog item', false)
             ->assertDontSee('Catalog · Edit workspace', false);
     }

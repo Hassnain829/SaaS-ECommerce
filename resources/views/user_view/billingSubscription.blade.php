@@ -27,18 +27,18 @@
                                 <path d="M12 9V13M10 11H14" stroke="#0052CC" stroke-width="1.8" stroke-linecap="round" />
                             </svg>
                         </div>
-                        <h3 class="text-2xl">Professional</h3>
+                        <h3 class="text-section">Professional</h3>
                         <p class="text-xs text-[#64748B]">Billed monthly</p>
                     </div>
                     <div class="p-5 flex flex-col gap-5">
                         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                             <div>
                                 <p class="text-xs uppercase tracking-[1.2px] font-bold text-[#0052CC]">Current Plan</p>
-                                <h2 class="text-2xl mt-1">Professional Plan</h2>
+                                <h2 class="text-section mt-1">Professional Plan</h2>
                                 <p class="text-[#475569] text-sm mt-1">Next billing cycle: Oct 12, 2023</p>
                             </div>
                             <div class="text-left md:text-right">
-                                <p class="text-5xl font-semibold leading-none">$49.00</p>
+                                <p class="text-title font-semibold leading-none">$49.00</p>
                                 <p class="text-xs text-[#64748B] font-semibold mt-1">PER MONTH</p>
                             </div>
                         </div>

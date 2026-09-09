@@ -13,6 +13,8 @@ class CountryCodeTest extends TestCase
         $this->assertSame('US', CountryCode::normalize('United States (US)'));
         $this->assertSame('US', CountryCode::normalize('USA'));
         $this->assertSame('US', CountryCode::normalize('us'));
+        $this->assertSame('DE', CountryCode::normalize('Germany'));
+        $this->assertSame('FR', CountryCode::normalize('France'));
     }
 
     public function test_from_address_prefers_full_country_name_over_truncated_code(): void

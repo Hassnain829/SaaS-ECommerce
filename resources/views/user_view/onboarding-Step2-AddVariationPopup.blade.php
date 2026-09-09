@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Variation Type · BaaS</title>
-    <!-- Tailwind + Inter font (clean) -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
-    <link href='https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap' rel='stylesheet'>
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-<body class="user-typography min-h-screen flex items-center justify-center p-4 overflow-x-hidden font-[Inter]">
+</head>
+<body class="user-typography min-h-screen flex items-center justify-center p-4 overflow-x-hidden">
 
     <!-- semiâ€‘transparent overlay (mimics the popup background) -->
     <div class="ui-modal-shell flex">

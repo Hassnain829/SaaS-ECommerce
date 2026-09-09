@@ -125,7 +125,6 @@ class DefaultLocationService
             'fulfills_online_orders' => true,
             'pickup_enabled' => false,
             'routing_priority' => 100,
-            'service_countries' => $this->storeCountryCode($store) ? [$this->storeCountryCode($store)] : null,
             'created_by' => $actor?->id,
             'updated_by' => $actor?->id,
         ]);
@@ -160,7 +159,6 @@ class DefaultLocationService
     private function blankFulfillmentUpdates(Location $location, Store $store): array
     {
         $updates = [];
-        $countryCode = $this->storeCountryCode($store);
 
         if ($location->routing_priority === null) {
             $updates['routing_priority'] = 100;
@@ -172,10 +170,6 @@ class DefaultLocationService
 
         if ($location->pickup_enabled === null) {
             $updates['pickup_enabled'] = false;
-        }
-
-        if ($countryCode && blank($location->service_countries)) {
-            $updates['service_countries'] = [$countryCode];
         }
 
         return $updates;

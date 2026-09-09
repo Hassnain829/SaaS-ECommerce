@@ -53,7 +53,7 @@
 <div class="font-inter max-w-9xl mx-auto space-y-8">
     <!-- Page Header -->
     <div>
-        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30]">Platform Settings</h1>
+        <h1 class="text-title font-medium text-[#0B1C30]">Platform Settings</h1>
         <p class="text-base md:text-lg text-[#434654] mt-2 max-w-2xl">
             Manage global configurations, security protocols, and system-level preferences.
         </p>

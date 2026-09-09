@@ -20,7 +20,7 @@
                     </div>
                     <p class="text-[#475569] text-sm">Customer Acquisition Cost (CAC)</p>
                     <div class="mt-2 flex items-end gap-2">
-                        <h3 class="text-4xl leading-none">$42.30</h3>
+                        <h3 class="text-title leading-none">$42.30</h3>
                         <span class="text-[#10B981] font-semibold text-sm">8.2%</span>
                     </div>
                     <div class="mt-4 h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
@@ -35,7 +35,7 @@
                     </div>
                     <p class="text-[#475569] text-sm">Lifetime Value (LTV)</p>
                     <div class="mt-2 flex items-end gap-2">
-                        <h3 class="text-4xl leading-none">$178.40</h3>
+                        <h3 class="text-title leading-none">$178.40</h3>
                         <span class="text-[#10B981] font-semibold text-sm">14.5%</span>
                     </div>
                     <div class="mt-4 h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
@@ -50,7 +50,7 @@
                     </div>
                     <p class="text-[#475569] text-sm">Churn Rate (Monthly)</p>
                     <div class="mt-2 flex items-end gap-2">
-                        <h3 class="text-4xl leading-none">2.8%</h3>
+                        <h3 class="text-title leading-none">2.8%</h3>
                         <span class="text-[#F43F5E] font-semibold text-sm">0.4%</span>
                     </div>
                     <div class="mt-4 h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
@@ -63,7 +63,7 @@
             <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
                 <div class="p-4 md:p-5 border-b border-[#E2E8F0] flex items-center justify-between gap-4">
                     <div>
-                        <h2 class="text-2xl text-[#0F172A]">Retention Cohort Analysis</h2>
+                        <h2 class="text-section text-[#0F172A]">Retention Cohort Analysis</h2>
                         <p class="text-[#64748B] text-sm">Percentage of active users by month after signup</p>
                     </div>
                     <button class="h-10 px-4 rounded-lg border border-[#CBD5E1] text-sm text-[#334155] bg-[#F8FAFC]">All
@@ -142,7 +142,7 @@
             <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <article class="bg-white border border-[#CBD5E1] rounded-xl p-5">
                     <div class="flex items-center gap-3 mb-4">
-                        <h3 class="text-2xl">Sustainability Index</h3>
+                        <h3 class="text-section">Sustainability Index</h3>
                         <span class="text-xs font-bold bg-[#D1FAE5] text-[#059669] px-3 py-1 rounded-full">Score:
                             88/100</span>
                     </div>
@@ -166,7 +166,7 @@
                 </article>
 
                 <article class="bg-white border border-[#CBD5E1] rounded-xl p-5">
-                    <h3 class="text-2xl mb-5">Store Category Health</h3>
+                    <h3 class="text-section mb-5">Store Category Health</h3>
                     <div class="space-y-4">
                         <div>
                             <div class="flex justify-between text-sm mb-1"><span class="font-inter font-medium">Electronics &amp;
@@ -196,7 +196,7 @@
 
         <aside class="hidden xl:flex w-80 shrink-0 bg-white border border-[#E2E8F0] rounded-xl flex-col">
             <div class="p-6 border-b border-[#F1F5F9]">
-                <h3 class="text-2xl flex items-center gap-2"><span
+                <h3 class="text-section flex items-center gap-2"><span
                         class="w-2 h-2 rounded-full bg-[#10B981]"></span>Real-time Activity</h3>
             </div>
             <div class="flex-1 p-4 space-y-5 text-sm overflow-y-auto">

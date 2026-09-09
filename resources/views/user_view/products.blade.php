@@ -22,7 +22,9 @@
         'cf_key' => $filters['cf_key'] ?? '',
         'cf_value' => $filters['cf_value'] ?? '',
         'shipping_weight' => $filters['shipping_weight'] ?? '',
-        'view' => ($filters['view'] ?? 'active') === 'archived' ? 'deleted' : ($filters['view'] ?? 'active'),
+        'view' => in_array(($filters['view'] ?? 'active'), ['deleted', 'archived'], true)
+            ? 'deleted'
+            : (($filters['view'] ?? 'active') === 'drafts' ? 'drafts' : ($filters['view'] ?? 'active')),
         'per_page' => $filters['per_page'] ?? 25,
     ];
 
@@ -31,9 +33,15 @@
     $activeTagFilter = $activeTagFilter ?? null;
     $activeTaxonomyCategoryFilter = $activeTaxonomyCategoryFilter ?? null;
     $activeAttributeTermFilter = $activeAttributeTermFilter ?? null;
-    $catalogView = $catalogView ?? (($filters['view'] ?? 'active') === 'deleted' || ($filters['view'] ?? '') === 'archived' ? 'deleted' : 'active');
+    $catalogView = $catalogView ?? (($filters['view'] ?? 'active') === 'deleted' || ($filters['view'] ?? '') === 'archived' ? 'deleted' : (($filters['view'] ?? '') === 'drafts' ? 'drafts' : 'active'));
     $isDeletedView = $catalogView === 'deleted';
+    $isDraftsView = $catalogView === 'drafts';
+    $isActiveView = $catalogView === 'active';
     $deletedCount = (int) ($deletedCount ?? $archivedCount ?? 0);
+    $draftCount = (int) ($draftCount ?? 0);
+    $catalogListQuery = $isDeletedView ? ['view' => 'deleted'] : ($isDraftsView ? ['view' => 'drafts'] : []);
+    $catalogTabFilters = $baseFilters;
+    unset($catalogTabFilters['view']);
     $canManageBrands = in_array($currentUserStoreRole ?? '', ['owner', 'manager'], true);
     $canManageTags = $canManageBrands;
     $canManageCategories = $canManageBrands;
@@ -82,7 +90,8 @@
         $activeSort !== 'latest' ? $activeSort : '',
     ])->filter(fn ($v) => trim((string) $v) !== '')->count();
     $filtersPanelOpen = $panelFilterCount > 0;
-    $isGenuinelyEmptyCatalog = ! $isDeletedView && $panelFilterCount === 0 && (int) $products->total() === 0;
+    $isGenuinelyEmptyCatalog = $isActiveView && $panelFilterCount === 0 && (int) $products->total() === 0;
+    $isGenuinelyEmptyDrafts = $isDraftsView && $panelFilterCount === 0 && (int) $products->total() === 0;
     $isFilteredEmptyCatalog = ! $isDeletedView && $panelFilterCount > 0 && (int) $products->total() === 0;
     $catalogAttributeTermCount = ($catalogAttributes ?? collect())->sum(fn ($attribute) => $attribute->terms->count());
     $sortOptions = [
@@ -106,7 +115,9 @@
         title="Products"
         :lead="$isDeletedView
             ? 'Review deleted products for '.($selectedStore->name ?? 'this store')
-            : 'Manage catalog and inventory for '.($selectedStore->name ?? 'this store')"
+            : ($isDraftsView
+                ? 'Finish unpublished products for '.($selectedStore->name ?? 'this store')
+                : 'Manage catalog and inventory for '.($selectedStore->name ?? 'this store'))"
     >
         <x-slot:actions>
             @if ($canManageBrands)
@@ -166,7 +177,7 @@
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2.5">
                     <h2 class="text-xl font-semibold tracking-tight text-ink">
-                        {{ $isDeletedView ? 'Deleted products' : 'Product catalog' }}
+                        {{ $isDeletedView ? 'Deleted products' : ($isDraftsView ? 'Draft products' : 'Product catalog') }}
                     </h2>
                     @if ($selectedStore)
                         <span class="inline-flex items-center gap-1.5 rounded-full border border-[#CDE5DB] bg-[#F4FBF8] px-2.5 py-1 text-xs font-semibold text-[#0A4335]">
@@ -178,6 +189,8 @@
                 <p class="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-secondary">
                     @if ($isDeletedView)
                         Deleted products stay here until you undo delete or permanently remove them.
+                    @elseif ($isDraftsView)
+                        Unpublished products stay here until you finish them and publish. Customers cannot see these yet.
                     @else
                         Browse, filter, and update inventory for this store. Select products to make changes in bulk.
                     @endif
@@ -187,14 +200,24 @@
             <div class="flex flex-wrap items-center gap-2 lg:shrink-0">
                 <div class="inline-flex rounded-lg border border-border bg-surface-muted/60 p-1" role="tablist" aria-label="Catalog view">
                     <a
-                        href="{{ route('products', array_filter(array_merge($baseFilters, ['view' => null]))) }}"
-                        class="inline-flex items-center rounded-md px-3.5 py-2 text-sm font-semibold transition {{ ! $isDeletedView ? 'bg-brand text-white shadow-sm' : 'text-ink-secondary hover:bg-surface hover:text-ink' }}"
-                        @if (! $isDeletedView) aria-current="page" @endif
+                        href="{{ route('products', array_filter($catalogTabFilters)) }}"
+                        class="inline-flex items-center rounded-md px-3.5 py-2 text-sm font-semibold transition {{ $isActiveView ? 'bg-brand text-white shadow-sm' : 'text-ink-secondary hover:bg-surface hover:text-ink' }}"
+                        @if ($isActiveView) aria-current="page" @endif
                     >
                         Products
                     </a>
                     <a
-                        href="{{ route('products', array_filter(array_merge($baseFilters, ['view' => 'deleted']))) }}"
+                        href="{{ route('products', array_filter(array_merge($catalogTabFilters, ['view' => 'drafts', 'status' => null]))) }}"
+                        class="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-semibold transition {{ $isDraftsView ? 'bg-brand text-white shadow-sm' : 'text-ink-secondary hover:bg-surface hover:text-ink' }}"
+                        @if ($isDraftsView) aria-current="page" @endif
+                    >
+                        Drafts
+                        @if ($draftCount > 0)
+                            <span class="inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums {{ $isDraftsView ? 'bg-white/20 text-white' : 'bg-surface text-ink-secondary' }}">{{ $draftCount }}</span>
+                        @endif
+                    </a>
+                    <a
+                        href="{{ route('products', array_filter(array_merge($catalogTabFilters, ['view' => 'deleted', 'status' => null]))) }}"
                         class="inline-flex items-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-semibold transition {{ $isDeletedView ? 'bg-brand text-white shadow-sm' : 'text-ink-secondary hover:bg-surface hover:text-ink' }}"
                         @if ($isDeletedView) aria-current="page" @endif
                     >
@@ -239,7 +262,7 @@
             <div class="px-4 py-4 sm:px-5">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-ink-muted">In view</p>
                 <p class="mt-1 text-2xl font-semibold tracking-tight text-ink tabular-nums" data-stat-in-view>{{ number_format($stats['total_products']) }}</p>
-                <p class="mt-0.5 text-xs text-ink-muted">{{ $activeBrandFilter || $activeTagFilter || $activeTaxonomyCategoryFilter || $activeAttributeTermFilter || ($filters['product_type'] ?? '') !== '' ? 'Matching filters' : 'Products in this store' }}</p>
+                <p class="mt-0.5 text-xs text-ink-muted">{{ $activeBrandFilter || $activeTagFilter || $activeTaxonomyCategoryFilter || $activeAttributeTermFilter || ($filters['product_type'] ?? '') !== '' ? 'Matching filters' : ($isDraftsView ? 'Drafts in this store' : ($isDeletedView ? 'Deleted in this store' : 'Products in this store')) }}</p>
             </div>
             <div class="px-4 py-4 sm:px-5">
                 <p class="text-[11px] font-bold uppercase tracking-wider text-ink-muted">Out of stock</p>
@@ -316,7 +339,7 @@
                                 <path d="M2 14H14V12H2V14ZM14 6H11V2H5V6H2L8 12L14 6Z" fill="currentColor" />
                             </svg>
                         </a>
-                        <a href="{{ route('products', $isDeletedView ? ['view' => 'deleted'] : []) }}" class="inline-flex h-9 items-center rounded-lg border border-[#E2E8F0] bg-white px-3 text-xs font-semibold text-[#64748B] transition hover:bg-[#F8FAFC]" title="Clear all filters and search" onclick="event.stopPropagation()">Reset</a>
+                        <a href="{{ route('products', $catalogListQuery) }}" class="inline-flex h-9 items-center rounded-lg border border-[#E2E8F0] bg-white px-3 text-xs font-semibold text-[#64748B] transition hover:bg-[#F8FAFC]" title="Clear all filters and search" onclick="event.stopPropagation()">Reset</a>
                     </span>
                 </summary>
 
@@ -377,7 +400,7 @@
                                 @endforeach
                             </div>
                         </div>
-                        @if (! $isDeletedView)
+                        @if ($isActiveView)
                             <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[#E2E8F0] pt-2.5">
                                 <span class="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Show</span>
                                 <div class="flex flex-wrap gap-1.5">
@@ -593,7 +616,7 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
-                        <a href="{{ route('products', $isDeletedView ? ['view' => 'deleted'] : []) }}" class="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC]">Clear filters</a>
+                        <a href="{{ route('products', $catalogListQuery) }}" class="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC]">Clear filters</a>
                         <p class="text-xs text-[#94A3B8]">Type in a picker to find options fast — no long lists on the page.</p>
                     </div>
                 </form>
@@ -1726,121 +1749,13 @@
                         <div id="bulk-extra-shipping-weight" class="hidden space-y-3">
                             <p class="text-sm font-semibold text-[#0F172A]">Set shipping weight</p>
                             <p class="text-xs text-[#64748B]"><span id="bulk-shipping-weight-selected-count">0</span> products selected</p>
-
-                            <fieldset class="space-y-2">
-                                <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Apply weight to</legend>
-                                <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                    <input type="radio" name="bulk_shipping_weight_target_ui" value="products" class="mt-1" checked>
-                                    <span>
-                                        <span class="font-semibold text-[#0F172A]">Products</span>
-                                        <span class="mt-0.5 block text-xs text-[#64748B]">One weight per selected product. Variant overrides stay unchanged.</span>
-                                    </span>
-                                </label>
-                                <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                    <input type="radio" name="bulk_shipping_weight_target_ui" value="variants" class="mt-1">
-                                    <span>
-                                        <span class="font-semibold text-[#0F172A]">Variants</span>
-                                        <span class="mt-0.5 block text-xs text-[#64748B]">Assign weights by option value (for example Size or Weight). Product weights are not changed.</span>
-                                    </span>
-                                </label>
-                            </fieldset>
-
-                            <div id="bulk-shipping-weight-products-panel" class="space-y-3">
-                                <div class="flex flex-wrap items-end gap-3">
-                                    <div class="flex flex-col gap-1">
-                                        <label for="bulk-shipping-weight-value" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Shipping weight per item</label>
-                                        <div class="flex items-center gap-2">
-                            <input id="bulk-shipping-weight-value" type="number" min="0.01" max="{{ $shippingWeightMax ?? \App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT }}" step="0.001" class="w-28 rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="e.g. 0.80">
-                                            <span class="text-sm font-semibold text-[#64748B]">{{ $shippingWeightUnit ?? 'LB' }}</span>
-                                        </div>
-                                    </div>
+                            <p class="text-xs text-[#64748B]">Used for carrier checkout estimates. This weight applies to every variant. You do not set weight on each size or color.</p>
+                            <div class="flex flex-col gap-1">
+                                <label for="bulk-shipping-weight-value" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Shipping weight per item</label>
+                                <div class="flex items-center gap-2">
+                                    <input id="bulk-shipping-weight-value" type="number" min="0.01" max="{{ $shippingWeightMax ?? \App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT }}" step="0.001" class="w-28 rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="e.g. 0.80">
+                                    <span class="text-sm font-semibold text-[#64748B]">{{ $shippingWeightUnit ?? 'LB' }}</span>
                                 </div>
-                                <fieldset class="space-y-2">
-                                    <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Apply to products</legend>
-                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                        <input type="radio" name="bulk_shipping_weight_mode_ui" value="missing_only" class="mt-1" checked>
-                                        <span>
-                                            <span class="font-semibold text-[#0F172A]">Products that do not already have a weight</span>
-                                            <span class="mt-0.5 block text-xs text-[#64748B]">Existing product weights will be preserved.</span>
-                                        </span>
-                                    </label>
-                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                        <input type="radio" name="bulk_shipping_weight_mode_ui" value="replace_all" class="mt-1">
-                                        <span>
-                                            <span class="font-semibold text-[#0F172A]">Every selected product</span>
-                                            <span class="mt-0.5 block text-xs text-[#64748B]">Replaces the product-level shipping weight. Variant overrides stay unchanged.</span>
-                                        </span>
-                                    </label>
-                                </fieldset>
-                            </div>
-
-                            <div id="bulk-shipping-weight-variants-panel" class="hidden space-y-3">
-                                <fieldset class="space-y-2">
-                                    <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Variant bulk mode</legend>
-                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                        <input type="radio" name="bulk_variant_bulk_mode_ui" value="map_by_option" class="mt-1" checked>
-                                        <span>
-                                            <span class="font-semibold text-[#0F172A]">Map by option value</span>
-                                            <span class="mt-0.5 block text-xs text-[#64748B]">Enter one weight per option value (for example Small → 0.55).</span>
-                                        </span>
-                                    </label>
-                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                        <input type="radio" name="bulk_variant_bulk_mode_ui" value="use_option_values" class="mt-1">
-                                        <span>
-                                            <span class="font-semibold text-[#0F172A]">Use option values as weights</span>
-                                            <span class="mt-0.5 block text-xs text-[#64748B]">Parse labels like 5 lb or 16 oz. Preview and confirm before applying.</span>
-                                        </span>
-                                    </label>
-                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                        <input type="radio" name="bulk_variant_bulk_mode_ui" value="clear" class="mt-1">
-                                        <span>
-                                            <span class="font-semibold text-[#0F172A]">Clear variant weight overrides</span>
-                                            <span class="mt-0.5 block text-xs text-[#64748B]">Variants inherit product weight, then store fallback.</span>
-                                        </span>
-                                    </label>
-                                </fieldset>
-
-                                <div id="bulk-variant-option-panel" class="space-y-2">
-                                    <label for="bulk-variant-option-group" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Option group</label>
-                                    <select id="bulk-variant-option-group" class="w-full max-w-md rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#334155]">
-                                        <option value="">Choose an option group…</option>
-                                    </select>
-                                    <p id="bulk-variant-option-hint" class="text-xs text-[#64748B]">Load option groups from your selected products, then pick Size, Weight, or similar.</p>
-                                </div>
-
-                                <div id="bulk-variant-map-panel" class="space-y-2">
-                                    <p class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Weight by option value</p>
-                                    <div id="bulk-variant-weight-map-rows" class="space-y-2 max-h-56 overflow-y-auto rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3"></div>
-                                </div>
-
-                                <div id="bulk-variant-parse-panel" class="hidden space-y-2">
-                                    <button type="button" id="bulk-variant-preview-parse" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm font-semibold text-[#334155] hover:bg-[#F8FAFC]">Preview parsed weights</button>
-                                    <div id="bulk-variant-parse-preview" class="hidden rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#334155]"></div>
-                                </div>
-
-                                <div id="bulk-variant-clear-panel" class="hidden rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-                                    Clears explicit variant shipping weights on selected products. Variants without overrides are unchanged.
-                                </div>
-
-                                <div id="bulk-variant-preview-stats" class="hidden rounded-lg border border-[#DDE7F3] bg-[#F0F7FF] px-3 py-2 text-xs text-[#334155]"></div>
-
-                                <fieldset id="bulk-variant-apply-mode-fieldset" class="space-y-2">
-                                    <legend class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Apply to variants</legend>
-                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                        <input type="radio" name="bulk_variant_shipping_weight_mode_ui" value="missing_only" class="mt-1" checked>
-                                        <span>
-                                            <span class="font-semibold text-[#0F172A]">Only variants without shipping weight</span>
-                                            <span class="mt-0.5 block text-xs text-[#64748B]">Existing variant overrides will be preserved.</span>
-                                        </span>
-                                    </label>
-                                    <label class="flex items-start gap-2 text-sm text-[#334155]">
-                                        <input type="radio" name="bulk_variant_shipping_weight_mode_ui" value="replace_all" class="mt-1">
-                                        <span>
-                                            <span class="font-semibold text-[#0F172A]">Replace matching variant weights</span>
-                                            <span class="mt-0.5 block text-xs text-[#64748B]">Updates every matching variant, including those with existing weights.</span>
-                                        </span>
-                                    </label>
-                                </fieldset>
                             </div>
                         </div>
 
@@ -1875,11 +1790,6 @@
                 <input type="hidden" name="brand_id" id="bulk-form-brand-id" value="">
                 <input type="hidden" name="product_status" id="bulk-form-product-status" value="">
                 <input type="hidden" name="shipping_weight_value" id="bulk-form-shipping-weight-value" value="">
-                <input type="hidden" name="shipping_weight_mode" id="bulk-form-shipping-weight-mode" value="missing_only">
-                <input type="hidden" name="shipping_weight_target" id="bulk-form-shipping-weight-target" value="products">
-                <input type="hidden" name="variant_bulk_mode" id="bulk-form-variant-bulk-mode" value="map_by_option">
-                <input type="hidden" name="variant_option_name" id="bulk-form-variant-option-name" value="">
-                <input type="hidden" name="variant_weight_map_json" id="bulk-form-variant-weight-map-json" value="">
                 <div id="bulk-form-category-inputs"></div>
                 <div id="bulk-form-tag-inputs"></div>
                 <div id="bulk-form-product-id-inputs"></div>
@@ -2131,7 +2041,16 @@
                                         @endif
                                     @else
                                         <a href="{{ route('products.show', $product) }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]">View</a>
-                                        <a href="{{ route('products.edit', $product) }}" class="js-product-edit-payload inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#0052CC] hover:bg-[#EEF4FF]" data-product-id="{{ $product->id }}" data-product='@json($productActionPayload)'>Edit</a>
+                                        <a href="{{ route('products.edit', $product) }}" class="js-product-edit-payload inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#0052CC] hover:bg-[#EEF4FF]" data-product-id="{{ $product->id }}" data-product='@json($productActionPayload)'>{{ $product->status ? 'Edit' : 'Continue' }}</a>
+                                        @if (! $product->status && $canManageBrands)
+                                            <form method="POST" action="{{ route('products.bulk') }}" class="inline">
+                                                @csrf
+                                                <input type="hidden" name="action" value="status">
+                                                <input type="hidden" name="product_ids[]" value="{{ $product->id }}">
+                                                <input type="hidden" name="product_status" value="published">
+                                                <button type="submit" class="inline-flex items-center rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2 text-xs font-semibold text-[#166534] hover:bg-[#DCFCE7]">Publish</button>
+                                            </form>
+                                        @endif
                                         <button type="button" class="js-open-delete-product-modal inline-flex items-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FEEBEC]" data-product-id="{{ $product->id }}" data-product='@json($productActionPayload)'>Delete</button>
                                     @endif
                                 </div>
@@ -2143,6 +2062,9 @@
                                 @if ($isDeletedView)
                                     <p class="text-sm font-semibold text-[#0F172A]">No deleted products</p>
                                     <p class="mt-1 text-sm text-[#64748B]">Deleted products appear here so you can undo delete or permanently remove them.</p>
+                                @elseif ($isGenuinelyEmptyDrafts)
+                                    <p class="text-sm font-semibold text-[#0F172A]">No draft products</p>
+                                    <p class="mt-1 text-sm text-[#64748B]">If you leave Add product without publishing, it is saved here so you can continue later.</p>
                                 @elseif ($isGenuinelyEmptyCatalog)
                                     <p class="text-sm font-semibold text-[#0F172A]">Add your first product</p>
                                     <p class="mt-1 text-sm text-[#64748B]">Create a product in the product workspace or import a catalog file to get started.</p>
@@ -2153,9 +2075,9 @@
                                         @endif
                                     </div>
                                 @else
-                                    <p class="text-sm font-semibold text-[#0F172A]">No products match these filters</p>
+                                    <p class="text-sm font-semibold text-[#0F172A]">{{ $isDraftsView ? 'No drafts match these filters' : 'No products match these filters' }}</p>
                                     <p class="mt-1 text-sm text-[#64748B]">Try a different search term or clear your filters.</p>
-                                    <a href="{{ route('products') }}" class="mt-4 inline-flex items-center text-sm font-semibold text-[#0052CC] hover:underline">Clear filters</a>
+                                    <a href="{{ route('products', $catalogListQuery) }}" class="mt-4 inline-flex items-center text-sm font-semibold text-[#0052CC] hover:underline">Clear filters</a>
                                 @endif
                             </td>
                         </tr>
@@ -2360,11 +2282,6 @@
 
             function refreshBulkUi() {
                 const ids = effectiveSelectedIds();
-                const selectionKey = ids.join(',');
-                if (selectionKey !== lastVariantPreviewSelectionKey) {
-                    lastVariantPreviewSelectionKey = selectionKey;
-                    resetVariantParsePreview();
-                }
                 if (countEl) {
                     countEl.textContent = String(ids.length);
                 }
@@ -2464,11 +2381,7 @@
                 if (v === 'brand' && extraBrand) extraBrand.classList.remove('hidden');
                 if (v === 'tags' && extraTags) extraTags.classList.remove('hidden');
                 if (v === 'status' && extraStatus) extraStatus.classList.remove('hidden');
-                if (v === 'shipping_weight' && extraShippingWeight) {
-                    extraShippingWeight.classList.remove('hidden');
-                    refreshShippingWeightPanels();
-                    loadVariantOptionGroups();
-                }
+                if (v === 'shipping_weight' && extraShippingWeight) extraShippingWeight.classList.remove('hidden');
                 if ((v === 'delete' || v === 'force_delete' || v === 'restore') && extraSimple) {
                     extraSimple.classList.remove('hidden');
                     if (extraSimpleCopy) {
@@ -2483,13 +2396,6 @@
                 }
             }
 
-            const bulkShippingPreviewUrl = @json(route('products.bulk.shipping-weight.preview'));
-            const bulkShippingWeightUnit = @json($shippingWeightUnit ?? 'LB');
-            const bulkShippingWeightMax = @json((float) ($shippingWeightMax ?? \App\Services\Delivery\StoreShippingPreferences::MAX_ITEM_WEIGHT));
-            let cachedVariantOptionGroups = [];
-            let variantParsePreviewConfirmed = false;
-            let lastVariantPreviewSelectionKey = '';
-
             function refreshBulkStockApplyModeUi() {
                 const mode = document.getElementById('bulk-stock-mode')?.value || 'set';
                 const isSet = mode === 'set';
@@ -2498,278 +2404,6 @@
             }
 
             document.getElementById('bulk-stock-mode')?.addEventListener('change', refreshBulkStockApplyModeUi);
-
-            function shippingWeightTarget() {
-                return document.querySelector('input[name="bulk_shipping_weight_target_ui"]:checked')?.value || 'products';
-            }
-
-            function variantBulkMode() {
-                return document.querySelector('input[name="bulk_variant_bulk_mode_ui"]:checked')?.value || 'map_by_option';
-            }
-
-            function resetVariantParsePreview() {
-                variantParsePreviewConfirmed = false;
-                const preview = document.getElementById('bulk-variant-parse-preview');
-                if (preview) {
-                    preview.classList.add('hidden');
-                    preview.replaceChildren();
-                }
-            }
-
-            function refreshShippingWeightPanels() {
-                const target = shippingWeightTarget();
-                const productsPanel = document.getElementById('bulk-shipping-weight-products-panel');
-                const variantsPanel = document.getElementById('bulk-shipping-weight-variants-panel');
-                productsPanel?.classList.toggle('hidden', target !== 'products');
-                variantsPanel?.classList.toggle('hidden', target !== 'variants');
-                resetVariantParsePreview();
-                if (target === 'variants') {
-                    refreshVariantBulkModePanels();
-                }
-            }
-
-            function refreshVariantBulkModePanels() {
-                const mode = variantBulkMode();
-                const optionPanel = document.getElementById('bulk-variant-option-panel');
-                const mapPanel = document.getElementById('bulk-variant-map-panel');
-                const parsePanel = document.getElementById('bulk-variant-parse-panel');
-                const clearPanel = document.getElementById('bulk-variant-clear-panel');
-                const applyModeFieldset = document.getElementById('bulk-variant-apply-mode-fieldset');
-                const isClear = mode === 'clear';
-                optionPanel?.classList.toggle('hidden', isClear);
-                mapPanel?.classList.toggle('hidden', mode !== 'map_by_option');
-                parsePanel?.classList.toggle('hidden', mode !== 'use_option_values');
-                clearPanel?.classList.toggle('hidden', !isClear);
-                applyModeFieldset?.classList.toggle('hidden', isClear);
-                resetVariantParsePreview();
-            }
-
-            function collectVariantWeightMapFromUi() {
-                const map = {};
-                document.querySelectorAll('[data-bulk-variant-weight-row]').forEach((row) => {
-                    const value = row.getAttribute('data-option-value') || '';
-                    const input = row.querySelector('input[type="number"]');
-                    const weight = input?.value;
-                    if (value && weight !== '' && Number(weight) > 0) {
-                        map[value] = Number(weight);
-                    }
-                });
-                return map;
-            }
-
-            function renderVariantWeightMapRows(optionValues) {
-                const container = document.getElementById('bulk-variant-weight-map-rows');
-                if (!container) return;
-                container.replaceChildren();
-                if (!optionValues.length) {
-                    const empty = document.createElement('p');
-                    empty.className = 'text-xs text-[#64748B]';
-                    empty.textContent = 'Choose an option group to load values from selected products.';
-                    container.appendChild(empty);
-                    return;
-                }
-                optionValues.forEach((value) => {
-                    const row = document.createElement('div');
-                    row.setAttribute('data-bulk-variant-weight-row', '1');
-                    row.setAttribute('data-option-value', String(value));
-                    row.className = 'flex items-center gap-3';
-
-                    const label = document.createElement('span');
-                    label.className = 'min-w-[6rem] text-sm font-medium text-[#0F172A]';
-                    label.textContent = String(value);
-
-                    const input = document.createElement('input');
-                    input.type = 'number';
-                    input.min = '0.01';
-                    input.max = String(bulkShippingWeightMax);
-                    input.step = '0.001';
-                    input.className = 'w-28 rounded-lg border border-[#CBD5E1] px-3 py-1.5 text-sm';
-                    input.placeholder = 'Weight';
-
-                    const unit = document.createElement('span');
-                    unit.className = 'text-xs font-semibold text-[#64748B]';
-                    unit.textContent = String(bulkShippingWeightUnit);
-
-                    row.appendChild(label);
-                    row.appendChild(input);
-                    row.appendChild(unit);
-                    container.appendChild(row);
-                });
-            }
-
-            function populateVariantOptionGroupSelect(groups) {
-                const select = document.getElementById('bulk-variant-option-group');
-                if (!select) return;
-                const previous = select.value;
-                select.replaceChildren();
-                const placeholder = document.createElement('option');
-                placeholder.value = '';
-                placeholder.textContent = 'Choose an option group…';
-                select.appendChild(placeholder);
-                groups.forEach((group) => {
-                    const opt = document.createElement('option');
-                    opt.value = group.name;
-                    opt.textContent = `${group.name} (${group.product_count} products, ${group.variant_count} variants)`;
-                    if (group.weight_related) {
-                        opt.dataset.weightRelated = '1';
-                    }
-                    select.appendChild(opt);
-                });
-                if (previous && [...select.options].some((o) => o.value === previous)) {
-                    select.value = previous;
-                }
-            }
-
-            async function fetchVariantShippingPreview(extra = {}) {
-                const ids = effectiveSelectedIds();
-                const payload = {
-                    product_ids_json: JSON.stringify(ids),
-                    shipping_weight_target: 'variants',
-                    variant_bulk_mode: variantBulkMode(),
-                    variant_option_name: document.getElementById('bulk-variant-option-group')?.value || '',
-                    shipping_weight_mode: document.querySelector('input[name="bulk_variant_shipping_weight_mode_ui"]:checked')?.value || 'missing_only',
-                    variant_weight_map_json: JSON.stringify(collectVariantWeightMapFromUi()),
-                    ...extra,
-                };
-                const token = document.querySelector('#bulk-products-form input[name="_token"]')?.value || '';
-                const res = await fetch(bulkShippingPreviewUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Accept: 'application/json',
-                        'X-CSRF-TOKEN': token,
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    credentials: 'same-origin',
-                    body: JSON.stringify(payload),
-                });
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err.message || 'Could not load preview.');
-                }
-                return res.json();
-            }
-
-            function renderVariantPreviewStats(data) {
-                const el = document.getElementById('bulk-variant-preview-stats');
-                if (!el || !data) return;
-                el.classList.remove('hidden');
-                el.replaceChildren();
-                const lines = [
-                    ['Selected products:', data.selected_products_count ?? 0],
-                    ['Compatible with option:', data.compatible_products_count ?? 0],
-                    ['No matching option:', data.incompatible_products_count ?? 0],
-                    ['Matching variants:', data.matching_variants_count ?? 0],
-                    ['Would update:', data.would_update_count ?? 0],
-                ];
-                lines.forEach(([label, value]) => {
-                    const row = document.createElement('div');
-                    const strong = document.createElement('span');
-                    strong.className = 'font-semibold text-[#0F172A]';
-                    strong.textContent = label + ' ';
-                    row.appendChild(strong);
-                    row.appendChild(document.createTextNode(String(value)));
-                    el.appendChild(row);
-                });
-                if (data.would_skip_existing_count) {
-                    const skip = document.createElement('div');
-                    skip.textContent = `${data.would_skip_existing_count} variant(s) already have weights and would be skipped.`;
-                    el.appendChild(skip);
-                }
-            }
-
-            async function loadVariantOptionGroups() {
-                if (shippingWeightTarget() !== 'variants') return;
-                try {
-                    const data = await fetchVariantShippingPreview({ variant_bulk_mode: 'map_by_option', variant_option_name: '' });
-                    cachedVariantOptionGroups = Array.isArray(data.option_groups) ? data.option_groups : [];
-                    populateVariantOptionGroupSelect(cachedVariantOptionGroups);
-                } catch (error) {
-                    cachedVariantOptionGroups = [];
-                }
-            }
-
-            async function refreshVariantOptionValues() {
-                resetVariantParsePreview();
-                const groupName = document.getElementById('bulk-variant-option-group')?.value || '';
-                const group = cachedVariantOptionGroups.find((g) => g.name === groupName);
-                const values = group?.option_values || [];
-                renderVariantWeightMapRows(values);
-                if (groupName) {
-                    try {
-                        const data = await fetchVariantShippingPreview();
-                        renderVariantPreviewStats(data);
-                    } catch (error) {
-                        document.getElementById('bulk-variant-preview-stats')?.classList.add('hidden');
-                    }
-                }
-            }
-
-            document.querySelectorAll('input[name="bulk_shipping_weight_target_ui"]').forEach((input) => {
-                input.addEventListener('change', () => {
-                    resetVariantParsePreview();
-                    refreshShippingWeightPanels();
-                    if (shippingWeightTarget() === 'variants') {
-                        loadVariantOptionGroups();
-                    }
-                });
-            });
-            document.querySelectorAll('input[name="bulk_variant_bulk_mode_ui"]').forEach((input) => {
-                input.addEventListener('change', () => {
-                    refreshVariantBulkModePanels();
-                    refreshVariantOptionValues();
-                });
-            });
-            document.querySelectorAll('input[name="bulk_variant_shipping_weight_mode_ui"]').forEach((input) => {
-                input.addEventListener('change', () => {
-                    resetVariantParsePreview();
-                    refreshVariantOptionValues();
-                });
-            });
-            document.getElementById('bulk-variant-option-group')?.addEventListener('change', refreshVariantOptionValues);
-            document.getElementById('bulk-variant-preview-parse')?.addEventListener('click', async () => {
-                const groupName = document.getElementById('bulk-variant-option-group')?.value || '';
-                if (!groupName) {
-                    window.alert('Choose an option group first.');
-                    return;
-                }
-                try {
-                    const data = await fetchVariantShippingPreview({ variant_bulk_mode: 'use_option_values' });
-                    renderVariantPreviewStats(data);
-                    const preview = document.getElementById('bulk-variant-parse-preview');
-                    if (!preview) return;
-                    preview.replaceChildren();
-                    const heading = document.createElement('p');
-                    heading.className = 'mb-2 font-semibold text-[#0F172A]';
-                    heading.textContent = 'Detected option: ' + groupName;
-                    preview.appendChild(heading);
-                    const parsed = Array.isArray(data.parsed_weights) ? data.parsed_weights : [];
-                    if (!parsed.length) {
-                        const empty = document.createElement('p');
-                        empty.textContent = 'No parseable values found.';
-                        preview.appendChild(empty);
-                    } else {
-                        parsed.forEach((row) => {
-                            const line = document.createElement('div');
-                            line.className = 'flex justify-between gap-3 py-1';
-                            const left = document.createElement('span');
-                            left.textContent = String(row.option_value ?? '');
-                            const right = document.createElement('span');
-                            right.className = 'font-semibold';
-                            right.textContent = row.parse_ok
-                                ? `${Number(row.parsed_weight).toFixed(2)} ${data.weight_unit || bulkShippingWeightUnit}`
-                                : 'Could not parse';
-                            line.appendChild(left);
-                            line.appendChild(right);
-                            preview.appendChild(line);
-                        });
-                    }
-                    preview.classList.remove('hidden');
-                    variantParsePreviewConfirmed = parsed.some((row) => row.parse_ok);
-                } catch (error) {
-                    window.alert(error.message || 'Preview failed.');
-                }
-            });
 
             function selectAction(action) {
                 if (!actionSelect) return;
@@ -2876,17 +2510,7 @@
                 document.getElementById('bulk-form-brand-id').value = '';
                 document.getElementById('bulk-form-product-status').value = '';
                 const swValue = document.getElementById('bulk-form-shipping-weight-value');
-                const swMode = document.getElementById('bulk-form-shipping-weight-mode');
-                const swTarget = document.getElementById('bulk-form-shipping-weight-target');
-                const swVariantMode = document.getElementById('bulk-form-variant-bulk-mode');
-                const swVariantOption = document.getElementById('bulk-form-variant-option-name');
-                const swVariantMap = document.getElementById('bulk-form-variant-weight-map-json');
                 if (swValue) swValue.value = '';
-                if (swMode) swMode.value = 'missing_only';
-                if (swTarget) swTarget.value = 'products';
-                if (swVariantMode) swVariantMode.value = 'map_by_option';
-                if (swVariantOption) swVariantOption.value = '';
-                if (swVariantMap) swVariantMap.value = '';
                 setMultiHidden(document.getElementById('bulk-form-category-inputs'), 'category_ids[]', []);
                 setMultiHidden(document.getElementById('bulk-form-tag-inputs'), 'tag_ids[]', []);
 
@@ -2922,21 +2546,8 @@
                     document.getElementById('bulk-form-product-status').value = document.getElementById('bulk-status-value')?.value || 'published';
                 }
                 if (action === 'shipping_weight') {
-                    const target = shippingWeightTarget();
-                    if (swTarget) swTarget.value = target;
-                    if (target === 'products') {
-                        const val = document.getElementById('bulk-shipping-weight-value')?.value;
-                        const mode = document.querySelector('input[name="bulk_shipping_weight_mode_ui"]:checked')?.value || 'missing_only';
-                        if (swValue) swValue.value = String(val ?? '');
-                        if (swMode) swMode.value = mode;
-                    } else {
-                        const vMode = variantBulkMode();
-                        const vApplyMode = document.querySelector('input[name="bulk_variant_shipping_weight_mode_ui"]:checked')?.value || 'missing_only';
-                        if (swVariantMode) swVariantMode.value = vMode;
-                        if (swMode) swMode.value = vApplyMode;
-                        if (swVariantOption) swVariantOption.value = document.getElementById('bulk-variant-option-group')?.value || '';
-                        if (swVariantMap) swVariantMap.value = JSON.stringify(collectVariantWeightMapFromUi());
-                    }
+                    const val = document.getElementById('bulk-shipping-weight-value')?.value;
+                    if (swValue) swValue.value = String(val ?? '');
                 }
                 if (applyBtn) applyBtn.disabled = true;
                 if (applySpinner) applySpinner.classList.remove('hidden');
@@ -2985,33 +2596,10 @@
                     }
                 }
                 if (action === 'shipping_weight') {
-                    const target = shippingWeightTarget();
-                    if (target === 'products') {
-                        const val = document.getElementById('bulk-shipping-weight-value')?.value;
-                        if (val === '' || val === undefined || Number(val) <= 0) {
-                            window.alert('Enter a shipping weight greater than zero.');
-                            return;
-                        }
-                    } else {
-                        const vMode = variantBulkMode();
-                        if (vMode !== 'clear') {
-                            const group = document.getElementById('bulk-variant-option-group')?.value || '';
-                            if (!group) {
-                                window.alert('Choose an option group for variant weights.');
-                                return;
-                            }
-                        }
-                        if (vMode === 'map_by_option') {
-                            const map = collectVariantWeightMapFromUi();
-                            if (Object.keys(map).length === 0) {
-                                window.alert('Enter at least one option value weight.');
-                                return;
-                            }
-                        }
-                        if (vMode === 'use_option_values' && !variantParsePreviewConfirmed) {
-                            window.alert('Preview parsed weights and confirm they look correct before applying.');
-                            return;
-                        }
+                    const val = document.getElementById('bulk-shipping-weight-value')?.value;
+                    if (val === '' || val === undefined || Number(val) <= 0) {
+                        window.alert('Enter a shipping weight greater than zero.');
+                        return;
                     }
                 }
 
@@ -3053,19 +2641,7 @@
                         : `Publish ${n} product(s) so they are ready to sell?`;
                 }
                 if (action === 'shipping_weight') {
-                    const target = shippingWeightTarget();
-                    if (target === 'variants') {
-                        const vMode = variantBulkMode();
-                        if (vMode === 'clear') {
-                            msg = `Clear variant shipping weight overrides on selected products? Product weights will not change. Continue for ${n} product(s)?`;
-                        } else if (vMode === 'use_option_values') {
-                            msg = `Apply parsed option values as variant shipping weights? Product weights will not change. Continue for ${n} product(s)?`;
-                        } else {
-                            msg = `Apply variant shipping weights by option value? Product weights will not change. Continue for ${n} product(s)?`;
-                        }
-                    } else {
-                        msg = `Set product shipping weight on ${n} selected product(s)? Variant overrides will stay unchanged.`;
-                    }
+                    msg = `Set this shipping weight on ${n} selected product(s)? Every variant will use the same product weight.`;
                 }
 
                 openConfirm(msg, () => prepareAndSubmit(action, ids));

@@ -55,7 +55,7 @@
 @section('content')
 <div class="font-inter flex flex-col md:flex-row md:justify-between md:items-center gap-3">
     <div>
-        <h1 class="text-2xl font-medium text-[#0F172A]">Platform Command Center</h1>
+        <h1 class="text-section font-medium text-[#0F172A]">Platform Command Center</h1>
         <p class="text-sm text-[#64748B]">Real-time aggregate data across all clusters.</p>
     </div>
     <div class="bg-white border border-[#E2E8F0] rounded-lg p-1 flex gap-1" role="tablist" aria-label="Time period">

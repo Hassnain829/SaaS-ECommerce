@@ -322,6 +322,86 @@ class ShippingWeightManagementTest extends TestCase
         $this->assertSame('12.5', $payload['variants'][0]['shipping_weight']);
     }
 
+    public function test_create_uses_product_shipping_weight_for_every_variant(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('product.store'), [
+                '_full_workspace_create' => '1',
+                'name' => 'Weighted Tee',
+                'description' => 'Cotton tee',
+                'base_price' => 20,
+                'sku' => 'WTEE',
+                'product_type' => 'physical',
+                'stock_alert' => 1,
+                'bulk_stock' => 3,
+                'shipping_weight' => '2.50',
+                'variation_types' => [
+                    ['name' => 'color', 'type' => 'select', 'options' => ['r', 'g', 'b']],
+                ],
+                'variants' => [
+                    ['option_map' => [], 'sku' => 'WTEE-STD', 'price' => null, 'stock' => 1, 'stock_alert' => 1, 'shipping_weight' => '9'],
+                    ['option_map' => ['0' => 0], 'sku' => 'WTEE-R', 'price' => null, 'stock' => 1, 'stock_alert' => 1, 'shipping_weight' => '9'],
+                    ['option_map' => ['0' => 1], 'sku' => 'WTEE-G', 'price' => null, 'stock' => 1, 'stock_alert' => 1, 'shipping_weight' => '9'],
+                    ['option_map' => ['0' => 2], 'sku' => 'WTEE-B', 'price' => null, 'stock' => 1, 'stock_alert' => 1, 'shipping_weight' => '9'],
+                ],
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $product = Product::query()->where('store_id', $store->id)->where('name', 'Weighted Tee')->firstOrFail();
+        $this->assertSame(2.5, (float) data_get($product->meta, 'shipping_weight'));
+
+        $resolver = app(\App\Services\Delivery\ShippingWeightResolver::class);
+        foreach ($product->variants as $variant) {
+            $this->assertArrayNotHasKey('shipping_weight', $variant->meta ?? [], $variant->sku);
+            $this->assertSame(2.5, $resolver->resolveExact($product, $variant), $variant->sku);
+        }
+    }
+
+    public function test_product_editor_ignores_posted_variant_shipping_weight_on_update(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeProduct($store, 'Inherit Weight');
+        $variant = $product->variants()->first();
+        $product->forceFill(['meta' => ['shipping_weight' => 4]])->save();
+        $variant->forceFill(['meta' => ['shipping_weight' => 12.5]])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->put(route('product.update', ['productId' => $product->id]), [
+                'name' => $product->name,
+                'description' => $product->description,
+                'base_price' => $product->base_price,
+                'product_type' => 'physical',
+                'sku' => $product->sku,
+                'stock_alert' => 0,
+                'bulk_stock' => 0,
+                'shipping_weight' => '4',
+                '_custom_fields_editor' => '1',
+                'inventory_stock_allocation_mode' => 'manual',
+                'variants' => [[
+                    'id' => $variant->id,
+                    'sku' => $variant->sku,
+                    'price' => 10,
+                    'stock' => 0,
+                    'stock_alert' => 0,
+                    'option_map' => [],
+                    'shipping_weight' => '9',
+                ]],
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertArrayNotHasKey('shipping_weight', $variant->fresh()->meta ?? []);
+        $this->assertSame(4.0, (float) data_get($product->fresh()->meta, 'shipping_weight'));
+        $this->assertSame(4.0, app(\App\Services\Delivery\ShippingWeightResolver::class)->resolveExact($product->fresh(), $variant->fresh()));
+    }
+
     public function test_digital_checkout_item_does_not_receive_weight_snapshot(): void
     {
         $owner = $this->makeUser();

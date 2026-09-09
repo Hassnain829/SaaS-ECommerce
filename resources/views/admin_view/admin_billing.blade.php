@@ -58,7 +58,7 @@
     <!-- Page Header -->
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30]">Global Billing & Financials</h1>
+            <h1 class="text-section font-medium text-[#0B1C30]">Global Billing & Financials</h1>
             <p class="text-sm md:text-base text-[#434654] mt-1">Cross-platform revenue health and merchant settlement orchestration.</p>
         </div>
         <!-- Action buttons -->

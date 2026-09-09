@@ -68,7 +68,7 @@
 
     <!-- Header with title and Add New Integration button -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 class="text-2xl font-medium text-[#0F172A]">Connect New Integration</h1>
+        <h1 class="text-section font-medium text-[#0F172A]">Connect New Integration</h1>
         <button class="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-brand-hover transition">
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                 <path d="M4.5 6H0V4.5H4.5V0H6V4.5H10.5V6H6V10.5H4.5V6Z" fill="white"/>

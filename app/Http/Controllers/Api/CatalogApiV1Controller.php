@@ -38,6 +38,7 @@ class CatalogApiV1Controller extends Controller
                 'tags:id,name,slug,store_id,color',
                 'images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
                 'variants.options.variationType:id,name',
+                'variants.catalogImages:id,product_id,image_path,status,is_primary',
                 'productAttributes.attribute:id,store_id,name,slug,display_type,is_filterable,is_visible',
                 'productAttributes.terms:id,attribute_id,name,slug,swatch_value',
             ]);
@@ -121,6 +122,7 @@ class CatalogApiV1Controller extends Controller
             'tags:id,name,slug,store_id,color',
             'images' => fn ($q) => $q->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id'),
             'variants.options.variationType:id,name',
+            'variants.catalogImages:id,product_id,image_path,status,is_primary',
             'productAttributes.attribute:id,store_id,name,slug,display_type,is_filterable,is_visible',
             'productAttributes.terms:id,attribute_id,name,slug,swatch_value',
         ]);
@@ -249,6 +251,16 @@ class CatalogApiV1Controller extends Controller
                     'type' => $option->variationType?->name,
                     'value' => $option->value,
                 ])->values(),
+                'images' => $variant->catalogImages
+                    ->filter(fn ($image) => $image->isReady())
+                    ->map(fn ($image): array => [
+                        'id' => $image->id,
+                        'url' => asset('storage/'.$image->image_path),
+                    ])
+                    ->values(),
+                'image_url' => (($primaryVariantImage = $variant->catalogImages->first(fn ($image) => $image->isReady())) !== null)
+                    ? asset('storage/'.$primaryVariantImage->image_path)
+                    : null,
             ])->values(),
         ];
     }

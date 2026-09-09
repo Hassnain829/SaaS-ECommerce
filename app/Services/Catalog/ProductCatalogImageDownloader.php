@@ -8,6 +8,7 @@ use App\Models\ProductImage;
 use App\Models\ProductImport;
 use App\Models\ProductVariant;
 use App\Models\Store;
+use App\Support\ProductCatalogImageLimits;
 use App\Support\ProductImageStorage;
 use App\Support\Security\ServerSideImageHttpUrlValidator;
 use Illuminate\Support\Facades\Http;
@@ -33,9 +34,11 @@ final class ProductCatalogImageDownloader
 
         $nextOrder = (int) $product->images()->max('sort_order') + 1;
         $downloaded = 0;
+        $remaining = max(0, ProductCatalogImageLimits::MAX - (int) $product->images()->count());
+        $variantSort = 0;
 
         foreach ($urls as $url) {
-            if ($downloaded >= 8) {
+            if ($downloaded >= $remaining) {
                 break;
             }
             if ($url === '' || ! preg_match('#^https?://#i', $url)) {
@@ -65,7 +68,8 @@ final class ProductCatalogImageDownloader
             ]);
 
             if ($variant) {
-                $variant->update(['product_image_id' => $image->id]);
+                $this->attachImportedVariantImage($variant, $image, $variantSort);
+                $variantSort++;
             }
 
             $nextOrder++;
@@ -100,10 +104,11 @@ final class ProductCatalogImageDownloader
 
         $nextOrder = (int) $product->images()->max('sort_order') + 1;
         $queued = 0;
-        $first = true;
+        $remaining = max(0, ProductCatalogImageLimits::MAX - (int) $product->images()->count());
+        $variantSort = 0;
 
         foreach ($urls as $url) {
-            if ($queued >= 8) {
+            if ($queued >= $remaining) {
                 break;
             }
             if ($url === '' || ! preg_match('#^https?://#i', $url)) {
@@ -117,7 +122,7 @@ final class ProductCatalogImageDownloader
                 'source_url' => $url,
                 'alt_text' => null,
                 'sort_order' => $nextOrder,
-                'is_primary' => $first,
+                'is_primary' => $queued === 0 && $variant === null,
                 'status' => ProductImage::STATUS_QUEUED,
                 'processing_started_at' => null,
                 'processed_at' => null,
@@ -127,11 +132,11 @@ final class ProductCatalogImageDownloader
                 'updated_by' => $userId,
             ]);
 
-            if ($variant && $first) {
-                $variant->update(['product_image_id' => $row->id]);
+            if ($variant) {
+                $this->attachImportedVariantImage($variant, $row, $variantSort);
+                $variantSort++;
             }
 
-            $first = false;
             $nextOrder++;
             $queued++;
 
@@ -143,6 +148,17 @@ final class ProductCatalogImageDownloader
         }
 
         return $queued;
+    }
+
+    private function attachImportedVariantImage(ProductVariant $variant, ProductImage $image, int $sort): void
+    {
+        $variant->catalogImages()->syncWithoutDetaching([
+            $image->id => ['sort_order' => $sort],
+        ]);
+
+        if ($sort === 0 || ! $variant->product_image_id) {
+            $variant->update(['product_image_id' => $image->id]);
+        }
     }
 
     public function normalizePrimaryProductImage(Product $product): void

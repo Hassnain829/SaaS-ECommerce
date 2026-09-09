@@ -38,7 +38,7 @@
                     <div class="h-16 w-16 rounded-md bg-brand-soft text-brand-ink grid place-items-center text-xl font-bold shrink-0">{{ strtoupper($initials) ?: 'C' }}</div>
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
-                            <h2 class="truncate text-xl font-semibold tracking-tight text-ink md:text-2xl">{{ $customer->full_name ?: $customer->email }}</h2>
+                            <h2 class="truncate text-xl font-semibold tracking-tight text-ink">{{ $customer->full_name ?: $customer->email }}</h2>
                             @if($customer->status === 'blocked')
                                 <span class="rounded-md bg-danger-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger">Blocked</span>
                             @elseif($customer->status === 'active')
@@ -160,15 +160,15 @@
     <section class="grid grid-cols-1 gap-4 md:grid-cols-4">
         <article class="merchant-card p-5">
             <p class="text-xs font-bold uppercase tracking-[1px] text-ink-muted">Lifetime spend</p>
-            <p class="mt-2 text-3xl font-semibold text-ink">{{ $currency }} {{ number_format((float) $customer->total_spent, 2) }}</p>
+            <p class="mt-2 text-title font-semibold text-ink">{{ $currency }} {{ number_format((float) $customer->total_spent, 2) }}</p>
         </article>
         <article class="merchant-card p-5">
             <p class="text-xs font-bold uppercase tracking-[1px] text-ink-muted">Orders</p>
-            <p class="mt-2 text-3xl font-semibold text-ink">{{ $customer->total_orders }}</p>
+            <p class="mt-2 text-title font-semibold text-ink">{{ $customer->total_orders }}</p>
         </article>
         <article class="merchant-card p-5">
             <p class="text-xs font-bold uppercase tracking-[1px] text-ink-muted">Average order</p>
-            <p class="mt-2 text-3xl font-semibold text-ink">{{ $currency }} {{ number_format((float) $customer->average_order_value, 2) }}</p>
+            <p class="mt-2 text-title font-semibold text-ink">{{ $currency }} {{ number_format((float) $customer->average_order_value, 2) }}</p>
         </article>
         <article class="merchant-card p-5">
             <p class="text-xs font-bold uppercase tracking-[1px] text-ink-muted">Last order</p>

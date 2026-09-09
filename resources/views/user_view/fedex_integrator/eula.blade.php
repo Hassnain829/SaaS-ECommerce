@@ -100,7 +100,7 @@
 
             .fedex-eula-print-submit-label {
                 display: block !important;
-                font-weight: 700;
+                font-weight: 600;
                 color: #0F172A;
             }
         }

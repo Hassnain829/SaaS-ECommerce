@@ -133,6 +133,18 @@ class ProductVariant extends Model
         return $this->belongsTo(ProductImage::class, 'product_image_id');
     }
 
+    /**
+     * Ordered gallery photos assigned to this variant. The first row is also stored on product_image_id.
+     */
+    public function catalogImages(): BelongsToMany
+    {
+        return $this->belongsToMany(ProductImage::class, 'product_variant_images')
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderByPivot('sort_order')
+            ->orderBy('product_images.id');
+    }
+
     public function inventoryItem(): HasOne
     {
         return $this->hasOne(InventoryItem::class, 'variant_id');

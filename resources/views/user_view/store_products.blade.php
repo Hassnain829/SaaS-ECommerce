@@ -31,7 +31,7 @@
                     </svg>
                 </div>
                 <div>
-                    <h2 class="text-3xl font-black text-[#0B1C30]">{{ $store->name }}</h2>
+                    <h2 class="font-heading text-section font-semibold text-[#0B1C30]">{{ $store->name }}</h2>
                     <div class="flex items-center gap-3 mt-2">
                         <span class="px-3 py-1 bg-[#DCE9FF] text-[#434654] text-xs font-bold uppercase rounded-full">{{ ucfirst($store->category ?? 'General') }}</span>
                         @if ($store->onboarding_completed)

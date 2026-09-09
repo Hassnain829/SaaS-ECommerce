@@ -43,7 +43,7 @@
 
 
     <div>
-        <h1 class="text-3xl md:text-4xl font-medium text-[#0B1C30]">Security & Authentication</h1>
+        <h1 class="text-title font-medium text-[#0B1C30]">Security & Authentication</h1>
         <p class="text-[19px] text-[#434654] mt-2 max-w-4xl">Configure identity providers, access policies, and platform hardening settings.</p>
     </div>
 

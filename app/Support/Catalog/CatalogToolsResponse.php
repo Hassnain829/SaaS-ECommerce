@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 
 /**
  * Shared success/error responses for category, brand, and tag mutations.
- * HTML posts return to the products list unless the form asked to stay on Add product.
+ * HTML posts return to the products list unless the form asked to stay on Add product or Edit product.
  */
 final class CatalogToolsResponse
 {
@@ -49,9 +49,16 @@ final class CatalogToolsResponse
 
     public static function routeName(Request $request): string
     {
-        return $request->input('_catalog_return') === 'products.create'
-            ? 'products.create'
-            : 'products';
+        $return = (string) $request->input('_catalog_return', '');
+        if ($return === 'products.create') {
+            return 'products.create';
+        }
+
+        if ($return === 'products.edit' && self::editReturnProductId($request) !== null) {
+            return 'products.edit';
+        }
+
+        return 'products';
     }
 
     /**
@@ -59,12 +66,32 @@ final class CatalogToolsResponse
      */
     public static function routeParameters(Request $request): array
     {
-        if (self::routeName($request) !== 'products.create') {
-            return [];
+        $route = self::routeName($request);
+        if ($route === 'products.create') {
+            return [
+                'step' => 'organization',
+            ];
         }
 
-        return [
-            'step' => 'organization',
-        ];
+        if ($route === 'products.edit') {
+            return [
+                'product' => self::editReturnProductId($request),
+                'step' => 'organization',
+            ];
+        }
+
+        return [];
+    }
+
+    private static function editReturnProductId(Request $request): ?int
+    {
+        $raw = $request->input('_catalog_return_product_id');
+        if ($raw === null || $raw === '' || ! ctype_digit((string) $raw)) {
+            return null;
+        }
+
+        $id = (int) $raw;
+
+        return $id > 0 ? $id : null;
     }
 }

@@ -16,9 +16,21 @@ class ServerSideImageHttpUrlValidatorTest extends TestCase
 
     public function test_rejects_localhost_literal(): void
     {
+        config(['product_import.allow_loopback_image_urls' => false]);
+
         $this->assertFalse(ServerSideImageHttpUrlValidator::isSafeRemoteHttpUrl('http://127.0.0.1/image.png'));
         $this->assertFalse(ServerSideImageHttpUrlValidator::isSafeRemoteHttpUrl('http://localhost/image.png'));
         $this->assertFalse(ServerSideImageHttpUrlValidator::isSafeRemoteHttpUrl('http://[::1]/image.png'));
+        $this->assertTrue(ServerSideImageHttpUrlValidator::isLoopbackHttpUrl('http://localhost:8080/wordpress/a.png'));
+    }
+
+    public function test_allows_localhost_when_loopback_import_is_enabled(): void
+    {
+        config(['product_import.allow_loopback_image_urls' => true]);
+
+        $this->assertTrue(ServerSideImageHttpUrlValidator::isSafeRemoteHttpUrl('http://localhost:8080/wordpress/a.png'));
+        $this->assertTrue(ServerSideImageHttpUrlValidator::isSafeRemoteHttpUrl('http://127.0.0.1:8080/a.png'));
+        $this->assertFalse(ServerSideImageHttpUrlValidator::isSafeRemoteHttpUrl('http://10.0.0.5/a.png'));
     }
 
     public function test_rejects_private_ipv4(): void
