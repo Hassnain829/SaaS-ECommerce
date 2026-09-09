@@ -12,6 +12,7 @@ use App\Models\Store;
 use App\Models\User;
 use App\Services\Fulfillment\FulfillmentOriginRouter;
 use App\Services\Inventory\InventorySyncService;
+use App\Services\Shipping\DeliveryOptionService;
 use App\Services\Shipping\ShippingZoneMatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -63,7 +64,7 @@ class CountryWideFulfillmentRoutingTest extends TestCase
         $variant->forceFill(['stock' => 0])->saveQuietly();
 
         $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('No fulfillment location has enough stock for this address.');
+        $this->expectExceptionMessage('No fulfillment location has enough stock for this order.');
 
         app(FulfillmentOriginRouter::class)->routeForCheckout(
             $store,
@@ -72,7 +73,7 @@ class CountryWideFulfillmentRoutingTest extends TestCase
         );
     }
 
-    public function test_does_not_steal_stock_from_a_location_that_does_not_serve_the_address(): void
+    public function test_stocked_warehouse_can_fulfill_any_address_in_the_delivery_area(): void
     {
         [$store, $usLocation, $variant] = $this->usStoreWithStock(0);
 
@@ -84,7 +85,6 @@ class CountryWideFulfillmentRoutingTest extends TestCase
             'state' => 'ON',
             'postal_code' => 'M5V 2T6',
             'country_code' => 'CA',
-            'service_countries' => ['CA'],
             'is_default' => false,
             'is_active' => true,
             'fulfills_online_orders' => true,
@@ -96,14 +96,13 @@ class CountryWideFulfillmentRoutingTest extends TestCase
             $canada->id => 10,
         ]);
 
-        $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('No fulfillment location has enough stock for this address.');
-
-        app(FulfillmentOriginRouter::class)->routeForCheckout(
+        $result = app(FulfillmentOriginRouter::class)->routeForCheckout(
             $store,
             [['variant' => $variant, 'quantity' => 1]],
             $this->austinAddress(['country' => 'United States']),
         );
+
+        $this->assertSame($canada->id, $result->originLocation->id);
     }
 
     public function test_country_wide_delivery_area_ignores_warehouse_zip_restriction(): void
@@ -114,15 +113,6 @@ class CountryWideFulfillmentRoutingTest extends TestCase
             'service_regions' => ['TX'],
             'service_postal_patterns' => ['75002'],
         ])->save();
-
-        ShippingZone::query()->create([
-            'store_id' => $store->id,
-            'name' => 'US methods',
-            'countries' => ['US'],
-            'regions' => [],
-            'postal_patterns' => [],
-            'is_active' => true,
-        ]);
 
         $result = app(FulfillmentOriginRouter::class)->routeForCheckout(
             $store,
@@ -136,22 +126,63 @@ class CountryWideFulfillmentRoutingTest extends TestCase
         $this->assertSame($location->id, $result->originLocation->id);
     }
 
-    public function test_zip_restricted_location_still_rejects_other_zips_without_country_wide_zone(): void
+    public function test_zip_restricted_delivery_area_rejects_other_zips(): void
     {
-        [$store, $location, $variant] = $this->usStoreWithStock(5);
-        $location->forceFill([
-            'service_countries' => ['US'],
-            'service_postal_patterns' => ['75002'],
-        ])->save();
+        [$store, $location, $variant] = $this->usStoreWithStock(5, countryWideZone: false);
 
-        $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('This address is outside the delivery area of your fulfillment locations.');
+        ShippingZone::query()->create([
+            'store_id' => $store->id,
+            'name' => 'Allen ZIP only',
+            'countries' => ['US'],
+            'regions' => [],
+            'postal_patterns' => ['75002'],
+            'is_active' => true,
+        ]);
 
-        app(FulfillmentOriginRouter::class)->routeForCheckout(
+        $matcher = app(ShippingZoneMatcher::class);
+        $this->assertTrue($matcher->matches($store->shippingZones()->first(), $this->austinAddress([
+            'postal_code' => '75002',
+        ])));
+        $this->assertFalse($matcher->matches($store->shippingZones()->first(), $this->austinAddress([
+            'postal_code' => '78701',
+        ])));
+        $this->assertTrue($matcher->matchingZones($store, $this->austinAddress(['postal_code' => '78701']))->isEmpty());
+        $this->assertSame([], app(DeliveryOptionService::class)->optionsFor(
+            $store,
+            $this->austinAddress(['postal_code' => '78701']),
+            '10.00',
+            'USD',
+        ));
+
+        $result = app(FulfillmentOriginRouter::class)->routeForCheckout(
             $store,
             [['variant' => $variant, 'quantity' => 1]],
             $this->austinAddress(['postal_code' => '78701']),
         );
+        $this->assertSame($location->id, $result->originLocation->id);
+    }
+
+    public function test_canada_address_is_rejected_by_united_states_deliver_to(): void
+    {
+        [$store, $location, $variant] = $this->usStoreWithStock(5);
+
+        $canadaAddress = [
+            'city' => 'Toronto',
+            'state' => 'ON',
+            'postal_code' => 'M5V 2T6',
+            'country' => 'Canada',
+            'country_code' => 'CA',
+        ];
+
+        $this->assertTrue(app(ShippingZoneMatcher::class)->matchingZones($store, $canadaAddress)->isEmpty());
+        $this->assertSame([], app(DeliveryOptionService::class)->optionsFor($store, $canadaAddress, '10.00', 'USD'));
+
+        $result = app(FulfillmentOriginRouter::class)->routeForCheckout(
+            $store,
+            [['variant' => $variant, 'quantity' => 1]],
+            $canadaAddress,
+        );
+        $this->assertSame($location->id, $result->originLocation->id);
     }
 
     public function test_country_wide_shipping_zone_matches_united_states_address_name(): void
@@ -178,7 +209,7 @@ class CountryWideFulfillmentRoutingTest extends TestCase
     /**
      * @return array{0: Store, 1: Location, 2: ProductVariant}
      */
-    private function usStoreWithStock(int $available): array
+    private function usStoreWithStock(int $available, bool $countryWideZone = true): array
     {
         Role::firstOrCreate(['name' => 'user']);
         $owner = User::factory()->create();
@@ -208,6 +239,17 @@ class CountryWideFulfillmentRoutingTest extends TestCase
             'is_active' => true,
             'fulfills_online_orders' => true,
         ])->save();
+
+        if ($countryWideZone) {
+            ShippingZone::query()->create([
+                'store_id' => $store->id,
+                'name' => 'United States',
+                'countries' => ['US'],
+                'regions' => [],
+                'postal_patterns' => [],
+                'is_active' => true,
+            ]);
+        }
 
         $product = Product::query()->create([
             'store_id' => $store->id,

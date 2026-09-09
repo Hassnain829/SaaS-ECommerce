@@ -42,7 +42,7 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">Account</p>
-                    <h2 class="mt-1 text-2xl font-semibold text-[#0F172A]">{{ $account->display_name }}</h2>
+                    <h2 class="mt-1 text-section font-semibold text-[#0F172A]">{{ $account->display_name }}</h2>
                     <p class="mt-2 text-sm leading-6 text-[#64748B]">
                         Account {{ $account->maskedAccountNumber() }} · {{ $presenter->billingLabel() }}
                         @if ($account->defaultOriginLocation)

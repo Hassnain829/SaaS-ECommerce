@@ -4,12 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reset password — Merchant workspace</title>
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="user-typography min-h-screen bg-[#F5F7F8] text-[#0F172A]">
     <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12">
         <div class="rounded-2xl border border-[#E2E8F0] bg-white p-8 shadow-sm">
-            <h1 class="text-2xl font-semibold">Set a new password</h1>
+            <h1 class="text-section font-semibold">Set a new password</h1>
             <p class="mt-2 text-sm text-[#64748B]">Enter the email for your merchant account and choose a new password.</p>
 
             @if ($errors->any())

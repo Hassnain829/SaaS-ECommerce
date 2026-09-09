@@ -79,7 +79,10 @@ class DeliveryUxBatch3Test extends TestCase
             ->get(route('settings.delivery.setup.deliver-to'))
             ->assertOk()
             ->assertSeeText('Where do you deliver?')
-            ->assertSeeText('Save and continue');
+            ->assertSeeText('Save and continue')
+            ->assertSee('Dubai', false)
+            ->assertSee('Paris', false)
+            ->assertSee('North Holland', false);
     }
 
     public function test_wizard_ship_from_step_persists_location_and_advances(): void

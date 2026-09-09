@@ -248,6 +248,7 @@ class Phase6CheckoutDeliveryMethodsTest extends TestCase
         [$store, $token] = $this->tokenedStore('Phase 6B Store Safe');
         [$otherStore] = $this->tokenedStore('Phase 6B Other Store');
         [, $variant] = $this->product($store, ['stock' => 5]);
+        $this->shippingSetup($store);
         $otherMethods = $this->shippingSetup($otherStore);
 
         $this->withToken($token)

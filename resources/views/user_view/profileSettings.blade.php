@@ -35,7 +35,7 @@
       </div>
 
       <div class="flex-1 min-w-0">
-        <h2 class="text-3xl md:text-4xl text-[#0F172A]">{{ $profileUser->name }}</h2>
+        <h2 class="text-title text-[#0F172A]">{{ $profileUser->name }}</h2>
         <p class="text-[#64748B] text-base">{{ $profileUser->email }}</p>
         <div class="mt-4 flex flex-wrap gap-3">
           <span class="inline-flex items-center gap-2 rounded-full bg-[#D1FAE5] px-3 py-1 text-sm font-semibold text-[#047857]"><span class="h-2 w-2 rounded-full bg-[#10B981]"></span>{{ $profileUser->is_active === false ? 'Deactivated' : 'Active account' }}</span>
@@ -54,7 +54,7 @@
     <div class="space-y-6">
       <section class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="p-6 border-b border-[#E2E8F0]">
-          <h3 class="text-2xl text-[#0F172A]">Personal information</h3>
+          <h3 class="text-section text-[#0F172A]">Personal information</h3>
           <p class="text-sm text-[#64748B]">Keep your merchant account contact details current.</p>
         </div>
         <form id="profileForm" method="POST" action="{{ route('profile.update') }}" enctype="multipart/form-data" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -84,7 +84,7 @@
 
       <section id="password" class="bg-white border border-[#CBD5E1] rounded-xl overflow-hidden">
         <div class="p-6 border-b border-[#E2E8F0]">
-          <h3 class="text-2xl text-[#0F172A]">Password</h3>
+          <h3 class="text-section text-[#0F172A]">Password</h3>
           <p class="text-sm text-[#64748B]">Use a strong password that is not shared with supplier portals or marketplaces.</p>
         </div>
         <form method="POST" action="{{ route('profile.password.update') }}" class="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">

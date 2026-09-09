@@ -6,9 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name').' — Dashboard')</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
@@ -27,7 +25,7 @@
             @endif
         </div>
         <div class="min-w-0">
-            <div class="truncate text-[15px] font-semibold leading-tight text-ink">@yield('sidebar_brand_title', config('app.name'))</div>
+            <div class="truncate font-heading text-[15px] font-semibold leading-tight text-ink">@yield('sidebar_brand_title', config('app.name'))</div>
             <div class="truncate text-[11px] text-ink-muted">Merchant admin</div>
         </div>
     </div>
@@ -222,7 +220,7 @@
                     <path d="M4 7L6 3H18L20 7V19C20 20.1 19.1 21 18 21H6C4.9 21 4 20.1 4 19V7ZM6 9V19H18V9H6ZM8 11H16V13H8V11Z" fill="currentColor"/>
                 </svg>
             </div>
-            <h3 id="storeSwitchConfirmTitle" class="mt-5 text-2xl font-semibold text-[#0F172A]">Switch stores?</h3>
+            <h3 id="storeSwitchConfirmTitle" class="mt-5 text-section font-semibold text-[#0F172A]">Switch stores?</h3>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">You are about to work in a different store. Catalog, orders, and settings will show that store instead.</p>
         </div>
         <div class="px-6 pb-6 pt-2">

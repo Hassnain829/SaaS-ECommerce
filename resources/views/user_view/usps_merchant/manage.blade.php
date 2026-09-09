@@ -23,7 +23,7 @@
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <p class="text-xs font-bold uppercase tracking-[1px] text-[#64748B]">USPS Merchant Account</p>
-                    <h2 class="mt-1 text-2xl font-semibold text-[#0F172A]">{{ $account->display_name }}</h2>
+                    <h2 class="mt-1 text-section font-semibold text-[#0F172A]">{{ $account->display_name }}</h2>
                     <p class="mt-2 text-sm leading-6 text-[#64748B]">{{ $presenter->merchantSummary() }}</p>
                 </div>
                 <span class="inline-flex h-fit rounded-full px-3 py-1 text-xs font-bold {{ $presenter->badgeClass() }}">{{ $presenter->authorizationStatusLabel() }}</span>

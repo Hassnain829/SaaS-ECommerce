@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Store ready — Merchant workspace</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="user-typography min-h-screen flex flex-col overflow-x-hidden font-[Inter] bg-[#F5F7F8]">
+<body class="user-typography min-h-screen flex flex-col overflow-x-hidden bg-[#F5F7F8]">
     @include('user_view.partials.flash_success')
 
     @php
@@ -120,7 +120,7 @@
                     class="w-full max-w-[448px]"
                 >
                     <div class="mb-8 flex flex-col items-center text-center">
-                        <h1 class="text-3xl font-medium text-[#0F172A] md:text-4xl">Store details</h1>
+                        <h1 class="text-title font-medium text-[#0F172A]">Store details</h1>
                         <p class="mt-2 max-w-[500px] text-lg text-[#475569]">Review what you set up for this store. You can still change these details before you finish.</p>
                     </div>
                     <div class="mb-8 overflow-hidden rounded-xl border border-[#0052CC]/10 bg-white shadow-xl">
@@ -190,7 +190,7 @@
                     class="w-full max-w-[448px]"
                 >
                     <div class="mb-8 flex flex-col items-center text-center">
-                        <h1 class="text-3xl font-medium text-[#0F172A] md:text-4xl">Add products</h1>
+                        <h1 class="text-title font-medium text-[#0F172A]">Add products</h1>
                         <p class="mt-2 max-w-[500px] text-lg text-[#475569]">Add a product in the workspace or import a catalog. You can finish this later from Products.</p>
                     </div>
                     <div class="mb-8 overflow-hidden rounded-xl border border-[#0052CC]/10 bg-white shadow-xl">
@@ -235,7 +235,7 @@
                                 <path d="M0 51.25L12.5 16.25L35 38.75L0 51.25ZM8.25 43L25.875 36.75L14.5 25.375L8.25 43ZM31.375 27.625L28.75 25L42.75 11C44.0833 9.66667 45.6875 9 47.5625 9C49.4375 9 51.0417 9.66667 52.375 11L53.875 12.5L51.25 15.125L49.75 13.625C49.1667 13.0417 48.4375 12.75 47.5625 12.75C46.6875 12.75 45.9583 13.0417 45.375 13.625L31.375 27.625ZM21.375 17.625L18.75 15L20.25 13.5C20.8333 12.9167 21.125 12.2083 21.125 11.375C21.125 10.5417 20.8333 9.83333 20.25 9.25L18.625 7.625L21.25 5L22.875 6.625C24.2083 7.95833 24.875 9.54167 24.875 11.375C24.875 13.2083 24.2083 14.7917 22.875 16.125L21.375 17.625ZM26.375 22.625L23.75 20L32.75 11C33.3333 10.4167 33.625 9.6875 33.625 8.8125C33.625 7.9375 33.3333 7.20833 32.75 6.625L28.75 2.625L31.375 0L35.375 4C36.7083 5.33333 37.375 6.9375 37.375 8.8125C37.375 10.6875 36.7083 12.2917 35.375 13.625L26.375 22.625ZM36.375 32.625L33.75 30L37.75 26C39.0833 24.6667 40.6875 24 42.5625 24C44.4375 24 46.0417 24.6667 47.375 26L51.375 30L48.75 32.625L44.75 28.625C44.1667 28.0417 43.4375 27.75 42.5625 27.75C41.6875 27.75 40.9583 28.0417 40.375 28.625L36.375 32.625Z" fill="#0052CC"/>
                             </svg>
                         </div>
-                        <h1 class="mt-6 text-3xl font-medium text-[#0F172A] md:text-4xl">Your management workspace is ready</h1>
+                        <h1 class="mt-6 text-title font-medium text-[#0F172A]">Your management workspace is ready</h1>
                         <p class="mt-2 max-w-[500px] text-lg text-[#475569]">Continue with the next setup steps for this store. No public storefront domain is claimed until a real connected channel exists.</p>
                     </div>
 

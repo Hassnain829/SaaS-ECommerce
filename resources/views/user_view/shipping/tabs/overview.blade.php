@@ -207,7 +207,10 @@
             {{ $statusBadgeLabel }}
         </span>
         @if ($canManage)
-            <button type="button" data-open-drawer="method-add" class="dh-btn dh-btn-primary" @if ($allZones->isEmpty()) disabled @endif>
+            @if (! $isReady)
+                <a href="{{ $continueSetupRoute }}" class="dh-btn dh-btn-primary">Continue setup</a>
+            @endif
+            <button type="button" data-open-drawer="method-add" class="dh-btn {{ $isReady ? 'dh-btn-primary' : 'dh-btn-ghost' }}" @if ($allZones->isEmpty()) disabled @endif>
                 Add delivery option
             </button>
         @endif

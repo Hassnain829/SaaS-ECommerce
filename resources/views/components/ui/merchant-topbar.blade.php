@@ -43,7 +43,7 @@
     </button>
 
     <div class="min-w-0 flex-1">
-        <h1 class="truncate text-lg font-semibold leading-tight tracking-tight text-ink md:text-[1.25rem]">{{ $resolvedTitle }}</h1>
+        <h1 class="truncate font-heading text-title font-semibold tracking-tight text-ink">{{ $resolvedTitle }}</h1>
         @if ($resolvedLead !== '')
             <p class="mt-0.5 hidden truncate text-xs leading-4 text-ink-muted sm:block">{{ $resolvedLead }}</p>
         @endif

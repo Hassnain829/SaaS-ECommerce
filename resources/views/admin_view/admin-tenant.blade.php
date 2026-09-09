@@ -69,7 +69,7 @@
 
 <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
     <div>
-        <h1 class="text-2xl font-medium text-[#0F172A]">Managed Stores</h1>
+        <h1 class="text-section font-medium text-[#0F172A]">Managed Stores</h1>
         <p class="text-sm text-[#64748B]">You currently have access to 142 active multi-tenant instances.</p>
     </div>
     <!-- view toggle (grid/list) -->

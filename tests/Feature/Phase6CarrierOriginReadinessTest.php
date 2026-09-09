@@ -106,9 +106,17 @@ class Phase6CarrierOriginReadinessTest extends TestCase
             ->assertSessionHasErrors(['country_code']);
     }
 
-    public function test_service_countries_save_and_read_as_arrays(): void
+    public function test_location_form_does_not_collect_destination_service_areas(): void
     {
         [$owner, $store] = $this->ownerStore('Service Countries Store');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.locations.index'))
+            ->assertOk()
+            ->assertDontSee('Service countries')
+            ->assertDontSee('Service regions')
+            ->assertDontSee('Service postal patterns');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
@@ -129,9 +137,9 @@ class Phase6CarrierOriginReadinessTest extends TestCase
             ->assertSessionHas('success');
 
         $location = Location::query()->where('store_id', $store->id)->where('name', 'Routing warehouse')->firstOrFail();
-        $this->assertSame(['US', 'CA'], $location->service_countries);
-        $this->assertSame(['TX', 'CA'], $location->service_regions);
-        $this->assertSame(['75002', '606*'], $location->service_postal_patterns);
+        $this->assertNull($location->service_countries);
+        $this->assertNull($location->service_regions);
+        $this->assertNull($location->service_postal_patterns);
     }
 
     public function test_usps_quote_with_missing_origin_zip_fails_locally_with_friendly_message(): void

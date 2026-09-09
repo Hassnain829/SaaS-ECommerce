@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Browse Categories — Merchant workspace</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="user-typography min-h-screen bg-transparent font-sans text-[#0F172A] antialiased" style="font-family: 'Inter', system-ui, sans-serif;">
+<body class="user-typography min-h-screen bg-transparent font-sans text-[#0F172A] antialiased">
     <div class="ui-modal-shell flex">
         <div class="ui-modal-panel ui-modal-panel--2xl">
             <div class="ui-modal-header !items-start border-b border-[#F1F5F9] !px-6 !pb-4 !pt-6">

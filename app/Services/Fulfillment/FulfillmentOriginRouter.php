@@ -11,6 +11,7 @@ use App\Models\InventoryReservation;
 use App\Models\Location;
 use App\Models\ProductVariant;
 use App\Models\ShippingMethod;
+use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Services\Inventory\InventorySyncService;
 use App\Services\Shipping\ShippingZoneMatcher;
@@ -20,7 +21,6 @@ use Illuminate\Validation\ValidationException;
 class FulfillmentOriginRouter
 {
     public function __construct(
-        private readonly LocationServiceAreaMatcher $serviceAreaMatcher,
         private readonly InventorySyncService $inventorySyncService,
         private readonly ShippingZoneMatcher $zoneMatcher,
     ) {}
@@ -99,24 +99,18 @@ class FulfillmentOriginRouter
         ?string $reservationReferenceType,
         int|string|null $reservationReferenceId,
     ): FulfillmentOriginResult {
-        $matching = [];
-        $countryWideDelivery = $this->zoneMatcher->hasCountryWideCoverage($store, $destinationAddress);
+        $matchingZones = $this->zoneMatcher->matchingZones($store, $destinationAddress);
 
-        foreach ($this->activeLocations($store)->where('fulfills_online_orders', true) as $location) {
-            $score = $this->serviceAreaMatcher->scoreAddress(
-                $location,
-                $destinationAddress,
-                $store,
-                $countryWideDelivery,
-            );
-            if (! $score['matches']) {
-                continue;
-            }
+        $matching = $this->activeLocations($store)
+            ->where('fulfills_online_orders', true)
+            ->map(fn (Location $location): array => ['location' => $location])
+            ->values()
+            ->all();
 
-            $matching[] = [
-                'location' => $location,
-                'score' => $score,
-            ];
+        if ($matching === []) {
+            throw ValidationException::withMessages([
+                'items' => 'Add an active ship-from location that can fulfill online orders.',
+            ]);
         }
 
         $candidates = $this->stockedCandidates($matching, $items, $reservationReferenceType, $reservationReferenceId);
@@ -128,9 +122,7 @@ class FulfillmentOriginRouter
 
         if ($candidates === []) {
             throw ValidationException::withMessages([
-                'items' => $matching === []
-                    ? 'This address is outside the delivery area of your fulfillment locations. Choose another address or expand where you deliver.'
-                    : 'No fulfillment location has enough stock for this address. Adjust inventory or choose another delivery option.',
+                'items' => 'No fulfillment location has enough stock for this order. Adjust inventory or choose another delivery option.',
             ]);
         }
 
@@ -141,12 +133,10 @@ class FulfillmentOriginRouter
             $right = $b['location'];
 
             return [
-                -1 * (int) $a['score']['score'],
                 (int) $left->routing_priority,
                 -1 * (int) $left->is_default,
                 (int) $left->id,
             ] <=> [
-                -1 * (int) $b['score']['score'],
                 (int) $right->routing_priority,
                 -1 * (int) $right->is_default,
                 (int) $right->id,
@@ -156,14 +146,18 @@ class FulfillmentOriginRouter
         $best = $candidates[0];
         /** @var Location $location */
         $location = $best['location'];
+        $matchedBy = ['stock'];
+        if ($location->is_default) {
+            $matchedBy[] = 'default_location';
+        }
 
         return new FulfillmentOriginResult(
             mode: 'delivery',
             originLocation: $location,
             pickupLocation: null,
-            matchedBy: (string) $best['score']['matched_by'],
-            serviceArea: $best['score']['service_area'],
-            score: (int) $best['score']['score'],
+            matchedBy: implode(',', $matchedBy),
+            serviceArea: $this->deliveryAreaSnapshot($matchingZones->first()),
+            score: 0,
         );
     }
 
@@ -331,9 +325,9 @@ class FulfillmentOriginRouter
     }
 
     /**
-     * @param  list<array{location: Location, score: array<string, mixed>}>  $matching
+     * @param  list<array{location: Location}>  $matching
      * @param  array<int, array{item: InventoryItem, quantity: int}>  $items
-     * @return list<array{location: Location, score: array<string, mixed>}>
+     * @return list<array{location: Location}>
      */
     private function stockedCandidates(
         array $matching,
@@ -354,9 +348,9 @@ class FulfillmentOriginRouter
 
     /**
      * When catalog stock exists but no location level holds it, place it on the
-     * best matching ship-from so a country-wide delivery area can check out.
+     * preferred ship-from so a covered delivery area can check out.
      *
-     * @param  list<array{location: Location, score: array<string, mixed>}>  $matching
+     * @param  list<array{location: Location}>  $matching
      * @param  array<int, array{item: InventoryItem, quantity: int}>  $items
      */
     private function allocateUnlocatedCatalogStock(array $matching, array $items): void
@@ -396,7 +390,7 @@ class FulfillmentOriginRouter
     }
 
     /**
-     * @param  list<array{location: Location, score: array<string, mixed>}>  $matching
+     * @param  list<array{location: Location}>  $matching
      */
     private function preferredMatchingLocation(array $matching): ?Location
     {
@@ -411,12 +405,10 @@ class FulfillmentOriginRouter
             $right = $b['location'];
 
             return [
-                -1 * (int) $a['score']['score'],
                 (int) $left->routing_priority,
                 -1 * (int) $left->is_default,
                 (int) $left->id,
             ] <=> [
-                -1 * (int) $b['score']['score'],
                 (int) $right->routing_priority,
                 -1 * (int) $right->is_default,
                 (int) $right->id,
@@ -424,6 +416,28 @@ class FulfillmentOriginRouter
         });
 
         return $matching[0]['location'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function deliveryAreaSnapshot(?ShippingZone $zone): array
+    {
+        if (! $zone) {
+            return [
+                'countries' => [],
+                'regions' => [],
+                'postal_patterns' => [],
+            ];
+        }
+
+        return [
+            'countries' => collect($zone->countries)->filter()->values()->all(),
+            'regions' => collect($zone->regions)->filter()->values()->all(),
+            'postal_patterns' => collect($zone->postal_patterns)->filter()->values()->all(),
+            'shipping_zone_id' => $zone->id,
+            'shipping_zone_name' => $zone->name,
+        ];
     }
 
     /**

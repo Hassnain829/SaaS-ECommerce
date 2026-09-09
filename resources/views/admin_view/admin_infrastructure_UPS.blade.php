@@ -85,7 +85,7 @@
             </div>
             <div>
                 <div class="flex items-center gap-3">
-                    <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30]">UPS Global Integration</h1>
+                    <h1 class="text-section font-medium text-[#0B1C30]">UPS Global Integration</h1>
                     <span class="inline-flex items-center gap-2 px-3 py-1 bg-[#4EDEA3]/20 rounded-full text-[#004E33] text-[10px] font-bold uppercase">
                         <span class="w-2 h-2 bg-[#006846] rounded-full"></span>
                         Connected

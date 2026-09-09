@@ -65,7 +65,7 @@
                 </svg>
                 <span class="text-[#003D9B] font-bold">Directories</span>
             </div>
-            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30]">User Directory</h1>
+            <h1 class="text-section font-medium text-[#0B1C30]">User Directory</h1>
             <p class="text-sm md:text-base text-[#434654] mt-1">Manage global user access, permissions, and security protocols.</p>
         </div>
         <!-- Action buttons -->
@@ -155,7 +155,7 @@
             </div>
             <div>
                 <div class="text-[#C4D2FF]/70 text-sm font-medium">Global Compliance</div>
-                <div class="text-[#C4D2FF] text-3xl font-bold">94.2%</div>
+                <div class="text-[#C4D2FF] text-title font-semibold">94.2%</div>
             </div>
         </div>
     </div>

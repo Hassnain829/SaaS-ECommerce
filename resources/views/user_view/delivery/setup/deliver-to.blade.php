@@ -23,8 +23,8 @@
     @endphp
 
     <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
-        <h2 class="text-2xl font-semibold text-[#0F172A]">Where do you deliver?</h2>
-        <p class="mt-2 text-sm text-[#64748B]">Each delivery area covers one country. Add states or ZIP/postal rules when you need tighter coverage.</p>
+        <h2 class="text-section font-semibold text-[#0F172A]">Where do you deliver?</h2>
+        <p class="mt-2 text-sm text-[#64748B]">Each delivery area covers one country. Turn on entire country for any city, state, or ZIP in that country. Turn it off to limit selected states, or add ZIP rules when you need tighter coverage.</p>
 
         @if ($legacyZones->isNotEmpty())
             <div class="mt-4 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">

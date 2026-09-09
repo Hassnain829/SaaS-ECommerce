@@ -6,9 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name').' — Admin')</title>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
@@ -27,7 +25,7 @@
             @endif
         </div>
         <div class="min-w-0">
-            <div class="truncate text-lg font-semibold tracking-tight text-white">@yield('sidebar_brand_title', config('app.name'))</div>
+            <div class="truncate font-heading text-lg font-semibold tracking-tight text-white">@yield('sidebar_brand_title', config('app.name'))</div>
             <div class="truncate text-xs text-zinc-500">@yield('sidebar_brand_subtitle', 'Platform admin')</div>
         </div>
     </div>

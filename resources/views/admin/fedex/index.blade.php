@@ -16,7 +16,7 @@
 
     <div class="mx-auto max-w-6xl space-y-6 p-6">
         <div>
-            <h1 class="text-2xl font-semibold text-slate-900">FedEx</h1>
+            <h1 class="text-section font-semibold text-slate-900">FedEx</h1>
             <p class="mt-1 text-sm text-slate-600">Platform operations console. Credentials, tokens, and raw FedEx payloads are never shown.</p>
         </div>
 

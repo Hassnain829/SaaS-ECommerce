@@ -71,7 +71,7 @@
             if (! countryCode) {
                 html += '<p class="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-3 py-2 text-xs text-[#64748B]">Choose a country first.</p>';
             } else if (! keys.length) {
-                html += '<p class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#64748B]">This country has no predefined regions.</p>';
+                html += '<p class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-xs text-[#64748B]">This country has no predefined states or provinces. Leave Entire country on, or add postal coverage.</p>';
             } else {
                 html += '<div class="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2">';
                 keys.forEach((code) => {
@@ -417,12 +417,12 @@
                 btn.setAttribute('aria-pressed', next ? 'true' : 'false');
                 try {
                     await patchAvailability(url, next);
+                    window.location.reload();
                 } catch (e) {
                     btn.classList.toggle('is-on', previous);
                     btn.setAttribute('data-available', previous ? '1' : '0');
                     btn.setAttribute('aria-pressed', previous ? 'true' : 'false');
                     window.alert('Could not save that change. Please try again.');
-                } finally {
                     btn.disabled = false;
                 }
             });

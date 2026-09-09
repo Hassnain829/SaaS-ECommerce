@@ -73,6 +73,73 @@ class DeliveryFinalUxTest extends TestCase
             ->assertDontSeeText('UPS');
     }
 
+    public function test_completed_store_shows_continue_setup_after_last_area_is_removed(): void
+    {
+        [$owner, $store] = $this->ownerStore('Final UX Deleted Area Store');
+        $this->readyLocation($store);
+        $zone = $this->makeZone($store);
+        $this->makeFixedMethod($store, $zone);
+        $store->forceFill(['delivery_setup_completed_at' => now()])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('shippingAutomation'))
+            ->delete(route('settings.shipping.zones.destroy', $zone))
+            ->assertRedirect(route('shippingAutomation'));
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('shippingAutomation'))
+            ->assertOk()
+            ->assertSeeText('Needs attention')
+            ->assertSeeText('Continue setup')
+            ->assertDontSee('class="dh-setup-hero"', false);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.delivery.setup'))
+            ->assertRedirect(route('settings.delivery.setup.deliver-to'));
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.delivery.setup.deliver-to'))
+            ->assertOk()
+            ->assertSeeText('Where do you deliver?');
+    }
+
+    public function test_completed_store_shows_continue_setup_after_last_option_is_removed(): void
+    {
+        [$owner, $store] = $this->ownerStore('Final UX Deleted Option Store');
+        $this->readyLocation($store);
+        $zone = $this->makeZone($store);
+        $method = $this->makeFixedMethod($store, $zone);
+        $store->forceFill(['delivery_setup_completed_at' => now()])->save();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->from(route('shippingAutomation'))
+            ->delete(route('settings.shipping.methods.destroy', $method))
+            ->assertRedirect(route('shippingAutomation'));
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('shippingAutomation'))
+            ->assertOk()
+            ->assertSeeText('Needs attention')
+            ->assertSeeText('Continue setup');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.delivery.setup'))
+            ->assertRedirect(route('settings.delivery.setup.delivery-option'));
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('settings.delivery.setup.delivery-option'))
+            ->assertOk()
+            ->assertSeeText('How should customers get shipping prices?');
+    }
+
     public function test_completed_broken_store_sees_hub_needs_attention_not_onboarding(): void
     {
         [$owner, $store] = $this->ownerStore('Final UX Broken Store');

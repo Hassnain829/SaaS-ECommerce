@@ -5,6 +5,7 @@ namespace App\Services\Shipping;
 use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Support\CountryCode;
+use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Support\Collection;
 
 class ShippingZoneMatcher
@@ -120,18 +121,29 @@ class ShippingZoneMatcher
             return true;
         }
 
+        $countries = collect($zone->countries)
+            ->map(fn ($country): string => CountryCode::normalize($country) ?: $this->normalized($country))
+            ->filter()
+            ->values()
+            ->all();
+
+        $addressCountry = CountryCode::fromAddress($address);
+        if ($addressCountry !== '' && ! in_array($addressCountry, $countries, true)) {
+            $countries[] = $addressCountry;
+        }
+
         $candidates = collect([
             $address['province_code'] ?? null,
             $address['state'] ?? null,
             $address['region'] ?? null,
         ])
-            ->flatMap(fn ($region): array => $this->regionVariants($region))
+            ->flatMap(fn ($region): array => $this->regionVariants($region, $countries))
             ->filter()
             ->unique()
             ->values();
 
         $zoneRegions = $regions
-            ->flatMap(fn (string $region): array => $this->regionVariants($region))
+            ->flatMap(fn (string $region): array => $this->regionVariants($region, $countries))
             ->unique()
             ->values();
 
@@ -139,9 +151,10 @@ class ShippingZoneMatcher
     }
 
     /**
+     * @param  list<string>  $countryCodes
      * @return list<string>
      */
-    private function regionVariants(mixed $region): array
+    private function regionVariants(mixed $region, array $countryCodes = []): array
     {
         $normalized = $this->normalized($region);
         if ($normalized === '') {
@@ -149,79 +162,31 @@ class ShippingZoneMatcher
         }
 
         $variants = [$normalized];
-        $aliases = $this->usStateAliases();
 
-        if (isset($aliases[$normalized])) {
-            $variants[] = $aliases[$normalized];
+        if ($countryCodes === []) {
+            $countryCodes = array_keys(TaxCountryCatalog::allRegions());
         }
 
-        foreach ($aliases as $abbreviation => $fullName) {
-            if ($fullName === $normalized) {
-                $variants[] = $abbreviation;
+        foreach ($countryCodes as $countryCode) {
+            $catalog = TaxCountryCatalog::regionsFor($countryCode);
+            if ($catalog === []) {
+                continue;
+            }
+
+            if (isset($catalog[$normalized])) {
+                $variants[] = $normalized;
+                $variants[] = $this->normalized($catalog[$normalized]);
+            }
+
+            foreach ($catalog as $code => $label) {
+                if ($this->normalized($label) === $normalized || $this->normalized($code) === $normalized) {
+                    $variants[] = $this->normalized($code);
+                    $variants[] = $this->normalized($label);
+                }
             }
         }
 
         return array_values(array_unique($variants));
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function usStateAliases(): array
-    {
-        return [
-            'AL' => 'ALABAMA',
-            'AK' => 'ALASKA',
-            'AZ' => 'ARIZONA',
-            'AR' => 'ARKANSAS',
-            'CA' => 'CALIFORNIA',
-            'CO' => 'COLORADO',
-            'CT' => 'CONNECTICUT',
-            'DE' => 'DELAWARE',
-            'FL' => 'FLORIDA',
-            'GA' => 'GEORGIA',
-            'HI' => 'HAWAII',
-            'ID' => 'IDAHO',
-            'IL' => 'ILLINOIS',
-            'IN' => 'INDIANA',
-            'IA' => 'IOWA',
-            'KS' => 'KANSAS',
-            'KY' => 'KENTUCKY',
-            'LA' => 'LOUISIANA',
-            'ME' => 'MAINE',
-            'MD' => 'MARYLAND',
-            'MA' => 'MASSACHUSETTS',
-            'MI' => 'MICHIGAN',
-            'MN' => 'MINNESOTA',
-            'MS' => 'MISSISSIPPI',
-            'MO' => 'MISSOURI',
-            'MT' => 'MONTANA',
-            'NE' => 'NEBRASKA',
-            'NV' => 'NEVADA',
-            'NH' => 'NEW HAMPSHIRE',
-            'NJ' => 'NEW JERSEY',
-            'NM' => 'NEW MEXICO',
-            'NY' => 'NEW YORK',
-            'NC' => 'NORTH CAROLINA',
-            'ND' => 'NORTH DAKOTA',
-            'OH' => 'OHIO',
-            'OK' => 'OKLAHOMA',
-            'OR' => 'OREGON',
-            'PA' => 'PENNSYLVANIA',
-            'RI' => 'RHODE ISLAND',
-            'SC' => 'SOUTH CAROLINA',
-            'SD' => 'SOUTH DAKOTA',
-            'TN' => 'TENNESSEE',
-            'TX' => 'TEXAS',
-            'UT' => 'UTAH',
-            'VT' => 'VERMONT',
-            'VA' => 'VIRGINIA',
-            'WA' => 'WASHINGTON',
-            'WV' => 'WEST VIRGINIA',
-            'WI' => 'WISCONSIN',
-            'WY' => 'WYOMING',
-            'DC' => 'DISTRICT OF COLUMBIA',
-        ];
     }
 
     /**
@@ -235,7 +200,7 @@ class ShippingZoneMatcher
             return true;
         }
 
-        $postalCode = $this->normalized($address['postal_code'] ?? null);
+        $postalCode = $this->compactPostal($address['postal_code'] ?? null);
         if ($postalCode === '') {
             return false;
         }
@@ -245,19 +210,33 @@ class ShippingZoneMatcher
 
     private function postalPatternMatches(string $pattern, string $postalCode): bool
     {
-        $pattern = $this->normalized($pattern);
+        $compactPattern = $this->compactPostal($pattern);
 
-        if ($pattern === '') {
+        if ($compactPattern === '') {
             return false;
         }
 
-        if (! str_contains($pattern, '*')) {
-            return $postalCode === $pattern;
+        if (! str_contains($compactPattern, '*')) {
+            if ($postalCode === $compactPattern) {
+                return true;
+            }
+
+            // US ZIP+4 (75002-1234) should match a 5-digit deliver-to rule.
+            return strlen($compactPattern) === 5
+                && ctype_digit($compactPattern)
+                && strlen($postalCode) === 9
+                && ctype_digit($postalCode)
+                && str_starts_with($postalCode, $compactPattern);
         }
 
-        $regex = '/^'.str_replace('\*', '.*', preg_quote($pattern, '/')).'$/';
+        $regex = '/^'.str_replace('\*', '.*', preg_quote($compactPattern, '/')).'$/';
 
         return (bool) preg_match($regex, $postalCode);
+    }
+
+    private function compactPostal(mixed $value): string
+    {
+        return strtoupper(str_replace([' ', '-'], '', trim((string) $value)));
     }
 
     private function normalized(mixed $value): string

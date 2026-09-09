@@ -126,7 +126,7 @@
                     <span> / Order History</span>
                 </nav>
                 <div class="flex flex-wrap items-center gap-3 md:gap-4">
-                    <h2 class="font-heading text-2xl font-semibold tracking-tight text-stone-900 md:text-[32px] md:leading-tight">
+                    <h2 class="font-heading text-title font-semibold tracking-tight text-stone-900">
                         Order #{{ strtoupper($order->order_number) }}
                     </h2>
                     <div class="flex flex-wrap gap-2">
@@ -630,7 +630,7 @@
                                     @csrf
                                     @if ($routedOriginLocationId || $pickupLocationName)
                                         <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs leading-relaxed text-indigo-900">
-                                            Fulfillment origin selected by service area routing{{ $routedOriginLocationId ? ': '.($fulfillmentLocations->firstWhere('id', $routedOriginLocationId)?->name ?? data_get($fulfillmentRouting, 'origin_name', 'Selected location')) : '' }}.
+                                            This order will ship from {{ $routedOriginLocationId ? ($fulfillmentLocations->firstWhere('id', $routedOriginLocationId)?->name ?? data_get($fulfillmentRouting, 'origin_name', 'the selected inventory location')) : 'the selected inventory location' }}.
                                             @if ($pickupLocationName)
                                                 Pickup location selected: {{ $pickupLocationName }}.
                                             @endif
@@ -716,7 +716,7 @@
                             @csrf
                             @if ($routedOriginLocationId || $pickupLocationName)
                                 <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs leading-relaxed text-indigo-900">
-                                    Fulfillment origin selected by service area routing{{ $routedOriginLocationId ? ': '.($fulfillmentLocations->firstWhere('id', $routedOriginLocationId)?->name ?? data_get($fulfillmentRouting, 'origin_name', 'Selected location')) : '' }}.
+                                    This order will ship from {{ $routedOriginLocationId ? ($fulfillmentLocations->firstWhere('id', $routedOriginLocationId)?->name ?? data_get($fulfillmentRouting, 'origin_name', 'the selected inventory location')) : 'the selected inventory location' }}.
                                     @if ($pickupLocationName)
                                         Pickup location selected: {{ $pickupLocationName }}.
                                     @endif

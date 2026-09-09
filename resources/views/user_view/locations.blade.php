@@ -41,7 +41,7 @@
             <ul class="settings-guide-list">
                 <li><span class="settings-guide-step">1</span><span>Create each physical fulfillment location (warehouse, shop, or 3PL) with complete address fields.</span></li>
                 <li><span class="settings-guide-step">2</span><span>Set one default location for fallback stock and shipping origin behavior.</span></li>
-                <li><span class="settings-guide-step">3</span><span>Use service countries/regions/postal rules only when you need routing control beyond standard fulfillment.</span></li>
+                <li><span class="settings-guide-step">3</span><span>Set where customers can receive orders in Delivery (entire country, or selected states and ZIP codes). Locations do not control that coverage.</span></li>
             </ul>
         </section>
 
@@ -49,10 +49,10 @@
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="max-w-3xl">
                     <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-[#94A3B8]">Inventory settings</p>
-                    <h2 class="mt-1 text-2xl font-semibold text-[#0F172A]">Inventory locations</h2>
+                    <h2 class="mt-1 text-section font-semibold text-[#0F172A]">Inventory locations</h2>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations are places where you store or fulfill inventory, such as a warehouse, shop, stock room, restaurant branch, or third-party storage.</p>
                     <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations control where stock is stored. Markets and currencies control where and how you sell. Market-specific selling settings will be added later.</p>
-                    <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Use service areas to control which destinations this location can fulfill. This routing is based on configured service areas, stock availability, and your priority settings.</p>
+                    <p class="mt-2 text-sm leading-relaxed text-[#64748B]">Locations hold inventory and provide the ship-from address for labels. Where customers can receive orders is set in Delivery → Deliver to.</p>
 
                     <div class="mt-5 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-4">
                         <p class="text-sm font-semibold text-[#0F172A]">Fulfillment origins</p>
@@ -73,6 +73,7 @@
                         <div class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
                             <h3 class="text-sm font-semibold text-[#0F172A]">What locations do not control</h3>
                             <ul class="mt-3 space-y-2 text-sm text-[#64748B]">
+                                <li>Customer delivery coverage</li>
                                 <li>Customer markets</li>
                                 <li>Selling currencies</li>
                                 <li>Language</li>
@@ -135,7 +136,7 @@
                                 Fulfill online orders
                             </label>
                             <details class="sm:col-span-2 rounded-xl border border-[#E2E8F0] bg-white p-3">
-                                <summary class="cursor-pointer text-sm font-semibold text-[#475569]">Advanced routing (optional)</summary>
+                                <summary class="cursor-pointer text-sm font-semibold text-[#475569]">Pickup and priority (optional)</summary>
                                 <div class="mt-3 grid gap-3 sm:grid-cols-2">
                                     <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]">
                                         <input type="hidden" name="pickup_enabled" value="0">
@@ -145,19 +146,7 @@
                                     <label class="space-y-1">
                                         <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
                                         <input name="routing_priority" type="number" min="1" max="9999" value="{{ old('routing_priority', 100) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
-                                    </label>
-                                    <label class="space-y-1 sm:col-span-2">
-                                        <span class="text-xs font-semibold text-[#64748B]">Service countries</span>
-                                        <input name="service_countries" value="{{ old('service_countries') }}" placeholder="US, CA" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                    </label>
-                                    <label class="space-y-1">
-                                        <span class="text-xs font-semibold text-[#64748B]">Service regions</span>
-                                        <input name="service_regions" value="{{ old('service_regions') }}" placeholder="CA, TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                    </label>
-                                    <label class="space-y-1">
-                                        <span class="text-xs font-semibold text-[#64748B]">Service postal patterns</span>
-                                        <input name="service_postal_patterns" value="{{ old('service_postal_patterns') }}" placeholder="60601, 606*" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                        <span class="text-[11px] text-[#94A3B8]">Use exact postal codes or prefix patterns such as 60601 or 606*.</span>
+                                        <span class="text-[11px] text-[#94A3B8]">Lower numbers are preferred when more than one location has stock.</span>
                                     </label>
                                 </div>
                             </details>
@@ -214,13 +203,6 @@
                                         <p class="text-xs font-semibold text-[#334155]">Priority {{ $location->routing_priority ?? 100 }}</p>
                                         <p class="text-xs">{{ $location->fulfills_online_orders ? 'Online fulfillment' : 'Not used for online fulfillment' }}</p>
                                         <p class="text-xs">{{ $location->pickup_enabled ? 'Pickup offered' : 'Pickup off' }}</p>
-                                        <p class="text-xs">Countries: {{ collect($location->service_countries)->filter()->implode(', ') ?: ($location->country_code ?: 'Store default') }}</p>
-                                        @if (collect($location->service_regions)->filter()->isNotEmpty())
-                                            <p class="text-xs">Regions: {{ collect($location->service_regions)->filter()->implode(', ') }}</p>
-                                        @endif
-                                        @if (collect($location->service_postal_patterns)->filter()->isNotEmpty())
-                                            <p class="text-xs">Postal: {{ collect($location->service_postal_patterns)->filter()->implode(', ') }}</p>
-                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 align-top">
@@ -316,7 +298,7 @@
                                                         Fulfill online orders
                                                     </label>
                                                     <details class="sm:col-span-2 rounded-xl border border-[#E2E8F0] bg-white p-3">
-                                                        <summary class="cursor-pointer text-sm font-semibold text-[#475569]">Advanced routing (optional)</summary>
+                                                        <summary class="cursor-pointer text-sm font-semibold text-[#475569]">Pickup and priority (optional)</summary>
                                                         <div class="mt-3 grid gap-3 sm:grid-cols-2">
                                                             <label class="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm text-[#334155]">
                                                                 <input type="hidden" name="pickup_enabled" value="0">
@@ -326,18 +308,6 @@
                                                             <label class="space-y-1">
                                                                 <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
                                                                 <input name="routing_priority" type="number" min="1" max="9999" value="{{ old('name') === $location->name ? old('routing_priority', $location->routing_priority ?? 100) : ($location->routing_priority ?? 100) }}" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm">
-                                                            </label>
-                                                            <label class="space-y-1 sm:col-span-2">
-                                                                <span class="text-xs font-semibold text-[#64748B]">Service countries</span>
-                                                                <input name="service_countries" value="{{ old('name') === $location->name ? old('service_countries', collect($location->service_countries)->filter()->implode(', ')) : collect($location->service_countries)->filter()->implode(', ') }}" placeholder="US, CA" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                                            </label>
-                                                            <label class="space-y-1">
-                                                                <span class="text-xs font-semibold text-[#64748B]">Service regions</span>
-                                                                <input name="service_regions" value="{{ old('name') === $location->name ? old('service_regions', collect($location->service_regions)->filter()->implode(', ')) : collect($location->service_regions)->filter()->implode(', ') }}" placeholder="CA, TX" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
-                                                            </label>
-                                                            <label class="space-y-1">
-                                                                <span class="text-xs font-semibold text-[#64748B]">Service postal patterns</span>
-                                                                <input name="service_postal_patterns" value="{{ old('name') === $location->name ? old('service_postal_patterns', collect($location->service_postal_patterns)->filter()->implode(', ')) : collect($location->service_postal_patterns)->filter()->implode(', ') }}" placeholder="60601, 606*" class="w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm uppercase">
                                                             </label>
                                                         </div>
                                                     </details>

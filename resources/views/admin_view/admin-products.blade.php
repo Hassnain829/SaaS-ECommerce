@@ -53,7 +53,7 @@
     <div class="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
         <!-- Page title & subtitle -->
         <div>
-            <h1 class="text-2xl md:text-3xl font-medium text-[#0B1C30] font-['Inter']">Global Product Inventory</h1>
+            <h1 class="text-section font-heading font-medium text-[#0B1C30]">Global Product Inventory</h1>
             <p class="text-sm md:text-base text-[#434654] mt-1">Aggregate view of SKU performance and stock health across all tenants</p>
         </div>
 
@@ -63,7 +63,7 @@
         <div class="bg-white rounded-xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-4 md:p-6 border-l-4 border-l-[#003D9B]">
             <div class="text-[#434654] text-xs font-bold uppercase tracking-wider">Total Active SKUs</div>
             <div class="mt-2 flex items-baseline justify-between">
-                <span class="text-2xl md:text-3xl font-bold text-[#0B1C30]">12,842</span>
+                <span class="text-title font-semibold text-[#0B1C30]">12,842</span>
                 <span class="flex items-center gap-1 text-[#004E33] text-xs md:text-sm font-semibold">
                     <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M3.5 8V1.9125L0.7 4.7125L0 4L4 0L8 4L7.3 4.7125L4.5 1.9125V8H3.5Z" fill="#004E33"/></svg>
                     4.2%
@@ -74,7 +74,7 @@
         <div class="bg-white rounded-xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-4 md:p-6 border-l-4 border-l-[#003D9B]">
             <div class="text-[#434654] text-xs font-bold uppercase tracking-wider">Global Inventory<br>Value</div>
             <div class="mt-2 flex items-baseline justify-between">
-                <span class="text-2xl md:text-3xl font-bold text-[#0B1C30]">$2.4M</span>
+                <span class="text-title font-semibold text-[#0B1C30]">$2.4M</span>
                 <span class="flex items-center gap-1 text-[#004E33] text-xs md:text-sm font-semibold">
                     <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M3.5 8V1.9125L0.7 4.7125L0 4L4 0L8 4L7.3 4.7125L4.5 1.9125V8H3.5Z" fill="#004E33"/></svg>
                     12%
@@ -85,7 +85,7 @@
         <div class="bg-white rounded-xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-4 md:p-6 border-l-4 border-l-[#BA1A1A]">
             <div class="text-[#434654] text-xs font-bold uppercase tracking-wider">Low Stock Alerts<br>(Global)</div>
             <div class="mt-2 flex items-baseline justify-between">
-                <span class="text-2xl md:text-3xl font-bold text-[#0B1C30]">43</span>
+                <span class="text-title font-semibold text-[#0B1C30]">43</span>
                 <span class="flex items-center gap-1 text-[#BA1A1A] text-xs md:text-sm font-semibold">
                     <svg width="11" height="10" viewBox="0 0 11 10" fill="none"><path d="M0 9.5L5.5 0L11 9.5H0ZM1.725 8.5H9.275L5.5 2L1.725 8.5ZM5.5 8C5.64167 8 5.76042 7.95208 5.85625 7.85625C5.95208 7.76042 6 7.64167 6 7.5C6 7.35833 5.95208 7.23958 5.85625 7.14375C5.76042 7.04792 5.64167 7 5.5 7C5.35833 7 5.23958 7.04792 5.14375 7.14375C5.04792 7.23958 5 7.35833 5 7.5C5 7.64167 5.04792 7.76042 5.14375 7.85625C5.23958 7.95208 5.35833 8 5.5 8ZM5 6.5H6V4H5V6.5Z" fill="#BA1A1A"/></svg>
                     Critical
@@ -96,7 +96,7 @@
         <div class="bg-white rounded-xl shadow-[0_8px_30px_rgba(11,28,48,0.04)] p-4 md:p-6 border-l-4 border-l-[#4EDEA3]">
             <div class="text-[#434654] text-xs font-bold uppercase tracking-wider">Top Performing<br>Category</div>
             <div class="mt-2 flex items-baseline justify-between">
-                <span class="text-2xl md:text-3xl font-bold text-[#0B1C30]">Electronics</span>
+                <span class="text-title font-semibold text-[#0B1C30]">Electronics</span>
                 <span class="text-[#434654] text-xs font-medium text-right leading-tight">28% of<br>Sales</span>
             </div>
         </div>

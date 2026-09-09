@@ -75,7 +75,7 @@
             <!-- User info -->
             <div class="flex-1">
                 <div class="flex flex-wrap items-center gap-3">
-                    <h1 class="text-3xl md:text-4xl font-medium">Alex Rivers</h1>
+                    <h1 class="text-title font-medium">Alex Rivers</h1>
                     <span class="inline-flex items-center gap-1 px-3 py-1 bg-[#4EDEA3] text-[#002113] text-xs font-bold uppercase rounded-full">
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                             <path d="M4.43333 11.25L3.325 9.38333L1.225 8.91667L1.42917 6.75833L0 5.125L1.42917 3.49167L1.225 1.33333L3.325 0.866667L4.43333 0L6.41667 0.845833L8.4 0L9.50833 1.86667L11.6083 2.33333L11.4042 4.49167L12.8333 6.125L11.4042 7.75833L11.6083 9.91667L9.50833 10.3833L8.4 12.25L6.41667 11.4042L4.43333 11.25ZM5.80417 7.19583L9.1 3.9L8.28333 3.05417L5.80417 5.53333L4.55 4.30833L3.73333 5.125L5.80417 7.19583Z" fill="#002113"/>

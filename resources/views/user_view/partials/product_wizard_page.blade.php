@@ -686,7 +686,7 @@
                     <path d="M12 9V13M12 17H12.01M10.29 3.86L1.82 18C1.64 18.3 1.55 18.65 1.55 19C1.55 19.35 1.64 19.7 1.81 20C1.99 20.31 2.24 20.56 2.54 20.74C2.85 20.92 3.19 21.02 3.54 21.02H20.46C20.81 21.02 21.15 20.92 21.46 20.74C21.76 20.56 22.01 20.31 22.19 20C22.36 19.7 22.45 19.35 22.45 19C22.45 18.65 22.36 18.3 22.18 18L13.71 3.86C13.53 3.56 13.28 3.32 12.97 3.15C12.67 2.98 12.33 2.89 11.98 2.89C11.64 2.89 11.3 2.98 10.99 3.15C10.69 3.32 10.44 3.57 10.26 3.86L10.29 3.86Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
-            <h3 id="productCreateLeaveTitle" class="mt-5 text-2xl font-semibold text-[#0F172A]">Finish this product first</h3>
+            <h3 id="productCreateLeaveTitle" class="mt-5 text-section font-semibold text-[#0F172A]">Finish this product first</h3>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">{{ $isProductCreateWizard
                 ? 'You are still adding a product. Save it, or cancel, before you go to another page.'
                 : 'You are still editing this product. Save it, or cancel, before you go to another page.' }}</p>

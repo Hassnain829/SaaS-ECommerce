@@ -47,7 +47,7 @@
         <div class="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4 sm:px-6">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Store Actions</p>
-                <h2 class="mt-1 text-2xl font-medium text-[#0F172A]">Edit Store</h2>
+                <h2 class="mt-1 text-section font-medium text-[#0F172A]">Edit Store</h2>
             </div>
             <button type="button" id="closeEditStoreModal" class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E2E8F0] text-[#64748B] transition hover:text-[#334155]" aria-label="Close edit modal">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
@@ -217,7 +217,7 @@
                     <path d="M12 9V13M12 17H12.01M10.29 3.85999L1.81999 18C1.6442 18.3045 1.5512 18.6496 1.55029 19.0012C1.54939 19.3528 1.64063 19.6984 1.81485 20.0037C1.98907 20.3089 2.24014 20.5632 2.5431 20.7413C2.84606 20.9194 3.19024 21.0151 3.54199 21.02H20.458C20.8097 21.0151 21.1539 20.9194 21.4569 20.7413C21.7598 20.5632 22.0109 20.3089 22.1851 20.0037C22.3593 19.6984 22.4506 19.3528 22.4497 19.0012C22.4488 18.6496 22.3558 18.3045 22.18 18L13.71 3.85999C13.5294 3.56428 13.2758 3.31986 12.9735 3.15044C12.6711 2.98102 12.3303 2.89233 11.9837 2.89282C11.6371 2.8933 11.2965 2.98295 10.9946 3.15322C10.6928 3.32349 10.4398 3.56863 10.26 3.86499L10.29 3.85999Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
-            <h3 class="mt-5 text-2xl font-semibold text-[#0F172A]">Close this store?</h3>
+            <h3 class="mt-5 text-section font-semibold text-[#0F172A]">Close this store?</h3>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">The store will be removed from normal access immediately. Its storefront and connected operations will no longer be available. Store data is retained internally until final purge.</p>
         </div>
 

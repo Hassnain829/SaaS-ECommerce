@@ -346,28 +346,25 @@ class EnterpriseQaOriginRoutingHardeningTest extends TestCase
         ]);
     }
 
-    public function test_service_area_specificity_wins_before_routing_priority(): void
+    public function test_routing_priority_wins_when_multiple_locations_have_stock(): void
     {
         [$store, $token] = $this->tokenedStore('QA Service Area Specificity Store');
         [, $variant] = $this->product($store, ['stock' => 0]);
+        $this->shippingSetup($store);
         $default = $store->defaultLocation()->firstOrFail();
 
-        $countryOnly = $this->location($store, 'Country-wide warehouse', [
-            'service_countries' => ['US'],
+        $preferred = $this->location($store, 'Preferred warehouse', [
             'routing_priority' => 1,
             'is_default' => false,
         ]);
-        $postalMatch = $this->location($store, 'Chicago postal room', [
-            'service_countries' => ['US'],
-            'service_regions' => ['IL'],
-            'service_postal_patterns' => ['606*'],
+        $later = $this->location($store, 'Later warehouse', [
             'routing_priority' => 50,
         ]);
 
         $this->stockAtLocations($variant, [
             $default->id => 0,
-            $countryOnly->id => 5,
-            $postalMatch->id => 5,
+            $preferred->id => 5,
+            $later->id => 5,
         ]);
 
         $this->withToken($token)
@@ -382,35 +379,31 @@ class EnterpriseQaOriginRoutingHardeningTest extends TestCase
                 ],
             ]))
             ->assertCreated()
-            ->assertJsonPath('checkout.fulfillment_origin.location_id', $postalMatch->id);
+            ->assertJsonPath('checkout.fulfillment_origin.location_id', $preferred->id);
 
         $checkout = Checkout::query()->where('store_id', $store->id)->firstOrFail();
-        $this->assertSame($postalMatch->id, (int) $checkout->fulfillment_origin_location_id);
-        $this->assertSame('service_area_stock_priority', data_get($checkout->fulfillment_routing_snapshot, 'routing_basis'));
+        $this->assertSame($preferred->id, (int) $checkout->fulfillment_origin_location_id);
+        $this->assertSame('stock_priority', data_get($checkout->fulfillment_routing_snapshot, 'routing_basis'));
     }
 
-    public function test_stock_availability_beats_service_area_preference(): void
+    public function test_stock_availability_beats_routing_priority(): void
     {
         [$store, $token] = $this->tokenedStore('QA Stock Beats Match Store');
         [, $variant] = $this->product($store, ['stock' => 0]);
+        $this->shippingSetup($store);
         $default = $store->defaultLocation()->firstOrFail();
 
-        $strongMatchNoStock = $this->location($store, 'Strong match empty', [
-            'service_countries' => ['US'],
-            'service_regions' => ['TX'],
-            'service_postal_patterns' => ['787*'],
+        $preferredEmpty = $this->location($store, 'Preferred empty', [
             'routing_priority' => 1,
         ]);
-        $weakerMatchWithStock = $this->location($store, 'Weaker match stocked', [
-            'service_countries' => ['US'],
-            'service_regions' => ['TX'],
+        $stocked = $this->location($store, 'Stocked warehouse', [
             'routing_priority' => 20,
         ]);
 
         $this->stockAtLocations($variant, [
             $default->id => 0,
-            $strongMatchNoStock->id => 0,
-            $weakerMatchWithStock->id => 5,
+            $preferredEmpty->id => 0,
+            $stocked->id => 5,
         ]);
 
         $this->withToken($token)
@@ -425,16 +418,16 @@ class EnterpriseQaOriginRoutingHardeningTest extends TestCase
                 ],
             ]))
             ->assertCreated()
-            ->assertJsonPath('checkout.fulfillment_origin.location_id', $weakerMatchWithStock->id);
+            ->assertJsonPath('checkout.fulfillment_origin.location_id', $stocked->id);
 
         $this->assertDatabaseHas('inventory_reservations', [
             'store_id' => $store->id,
-            'location_id' => $weakerMatchWithStock->id,
+            'location_id' => $stocked->id,
             'status' => InventoryReservation::STATUS_ACTIVE,
         ]);
         $this->assertDatabaseMissing('inventory_reservations', [
             'store_id' => $store->id,
-            'location_id' => $strongMatchNoStock->id,
+            'location_id' => $preferredEmpty->id,
             'status' => InventoryReservation::STATUS_ACTIVE,
         ]);
     }
@@ -480,7 +473,7 @@ class EnterpriseQaOriginRoutingHardeningTest extends TestCase
             );
         }
 
-        $this->assertStringContainsString('service area routing', $orderView);
+        $this->assertStringContainsString('this order will ship from', $orderView);
 
         $projectContext = base_path('ENTERPRISE_PROJECT_CONTEXT.md');
         $this->assertFileExists($projectContext);

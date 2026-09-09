@@ -72,11 +72,11 @@
                 <div class="min-w-0">
                     @if ($productEditSurface === 'page')
                         <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Catalog · Edit workspace</p>
-                        <h2 class="mt-1 text-xl font-semibold text-[#0F172A] sm:text-2xl">Edit product</h2>
+                        <h2 class="mt-1 text-xl font-semibold text-[#0F172A]">Edit product</h2>
                         <p class="mt-1 text-xs text-[#64748B]">Save applies changes to this product in your active store. Cancel returns without saving.</p>
                     @else
                         <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Product Actions</p>
-                        <h2 class="mt-1 text-2xl font-medium text-[#0F172A]">Edit Product</h2>
+                        <h2 class="mt-1 text-section font-medium text-[#0F172A]">Edit Product</h2>
                     @endif
                 </div>
                 @if ($productEditSurface === 'page' && ! empty($workspaceReturnProductId))
@@ -693,7 +693,7 @@
     <div class="ui-modal-panel ui-modal-panel--md border-[#FECACA]">
         <div class="bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.18),_transparent_60%)] px-6 pb-4 pt-6">
             <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFF1F2] text-[#DC2626] shadow-sm">!</div>
-            <h3 class="mt-5 text-2xl font-semibold text-[#0F172A]">Delete this product?</h3>
+            <h3 class="mt-5 text-section font-semibold text-[#0F172A]">Delete this product?</h3>
             <p class="mt-2 text-sm leading-6 text-[#64748B]">This moves the product to Deleted products. You can undo delete later, or permanently remove it there.</p>
         </div>
         <div class="px-6 pb-6 pt-2">

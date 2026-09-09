@@ -162,17 +162,15 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
         });
     }
 
-    public function test_platform_checkout_selects_stock_aware_origin_by_service_area(): void
+    public function test_platform_checkout_selects_stock_aware_origin_by_priority(): void
     {
         [$store, $token] = $this->tokenedStore('Phase 6C Routing Store');
         [, $variant] = $this->product($store, ['stock' => 0]);
+        $this->shippingSetup($store);
         $default = $store->defaultLocation()->firstOrFail();
         $chicago = $this->location($store, 'Chicago stock room', [
             'state' => 'IL',
             'postal_code' => '60601',
-            'service_countries' => ['US'],
-            'service_regions' => ['IL'],
-            'service_postal_patterns' => ['606*'],
             'routing_priority' => 10,
         ]);
         $this->stockAtLocations($variant, [
@@ -198,7 +196,7 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
 
         $this->assertSame($chicago->id, (int) $checkout->fulfillment_origin_location_id);
         $this->assertSame('nearest_eligible_0a', data_get($checkout->fulfillment_routing_snapshot, 'routing_strategy'));
-        $this->assertSame('service_area_stock_priority', data_get($checkout->fulfillment_routing_snapshot, 'routing_basis'));
+        $this->assertSame('stock_priority', data_get($checkout->fulfillment_routing_snapshot, 'routing_basis'));
         $this->assertDatabaseHas('inventory_reservations', [
             'store_id' => $store->id,
             'reference_type' => 'checkout',
@@ -317,9 +315,6 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
         [, $variant] = $this->product($store, ['stock' => 0]);
         $default = $store->defaultLocation()->firstOrFail();
         $origin = $this->location($store, 'West fulfillment origin', [
-            'service_countries' => ['US'],
-            'service_regions' => ['CA'],
-            'service_postal_patterns' => ['941*'],
             'routing_priority' => 1,
         ]);
         $this->stockAtLocations($variant, [
@@ -354,7 +349,7 @@ class Phase6NearestEligibleOriginRoutingTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('orderViewDetails', $order))
             ->assertOk()
-            ->assertSee('Fulfillment origin selected by service area routing')
+            ->assertSee('This order will ship from')
             ->assertSee($origin->name);
 
         $this->actingAs($owner)

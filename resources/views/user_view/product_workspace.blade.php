@@ -72,7 +72,7 @@
                     <div class="min-w-0 space-y-2">
                         <p class="sr-only">Product workspace</p>
                         <div class="flex flex-wrap items-center gap-2.5">
-                            <h1 class="break-words text-2xl font-semibold tracking-tight text-[color:var(--color-ink)] sm:text-[1.75rem]">{{ $product->name }}</h1>
+                            <h1 class="break-words text-title font-semibold tracking-tight text-[color:var(--color-ink)]">{{ $product->name }}</h1>
                             @if ($product->status)
                                 <x-ui.badge tone="success">Published</x-ui.badge>
                             @else
