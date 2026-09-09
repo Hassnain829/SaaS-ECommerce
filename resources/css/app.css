@@ -8674,6 +8674,929 @@
         background: #fff;
         padding: 0.9rem 1rem;
     }
+
+    /* Stores directory — merchant store switcher hub */
+    .stores-dir [x-cloak] {
+        display: none !important;
+    }
+
+    .stores-dir {
+        --sd-amber: #d97706;
+        --sd-amber-soft: #fff7e6;
+        --sd-blue: #1565c0;
+        --sd-blue-soft: #edf6ff;
+        --sd-violet: #6941c6;
+        --sd-violet-soft: #f3efff;
+        --sd-red: #b42318;
+        --sd-shadow: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 4px rgb(16 24 40 / 0.03);
+    }
+
+    .stores-dir .sd-intro {
+        margin: 0 0 0.6rem;
+    }
+
+    .stores-dir .sd-intro h2,
+    .stores-dir .sd-stores-head h2,
+    .stores-dir .sd-activity-head h2 {
+        font-size: 1.125rem;
+        line-height: 1.35;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .stores-dir .sd-intro p,
+    .stores-dir .sd-copy {
+        margin-top: 0.15rem;
+        color: var(--color-ink-muted);
+        font-size: 0.8125rem;
+    }
+
+    .stores-dir .sd-overview {
+        padding: 0.8rem 1rem 1rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-ui-lg);
+        box-shadow: var(--sd-shadow);
+    }
+
+    .stores-dir .sd-review-panel {
+        margin-top: 0.75rem;
+        padding: 0.85rem 1rem 1rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-ui-lg);
+        box-shadow: var(--sd-shadow);
+    }
+
+    .stores-dir .sd-review-panel-head,
+    .stores-dir .sd-review-store-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .stores-dir .sd-review-close {
+        padding: 0;
+        color: var(--color-ink-muted);
+        background: none;
+        border: 0;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .stores-dir .sd-review-stores {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+    }
+
+    .stores-dir .sd-review-store {
+        padding: 0.75rem 0.85rem;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+        background: #f8faf9;
+    }
+
+    .stores-dir .sd-review-store-name {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .stores-dir .sd-review-steps {
+        margin: 0.65rem 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 0.4rem;
+    }
+
+    .stores-dir .sd-review-steps li {
+        display: grid;
+        gap: 0.1rem;
+        padding-left: 1.1rem;
+        position: relative;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .stores-dir .sd-review-steps li::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0.35rem;
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        background: #f2a900;
+    }
+
+    .stores-dir .sd-review-steps li.is-ready::before {
+        background: #16a071;
+    }
+
+    .stores-dir .sd-review-step-detail {
+        font-size: 0.75rem;
+        font-weight: 400;
+        color: var(--color-ink-muted);
+    }
+
+    .stores-dir .sd-overview-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.65rem;
+    }
+
+    .stores-dir .sd-eyebrow {
+        color: #58708c;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.045em;
+        text-transform: uppercase;
+    }
+
+    .stores-dir .sd-scope {
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .stores-dir .sd-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .stores-dir .sd-metric {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.2rem 1.25rem;
+    }
+
+    .stores-dir .sd-metric:first-child {
+        padding-left: 0.25rem;
+    }
+
+    .stores-dir .sd-metric + .sd-metric {
+        border-left: 1px solid var(--color-border);
+    }
+
+    .stores-dir .sd-metric-icon {
+        width: 2.85rem;
+        height: 2.85rem;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        border-radius: 0.625rem;
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+    }
+
+    .stores-dir .sd-metric-icon.blue {
+        color: var(--sd-blue);
+        background: var(--sd-blue-soft);
+    }
+
+    .stores-dir .sd-metric-icon.violet {
+        color: var(--sd-violet);
+        background: var(--sd-violet-soft);
+    }
+
+    .stores-dir .sd-metric-icon.amber {
+        color: var(--sd-amber);
+        background: var(--sd-amber-soft);
+    }
+
+    .stores-dir .sd-metric-label {
+        color: var(--color-ink-muted);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .stores-dir .sd-metric-value {
+        margin-top: 0.15rem;
+        font-size: 1.25rem;
+        line-height: 1.25;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--color-ink);
+    }
+
+    .stores-dir .sd-metric-note {
+        margin-top: 0.15rem;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .stores-dir .sd-review {
+        color: var(--sd-amber);
+        font-weight: 600;
+        background: none;
+        border: 0;
+        padding: 0;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+    }
+
+    .stores-dir .sd-stores-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1.1rem;
+        margin-top: 1rem;
+    }
+
+    .stores-dir .sd-controls {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .stores-dir .sd-select {
+        height: 2.25rem;
+        min-width: 7.8rem;
+        padding: 0.35rem 2rem 0.35rem 0.7rem;
+        color: var(--color-ink-secondary);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-strong);
+        border-radius: 0.5rem;
+    }
+
+    .stores-dir .sd-view {
+        display: inline-flex;
+        overflow: hidden;
+        border: 1px solid var(--color-border-strong);
+        border-radius: 0.5rem;
+        background: #fff;
+    }
+
+    .stores-dir .sd-view-btn {
+        height: 2.15rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.75rem;
+        color: #475467;
+        background: #fff;
+        border: 0;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .stores-dir .sd-view-btn + .sd-view-btn {
+        border-left: 1px solid var(--color-border-strong);
+    }
+
+    .stores-dir .sd-view-btn.is-active {
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+    }
+
+    .stores-dir .sd-tabs {
+        display: flex;
+        align-items: flex-end;
+        gap: 1.5rem;
+        margin-top: 0.5rem;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .stores-dir .sd-tab {
+        min-height: 2.35rem;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.3rem 0.25rem 0.55rem;
+        color: #475467;
+        background: transparent;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        font-size: 0.875rem;
+        cursor: pointer;
+    }
+
+    .stores-dir .sd-tab:hover {
+        color: var(--color-brand);
+    }
+
+    .stores-dir .sd-tab.is-active {
+        color: var(--color-brand);
+        border-bottom-color: var(--color-brand);
+        font-weight: 600;
+    }
+
+    .stores-dir .sd-count {
+        min-width: 1.35rem;
+        height: 1.35rem;
+        display: inline-grid;
+        place-items: center;
+        padding: 0 0.4rem;
+        color: #475467;
+        background: #edf0f3;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .stores-dir .sd-tab.is-active .sd-count {
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+    }
+
+    .stores-dir .sd-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+        justify-content: start;
+    }
+
+    .stores-dir .sd-card {
+        min-width: 0;
+        padding: 0.8rem 0.85rem 0.7rem;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+        box-shadow: var(--sd-shadow);
+    }
+
+    .stores-dir .sd-card.is-current {
+        background: #f3faf7;
+        border-color: #169873;
+        box-shadow: 0 0 0 1px rgb(15 110 86 / 0.06);
+    }
+
+    .stores-dir .sd-card-top {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+    }
+
+    .stores-dir .sd-avatar {
+        width: 2.5rem;
+        height: 2.5rem;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        overflow: hidden;
+        color: var(--sd-avatar-color, var(--color-brand));
+        background: var(--sd-avatar-bg, var(--color-brand-soft));
+        border-radius: 0.55rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+
+    .stores-dir .sd-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: 0.2rem;
+        background: #fff;
+    }
+
+    .stores-dir .sd-title {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .stores-dir .sd-name-line {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        min-width: 0;
+    }
+
+    .stores-dir .sd-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.875rem;
+        line-height: 1.35;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .stores-dir .sd-meta {
+        margin-top: 0.1rem;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .stores-dir .sd-current {
+        padding: 0.1rem 0.45rem;
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+        border-radius: 999px;
+        font-size: 0.625rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .stores-dir .sd-more {
+        width: 1.75rem;
+        height: 1.75rem;
+        display: grid;
+        place-items: center;
+        color: #506176;
+        background: transparent;
+        border: 0;
+        border-radius: 0.4rem;
+        cursor: pointer;
+    }
+
+    .stores-dir .sd-more:hover {
+        background: #f0f2f4;
+    }
+
+    .stores-dir .sd-menu {
+        position: absolute;
+        top: 1.95rem;
+        right: 0;
+        z-index: 20;
+        width: 11.5rem;
+        padding: 0.3rem;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+        box-shadow: 0 12px 28px rgb(16 24 40 / 0.14);
+    }
+
+    .stores-dir .sd-menu-item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 0.55rem;
+        color: var(--color-ink-secondary);
+        background: transparent;
+        border: 0;
+        border-radius: 0.4rem;
+        font-size: 0.8125rem;
+        text-align: left;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .stores-dir .sd-menu-item:hover {
+        background: #f3f5f6;
+    }
+
+    .stores-dir .sd-menu-item.is-danger {
+        color: var(--sd-red);
+    }
+
+    .stores-dir .sd-status-line {
+        min-height: 1.55rem;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-top: -0.25rem;
+    }
+
+    .stores-dir .sd-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        color: var(--color-ink-muted);
+        font-size: 0.6875rem;
+    }
+
+    .stores-dir .sd-dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        background: #16a071;
+    }
+
+    .stores-dir .sd-status.is-attention {
+        color: #a15c09;
+    }
+
+    .stores-dir .sd-status.is-attention .sd-dot {
+        background: #f2a900;
+    }
+
+    .stores-dir .sd-status.is-closed {
+        color: var(--sd-red);
+    }
+
+    .stores-dir .sd-status.is-closed .sd-dot {
+        background: #d92d20;
+    }
+
+    .stores-dir .sd-card-metrics {
+        display: grid;
+        grid-template-columns: 0.8fr 1fr 1.15fr;
+        margin-top: 0.25rem;
+        padding: 0.65rem 0;
+        border-top: 1px solid #e8ebee;
+        border-bottom: 1px solid #e8ebee;
+    }
+
+    .stores-dir .sd-card-metric {
+        min-width: 0;
+        padding: 0 0.65rem;
+    }
+
+    .stores-dir .sd-card-metric:first-child {
+        padding-left: 0;
+    }
+
+    .stores-dir .sd-card-metric + .sd-card-metric {
+        border-left: 1px solid #e8ebee;
+    }
+
+    .stores-dir .sd-card-metric-label {
+        color: var(--color-ink-muted);
+        font-size: 0.6875rem;
+        white-space: nowrap;
+    }
+
+    .stores-dir .sd-card-metric-value {
+        margin-top: 0.25rem;
+        min-height: 1.25rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.875rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--color-ink);
+    }
+
+    .stores-dir .sd-card-actions form,
+    .stores-dir .sd-list-action form {
+        margin: 0;
+    }
+
+    .stores-dir .sd-card-actions {
+        min-height: 2.1rem;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding-top: 0.55rem;
+    }
+
+    .stores-dir .sd-action {
+        padding: 0;
+        color: var(--color-brand);
+        background: transparent;
+        border: 0;
+        font-weight: 600;
+        text-align: left;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.8125rem;
+    }
+
+    .stores-dir .sd-action:hover {
+        color: var(--color-brand-hover);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+
+    .stores-dir .sd-secondary {
+        padding: 0;
+        color: var(--color-ink-muted);
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.8125rem;
+    }
+
+    .stores-dir .sd-secondary:hover {
+        color: var(--color-ink);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+
+    .stores-dir .sd-list {
+        margin-top: 0.75rem;
+        overflow: visible;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+        box-shadow: var(--sd-shadow);
+    }
+
+    .stores-dir .sd-list-row {
+        display: grid;
+        grid-template-columns: minmax(13.75rem, 2fr) minmax(6.9rem, 1fr) 0.55fr 0.75fr 1fr 8.5rem;
+        align-items: center;
+        column-gap: 1rem;
+        min-height: 4rem;
+        padding: 0.5rem 0.75rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .stores-dir .sd-list-row.is-current {
+        background: #f3faf7;
+        box-shadow: inset 3px 0 var(--color-brand);
+    }
+
+    .stores-dir .sd-list-head {
+        min-height: 2.4rem;
+        color: #526176;
+        background: #f7f8f9;
+        border-top: 0;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .stores-dir .sd-list-store {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-width: 0;
+    }
+
+    .stores-dir .sd-numeric {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .stores-dir .sd-list-action {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.3rem;
+    }
+
+    .stores-dir .sd-empty {
+        margin-top: 0.75rem;
+        padding: 2.85rem 1.25rem;
+        text-align: center;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+    }
+
+    .stores-dir .sd-empty-icon {
+        width: 2.75rem;
+        height: 2.75rem;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 0.65rem;
+        color: var(--color-ink-muted);
+        background: #f0f2f4;
+        border-radius: 50%;
+    }
+
+    .stores-dir .sd-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-height: 2.5rem;
+        margin-top: 0.35rem;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+    }
+
+    .stores-dir .sd-pages {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .stores-dir .sd-page-btn {
+        width: 2rem;
+        height: 2rem;
+        display: grid;
+        place-items: center;
+        color: #475467;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: 0.45rem;
+        cursor: pointer;
+    }
+
+    .stores-dir .sd-page-btn:disabled {
+        color: #b9c0c9;
+        background: #f2f4f6;
+        cursor: not-allowed;
+    }
+
+    .stores-dir .sd-activity {
+        margin-top: 0.75rem;
+        padding: 0.8rem 1rem 0.9rem;
+        background: #fff;
+        border: 1px solid var(--color-border);
+        border-radius: 0.55rem;
+        box-shadow: var(--sd-shadow);
+    }
+
+    .stores-dir .sd-activity-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 0.65rem;
+    }
+
+    .stores-dir .sd-activity-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .stores-dir .sd-activity-item {
+        min-width: 0;
+        display: flex;
+        gap: 0.65rem;
+        padding: 0 1rem;
+        background: transparent;
+        border: 0;
+        text-align: left;
+        text-decoration: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        border-radius: 0.4rem;
+    }
+
+    .stores-dir a.sd-activity-item:hover,
+    .stores-dir button.sd-activity-item:hover {
+        background: #f7f8f9;
+    }
+
+    .stores-dir .sd-activity-item:first-child {
+        padding-left: 0;
+    }
+
+    .stores-dir .sd-activity-item + .sd-activity-item {
+        border-left: 1px solid var(--color-border);
+    }
+
+    .stores-dir .sd-activity-icon {
+        width: 2rem;
+        height: 2rem;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        color: var(--color-brand);
+        background: var(--color-brand-soft);
+        border-radius: 50%;
+    }
+
+    .stores-dir .sd-activity-icon svg {
+        width: 1rem;
+        height: 1rem;
+    }
+
+    .stores-dir .sd-activity-icon.blue {
+        color: var(--sd-blue);
+        background: var(--sd-blue-soft);
+    }
+
+    .stores-dir .sd-activity-icon.navy {
+        color: #344054;
+        background: #eef1f5;
+    }
+
+    .stores-dir .sd-activity-icon.violet {
+        color: var(--sd-violet);
+        background: var(--sd-violet-soft);
+    }
+
+    .stores-dir .sd-activity-icon.amber {
+        color: var(--sd-amber);
+        background: var(--sd-amber-soft);
+    }
+
+    .stores-dir .sd-activity-icon.red {
+        color: var(--sd-red);
+        background: #fef3f2;
+    }
+
+    .stores-dir .sd-activity-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-ink);
+    }
+
+    .stores-dir .sd-activity-detail,
+    .stores-dir .sd-activity-time {
+        display: block;
+        margin-top: 0.05rem;
+        color: var(--color-ink-muted);
+        font-size: 0.6875rem;
+        line-height: 1.35;
+    }
+
+    @media (max-width: 1320px) {
+        .stores-dir .sd-activity-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            row-gap: 0.85rem;
+        }
+
+        .stores-dir .sd-activity-item:nth-child(3) {
+            padding-left: 0;
+            border-left: 0;
+        }
+
+        .stores-dir .sd-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            row-gap: 0.8rem;
+        }
+
+        .stores-dir .sd-metric:nth-child(3) {
+            border-left: 0;
+            padding-left: 0.25rem;
+        }
+    }
+
+    @media (max-width: 1040px) {
+        .stores-dir .sd-stores-head {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .stores-dir .sd-controls {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .stores-dir .sd-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .stores-dir .sd-list {
+            overflow-x: auto;
+        }
+
+        .stores-dir .sd-list-row {
+            min-width: 52.5rem;
+        }
+    }
+
+    @media (max-width: 760px) {
+        .stores-dir .sd-metrics {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .stores-dir .sd-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            width: 100%;
+        }
+
+        .stores-dir .sd-select {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .stores-dir .sd-view {
+            grid-column: 1 / -1;
+        }
+
+        .stores-dir .sd-view-btn {
+            flex: 1;
+            justify-content: center;
+        }
+
+        .stores-dir .sd-grid {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .stores-dir .sd-activity-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .stores-dir .sd-activity-item,
+        .stores-dir .sd-activity-item:nth-child(3) {
+            padding: 0.55rem 0;
+            border-left: 0;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .stores-dir .sd-activity-item:first-child {
+            border-top: 0;
+            padding-top: 0;
+        }
+
+        .stores-dir .sd-footer {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+    }
 }
 
 @layer utilities {

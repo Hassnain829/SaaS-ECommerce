@@ -1718,7 +1718,7 @@ class DashboardController extends Controller
             ? collect()
             : OrderEvent::query()
                 ->whereIn('store_id', $storeIds)
-                ->with(['store:id,name'])
+                ->with(['store:id,name', 'order:id,store_id'])
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')
                 ->limit(8)
@@ -1759,7 +1759,8 @@ class DashboardController extends Controller
      *     health_label: string,
      *     setup_complete: bool,
      *     setup_ready_count: int,
-     *     setup_total: int
+     *     setup_total: int,
+     *     setup_steps: list<array{key: string, title: string, detail: string, redirect_to: string, ready: bool}>
      * }>
      */
     protected function storeManagementMetrics(array $storeIds): array
@@ -1779,6 +1780,7 @@ class DashboardController extends Controller
                 'setup_complete' => false,
                 'setup_ready_count' => 0,
                 'setup_total' => $setupTotal,
+                'setup_steps' => [],
             ];
         }
 
@@ -1898,15 +1900,40 @@ class DashboardController extends Controller
                 $row['orders_change_pct'] = round((($curr - $prev) / $prev) * 100, 1);
             }
 
-            $readyFlags = [
-                (int) ($productCounts[$storeId] ?? 0) > 0,
-                (int) ($locationReady[$storeId] ?? 0) > 0,
-                $taxEnabled->has($storeId) && (int) ($taxRateCounts[$storeId] ?? 0) > 0,
-                (int) ($zoneCounts[$storeId] ?? 0) > 0 && (int) ($checkoutMethodCounts[$storeId] ?? 0) > 0,
+            $setupSteps = [
+                [
+                    'key' => 'catalog',
+                    'title' => 'Add a product',
+                    'detail' => 'Add at least one product to the catalog',
+                    'redirect_to' => 'products',
+                    'ready' => (int) ($productCounts[$storeId] ?? 0) > 0,
+                ],
+                [
+                    'key' => 'location',
+                    'title' => 'Set store location',
+                    'detail' => 'Add at least one active ship-from location',
+                    'redirect_to' => 'locations',
+                    'ready' => (int) ($locationReady[$storeId] ?? 0) > 0,
+                ],
+                [
+                    'key' => 'tax',
+                    'title' => 'Configure checkout tax',
+                    'detail' => 'Enable tax and add at least one active tax rate',
+                    'redirect_to' => 'taxes',
+                    'ready' => $taxEnabled->has($storeId) && (int) ($taxRateCounts[$storeId] ?? 0) > 0,
+                ],
+                [
+                    'key' => 'delivery',
+                    'title' => 'Prepare delivery setup',
+                    'detail' => 'Add delivery areas and checkout delivery options',
+                    'redirect_to' => 'delivery',
+                    'ready' => (int) ($zoneCounts[$storeId] ?? 0) > 0 && (int) ($checkoutMethodCounts[$storeId] ?? 0) > 0,
+                ],
             ];
-            $readyCount = count(array_filter($readyFlags));
+            $readyCount = count(array_filter($setupSteps, fn (array $step): bool => $step['ready']));
             $setupComplete = $readyCount === $setupTotal;
 
+            $row['setup_steps'] = $setupSteps;
             $row['setup_ready_count'] = $readyCount;
             $row['setup_total'] = $setupTotal;
             $row['setup_complete'] = $setupComplete;

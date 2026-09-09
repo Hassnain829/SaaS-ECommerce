@@ -423,7 +423,11 @@
 
         editButtons.forEach((button) => {
             button.addEventListener('click', () => {
-                openEditModal(JSON.parse(button.dataset.store));
+                const store = JSON.parse(button.dataset.store);
+                openEditModal(store);
+                if (button.dataset.closeStore === '1' && store.allow_delete !== false) {
+                    openDeleteWarning?.click();
+                }
             });
         });
 

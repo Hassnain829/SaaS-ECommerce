@@ -131,6 +131,22 @@ class CurrentStoreTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/sidebar-store-switch-form[^>]*>[\s\S]*onchange="this\.form\.submit\(\)"/', $html);
     }
 
+    public function test_store_switch_can_open_catalog_of_the_selected_store(): void
+    {
+        $merchant = $this->createMerchantUser();
+        $alphaStore = $this->createMemberStore($merchant, 'Alpha Catalog Store');
+        $betaStore = $this->createMemberStore($merchant, 'Beta Catalog Store');
+
+        $this->actingAs($merchant)
+            ->withSession(['current_store_id' => $alphaStore->id])
+            ->post(route('current-store.update'), [
+                'store_id' => $betaStore->id,
+                'redirect_to' => 'products',
+            ])
+            ->assertRedirect(route('products'))
+            ->assertSessionHas('current_store_id', $betaStore->id);
+    }
+
     protected function createMerchantUser(?string $email = null): User
     {
         $role = Role::firstOrCreate(['name' => 'user']);

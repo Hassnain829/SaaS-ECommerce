@@ -40,12 +40,38 @@ class StoreManagementHubTest extends TestCase
             ->assertOk()
             ->assertSeeText('Own Hub Store')
             ->assertDontSeeText('Foreign Hub Store')
-            ->assertSeeText('Working here')
-            ->assertSeeText('Your stores are ready')
+            ->assertSeeText('Current')
+            ->assertSeeText('1 store still needs setup')
+            ->assertSeeText('Remaining setup')
+            ->assertSeeText('Add a product')
+            ->assertSeeText('Configure checkout tax')
+            ->assertSeeText('Prepare delivery setup')
             ->assertDontSeeText('Finish store setup')
             ->assertDontSeeText('New Order: #8942')
             ->assertDontSeeText('Theme Updated: V2.4')
             ->assertDontSeeText('View Upgrade Options');
+    }
+
+    public function test_store_search_lives_in_the_page_header(): void
+    {
+        $owner = $this->merchant('search-hub@example.com');
+        $store = $this->store($owner, 'Search Hub Store', onboardingCompleted: true);
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('store-management'))
+            ->assertOk()
+            ->assertSee('id="stores-directory-search"', false)
+            ->assertSee('placeholder="Search stores..."', false)
+            ->getContent();
+
+        $searchPos = strpos($html, 'id="stores-directory-search"');
+        $directoryHeadingPos = strpos($html, 'id="storesHeading"');
+
+        $this->assertNotFalse($searchPos);
+        $this->assertNotFalse($directoryHeadingPos);
+        $this->assertLessThan($directoryHeadingPos, $searchPos);
     }
 
     public function test_owner_can_mark_draft_store_live_and_move_back_to_draft(): void
@@ -65,8 +91,11 @@ class StoreManagementHubTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('store-management'))
             ->assertOk()
-            ->assertSeeText('Live')
+            ->assertSee('data-store-status="live"', false)
             ->assertSeeText('Setup needed')
+            ->assertSeeText('Close store')
+            ->assertDontSeeText('Move to draft')
+            ->assertDontSeeText('Mark as live')
             ->assertDontSeeText('Quiet')
             ->assertDontSeeText('Ready to sell');
 
@@ -173,6 +202,7 @@ class StoreManagementHubTest extends TestCase
             ->assertOk()
             ->assertSeeText('Order placed from own storefront')
             ->assertSeeText('Activity Own Store')
+            ->assertSee(route('orderViewDetails', $ownOrder), false)
             ->assertDontSeeText('Secret foreign order event')
             ->assertDontSeeText('Activity Foreign Store')
             ->assertDontSeeText('New Order: #8942')
@@ -195,6 +225,9 @@ class StoreManagementHubTest extends TestCase
             ->assertSeeText('Continue setup')
             ->assertSeeText('No recent activity yet')
             ->assertSee('data-store-status="draft"', false)
+            ->assertSeeText('Close store')
+            ->assertDontSeeText('Mark as live')
+            ->assertDontSeeText('Move to draft')
             ->assertDontSeeText('View Upgrade Options');
     }
 
@@ -211,6 +244,27 @@ class StoreManagementHubTest extends TestCase
                 'redirect_to' => 'dashboard',
             ])
             ->assertRedirect(route('dashboard'));
+    }
+
+    public function test_continue_setup_asks_to_switch_when_the_store_is_not_current(): void
+    {
+        $owner = $this->merchant('switch-confirm-hub@example.com');
+        $current = $this->store($owner, 'Current Setup Store');
+        $other = $this->store($owner, 'Other Setup Store');
+        $this->attach($current, $owner, Store::ROLE_OWNER);
+        $this->attach($other, $owner, Store::ROLE_OWNER);
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $current->id])
+            ->get(route('store-management'))
+            ->assertOk()
+            ->assertSee('data-store-switch-request', false)
+            ->assertSee('data-store-id="'.$other->id.'"', false)
+            ->assertSee('data-redirect-to="dashboard"', false)
+            ->getContent();
+
+        $this->assertStringContainsString('id="storeSwitchConfirmModal"', $html);
+        $this->assertStringContainsString('Remaining setup', $html);
     }
 
     private function merchant(string $email): User
@@ -274,10 +328,10 @@ class StoreManagementHubTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('store-management'))
             ->assertOk()
-            ->assertSeeText('7D Revenue')
-            ->assertSeeText('Orders (7D)')
+            ->assertSeeText('Revenue · 7d')
+            ->assertSeeText('Orders · 7d')
             ->assertSeeText('$125.50')
-            ->assertSee('js-store-sparkline', false)
+            ->assertDontSee('js-store-sparkline', false)
             ->assertSeeText('Setup needed')
             ->assertDontSeeText('Healthy')
             ->assertDontSeeText('Quiet')

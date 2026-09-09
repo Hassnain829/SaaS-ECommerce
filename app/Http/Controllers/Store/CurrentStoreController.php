@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Store;
 
 use App\Http\Controllers\Controller;
+use App\Models\Order;
 use App\Services\SecurityLogRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,8 @@ class CurrentStoreController extends Controller
     {
         $validated = $request->validate([
             'store_id' => ['required', 'integer'],
-            'redirect_to' => ['nullable', 'string', 'in:dashboard,orders'],
+            'redirect_to' => ['nullable', 'string', 'in:dashboard,orders,order,products,locations,taxes,delivery'],
+            'order_id' => ['nullable', 'integer', 'required_if:redirect_to,order'],
         ]);
 
         $store = $request->user()
@@ -39,13 +41,22 @@ class CurrentStoreController extends Controller
         );
 
         $redirectTo = $validated['redirect_to'] ?? null;
-        if ($redirectTo === 'dashboard') {
-            return redirect()->route('dashboard')->with('success', "Switched to store '{$store->name}'.");
-        }
-        if ($redirectTo === 'orders') {
-            return redirect()->route('orders')->with('success', "Switched to store '{$store->name}'.");
-        }
+        $switched = "Switched to store '{$store->name}'.";
 
-        return back()->with('success', "Switched to store '{$store->name}'.");
+        return match ($redirectTo) {
+            'dashboard' => redirect()->route('dashboard')->with('success', $switched),
+            'orders' => redirect()->route('orders')->with('success', $switched),
+            'products' => redirect()->route('products')->with('success', $switched),
+            'locations' => redirect()->route('settings.locations.index')->with('success', $switched),
+            'taxes' => redirect()->route('settings.taxes.index')->with('success', $switched),
+            'delivery' => redirect()->route('shippingAutomation')->with('success', $switched),
+            'order' => redirect()
+                ->route('orderViewDetails', Order::query()
+                    ->where('store_id', $store->id)
+                    ->whereKey((int) $validated['order_id'])
+                    ->firstOrFail())
+                ->with('success', $switched),
+            default => back()->with('success', $switched),
+        };
     }
 }

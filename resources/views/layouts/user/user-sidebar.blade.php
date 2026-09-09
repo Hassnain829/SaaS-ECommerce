@@ -38,6 +38,8 @@
                 <form id="sidebar-store-switch-form" method="POST" action="{{ route('current-store.update') }}" class="hidden" data-turbo="false" autocomplete="off">
                     @csrf
                     <input type="hidden" name="store_id" id="sidebar-store-switch-id" value="{{ optional($currentStore)->id }}" autocomplete="off">
+                    <input type="hidden" name="redirect_to" id="sidebar-store-switch-redirect" value="" autocomplete="off">
+                    <input type="hidden" name="order_id" id="sidebar-store-switch-order" value="" autocomplete="off">
                 </form>
                 <div class="relative">
                     <button

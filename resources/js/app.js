@@ -141,91 +141,207 @@ const closeStoreSwitcherMenu = () => {
     if (trigger) trigger.setAttribute('aria-expanded', 'false');
 };
 
-const initStoreSwitcher = () => {
-    const root = document.querySelector('[data-store-switcher]');
-    const form = document.getElementById('sidebar-store-switch-form');
-    const storeIdInput = document.getElementById('sidebar-store-switch-id');
-    const trigger = document.getElementById('sidebar-store-switch-trigger');
-    const menu = document.getElementById('sidebar-store-switch-menu');
-    const modal = document.getElementById('storeSwitchConfirmModal');
-    if (!root || !form || !storeIdInput || !trigger || !menu || !modal) {
+let storeSwitchListenersBound = false;
+const storeSwitchPending = {
+    storeId: '',
+    storeName: '',
+    redirectTo: '',
+    orderId: '',
+};
+
+const currentMerchantStoreId = () => {
+    const input = document.getElementById('sidebar-store-switch-id');
+    if (input instanceof HTMLInputElement && input.value) {
+        return String(input.value);
+    }
+
+    return String(document.querySelector('[data-current-store-id]')?.getAttribute('data-current-store-id') || '');
+};
+
+const merchantStoreSwitchUrls = () => {
+    const holder = document.getElementById('merchant-store-switch-urls');
+    if (! holder) {
+        return {};
+    }
+    try {
+        return JSON.parse(holder.textContent || '{}');
+    } catch (error) {
+        return {};
+    }
+};
+
+const navigateMerchantStoreDestination = (redirectTo, orderId) => {
+    const urls = merchantStoreSwitchUrls();
+    if (redirectTo === 'order' && orderId) {
+        window.location.href = `${urls.orderBase || '/orders/'}${orderId}`;
         return;
     }
-    if (root.dataset.bound === 'true') {
+    const href = {
+        dashboard: urls.dashboard,
+        orders: urls.orders,
+        products: urls.products,
+        locations: urls.locations,
+        taxes: urls.taxes,
+        delivery: urls.delivery,
+    }[redirectTo];
+    if (href) {
+        window.location.href = href;
+    }
+};
+
+const openStoreSwitchModal = () => {
+    const modal = document.getElementById('storeSwitchConfirmModal');
+    if (! modal) {
+        return;
+    }
+    const nameEl = document.getElementById('storeSwitchConfirmName');
+    const createWarning = document.getElementById('storeSwitchCreateWarning');
+    if (nameEl) {
+        nameEl.textContent = storeSwitchPending.storeName;
+    }
+    createWarning?.classList.toggle('hidden', ! document.querySelector('[data-product-create-guard]'));
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+    modal.querySelector('[data-store-switch-cancel]')?.focus();
+};
+
+const closeStoreSwitchModal = () => {
+    storeSwitchPending.storeId = '';
+    storeSwitchPending.storeName = '';
+    storeSwitchPending.redirectTo = '';
+    storeSwitchPending.orderId = '';
+    const redirectInput = document.getElementById('sidebar-store-switch-redirect');
+    const orderInput = document.getElementById('sidebar-store-switch-order');
+    const modal = document.getElementById('storeSwitchConfirmModal');
+    if (redirectInput instanceof HTMLInputElement) {
+        redirectInput.value = '';
+    }
+    if (orderInput instanceof HTMLInputElement) {
+        orderInput.value = '';
+    }
+    modal?.classList.add('hidden');
+    modal?.classList.remove('flex');
+    document.body.classList.remove('overflow-hidden');
+};
+
+const requestMerchantStoreSwitch = ({ storeId, storeName, redirectTo = '', orderId = '' }) => {
+    const nextId = String(storeId || '');
+    if (nextId === '') {
+        return;
+    }
+    if (nextId === currentMerchantStoreId()) {
+        navigateMerchantStoreDestination(redirectTo, orderId);
+        return;
+    }
+    if (! document.getElementById('storeSwitchConfirmModal') || ! document.getElementById('sidebar-store-switch-form')) {
+        const form = document.getElementById('hub-store-switch-form');
+        if (form instanceof HTMLFormElement) {
+            const idInput = form.querySelector('[name="store_id"]');
+            const redirectInput = form.querySelector('[name="redirect_to"]');
+            const orderInput = form.querySelector('[name="order_id"]');
+            if (idInput instanceof HTMLInputElement) {
+                idInput.value = nextId;
+            }
+            if (redirectInput instanceof HTMLInputElement) {
+                redirectInput.value = redirectTo || '';
+            }
+            if (orderInput instanceof HTMLInputElement) {
+                orderInput.value = orderId ? String(orderId) : '';
+            }
+            form.submit();
+        }
+        return;
+    }
+    storeSwitchPending.storeId = nextId;
+    storeSwitchPending.storeName = storeName || 'this store';
+    storeSwitchPending.redirectTo = redirectTo || '';
+    storeSwitchPending.orderId = orderId ? String(orderId) : '';
+    openStoreSwitchModal();
+};
+
+const confirmMerchantStoreSwitch = () => {
+    const form = document.getElementById('sidebar-store-switch-form');
+    const storeIdInput = document.getElementById('sidebar-store-switch-id');
+    const redirectInput = document.getElementById('sidebar-store-switch-redirect');
+    const orderInput = document.getElementById('sidebar-store-switch-order');
+    if (! (form instanceof HTMLFormElement) || ! (storeIdInput instanceof HTMLInputElement) || storeSwitchPending.storeId === '') {
+        closeStoreSwitchModal();
+        return;
+    }
+    storeIdInput.value = storeSwitchPending.storeId;
+    if (redirectInput instanceof HTMLInputElement) {
+        redirectInput.value = storeSwitchPending.redirectTo;
+    }
+    if (orderInput instanceof HTMLInputElement) {
+        orderInput.value = storeSwitchPending.orderId;
+    }
+    window.__releaseProductCreateGuard?.();
+    form.submit();
+};
+
+const initStoreSwitcher = () => {
+    if (! storeSwitchListenersBound) {
+        storeSwitchListenersBound = true;
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (! (target instanceof Element)) {
+                return;
+            }
+            if (target.closest('[data-store-switch-cancel]')) {
+                event.preventDefault();
+                closeStoreSwitchModal();
+                return;
+            }
+            if (target.closest('[data-store-switch-confirm]')) {
+                event.preventDefault();
+                confirmMerchantStoreSwitch();
+                return;
+            }
+            const modal = document.getElementById('storeSwitchConfirmModal');
+            if (modal && event.target === modal) {
+                closeStoreSwitchModal();
+                return;
+            }
+            const option = target.closest('[data-store-switch-option]');
+            if (option instanceof HTMLElement) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeStoreSwitcherMenu();
+                requestMerchantStoreSwitch({
+                    storeId: option.getAttribute('data-store-id') || '',
+                    storeName: option.getAttribute('data-store-name') || 'this store',
+                });
+                return;
+            }
+            const request = target.closest('[data-store-switch-request]');
+            if (request instanceof HTMLElement) {
+                event.preventDefault();
+                event.stopPropagation();
+                requestMerchantStoreSwitch({
+                    storeId: request.getAttribute('data-store-id') || '',
+                    storeName: request.getAttribute('data-store-name') || 'this store',
+                    redirectTo: request.getAttribute('data-redirect-to') || '',
+                    orderId: request.getAttribute('data-order-id') || '',
+                });
+            }
+        });
+    }
+
+    const root = document.querySelector('[data-store-switcher]');
+    const trigger = document.getElementById('sidebar-store-switch-trigger');
+    const menu = document.getElementById('sidebar-store-switch-menu');
+    if (! root || ! trigger || ! menu || root.dataset.bound === 'true') {
         return;
     }
     root.dataset.bound = 'true';
 
-    let pendingStoreId = '';
-    let pendingStoreName = '';
-
-    const openMenu = () => {
-        closeAllMerchantProfileMenus();
-        menu.classList.toggle('hidden');
-        trigger.setAttribute('aria-expanded', menu.classList.contains('hidden') ? 'false' : 'true');
-    };
-
-    const openModal = () => {
-        const nameEl = document.getElementById('storeSwitchConfirmName');
-        const createWarning = document.getElementById('storeSwitchCreateWarning');
-        if (nameEl) nameEl.textContent = pendingStoreName;
-        createWarning?.classList.toggle('hidden', ! document.querySelector('[data-product-create-guard]'));
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        document.body.classList.add('overflow-hidden');
-        modal.querySelector('[data-store-switch-cancel]')?.focus();
-    };
-
-    const closeModal = () => {
-        pendingStoreId = '';
-        pendingStoreName = '';
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        document.body.classList.remove('overflow-hidden');
-    };
-
     trigger.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openMenu();
-    });
-
-    menu.querySelectorAll('[data-store-switch-option]').forEach((option) => {
-        option.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            closeStoreSwitcherMenu();
-            const nextId = String(option.getAttribute('data-store-id') || '');
-            const currentId = String(storeIdInput.value || '');
-            if (nextId === '' || nextId === currentId) {
-                return;
-            }
-            pendingStoreId = nextId;
-            pendingStoreName = option.getAttribute('data-store-name') || 'this store';
-            openModal();
-        });
-    });
-
-    modal.querySelector('[data-store-switch-cancel]')?.addEventListener('click', (event) => {
-        event.preventDefault();
-        closeModal();
-    });
-
-    modal.querySelector('[data-store-switch-confirm]')?.addEventListener('click', (event) => {
-        event.preventDefault();
-        if (pendingStoreId === '') {
-            closeModal();
-            return;
-        }
-        storeIdInput.value = pendingStoreId;
-        window.__releaseProductCreateGuard?.();
-        form.submit();
-    });
-
-    modal.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            closeModal();
-        }
+        closeAllMerchantProfileMenus();
+        menu.classList.toggle('hidden');
+        trigger.setAttribute('aria-expanded', menu.classList.contains('hidden') ? 'false' : 'true');
     });
 };
 
