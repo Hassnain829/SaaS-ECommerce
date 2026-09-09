@@ -96,6 +96,11 @@ class Store extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(StoreSubscription::class);
+    }
+
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'store_user')

@@ -4,6 +4,7 @@ use App\Http\Middleware\AuthenticateDeveloperStorefrontToken;
 use App\Http\Middleware\EnsureCurrentStore;
 use App\Http\Middleware\EnsureStorePermission;
 use App\Http\Middleware\EnsureStoreRole;
+use App\Http\Middleware\EnsureStoreSubscriptionAccess;
 use App\Http\Middleware\RecordUserSession;
 use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'current.store' => EnsureCurrentStore::class,
             'store.permission' => EnsureStorePermission::class,
             'store.role' => EnsureStoreRole::class,
+            'store.subscription' => EnsureStoreSubscriptionAccess::class,
             'role' => RoleMiddleware::class,
             'dev.storefront.token' => AuthenticateDeveloperStorefrontToken::class,
             'password.confirm' => RequirePassword::class,

@@ -59,9 +59,14 @@ Current work priority:
 7. DR-06 owner/manager/staff and two-store acceptance: **complete** (automated journey in `Dr06MerchantAcceptanceTest`; DR-07 identity editing still open)
 8. Actionable settings — **complete** (DR-08 in-page General Settings form)
 9. Customer identity editing — **complete** (DR-07)
-10. Real or hidden analytics/admin surfaces
+10. Real or hidden analytics/admin surfaces — **admin store entitlement live** (packages, trials, hard gate); other admin stubs remain unavailable
 
-## Connected websites (current code)
+## Platform admin entitlement (2026-09-10)
+
+- Admin Dashboard / Tenants / Billing are real operator tools (not placeholder metrics).
+- `saas_packages` + `store_subscriptions` support admin-managed packages, trial days, suspend/reactivate.
+- Merchant workspace is hard-gated when a store is `expired` or `suspended`; stores without a subscription row stay open until an admin assigns entitlement.
+- SaaS Stripe subscription charging / merchant self-serve upgrade is **not** claimed.
 
 The merchant path is **Website → Connect your website**. WordPress is the customer-facing shop. Catalog, orders, customers, and shipping stay in this portal. Phase 9 API keys/webhooks remain out of this pass.
 
@@ -115,7 +120,7 @@ What this pass still does not include:
 ## Deferred from the readiness gate
 
 - Additional carrier expansion
-- SaaS subscription/billing expansion
+- SaaS subscription **payment collection** / Stripe charging (admin-managed packages, trials, and hard access gating are live; merchants are not billed through the platform yet)
 - Payment expansion beyond current foundations
 
 ## Go-live gate

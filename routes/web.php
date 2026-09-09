@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminPackageController;
+use App\Http\Controllers\Admin\AdminTenantController;
 use App\Http\Controllers\Admin\FedExAdminDiagnosticsController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
@@ -38,6 +41,7 @@ use App\Http\Controllers\Settings\TeamMemberController;
 use App\Http\Controllers\Store\CurrentStoreController;
 use App\Http\Controllers\Store\DashboardController;
 use App\Http\Controllers\Store\NotificationController;
+use App\Http\Controllers\Store\StoreAccessController;
 use App\Http\Controllers\Storefront\FedExPublicTrackingController;
 use Illuminate\Support\Facades\Route;
 
@@ -94,7 +98,8 @@ Route::get('/t/{storeSlug}/fedex/{token}', [FedExPublicTrackingController::class
     ->middleware('throttle:60,1')
     ->name('public.fedex.tracking');
 
-Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
+Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])->group(function () {
+    Route::get('/store/access-expired', [StoreAccessController::class, 'expired'])->name('store.access-expired');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/products', [DashboardController::class, 'product'])->name('products');
     Route::get('/products/create', [DashboardController::class, 'createProduct'])
@@ -588,8 +593,12 @@ Route::middleware(['auth', 'role:user', 'current.store'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    Route::get('/admin-dashboard', [AdminController::class, 'admin_dashboard'])->name('admin-dashboard');
-    Route::get('/admin-tenant', [AdminController::class, 'admin_tenant'])->name('admin-tenant');
+    Route::get('/admin-dashboard', AdminDashboardController::class)->name('admin-dashboard');
+
+    Route::get('/admin-tenant', [AdminTenantController::class, 'index'])->name('admin-tenant');
+    Route::get('/admin-tenant/{store}', [AdminTenantController::class, 'show'])->name('admin-tenant.show');
+    Route::post('/admin-tenant/{store}/access', [AdminTenantController::class, 'updateAccess'])->name('admin-tenant.access');
+
     Route::get('/admin-products', [AdminController::class, 'admin_products'])->name('admin-products');
     Route::get('/admin-users', [AdminController::class, 'admin_users'])->name('admin-users');
 
@@ -597,7 +606,12 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin-ups', [AdminController::class, 'admin_ups'])->name('admin-ups');
     Route::get('/admin-add-logistic', [AdminController::class, 'admin_infrastructure_add_logistic'])->name('admin-infrastructure-add-logistic');
 
-    Route::get('/admin-billing', [AdminController::class, 'admin_billing'])->name('admin-billing');
+    Route::get('/admin-billing', [AdminPackageController::class, 'index'])->name('admin-billing');
+    Route::get('/admin-billing/packages/create', [AdminPackageController::class, 'create'])->name('admin-billing.packages.create');
+    Route::post('/admin-billing/packages', [AdminPackageController::class, 'store'])->name('admin-billing.packages.store');
+    Route::get('/admin-billing/packages/{package}/edit', [AdminPackageController::class, 'edit'])->name('admin-billing.packages.edit');
+    Route::put('/admin-billing/packages/{package}', [AdminPackageController::class, 'update'])->name('admin-billing.packages.update');
+    Route::post('/admin-billing/packages/{package}/toggle', [AdminPackageController::class, 'toggleActive'])->name('admin-billing.packages.toggle');
 
     Route::get('/admin-settings', [AdminController::class, 'admin_settings'])->name('admin-settings');
     Route::get('/admin-security', [AdminController::class, 'admin_settings_security'])->name('admin-security');

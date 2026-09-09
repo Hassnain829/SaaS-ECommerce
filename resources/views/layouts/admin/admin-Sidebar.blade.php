@@ -34,11 +34,11 @@
 
     @php
         $isAdminDashboard = request()->routeIs('admin-dashboard');
-        $isAdminTenant = request()->routeIs('admin-tenant');
+        $isAdminTenant = request()->routeIs('admin-tenant', 'admin-tenant.show');
         $isAdminProducts = request()->routeIs('admin-products');
         $isAdminUsers = request()->routeIs('admin-users');
         $isAdminInfrastructure = request()->routeIs('admin-infrastructure') || request()->routeIs('admin-ups') || request()->routeIs('admin-infrastructure-add-logistic');
-        $isAdminBilling = request()->routeIs('admin-billing');
+        $isAdminBilling = request()->routeIs('admin-billing', 'admin-billing.packages.*');
         $isAdminSettings = request()->routeIs('admin-settings') || request()->routeIs('admin-security') || request()->routeIs('admin-notifications');
         $isAdminProfile = request()->routeIs('admin-profile');
         $isAdminFedEx = request()->routeIs('admin.fedex.index', 'admin.fedex.diagnostics');

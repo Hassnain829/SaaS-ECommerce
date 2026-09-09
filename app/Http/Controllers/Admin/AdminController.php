@@ -7,16 +7,6 @@ use Illuminate\View\View;
 
 class AdminController extends Controller
 {
-    public function admin_dashboard(): View
-    {
-        return $this->unavailable('Platform overview');
-    }
-
-    public function admin_tenant(): View
-    {
-        return $this->unavailable('Tenants');
-    }
-
     public function admin_products(): View
     {
         return $this->unavailable('Products');
@@ -35,11 +25,6 @@ class AdminController extends Controller
     public function admin_ups(): View
     {
         return $this->unavailable('UPS');
-    }
-
-    public function admin_billing(): View
-    {
-        return $this->unavailable('Billing');
     }
 
     public function admin_settings(): View
