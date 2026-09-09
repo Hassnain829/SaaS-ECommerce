@@ -90,7 +90,7 @@ class SecurityLogAndSessionTest extends TestCase
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $beta->id])
             ->post(route('developer-storefront.token.generate'))
-            ->assertRedirect(route('developer-storefront.settings'));
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
 
         $this->assertDatabaseHas('security_logs', [
             'store_id' => $beta->id,

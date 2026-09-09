@@ -129,7 +129,7 @@
                         'h-10 rounded-lg border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]' => ! $useConsole,
                     ])>{{ $refreshButtonLabel }}</button>
                 </form>
-                <form method="POST" action="{{ route('settings.payments.stripe.connect.disconnect', $account) }}" data-turbo="false" onsubmit="return confirm('Disable this Stripe {{ $isLive ? 'live' : 'test' }} account for this store? Existing orders stay unchanged.');">
+                <form method="POST" action="{{ route('settings.payments.stripe.connect.disconnect', $account) }}" data-turbo="false" data-ui-confirm="Existing orders stay unchanged." data-ui-confirm-title="Disable this Stripe {{ $isLive ? 'live' : 'test' }} account?" data-ui-confirm-action="Disable account">
                     @csrf
                     <button @class([
                         'payments-btn payments-btn-danger' => $useConsole,

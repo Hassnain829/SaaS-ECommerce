@@ -163,7 +163,7 @@
                                     <button class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Save changes</button>
                                 </div>
                             </form>
-                            <form method="POST" action="{{ route('settings.coupons.destroy', $coupon) }}" class="mt-4 border-t border-slate-100 pt-4" onsubmit="return confirm('Delete this coupon? Existing order records will remain.');">
+                            <form method="POST" action="{{ route('settings.coupons.destroy', $coupon) }}" class="mt-4 border-t border-slate-100 pt-4" data-ui-confirm="Existing order records will remain." data-ui-confirm-title="Delete this coupon?" data-ui-confirm-action="Delete coupon" data-ui-confirm-cancel="Keep coupon">
                                 @csrf
                                 @method('DELETE')
                                 <button class="text-sm font-semibold text-red-600 hover:text-red-700">Delete coupon</button>

@@ -124,7 +124,7 @@
                                                 <button class="rounded-md border border-danger/30 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft">Cancel</button>
                                             </form>
                                         @endif
-                                        <form action="{{ route('draft-orders.destroy', $draft) }}" method="POST" data-turbo-frame="_top" onsubmit="return confirm('Delete this draft order? This will remove it from your active draft list. Converted orders cannot be deleted.');">
+                                        <form action="{{ route('draft-orders.destroy', $draft) }}" method="POST" data-turbo-frame="_top" data-ui-confirm="This will remove it from your active draft list. Converted orders cannot be deleted." data-ui-confirm-title="Delete this draft order?" data-ui-confirm-action="Delete draft">
                                             @csrf
                                             @method('DELETE')
                                             <button class="rounded-md border border-danger/30 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft">Delete</button>

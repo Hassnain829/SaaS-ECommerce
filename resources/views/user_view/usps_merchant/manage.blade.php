@@ -167,7 +167,7 @@
                 </details>
             </section>
 
-            <form method="POST" action="{{ route('settings.shipping.usps-merchant.disconnect', $account) }}" onsubmit="return confirm('Disconnect this USPS merchant account?');">
+            <form method="POST" action="{{ route('settings.shipping.usps-merchant.disconnect', $account) }}" data-ui-confirm="Your USPS merchant account will be disconnected from this store." data-ui-confirm-title="Disconnect this USPS account?" data-ui-confirm-action="Disconnect">
                 @csrf
                 <button type="submit" class="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700">Disconnect USPS account</button>
             </form>

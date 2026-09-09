@@ -113,7 +113,7 @@
         </div>
 
         <div class="sidebar-nav-group">
-            <p class="sidebar-nav-label">Sales channels</p>
+            <p class="sidebar-nav-label">Online store</p>
             <a href="{{ route('developer-storefront.settings') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('developer-storefront.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm6.3 7.5h-2.4A12.6 12.6 0 0012.5 4.6 6.51 6.51 0 0116.3 9.5zM10 3.5c.7 0 1.7 1.4 2.3 3.7.2.8.4 1.7.5 2.3H7.2c.1-.6.3-1.5.5-2.3C8.3 4.9 9.3 3.5 10 3.5zM3.7 9.5A6.51 6.51 0 017.5 4.6 12.6 12.6 0 006.1 9.5H3.7zm0 1h2.4a12.6 12.6 0 001.4 4.9A6.51 6.51 0 013.7 10.5zM10 16.5c-.7 0-1.7-1.4-2.3-3.7-.2-.8-.4-1.7-.5-2.3h5.6c-.1.6-.3 1.5-.5 2.3-.6 2.3-1.6 3.7-2.3 3.7zm2.5-1.1a12.6 12.6 0 001.4-4.9h2.4a6.51 6.51 0 01-3.8 4.9z"/></svg>
                 <span>Website</span>
@@ -213,6 +213,7 @@
 </main>
 
 @stack('overlays')
+<x-ui.confirm-modal />
 @if (!empty($availableStores) && count($availableStores) > 1)
 <div id="storeSwitchConfirmModal" class="ui-modal-shell ui-modal-shell--alert hidden" role="dialog" aria-modal="true" aria-labelledby="storeSwitchConfirmTitle">
     <div class="ui-modal-panel ui-modal-panel--md border-[#BFDBFE]">

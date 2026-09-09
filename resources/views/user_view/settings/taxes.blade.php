@@ -558,7 +558,7 @@
                             <button type="submit" class="inline-flex h-10 items-center justify-center rounded-lg bg-brand px-5 text-sm font-semibold text-white">Save rate</button>
                         </div>
                     </form>
-                    <form method="POST" action="{{ route('settings.taxes.rates.destroy', $rate) }}" class="mt-4 border-t border-[#E3E1EA] px-5 pb-5 pt-4 sm:px-6" onsubmit="return confirm('Remove this tax rate? Existing checkout snapshots are not changed.');">
+                    <form method="POST" action="{{ route('settings.taxes.rates.destroy', $rate) }}" class="mt-4 border-t border-[#E3E1EA] px-5 pb-5 pt-4 sm:px-6" data-ui-confirm="Existing checkout snapshots are not changed." data-ui-confirm-title="Remove this tax rate?" data-ui-confirm-action="Remove rate">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="text-sm font-semibold text-[#B42318] hover:underline">Delete rate</button>

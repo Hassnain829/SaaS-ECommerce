@@ -727,7 +727,7 @@
                                     @endif
                                     @if ($opsShipLabelsEnabled
                                         && \App\Services\Carriers\FedEx\Operations\FedExShipmentCancelService::isCancellable($shipment))
-                                        <form method="POST" action="{{ route('shipments.fedex.cancel', $shipment) }}" onsubmit="return confirm('Cancel this FedEx shipment?');">
+                                        <form method="POST" action="{{ route('shipments.fedex.cancel', $shipment) }}" data-ui-confirm="This FedEx shipment will be cancelled." data-ui-confirm-title="Cancel this FedEx shipment?" data-ui-confirm-action="Cancel shipment">
                                             @csrf
                                             <input type="hidden" name="carrier_account_id" value="{{ $fedExAccount->id }}">
                                             <button type="submit" class="inline-flex h-8 items-center rounded-lg border border-red-200 bg-red-50 px-2.5 text-xs font-semibold text-red-700">Void / cancel</button>

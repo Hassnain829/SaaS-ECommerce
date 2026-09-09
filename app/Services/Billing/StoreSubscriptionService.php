@@ -8,6 +8,7 @@ use App\Models\StoreSubscription;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class StoreSubscriptionService
 {
@@ -198,6 +199,10 @@ class StoreSubscriptionService
 
     public function subscriptionFor(Store $store): ?StoreSubscription
     {
+        if (! Schema::hasTable('store_subscriptions')) {
+            return null;
+        }
+
         if ($store->relationLoaded('subscription')) {
             return $store->subscription;
         }

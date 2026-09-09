@@ -34,7 +34,7 @@
                         <p class="text-sm font-semibold text-[#991B1B]">Unused delivery options</p>
                         <p class="mt-0.5 text-xs text-[#B91C1C]">These are not linked to a delivery area (often left behind after an area was removed).</p>
                     </div>
-                    <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" onsubmit="return confirm('Remove all unused delivery options?')">
+                    <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" data-ui-confirm="Remove all unused delivery options?" data-ui-confirm-title="Remove unused delivery options?" data-ui-confirm-action="Remove unused options">
                         @csrf
                         <button type="submit" class="rounded-lg border border-[#FECACA] bg-white px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove all</button>
                     </form>
@@ -42,7 +42,7 @@
                 @foreach ($orphanWizardMethods as $orphan)
                     <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#FECACA] bg-white px-3 py-2">
                         <p class="text-sm font-semibold text-[#0F172A]">{{ $orphan->name }}</p>
-                        <form method="POST" action="{{ route('settings.shipping.methods.destroy', $orphan) }}" onsubmit="return confirm('Remove “{{ $orphan->name }}”?')">
+                        <form method="POST" action="{{ route('settings.shipping.methods.destroy', $orphan) }}" data-ui-confirm="Remove “{{ $orphan->name }}”?" data-ui-confirm-title="Remove this delivery option?" data-ui-confirm-action="Remove option">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove</button>

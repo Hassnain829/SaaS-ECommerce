@@ -115,7 +115,7 @@
                         Edit connection
                     </x-ui.button>
                     @if ($account->connection_status !== 'disabled')
-                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}" onsubmit="return confirm('Disable this FedEx account?')">
+                        <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}" data-ui-confirm="This FedEx account will stop being used for labels on this store." data-ui-confirm-title="Disable this FedEx account?" data-ui-confirm-action="Disable">
                             @csrf
                             <x-ui.button type="submit" variant="danger">Disable</x-ui.button>
                         </form>

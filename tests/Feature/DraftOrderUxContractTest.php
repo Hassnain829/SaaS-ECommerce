@@ -38,6 +38,11 @@ class DraftOrderUxContractTest extends TestCase
         $this->assertStringContainsString('data-primary-save-button', $submitButtons[0][0]);
         $this->assertStringNotContainsString('data-convert-draft-button', $submitButtons[0][0]);
         $this->assertStringContainsString('value="PATCH"', $submitButtons[0][0]);
+        $this->assertStringContainsString('id="uiConfirmModal"', $html);
+        $this->assertStringContainsString('data-ui-confirm', $html);
+        $this->assertStringContainsString('Delete this draft permanently?', $html);
+        $this->assertStringNotContainsString('onsubmit="return confirm', $html);
+        $this->assertStringContainsString('Switch to manual tax?', $html);
     }
 
     public function test_automatic_mode_ignores_stale_manual_tax_input(): void

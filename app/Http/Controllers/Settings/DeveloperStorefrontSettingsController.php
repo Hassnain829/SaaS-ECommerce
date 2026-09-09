@@ -31,10 +31,19 @@ class DeveloperStorefrontSettingsController extends Controller
         }
 
         $store->refresh();
+        $snapshot = $this->snapshot($store);
+        $plainToken = $request->session()->pull('developer_storefront_plain_token');
 
-        return view('user_view.developer_storefront', array_merge($this->snapshot($store), [
+        return view('user_view.developer_storefront', array_merge($snapshot, [
             'selectedStore' => $store,
-            'plainToken' => $request->session()->pull('developer_storefront_plain_token'),
+            'plainToken' => $plainToken,
+            'editingWebsite' => $request->boolean('edit') && (bool) $snapshot['step1Done'],
+            'activeStep' => $this->resolveActiveStep(
+                $request,
+                (bool) $snapshot['step1Done'],
+                (bool) $snapshot['step2Done'],
+                is_string($plainToken) ? $plainToken : null,
+            ),
             'portalAddress' => rtrim((string) config('app.url'), '/'),
             'catalogApiUrl' => rtrim((string) config('app.url'), '/').'/api/developer-storefront',
         ]));
@@ -154,8 +163,7 @@ class DeveloperStorefrontSettingsController extends Controller
         $websiteUrl = $connectedSite?->site_url ?: $store->connectedWebsiteUrl();
 
         if (! filled($websiteUrl)) {
-            return redirect()
-                ->route('developer-storefront.settings')
+            return $this->connectRedirect(1)
                 ->withErrors([
                     'website_url' => 'Save this store\'s exact WordPress website address before creating a connection key.',
                 ]);
@@ -174,11 +182,9 @@ class DeveloperStorefrontSettingsController extends Controller
             ]
         );
 
-        return redirect()
-            ->route('developer-storefront.settings')
-            ->with('success', $issued['rotated']
-                ? 'Copy this new key now. The previous key stops working immediately.'
-                : 'Copy this key now. It will not be shown again.')
+        return $this->connectRedirect(2, $issued['rotated']
+            ? 'Copy this new key now. The previous key stops working immediately.'
+            : 'Copy this key now. It will not be shown again.')
             ->with('developer_storefront_plain_token', $issued['plain']);
     }
 
@@ -204,9 +210,7 @@ class DeveloperStorefrontSettingsController extends Controller
             ]
         );
 
-        return redirect()
-            ->route('developer-storefront.settings')
-            ->with('success', 'The connection key was removed. Your website will stop loading this store’s products until you create a new key.');
+        return $this->connectRedirect(2, 'The connection key was removed. Your website will stop loading this store’s products until you create a new key.');
     }
 
     public function updateWebsiteUrl(Request $request): RedirectResponse
@@ -225,24 +229,22 @@ class DeveloperStorefrontSettingsController extends Controller
 
         $url = trim((string) ($validated['website_url'] ?? ''));
         if ($url !== '' && filter_var($url, FILTER_VALIDATE_URL) === false) {
-            return redirect()
-                ->route('developer-storefront.settings')
+            return $this->connectRedirect(1, edit: true)
                 ->withErrors(['website_url' => 'Enter a valid website address, including http:// or https://.']);
         }
 
         try {
             app(ConnectedSiteService::class)->bindWebsiteUrl($store, $url);
         } catch (ValidationException $exception) {
-            return redirect()
-                ->route('developer-storefront.settings')
+            return $this->connectRedirect(1, edit: true)
                 ->withErrors($exception->errors());
         }
 
-        return redirect()
-            ->route('developer-storefront.settings')
-            ->with('success', $url === ''
-                ? 'Website address cleared.'
-                : 'Website address saved.');
+        if ($url === '') {
+            return $this->connectRedirect(1, 'Website address cleared.');
+        }
+
+        return $this->connectRedirect(2, 'Website address saved.');
     }
 
     public function downloadPlugin(): BinaryFileResponse|RedirectResponse
@@ -287,6 +289,56 @@ class DeveloperStorefrontSettingsController extends Controller
                 'Content-Disposition' => 'attachment; filename="eco-portal-connector.zip"',
             ])
             ->deleteFileAfterSend(true);
+    }
+
+    private function resolveActiveStep(
+        Request $request,
+        bool $step1Done,
+        bool $step2Done,
+        ?string $plainToken,
+    ): int {
+        if (filled($plainToken)) {
+            return 2;
+        }
+
+        $max = 1;
+        if ($step1Done) {
+            $max = 2;
+        }
+        if ($step2Done) {
+            $max = 3;
+        }
+
+        $requested = (int) $request->query('step', 0);
+        if ($requested >= 1 && $requested <= $max) {
+            return $requested;
+        }
+
+        if (! $step1Done) {
+            return 1;
+        }
+
+        if (! $step2Done) {
+            return 2;
+        }
+
+        return 3;
+    }
+
+    private function connectRedirect(int $step, ?string $success = null, bool $edit = false): RedirectResponse
+    {
+        $parameters = ['step' => $step];
+        if ($edit) {
+            $parameters['edit'] = 1;
+        }
+
+        $redirect = redirect()->route('developer-storefront.settings', $parameters);
+
+        if ($success !== null) {
+            $redirect->with('success', $success);
+        }
+
+        return $redirect;
     }
 
     private function addDirectoryToZip(ZipArchive $zip, string $directory, string $prefix): void

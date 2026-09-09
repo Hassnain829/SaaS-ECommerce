@@ -276,13 +276,13 @@
             <p class="mt-2 text-sm text-[#64748B]">Cancel or delete removes this draft from your active list. Converted drafts cannot be deleted because they are linked to an order.</p>
             <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
                 @if($isEditable)
-                    <form action="{{ route('draft-orders.cancel', $draftOrder) }}" method="POST" onsubmit="return confirm('Cancel this draft? It will remain in history but cannot be converted.');">
+                    <form action="{{ route('draft-orders.cancel', $draftOrder) }}" method="POST" data-ui-confirm="It will remain in history but cannot be converted." data-ui-confirm-title="Cancel this draft?" data-ui-confirm-action="Cancel draft" data-ui-confirm-cancel="Keep draft">
                         @csrf
                         @method('PATCH')
                         <button type="submit" class="h-10 rounded-lg border border-[#FECACA] bg-white px-4 text-sm text-[#991B1B]">Cancel draft</button>
                     </form>
                 @endif
-                <form action="{{ route('draft-orders.destroy', $draftOrder) }}" method="POST" onsubmit="return confirm('Delete this draft permanently? Converted drafts cannot be deleted.');">
+                <form action="{{ route('draft-orders.destroy', $draftOrder) }}" method="POST" data-ui-confirm="Converted drafts cannot be deleted because they are linked to an order." data-ui-confirm-title="Delete this draft permanently?" data-ui-confirm-action="Delete draft" data-ui-confirm-cancel="Keep draft">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="h-10 rounded-lg border border-[#FECACA] bg-white px-4 text-sm text-[#991B1B]">Delete draft</button>

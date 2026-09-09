@@ -75,6 +75,213 @@ window.MerchantUi = {
     },
 };
 
+let uiConfirmPending = {
+    form: null,
+    submitter: null,
+    resolve: null,
+};
+
+const uiConfirmModalEl = () => document.getElementById('uiConfirmModal');
+
+const hideUiConfirmModal = () => {
+    const modal = uiConfirmModalEl();
+    modal?.classList.add('hidden');
+    modal?.classList.remove('flex');
+    const anotherAlertOpen = [...document.querySelectorAll('.ui-modal-shell--alert')].some((el) => ! el.classList.contains('hidden'));
+    if (! anotherAlertOpen) {
+        document.body.classList.remove('overflow-hidden');
+    }
+};
+
+const paintUiConfirmModal = (options = {}) => {
+    const modal = uiConfirmModalEl();
+    if (! modal) {
+        return false;
+    }
+
+    const tone = options.tone === 'warning' ? 'warning' : 'danger';
+    const panel = modal.querySelector('[data-ui-confirm-panel]');
+    const hero = modal.querySelector('[data-ui-confirm-hero]');
+    const icon = modal.querySelector('[data-ui-confirm-icon]');
+    const title = modal.querySelector('#uiConfirmTitle');
+    const lead = modal.querySelector('#uiConfirmLead');
+    const callout = modal.querySelector('[data-ui-confirm-callout]');
+    const calloutLabel = modal.querySelector('[data-ui-confirm-callout-label]');
+    const calloutBody = modal.querySelector('[data-ui-confirm-callout-body]');
+    const cancelBtn = modal.querySelector('[data-ui-confirm-cancel]');
+    const okBtn = modal.querySelector('[data-ui-confirm-ok]');
+
+    if (panel) {
+        panel.classList.toggle('border-[#FDE68A]', tone === 'warning');
+        panel.classList.toggle('border-[#FECACA]', tone !== 'warning');
+    }
+    if (hero) {
+        hero.className = tone === 'warning'
+            ? 'bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.18),_transparent_60%)] px-6 pb-4 pt-6'
+            : 'bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.18),_transparent_60%)] px-6 pb-4 pt-6';
+    }
+    if (icon) {
+        icon.className = tone === 'warning'
+            ? 'flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFFBEB] text-[#D97706] shadow-sm'
+            : 'flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFF1F2] text-[#DC2626] shadow-sm';
+    }
+    if (title) {
+        title.textContent = options.title || 'Please confirm';
+    }
+    if (lead) {
+        lead.textContent = options.body || '';
+        lead.classList.toggle('hidden', ! options.body);
+    }
+    const warningBody = options.warningBody || '';
+    if (callout) {
+        callout.className = tone === 'warning'
+            ? 'rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-4'
+            : 'rounded-2xl border border-[#FEE2E2] bg-[#FFF7F7] px-4 py-4';
+        callout.classList.toggle('hidden', warningBody === '');
+    }
+    if (calloutLabel) {
+        calloutLabel.textContent = options.warningLabel || (tone === 'warning' ? 'Please check' : 'Warning');
+        calloutLabel.className = tone === 'warning'
+            ? 'text-xs font-semibold uppercase tracking-[0.08em] text-[#92400E]'
+            : 'text-xs font-semibold uppercase tracking-[0.08em] text-[#B42318]';
+    }
+    if (calloutBody) {
+        calloutBody.textContent = warningBody;
+        calloutBody.className = tone === 'warning'
+            ? 'mt-2 text-sm text-[#78350F]'
+            : 'mt-2 text-sm text-[#7F1D1D]';
+    }
+    if (cancelBtn) {
+        cancelBtn.textContent = options.cancelLabel || 'Cancel';
+    }
+    if (okBtn) {
+        okBtn.textContent = options.confirmLabel || 'Confirm';
+        okBtn.className = tone === 'warning'
+            ? 'rounded-xl bg-brand px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand-hover'
+            : 'rounded-xl bg-[#DC2626] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#DC2626]/20 transition hover:bg-[#B91C1C]';
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+    cancelBtn?.focus();
+
+    return true;
+};
+
+const finishUiConfirm = (accepted) => {
+    const form = uiConfirmPending.form;
+    const submitter = uiConfirmPending.submitter;
+    const resolve = uiConfirmPending.resolve;
+    uiConfirmPending = { form: null, submitter: null, resolve: null };
+    hideUiConfirmModal();
+
+    if (accepted && form instanceof HTMLFormElement) {
+        form.dataset.uiConfirmAccepted = '1';
+        const useSubmitter = submitter instanceof HTMLElement && form.contains(submitter);
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit(useSubmitter ? submitter : undefined);
+        } else {
+            form.submit();
+        }
+        return;
+    }
+
+    if (typeof resolve === 'function') {
+        resolve(Boolean(accepted));
+    }
+};
+
+const confirmWithMerchantModal = (options = {}) => new Promise((resolve) => {
+    if (uiConfirmPending.resolve) {
+        uiConfirmPending.resolve(false);
+    }
+    uiConfirmPending = { form: null, submitter: null, resolve };
+    if (! paintUiConfirmModal(options)) {
+        resolve(window.confirm(options.body || options.title || 'Are you sure?'));
+        uiConfirmPending = { form: null, submitter: null, resolve: null };
+    }
+});
+
+const confirmOptionsFromForm = (form) => {
+    const body = form.getAttribute('data-ui-confirm') || 'Are you sure?';
+    const title = form.getAttribute('data-ui-confirm-title') || (body.includes('?') ? body.split('?')[0] + '?' : 'Please confirm');
+    const toneAttr = form.getAttribute('data-ui-confirm-tone');
+    const dangerHint = /delete|remove|disconnect|void|cancel|disable|permanently|erase/i.test(`${title} ${body}`);
+
+    return {
+        title,
+        body,
+        warningLabel: form.getAttribute('data-ui-confirm-warning-label') || '',
+        warningBody: form.getAttribute('data-ui-confirm-warning') || '',
+        cancelLabel: form.getAttribute('data-ui-confirm-cancel') || 'Cancel',
+        confirmLabel: form.getAttribute('data-ui-confirm-action') || 'Confirm',
+        tone: toneAttr === 'warning' || toneAttr === 'danger' ? toneAttr : (dangerHint ? 'danger' : 'warning'),
+    };
+};
+
+let uiConfirmListenersBound = false;
+const initUiConfirm = () => {
+    if (uiConfirmListenersBound) {
+        return;
+    }
+    uiConfirmListenersBound = true;
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        if (! (form instanceof HTMLFormElement) || ! form.hasAttribute('data-ui-confirm')) {
+            return;
+        }
+        if (form.dataset.uiConfirmAccepted === '1') {
+            delete form.dataset.uiConfirmAccepted;
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (uiConfirmPending.resolve) {
+            uiConfirmPending.resolve(false);
+        }
+        uiConfirmPending = { form, submitter: event.submitter instanceof HTMLElement ? event.submitter : null, resolve: null };
+        if (! paintUiConfirmModal(confirmOptionsFromForm(form))) {
+            if (window.confirm(form.getAttribute('data-ui-confirm') || 'Are you sure?')) {
+                form.dataset.uiConfirmAccepted = '1';
+                const submitter = event.submitter instanceof HTMLElement && form.contains(event.submitter)
+                    ? event.submitter
+                    : undefined;
+                if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit(submitter);
+                } else {
+                    form.submit();
+                }
+            }
+            uiConfirmPending = { form: null, submitter: null, resolve: null };
+        }
+    }, true);
+
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (! (target instanceof Element)) {
+            return;
+        }
+        if (target.closest('[data-ui-confirm-cancel]')) {
+            event.preventDefault();
+            finishUiConfirm(false);
+            return;
+        }
+        if (target.closest('[data-ui-confirm-ok]')) {
+            event.preventDefault();
+            finishUiConfirm(true);
+            return;
+        }
+        const modal = uiConfirmModalEl();
+        if (modal && event.target === modal) {
+            finishUiConfirm(false);
+        }
+    });
+};
+
+window.MerchantUi.confirm = (options = {}) => confirmWithMerchantModal(options);
+
 /**
  * Fixed overlays must live directly under <body>.
  *
@@ -579,6 +786,7 @@ const bootMerchantUi = (root = document) => {
     portalMerchantLayers();
     initMerchantProfileMenus();
     initStoreSwitcher();
+    initUiConfirm();
     disableTurboOnMultipartForms(root);
     disableTurboForProductCreateNav();
     syncMerchantSidebarActive();
@@ -611,6 +819,12 @@ document.addEventListener('keydown', (event) => {
 
 document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') {
+        return;
+    }
+    const confirmModal = uiConfirmModalEl();
+    if (confirmModal && ! confirmModal.classList.contains('hidden')) {
+        event.preventDefault();
+        finishUiConfirm(false);
         return;
     }
     const leaveModal = productCreateLeaveModalEl();
@@ -656,6 +870,9 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('turbo:before-cache', () => {
     closeAllMerchantProfileMenus();
     closeStoreSwitcherMenu();
+    if (uiConfirmPending.form || uiConfirmPending.resolve || (uiConfirmModalEl() && ! uiConfirmModalEl().classList.contains('hidden'))) {
+        finishUiConfirm(false);
+    }
     document.querySelectorAll('[data-ui-portal-ready="true"]').forEach((layer) => {
         if (layer.id === 'productCreateLeaveModal') {
             return;

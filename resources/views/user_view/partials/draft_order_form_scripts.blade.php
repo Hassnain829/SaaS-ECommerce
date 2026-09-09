@@ -391,26 +391,49 @@
                 radio.addEventListener('change', () => {
                     const switchingToManual = radio.value === manualMode && radio.checked;
 
-                    if (switchingToManual && persistedSourceIsCalculated && confirmManualSwitch && ! confirmManualSwitch.checked) {
-                        const confirmed = window.confirm('Switch to manual tax?\nCalculated rate details will be removed.');
-                        if (! confirmed) {
-                            const automaticRadio = form.querySelector(`[data-tax-mode-radio][value="${calculatedMode}"]`);
-                            if (automaticRadio) {
-                                automaticRadio.checked = true;
-                            }
-                            syncTaxModeUi();
-                            syncAutomaticStaleUi();
-                            updateTotals();
-                            return;
-                        }
+                    const applyTaxModeChange = () => {
+                        syncTaxModeUi();
+                        syncAutomaticStaleUi();
+                        updateTotals();
+                        scheduleAutomaticTaxPreview();
+                    };
 
-                        confirmManualSwitch.checked = true;
+                    const revertToCalculatedTax = () => {
+                        const automaticRadio = form.querySelector(`[data-tax-mode-radio][value="${calculatedMode}"]`);
+                        if (automaticRadio) {
+                            automaticRadio.checked = true;
+                        }
+                        syncTaxModeUi();
+                        syncAutomaticStaleUi();
+                        updateTotals();
+                    };
+
+                    if (switchingToManual && persistedSourceIsCalculated && confirmManualSwitch && ! confirmManualSwitch.checked) {
+                        const ask = window.MerchantUi && typeof window.MerchantUi.confirm === 'function'
+                            ? window.MerchantUi.confirm({
+                                title: 'Switch to manual tax?',
+                                body: 'Calculated rate details will be removed.',
+                                warningLabel: 'Please check',
+                                warningBody: 'Saved calculated tax details for this draft will be cleared.',
+                                cancelLabel: 'Keep calculated tax',
+                                confirmLabel: 'Use manual tax',
+                                tone: 'warning',
+                            })
+                            : Promise.resolve(window.confirm('Switch to manual tax?\nCalculated rate details will be removed.'));
+
+                        ask.then((confirmed) => {
+                            if (! confirmed) {
+                                revertToCalculatedTax();
+                                return;
+                            }
+
+                            confirmManualSwitch.checked = true;
+                            applyTaxModeChange();
+                        });
+                        return;
                     }
 
-                    syncTaxModeUi();
-                    syncAutomaticStaleUi();
-                    updateTotals();
-                    scheduleAutomaticTaxPreview();
+                    applyTaxModeChange();
                 });
             });
 

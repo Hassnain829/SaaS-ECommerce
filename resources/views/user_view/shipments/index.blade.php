@@ -181,7 +181,7 @@
                                                 <a href="{{ $shipment->tracking_url }}" target="_blank" rel="noopener" class="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-surface-muted">Track</a>
                                             @endif
                                             @if ($canVoid)
-                                                <form method="POST" action="{{ route('shipments.fedex.cancel', $shipment) }}" onsubmit="return confirm('Void this FedEx shipment?')">
+                                                <form method="POST" action="{{ route('shipments.fedex.cancel', $shipment) }}" data-ui-confirm="This FedEx label will be voided." data-ui-confirm-title="Void this FedEx shipment?" data-ui-confirm-action="Void shipment">
                                                     @csrf
                                                     <button type="submit" class="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-2.5 py-1.5 text-xs font-semibold text-[#991B1B]">Void</button>
                                                 </form>

@@ -47,7 +47,7 @@
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <a href="{{ route('settings.delivery.setup.deliver-to', ['shipping_zone_id' => $zone->id]) }}" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-semibold text-[#475569]">Edit</a>
-                            <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}" onsubmit="return confirm('Remove “{{ $zone->name }}” and its checkout options?')">
+                            <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}" data-ui-confirm="Remove “{{ $zone->name }}” and its checkout options?" data-ui-confirm-title="Remove this delivery area?" data-ui-confirm-action="Remove area">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#991B1B]">Remove</button>

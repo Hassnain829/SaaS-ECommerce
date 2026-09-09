@@ -64,7 +64,10 @@ class ProductsListUxTest extends TestCase
             ->assertDontSeeText('Still Active')
             ->assertSeeText('Undo delete')
             ->assertSeeText('Permanently delete')
-            ->assertDontSeeText('Archived');
+            ->assertDontSeeText('Archived')
+            ->assertSee('id="uiConfirmModal"', false)
+            ->assertSee('data-ui-confirm-title="Permanently delete this product?"', false)
+            ->assertDontSee('onsubmit="return confirm', false);
     }
 
     public function test_drafts_view_lists_unpublished_products_for_store(): void

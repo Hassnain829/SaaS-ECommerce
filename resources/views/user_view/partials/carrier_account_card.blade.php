@@ -50,10 +50,10 @@
                 @endif
             @endif
             @if ($account->connection_status !== 'disabled')
-                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}" onsubmit="return confirm('Disable this account?')">@csrf<button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Disable</button></form>
+                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.disable', $account) }}" data-ui-confirm="This account will stop being used for this store." data-ui-confirm-title="Disable this account?" data-ui-confirm-action="Disable">@csrf<button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Disable</button></form>
             @endif
             @if ($account->isManualProvider())
-                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.destroy', $account) }}" onsubmit="return confirm('Remove this manual delivery account?')">@csrf @method('DELETE')<button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button></form>
+                <form method="POST" action="{{ route('settings.shipping.carrier-accounts.destroy', $account) }}" data-ui-confirm="This manual delivery account will be removed from this store." data-ui-confirm-title="Remove this delivery account?" data-ui-confirm-action="Remove">@csrf @method('DELETE')<button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button></form>
             @endif
         </div>
     @endif

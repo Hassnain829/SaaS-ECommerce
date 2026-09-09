@@ -161,7 +161,7 @@ class ConnectedSiteAuthTest extends TestCase
             ->patch(route('developer-storefront.website.update'), [
                 'website_url' => 'https://shop.example.test',
             ])
-            ->assertRedirect(route('developer-storefront.settings'));
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
 
         $this->actingAs($ownerB)
             ->withSession(['current_store_id' => $storeB->id])
@@ -397,7 +397,7 @@ class ConnectedSiteAuthTest extends TestCase
                 ->patch(route('developer-storefront.website.update'), [
                     'website_url' => 'https://shop.example.com',
                 ])
-                ->assertRedirect(route('developer-storefront.settings'));
+                ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
 
             $this->actingAs($owner)
                 ->withSession(['current_store_id' => $store->id])
@@ -472,7 +472,7 @@ class ConnectedSiteAuthTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->post(route('developer-storefront.token.generate'));
 
-        $generate->assertRedirect(route('developer-storefront.settings'));
+        $generate->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
         $token = (string) $generate->getSession()->get('developer_storefront_plain_token');
         $this->assertNotSame('', $token);
         $this->assertStringStartsWith('baa_dev_', $token);

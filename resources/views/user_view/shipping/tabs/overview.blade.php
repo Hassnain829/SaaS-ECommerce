@@ -2,7 +2,8 @@
     $setup = $deliverySetup ?? [];
     $healthItems = collect($setup['health_items'] ?? []);
     $isReady = (bool) ($setup['is_ready'] ?? false);
-    $storeRef = $selectedStore ?? $currentStore ?? null;
+    $storeCandidate = $selectedStore ?? $currentStore ?? null;
+    $storeRef = $storeCandidate instanceof \App\Models\Store ? $storeCandidate : null;
     $hasCompletedSetup = $storeRef?->delivery_setup_completed_at !== null;
     $hasErrors = $healthItems->contains(fn ($i) => ($i['severity'] ?? '') === 'error');
     $statusBadgeLabel = $isReady
@@ -18,7 +19,7 @@
     $methods = collect($shippingMethods ?? []);
     $zonePresenter = app(\App\Services\Delivery\DeliveryAreaInputNormalizer::class);
     $lifecycle = app(\App\Services\Delivery\DeliverySetupLifecycleService::class);
-    $currency = $storeRef->currency ?? 'USD';
+    $currency = $storeRef?->currency ?? 'USD';
     $canManage = (bool) ($canManageShipping ?? false);
 
     $errorIds = $healthItems
@@ -29,9 +30,11 @@
     $shipFromDone = ! $errorIds->contains(fn ($id) => str_starts_with($id, 'ship_from_'));
     $deliverToDone = $shipFromDone && ! $errorIds->contains(fn ($id) => str_starts_with($id, 'delivery_area_'));
     $checkoutDone = $deliverToDone && ! $errorIds->contains(fn ($id) => str_starts_with($id, 'delivery_option_'));
-    $continueSetupRoute = $storeRef
-        ? route($lifecycle->nextIncompleteSetupRouteName($storeRef))
-        : route('settings.delivery.setup');
+    if ($storeRef instanceof \App\Models\Store) {
+        $continueSetupRoute = route($lifecycle->nextIncompleteSetupRouteName($storeRef));
+    } else {
+        $continueSetupRoute = route('settings.delivery.setup');
+    }
 
     $setupSteps = [
         [
@@ -267,7 +270,7 @@
     @if ($orphanMethods->isNotEmpty() && $canManage)
         <div class="dh-orphan">
             <p>{{ $orphanMethods->count() }} unused delivery {{ $orphanMethods->count() === 1 ? 'option is' : 'options are' }} not linked to a delivery area.</p>
-            <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" onsubmit="return confirm('Remove all unused delivery options that are not linked to a delivery area?')">
+            <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" data-ui-confirm="Remove unused delivery options that are not linked to a delivery area?" data-ui-confirm-title="Remove unused delivery options?" data-ui-confirm-action="Remove unused options">
                 @csrf
                 <button type="submit" class="dh-btn dh-btn-ghost">Remove unused options</button>
             </form>
@@ -438,7 +441,7 @@
                                 <details class="dh-menu">
                                     <summary class="dh-menu-trigger" aria-label="More actions for {{ $zone->name }}">⋯</summary>
                                     <div class="dh-menu-panel">
-                                        <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}" onsubmit="return confirm('Remove “{{ $zone->name }}” and its checkout options? This cannot be undone.')">
+                                        <form method="POST" action="{{ route('settings.shipping.zones.destroy', $zone) }}" data-ui-confirm="Remove “{{ $zone->name }}” and its checkout options? This cannot be undone." data-ui-confirm-title="Remove this delivery area?" data-ui-confirm-action="Remove area">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="dh-menu-danger">Remove</button>
@@ -515,7 +518,7 @@
                                                         data-checkout="{{ $method->enabled_for_checkout ? '1' : '0' }}"
                                                         data-active="{{ $method->is_active ? '1' : '0' }}"
                                                         data-flag-mismatch="{{ $flagMismatch ? '1' : '0' }}">Edit</button>
-                                                    <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}" onsubmit="return confirm('Remove “{{ $method->name }}”? Customers will no longer see this option at checkout.')">
+                                                    <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}" data-ui-confirm="Remove “{{ $method->name }}”? Customers will no longer see this option at checkout." data-ui-confirm-title="Remove this delivery option?" data-ui-confirm-action="Remove option">
                                                         @csrf
                                                         @method('DELETE')
                                                         <button type="submit" class="dh-menu-danger">Remove</button>

@@ -2031,7 +2031,7 @@
                                                 @csrf
                                                 <button type="submit" class="inline-flex items-center rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2 text-xs font-semibold text-[#166534] hover:bg-[#DCFCE7]">Undo delete</button>
                                             </form>
-                                            <form method="POST" action="{{ route('product.force-destroy', ['productId' => $product->id]) }}" class="inline" onsubmit="return confirm('Permanently delete this product? This cannot be undone.');">
+                                            <form method="POST" action="{{ route('product.force-destroy', ['productId' => $product->id]) }}" class="inline" data-ui-confirm="This cannot be undone." data-ui-confirm-title="Permanently delete this product?" data-ui-confirm-action="Delete permanently" data-ui-confirm-warning="The product and its catalog records are removed from this store.">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="inline-flex items-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FEEBEC]">Permanently delete</button>

@@ -193,7 +193,7 @@
                     </form>
                 </div>
 
-                <form method="POST" action="{{ route('settings.shipping.fedex-integrator.disconnect', $account) }}" class="mt-6" onsubmit="return confirm('Disconnect this FedEx account? Your account number ending will be kept for records, but shipping credentials will be removed.');">
+                <form method="POST" action="{{ route('settings.shipping.fedex-integrator.disconnect', $account) }}" class="mt-6" data-ui-confirm="Your account number ending will be kept for records, but shipping credentials will be removed." data-ui-confirm-title="Disconnect this FedEx account?" data-ui-confirm-action="Disconnect">
                     @csrf
                     <button type="submit" class="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700">Disconnect FedEx account</button>
                 </form>

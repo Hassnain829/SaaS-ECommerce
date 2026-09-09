@@ -264,7 +264,7 @@
                                                 </button>
                                             @endif
                                             @if ($canRemoveThisMember)
-                                                <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" onsubmit="return confirm('Remove {{ addslashes($member->name) }} from {{ addslashes($selectedStore->name) }}?');">
+                                                <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" data-ui-confirm="Remove {{ $member->name }} from {{ $selectedStore->name }}?" data-ui-confirm-title="Remove this teammate?" data-ui-confirm-action="Remove">
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="team-console-btn team-console-btn-danger">Remove</button>
@@ -321,7 +321,7 @@
                                     <button type="button" data-open-team-role data-member='@json($memberPayload)' class="team-console-btn team-console-btn-dark">Change Role</button>
                                 @endif
                                 @if ($canRemoveThisMember)
-                                    <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" onsubmit="return confirm('Remove {{ addslashes($member->name) }} from {{ addslashes($selectedStore->name) }}?');">
+                                    <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" data-ui-confirm="Remove {{ $member->name }} from {{ $selectedStore->name }}?" data-ui-confirm-title="Remove this teammate?" data-ui-confirm-action="Remove">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="team-console-btn team-console-btn-danger">Remove</button>

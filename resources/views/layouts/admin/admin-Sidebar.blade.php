@@ -135,6 +135,8 @@
     </div>
 </main>
 
+<x-ui.confirm-modal />
+
 <script>
     function closeAllProfileMenus() {
       document.querySelectorAll('.profileMenu').forEach(function (menu) {

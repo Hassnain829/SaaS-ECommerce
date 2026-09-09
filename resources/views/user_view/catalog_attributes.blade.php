@@ -106,7 +106,7 @@
                                     <input name="swatch_value" placeholder="#0052CC" class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm">
                                     <button class="rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm font-semibold text-[#334155]">Add</button>
                                 </form>
-                                <form method="post" action="{{ route('catalog.attributes.destroy', $attribute) }}" onsubmit="return confirm('Remove this attribute from products in this store?');">
+                                <form method="post" action="{{ route('catalog.attributes.destroy', $attribute) }}" data-ui-confirm="This attribute will be removed from products in this store." data-ui-confirm-title="Remove this attribute?" data-ui-confirm-action="Remove attribute">
                                     @csrf
                                     @method('DELETE')
                                     <button class="text-sm font-semibold text-[#B42318] hover:underline">Remove specification</button>

@@ -113,15 +113,95 @@ class MerchantWebsiteConnectTest extends TestCase
             ->patch(route('developer-storefront.website.update'), [
                 'website_url' => 'http://127.0.0.1:8080',
             ])
-            ->assertRedirect(route('developer-storefront.settings'));
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
 
         $this->assertSame('http://127.0.0.1:8080', $store->fresh()->connectedWebsiteUrl());
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('developer-storefront.settings', ['step' => 2]))
+            ->assertOk()
+            ->assertSee('Your connection key')
+            ->assertDontSee('id="website_url"', false)
+            ->assertSee('data-wc-locked="1"', false)
+            ->getContent();
+
+        $this->assertStringContainsString('data-wc-panel="2"', $html);
+        $this->assertStringContainsString('<section class="wc-panel is-active" data-wc-panel="2">', $html);
+        $this->assertStringNotContainsString('<section class="wc-panel is-active" data-wc-panel="1">', $html);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('developer-storefront.settings', ['step' => 1]))
+            ->assertOk()
+            ->assertSee('http://127.0.0.1:8080')
+            ->assertSee('Change address')
+            ->assertDontSee('id="website_url"', false);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('developer-storefront.settings', ['step' => 1, 'edit' => 1]))
+            ->assertOk()
+            ->assertSee('id="website_url"', false)
+            ->assertSee('Save address');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('developer-storefront.plugin.download'))
             ->assertOk()
             ->assertDownload('eco-portal-connector.zip');
+    }
+
+    public function test_creating_a_key_stays_on_step_two_so_the_merchant_can_copy_it(): void
+    {
+        [$owner, $store] = $this->ownerStore('Copy Key Store');
+        app(ConnectedSiteService::class)
+            ->bindWebsiteUrl($store, 'http://localhost:8080/copy-key');
+
+        $generate = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('developer-storefront.token.generate'))
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
+
+        $token = (string) $generate->getSession()->get('developer_storefront_plain_token');
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('developer-storefront.settings'))
+            ->assertOk()
+            ->assertSee($token)
+            ->assertSee('Copy this key now')
+            ->assertSee('Continue to connect your site')
+            ->assertSee('Replace this connection key?')
+            ->assertSee('Remove this connection key?')
+            ->assertDontSee("onsubmit=\"return confirm", false)
+            ->getContent();
+
+        $this->assertStringContainsString('<section class="wc-panel is-active" data-wc-panel="2">', $html);
+        $this->assertStringNotContainsString('<section class="wc-panel is-active" data-wc-panel="3">', $html);
+        $this->assertStringContainsString('data-wc-locked="1"', $html);
+    }
+
+    public function test_connected_website_shows_manageable_settings_instead_of_the_setup_form(): void
+    {
+        [$owner, $store] = $this->ownerStore('Connected Manage Store');
+        app(ConnectedSiteService::class)
+            ->bindWebsiteUrl($store, 'http://localhost:8080/connected-manage');
+        $token = app(ConnectedSiteService::class)->issuePrimaryCredential($store)['plain'];
+
+        $this->withToken($token)
+            ->getJson('/api/developer-storefront/catalog')
+            ->assertOk();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('developer-storefront.settings'))
+            ->assertOk()
+            ->assertSeeText('Your website is connected')
+            ->assertSeeText('Change address')
+            ->assertSeeText('Replace or remove key')
+            ->assertSeeText('Need to reconnect WordPress or a custom site?')
+            ->assertDontSee('id="website_url"', false);
     }
 
     public function test_owner_must_save_the_store_wordpress_address_before_creating_a_key(): void
@@ -144,12 +224,12 @@ class MerchantWebsiteConnectTest extends TestCase
             ->patch(route('developer-storefront.website.update'), [
                 'website_url' => 'http://localhost:8080/address-first',
             ])
-            ->assertRedirect(route('developer-storefront.settings'));
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('developer-storefront.token.generate'))
-            ->assertRedirect(route('developer-storefront.settings'))
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]))
             ->assertSessionHas('developer_storefront_plain_token');
 
         $this->assertDatabaseHas('connected_sites', [
@@ -177,12 +257,12 @@ class MerchantWebsiteConnectTest extends TestCase
                 ->patch(route('developer-storefront.website.update'), [
                     'website_url' => $websiteUrl,
                 ])
-                ->assertRedirect(route('developer-storefront.settings'));
+                ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
 
             $response = $this->actingAs($owner)
                 ->withSession(['current_store_id' => $storeId])
                 ->post(route('developer-storefront.token.generate'))
-                ->assertRedirect(route('developer-storefront.settings'));
+                ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
 
             $tokens[$storeId] = (string) $response->getSession()->get('developer_storefront_plain_token');
         }
@@ -213,12 +293,12 @@ class MerchantWebsiteConnectTest extends TestCase
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $oldStore->id])
             ->delete(route('developer-storefront.token.revoke'))
-            ->assertRedirect(route('developer-storefront.settings'));
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $newStore->id])
             ->patch(route('developer-storefront.website.update'), ['website_url' => $websiteUrl])
-            ->assertRedirect(route('developer-storefront.settings'));
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
         $newResponse = $this->actingAs($owner)
             ->withSession(['current_store_id' => $newStore->id])
             ->post(route('developer-storefront.token.generate'));
@@ -301,7 +381,7 @@ class MerchantWebsiteConnectTest extends TestCase
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('developer-storefront.token.generate'))
-            ->assertRedirect(route('developer-storefront.settings'))
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]))
             ->assertSessionHas('developer_storefront_plain_token');
 
         $this->assertDatabaseHas('connected_sites', [
