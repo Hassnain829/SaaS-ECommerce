@@ -139,7 +139,7 @@
                 @if ($canManageTax)
                     <a class="trb-btn trb-btn-primary" href="{{ $createRateUrl }}" data-open-tax-rate-create aria-label="Add tax rate">
                         @include('user_view.taxes.partials.icon', ['name' => 'plus', 'size' => 18])
-                        + Add tax rate
+                        Add tax rate
                     </a>
                     <button class="trb-btn trb-btn-square" type="button" data-trb-page-menu aria-label="Rulebook options" aria-haspopup="menu" aria-expanded="false">
                         @include('user_view.taxes.partials.icon', ['name' => 'more', 'size' => 16])

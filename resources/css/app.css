@@ -13771,7 +13771,7 @@
     color: #53617a;
 }
 
-.tax-rulebook .trb-country-list:has(.trb-empty) {
+.tax-rulebook .trb-country-list:has(> .trb-empty:not([hidden])) {
     display: flex;
     align-items: center;
     justify-content: center;
