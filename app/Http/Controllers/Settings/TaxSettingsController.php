@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateTaxSettingsRequest;
 use App\Services\Tax\TaxConfigurationService;
 use App\Support\StorePermission;
 use App\Support\Tax\TaxCountryCatalog;
+use App\Support\Tax\TaxRulebookPresenter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -43,18 +44,28 @@ class TaxSettingsController extends Controller
         $editingRateId = (int) (session('_tax_rate_edit_id') ?? $request->integer('edit_rate', 0));
         $openCreateRateForm = session('_tax_rate_form') === 'create'
             || ($canManageTax && $request->boolean('create_rate'));
+        $createCountry = strtoupper(trim((string) $request->query('country', '')));
 
-        return view('user_view.settings.taxes', [
+        $rulebook = TaxRulebookPresenter::pageState(
+            $taxRates,
+            $taxSetting,
+            strtolower((string) $request->query('section', '')),
+            $request->integer('rate', 0),
+            $editingRateId,
+            $openCreateRateForm,
+        );
+
+        return view('user_view.settings.taxes', array_merge([
             'selectedStore' => $store,
             'taxSetting' => $taxSetting,
             'taxRates' => $taxRates,
-            'activeRatesCount' => $taxRates->where('is_active', true)->count(),
             'canManageTax' => $canManageTax,
             'countries' => TaxCountryCatalog::all(),
             'regionCatalog' => TaxCountryCatalog::allRegions(),
             'openCreateRateForm' => $openCreateRateForm,
             'editingRateId' => $editingRateId,
-        ]);
+            'createCountryPrefill' => preg_match('/^[A-Z]{2}$/', $createCountry) === 1 ? $createCountry : '',
+        ], $rulebook));
     }
 
     public function update(UpdateTaxSettingsRequest $request): RedirectResponse

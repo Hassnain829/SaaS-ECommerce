@@ -9,6 +9,7 @@ use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\StripeConfig;
 use App\Services\Payments\StripeConnectService;
 use App\Services\SecurityLogRecorder;
+use App\Support\Payments\PaymentWorkspacePresenter;
 use App\Support\PlatformPaymentMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,8 +46,45 @@ class PaymentSettingsController extends Controller
         $activeConnectAccount = $paymentProviderManager->activeConnectedAccountForStore($store, $platformPaymentMode);
 
         $canManagePayments = $request->user()?->canManageSettings($store) ?? false;
+        $requestedMode = strtolower((string) $request->query('mode', ''));
+        $selectedPaymentMode = in_array($requestedMode, PlatformPaymentMode::ALL, true)
+            ? $requestedMode
+            : $platformPaymentMode;
 
-        return view('user_view.payment_settings', [
+        $stripeConfigPayload = [
+            'test' => [
+                'configured' => $stripeConfig->isModeConfigured(PlatformPaymentMode::TEST),
+                'connect_configured' => $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::TEST),
+                'publishable_key' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::TEST)),
+                'webhook_secret' => filled($stripeConfig->stripeWebhookSecret(PlatformPaymentMode::TEST)),
+                'connect_webhook_secret' => filled($stripeConfig->stripeConnectWebhookSecret(PlatformPaymentMode::TEST)),
+            ],
+            'live' => [
+                'configured' => $stripeConfig->isModeConfigured(PlatformPaymentMode::LIVE),
+                'connect_configured' => $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::LIVE),
+                'publishable_key' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::LIVE)),
+                'webhook_secret' => filled($stripeConfig->stripeWebhookSecret(PlatformPaymentMode::LIVE)),
+                'connect_webhook_secret' => filled($stripeConfig->stripeConnectWebhookSecret(PlatformPaymentMode::LIVE)),
+                'uses_local_mirror' => $stripeConfig->liveKeysMirroredFromTest(),
+                'has_real_keys' => $stripeConfig->hasDedicatedLiveKeys(),
+                'config_source' => $stripeConfig->liveConfigSource(),
+            ],
+            'sandbox_fallback' => $paymentProviderManager->canUsePlatformSandboxFallback(PlatformPaymentMode::TEST),
+            'live_mirrors_test_keys' => $stripeConfig->liveKeysMirroredFromTest(),
+            'live_config_source' => $stripeConfig->liveConfigSource(),
+            'live_config_source_label' => $stripeConfig->liveConfigSourceLabel(),
+            'diagnostics' => [
+                'STRIPE_TEST_KEY' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::TEST)),
+                'STRIPE_TEST_SECRET' => filled($stripeConfig->stripeSecretKey(PlatformPaymentMode::TEST)),
+                'STRIPE_CONNECT_TEST_CLIENT_ID' => filled($stripeConfig->stripeConnectClientId(PlatformPaymentMode::TEST)),
+                'STRIPE_LIVE_KEY' => $stripeConfig->hasDedicatedLiveKeys(),
+                'STRIPE_LIVE_SECRET' => $stripeConfig->hasDedicatedLiveKeys(),
+                'STRIPE_CONNECT_LIVE_CLIENT_ID' => filled($stripeConfig->stripeConnectClientId(PlatformPaymentMode::LIVE))
+                    && $stripeConfig->hasDedicatedLiveKeys(),
+            ],
+        ];
+
+        return view('user_view.payment_settings', array_merge([
             'selectedStore' => $store,
             'accounts' => $accounts,
             'connectAccount' => $platformPaymentMode === PlatformPaymentMode::LIVE
@@ -59,41 +97,21 @@ class PaymentSettingsController extends Controller
             'liveConnectReady' => $liveConnectReady,
             'activeConnectAccount' => $activeConnectAccount,
             'platformPaymentMode' => $platformPaymentMode,
-            'stripeConfig' => [
-                'test' => [
-                    'configured' => $stripeConfig->isModeConfigured(PlatformPaymentMode::TEST),
-                    'connect_configured' => $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::TEST),
-                    'publishable_key' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::TEST)),
-                    'webhook_secret' => filled($stripeConfig->stripeWebhookSecret(PlatformPaymentMode::TEST)),
-                    'connect_webhook_secret' => filled($stripeConfig->stripeConnectWebhookSecret(PlatformPaymentMode::TEST)),
-                ],
-                'live' => [
-                    'configured' => $stripeConfig->isModeConfigured(PlatformPaymentMode::LIVE),
-                    'connect_configured' => $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::LIVE),
-                    'publishable_key' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::LIVE)),
-                    'webhook_secret' => filled($stripeConfig->stripeWebhookSecret(PlatformPaymentMode::LIVE)),
-                    'connect_webhook_secret' => filled($stripeConfig->stripeConnectWebhookSecret(PlatformPaymentMode::LIVE)),
-                    'uses_local_mirror' => $stripeConfig->liveKeysMirroredFromTest(),
-                    'has_real_keys' => $stripeConfig->hasDedicatedLiveKeys(),
-                    'config_source' => $stripeConfig->liveConfigSource(),
-                ],
-                'sandbox_fallback' => $paymentProviderManager->canUsePlatformSandboxFallback(PlatformPaymentMode::TEST),
-                'live_mirrors_test_keys' => $stripeConfig->liveKeysMirroredFromTest(),
-                'live_config_source' => $stripeConfig->liveConfigSource(),
-                'live_config_source_label' => $stripeConfig->liveConfigSourceLabel(),
-                'diagnostics' => [
-                    'STRIPE_TEST_KEY' => filled($stripeConfig->stripePublicKey(PlatformPaymentMode::TEST)),
-                    'STRIPE_TEST_SECRET' => filled($stripeConfig->stripeSecretKey(PlatformPaymentMode::TEST)),
-                    'STRIPE_CONNECT_TEST_CLIENT_ID' => filled($stripeConfig->stripeConnectClientId(PlatformPaymentMode::TEST)),
-                    'STRIPE_LIVE_KEY' => $stripeConfig->hasDedicatedLiveKeys(),
-                    'STRIPE_LIVE_SECRET' => $stripeConfig->hasDedicatedLiveKeys(),
-                    'STRIPE_CONNECT_LIVE_CLIENT_ID' => filled($stripeConfig->stripeConnectClientId(PlatformPaymentMode::LIVE))
-                        && $stripeConfig->hasDedicatedLiveKeys(),
-                ],
-            ],
+            'selectedPaymentMode' => $selectedPaymentMode,
+            'stripeConfig' => $stripeConfigPayload,
             'canManagePayments' => $canManagePayments,
             'showDeveloperDiagnostics' => $canManagePayments && app()->environment(['local', 'testing']),
-        ]);
+        ], PaymentWorkspacePresenter::forPage(
+            $store,
+            $testConnectAccount,
+            $liveConnectAccount,
+            $testConnectReady,
+            $liveConnectReady,
+            $activeConnectAccount,
+            $platformPaymentMode,
+            $selectedPaymentMode,
+            $stripeConfigPayload,
+        )));
     }
 
     public function updatePlatformPaymentMode(

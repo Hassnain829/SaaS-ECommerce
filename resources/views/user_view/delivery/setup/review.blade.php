@@ -7,7 +7,7 @@
 
     <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5 shadow-sm md:p-6">
         <h2 class="text-section font-semibold text-[#0F172A]">Review your delivery setup</h2>
-        <p class="mt-2 text-sm text-[#64748B]">This summary reflects saved delivery settings. Tax is configured separately under Checkout &amp; tax.</p>
+        <p class="mt-2 text-sm text-[#64748B]">This summary reflects saved delivery settings. Tax is configured separately under Taxes.</p>
 
         <div class="mt-6 space-y-4">
             <article class="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">

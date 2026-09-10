@@ -9,7 +9,7 @@
         ],
         [
             'key' => 'taxes',
-            'title' => 'Checkout & tax',
+            'title' => 'Taxes',
             'description' => 'Define tax behavior and country/region rates for platform checkout.',
             'route' => route('settings.taxes.index'),
         ],

@@ -1,14 +1,13 @@
-<section id="developer-diagnostics" class="payments-diagnostics">
+<section id="developer-diagnostics" class="payments-diagnostics" data-diagnostics-store="{{ $selectedStore->id ?? '' }}">
     <button
         type="button"
         class="payments-diagnostics-toggle"
-        @click="toggleDiagnostics()"
-        :aria-expanded="diagnosticsOpen"
+        data-pc-diagnostics-toggle
+        aria-expanded="false"
     >
         <span class="payments-diagnostics-title">Developer diagnostics</span>
         <svg
             class="payments-diagnostics-chevron"
-            :class="{ 'is-open': diagnosticsOpen }"
             width="20"
             height="20"
             viewBox="0 0 24 24"
@@ -21,14 +20,7 @@
 
     <p class="mt-2 text-xs text-[#64748B]">Platform/server Stripe configuration only. Store owners connect accounts through Stripe hosted onboarding — they never paste keys here.</p>
 
-    <div
-        class="payments-diag-grid"
-        x-show="diagnosticsOpen"
-        x-cloak
-        x-transition:enter="transition ease-out duration-200"
-        x-transition:enter-start="opacity-0 -translate-y-2"
-        x-transition:enter-end="opacity-100 translate-y-0"
-    >
+    <div class="payments-diag-grid" data-pc-diagnostics-panel hidden>
         @foreach($stripeConfig['diagnostics'] ?? [] as $label => $configured)
             <div class="payments-diag-item">
                 <span class="payments-diag-label">{{ $label }} configured</span>
