@@ -94,7 +94,7 @@ class CouponService
             $this->invalid('This coupon code is not valid for this store.');
         }
 
-        $this->validateAvailability($coupon, $customer);
+        $this->validateAvailability($coupon, $customer, $store);
 
         $currencyCode = strtoupper(trim($currencyCode));
         $zero = CurrencyPrecision::roundMajor('0', $currencyCode);
@@ -289,18 +289,21 @@ class CouponService
         $coupon->categories()->sync(array_map('intval', $validated['category_ids'] ?? []));
     }
 
-    private function validateAvailability(Coupon $coupon, Customer $customer): void
+    private function validateAvailability(Coupon $coupon, Customer $customer, Store $store): void
     {
         if (! $coupon->is_active) {
             $this->invalid('This coupon is not active.');
         }
 
-        $now = now('UTC');
-        if ($coupon->starts_at && $coupon->starts_at->isAfter($now)) {
+        $timezone = (string) ($store->timezone ?: 'UTC');
+        $now = now($timezone);
+        $starts = $coupon->scheduleInStoreTimezone($coupon->starts_at, $timezone);
+        if ($starts && $starts->isAfter($now)) {
             $this->invalid('This coupon is not available yet.');
         }
 
-        if ($coupon->expires_at && ! $coupon->expires_at->isAfter($now)) {
+        $expires = $coupon->scheduleInStoreTimezone($coupon->expires_at, $timezone);
+        if ($expires && ! $expires->isAfter($now)) {
             $this->invalid('This coupon has expired.');
         }
 

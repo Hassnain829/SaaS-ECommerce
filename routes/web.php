@@ -381,6 +381,9 @@ Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])-
     Route::delete('/settings/coupons/{coupon}', [CouponController::class, 'destroy'])
         ->middleware('store.permission:settings.manage')
         ->name('settings.coupons.destroy');
+    Route::patch('/settings/coupons/{coupon}/status', [CouponController::class, 'toggleActive'])
+        ->middleware('store.permission:settings.manage')
+        ->name('settings.coupons.toggle');
     Route::get('/settings/payments', [PaymentSettingsController::class, 'index'])
         ->middleware('store.permission:settings.view')
         ->name('settings.payments.index');

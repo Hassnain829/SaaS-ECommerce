@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -73,5 +75,57 @@ class Coupon extends Model
     public static function normalizeCode(string $code): string
     {
         return strtoupper(trim($code));
+    }
+
+    public function merchantStatus(?DateTimeInterface $now = null, ?string $timezone = null): string
+    {
+        $timezone = $this->scheduleTimezone($timezone);
+        $now = Carbon::parse($now ?? now())->timezone($timezone);
+
+        if (! $this->is_active) {
+            return 'inactive';
+        }
+
+        $starts = $this->scheduleInStoreTimezone($this->starts_at, $timezone);
+        if ($starts && $starts->isAfter($now)) {
+            return 'scheduled';
+        }
+
+        $expires = $this->scheduleInStoreTimezone($this->expires_at, $timezone);
+        if ($expires && ! $expires->isAfter($now)) {
+            return 'expired';
+        }
+
+        return 'active';
+    }
+
+    /**
+     * Coupon start/expiry values are civil times for the store, stored without a timezone.
+     */
+    public function scheduleInStoreTimezone(?DateTimeInterface $value, ?string $timezone = null): ?Carbon
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            Carbon::instance($value)->format('Y-m-d H:i:s'),
+            $this->scheduleTimezone($timezone),
+        ) ?: null;
+    }
+
+    public function scheduleTimezone(?string $timezone = null): string
+    {
+        if (is_string($timezone) && $timezone !== '') {
+            return $timezone;
+        }
+
+        $storeTimezone = $this->store?->timezone;
+        if (is_string($storeTimezone) && $storeTimezone !== '') {
+            return $storeTimezone;
+        }
+
+        return (string) config('app.timezone', 'UTC');
     }
 }

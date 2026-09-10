@@ -10623,6 +10623,1263 @@
             grid-template-columns: 1fr;
         }
     }
+
+    /* Discounts workspace */
+    .discounts-console {
+        --dc-green: #087f5b;
+        --dc-green-dark: #066b4c;
+        --dc-green-soft: #e4f6ef;
+        --dc-blue: #0b70d1;
+        --dc-blue-soft: #edf6ff;
+        --dc-violet: #7759e8;
+        --dc-line: #dde3ea;
+        --dc-line-soft: #edf1f5;
+        --dc-muted: #64748b;
+        --dc-shadow: 0 1px 2px rgb(15 23 42 / 0.05), 0 8px 24px rgb(15 23 42 / 0.04);
+    }
+
+    .discounts-console .dc-intro {
+        margin: 0 0 0.75rem;
+    }
+
+    .discounts-console .dc-intro h2 {
+        margin: 0;
+        font-size: var(--text-section);
+        font-weight: 600;
+        color: var(--color-ink);
+        letter-spacing: -0.025em;
+    }
+
+    .discounts-console .dc-intro p {
+        margin: 0.15rem 0 0;
+        color: var(--color-ink-muted);
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console .dc-ribbon {
+        display: grid;
+        grid-template-columns: 29% 45% 26%;
+        min-height: 8.4rem;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid var(--dc-line);
+        border-radius: 0.75rem;
+        box-shadow: var(--dc-shadow);
+    }
+
+    .discounts-console .dc-portfolio {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.2rem 1.15rem 1.2rem 1.35rem;
+        color: #fff;
+        text-align: left;
+        background:
+            radial-gradient(circle at 18% 20%, rgb(255 255 255 / 0.12), transparent 34%),
+            linear-gradient(135deg, #079068, #057454);
+    }
+
+    .discounts-console .dc-portfolio-main {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        min-width: 0;
+    }
+
+    .discounts-console .dc-portfolio-icon {
+        width: 3.15rem;
+        height: 3.15rem;
+        display: grid;
+        place-items: center;
+        flex: 0 0 3.15rem;
+        color: #fff;
+        background: rgb(255 255 255 / 0.14);
+        border: 1px solid rgb(255 255 255 / 0.16);
+        border-radius: 0.9rem;
+    }
+
+    .discounts-console .dc-portfolio-icon svg {
+        display: block;
+    }
+
+    .discounts-console .dc-portfolio-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        min-width: 0;
+        line-height: 1.15;
+    }
+
+    .discounts-console .dc-eyebrow {
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        line-height: 1;
+    }
+
+    .discounts-console .dc-portfolio .dc-eyebrow {
+        color: rgb(255 255 255 / 0.78);
+    }
+
+    .discounts-console .dc-portfolio-value {
+        display: flex;
+        align-items: baseline;
+        gap: 0.4rem;
+        margin-top: 0.4rem;
+        line-height: 1;
+    }
+
+    .discounts-console .dc-portfolio-count {
+        font-size: 2rem;
+        font-weight: 700;
+        letter-spacing: -0.045em;
+        line-height: 1;
+    }
+
+    .discounts-console .dc-portfolio-unit {
+        font-size: 1.125rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1;
+    }
+
+    .discounts-console .dc-portfolio-note {
+        margin-top: 0.38rem;
+        color: rgb(255 255 255 / 0.88);
+        font-size: 0.875rem;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    .discounts-console .dc-portfolio-aside {
+        min-width: 0;
+        max-width: 10.5rem;
+        padding: 0.7rem 0.8rem;
+        background: rgb(255 255 255 / 0.12);
+        border: 1px solid rgb(255 255 255 / 0.16);
+        border-radius: 0.7rem;
+    }
+
+    .discounts-console .dc-portfolio-aside .dc-eyebrow {
+        color: rgb(255 255 255 / 0.74);
+    }
+
+    .discounts-console .dc-portfolio-code {
+        display: block;
+        max-width: 100%;
+        margin-top: 0.4rem;
+        overflow: hidden;
+        color: #fff;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        background: transparent;
+        border: 0;
+        padding: 0;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .discounts-console .dc-portfolio-code:hover {
+        text-decoration: underline;
+    }
+
+    .discounts-console .dc-portfolio-aside-detail {
+        margin-top: 0.28rem;
+        color: rgb(255 255 255 / 0.9);
+        font-size: 0.75rem;
+        font-weight: 500;
+        line-height: 1.3;
+    }
+
+    .discounts-console .dc-status-block {
+        padding: 1.5rem 1.75rem;
+        border-right: 1px solid var(--dc-line-soft);
+    }
+
+    .discounts-console .dc-status-block .dc-eyebrow,
+    .discounts-console .dc-top-code .dc-eyebrow {
+        color: #65758e;
+    }
+
+    .discounts-console .dc-status-track {
+        height: 1.35rem;
+        display: flex;
+        overflow: hidden;
+        margin: 0.75rem 0 0.85rem;
+        background: #d9dee6;
+        border-radius: 20px;
+    }
+
+    .discounts-console .dc-status-segment {
+        height: 100%;
+    }
+
+    .discounts-console .dc-status-segment.is-active {
+        background: linear-gradient(90deg, #07845f, #0b996d);
+    }
+
+    .discounts-console .dc-status-segment.is-scheduled {
+        background: linear-gradient(90deg, #8366f0, #7153df);
+    }
+
+    .discounts-console .dc-status-segment.is-expired {
+        background: #cfd5de;
+    }
+
+    .discounts-console .dc-status-segment.is-inactive {
+        background: #64748b;
+    }
+
+    .discounts-console .dc-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.7rem 1.8rem;
+        color: #51627c;
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console .dc-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        white-space: nowrap;
+    }
+
+    .discounts-console .dc-legend-dot {
+        width: 0.8rem;
+        height: 0.8rem;
+        border-radius: 50%;
+    }
+
+    .discounts-console .dc-legend-dot.is-active {
+        background: #0b8c66;
+    }
+
+    .discounts-console .dc-legend-dot.is-scheduled {
+        background: #7658e7;
+    }
+
+    .discounts-console .dc-legend-dot.is-expired {
+        background: #cfd5de;
+    }
+
+    .discounts-console .dc-legend-dot.is-inactive {
+        background: #64748b;
+    }
+
+    .discounts-console .dc-legend-item strong {
+        color: #1e293b;
+    }
+
+    .discounts-console .dc-top-code {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 1.25rem 1.5rem;
+        background: linear-gradient(135deg, #effbf7, #e8f8f2);
+    }
+
+    .discounts-console .dc-top-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 0.7rem;
+        margin: 0.5rem 0;
+    }
+
+    .discounts-console .dc-code-chip {
+        width: max-content;
+        max-width: 100%;
+        padding: 0.25rem 0.55rem;
+        overflow: hidden;
+        color: #172033;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        background: #f1f4f7;
+        border: 1px solid #dbe1e8;
+        border-radius: 0.45rem;
+    }
+
+    .discounts-console button.dc-code-chip:hover {
+        background: #e8edf2;
+    }
+
+    .discounts-console .dc-top-uses {
+        white-space: nowrap;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .discounts-console .dc-redemption-track {
+        height: 0.625rem;
+        overflow: hidden;
+        background: #ccd9d5;
+        border-radius: 20px;
+    }
+
+    .discounts-console .dc-redemption-fill {
+        height: 100%;
+        background: var(--dc-green);
+        border-radius: inherit;
+    }
+
+    .discounts-console .dc-redemption-caption {
+        margin-top: 0.45rem;
+        color: var(--dc-muted);
+        font-size: 0.75rem;
+    }
+
+    .discounts-console .dc-info {
+        min-height: 3rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 1rem 0;
+        padding: 0.55rem 1rem;
+        color: #40577a;
+        background: var(--dc-blue-soft);
+        border: 1px solid #b9d9fb;
+        border-radius: 0.55rem;
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console .dc-info-copy {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .discounts-console .dc-info-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem;
+        color: #0467cb;
+        font-weight: 600;
+        background: transparent;
+        border: 0;
+        white-space: nowrap;
+    }
+
+    .discounts-console .dc-panel {
+        background: #fff;
+        border: 1px solid var(--dc-line);
+        border-radius: 0.75rem;
+        box-shadow: var(--dc-shadow);
+    }
+
+    .discounts-console .dc-header {
+        padding: 1.05rem 1.25rem 0;
+        border-bottom: 1px solid var(--dc-line);
+    }
+
+    .discounts-console .dc-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.25rem;
+    }
+
+    .discounts-console .dc-section-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .discounts-console .dc-section-title h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--color-ink);
+    }
+
+    .discounts-console .dc-count {
+        min-width: 1.6rem;
+        height: 1.6rem;
+        display: grid;
+        place-items: center;
+        padding: 0 0.45rem;
+        color: #526078;
+        background: #f1f4f7;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .discounts-console .dc-filters {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+    }
+
+    .discounts-console .dc-search {
+        position: relative;
+        min-width: 16.5rem;
+    }
+
+    .discounts-console .dc-search svg {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        width: 1rem;
+        height: 1rem;
+        transform: translateY(-50%);
+        color: #7b8ba2;
+        pointer-events: none;
+    }
+
+    .discounts-console .dc-control {
+        height: 2.35rem;
+        padding: 0 0.75rem;
+        color: #26354d;
+        background: #fff;
+        border: 1px solid #d9e0e8;
+        border-radius: 0.55rem;
+    }
+
+    .discounts-console .dc-search .dc-control {
+        width: 100%;
+        padding-left: 2.35rem;
+    }
+
+    .discounts-console select.dc-control {
+        min-width: 8.5rem;
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console .dc-filter-wrap {
+        position: relative;
+    }
+
+    .discounts-console .dc-filter-btn {
+        width: 2.6rem;
+        height: 2.35rem;
+        display: grid;
+        place-items: center;
+        color: #51627a;
+        background: #fff;
+        border: 1px solid #d9e0e8;
+        border-radius: 0.55rem;
+    }
+
+    .discounts-console .dc-filter-btn.is-active {
+        color: var(--dc-green);
+        background: var(--dc-green-soft);
+        border-color: #acd9ca;
+    }
+
+    .discounts-console .dc-advanced {
+        position: absolute;
+        right: 0;
+        top: 2.75rem;
+        z-index: 30;
+        min-width: 15.5rem;
+        padding: 0.85rem;
+        background: #fff;
+        border: 1px solid var(--dc-line);
+        border-radius: 0.6rem;
+        box-shadow: var(--dc-shadow);
+    }
+
+    .discounts-console .dc-advanced label {
+        display: block;
+        margin-bottom: 0.4rem;
+        color: #526078;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .discounts-console .dc-advanced select {
+        width: 100%;
+    }
+
+    .discounts-console .dc-advanced-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    .discounts-console .dc-tabs {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin-top: 0.8rem;
+    }
+
+    .discounts-console .dc-tab {
+        min-height: 2.35rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0 0.2rem;
+        color: #50617a;
+        background: transparent;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        font-size: 0.875rem;
+    }
+
+    .discounts-console .dc-tab.is-active {
+        color: var(--dc-green);
+        font-weight: 700;
+        border-bottom-color: var(--dc-green);
+    }
+
+    .discounts-console .dc-tab span {
+        min-width: 1.25rem;
+        height: 1.25rem;
+        display: grid;
+        place-items: center;
+        padding: 0 0.3rem;
+        background: #f1f4f7;
+        border-radius: 14px;
+        font-size: 0.6875rem;
+    }
+
+    .discounts-console .dc-tab.is-active span {
+        background: var(--dc-green-soft);
+    }
+
+    .discounts-console .dc-table-wrap {
+        overflow-x: auto;
+    }
+
+    .discounts-console .dc-table {
+        width: 100%;
+        min-width: 62rem;
+        border-collapse: collapse;
+    }
+
+    .discounts-console .dc-table th {
+        padding: 0.85rem 1.25rem 0.6rem;
+        color: #63738b;
+        text-align: left;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.025em;
+    }
+
+    .discounts-console .dc-table td {
+        padding: 0.75rem 1.25rem;
+        color: #26354d;
+        border-top: 1px solid var(--dc-line);
+        vertical-align: middle;
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console .dc-table tbody tr:hover {
+        background: #fbfcfd;
+    }
+
+    .discounts-console .dc-code-cell small {
+        display: block;
+        margin-top: 0.25rem;
+        color: #62728a;
+    }
+
+    .discounts-console .dc-discount-main {
+        color: #142039;
+        font-weight: 600;
+    }
+
+    .discounts-console .dc-subline {
+        display: block;
+        margin-top: 0.1rem;
+        color: var(--dc-muted);
+        font-size: 0.6875rem;
+    }
+
+    .discounts-console .dc-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .discounts-console .dc-pill::before {
+        content: "";
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+    }
+
+    .discounts-console .dc-pill.is-active {
+        color: #066c4e;
+        background: var(--dc-green-soft);
+    }
+
+    .discounts-console .dc-pill.is-active::before {
+        background: #07845f;
+    }
+
+    .discounts-console .dc-pill.is-scheduled {
+        color: #0569ba;
+        background: #e7f3ff;
+    }
+
+    .discounts-console .dc-pill.is-scheduled::before {
+        background: #0b7ddb;
+    }
+
+    .discounts-console .dc-pill.is-expired {
+        color: #5e6878;
+        background: #eef1f4;
+    }
+
+    .discounts-console .dc-pill.is-expired::before {
+        background: #8893a2;
+    }
+
+    .discounts-console .dc-pill.is-inactive {
+        color: #5a6474;
+        background: #eef1f4;
+    }
+
+    .discounts-console .dc-pill.is-inactive::before {
+        background: #64748b;
+    }
+
+    .discounts-console .dc-actions {
+        white-space: nowrap;
+    }
+
+    .discounts-console .dc-edit {
+        color: var(--dc-green-dark);
+        font-weight: 600;
+        background: transparent;
+        border: 0;
+    }
+
+    .discounts-console .dc-more {
+        width: 2.1rem;
+        height: 2.1rem;
+        display: inline-grid;
+        place-items: center;
+        margin-left: 0.5rem;
+        color: #50617a;
+        background: transparent;
+        border: 0;
+        border-radius: 0.45rem;
+    }
+
+    .discounts-console .dc-more:hover {
+        background: #f1f4f7;
+    }
+
+    .discounts-console .dc-empty {
+        padding: 3.5rem 1.25rem;
+        text-align: center;
+    }
+
+    .discounts-console .dc-empty-icon {
+        width: 3rem;
+        height: 3rem;
+        display: grid;
+        place-items: center;
+        margin: 0 auto 0.75rem;
+        color: var(--dc-green);
+        background: var(--dc-green-soft);
+        border-radius: 50%;
+    }
+
+    .discounts-console .dc-empty h4 {
+        margin: 0;
+        font-size: 1rem;
+        color: var(--color-ink);
+    }
+
+    .discounts-console .dc-empty p {
+        margin: 0.4rem 0 1rem;
+        color: var(--dc-muted);
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console .dc-footer {
+        min-height: 4rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.6rem 1.25rem;
+        color: #52647e;
+        border-top: 1px solid var(--dc-line);
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console .dc-pagination {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .discounts-console .dc-page-btn {
+        min-width: 2.25rem;
+        height: 2.25rem;
+        display: grid;
+        place-items: center;
+        background: #fff;
+        border: 1px solid var(--dc-line);
+        border-radius: 0.5rem;
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console .dc-page-btn:disabled {
+        opacity: 0.45;
+    }
+
+    .discounts-console .dc-page-btn.is-current {
+        color: var(--dc-green);
+        border-color: #acd9ca;
+        background: var(--dc-green-soft);
+        font-weight: 700;
+    }
+
+    .dc-row-menu {
+        position: fixed;
+        z-index: 130;
+        width: 12rem;
+        padding: 0.35rem;
+        background: #fff;
+        border: 1px solid var(--dc-line, #dde3ea);
+        border-radius: 0.55rem;
+        box-shadow: 0 14px 38px rgb(15 23 42 / 0.18);
+    }
+
+    .dc-row-menu button {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.55rem 0.6rem;
+        color: #29374d;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        border-radius: 0.45rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+
+    .dc-row-menu button:hover {
+        background: #f3f6f8;
+    }
+
+    .dc-row-menu button.is-danger {
+        color: #c9362b;
+    }
+
+    .discounts-console-drawer-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        background: rgb(24 35 49 / 0.52);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+    }
+
+    .discounts-console-drawer-overlay.is-open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .discounts-console-drawer {
+        position: fixed;
+        z-index: 110;
+        top: 0;
+        right: 0;
+        width: min(37.5rem, 100vw);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border-left: 1px solid #dde3ea;
+        box-shadow: -18px 0 50px rgb(15 23 42 / 0.16);
+        transform: translateX(102%);
+        transition: transform 0.24s ease;
+    }
+
+    .discounts-console-drawer.is-open {
+        transform: translateX(0);
+    }
+
+    .discounts-console-drawer > form {
+        display: flex;
+        flex: 1 1 auto;
+        min-height: 0;
+        flex-direction: column;
+    }
+
+    .discounts-console [hidden],
+    .discounts-console-drawer [hidden],
+    .dc-advanced[hidden],
+    .dc-row-menu[hidden] {
+        display: none !important;
+    }
+
+    .discounts-console-drawer .dc-drawer-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1.25rem 1.35rem 1rem;
+        border-bottom: 1px solid #dde3ea;
+    }
+
+    .discounts-console-drawer .dc-drawer-head .dc-eyebrow {
+        color: #64748b;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        letter-spacing: 0.055em;
+        text-transform: uppercase;
+    }
+
+    .discounts-console-drawer .dc-drawer-head h2 {
+        margin: 0.15rem 0 0;
+        font-size: 1.4rem;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        color: #111827;
+    }
+
+    .discounts-console-drawer .dc-drawer-head p {
+        margin: 0.25rem 0 0;
+        color: #64748b;
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console-drawer .dc-drawer-close {
+        width: 2.25rem;
+        height: 2.25rem;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        background: #f5f7f9;
+        border: 1px solid #dde3ea;
+        border-radius: 50%;
+    }
+
+    .discounts-console-drawer .dc-drawer-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.1rem 1.35rem 1.75rem;
+    }
+
+    .discounts-console-drawer .dc-live {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 1.25rem;
+        padding: 0.75rem 0.85rem;
+        color: #095c45;
+        background: #e8f8f2;
+        border: 1px solid #bee7d9;
+        border-radius: 0.55rem;
+        font-weight: 600;
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console-drawer .dc-form-section {
+        margin-top: 1.25rem;
+    }
+
+    .discounts-console-drawer .dc-form-section:first-child {
+        margin-top: 0;
+    }
+
+    .discounts-console-drawer .dc-form-section h3 {
+        margin: 0 0 0.75rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    .discounts-console-drawer .dc-optional-hint {
+        margin: -0.35rem 0 0.85rem;
+        color: #64748b;
+        font-size: 0.75rem;
+        line-height: 1.45;
+    }
+
+    .discounts-console-drawer .dc-field-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.85rem;
+    }
+
+    .discounts-console-drawer .dc-field label,
+    .discounts-console-drawer .dc-field legend,
+    .discounts-console-drawer .dc-field > span {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: #53627a;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    .discounts-console-drawer .dc-field input:not([type="checkbox"]):not([type="radio"]),
+    .discounts-console-drawer .dc-field select,
+    .discounts-console-drawer .dc-field textarea {
+        width: 100%;
+        min-height: 2.5rem;
+        padding: 0.55rem 0.7rem;
+        color: #1f2d43;
+        background: #fff;
+        border: 1px solid #d5dde6;
+        border-radius: 0.5rem;
+    }
+
+    .discounts-console-drawer .dc-field textarea {
+        min-height: 4.75rem;
+        resize: vertical;
+    }
+
+    .discounts-console-drawer .dc-affix {
+        position: relative;
+    }
+
+    .discounts-console-drawer .dc-affix input {
+        padding-right: 3.25rem;
+    }
+
+    .discounts-console-drawer .dc-affix span {
+        position: absolute;
+        right: 1px;
+        top: 1px;
+        bottom: 1px;
+        min-width: 2.75rem;
+        display: grid;
+        place-items: center;
+        color: #46556d;
+        background: #f6f8fa;
+        border-left: 1px solid #e1e6eb;
+        border-radius: 0 0.45rem 0.45rem 0;
+        font-weight: 600;
+        font-size: 0.8125rem;
+    }
+
+    .discounts-console-drawer .dc-choice-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+    }
+
+    .discounts-console-drawer .dc-choice {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        min-height: 3.4rem;
+        padding: 0.6rem 0.75rem;
+        color: #243148;
+        background: #fff;
+        border: 1px solid #d7dee7;
+        border-radius: 0.55rem;
+        cursor: pointer;
+    }
+
+    .discounts-console-drawer .dc-choice:has(input:checked) {
+        color: #075f47;
+        background: #eaf8f3;
+        border-color: #47a98b;
+    }
+
+    .discounts-console-drawer .dc-choice strong,
+    .discounts-console-drawer .dc-choice small {
+        display: block;
+    }
+
+    .discounts-console-drawer .dc-choice small {
+        margin-top: 0.1rem;
+        color: #64748b;
+        font-weight: 400;
+    }
+
+    .discounts-console-drawer .dc-applies {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .discounts-console-drawer .dc-conditional {
+        margin-top: 0.6rem;
+        padding: 0.75rem;
+        background: #f8fafb;
+        border: 1px solid #dde3ea;
+        border-radius: 0.55rem;
+    }
+
+    .discounts-console-drawer .dc-check-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .discounts-console-drawer .dc-check-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 0.65rem;
+        background: #fff;
+        border: 1px solid #dde3ea;
+        border-radius: 0.5rem;
+        font-size: 0.8125rem;
+        line-height: 1.2;
+    }
+
+    .discounts-console-drawer .dc-check-option input[type="checkbox"] {
+        width: 1rem;
+        height: 1rem;
+        min-width: 1rem;
+        min-height: 1rem;
+        max-width: 1rem;
+        max-height: 1rem;
+        margin: 0;
+        padding: 0;
+        flex: 0 0 1rem;
+        accent-color: #087f5b;
+        border: 1px solid #c5ced8;
+        border-radius: 0.2rem;
+    }
+
+    .discounts-console-drawer .dc-accordion {
+        overflow: hidden;
+        border: 1px solid #dde3ea;
+        border-radius: 0.55rem;
+    }
+
+    .discounts-console-drawer .dc-accordion + .dc-accordion {
+        margin-top: 0.5rem;
+    }
+
+    .discounts-console-drawer .dc-accordion-trigger {
+        width: 100%;
+        min-height: 3rem;
+        display: grid;
+        grid-template-columns: auto 1fr auto auto;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.6rem 0.75rem;
+        color: #29374e;
+        text-align: left;
+        background: #fff;
+        border: 0;
+        font-weight: 600;
+    }
+
+    .discounts-console-drawer .dc-accordion-summary {
+        color: #64748b;
+        font-size: 0.75rem;
+        font-weight: 400;
+    }
+
+    .discounts-console-drawer .dc-accordion-body {
+        padding: 0.25rem 0.75rem 0.85rem;
+        border-top: 1px solid #edf1f5;
+    }
+
+    .discounts-console-drawer .dc-toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: 1.25rem;
+        padding: 0.75rem 0;
+    }
+
+    .discounts-console-drawer .dc-switch {
+        position: relative;
+        width: 2.85rem;
+        height: 1.6rem;
+        flex: 0 0 auto;
+    }
+
+    .discounts-console-drawer .dc-switch input {
+        position: absolute;
+        opacity: 0;
+    }
+
+    .discounts-console-drawer .dc-switch-track {
+        position: absolute;
+        inset: 0;
+        background: #bdc7d3;
+        border-radius: 30px;
+    }
+
+    .discounts-console-drawer .dc-switch-track::after {
+        content: "";
+        position: absolute;
+        top: 0.2rem;
+        left: 0.2rem;
+        width: 1.25rem;
+        height: 1.25rem;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgb(15 23 42 / 0.24);
+        transition: transform 0.2s;
+    }
+
+    .discounts-console-drawer .dc-switch input:checked + .dc-switch-track {
+        background: #087f5b;
+    }
+
+    .discounts-console-drawer .dc-switch input:checked + .dc-switch-track::after {
+        transform: translateX(1.25rem);
+    }
+
+    .discounts-console-drawer .dc-toggle-copy strong,
+    .discounts-console-drawer .dc-toggle-copy span {
+        display: block;
+    }
+
+    .discounts-console-drawer .dc-toggle-copy span {
+        color: #64748b;
+        font-size: 0.75rem;
+        font-weight: 400;
+    }
+
+    .discounts-console-drawer .dc-drawer-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.85rem 1.35rem;
+        background: #fff;
+        border-top: 1px solid #dde3ea;
+    }
+
+    .discounts-console-drawer .dc-foot-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.6rem;
+        margin-left: auto;
+    }
+
+    .dc-help-dialog {
+        width: min(30rem, calc(100vw - 2rem));
+        padding: 0;
+        color: #111827;
+        background: #fff;
+        border: 1px solid #dde3ea;
+        border-radius: 0.75rem;
+        box-shadow: 0 22px 70px rgb(15 23 42 / 0.28);
+    }
+
+    .dc-help-dialog::backdrop {
+        background: rgb(24 35 49 / 0.52);
+    }
+
+    .dc-help-dialog h3 {
+        margin: 0;
+        padding: 1.05rem 1.1rem;
+        border-bottom: 1px solid #dde3ea;
+        font-size: 1.1rem;
+    }
+
+    .dc-help-dialog .dc-help-body {
+        padding: 1.1rem;
+        color: #42526a;
+        font-size: 0.875rem;
+    }
+
+    .dc-help-dialog .dc-help-body p {
+        margin: 0 0 0.6rem;
+    }
+
+    .dc-help-dialog .dc-help-body ul {
+        margin: 0.5rem 0 0;
+        padding-left: 1.25rem;
+    }
+
+    .dc-help-dialog .dc-help-foot {
+        display: flex;
+        justify-content: flex-end;
+        padding: 0.85rem 1.1rem;
+        border-top: 1px solid #dde3ea;
+    }
+
+    .dc-toast-region {
+        position: fixed;
+        z-index: 200;
+        right: 1.25rem;
+        bottom: 1.25rem;
+        display: grid;
+        gap: 0.5rem;
+        pointer-events: none;
+    }
+
+    .dc-toast {
+        min-width: 17.5rem;
+        max-width: 23.75rem;
+        padding: 0.75rem 0.85rem;
+        color: #fff;
+        background: #17382f;
+        border-radius: 0.55rem;
+        box-shadow: 0 16px 40px rgb(15 23 42 / 0.2);
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+
+    @media (max-width: 1120px) {
+        .discounts-console .dc-ribbon {
+            grid-template-columns: 1fr;
+        }
+
+        .discounts-console .dc-status-block {
+            border-right: 0;
+            border-bottom: 1px solid var(--dc-line-soft);
+        }
+
+        .discounts-console .dc-toolbar {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .discounts-console .dc-filters {
+            width: 100%;
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 760px) {
+        .discounts-console .dc-info {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .discounts-console .dc-filters {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .discounts-console .dc-search {
+            min-width: 0;
+            grid-column: 1 / -1;
+        }
+
+        .discounts-console select.dc-control {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .discounts-console-drawer .dc-field-grid,
+        .discounts-console-drawer .dc-choice-grid {
+            grid-template-columns: 1fr;
+        }
+    }
 }
 
 @layer utilities {
