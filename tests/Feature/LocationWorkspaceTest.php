@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -95,7 +96,7 @@ class LocationWorkspaceTest extends TestCase
             ->assertRedirect();
 
         $this->assertFalse((bool) $location->fresh()->pickup_enabled);
-        $this->assertFalse(\Illuminate\Support\Facades\Route::has('settings.locations.pickup'));
+        $this->assertFalse(Route::has('settings.locations.pickup'));
     }
 
     public function test_validation_errors_keep_submitted_add_location_name(): void

@@ -174,7 +174,7 @@ class MerchantWebsiteConnectTest extends TestCase
             ->assertSee('Continue to connect your site')
             ->assertSee('Replace this connection key?')
             ->assertSee('Remove this connection key?')
-            ->assertDontSee("onsubmit=\"return confirm", false)
+            ->assertDontSee('onsubmit="return confirm', false)
             ->getContent();
 
         $this->assertStringContainsString('<section class="wc-panel is-active" data-wc-panel="2">', $html);
