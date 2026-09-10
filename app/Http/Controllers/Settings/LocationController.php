@@ -60,7 +60,6 @@ class LocationController extends Controller
             'ship_from_ready' => $activeLocations
                 ->filter(fn (Location $location): bool => (bool) ($originReadinessByLocationId[$location->id]?->ready ?? false))
                 ->count(),
-            'pickup' => $activeLocations->where('pickup_enabled', true)->count(),
         ];
 
         return view('user_view.locations', [
@@ -188,32 +187,6 @@ class LocationController extends Controller
         );
     }
 
-    public function togglePickup(Request $request, Location $location): RedirectResponse
-    {
-        $store = $request->attributes->get('currentStore');
-        abort_unless($store && (int) $location->store_id === (int) $store->id, 404);
-
-        $location->update([
-            'pickup_enabled' => ! $location->pickup_enabled,
-            'updated_by' => $request->user()?->id,
-        ]);
-
-        app(SecurityLogRecorder::class)->record(
-            $request,
-            $location->pickup_enabled ? 'location_pickup_enabled' : 'location_pickup_disabled',
-            store: $store,
-            metadata: ['location_id' => $location->id, 'location_name' => $location->name]
-        );
-
-        return $this->workspaceRedirect(
-            $location,
-            $location->pickup_enabled
-                ? "{$location->name}: customer pickup is enabled."
-                : "{$location->name}: customer pickup is disabled.",
-            'Customer pickup updated',
-        );
-    }
-
     /**
      * @return array<string, mixed>
      */
@@ -230,7 +203,6 @@ class LocationController extends Controller
             'country_code' => ['nullable', 'string', 'max:64'],
             'phone' => ['nullable', 'string', 'max:60'],
             'fulfills_online_orders' => ['nullable', 'boolean'],
-            'pickup_enabled' => ['nullable', 'boolean'],
             'routing_priority' => ['nullable', 'integer', 'min:1', 'max:9999'],
         ]);
 
@@ -262,7 +234,7 @@ class LocationController extends Controller
         $validated['fulfills_online_orders'] = $request->has('fulfills_online_orders')
             ? $request->boolean('fulfills_online_orders')
             : true;
-        $validated['pickup_enabled'] = $request->boolean('pickup_enabled');
+        $validated['pickup_enabled'] = false;
         $validated['routing_priority'] = (int) ($validated['routing_priority'] ?? 100);
 
         if ($validated['fulfills_online_orders']) {

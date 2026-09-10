@@ -46,57 +46,56 @@ class LocationWorkspaceTest extends TestCase
             ->assertSee('Allen TX Warehouse', false)
             ->assertSee($default->name, false)
             ->assertSee('Your locations', false)
-            ->assertSee('Pickup services', false)
+            ->assertSee('Carrier pickup', false)
+            ->assertSee('FedEx carrier pickup', false)
+            ->assertSee('Coming soon', false)
             ->assertSee('data-lc-open-add', false)
-            ->assertSee(route('settings.locations.pickup', $second), false)
             ->assertSee(route('settings.locations.update', $second), false)
+            ->assertDontSee('Customer pickup', false)
+            ->assertDontSee('Allow in-store collection', false)
             ->assertDontSee('onsubmit="return confirm', false);
     }
 
-    public function test_owner_can_toggle_customer_pickup_for_the_current_store_location(): void
+    public function test_merchant_cannot_enable_customer_pickup_from_the_location_form(): void
     {
-        $owner = $this->merchant('locations-pickup@example.test');
-        $store = $this->storeFor($owner, 'Pickup Store');
+        $owner = $this->merchant('locations-no-pickup@example.test');
+        $store = $this->storeFor($owner, 'No Pickup Store');
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->get(route('settings.locations.index'));
+            ->post(route('settings.locations.store'), [
+                'name' => 'Allen warehouse',
+                'type' => Location::TYPE_WAREHOUSE,
+                'address_line1' => '738 Fawn Valley Dr',
+                'city' => 'Allen',
+                'state' => 'TX',
+                'postal_code' => '75002',
+                'country_code' => 'US',
+                'fulfills_online_orders' => '1',
+                'pickup_enabled' => '1',
+            ])
+            ->assertRedirect();
 
-        $location = $store->locations()->where('is_default', true)->firstOrFail();
+        $location = $store->locations()->where('name', 'Allen warehouse')->firstOrFail();
         $this->assertFalse((bool) $location->pickup_enabled);
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
-            ->patch(route('settings.locations.pickup', $location))
-            ->assertRedirect(route('settings.locations.index', ['location' => $location->id]));
+            ->patch(route('settings.locations.update', $location), [
+                'name' => 'Allen warehouse',
+                'type' => Location::TYPE_WAREHOUSE,
+                'address_line1' => '738 Fawn Valley Dr',
+                'city' => 'Allen',
+                'state' => 'TX',
+                'postal_code' => '75002',
+                'country_code' => 'US',
+                'fulfills_online_orders' => '1',
+                'pickup_enabled' => '1',
+            ])
+            ->assertRedirect();
 
-        $this->assertTrue((bool) $location->fresh()->pickup_enabled);
-    }
-
-    public function test_staff_cannot_toggle_pickup_and_cross_store_pickup_is_hidden(): void
-    {
-        $owner = $this->merchant('locations-pickup-owner@example.test');
-        $staff = $this->merchant('locations-pickup-staff@example.test');
-        $store = $this->storeFor($owner, 'Staff Pickup Store');
-        $other = $this->storeFor($owner, 'Other Pickup Store');
-        $store->members()->syncWithoutDetaching([$staff->id => ['role' => Store::ROLE_STAFF]]);
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->get(route('settings.locations.index'));
-
-        $location = $store->locations()->firstOrFail();
-        $foreign = $other->locations()->firstOrFail();
-
-        $this->actingAs($staff)
-            ->withSession(['current_store_id' => $store->id])
-            ->patch(route('settings.locations.pickup', $location))
-            ->assertForbidden();
-
-        $this->actingAs($owner)
-            ->withSession(['current_store_id' => $store->id])
-            ->patch(route('settings.locations.pickup', $foreign))
-            ->assertNotFound();
+        $this->assertFalse((bool) $location->fresh()->pickup_enabled);
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('settings.locations.pickup'));
     }
 
     public function test_validation_errors_keep_submitted_add_location_name(): void

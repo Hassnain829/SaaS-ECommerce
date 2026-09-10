@@ -14,7 +14,7 @@
     $countries = $countries ?? TaxCountryCatalog::all();
     $fedExConnectPhone = trim((string) ($fedExConnectPhone ?? ''));
     $shipFromPhoneBoundFromFedEx = $fedExConnectPhone !== '';
-    $locationMetrics = $locationMetrics ?? ['total' => 0, 'active' => 0, 'ship_from_ready' => 0, 'pickup' => 0];
+    $locationMetrics = $locationMetrics ?? ['total' => 0, 'active' => 0, 'ship_from_ready' => 0];
     $selectedLocationId = (int) ($selectedLocationId ?? 0);
     $activeLocationCount = (int) $locations->where('is_active', true)->count();
     $openLocationModal = $errors->any() && ! $errors->has('location');
@@ -36,7 +36,6 @@
             'country_code' => $location->country_code,
             'phone' => $location->phone,
             'fulfills_online_orders' => (bool) $location->fulfills_online_orders,
-            'pickup_enabled' => (bool) $location->pickup_enabled,
             'routing_priority' => (int) ($location->routing_priority ?? 100),
             'update_url' => route('settings.locations.update', $location),
         ]];
@@ -71,8 +70,12 @@
                 const st = el.getAttribute('data-status') || '';
                 return (!q || hay.includes(q)) && (this.status === 'all' || st === this.status);
             },
+            isFiltering() {
+                return this.query.trim() !== '' || this.status !== 'all';
+            },
             visibleCount() {
-                return [...this.$el.querySelectorAll('[data-location-item]')].filter((el) => this.matches(el)).length;
+                const root = this.$refs.locationList || this.$root || this.$el;
+                return [...root.querySelectorAll('[data-location-item]')].filter((el) => this.matches(el)).length;
             },
             select(id) {
                 this.selectedId = Number(id);
@@ -140,16 +143,6 @@
                             <div class="lc-metric-note">Carrier-ready address</div>
                         </div>
                     </div>
-                    <div class="lc-metric">
-                        <div class="lc-metric-icon is-amber" aria-hidden="true">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 10.5V20h16v-9.5M3 9l2-5h14l2 5M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M9 20v-5h6v5" stroke="currentColor" stroke-width="1.8"/></svg>
-                        </div>
-                        <div>
-                            <div class="lc-metric-label">Customer pickup</div>
-                            <div class="lc-metric-value">{{ $locationMetrics['pickup'] }}</div>
-                            <div class="lc-metric-note">{{ $locationMetrics['pickup'] > 0 ? 'Pickup locations enabled' : 'No pickup locations' }}</div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -173,14 +166,14 @@
                         <input id="location-search" type="search" placeholder="Search locations..." autocomplete="off" x-model="query">
                     </div>
                     <label class="sr-only" for="location-status-filter">Status</label>
-                    <select id="location-status-filter" x-model="status">
-                        <option value="all">All statuses</option>
+                    <select id="location-status-filter" x-model="status" title="Filter by status">
+                        <option value="all">All</option>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
                 </div>
 
-                <div class="lc-list" aria-live="polite">
+                <div class="lc-list" aria-live="polite" x-ref="locationList">
                     @forelse ($locations as $location)
                         @php
                             $searchHaystack = strtolower(trim(implode(' ', array_filter([
@@ -234,7 +227,7 @@
                             Add a warehouse, shop, or storage site to hold inventory.
                         </div>
                     @endforelse
-                    <div class="lc-empty" x-show="visibleCount() === 0 && {{ $locations->count() }} > 0" x-cloak>
+                    <div class="lc-empty" x-show="isFiltering() && visibleCount() === 0" x-cloak>
                         <strong>No matching locations</strong>
                         Try another search or status.
                     </div>
@@ -370,9 +363,9 @@
                                     <span class="lc-row-value">{{ $location->routing_priority ?? 100 }}</span>
                                 </div>
                                 <div class="lc-row">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5V20h16v-9.5M3 9l2-5h14l2 5M9 20v-5h6v5" stroke="currentColor" stroke-width="1.8"/></svg>
-                                    <span>Store pickup</span>
-                                    <span class="lc-row-value">{{ $location->pickup_enabled ? 'On' : 'Off' }}</span>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="m8 12 2.7 2.7L16.5 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    <span>Location status</span>
+                                    <span class="lc-row-value">{{ $location->is_active ? 'Active' : 'Inactive' }}</span>
                                 </div>
                             </section>
                             <section class="lc-card">
@@ -397,32 +390,8 @@
 
                         <section class="lc-pickup">
                             <div class="lc-pickup-head">
-                                <h3>Pickup services</h3>
-                                <span class="lc-badge is-blue">Location setting</span>
-                            </div>
-                            <div class="lc-pickup-row">
-                                <span class="lc-pickup-icon" aria-hidden="true">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 10.5V20h16v-9.5M3 9l2-5h14l2 5M9 20v-5h6v5" stroke="currentColor" stroke-width="1.8"/></svg>
-                                </span>
-                                <span>
-                                    <span class="lc-pickup-name">Customer pickup</span>
-                                    <span class="lc-pickup-copy">Let customers collect orders from this location.</span>
-                                </span>
-                                @if ($canManageLocations)
-                                    <form method="POST" action="{{ route('settings.locations.pickup', $location) }}">
-                                        @csrf
-                                        @method('PATCH')
-                                        <button
-                                            type="submit"
-                                            class="lc-toggle {{ $location->pickup_enabled ? 'is-on' : '' }}"
-                                            role="switch"
-                                            aria-checked="{{ $location->pickup_enabled ? 'true' : 'false' }}"
-                                            aria-label="Customer pickup"
-                                        ></button>
-                                    </form>
-                                @else
-                                    <span class="lc-row-value">{{ $location->pickup_enabled ? 'On' : 'Off' }}</span>
-                                @endif
+                                <h3>Carrier pickup</h3>
+                                <span class="lc-badge is-blue">FedEx</span>
                             </div>
                             <div class="lc-pickup-row">
                                 <span class="lc-pickup-icon is-muted" aria-hidden="true">
@@ -430,7 +399,7 @@
                                 </span>
                                 <span>
                                     <span class="lc-pickup-name">FedEx carrier pickup</span>
-                                    <span class="lc-pickup-copy">Schedule a FedEx driver collection from this location.</span>
+                                    <span class="lc-pickup-copy">Schedule a FedEx driver to collect packages from this location.</span>
                                 </span>
                                 <span class="lc-soon">Coming soon</span>
                             </div>
@@ -568,14 +537,6 @@
                                         <span>Use inventory at this location for eligible online orders.</span>
                                     </span>
                                 </label>
-                                <label class="lc-check-row full">
-                                    <input type="hidden" name="pickup_enabled" value="0">
-                                    <input id="locationPickup" type="checkbox" name="pickup_enabled" value="1" @checked(old('pickup_enabled'))>
-                                    <span>
-                                        <strong>Offer customer pickup</strong>
-                                        <span>Let customers collect their orders from this location. This does not require FedEx pickup scheduling.</span>
-                                    </span>
-                                </label>
                                 <label class="space-y-1">
                                     <span class="text-xs font-semibold text-[#64748B]">Routing priority</span>
                                     <input id="locationPriority" name="routing_priority" type="number" min="1" max="9999" value="{{ old('routing_priority', 100) }}" class="h-10 w-full rounded-lg border border-[#CFD5DC] bg-white px-3 text-sm">
@@ -707,7 +668,6 @@
             var phone = document.getElementById('locationPhone');
             if (phone) phone.value = '';
             setChecked('locationOnline', true);
-            setChecked('locationPickup', false);
             var country = document.getElementById('location-editor-country');
             if (country) country.value = 'US';
             renderLocationRegionSelect('US', '');
@@ -737,7 +697,6 @@
             var phone = document.getElementById('locationPhone');
             if (phone) phone.value = data.phone || '';
             setChecked('locationOnline', data.fulfills_online_orders);
-            setChecked('locationPickup', data.pickup_enabled);
             var country = document.getElementById('location-editor-country');
             var countryCode = (data.country_code || 'US').toUpperCase();
             if (country) country.value = countryCode;

@@ -9737,7 +9737,7 @@
 
     .locations-console .lc-metrics {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .locations-console .lc-metric {
@@ -9877,9 +9877,10 @@
 
     .locations-console .lc-tools {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 8.25rem;
+        grid-template-columns: minmax(0, 1fr) 6.75rem;
         gap: 0.5rem;
         margin-top: 0.75rem;
+        align-items: center;
     }
 
     .locations-console .lc-search {
@@ -9902,7 +9903,7 @@
         width: 100%;
         height: 2.25rem;
         color: var(--color-ink);
-        background: #fff;
+        background-color: #fff;
         border: 1px solid #cfd5dc;
         border-radius: 0.5rem;
     }
@@ -9912,13 +9913,30 @@
     }
 
     .locations-console .lc-tools select {
-        padding: 0.35rem 1.75rem 0.35rem 0.65rem;
+        appearance: none;
+        -webkit-appearance: none;
+        padding: 0 1.5rem 0 0.55rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        line-height: 2.25rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475467' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.45rem center;
+        background-size: 0.75rem;
+        background-color: #fff;
     }
 
     .locations-console .lc-list {
         display: grid;
         gap: 0.5rem;
         margin-top: 0.75rem;
+    }
+
+    .locations-console .lc-list .lc-empty {
+        grid-column: 1 / -1;
     }
 
     .locations-console .lc-item {
@@ -10331,6 +10349,22 @@
         font-size: 0.75rem;
     }
 
+    .locations-console .lc-pickup-note {
+        margin: 0.15rem 0 0.35rem;
+        color: var(--color-ink-muted);
+        font-size: 0.75rem;
+        line-height: 1.4;
+    }
+
+    .locations-console .lc-pickup-note a {
+        color: #075dcc;
+        font-weight: 600;
+    }
+
+    .locations-console .lc-pickup-note a:hover {
+        text-decoration: underline;
+    }
+
     .locations-console .lc-toggle {
         width: 2.625rem;
         height: 1.5rem;
@@ -10569,6 +10603,15 @@
 
         .locations-console .lc-cards {
             grid-template-columns: 1fr;
+        }
+
+        .locations-console .lc-pickup-row {
+            grid-template-columns: 2rem minmax(0, 1fr);
+            padding: 0.55rem 0;
+        }
+
+        .locations-console .lc-pickup-row > :last-child {
+            grid-column: 2;
         }
 
         .locations-console .lc-footer {
