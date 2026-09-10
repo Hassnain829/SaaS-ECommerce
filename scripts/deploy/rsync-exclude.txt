@@ -8,6 +8,10 @@ node_modules/
 dev-test-storefront/
 # Full local WP tree (GB-scale). Connector is staged into deploy/wordpress-jiggy/ in Actions.
 dev-test-wordpress/
+# Live WordPress demo under /jiggy is installed once on the server — never rsync --delete it.
+# Post-deploy only refreshes eco-portal-connector + brand mu-plugins via sync-wordpress-jiggy.sh.
+jiggy/
+jiggy/**
 tests/
 docs/archive/
 .env

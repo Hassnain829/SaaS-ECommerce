@@ -57,3 +57,7 @@ Homestead.yaml
 /_cuba_inspect/
 # CI-staged copy of the connector for /jiggy sync (source of truth: dev-test-wordpress/)
 /deploy/wordpress-jiggy/eco-portal-connector/
+
+# Local-only jiggy restore secrets
+scripts/deploy/.jiggy_db_pass.tmp
+
