@@ -139,7 +139,7 @@
                 @if ($canManageTax)
                     <a class="trb-btn trb-btn-primary" href="{{ $createRateUrl }}" data-open-tax-rate-create aria-label="Add tax rate">
                         @include('user_view.taxes.partials.icon', ['name' => 'plus', 'size' => 18])
-                        Add tax rate
+                        + Add tax rate
                     </a>
                     <button class="trb-btn trb-btn-square" type="button" data-trb-page-menu aria-label="Rulebook options" aria-haspopup="menu" aria-expanded="false">
                         @include('user_view.taxes.partials.icon', ['name' => 'more', 'size' => 16])
@@ -196,10 +196,7 @@
                         <div class="trb-empty">
                             @include('user_view.taxes.partials.icon', ['name' => 'globe', 'size' => 29])
                             <h3>No tax rates yet</h3>
-                            <p>Add a country-wide rate or a region-specific rate to start matching checkout addresses.</p>
-                            @if ($canManageTax)
-                                <a class="trb-btn trb-btn-primary" href="{{ $createRateUrl }}" data-open-tax-rate-create>Add tax rate</a>
-                            @endif
+                            <p>Add a country-wide rate or a region-specific rate to start your rulebook.</p>
                         </div>
                     @else
                         @foreach ($countryGroups as $group)

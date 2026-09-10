@@ -13760,10 +13760,37 @@
     color: #53617a;
 }
 
+.tax-rulebook .trb-country-list:has(.trb-empty) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .tax-rulebook .trb-empty {
-    padding: 1.75rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 280px;
+    margin-inline: auto;
+    padding: 1.5rem 0.75rem;
     text-align: center;
     color: var(--trb-muted);
+}
+
+.tax-rulebook .trb-empty .trb-icon {
+    width: 29px;
+    height: 29px;
+    color: #8b95a7;
+}
+
+.tax-rulebook .trb-empty p {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+}
+
+.tax-rulebook .trb-empty .trb-btn {
+    margin-top: 1rem;
 }
 
 .tax-rulebook .trb-empty h3 {
@@ -13774,9 +13801,14 @@
     margin: 0.75rem 0 0.5rem;
 }
 
+.tax-rulebook .trb-inspector:has(> .trb-empty) {
+    justify-content: center;
+    align-items: center;
+}
+
 .tax-rulebook .trb-inspector .trb-empty {
     margin: auto;
-    max-width: 390px;
+    max-width: 280px;
 }
 
 .tax-rulebook .trb-mobile-back {
