@@ -10174,18 +10174,29 @@
     }
 
     .locations-console .lc-readiness-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         width: 2.5rem;
         height: 2.5rem;
-        display: grid;
-        place-items: center;
-        flex: 0 0 auto;
+        flex: 0 0 2.5rem;
+        line-height: 0;
         color: #fff;
-        background: var(--color-brand);
+        background: transparent;
         border-radius: 50%;
+        overflow: hidden;
+    }
+
+    .locations-console .lc-readiness-icon svg {
+        display: block;
+        width: 2.5rem;
+        height: 2.5rem;
+        max-width: 2.5rem;
+        max-height: 2.5rem;
     }
 
     .locations-console .lc-readiness.is-attention .lc-readiness-icon {
-        background: var(--lc-amber);
+        background: transparent;
     }
 
     .locations-console .lc-readiness-copy {
