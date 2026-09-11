@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AdminTenantController;
 use App\Http\Controllers\Admin\FedExAdminDiagnosticsController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordConfirmationController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -60,6 +61,13 @@ Route::middleware('guest')->group(function () {
     Route::post('/signin', [DashboardController::class, 'authenticate'])->name('signin.attempt');
     Route::get('/register', [DashboardController::class, 'register'])->name('register');
     Route::post('/register', [DashboardController::class, 'storeRegistration'])->name('register.store');
+
+    Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])
+        ->middleware('throttle:10,1')
+        ->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])
+        ->middleware('throttle:20,1')
+        ->name('auth.google.callback');
 
     Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])
         ->middleware('throttle:6,1')

@@ -27,6 +27,11 @@
           <p class="text-[#64748B] text-base leading-6 mt-1">Join the enterprise platform for modern e-commerce and multi-tenant services.</p>
         </div>
 
+        @include('user_view.partials.continue-with-google')
+        @if (app(\App\Services\GoogleSignInService::class)->isEnabled())
+          <p class="mb-5 text-xs leading-5 text-[#64748B]">By continuing with Google, you agree to our <a href="{{ route('legal.terms') }}" class="font-semibold text-[#0052CC]">Terms of Service</a> and <a href="{{ route('legal.privacy') }}" class="font-semibold text-[#0052CC]">Privacy Policy</a>.</p>
+        @endif
+
         <form class="space-y-5" method="POST" action="{{ route('register.store') }}">
           @csrf
 

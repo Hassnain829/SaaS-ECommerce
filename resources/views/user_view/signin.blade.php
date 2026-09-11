@@ -28,6 +28,8 @@
                     <p class="text-[#64748B] text-base leading-6 mt-1">Sign in to manage your store catalog, orders, and delivery.</p>
                 </div>
 
+                @include('user_view.partials.continue-with-google')
+
                 <form class="space-y-6" method="POST" action="{{ route('signin.attempt') }}">
                     @csrf
 

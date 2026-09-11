@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'google' => [
+        'client_id' => trim((string) env('GOOGLE_CLIENT_ID', '')),
+        'client_secret' => trim((string) env('GOOGLE_CLIENT_SECRET', '')),
+        'redirect' => (static function (): string {
+            $explicit = trim((string) env('GOOGLE_REDIRECT_URI', ''));
+            if ($explicit !== '') {
+                return rtrim($explicit, '/');
+            }
+
+            return rtrim((string) env('APP_URL', 'http://127.0.0.1:8000'), '/').'/auth/google/callback';
+        })(),
+    ],
+
 ];
