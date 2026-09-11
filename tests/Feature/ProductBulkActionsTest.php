@@ -97,6 +97,111 @@ class ProductBulkActionsTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_staff_cannot_run_bulk_price(): void
+    {
+        $owner = $this->makeUser('owner-price-staff@x.com');
+        $staff = $this->makeUser('staff-price@x.com');
+        $store = $this->makeStore($owner);
+        $store->members()->syncWithoutDetaching([$staff->id => ['role' => Store::ROLE_STAFF]]);
+        $p = $this->makeProduct($store, 'Price Staff');
+
+        $this->actingAs($staff)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'price',
+                'product_ids' => [$p->id],
+                'price_value' => 12,
+                'bulk_variant_price_scope' => 'all_variants',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_bulk_price_applies_to_every_sellable_option(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $simple = $this->makeProduct($store, 'Plain Bar');
+        $simple->variants()->first()->update(['price' => 10]);
+        $mixed = $this->makeOptionVariantProduct($store, 'Net Wt.', ['1 OZ', '2.5 OZ']);
+        $variants = $mixed->variants()->orderBy('id')->get();
+        $variants[0]->update(['price' => 50]);
+        $variants[1]->update(['price' => 1500]);
+        $mixed->update(['base_price' => 1500]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'price',
+                'product_ids' => [$simple->id, $mixed->id],
+                'price_value' => 99,
+                'bulk_variant_price_scope' => 'all_variants',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', fn ($msg): bool => str_contains((string) $msg, 'every sellable option'));
+
+        $simple = $simple->fresh(['variants']);
+        $mixed = $mixed->fresh(['variants']);
+
+        $this->assertSame('99.00', (string) $simple->base_price);
+        $this->assertNull($simple->variants->first()->priceOverride());
+        $this->assertSame('99.00', (string) $simple->variants->first()->price);
+
+        foreach ($mixed->variants as $variant) {
+            $this->assertNull($variant->priceOverride());
+            $this->assertSame('99.00', (string) $variant->price);
+        }
+        $this->assertSame('99.00', (string) $mixed->base_price);
+    }
+
+    public function test_bulk_price_can_skip_products_with_more_than_one_option(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $simple = $this->makeProduct($store, 'Single Size');
+        $mixed = $this->makeOptionVariantProduct($store, 'Net Wt.', ['1 OZ', '2.5 OZ']);
+        $variants = $mixed->variants()->orderBy('id')->get();
+        $variants[0]->update(['price' => 50]);
+        $variants[1]->update(['price' => 1500]);
+        $mixed->update(['base_price' => 1500]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('products.bulk'), [
+                'action' => 'price',
+                'product_ids' => [$simple->id, $mixed->id],
+                'price_value' => 12,
+                'bulk_variant_price_scope' => 'skip_multi_variant',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', fn ($msg): bool => str_contains((string) $msg, 'Skipped'));
+
+        $simple = $simple->fresh();
+        $mixed = $mixed->fresh();
+        $this->assertSame('12.00', (string) $simple->base_price);
+        $this->assertSame('50.00', (string) $variants[0]->fresh()->price);
+        $this->assertSame('1500.00', (string) $variants[1]->fresh()->price);
+        $this->assertSame('1500.00', (string) $mixed->base_price);
+    }
+
+    public function test_bulk_price_rejects_cross_store_product_ids(): void
+    {
+        $owner = $this->makeUser();
+        $storeA = $this->makeStore($owner, 'Store A');
+        $storeB = $this->makeStore($owner, 'Store B');
+        $pA = $this->makeProduct($storeA, 'In A');
+        $pB = $this->makeProduct($storeB, 'In B');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $storeA->id])
+            ->post(route('products.bulk'), [
+                'action' => 'price',
+                'product_ids' => [$pA->id, $pB->id],
+                'price_value' => 12,
+                'bulk_variant_price_scope' => 'all_variants',
+            ])
+            ->assertSessionHasErrors('bulk');
+    }
+
     public function test_bulk_stock_set_records_stock_movements(): void
     {
         $owner = $this->makeUser();

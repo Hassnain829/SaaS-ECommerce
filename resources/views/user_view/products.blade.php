@@ -9,6 +9,7 @@
     use App\Support\ProductDetailPresenter;
     use App\Support\ProductEditPayload;
     use App\Support\ProductInventoryState;
+    use App\Support\ProductListPrice;
     $baseFilters = [
         'q' => $filters['q'] ?? '',
         'category' => $filters['category'] ?? '',
@@ -1043,9 +1044,11 @@
                         if (Number.isFinite(price) && price >= 0) {
                             const priceStr = String(price);
                             next.base_price = priceStr;
-                            const variant = findPayloadVariant(next, null);
-                            if (variant && (!Array.isArray(next.variants) || next.variants.length <= 1)) {
-                                variant.price = priceStr;
+                            if (!Array.isArray(next.variants) || next.variants.length <= 1) {
+                                const variant = findPayloadVariant(next, null);
+                                if (variant) {
+                                    variant.price = priceStr;
+                                }
                             }
                         }
                     }
@@ -1126,11 +1129,42 @@
                     const nextPrice = Number(data.base_price ?? price);
                     const priceStr = Number.isFinite(nextPrice) ? String(nextPrice) : String(price);
                     setLiveRowValues(row, { price: priceStr });
+                    if (data.list_display || data.display) {
+                        row?.setAttribute('data-live-price-display', String(data.list_display || data.display));
+                    }
+                    if (data.mixed != null) {
+                        row?.setAttribute('data-live-price-mixed', data.mixed ? '1' : '0');
+                    }
+                    const display = row?.querySelector('.js-inline-price-display');
+                    const cellText = data.list_display || data.display;
+                    if (display && cellText) {
+                        display.textContent = String(cellText);
+                    }
+                    const hint = row?.querySelector('.js-inline-price-hint');
+                    if (hint && data.variant_count > 1) {
+                        hint.textContent = priceHintForCount(data.variant_count, data.mixed);
+                    }
                     patchRowEditPayload(row, (payload) => {
                         payload.base_price = priceStr;
-                        const variant = findPayloadVariant(payload, data.variant_id);
-                        if (variant) {
-                            variant.price = priceStr;
+                        const apiVariants = Array.isArray(data.variants) ? data.variants : [];
+                        if (Array.isArray(payload.variants) && apiVariants.length) {
+                            payload.variants = payload.variants.map((variant) => {
+                                const match = apiVariants.find((item) => String(item.id) === String(variant.id));
+                                if (!match) {
+                                    return variant;
+                                }
+                                return {
+                                    ...variant,
+                                    price: match.price_override == null || match.price_override === ''
+                                        ? ''
+                                        : String(match.price_override),
+                                };
+                            });
+                        } else {
+                            const variant = findPayloadVariant(payload, data.variant_id);
+                            if (variant && (!Array.isArray(payload.variants) || payload.variants.length <= 1)) {
+                                variant.price = priceStr;
+                            }
                         }
                         return payload;
                     });
@@ -1182,6 +1216,77 @@
                     });
                 }
 
+                const INLINE_OPTION_EDITOR_LIMIT = {{ (int) \App\Support\ProductListPrice::LIST_OPTION_EDITOR_LIMIT }};
+
+                let anchoredPopover = null;
+                let anchoredPopoverFrame = 0;
+
+                function placeAnchoredPopover(popover, anchor) {
+                    if (!popover || !anchor || !anchor.isConnected) return;
+                    popover.classList.remove('hidden');
+                    popover.style.position = 'fixed';
+                    const rect = anchor.getBoundingClientRect();
+                    const popW = popover.offsetWidth || 352;
+                    const popH = popover.offsetHeight || 240;
+                    const left = Math.min(window.innerWidth - popW - 12, Math.max(12, rect.left - 40));
+                    const spaceBelow = window.innerHeight - rect.bottom;
+                    const openUp = spaceBelow < popH + 16 && (rect.top > popH + 16);
+                    let top = openUp ? (rect.top - popH - 8) : (rect.bottom + 8);
+                    top = Math.max(8, Math.min(top, window.innerHeight - popH - 8));
+                    popover.style.left = left + 'px';
+                    popover.style.top = top + 'px';
+                    anchoredPopover = { popover, anchor };
+                }
+
+                function releaseAnchoredPopover(popover) {
+                    if (!anchoredPopover) return;
+                    if (popover && anchoredPopover.popover !== popover) return;
+                    anchoredPopover = null;
+                }
+
+                function syncAnchoredPopover() {
+                    if (!anchoredPopover) return;
+                    const { popover, anchor } = anchoredPopover;
+                    if (!popover || popover.classList.contains('hidden') || !anchor?.isConnected) {
+                        closeVariantStockPopover();
+                        closeVariantPricePopover();
+                        return;
+                    }
+                    const rect = anchor.getBoundingClientRect();
+                    const inView = rect.bottom > 12
+                        && rect.top < window.innerHeight - 12
+                        && rect.right > 12
+                        && rect.left < window.innerWidth - 12;
+                    if (!inView) {
+                        closeVariantStockPopover();
+                        closeVariantPricePopover();
+                        return;
+                    }
+                    placeAnchoredPopover(popover, anchor);
+                }
+
+                function onAnchoredPopoverScrollOrResize(event) {
+                    if (!anchoredPopover) return;
+                    if (event && event.type === 'scroll' && anchoredPopover.popover?.contains(event.target)) {
+                        return;
+                    }
+                    if (anchoredPopoverFrame) return;
+                    anchoredPopoverFrame = window.requestAnimationFrame(() => {
+                        anchoredPopoverFrame = 0;
+                        syncAnchoredPopover();
+                    });
+                }
+
+                window.addEventListener('scroll', onAnchoredPopoverScrollOrResize, true);
+                window.addEventListener('resize', onAnchoredPopoverScrollOrResize);
+
+                function priceHintForCount(count, mixed) {
+                    const n = Number(count) || 0;
+                    if (n <= 1) return '';
+                    if (n > INLINE_OPTION_EDITOR_LIMIT) return String(n) + ' options';
+                    return mixed ? String(n) + ' prices · edit' : String(n) + ' options · edit';
+                }
+
                 function variantOptionLabel(payload, variant) {
                     const types = Array.isArray(payload?.variation_types) ? payload.variation_types : [];
                     const parts = [];
@@ -1200,7 +1305,14 @@
                 const variantStockEls = () => ({
                     popover: document.getElementById('inline-variant-stock-popover'),
                     rows: document.getElementById('inline-variant-stock-rows'),
+                    many: document.getElementById('inline-variant-stock-many'),
+                    manySummary: document.getElementById('inline-variant-stock-many-summary'),
+                    manyInput: document.getElementById('inline-variant-stock-many-input'),
+                    manyApply: document.getElementById('inline-variant-stock-many-apply'),
+                    manyWorkspace: document.getElementById('inline-variant-stock-many-workspace'),
+                    saveWrap: document.getElementById('inline-variant-stock-save-wrap'),
                     title: document.getElementById('inline-variant-stock-title'),
+                    copy: document.getElementById('inline-variant-stock-copy'),
                     save: document.getElementById('inline-variant-stock-save'),
                     cancel: document.getElementById('inline-variant-stock-cancel'),
                 });
@@ -1209,13 +1321,15 @@
                 function closeVariantStockPopover() {
                     variantStockContext = null;
                     const { popover } = variantStockEls();
+                    releaseAnchoredPopover(popover);
                     if (popover) {
                         popover.classList.add('hidden');
                     }
                 }
 
                 function openVariantStockPopover(root) {
-                    const { popover, rows, title } = variantStockEls();
+                    closeVariantPricePopover();
+                    const { popover, rows, title, copy, many, manySummary, manyInput, manyWorkspace, saveWrap } = variantStockEls();
                     if (!root || !popover || !rows) return;
                     const row = root.closest('tr');
                     const btn = row?.querySelector('.js-product-edit-payload');
@@ -1245,27 +1359,53 @@
                         root,
                         row,
                         url: root.getAttribute('data-url'),
+                        editUrl: root.getAttribute('data-edit-url') || '',
                         productId: payload.id || productId,
+                        variants: variantRows,
                     };
+                    const compact = variantRows.length > INLINE_OPTION_EDITOR_LIMIT;
                     if (title) {
-                        title.textContent = 'Stock by option';
+                        title.textContent = compact ? 'Stock for these options' : 'Stock by option';
                     }
-                    rows.innerHTML = variantRows.map((variant) => {
-                        const label = variantOptionLabel(payload, variant);
-                        const stock = Math.max(0, parseInt(String(variant.stock ?? 0), 10) || 0);
-                        return '<label class="flex items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">'
-                            + '<span class="min-w-0 flex-1 text-xs font-semibold text-[#334155]">' + label.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') + '</span>'
-                            + '<input type="number" min="0" step="1" inputmode="numeric" data-variant-id="' + String(variant.id) + '" value="' + stock + '" class="js-inline-variant-stock-input h-9 w-20 rounded-md border border-[#CBD5E1] px-2 text-sm font-semibold text-[#0F172A]">'
-                            + '</label>';
-                    }).join('');
+                    if (copy) {
+                        copy.textContent = compact
+                            ? 'Keep this list readable. Set one quantity for every option, or edit each option in the product workspace.'
+                            : 'Set how many units you have for each option, then save.';
+                    }
+                    if (compact) {
+                        rows.innerHTML = '';
+                        rows.classList.add('hidden');
+                        saveWrap?.classList.add('hidden');
+                        many?.classList.remove('hidden');
+                        if (manySummary) {
+                            manySummary.textContent = String(variantRows.length) + ' options · ' + String(
+                                variantRows.reduce((sum, variant) => sum + (Math.max(0, parseInt(String(variant.stock ?? 0), 10) || 0)), 0)
+                            ) + ' in stock';
+                        }
+                        if (manyInput) {
+                            manyInput.value = '';
+                            manyInput.focus();
+                        }
+                        if (manyWorkspace) {
+                            const href = variantStockContext.editUrl;
+                            manyWorkspace.href = href || '#';
+                            manyWorkspace.classList.toggle('hidden', !href);
+                        }
+                    } else {
+                        many?.classList.add('hidden');
+                        rows.classList.remove('hidden');
+                        saveWrap?.classList.remove('hidden');
+                        rows.innerHTML = variantRows.map((variant) => {
+                            const label = variantOptionLabel(payload, variant);
+                            const stock = Math.max(0, parseInt(String(variant.stock ?? 0), 10) || 0);
+                            return '<label class="flex items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">'
+                                + '<span class="min-w-0 flex-1 text-xs font-semibold text-[#334155]">' + label.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') + '</span>'
+                                + '<input type="number" min="0" step="1" inputmode="numeric" data-variant-id="' + String(variant.id) + '" value="' + stock + '" class="js-inline-variant-stock-input h-9 w-20 rounded-md border border-[#CBD5E1] px-2 text-sm font-semibold text-[#0F172A]">'
+                                + '</label>';
+                        }).join('');
+                    }
 
-                    const rect = root.getBoundingClientRect();
-                    popover.classList.remove('hidden');
-                    const popW = popover.offsetWidth || 320;
-                    const left = Math.min(window.innerWidth - popW - 12, Math.max(12, rect.left + window.scrollX - 40));
-                    const top = rect.bottom + window.scrollY + 8;
-                    popover.style.left = left + 'px';
-                    popover.style.top = top + 'px';
+                    placeAnchoredPopover(popover, root);
                 }
 
                 async function saveVariantStockPopover() {
@@ -1332,10 +1472,227 @@
                     }
                 }
 
+                async function applyManyVariantStock() {
+                    const { manyInput, manyApply } = variantStockEls();
+                    if (!variantStockContext || !manyInput) return;
+                    const url = variantStockContext.url;
+                    const source = Array.isArray(variantStockContext.variants) ? variantStockContext.variants : [];
+                    const stock = Math.max(0, parseInt(String(manyInput.value ?? ''), 10));
+                    if (!url || !Number.isFinite(stock) || String(manyInput.value ?? '').trim() === '') {
+                        window.alert('Enter a stock quantity.');
+                        return;
+                    }
+                    const variants = source.map((variant) => ({
+                        id: Number(variant.id),
+                        stock,
+                    })).filter((row) => Number.isFinite(row.id) && row.id > 0);
+                    if (!variants.length) {
+                        window.alert('No option stock rows to save.');
+                        return;
+                    }
+                    if (manyApply) manyApply.disabled = true;
+                    try {
+                        const data = await patchJson(url, { variants });
+                        const typedTotal = stock * variants.length;
+                        const valueEl = variantStockContext.root.querySelector('.js-inline-stock-value');
+                        if (valueEl) valueEl.textContent = String(typedTotal);
+                        const alert = data.stock_alert ?? (variantStockContext.root.getAttribute('data-alert') || '0');
+                        const published = data.is_published != null
+                            ? !!data.is_published
+                            : variantStockContext.root.getAttribute('data-published') === '1';
+                        updateStockVisuals(
+                            variantStockContext.row,
+                            typedTotal,
+                            alert,
+                            published,
+                            data.stock_state || null
+                        );
+                        const hint = variantStockContext.root.querySelector('.js-inline-stock-hint');
+                        if (hint && variants.length > INLINE_OPTION_EDITOR_LIMIT) {
+                            hint.textContent = String(variants.length) + ' options';
+                        }
+                        syncEditPopupAfterInlineStock(variantStockContext.row, {
+                            ...data,
+                            inventory_total: typedTotal,
+                            variants: variants.map((row) => ({ id: row.id, stock: row.stock })),
+                        }, typedTotal);
+                        closeVariantStockPopover();
+                    } catch (err) {
+                        window.alert(err.message || 'Could not save option stock.');
+                    } finally {
+                        if (manyApply) manyApply.disabled = false;
+                    }
+                }
+
                 seedEditPayloadMemory();
                 document.addEventListener('DOMContentLoaded', seedEditPayloadMemory);
                 requestAnimationFrame(() => seedEditPayloadMemory());
                 setTimeout(seedEditPayloadMemory, 0);
+
+                const variantPriceEls = () => ({
+                    popover: document.getElementById('inline-variant-price-popover'),
+                    rows: document.getElementById('inline-variant-price-rows'),
+                    many: document.getElementById('inline-variant-price-many'),
+                    manySummary: document.getElementById('inline-variant-price-many-summary'),
+                    manyInput: document.getElementById('inline-variant-price-many-input'),
+                    manyApply: document.getElementById('inline-variant-price-many-apply'),
+                    manyWorkspace: document.getElementById('inline-variant-price-many-workspace'),
+                    saveWrap: document.getElementById('inline-variant-price-save-wrap'),
+                    title: document.getElementById('inline-variant-price-title'),
+                    copy: document.getElementById('inline-variant-price-copy'),
+                    save: document.getElementById('inline-variant-price-save'),
+                    cancel: document.getElementById('inline-variant-price-cancel'),
+                });
+                let variantPriceContext = null;
+
+                function closeVariantPricePopover() {
+                    variantPriceContext = null;
+                    const { popover } = variantPriceEls();
+                    releaseAnchoredPopover(popover);
+                    if (popover) {
+                        popover.classList.add('hidden');
+                    }
+                }
+
+                function sellingPriceForPayloadVariant(payload, variant) {
+                    const override = String(variant?.price ?? '').trim();
+                    if (override !== '') {
+                        const parsed = Number(override);
+                        if (Number.isFinite(parsed) && parsed >= 0) {
+                            return parsed.toFixed(2);
+                        }
+                    }
+                    const base = Number(payload?.base_price ?? 0);
+                    return Number.isFinite(base) && base >= 0 ? base.toFixed(2) : '0.00';
+                }
+
+                function openVariantPricePopover(root) {
+                    closeVariantStockPopover();
+                    const { popover, rows, title, copy, many, manySummary, manyInput, manyWorkspace, saveWrap } = variantPriceEls();
+                    if (!root || !popover || !rows) return;
+                    const row = root.closest('tr');
+                    const btn = row?.querySelector('.js-product-edit-payload');
+                    const productId = root.getAttribute('data-product-id')
+                        || btn?.getAttribute('data-product-id')
+                        || rowProductId(row);
+                    const payload = resolveEditPayloadFromButton(btn)
+                        || parseButtonPayload(btn)
+                        || readRememberedPayload(productId);
+                    if (!payload || !Array.isArray(payload.variants) || !payload.variants.length) {
+                        window.alert('Open Edit to manage prices for this product’s options.');
+                        return;
+                    }
+
+                    variantPriceContext = {
+                        root,
+                        row,
+                        url: root.getAttribute('data-url'),
+                        sharedUrl: root.getAttribute('data-shared-url') || '',
+                        editUrl: root.getAttribute('data-edit-url') || '',
+                        productId: payload.id || productId,
+                    };
+                    const compact = payload.variants.length > INLINE_OPTION_EDITOR_LIMIT;
+                    if (title) {
+                        title.textContent = compact ? 'Prices for these options' : 'Price by option';
+                    }
+                    if (copy) {
+                        copy.textContent = compact
+                            ? 'Keep this list readable. Set one price for every option, or edit each option in the product workspace.'
+                            : 'Set what shoppers pay for each option, then save.';
+                    }
+                    if (compact) {
+                        rows.innerHTML = '';
+                        rows.classList.add('hidden');
+                        saveWrap?.classList.add('hidden');
+                        many?.classList.remove('hidden');
+                        const display = row?.getAttribute('data-live-price-display')
+                            || row?.querySelector('.js-inline-price-display')?.textContent
+                            || '';
+                        if (manySummary) {
+                            manySummary.textContent = String(payload.variants.length) + ' options'
+                                + (display ? ' · ' + display.trim() : '');
+                        }
+                        if (manyInput) {
+                            manyInput.value = '';
+                            manyInput.focus();
+                        }
+                        if (manyWorkspace) {
+                            const href = variantPriceContext.editUrl;
+                            manyWorkspace.href = href || '#';
+                            manyWorkspace.classList.toggle('hidden', !href);
+                        }
+                    } else {
+                        many?.classList.add('hidden');
+                        rows.classList.remove('hidden');
+                        saveWrap?.classList.remove('hidden');
+                        rows.innerHTML = payload.variants.map((variant) => {
+                            const label = variantOptionLabel(payload, variant);
+                            const price = sellingPriceForPayloadVariant(payload, variant);
+                            return '<label class="flex items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2">'
+                                + '<span class="min-w-0 flex-1 text-xs font-semibold text-[#334155]">' + label.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;') + '</span>'
+                                + '<input type="number" min="0" step="0.01" inputmode="decimal" data-variant-id="' + String(variant.id) + '" value="' + price + '" class="js-inline-variant-price-input h-9 w-24 rounded-md border border-[#CBD5E1] px-2 text-sm font-semibold text-[#0F172A]">'
+                                + '</label>';
+                        }).join('');
+                    }
+
+                    placeAnchoredPopover(popover, root);
+                }
+
+                async function saveVariantPricePopover() {
+                    const { rows, save } = variantPriceEls();
+                    if (!variantPriceContext || !rows) return;
+                    const url = variantPriceContext.url;
+                    if (!url) return;
+                    const variants = [...rows.querySelectorAll('.js-inline-variant-price-input')].map((input) => ({
+                        id: Number(input.getAttribute('data-variant-id')),
+                        price: Math.max(0, Number.parseFloat(String(input.value ?? '0')) || 0),
+                    })).filter((row) => Number.isFinite(row.id) && row.id > 0);
+
+                    if (!variants.length) {
+                        window.alert('No option prices to save.');
+                        return;
+                    }
+
+                    if (save) {
+                        save.disabled = true;
+                    }
+                    try {
+                        const data = await patchJson(url, { variants });
+                        syncEditPopupAfterInlinePrice(variantPriceContext.row, data, data.base_price);
+                        closeVariantPricePopover();
+                    } catch (error) {
+                        window.alert(error.message || 'Could not save option prices.');
+                    } finally {
+                        if (save) {
+                            save.disabled = false;
+                        }
+                    }
+                }
+
+                async function applyManyVariantPrice() {
+                    const { manyInput, manyApply } = variantPriceEls();
+                    if (!variantPriceContext || !manyInput) return;
+                    const url = variantPriceContext.sharedUrl;
+                    const raw = String(manyInput.value ?? '').trim();
+                    const price = Number.parseFloat(raw);
+                    if (!url || raw === '' || !Number.isFinite(price) || price < 0) {
+                        window.alert('Enter a price of 0 or more.');
+                        return;
+                    }
+                    if (manyApply) manyApply.disabled = true;
+                    try {
+                        const data = await patchJson(url, {
+                            base_price: price,
+                            apply_to_every_variant: true,
+                        });
+                        syncEditPopupAfterInlinePrice(variantPriceContext.row, data, data.base_price);
+                        closeVariantPricePopover();
+                    } catch (error) {
+                        window.alert(error.message || 'Could not save option prices.');
+                    } finally {
+                        if (manyApply) manyApply.disabled = false;
+                    }
+                }
 
                 document.addEventListener('click', (event) => {
                     const { popover, cancel, save } = variantStockEls();
@@ -1345,6 +1702,11 @@
                     }
                     if (save && (event.target === save || save.contains(event.target))) {
                         saveVariantStockPopover();
+                        return;
+                    }
+                    const stockManyApply = variantStockEls().manyApply;
+                    if (stockManyApply && (event.target === stockManyApply || stockManyApply.contains(event.target))) {
+                        applyManyVariantStock();
                         return;
                     }
                     const openBtn = event.target.closest('.js-inline-variant-stock-open');
@@ -1358,6 +1720,46 @@
                         if (!popover.contains(event.target) && !event.target.closest('.js-inline-variant-stock-open')) {
                             closeVariantStockPopover();
                         }
+                    }
+
+                    const priceEls = variantPriceEls();
+                    if (priceEls.cancel && (event.target === priceEls.cancel || priceEls.cancel.contains(event.target))) {
+                        closeVariantPricePopover();
+                        return;
+                    }
+                    if (priceEls.save && (event.target === priceEls.save || priceEls.save.contains(event.target))) {
+                        saveVariantPricePopover();
+                        return;
+                    }
+                    if (priceEls.manyApply && (event.target === priceEls.manyApply || priceEls.manyApply.contains(event.target))) {
+                        applyManyVariantPrice();
+                        return;
+                    }
+                    const openPriceBtn = event.target.closest('.js-inline-variant-price-open');
+                    if (openPriceBtn) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openVariantPricePopover(openPriceBtn.closest('.js-inline-variant-price'));
+                        return;
+                    }
+                    if (priceEls.popover && !priceEls.popover.classList.contains('hidden')) {
+                        if (!priceEls.popover.contains(event.target) && !event.target.closest('.js-inline-variant-price-open')) {
+                            closeVariantPricePopover();
+                        }
+                    }
+                });
+
+                document.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Escape') {
+                        return;
+                    }
+                    const { popover: stockPopover } = variantStockEls();
+                    const { popover: pricePopover } = variantPriceEls();
+                    if (stockPopover && !stockPopover.classList.contains('hidden')) {
+                        closeVariantStockPopover();
+                    }
+                    if (pricePopover && !pricePopover.classList.contains('hidden')) {
+                        closeVariantPricePopover();
                     }
                 });
 
@@ -1627,6 +2029,9 @@
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="stock">
                                     Update stock
                                 </button>
+                                <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="price">
+                                    Set price
+                                </button>
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="status">
                                     Publish or draft
                                 </button>
@@ -1655,6 +2060,7 @@
                             @else
                                 <option value="delete">Delete</option>
                                 <option value="stock">Update stock</option>
+                                <option value="price">Set price</option>
                                 <option value="categories">Add categories</option>
                                 <option value="brand">Assign brand</option>
                                 <option value="tags">Add tags</option>
@@ -1706,6 +2112,25 @@
                                 </label>
                             </fieldset>
                             <p id="bulk-stock-delta-apply-hint" class="hidden text-xs text-[#64748B]">Increase/decrease always applies to every selected product’s current stock.</p>
+                        </div>
+
+                        <div id="bulk-extra-price" class="hidden space-y-3">
+                            <p class="text-sm font-semibold text-[#0F172A]">Set price for selected products</p>
+                            <p class="text-xs text-[#64748B]">This is the amount shoppers pay. For products with sizes or colors, you choose whether every option gets this same price.</p>
+                            <div class="flex flex-wrap items-end gap-3">
+                                <div class="flex flex-col gap-1">
+                                    <label for="bulk-price-value" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Price</label>
+                                    <input id="bulk-price-value" type="number" min="0" step="0.01" class="w-32 rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm" placeholder="e.g. 12.00">
+                                </div>
+                                <div class="flex min-w-[16rem] max-w-md flex-1 flex-col gap-1">
+                                    <label for="bulk-price-variant-scope" class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">If a product has sizes or colors</label>
+                                    <select id="bulk-price-variant-scope" class="rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm font-medium text-[#334155]">
+                                        <option value="all_variants">Use this price on every option</option>
+                                        <option value="skip_multi_variant">Skip products with more than one option</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p class="text-xs text-[#64748B]">“Every option” replaces different prices on the same product (for example 1 oz and 2.5 oz). To keep different prices per option, skip those products and edit them from the list or product workspace.</p>
                         </div>
 
                         <div id="bulk-extra-categories" class="hidden space-y-2">
@@ -1787,6 +2212,8 @@
                 <input type="hidden" name="stock_value" id="bulk-form-stock-value" value="">
                 <input type="hidden" name="bulk_variant_stock_scope" id="bulk-form-stock-variant-scope" value="default_variant_only">
                 <input type="hidden" name="stock_apply_mode" id="bulk-form-stock-apply-mode" value="empty_only">
+                <input type="hidden" name="price_value" id="bulk-form-price-value" value="">
+                <input type="hidden" name="bulk_variant_price_scope" id="bulk-form-price-variant-scope" value="all_variants">
                 <input type="hidden" name="brand_id" id="bulk-form-brand-id" value="">
                 <input type="hidden" name="product_status" id="bulk-form-product-status" value="">
                 <input type="hidden" name="shipping_weight_value" id="bulk-form-shipping-weight-value" value="">
@@ -1859,8 +2286,14 @@
                             $defaultVariant = $product->variants->first(fn ($v) => $v->options->isEmpty())
                                 ?? $product->variants->sortBy('id')->first();
                             $defaultVariantStock = (int) ($defaultVariant?->stock ?? $inventory);
+                            $listPrice = ProductListPrice::forProduct($product);
+                            $rowCurrency = $listPrice['currency'];
+                            $compactOptionList = $variantCount > ProductListPrice::LIST_OPTION_EDITOR_LIMIT;
+                            $listPriceHint = $compactOptionList
+                                ? $variantCount.' options'
+                                : ($listPrice['mixed'] ? $variantCount.' prices · edit' : $variantCount.' options · edit');
                         @endphp
-                        <tr class="hover:bg-[#F8FAFC] transition-colors" data-product-row data-product-id="{{ $product->id }}" data-stock-state="{{ $stockState }}" data-published="{{ $product->status ? '1' : '0' }}" data-live-price="{{ number_format((float) $product->base_price, 2, '.', '') }}" data-live-stock="{{ $defaultVariantStock }}" data-live-inventory="{{ $inventory }}">
+                        <tr class="hover:bg-[#F8FAFC] transition-colors" data-product-row data-product-id="{{ $product->id }}" data-stock-state="{{ $stockState }}" data-published="{{ $product->status ? '1' : '0' }}" data-live-price="{{ number_format($listPrice['min'], 2, '.', '') }}" data-live-price-display="{{ $listPrice['list_display'] }}" data-live-price-mixed="{{ $listPrice['mixed'] ? '1' : '0' }}" data-live-stock="{{ $defaultVariantStock }}" data-live-inventory="{{ $inventory }}">
                             <td class="px-4 py-4"><input type="checkbox" class="js-product-row-checkbox w-4 h-4 rounded border-[#CBD5E1] accent-[#0052CC]" data-product-id="{{ $product->id }}" @if (! $canManageBrands) disabled @endif></td>
                             <td class="px-4 py-4">
                                 <div class="flex items-center gap-3">
@@ -1958,11 +2391,22 @@
                                 @endif
                             </td>
                             <td class="px-4 py-4">
-                                @php
-                                    $rowCurrency = $product->store?->currency ?? ($selectedStore->currency ?? 'USD');
-                                    $rowPrice = (float) $product->base_price;
-                                @endphp
-                                @if ($canManageBrands && ! $isDeletedView)
+                                @if ($canManageBrands && ! $isDeletedView && $variantCount > 1)
+                                    <div
+                                        class="js-inline-variant-price relative min-w-[6.5rem]"
+                                        data-variant-count="{{ $variantCount }}"
+                                        data-url="{{ route('products.inline.variant-prices', $product) }}"
+                                        data-shared-url="{{ route('products.inline.price', $product) }}"
+                                        data-edit-url="{{ route('products.edit', $product) }}"
+                                        data-product-id="{{ $product->id }}"
+                                        data-currency="{{ $rowCurrency }}"
+                                    >
+                                        <button type="button" class="js-inline-variant-price-open rounded-md px-1.5 py-1 text-left font-inter text-sm font-medium text-[#0F172A] transition hover:bg-[#EEF4FF] hover:text-[#0052CC]" title="{{ $compactOptionList ? 'Manage prices for these options' : 'Edit price for each option' }}">
+                                            <span class="js-inline-price-display">{{ $listPrice['list_display'] }}</span>
+                                            <span class="js-inline-price-hint mt-0.5 block text-[10px] font-medium text-[#0052CC]">{{ $listPriceHint }}</span>
+                                        </button>
+                                    </div>
+                                @elseif ($canManageBrands && ! $isDeletedView)
                                     <div
                                         class="js-inline-edit js-inline-price group relative min-w-[5.5rem]"
                                         data-inline-kind="price"
@@ -1971,12 +2415,15 @@
                                         data-currency="{{ $rowCurrency }}"
                                     >
                                         <button type="button" class="js-inline-edit-display js-inline-price-display rounded-md px-1.5 py-1 text-left font-inter text-sm font-medium text-[#0F172A] transition hover:bg-[#EEF4FF] hover:text-[#0052CC]" title="Click to edit price">
-                                            {{ $rowCurrency }}{{ number_format($rowPrice, 2) }}
+                                            {{ $listPrice['list_display'] }}
                                         </button>
-                                        <input type="number" step="0.01" min="0" inputmode="decimal" class="js-inline-edit-input js-inline-price-input absolute inset-0 hidden h-9 w-28 rounded-md border border-brand bg-white px-2 text-sm font-medium text-[#0F172A] shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/20" value="{{ number_format($rowPrice, 2, '.', '') }}" aria-label="Edit price" style="display:none">
+                                        <input type="number" step="0.01" min="0" inputmode="decimal" class="js-inline-edit-input js-inline-price-input absolute inset-0 hidden h-9 w-28 rounded-md border border-brand bg-white px-2 text-sm font-medium text-[#0F172A] shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/20" value="{{ number_format($listPrice['min'], 2, '.', '') }}" aria-label="Edit price" style="display:none">
                                     </div>
                                 @else
-                                    <span class="font-inter text-sm font-medium text-[#0F172A]">{{ $rowCurrency }}{{ number_format($rowPrice, 2) }}</span>
+                                    <span class="js-inline-price-display font-inter text-sm font-medium text-[#0F172A]">{{ $listPrice['list_display'] }}</span>
+                                    @if ($variantCount > 1)
+                                        <span class="mt-0.5 block text-[10px] font-medium text-[#94A3B8]">{{ $compactOptionList ? $variantCount.' options' : ($listPrice['mixed'] ? $variantCount.' prices' : $variantCount.' options') }}</span>
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-4 py-4 w-28">
@@ -1993,11 +2440,12 @@
                                             data-alert="{{ $alertLevel }}"
                                             data-published="{{ $product->status ? '1' : '0' }}"
                                             data-url="{{ route('products.inline.variant-stocks', $product) }}"
+                                            data-edit-url="{{ route('products.edit', $product) }}"
                                             data-product-id="{{ $product->id }}"
                                         >
-                                            <button type="button" class="js-inline-variant-stock-open rounded-md px-1.5 py-1 text-left text-sm font-semibold text-[#475569] transition hover:bg-[#EEF4FF] hover:text-[#0052CC]" title="Edit stock for each option">
+                                            <button type="button" class="js-inline-variant-stock-open rounded-md px-1.5 py-1 text-left text-sm font-semibold text-[#475569] transition hover:bg-[#EEF4FF] hover:text-[#0052CC]" title="{{ $compactOptionList ? 'Manage stock for these options' : 'Edit stock for each option' }}">
                                                 <span class="js-inline-stock-value tabular-nums">{{ $inventory }}</span>
-                                                <span class="mt-0.5 block text-[10px] font-medium text-[#0052CC]">{{ $variantCount }} options · edit</span>
+                                                <span class="js-inline-stock-hint mt-0.5 block text-[10px] font-medium text-[#0052CC]">{{ $compactOptionList ? $variantCount.' options' : $variantCount.' options · edit' }}</span>
                                             </button>
                                         </div>
                                     @else
@@ -2156,13 +2604,51 @@
         <div class="mb-3 flex items-start justify-between gap-3">
             <div>
                 <p id="inline-variant-stock-title" class="text-sm font-semibold text-[#0A4335]">Stock by option</p>
-                <p class="mt-0.5 text-xs text-[#64748B]">Set how many units you have for each option, then save.</p>
+                <p id="inline-variant-stock-copy" class="mt-0.5 text-xs text-[#64748B]">Set how many units you have for each option, then save.</p>
             </div>
             <button type="button" id="inline-variant-stock-cancel" class="rounded-lg px-2 py-1 text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC]">Close</button>
         </div>
         <div id="inline-variant-stock-rows" class="max-h-72 space-y-2 overflow-y-auto"></div>
-        <div class="mt-4 flex justify-end gap-2">
+        <div id="inline-variant-stock-many" class="hidden space-y-3">
+            <p id="inline-variant-stock-many-summary" class="text-sm font-semibold text-[#0F172A]"></p>
+            <p class="text-xs leading-5 text-[#64748B]">This product has too many options to edit one-by-one here. Set the same quantity on every option, or open the product workspace to change them individually.</p>
+            <div class="flex flex-wrap items-end gap-2">
+                <label class="flex flex-col gap-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Set every option to</span>
+                    <input id="inline-variant-stock-many-input" type="number" min="0" step="1" inputmode="numeric" class="h-9 w-28 rounded-md border border-[#CBD5E1] px-2 text-sm font-semibold text-[#0F172A]">
+                </label>
+                <button type="button" id="inline-variant-stock-many-apply" class="h-9 rounded-lg bg-brand px-4 text-sm font-bold text-white hover:bg-brand-hover">Apply</button>
+            </div>
+            <a id="inline-variant-stock-many-workspace" href="#" class="inline-flex text-sm font-semibold text-[#0052CC] hover:underline">Edit each option</a>
+        </div>
+        <div id="inline-variant-stock-save-wrap" class="mt-4 flex justify-end gap-2">
             <button type="button" id="inline-variant-stock-save" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-hover">Save stock</button>
+        </div>
+    </div>
+
+    <div id="inline-variant-price-popover" class="fixed z-[80] hidden w-[22rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-[#D8E8E1] bg-white p-4 shadow-xl shadow-slate-300/40" role="dialog" aria-label="Edit price by option">
+        <div class="mb-3 flex items-start justify-between gap-3">
+            <div>
+                <p id="inline-variant-price-title" class="text-sm font-semibold text-[#0A4335]">Price by option</p>
+                <p id="inline-variant-price-copy" class="mt-0.5 text-xs text-[#64748B]">Set what shoppers pay for each option, then save.</p>
+            </div>
+            <button type="button" id="inline-variant-price-cancel" class="rounded-lg px-2 py-1 text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC]">Close</button>
+        </div>
+        <div id="inline-variant-price-rows" class="max-h-72 space-y-2 overflow-y-auto"></div>
+        <div id="inline-variant-price-many" class="hidden space-y-3">
+            <p id="inline-variant-price-many-summary" class="text-sm font-semibold text-[#0F172A]"></p>
+            <p class="text-xs leading-5 text-[#64748B]">This product has too many options to edit one-by-one here. Set one price on every option, or open the product workspace to change them individually.</p>
+            <div class="flex flex-wrap items-end gap-2">
+                <label class="flex flex-col gap-1">
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">Set every option to</span>
+                    <input id="inline-variant-price-many-input" type="number" min="0" step="0.01" inputmode="decimal" class="h-9 w-28 rounded-md border border-[#CBD5E1] px-2 text-sm font-semibold text-[#0F172A]">
+                </label>
+                <button type="button" id="inline-variant-price-many-apply" class="h-9 rounded-lg bg-brand px-4 text-sm font-bold text-white hover:bg-brand-hover">Apply</button>
+            </div>
+            <a id="inline-variant-price-many-workspace" href="#" class="inline-flex text-sm font-semibold text-[#0052CC] hover:underline">Edit each option</a>
+        </div>
+        <div id="inline-variant-price-save-wrap" class="mt-4 flex justify-end gap-2">
+            <button type="button" id="inline-variant-price-save" class="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-hover">Save prices</button>
         </div>
     </div>
 
@@ -2228,6 +2714,7 @@
             const actionChips = [...document.querySelectorAll('.js-bulk-action-chip')];
             const optionsPanel = document.getElementById('bulk-options-panel');
             const extraStock = document.getElementById('bulk-extra-stock');
+            const extraPrice = document.getElementById('bulk-extra-price');
             const extraCategories = document.getElementById('bulk-extra-categories');
             const extraBrand = document.getElementById('bulk-extra-brand');
             const extraTags = document.getElementById('bulk-extra-tags');
@@ -2277,7 +2764,7 @@
                     chip.setAttribute('aria-pressed', 'false');
                 });
                 if (optionsPanel) optionsPanel.classList.add('hidden');
-                [extraStock, extraCategories, extraBrand, extraTags, extraStatus, extraShippingWeight, extraSimple].forEach((el) => el && el.classList.add('hidden'));
+                [extraStock, extraPrice, extraCategories, extraBrand, extraTags, extraStatus, extraShippingWeight, extraSimple].forEach((el) => el && el.classList.add('hidden'));
             }
 
             function refreshBulkUi() {
@@ -2364,19 +2851,20 @@
 
             function toggleExtras() {
                 const v = actionSelect ? actionSelect.value : '';
-                [extraStock, extraCategories, extraBrand, extraTags, extraStatus, extraShippingWeight, extraSimple].forEach((el) => el && el.classList.add('hidden'));
+                [extraStock, extraPrice, extraCategories, extraBrand, extraTags, extraStatus, extraShippingWeight, extraSimple].forEach((el) => el && el.classList.add('hidden'));
                 if (!v) {
                     if (optionsPanel) optionsPanel.classList.add('hidden');
                     return;
                 }
                 if (optionsPanel) optionsPanel.classList.remove('hidden');
                 if (applyLabel) {
-                    applyLabel.textContent = (v === 'delete' || v === 'force_delete') ? 'Confirm' : (v === 'shipping_weight' ? 'Apply weight' : 'Continue');
+                    applyLabel.textContent = (v === 'delete' || v === 'force_delete') ? 'Confirm' : (v === 'shipping_weight' ? 'Apply weight' : (v === 'price' ? 'Apply price' : 'Continue'));
                 }
                 if (v === 'stock' && extraStock) {
                     extraStock.classList.remove('hidden');
                     refreshBulkStockApplyModeUi();
                 }
+                if (v === 'price' && extraPrice) extraPrice.classList.remove('hidden');
                 if (v === 'categories' && extraCategories) extraCategories.classList.remove('hidden');
                 if (v === 'brand' && extraBrand) extraBrand.classList.remove('hidden');
                 if (v === 'tags' && extraTags) extraTags.classList.remove('hidden');
@@ -2507,6 +2995,10 @@
                 if (scopeEl) scopeEl.value = 'default_variant_only';
                 const applyModeEl = document.getElementById('bulk-form-stock-apply-mode');
                 if (applyModeEl) applyModeEl.value = 'empty_only';
+                const priceValueEl = document.getElementById('bulk-form-price-value');
+                if (priceValueEl) priceValueEl.value = '';
+                const priceScopeEl = document.getElementById('bulk-form-price-variant-scope');
+                if (priceScopeEl) priceScopeEl.value = 'all_variants';
                 document.getElementById('bulk-form-brand-id').value = '';
                 document.getElementById('bulk-form-product-status').value = '';
                 const swValue = document.getElementById('bulk-form-shipping-weight-value');
@@ -2527,6 +3019,15 @@
                         applyHidden.value = mode === 'set'
                             ? (document.querySelector('input[name="bulk_stock_apply_mode_ui"]:checked')?.value || 'empty_only')
                             : 'replace_all';
+                    }
+                }
+                if (action === 'price') {
+                    const val = document.getElementById('bulk-price-value')?.value;
+                    const priceHidden = document.getElementById('bulk-form-price-value');
+                    if (priceHidden) priceHidden.value = String(val ?? '');
+                    const priceScopeHidden = document.getElementById('bulk-form-price-variant-scope');
+                    if (priceScopeHidden) {
+                        priceScopeHidden.value = document.getElementById('bulk-price-variant-scope')?.value || 'all_variants';
                     }
                 }
                 if (action === 'categories') {
@@ -2569,6 +3070,14 @@
                     const val = document.getElementById('bulk-stock-value')?.value;
                     if (val === '' || val === undefined) {
                         window.alert('Enter a stock quantity.');
+                        return;
+                    }
+                }
+                if (action === 'price') {
+                    const val = document.getElementById('bulk-price-value')?.value;
+                    const price = Number(val);
+                    if (val === '' || val === undefined || !Number.isFinite(price) || price < 0) {
+                        window.alert('Enter a price of 0 or more.');
                         return;
                     }
                 }
@@ -2633,6 +3142,13 @@
                         modeExplain = `Stock will be set to ${val} on every selected product, including those that already have stock.`;
                     }
                     msg = `${modeExplain} ${scopeExplain} Continue for ${n} selected product(s)?`;
+                }
+                if (action === 'price') {
+                    const val = document.getElementById('bulk-price-value')?.value;
+                    const scope = document.getElementById('bulk-price-variant-scope')?.value || 'all_variants';
+                    msg = scope === 'skip_multi_variant'
+                        ? `Set the selling price to ${val} on ${n} selected product(s)? Products with more than one option will be skipped.`
+                        : `Set the selling price to ${val} on every sellable option of ${n} selected product(s)? Different prices on the same product will be replaced.`;
                 }
                 if (action === 'status') {
                     const status = document.getElementById('bulk-status-value')?.value || 'published';

@@ -14318,3 +14318,1021 @@ dialog.ui-native-dialog.trb-drawer[open] {
         line-height: var(--text-title--line-height);
     }
 }
+
+.merchant-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    width: 100%;
+    max-width: none;
+}
+
+.merchant-dashboard .mdash-sprite {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+.merchant-dashboard .mdash-icon,
+.merchant-dashboard .mdash-icon-sm {
+    display: block;
+    flex: 0 0 auto;
+}
+
+.merchant-dashboard .mdash-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.merchant-dashboard .mdash-icon-sm {
+    width: 15px;
+    height: 15px;
+}
+
+.merchant-dashboard .mdash-kicker {
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.merchant-dashboard .mdash-surface {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-ui-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-ui);
+}
+
+.merchant-dashboard .mdash-welcome {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 1.1rem;
+    row-gap: 0.35rem;
+    align-items: center;
+    min-height: 4.5rem;
+    padding-inline: 1.1rem;
+}
+
+.merchant-dashboard .mdash-welcome-title {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    min-height: 2.2rem;
+}
+
+.merchant-dashboard .mdash-welcome-title h2 {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-size: clamp(1.5rem, 2vw, 1.85rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-welcome-lead {
+    grid-column: 1;
+    grid-row: 2;
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-size: 0.875rem;
+    line-height: 1.35;
+}
+
+.merchant-dashboard .mdash-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    padding: 0 0.65rem;
+    background: var(--color-brand-soft);
+    color: var(--color-brand-ink);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.merchant-dashboard .mdash-status-pill::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-brand);
+    flex-shrink: 0;
+}
+
+.merchant-dashboard .mdash-range-tools {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.merchant-dashboard .mdash-segmented {
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: 9px;
+    background: var(--color-surface);
+}
+
+.merchant-dashboard .mdash-segment {
+    min-width: 4.1rem;
+    height: 2.2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid var(--color-border);
+    color: var(--color-ink-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-segment:last-child {
+    border-right: 0;
+}
+
+.merchant-dashboard .mdash-segment:hover {
+    background: var(--color-surface-muted);
+    color: var(--color-ink);
+}
+
+.merchant-dashboard .mdash-segment.is-active {
+    background: var(--color-brand-soft);
+    color: var(--color-brand-ink);
+}
+
+.merchant-dashboard .mdash-btn,
+.mdash-dialog .mdash-btn {
+    min-height: 2.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    padding: 0 0.85rem;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-btn-primary,
+.mdash-dialog .mdash-btn-primary {
+    background: var(--color-brand);
+    color: #fff;
+}
+
+.merchant-dashboard .mdash-btn-primary:hover,
+.mdash-dialog .mdash-btn-primary:hover {
+    background: var(--color-brand-hover);
+}
+
+.merchant-dashboard .mdash-btn-secondary,
+.mdash-dialog .mdash-btn-secondary {
+    border-color: var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-ink-secondary);
+}
+
+.merchant-dashboard .mdash-btn-secondary:hover,
+.mdash-dialog .mdash-btn-secondary:hover {
+    background: var(--color-surface-muted);
+    color: var(--color-ink);
+}
+
+.merchant-dashboard .mdash-setup-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-ui-lg);
+    background: var(--color-surface);
+    padding: 0.95rem 1.1rem;
+}
+
+.merchant-dashboard .mdash-setup-notice h3 {
+    margin: 0.15rem 0;
+    font-family: var(--font-heading);
+    font-size: var(--text-section);
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-setup-notice p {
+    margin: 0;
+    color: var(--color-ink-secondary);
+    font-size: 13px;
+}
+
+.merchant-dashboard .mdash-attention {
+    min-height: 7.4rem;
+    padding: 0.75rem 1.1rem 0.95rem;
+}
+
+.merchant-dashboard .mdash-attention-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 0.55rem;
+}
+
+.merchant-dashboard .mdash-attention-item {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.15rem 1.1rem;
+    border-right: 1px solid var(--color-border);
+}
+
+.merchant-dashboard .mdash-attention-item:first-child {
+    padding-left: 0.25rem;
+}
+
+.merchant-dashboard .mdash-attention-item:last-child {
+    padding-right: 0.25rem;
+    border-right: 0;
+}
+
+.merchant-dashboard .mdash-attention-icon {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--color-surface-muted);
+    color: var(--color-ink-muted);
+}
+
+.merchant-dashboard .mdash-attention-icon.is-danger {
+    background: var(--color-danger-soft);
+    color: var(--color-danger);
+}
+
+.merchant-dashboard .mdash-attention-copy strong {
+    display: block;
+    font-size: 15px;
+}
+
+.merchant-dashboard .mdash-attention-copy strong b {
+    color: var(--color-warning);
+    font-size: 19px;
+}
+
+.merchant-dashboard .mdash-attention-copy strong b.is-danger {
+    color: var(--color-danger);
+}
+
+.merchant-dashboard .mdash-attention-copy span {
+    display: block;
+    color: var(--color-ink-muted);
+    font-size: 12px;
+}
+
+.merchant-dashboard .mdash-action,
+.merchant-dashboard .mdash-view-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--color-brand-ink);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-action:hover,
+.merchant-dashboard .mdash-view-all:hover {
+    text-decoration: underline;
+}
+
+.merchant-dashboard .mdash-grid,
+.merchant-dashboard .mdash-lower {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(20.5rem, 0.96fr);
+    gap: 0.9rem;
+}
+
+.merchant-dashboard .mdash-grid.is-single,
+.merchant-dashboard .mdash-lower.is-single {
+    grid-template-columns: 1fr;
+}
+
+.merchant-dashboard .mdash-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.8rem 1rem 0.5rem;
+}
+
+.merchant-dashboard .mdash-card-head h3 {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-card-head p {
+    margin: 0.2rem 0 0;
+    color: var(--color-ink-muted);
+    font-size: 12px;
+}
+
+.merchant-dashboard .mdash-performance {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 22rem;
+    overflow: hidden;
+}
+
+.merchant-dashboard .mdash-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 0 0.75rem 0.55rem;
+}
+
+.merchant-dashboard .mdash-metric {
+    min-width: 0;
+    padding: 0 0.85rem;
+    border-right: 1px solid var(--color-border);
+}
+
+.merchant-dashboard .mdash-metric:first-child {
+    padding-left: 0.25rem;
+}
+
+.merchant-dashboard .mdash-metric:last-child {
+    border-right: 0;
+}
+
+.merchant-dashboard .mdash-metric span {
+    color: var(--color-ink-muted);
+    font-size: 12px;
+}
+
+.merchant-dashboard .mdash-metric strong {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: clamp(1.2rem, 1.65vw, 1.7rem);
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+}
+
+.merchant-dashboard .mdash-metric em {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.15rem;
+    color: var(--color-brand);
+    font-style: normal;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.merchant-dashboard .mdash-metric em.is-up {
+    color: var(--color-brand);
+}
+
+.merchant-dashboard .mdash-metric em.is-down {
+    color: var(--color-danger);
+}
+
+.merchant-dashboard .mdash-metric em.is-flat {
+    color: var(--color-ink-muted);
+}
+
+.merchant-dashboard .mdash-chart-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 1rem 0;
+}
+
+.merchant-dashboard .mdash-chart-title h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-legend {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.8rem;
+    color: var(--color-ink-muted);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.merchant-dashboard .mdash-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.merchant-dashboard .mdash-legend i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-brand);
+}
+
+.merchant-dashboard .mdash-legend i.is-previous {
+    width: 14px;
+    height: 0;
+    border-top: 2px dashed var(--color-ink-muted);
+    border-radius: 0;
+    background: transparent;
+}
+
+.merchant-dashboard .mdash-chart-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    height: 13.625rem;
+    min-height: 13.625rem;
+    margin: 0.15rem 0.5rem 0.55rem 0.15rem;
+    overflow: visible;
+}
+
+.merchant-dashboard #revenueChart,
+.merchant-dashboard .mdash-chart {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.merchant-dashboard .mdash-chart-empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    gap: 0.2rem;
+    color: var(--color-ink-muted);
+    font-size: 13px;
+}
+
+.merchant-dashboard .mdash-chart-empty p {
+    margin: 0;
+    color: var(--color-ink);
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-chart-tooltip {
+    position: absolute;
+    z-index: 4;
+    transform: translate(-50%, calc(-100% - 10px));
+    min-width: 5.4rem;
+    pointer-events: none;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.35rem 0.5rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgb(16 24 40 / 0.12);
+    text-align: center;
+}
+
+.merchant-dashboard .mdash-chart-tooltip.is-below {
+    transform: translate(-50%, 12px);
+}
+
+.merchant-dashboard .mdash-chart-tooltip small {
+    display: block;
+    color: var(--color-ink-muted);
+}
+
+.merchant-dashboard .mdash-chart-tooltip strong {
+    display: block;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.merchant-dashboard .mdash-order-flow,
+.merchant-dashboard .mdash-inventory,
+.merchant-dashboard .mdash-table-card {
+    min-height: 16.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.merchant-dashboard .mdash-flow-list {
+    padding: 0.6rem 1rem 0.4rem;
+}
+
+.merchant-dashboard .mdash-flow-row {
+    display: grid;
+    grid-template-columns: 6.6rem minmax(0, 1fr) 1.6rem;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 2.6rem;
+}
+
+.merchant-dashboard .mdash-flow-row a:hover {
+    color: var(--color-brand);
+}
+
+.merchant-dashboard .mdash-mini-track {
+    height: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--color-surface-muted);
+}
+
+.merchant-dashboard .mdash-mini-bar {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--color-brand-hover), var(--color-brand));
+}
+
+.merchant-dashboard .mdash-flow-row strong {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.merchant-dashboard .mdash-fulfill-callout {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin: auto 0.95rem 0.95rem;
+    border: 1px solid #cae8dc;
+    border-radius: 10px;
+    padding: 0.75rem;
+    background: #f4fbf8;
+    color: var(--color-brand-ink);
+}
+
+.merchant-dashboard .mdash-fulfill-callout strong {
+    flex: 1;
+}
+
+.merchant-dashboard .mdash-table-wrap {
+    overflow-x: auto;
+    padding: 0 0.75rem 0.75rem;
+}
+
+.merchant-dashboard table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 42rem;
+}
+
+.merchant-dashboard thead {
+    background: var(--color-surface-muted);
+    color: var(--color-ink-muted);
+}
+
+.merchant-dashboard th {
+    padding: 0.55rem 0.6rem;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.merchant-dashboard td {
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 12px;
+}
+
+.merchant-dashboard tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.merchant-dashboard .mdash-order-number {
+    color: var(--color-brand);
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-money {
+    font-variant-numeric: tabular-nums;
+}
+
+.merchant-dashboard .mdash-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    padding: 0.2rem 0.5rem;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.merchant-dashboard .mdash-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.merchant-dashboard .mdash-status.is-green {
+    background: var(--color-success-soft);
+    color: var(--color-brand-ink);
+}
+
+.merchant-dashboard .mdash-status.is-amber {
+    background: var(--color-warning-soft);
+    color: #a45108;
+}
+
+.merchant-dashboard .mdash-status.is-blue {
+    background: var(--color-info-soft);
+    color: var(--color-info);
+}
+
+.merchant-dashboard .mdash-status.is-gray {
+    background: var(--color-surface-muted);
+    color: var(--color-ink-muted);
+}
+
+.merchant-dashboard .mdash-inventory-list {
+    padding: 0 0.9rem 0.3rem;
+}
+
+.merchant-dashboard .mdash-inventory-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 9.4rem 18px;
+    align-items: center;
+    gap: 0.65rem;
+    border-top: 1px solid var(--color-border);
+    padding: 0.65rem 0;
+    color: inherit;
+}
+
+.merchant-dashboard .mdash-inventory-row:first-child {
+    border-top: 0;
+}
+
+.merchant-dashboard .mdash-inventory-row:hover .mdash-inventory-name {
+    color: var(--color-brand);
+}
+
+.merchant-dashboard .mdash-thumb {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--color-surface-muted);
+    color: var(--color-ink-muted);
+}
+
+.merchant-dashboard .mdash-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.merchant-dashboard .mdash-inventory-name {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-sku {
+    color: var(--color-ink-muted);
+    font-size: 10px;
+}
+
+.merchant-dashboard .mdash-stock-cell {
+    display: block;
+    min-width: 0;
+}
+
+.merchant-dashboard .mdash-stock-copy {
+    display: block;
+    color: var(--color-warning);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-stock-copy.is-critical {
+    color: var(--color-danger);
+}
+
+.merchant-dashboard .mdash-stock-track {
+    display: block;
+    width: 100%;
+    height: 8px;
+    margin-top: 0.3rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--color-surface-muted);
+}
+
+.merchant-dashboard .mdash-stock-bar {
+    display: block;
+    height: 8px;
+    border-radius: inherit;
+    background: var(--color-warning);
+}
+
+.merchant-dashboard .mdash-stock-bar.is-critical {
+    background: var(--color-danger);
+}
+
+.merchant-dashboard .mdash-inventory-footer {
+    display: flex;
+    justify-content: flex-end;
+    border-top: 1px solid var(--color-border);
+    padding: 0.5rem 0.9rem;
+}
+
+.merchant-dashboard .mdash-systems {
+    min-height: 3.05rem;
+    display: grid;
+    grid-template-columns: 8.4rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.55rem 1.1rem;
+}
+
+.merchant-dashboard .mdash-systems h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.merchant-dashboard .mdash-system-items {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 0.9rem;
+}
+
+.merchant-dashboard .mdash-system-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--color-ink-muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.merchant-dashboard .mdash-system-item.is-ready {
+    color: var(--color-ink-secondary);
+}
+
+.merchant-dashboard .mdash-system-check {
+    width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface);
+}
+
+.merchant-dashboard .mdash-system-check.is-ready {
+    border-color: var(--color-brand);
+    background: var(--color-brand);
+    color: #fff;
+}
+
+.merchant-dashboard .mdash-empty-copy {
+    margin: 0;
+    padding: 1.5rem 0.5rem;
+    color: var(--color-ink-secondary);
+    font-size: 13px;
+    text-align: center;
+}
+
+dialog.ui-native-dialog.mdash-dialog {
+    width: min(32.5rem, calc(100vw - 1.75rem));
+    max-width: min(32.5rem, calc(100vw - 1.75rem));
+    overflow: hidden;
+    border-radius: 15px;
+    box-shadow: 0 24px 80px rgb(15 23 42 / 0.24);
+}
+
+.mdash-dialog form {
+    display: flex;
+    flex-direction: column;
+}
+
+.mdash-dialog .mdash-dialog-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    padding: 1.125rem 1.25rem 0.875rem;
+}
+
+.mdash-dialog .mdash-dialog-head h2 {
+    margin: 0;
+    font-family: var(--font-heading);
+    font-size: 1.125rem;
+    line-height: 1.25;
+    font-weight: 600;
+}
+
+.mdash-dialog .mdash-dialog-head p {
+    margin: 0.25rem 0 0;
+    color: var(--color-ink-muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.mdash-dialog .mdash-close {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--color-ink-secondary);
+    cursor: pointer;
+}
+
+.mdash-dialog .mdash-close:hover {
+    background: var(--color-surface-muted);
+    color: var(--color-ink);
+}
+
+.mdash-dialog .mdash-close svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+.mdash-dialog .mdash-dialog-body {
+    display: grid;
+    gap: 0.25rem;
+    padding: 1.125rem 1.25rem;
+}
+
+.mdash-dialog .mdash-check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    border-radius: 8px;
+    padding: 0.65rem;
+    color: var(--color-ink);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.mdash-dialog .mdash-check-row:hover {
+    background: var(--color-surface-muted);
+}
+
+.mdash-dialog .mdash-check-row input {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 auto;
+    accent-color: var(--color-brand);
+}
+
+.mdash-dialog .mdash-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.55rem;
+    border-top: 1px solid var(--color-border);
+    padding: 0.8rem 1.25rem 1.125rem;
+}
+
+.mdash-dialog .mdash-btn-primary {
+    box-shadow: 0 4px 12px rgb(8 127 91 / 0.16);
+}
+
+@media (max-width: 1180px) {
+    .merchant-dashboard .mdash-grid,
+    .merchant-dashboard .mdash-lower {
+        grid-template-columns: 1fr;
+    }
+
+    .merchant-dashboard .mdash-order-flow,
+    .merchant-dashboard .mdash-inventory {
+        min-height: auto;
+    }
+
+    .merchant-dashboard .mdash-system-items {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 900px) {
+    .merchant-dashboard .mdash-attention-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .merchant-dashboard .mdash-attention-item:nth-child(2) {
+        border-right: 0;
+    }
+
+    .merchant-dashboard .mdash-attention-item:nth-child(n+3) {
+        margin-top: 0.75rem;
+        border-top: 1px solid var(--color-border);
+        padding-top: 0.75rem;
+    }
+}
+
+@media (max-width: 680px) {
+    .merchant-dashboard .mdash-welcome {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto;
+        align-items: stretch;
+        padding: 0.4rem 0 0.2rem;
+    }
+
+    .merchant-dashboard .mdash-welcome-title,
+    .merchant-dashboard .mdash-welcome-lead,
+    .merchant-dashboard .mdash-range-tools {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    .merchant-dashboard .mdash-range-tools {
+        width: 100%;
+    }
+
+    .merchant-dashboard .mdash-segmented {
+        flex: 1;
+    }
+
+    .merchant-dashboard .mdash-segment {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .merchant-dashboard .mdash-setup-notice {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .merchant-dashboard .mdash-attention-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .merchant-dashboard .mdash-attention-item {
+        border-right: 0;
+        border-top: 1px solid var(--color-border);
+        padding: 0.65rem 0.25rem;
+    }
+
+    .merchant-dashboard .mdash-attention-item:first-child {
+        border-top: 0;
+    }
+
+    .merchant-dashboard .mdash-attention-item:nth-child(2),
+    .merchant-dashboard .mdash-attention-item:nth-child(n+3) {
+        margin-top: 0;
+        padding-top: 0.65rem;
+    }
+
+    .merchant-dashboard .mdash-metrics {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem 0;
+    }
+
+    .merchant-dashboard .mdash-metric:nth-child(2) {
+        border-right: 0;
+    }
+
+    .merchant-dashboard .mdash-metric:nth-child(n+3) {
+        padding-top: 0.65rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .merchant-dashboard .mdash-legend {
+        display: none;
+    }
+
+    .merchant-dashboard .mdash-inventory-row {
+        grid-template-columns: 42px minmax(0, 1fr) 6.5rem 18px;
+    }
+
+    .merchant-dashboard .mdash-systems {
+        grid-template-columns: 1fr auto;
+        padding: 0.7rem 0.9rem;
+    }
+
+    .merchant-dashboard .mdash-system-items {
+        grid-column: 1 / -1;
+    }
+}

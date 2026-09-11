@@ -131,6 +131,9 @@ Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])-
     Route::patch('/products/{product}/inline-price', [ProductInlineController::class, 'updatePrice'])
         ->middleware('store.permission:catalog.manage')
         ->name('products.inline.price');
+    Route::patch('/products/{product}/inline-variant-prices', [ProductInlineController::class, 'updateVariantPrices'])
+        ->middleware('store.permission:catalog.manage')
+        ->name('products.inline.variant-prices');
     Route::patch('/products/{product}/inline-stock', [ProductInlineController::class, 'updateStock'])
         ->middleware('store.permission:catalog.manage')
         ->name('products.inline.stock');

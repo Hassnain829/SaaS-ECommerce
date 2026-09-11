@@ -1,9 +1,14 @@
 @extends('layouts.user.user-sidebar')
 
 @php
+    use App\Support\ProductListPrice;
     use Illuminate\Support\Str;
     $storeForView = $selectedStore ?? $currentStore;
     $currency = optional($storeForView)->currency ?? 'USD';
+    $listPrice = ProductListPrice::forProduct($product, $product->variants ?? null, $currency);
+    $defaultPrice = round((float) $product->base_price, 2);
+    $defaultPriceIsSelling = abs($defaultPrice - $listPrice['min']) < 0.005
+        || abs($defaultPrice - $listPrice['max']) < 0.005;
     $meta = is_array($product->meta) ? $product->meta : [];
     $compareAt = $catalog['compare_at_price'] ?? null;
     $costPrice = $catalog['cost_price'] ?? null;
@@ -475,10 +480,31 @@
                     <section class="{{ $card }} p-4">
                         <h2 class="text-[15px] font-semibold text-[color:var(--color-ink)]">Pricing</h2>
                         <dl class="mt-3 space-y-2.5 text-sm">
-                            <div class="flex items-baseline justify-between gap-3">
-                                <dt class="text-[color:var(--color-ink-muted)]">Base price</dt>
-                                <dd class="text-lg font-semibold tabular-nums text-[color:var(--color-ink)]">{{ $currency }} {{ number_format((float) $product->base_price, 2) }}</dd>
-                            </div>
+                            @if ($listPrice['mixed'])
+                                <div class="space-y-2.5">
+                                    <div class="flex items-baseline justify-between gap-3">
+                                        <dt class="text-[color:var(--color-ink-muted)]">Selling prices</dt>
+                                        <dd class="text-lg font-semibold tabular-nums text-[color:var(--color-ink)]">{{ $listPrice['display'] }}</dd>
+                                    </div>
+                                    <p class="text-xs leading-5 text-[color:var(--color-ink-muted)]">Shoppers pay a different amount depending on the option they choose. Change those prices in Edit product, or from the product list.</p>
+                                    @if ($defaultPriceIsSelling)
+                                        <div class="flex items-baseline justify-between gap-3">
+                                            <dt class="text-[color:var(--color-ink-muted)]">Default price</dt>
+                                            <dd class="font-medium tabular-nums text-[color:var(--color-ink-secondary)]">{{ $listPrice['currency'] }} {{ number_format($defaultPrice, 2) }}</dd>
+                                        </div>
+                                    @endif
+                                </div>
+                            @else
+                                <div class="space-y-2.5">
+                                    <div class="flex items-baseline justify-between gap-3">
+                                        <dt class="text-[color:var(--color-ink-muted)]">Price</dt>
+                                        <dd class="text-lg font-semibold tabular-nums text-[color:var(--color-ink)]">{{ $listPrice['display'] }}</dd>
+                                    </div>
+                                    @if ($listPrice['variant_count'] > 1)
+                                        <p class="text-xs leading-5 text-[color:var(--color-ink-muted)]">Every option uses this same price.</p>
+                                    @endif
+                                </div>
+                            @endif
                             @if ($compareAt !== null && $compareAt !== '')
                                 <div class="flex items-baseline justify-between gap-3">
                                     <dt class="text-[color:var(--color-ink-muted)]">Compare-at</dt>

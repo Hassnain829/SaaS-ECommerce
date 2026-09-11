@@ -13,6 +13,8 @@ use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductImport;
 use App\Models\ProductImportRow;
+use App\Models\ProductVariationOption;
+use App\Models\ProductVariationType;
 use App\Models\Role;
 use App\Models\StockMovement;
 use App\Models\Store;
@@ -95,6 +97,101 @@ class ProductsListUxTest extends TestCase
             ->assertSeeText('Continue')
             ->assertSee('>Publish</button>', false)
             ->assertSee(route('products.edit', $draft), false);
+    }
+
+    public function test_mixed_option_prices_show_as_a_range_on_the_list(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Garlic Flavor');
+        $product->update(['base_price' => 1500]);
+        $product->variants()->delete();
+
+        $size = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Net Wt.',
+            'type' => 'select',
+        ]);
+        $oneOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '1 OZ',
+            'sort_order' => 0,
+        ]);
+        $twoFiveOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '2.5 OZ',
+            'sort_order' => 1,
+        ]);
+        $small = $product->variants()->create([
+            'sku' => 'woo-1259',
+            'price' => 50,
+            'stock' => 100,
+            'stock_alert' => 0,
+        ]);
+        $large = $product->variants()->create([
+            'sku' => 'woo-1264',
+            'price' => 1500,
+            'stock' => 100,
+            'stock_alert' => 0,
+        ]);
+        $small->options()->sync([$oneOz->id]);
+        $large->options()->sync([$twoFiveOz->id]);
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products'))
+            ->assertOk()
+            ->assertSeeText('Garlic Flavor')
+            ->assertSeeText('USD 50.00 – 1,500.00')
+            ->assertSeeText('2 prices · edit')
+            ->assertSee('data-live-price-mixed="1"', false)
+            ->assertSee('js-inline-variant-price-open', false)
+            ->assertSee('Set price', false)
+            ->getContent() ?: '';
+
+        $this->assertStringContainsString('/products/'.$product->id.'/inline-variant-prices', $html);
+        $this->assertStringContainsString('/products/'.$product->id.'/edit', $html);
+    }
+
+    public function test_many_option_products_stay_compact_on_the_list(): void
+    {
+        [$owner, $store] = $this->ownerStore();
+        $product = $this->makeProduct($store, 'Shirt Grid');
+        $product->update(['base_price' => 12]);
+        $product->variants()->delete();
+
+        $size = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Size',
+            'type' => 'select',
+        ]);
+        for ($i = 1; $i <= 10; $i++) {
+            $option = ProductVariationOption::query()->create([
+                'variation_type_id' => $size->id,
+                'value' => 'Size '.$i,
+                'sort_order' => $i,
+            ]);
+            $variant = $product->variants()->create([
+                'sku' => 'GRID-'.$i,
+                'price' => 10 + $i,
+                'stock' => 2,
+                'stock_alert' => 0,
+            ]);
+            $variant->options()->sync([$option->id]);
+        }
+
+        $html = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products'))
+            ->assertOk()
+            ->assertSeeText('Shirt Grid')
+            ->assertSeeText('From USD 11.00')
+            ->assertSeeText('10 options')
+            ->assertDontSeeText('10 prices · edit')
+            ->assertSee('inline-variant-price-many', false)
+            ->getContent() ?: '';
+
+        $this->assertStringContainsString('/products/'.$product->id.'/edit', $html);
+        $this->assertStringContainsString('apply_to_every_variant', $html);
     }
 
     public function test_empty_drafts_view_does_not_show_add_product_empty_state_button(): void

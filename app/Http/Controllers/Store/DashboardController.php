@@ -44,6 +44,7 @@ use App\Services\ReturnService;
 use App\Services\SecurityLogRecorder;
 use App\Services\Store\StoreCurrencyChangeGuard;
 use App\Services\UserSessionTracker;
+use App\Support\Dashboard\MerchantDashboardPresenter;
 use App\Support\OrderLifecycle;
 use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductEditPayload;
@@ -220,214 +221,15 @@ class DashboardController extends Controller
     public function index(Request $request): View
     {
         $store = $request->attributes->get('currentStore');
+        $range = MerchantDashboardPresenter::normalizeRange((string) $request->query('range', MerchantDashboardPresenter::DEFAULT_RANGE));
 
         return view('user_view.dashboard', [
-            'dashboard' => $this->merchantDashboardSnapshot($store),
+            'dashboard' => MerchantDashboardPresenter::forStore(
+                $store instanceof Store ? $store : null,
+                $range,
+                $request->user(),
+            ),
         ]);
-    }
-
-    /**
-     * Store-scoped metrics for the merchant dashboard home.
-     *
-     * @return array<string, mixed>
-     */
-    protected function merchantDashboardSnapshot(?Store $store): array
-    {
-        if (! $store instanceof Store) {
-            return ['has_store' => false];
-        }
-
-        $storeId = $store->id;
-        $since30 = now()->subDays(30);
-        $since7 = now()->subDays(7);
-        $excludeStatuses = [Order::STATUS_CANCELLED, Order::STATUS_REFUNDED];
-        $activeStatuses = [
-            Order::STATUS_PENDING,
-            Order::STATUS_CONFIRMED,
-            Order::STATUS_PROCESSING,
-        ];
-
-        $ordersBase = Order::query()->where('store_id', $storeId);
-        $storeCurrency = strtoupper((string) ($store->currency ?: 'USD'));
-        $reporting = app(ReportingMoneyConverter::class);
-
-        $revenue30d = 0.0;
-        (clone $ordersBase)
-            ->whereNotIn('status', $excludeStatuses)
-            ->where(function ($q) use ($since30): void {
-                $q->where(function ($q2) use ($since30): void {
-                    $q2->whereNotNull('placed_at')->where('placed_at', '>=', $since30);
-                })->orWhere(function ($q2) use ($since30): void {
-                    $q2->whereNull('placed_at')->where('created_at', '>=', $since30);
-                });
-            })
-            ->get(['grand_total', 'currency_code'])
-            ->each(function (Order $order) use (&$revenue30d, $reporting, $storeCurrency): void {
-                $revenue30d += $reporting->convert(
-                    $order->grand_total,
-                    (string) ($order->currency_code ?: 'USD'),
-                    $storeCurrency
-                );
-            });
-
-        $orders30dCount = (clone $ordersBase)
-            ->whereNotIn('status', $excludeStatuses)
-            ->where(function ($q) use ($since30): void {
-                $q->where(function ($q2) use ($since30): void {
-                    $q2->whereNotNull('placed_at')->where('placed_at', '>=', $since30);
-                })->orWhere(function ($q2) use ($since30): void {
-                    $q2->whereNull('placed_at')->where('created_at', '>=', $since30);
-                });
-            })
-            ->count();
-
-        $activeOrdersCount = (clone $ordersBase)
-            ->whereIn('status', $activeStatuses)
-            ->count();
-
-        $customersCount = Customer::query()->where('store_id', $storeId)->count();
-        $customersNew30d = Customer::query()
-            ->where('store_id', $storeId)
-            ->where('created_at', '>=', $since30)
-            ->count();
-
-        $productsCount = Product::query()->where('store_id', $storeId)->count();
-
-        $ordersLast7 = (clone $ordersBase)
-            ->whereNotIn('status', $excludeStatuses)
-            ->where(function ($q) use ($since7): void {
-                $q->where(function ($q2) use ($since7): void {
-                    $q2->whereNotNull('placed_at')->where('placed_at', '>=', $since7);
-                })->orWhere(function ($q2) use ($since7): void {
-                    $q2->whereNull('placed_at')->where('created_at', '>=', $since7);
-                });
-            })
-            ->get(['placed_at', 'created_at', 'grand_total', 'currency_code']);
-
-        $chartDays = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $day = now()->subDays($i)->startOfDay();
-            $chartDays[$day->format('Y-m-d')] = [
-                'label' => $day->format('D'),
-                'total' => 0.0,
-            ];
-        }
-        foreach ($ordersLast7 as $order) {
-            $dt = $order->placed_at ?? $order->created_at;
-            if (! $dt) {
-                continue;
-            }
-            $key = $dt->clone()->startOfDay()->format('Y-m-d');
-            if (! isset($chartDays[$key])) {
-                continue;
-            }
-            $chartDays[$key]['total'] += $reporting->convert(
-                $order->grand_total,
-                (string) ($order->currency_code ?: 'USD'),
-                $storeCurrency
-            );
-        }
-        $chartDays = array_values($chartDays);
-
-        $recentOrders = (clone $ordersBase)
-            ->orderByDesc(DB::raw('COALESCE(placed_at, created_at)'))
-            ->limit(6)
-            ->get(['id', 'order_number', 'status', 'grand_total', 'currency_code', 'placed_at', 'created_at']);
-
-        $topProducts = DB::table('order_items')
-            ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->leftJoin('products', 'products.id', '=', 'order_items.product_id')
-            ->where('orders.store_id', $storeId)
-            ->whereNotIn('orders.status', $excludeStatuses)
-            ->where(function ($q) use ($since30): void {
-                $q->where(function ($q2) use ($since30): void {
-                    $q2->whereNotNull('orders.placed_at')->where('orders.placed_at', '>=', $since30);
-                })->orWhere(function ($q2) use ($since30): void {
-                    $q2->whereNull('orders.placed_at')->where('orders.created_at', '>=', $since30);
-                });
-            })
-            ->whereNotNull('order_items.product_id')
-            ->groupBy('order_items.product_id', 'orders.currency_code')
-            ->orderByDesc(DB::raw('SUM(order_items.total)'))
-            ->limit(20)
-            ->get([
-                'order_items.product_id',
-                'orders.currency_code',
-                DB::raw('MAX(COALESCE(products.name, order_items.product_name)) as display_name'),
-                DB::raw('SUM(order_items.quantity) as units_sold'),
-                DB::raw('SUM(order_items.total) as revenue'),
-            ])
-            ->groupBy('product_id')
-            ->map(function ($rows) use ($reporting, $storeCurrency) {
-                $first = $rows->first();
-                $revenue = 0.0;
-                $units = 0.0;
-                foreach ($rows as $row) {
-                    $units += (float) $row->units_sold;
-                    $revenue += $reporting->convert(
-                        $row->revenue,
-                        (string) ($row->currency_code ?: 'USD'),
-                        $storeCurrency
-                    );
-                }
-
-                return (object) [
-                    'product_id' => $first->product_id,
-                    'display_name' => $first->display_name,
-                    'units_sold' => $units,
-                    'revenue' => $revenue,
-                ];
-            })
-            ->sortByDesc('revenue')
-            ->take(5)
-            ->values();
-
-        $activeLocationsCount = $store->locations()->where('is_active', true)->count();
-        $activeDeliveryAreasCount = $store->shippingZones()->where('is_active', true)->count();
-        $checkoutDeliveryOptionsCount = $store->shippingMethods()
-            ->where('is_active', true)
-            ->where('enabled_for_checkout', true)
-            ->count();
-        $connectedProvidersCount = $store->carrierAccounts()
-            ->whereIn('connection_status', [
-                CarrierAccount::CONNECTION_CONNECTED,
-                CarrierAccount::CONNECTION_SANDBOX_PLATFORM_FALLBACK,
-            ])
-            ->count();
-        $taxSetting = $store->taxSetting()->first();
-        $taxRatesCount = $store->taxRates()->where('is_active', true)->count();
-        $taxReady = (bool) ($taxSetting?->enabled) && $taxRatesCount > 0;
-
-        return [
-            'has_store' => true,
-            'store' => $store,
-            'currency' => $storeCurrency,
-            'revenue_30d' => $revenue30d,
-            'orders_30d_count' => $orders30dCount,
-            'active_orders_count' => $activeOrdersCount,
-            'customers_count' => $customersCount,
-            'customers_new_30d' => $customersNew30d,
-            'products_count' => $productsCount,
-            'chart_days' => $chartDays,
-            'recent_orders' => $recentOrders,
-            'top_products' => $topProducts,
-            'setup_progress' => [
-                'location' => [
-                    'ready' => $activeLocationsCount > 0,
-                    'count' => $activeLocationsCount,
-                ],
-                'tax' => [
-                    'ready' => $taxReady,
-                    'count' => $taxRatesCount,
-                ],
-                'delivery' => [
-                    'ready' => $activeDeliveryAreasCount > 0 && $checkoutDeliveryOptionsCount > 0,
-                    'areas_count' => $activeDeliveryAreasCount,
-                    'options_count' => $checkoutDeliveryOptionsCount,
-                    'providers_count' => $connectedProvidersCount,
-                ],
-            ],
-        ];
     }
 
     public function product(Request $request): View|RedirectResponse|StreamedResponse

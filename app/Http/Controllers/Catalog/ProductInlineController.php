@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Catalog\ProductPriceSyncService;
 use App\Services\Inventory\InventoryAdjustmentService;
 use App\Services\Inventory\InventoryAvailabilityService;
 use App\Services\Inventory\InventorySyncService;
@@ -65,18 +66,18 @@ final class ProductInlineController extends Controller
 
         $validated = $request->validate([
             'base_price' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+            'apply_to_every_variant' => ['sometimes', 'boolean'],
         ]);
 
         $price = round((float) $validated['base_price'], 2);
+        $applyToEveryVariant = $request->boolean('apply_to_every_variant');
 
-        // Moving the base price is enough: every variant without its own price
-        // inherits it. Variants the merchant priced deliberately keep their
-        // override, so this can no longer reprice only the first variant.
         $variant = null;
-        DB::transaction(function () use ($product, $price, &$variant): void {
-            $product->update(['base_price' => $price]);
-
+        $summary = [];
+        DB::transaction(function () use ($product, $price, $applyToEveryVariant, &$variant, &$summary): void {
+            app(ProductPriceSyncService::class)->setSharedSellingPrice($product, $price, $applyToEveryVariant);
             $variant = $this->defaultCatalogVariant($product);
+            $summary = app(ProductPriceSyncService::class)->summary($product);
         });
 
         app(SecurityLogRecorder::class)->record(
@@ -90,20 +91,74 @@ final class ProductInlineController extends Controller
             ]
         );
 
-        $currency = $product->store?->currency ?? $store->currency ?? 'USD';
-
         if ($request->expectsJson()) {
-            return response()->json([
+            return response()->json(array_merge([
                 'ok' => true,
                 'product_id' => $product->id,
                 'variant_id' => $variant?->id,
-                'base_price' => $price,
-                'formatted' => $currency.number_format($price, 2),
-            ]);
+                'formatted' => $summary['display'] ?? '',
+            ], $summary));
         }
 
         return back()->with('success', 'Price updated.')
             ->with('success_title', 'Price saved');
+    }
+
+    public function updateVariantPrices(Request $request, Product $product): JsonResponse|RedirectResponse
+    {
+        [$store, $user] = $this->authorizeInlineCatalog($request, $product);
+
+        $validated = $request->validate([
+            'variants' => ['required', 'array', 'min:1', 'max:200'],
+            'variants.*.id' => [
+                'required',
+                'integer',
+                'min:1',
+                Rule::exists('product_variants', 'id')->where(fn ($q) => $q->where('product_id', $product->id)->where('store_id', $store->id)),
+            ],
+            'variants.*.price' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+        ]);
+
+        $rows = collect($validated['variants'])
+            ->map(static fn (array $row): array => [
+                'id' => (int) $row['id'],
+                'price' => round((float) $row['price'], 2),
+            ])
+            ->unique('id')
+            ->values()
+            ->all();
+
+        $summary = [];
+        DB::transaction(function () use ($product, $rows, &$summary): void {
+            $summary = app(ProductPriceSyncService::class)->setVariantPrices($product, $rows);
+        });
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'product_inline_update_variant_prices',
+            store: $store,
+            metadata: [
+                'product_id' => $product->id,
+                'variant_count' => count($rows),
+                'base_price' => $summary['base_price'] ?? null,
+            ]
+        );
+
+        if ($request->expectsJson()) {
+            return response()->json(array_merge([
+                'ok' => true,
+                'product_id' => $product->id,
+                'formatted' => $summary['display'] ?? '',
+                'message' => ! empty($summary['mixed'])
+                    ? 'Option prices saved. Each size or color keeps its own price.'
+                    : 'Option prices saved.',
+            ], $summary));
+        }
+
+        return back()->with('success', ! empty($summary['mixed'])
+            ? 'Option prices saved. Each size or color keeps its own price.'
+            : 'Option prices saved.')
+            ->with('success_title', 'Prices saved');
     }
 
     public function updateStock(Request $request, Product $product): JsonResponse|RedirectResponse

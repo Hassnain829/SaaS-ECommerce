@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\ProductVariationOption;
+use App\Models\ProductVariationType;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
@@ -29,6 +31,120 @@ class ProductWorkspaceViewTest extends TestCase
             ->assertSee('Product workspace', false)
             ->assertSee('Alpha', false)
             ->assertSee('Default inventory', false);
+    }
+
+    public function test_workspace_pricing_shows_selling_price_range_when_options_differ(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Price Range Store');
+        $product = $this->makeProduct($store, 'Garlic Flavor');
+        $product->update(['base_price' => 1500]);
+        $product->variants()->delete();
+
+        $size = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Net Wt.',
+            'type' => 'select',
+        ]);
+        $oneOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '1 OZ',
+            'sort_order' => 0,
+        ]);
+        $twoFiveOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '2.5 OZ',
+            'sort_order' => 1,
+        ]);
+        $small = $product->variants()->create([
+            'sku' => 'woo-1259',
+            'price' => 50,
+            'stock' => 100,
+            'stock_alert' => 0,
+        ]);
+        $large = $product->variants()->create([
+            'sku' => 'woo-1264',
+            'price' => 1500,
+            'stock' => 100,
+            'stock_alert' => 0,
+        ]);
+        $small->options()->sync([$oneOz->id]);
+        $large->options()->sync([$twoFiveOz->id]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSeeText('Selling prices')
+            ->assertSeeText('USD 50.00 – 1,500.00')
+            ->assertSeeText('Default price')
+            ->assertDontSeeText('Base price');
+    }
+
+    public function test_workspace_hides_stale_default_price_when_it_is_not_a_selling_price(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Stale Default Store');
+        $product = $this->makeProduct($store, 'Imported Spice');
+        $product->update(['base_price' => 1500]);
+        $product->variants()->delete();
+
+        $size = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Net Wt.',
+            'type' => 'select',
+        ]);
+        $oneOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '1 OZ',
+            'sort_order' => 0,
+        ]);
+        $twoFiveOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '2.5 OZ',
+            'sort_order' => 1,
+        ]);
+        $small = $product->variants()->create([
+            'sku' => 'woo-a',
+            'price' => 4.5,
+            'stock' => 10,
+            'stock_alert' => 0,
+        ]);
+        $large = $product->variants()->create([
+            'sku' => 'woo-b',
+            'price' => 9.5,
+            'stock' => 10,
+            'stock_alert' => 0,
+        ]);
+        $small->options()->sync([$oneOz->id]);
+        $large->options()->sync([$twoFiveOz->id]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSeeText('Selling prices')
+            ->assertSeeText('USD 4.50 – 9.50')
+            ->assertDontSeeText('Default price')
+            ->assertDontSeeText('Base price');
+    }
+
+    public function test_workspace_pricing_shows_a_single_price_for_simple_products(): void
+    {
+        $owner = $this->merchantUser();
+        $store = $this->makeStore($owner, 'Simple Price Store');
+        $product = $this->makeProduct($store, 'Plain Soap');
+        $product->update(['base_price' => 8]);
+        $product->variants()->first()->update(['price' => null]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.show', $product))
+            ->assertOk()
+            ->assertSeeText('Price')
+            ->assertSeeText('USD 8.00')
+            ->assertDontSeeText('Selling prices')
+            ->assertDontSeeText('Base price');
     }
 
     public function test_workspace_shows_product_shipping_weight(): void

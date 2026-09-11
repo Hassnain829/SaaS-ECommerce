@@ -1,6 +1,7 @@
 import './bootstrap';
 import * as Turbo from '@hotwired/turbo';
 import Alpine from 'alpinejs';
+import './dashboard-workspace.js';
 
 window.Turbo = Turbo;
 window.Alpine = Alpine;
@@ -870,6 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('turbo:before-cache', () => {
     closeAllMerchantProfileMenus();
     closeStoreSwitcherMenu();
+    clearMerchantTurboLoading();
     if (uiConfirmPending.form || uiConfirmPending.resolve || (uiConfirmModalEl() && ! uiConfirmModalEl().classList.contains('hidden'))) {
         finishUiConfirm(false);
     }
@@ -894,13 +896,33 @@ document.addEventListener('turbo:before-cache', () => {
 
 let merchantTurboReady = false;
 
+const clearMerchantTurboLoading = () => {
+    document.documentElement.classList.remove('turbo-loading', 'turbo-frame-loading');
+    document.querySelectorAll('[data-filter-results].is-filtering').forEach((el) => {
+        el.classList.remove('is-filtering');
+    });
+};
+
+const turboClickStaysInFrame = (el) => {
+    if (! (el instanceof Element)) {
+        return false;
+    }
+    const withFrame = el.closest('[data-turbo-frame]');
+    if (withFrame) {
+        const frame = withFrame.getAttribute('data-turbo-frame');
+        return frame !== null && frame !== '' && frame !== '_top';
+    }
+
+    return Boolean(el.closest('#customers-panel, #orders-panel'));
+};
+
 document.addEventListener('turbo:load', () => {
     if (merchantTurboReady && typeof Alpine !== 'undefined' && typeof Alpine.initTree === 'function') {
         Alpine.initTree(document.body);
     }
     merchantTurboReady = true;
     bootMerchantUi(document);
-    document.documentElement.classList.remove('turbo-loading');
+    clearMerchantTurboLoading();
 });
 
 document.addEventListener('click', (e) => {
@@ -927,10 +949,7 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('turbo:frame-load', () => {
-    document.documentElement.classList.remove('turbo-frame-loading', 'turbo-loading');
-    document.querySelectorAll('[data-filter-results].is-filtering').forEach((el) => {
-        el.classList.remove('is-filtering');
-    });
+    clearMerchantTurboLoading();
 });
 
 document.addEventListener('turbo:click', (event) => {
@@ -942,11 +961,11 @@ document.addEventListener('turbo:click', (event) => {
             return;
         }
     }
-    const link = event.target;
-    if (! (link instanceof Element)) {
+    const link = event.target instanceof Element ? event.target : null;
+    if (! link) {
         return;
     }
-    if (link.closest('#customers-panel, #orders-panel')) {
+    if (turboClickStaysInFrame(link)) {
         document.documentElement.classList.add('turbo-frame-loading');
         return;
     }
@@ -1086,7 +1105,7 @@ window.addEventListener('popstate', () => {
 
 document.addEventListener('turbo:submit-start', (event) => {
     const form = event.target;
-    if (form instanceof HTMLFormElement && form.closest('#customers-panel, #orders-panel')) {
+    if (form instanceof HTMLFormElement && turboClickStaysInFrame(form)) {
         document.documentElement.classList.add('turbo-frame-loading');
         return;
     }
@@ -1098,7 +1117,7 @@ document.addEventListener('turbo:before-fetch-response', () => {
 });
 
 document.addEventListener('turbo:fetch-request-error', () => {
-    document.documentElement.classList.remove('turbo-loading', 'turbo-frame-loading');
+    clearMerchantTurboLoading();
 });
 
 document.addEventListener('click', (event) => {

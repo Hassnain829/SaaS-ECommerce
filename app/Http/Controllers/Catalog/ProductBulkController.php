@@ -16,6 +16,7 @@ use App\Models\Tag;
 use App\Services\Catalog\ProductPermanentDeleteEligibilityService;
 use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
 use App\Services\Catalog\ProductPermanentDeleteService;
+use App\Services\Catalog\ProductPriceSyncService;
 use App\Services\Delivery\ShippingWeightResolver;
 use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Inventory\InventoryAdjustmentService;
@@ -43,7 +44,7 @@ final class ProductBulkController extends Controller
         }
 
         $validated = $request->validate([
-            'action' => ['required', 'string', Rule::in(['delete', 'restore', 'force_delete', 'stock', 'categories', 'brand', 'tags', 'status', 'shipping_weight'])],
+            'action' => ['required', 'string', Rule::in(['delete', 'restore', 'force_delete', 'stock', 'price', 'categories', 'brand', 'tags', 'status', 'shipping_weight'])],
             'product_ids' => ['nullable', 'array', 'min:1', 'max:20000'],
             'product_ids.*' => ['integer', 'min:1'],
             'product_ids_json' => ['nullable', 'string', 'max:2000000'],
@@ -81,6 +82,13 @@ final class ProductBulkController extends Controller
                 'stock_value' => ['required', 'integer', 'min:-999999', 'max:999999'],
                 'stock_apply_mode' => ['nullable', 'string', Rule::in(['empty_only', 'replace_all'])],
                 'bulk_variant_stock_scope' => ['nullable', 'string', Rule::in(['default_variant_only', 'all_variants_same', 'skip_multi_variant'])],
+            ]));
+        }
+
+        if ($validated['action'] === 'price') {
+            $validated = array_merge($validated, $request->validate([
+                'price_value' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+                'bulk_variant_price_scope' => ['nullable', 'string', Rule::in(['all_variants', 'skip_multi_variant'])],
             ]));
         }
 
@@ -138,6 +146,7 @@ final class ProductBulkController extends Controller
             'restore' => $this->bulkRestore($store, $products, $n),
             'force_delete' => $this->bulkForceDelete($store, $products, $n),
             'stock' => $this->bulkStock($request, $store, $products, $validated, $n),
+            'price' => $this->bulkPrice($request, $store, $products, $validated, $n),
             'categories' => $this->bulkCategories($store, $products, $validated, $n),
             'brand' => $this->bulkBrand($store, $products, $validated, $n),
             'tags' => $this->bulkTags($store, $products, $validated, $n),
@@ -445,6 +454,63 @@ final class ProductBulkController extends Controller
 
         return back()->with('success', implode(' ', $parts))
             ->with('success_title', 'Bulk stock');
+    }
+
+    /**
+     * @param  Collection<int, Product>  $products
+     * @param  array<string, mixed>  $validated
+     */
+    private function bulkPrice(Request $request, Store $store, $products, array $validated, int $n): RedirectResponse
+    {
+        $price = round((float) $validated['price_value'], 2);
+        $scope = (string) ($validated['bulk_variant_price_scope'] ?? 'all_variants');
+        if (! in_array($scope, ['all_variants', 'skip_multi_variant'], true)) {
+            $scope = 'all_variants';
+        }
+
+        $skippedMulti = 0;
+        $updated = 0;
+        $sync = app(ProductPriceSyncService::class);
+
+        DB::transaction(function () use ($products, $price, $scope, $sync, &$skippedMulti, &$updated): void {
+            foreach ($products as $product) {
+                $product->loadCount('variants');
+                $isMultiVariant = (int) $product->variants_count > 1;
+
+                if ($isMultiVariant && $scope === 'skip_multi_variant') {
+                    $skippedMulti++;
+
+                    continue;
+                }
+
+                $sync->setSharedSellingPrice($product, $price, $scope === 'all_variants' || ! $isMultiVariant);
+                $updated++;
+            }
+        });
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'product_bulk_action',
+            store: $store,
+            metadata: [
+                'action' => 'price',
+                'product_count' => $n,
+                'price_value' => $price,
+                'variant_scope' => $scope,
+                'skipped_multi_variant' => $skippedMulti,
+                'updated_product_count' => $updated,
+            ]
+        );
+
+        $formatted = number_format($price, 2, '.', ',');
+        $message = $scope === 'skip_multi_variant'
+            ? ($skippedMulti > 0
+                ? 'Price set to '.$formatted.' on '.$updated.' product(s). Skipped '.$skippedMulti.' product(s) that have more than one option.'
+                : 'Price set to '.$formatted.' on '.$updated.' product(s).')
+            : 'Price set to '.$formatted.' on every sellable option of '.$updated.' product(s).';
+
+        return back()->with('success', $message)
+            ->with('success_title', 'Bulk price');
     }
 
     /**

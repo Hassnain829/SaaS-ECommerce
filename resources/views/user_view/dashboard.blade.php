@@ -2,65 +2,41 @@
 
 @section('title', 'Dashboard — '.config('app.name'))
 
+@php
+    $d = $dashboard ?? ['has_store' => false];
+    $hasStore = (bool) ($d['has_store'] ?? false);
+    $range = $d['range'] ?? '30';
+    $permissions = $d['permissions'] ?? [];
+    $setup = $d['setup_progress'] ?? [];
+    $setupComplete = (bool) ($d['setup_complete'] ?? false);
+    $metrics = $d['metrics'] ?? [];
+    $attention = $d['attention'] ?? [];
+    $flow = $d['order_flow'] ?? ['rows' => [], 'max' => 1, 'ship_now' => 0];
+    $systems = $d['systems'] ?? ['items' => []];
+    $chart = $d['chart'] ?? ['labels' => [], 'current' => [], 'previous' => [], 'current_formatted' => [], 'empty' => true];
+@endphp
+
 @section('topbar')
-    <x-ui.merchant-topbar title="Dashboard" lead="Store performance and setup checklist.">
-        <x-slot:actions>
-            <a href="{{ route('products') }}" class="hidden items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover sm:inline-flex">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                    <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="currentColor"/>
-                </svg>
-                <span>Products</span>
-            </a>
-        </x-slot:actions>
+    <x-ui.merchant-topbar title="Dashboard" lead="Your store at a glance.">
+        @if ($hasStore)
+            <x-slot:actions>
+                @if (! empty($permissions['orders_manage']))
+                    <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink sm:inline-flex">Create order</a>
+                @endif
+                @if (! empty($permissions['catalog_manage']))
+                    <a href="{{ route('products.create') }}" class="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand px-3.5 text-sm font-semibold text-white transition hover:bg-brand-hover">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <span class="hidden sm:inline">Add product</span>
+                    </a>
+                @endif
+            </x-slot:actions>
+        @endif
     </x-ui.merchant-topbar>
 @endsection
 
 @section('content')
-@php
-    $d = $dashboard ?? ['has_store' => false];
-    $hasStore = $d['has_store'] ?? false;
-    $currency = $d['currency'] ?? 'USD';
-    $setup = $d['setup_progress'] ?? [];
-    $setupSteps = [
-        [
-            'title' => 'Set store location',
-            'description' => (($setup['location']['count'] ?? 0) > 0)
-                ? (($setup['location']['count'] ?? 0).' active ship-from location(s)')
-                : 'Add at least one active ship-from location',
-            'ready' => (bool) ($setup['location']['ready'] ?? false),
-            'href' => route('settings.locations.index'),
-            'cta' => ((bool) ($setup['location']['ready'] ?? false)) ? 'Manage locations' : 'Set location',
-        ],
-        [
-            'title' => 'Configure checkout tax',
-            'description' => ((bool) ($setup['tax']['ready'] ?? false))
-                ? (($setup['tax']['count'] ?? 0).' active tax rate(s)')
-                : 'Enable tax and add at least one active tax rate',
-            'ready' => (bool) ($setup['tax']['ready'] ?? false),
-            'href' => route('settings.taxes.index'),
-            'cta' => ((bool) ($setup['tax']['ready'] ?? false)) ? 'Review tax' : 'Set tax',
-        ],
-        [
-            'title' => 'Prepare delivery setup',
-            'description' => ((bool) ($setup['delivery']['ready'] ?? false))
-                ? (($setup['delivery']['areas_count'] ?? 0).' area(s), '.($setup['delivery']['options_count'] ?? 0).' option(s)')
-                : 'Add delivery areas and checkout delivery options',
-            'ready' => (bool) ($setup['delivery']['ready'] ?? false),
-            'href' => route('shippingAutomation'),
-            'cta' => ((bool) ($setup['delivery']['ready'] ?? false)) ? 'Review delivery' : 'Set delivery',
-        ],
-    ];
-    $setupReadyCount = collect($setupSteps)->where('ready', true)->count();
-    $setupComplete = $setupReadyCount === count($setupSteps);
-    $setupPercent = count($setupSteps) > 0 ? (int) round(($setupReadyCount / count($setupSteps)) * 100) : 0;
-    $chartDays = $d['chart_days'] ?? [];
-    $chartMax = 0.0;
-    foreach ($chartDays as $day) {
-        $chartMax = max($chartMax, (float) ($day['total'] ?? 0));
-    }
-    $chartEmpty = $chartMax <= 0.0;
-@endphp
-
 @if (! $hasStore)
     <div class="merchant-card max-w-xl p-6">
         <h2 class="text-lg font-semibold text-ink">Welcome</h2>
@@ -70,214 +46,326 @@
         </a>
     </div>
 @else
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <h2 class="text-xl font-semibold tracking-tight text-ink">{{ $setupComplete ? 'Performance overview' : 'Store setup' }}</h2>
-            <p class="mt-0.5 text-sm text-ink-secondary">
-                <span class="font-medium text-ink">{{ $d['store']->name }}</span>
+    <div
+        class="merchant-dashboard settings-workspace-fluid w-full"
+        data-merchant-dashboard
+        data-user-id="{{ auth()->id() }}"
+        data-store-id="{{ $d['store']->id }}"
+        data-currency="{{ $d['currency'] }}"
+        data-range="{{ $range }}"
+    >
+        <svg aria-hidden="true" width="0" height="0" class="mdash-sprite">
+            <symbol id="mdash-box" viewBox="0 0 24 24"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m4 7 8 4 8-4M12 11v10" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+            <symbol id="mdash-return" viewBox="0 0 24 24"><path d="M9 7 4 12l5 5M5 12h10a5 5 0 1 1 0 10h-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="mdash-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v5M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+            <symbol id="mdash-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="mdash-truck" viewBox="0 0 24 24"><path d="M3 6h12v11H3zM15 10h4l2 3v4h-6z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+            <symbol id="mdash-check" viewBox="0 0 24 24"><path d="m6 12 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+            <symbol id="mdash-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m19 13.5 2-1.5-2-1.5-.5-1.3.7-2.4-2.4-.7-1.7 1-1.4-.5L12 4l-1.7 2.6-1.4.5-1.7-1-2.4.7.7 2.4-.5 1.3L3 12l2 1.5.5 1.3-.7 2.4 2.4.7 1.7-1 1.4.5L12 20l1.7-2.6 1.4.5 1.7 1 2.4-.7-.7-2.4.5-1.3Z" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+        </svg>
+
+        <section class="mdash-welcome" aria-labelledby="welcomeHeading">
+            <div class="mdash-welcome-title">
+                <h2 id="welcomeHeading">{{ $d['greeting'] ?? 'Hello' }}</h2>
                 @if ($setupComplete)
-                    <span class="text-ink-muted"> · </span>
-                    Revenue and activity use the last 30 days.
-                @else
-                    <span class="text-ink-muted"> · </span>
-                    Complete the steps below to get your store ready for sales.
+                    <span class="mdash-status-pill">Store operational</span>
                 @endif
-            </p>
-        </div>
-        @if ($setupComplete)
-            <div class="inline-flex items-center gap-2 self-start rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-ink-secondary">
-                <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden="true"></span>
-                Store setup complete
             </div>
-        @endif
-    </div>
-
-    <section class="dashboard-setup-hero">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Store setup</p>
-                <h2 class="mt-1 text-lg font-semibold text-ink">
-                    {{ $setupComplete ? 'Your store is ready to operate' : 'Finish setup to start selling' }}
-                </h2>
-                <p class="mt-1 text-sm text-ink-secondary">{{ $setupReadyCount }} of {{ count($setupSteps) }} areas are ready.</p>
+            <p class="mdash-welcome-lead">{{ $d['greeting_lead'] ?? 'Here’s what needs your attention.' }}</p>
+            <div class="mdash-range-tools">
+                <div class="mdash-segmented" aria-label="Dashboard date range">
+                    <a href="{{ route('dashboard', ['range' => 'today']) }}" class="mdash-segment {{ $range === 'today' ? 'is-active' : '' }}" @if ($range === 'today') aria-current="page" @endif>Today</a>
+                    <a href="{{ route('dashboard', ['range' => '7']) }}" class="mdash-segment {{ $range === '7' ? 'is-active' : '' }}" @if ($range === '7') aria-current="page" @endif>7 days</a>
+                    <a href="{{ route('dashboard', ['range' => '30']) }}" class="mdash-segment {{ $range === '30' ? 'is-active' : '' }}" @if ($range === '30') aria-current="page" @endif>30 days</a>
+                </div>
+                <button class="mdash-btn mdash-btn-secondary" type="button" data-dashboard-customize>
+                    <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-gear"/></svg>
+                    Customize
+                </button>
             </div>
-            <a href="{{ route('generalSettings') }}" class="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">
-                Store settings
-            </a>
-        </div>
-        <div class="dashboard-setup-progress" aria-hidden="true">
-            <div class="dashboard-setup-progress-bar" style="width: {{ $setupPercent }}%"></div>
-        </div>
-        <div class="mt-4 settings-checklist">
-            @foreach ($setupSteps as $index => $step)
-                <article class="settings-checklist-row">
-                    <span @class([
-                        'settings-checklist-icon',
-                        'settings-checklist-icon-ready' => $step['ready'],
-                        'settings-checklist-icon-pending' => ! $step['ready'],
-                    ])>{{ $step['ready'] ? '✓' : ($index + 1) }}</span>
-                    <div>
-                        <p class="settings-checklist-label">Step {{ $index + 1 }}</p>
-                        <h3 class="settings-checklist-title">{{ $step['title'] }}</h3>
-                        <p class="settings-checklist-detail">{{ $step['description'] }}</p>
-                    </div>
-                    <a href="{{ $step['href'] }}" class="settings-checklist-action {{ $step['ready'] ? 'settings-checklist-action-secondary' : 'settings-checklist-action-primary' }}">
-                        {{ $step['cta'] }}
-                    </a>
-                </article>
-            @endforeach
-        </div>
-    </section>
+        </section>
 
-    @if (! $setupComplete)
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div class="merchant-card p-4">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Open orders</p>
-                <p class="mt-1.5 text-xl font-semibold tabular-nums text-ink">{{ number_format($d['active_orders_count']) }}</p>
-                <p class="mt-1.5 text-xs text-ink-muted">Orders waiting for action.</p>
-            </div>
-            <div class="merchant-card p-4">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Products</p>
-                <p class="mt-1.5 text-xl font-semibold tabular-nums text-ink">{{ number_format($d['products_count']) }}</p>
-                <p class="mt-1.5 text-xs text-ink-muted">Items in your catalog.</p>
-            </div>
-        </div>
-    @else
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="merchant-card p-4">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Revenue · 30 days</p>
-            <p class="mt-1.5 text-xl font-semibold tabular-nums tracking-tight text-ink">{{ \App\Support\MoneyDisplay::format($d['revenue_30d'], $currency) }}</p>
-            <p class="mt-1.5 text-xs leading-snug text-ink-muted">Excludes cancelled and refunded orders.</p>
-        </div>
-
-        <div class="merchant-card p-4">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Open orders</p>
-            <p class="mt-1.5 text-xl font-semibold tabular-nums tracking-tight text-ink">{{ number_format($d['active_orders_count']) }}</p>
-            <p class="mt-1.5 text-xs leading-snug text-ink-muted">Pending, confirmed, or processing.</p>
-        </div>
-
-        <div class="merchant-card p-4">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Customers</p>
-            <p class="mt-1.5 text-xl font-semibold tabular-nums tracking-tight text-ink">{{ number_format($d['customers_count']) }}</p>
-            <p class="mt-1.5 text-xs leading-snug text-ink-muted">+{{ number_format($d['customers_new_30d']) }} new in the last 30 days</p>
-        </div>
-
-        <div class="merchant-card p-4">
-            <p class="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Products</p>
-            <p class="mt-1.5 text-xl font-semibold tabular-nums tracking-tight text-ink">{{ number_format($d['products_count']) }}</p>
-            <p class="mt-1.5 text-xs leading-snug text-ink-muted">{{ number_format($d['orders_30d_count']) }} orders in the last 30 days</p>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <div class="merchant-card p-4 lg:col-span-2">
-            <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        @if (! $setupComplete)
+            <section class="mdash-setup-notice" aria-labelledby="setupNoticeTitle">
                 <div>
-                    <h2 class="text-sm font-semibold text-ink">Revenue trend</h2>
-                    <p class="text-xs text-ink-muted">Last 7 days, paid orders only</p>
+                    <p class="mdash-kicker">Store setup</p>
+                    <h3 id="setupNoticeTitle">Finish setup to start selling</h3>
+                    <p>{{ (int) ($setup['ready_count'] ?? 0) }} of {{ (int) ($setup['total_count'] ?? 0) }} areas are ready. Next: {{ $setup['next']['title'] ?? 'Complete remaining setup' }}.</p>
                 </div>
-                <div class="flex items-center gap-2 text-xs text-ink-muted">
-                    <span class="h-2 w-2 shrink-0 rounded-sm bg-brand" aria-hidden="true"></span>
-                    Paid total per day
-                </div>
+                @if (! empty($setup['next']['href']))
+                    <a href="{{ $setup['next']['href'] }}" class="mdash-btn mdash-btn-primary">{{ $setup['next']['cta'] ?? 'Continue setup' }}</a>
+                @endif
+            </section>
+        @endif
+
+        <section class="mdash-surface mdash-attention" id="attentionSection" data-dashboard-panel="attention" aria-labelledby="attentionTitle">
+            <p class="mdash-kicker" id="attentionTitle">Needs attention</p>
+            <div class="mdash-attention-grid">
+                <article class="mdash-attention-item">
+                    <span class="mdash-attention-icon" aria-hidden="true"><svg class="mdash-icon"><use href="#mdash-box"/></svg></span>
+                    <span class="mdash-attention-copy">
+                        <strong><b>{{ number_format((int) ($attention['fulfillment']['count'] ?? 0)) }}</b> {{ (int) ($attention['fulfillment']['count'] ?? 0) === 1 ? 'order' : 'orders' }}</strong>
+                        <span>{{ (int) ($attention['fulfillment']['count'] ?? 0) === 0 ? 'None waiting to fulfill' : 'Ready to fulfill' }}</span>
+                    </span>
+                    @if (! empty($attention['fulfillment']['href']))
+                        <a class="mdash-action" href="{{ $attention['fulfillment']['href'] }}">Open <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
+                    @endif
+                </article>
+                <article class="mdash-attention-item">
+                    <span class="mdash-attention-icon" aria-hidden="true"><svg class="mdash-icon"><use href="#mdash-box"/></svg></span>
+                    <span class="mdash-attention-copy">
+                        <strong><b>{{ number_format((int) ($attention['low_stock']['count'] ?? 0)) }}</b> {{ (int) ($attention['low_stock']['count'] ?? 0) === 1 ? 'product' : 'products' }}</strong>
+                        <span>{{ (int) ($attention['low_stock']['count'] ?? 0) === 0 ? 'No low-stock items' : 'Low stock' }}</span>
+                    </span>
+                    @if (! empty($attention['low_stock']['href']))
+                        <a class="mdash-action" href="{{ $attention['low_stock']['href'] }}">Review <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
+                    @endif
+                </article>
+                <article class="mdash-attention-item">
+                    <span class="mdash-attention-icon" aria-hidden="true"><svg class="mdash-icon"><use href="#mdash-return"/></svg></span>
+                    <span class="mdash-attention-copy">
+                        <strong><b>{{ number_format((int) ($attention['returns']['count'] ?? 0)) }}</b> {{ (int) ($attention['returns']['count'] ?? 0) === 1 ? 'return' : 'returns' }}</strong>
+                        <span>{{ (int) ($attention['returns']['count'] ?? 0) === 0 ? 'No returns waiting' : 'Awaiting review' }}</span>
+                    </span>
+                    @if (! empty($attention['returns']['href']))
+                        <a class="mdash-action" href="{{ $attention['returns']['href'] }}">Resolve <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
+                    @endif
+                </article>
+                <article class="mdash-attention-item">
+                    <span class="mdash-attention-icon {{ (int) ($attention['delivery']['count'] ?? 0) > 0 ? 'is-danger' : '' }}" aria-hidden="true"><svg class="mdash-icon"><use href="#mdash-alert"/></svg></span>
+                    <span class="mdash-attention-copy">
+                        <strong><b class="{{ (int) ($attention['delivery']['count'] ?? 0) > 0 ? 'is-danger' : '' }}">{{ number_format((int) ($attention['delivery']['count'] ?? 0)) }}</b> {{ (int) ($attention['delivery']['count'] ?? 0) === 1 ? 'delivery issue' : 'delivery issues' }}</strong>
+                        <span>{{ (int) ($attention['delivery']['count'] ?? 0) === 0 ? 'No delivery issues' : ($attention['delivery']['label'] ?? 'Needs attention') }}</span>
+                    </span>
+                    @if (! empty($attention['delivery']['href']))
+                        <a class="mdash-action" href="{{ $attention['delivery']['href'] }}">Fix <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
+                    @endif
+                </article>
             </div>
-            <div class="relative rounded-md bg-surface-muted/60 ring-1 ring-inset ring-border">
-                @if ($chartEmpty)
-                    <div class="flex h-48 flex-col items-center justify-center gap-1 px-4 text-center">
-                        <p class="text-sm font-medium text-ink">No paid revenue in this window</p>
-                        <p class="max-w-sm text-xs text-ink-muted">When orders are paid in the last 7 days, daily totals appear here.</p>
+        </section>
+
+        <div class="mdash-grid" id="analyticsGrid">
+            <section class="mdash-surface mdash-performance" id="performanceCard" aria-labelledby="performanceTitle">
+                <div class="mdash-card-head">
+                    <div>
+                        <h3 id="performanceTitle">Performance</h3>
+                        <p>{{ $d['range_description'] }}</p>
                     </div>
-                @else
-                    <div class="flex h-48 items-end gap-1 px-2 pb-0 pt-3 sm:gap-2">
-                        @foreach ($chartDays as $day)
-                            @php
-                                $dayTotal = (float) ($day['total'] ?? 0);
-                                $pct = $dayTotal > 0 && $chartMax > 0
-                                    ? max(14, min(100, round(($dayTotal / $chartMax) * 100)))
-                                    : 0;
-                            @endphp
-                            <div class="flex h-full min-w-0 flex-1 flex-col items-stretch justify-end">
-                                <div
-                                    class="mx-auto w-full max-w-[2.25rem] rounded-t-sm bg-brand transition hover:bg-brand-hover"
-                                    style="height: {{ $pct }}%"
-                                    title="{{ \App\Support\MoneyDisplay::format($day['total'], $currency) }}"
-                                ></div>
-                                <p class="mt-2 pb-2 text-center text-[10px] font-medium uppercase tracking-wide text-ink-muted sm:text-[11px]">{{ $day['label'] }}</p>
-                            </div>
-                        @endforeach
+                </div>
+                <div class="mdash-metrics">
+                    @foreach ($metrics as $key => $metric)
+                        <div class="mdash-metric" data-metric="{{ $key }}" data-metric-display="{{ $metric['display'] }}">
+                            <span>{{ $metric['label'] }}</span>
+                            <strong>{{ $metric['display'] }}</strong>
+                            @if (($metric['change']['label'] ?? '') !== '')
+                                <em class="is-{{ $metric['change']['direction'] ?? 'flat' }}">{{ $metric['change']['label'] }}</em>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+                <div class="mdash-chart-title">
+                    <h4>Revenue over time</h4>
+                    <div class="mdash-legend">
+                        <span><i></i>Current period</span>
+                        <span><i class="is-previous"></i>Previous period</span>
+                    </div>
+                </div>
+                <div class="mdash-chart-wrap" id="chartWrap">
+                    @if (! empty($chart['empty']))
+                        <div class="mdash-chart-empty">
+                            <p>No revenue in this period</p>
+                            <span>Totals appear here once orders are placed.</span>
+                        </div>
+                    @endif
+                    <svg id="revenueChart" class="mdash-chart" role="img" aria-label="Revenue over time" preserveAspectRatio="none" @if (! empty($chart['empty'])) hidden @endif></svg>
+                    <div class="mdash-chart-tooltip" id="chartTooltip" hidden>
+                        <small></small>
+                        <strong></strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="mdash-surface mdash-order-flow" id="orderFlowCard" data-dashboard-panel="orderFlow" aria-labelledby="orderFlowTitle">
+                <div class="mdash-card-head">
+                    <div>
+                        <h3 id="orderFlowTitle">Order flow</h3>
+                        <p>Live workload</p>
+                    </div>
+                </div>
+                <div class="mdash-flow-list">
+                    @forelse ($flow['rows'] ?? [] as $row)
+                        <div class="mdash-flow-row">
+                            @if (! empty($row['href']))
+                                <a href="{{ $row['href'] }}">{{ $row['label'] }}</a>
+                            @else
+                                <span>{{ $row['label'] }}</span>
+                            @endif
+                            <span class="mdash-mini-track">
+                                <span class="mdash-mini-bar" style="width: {{ max(8, (int) round((((int) $row['count']) / max(1, (int) ($flow['max'] ?? 1))) * 100)) }}%"></span>
+                            </span>
+                            <strong>{{ number_format((int) $row['count']) }}</strong>
+                        </div>
+                    @empty
+                        <p class="mdash-empty-copy">No open order workload yet.</p>
+                    @endforelse
+                </div>
+                @if (! empty($flow['ship_now_href']))
+                    <a class="mdash-fulfill-callout" href="{{ $flow['ship_now_href'] }}">
+                        <svg class="mdash-icon" aria-hidden="true"><use href="#mdash-truck"/></svg>
+                        <strong>{{ number_format((int) ($flow['ship_now'] ?? 0)) }} {{ (int) ($flow['ship_now'] ?? 0) === 1 ? 'order can ship now' : 'orders can ship now' }}</strong>
+                        <span>Open fulfillment →</span>
+                    </a>
+                @endif
+            </section>
+        </div>
+
+        <div class="mdash-lower" id="lowerGrid">
+            <section class="mdash-surface mdash-table-card" id="recentOrdersCard" data-dashboard-panel="recentOrders" aria-labelledby="recentOrdersTitle">
+                <div class="mdash-card-head">
+                    <div><h3 id="recentOrdersTitle">Recent orders</h3></div>
+                    @if (! empty($permissions['orders_view']))
+                        <a class="mdash-view-all" href="{{ route('orders') }}">View all <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
+                    @endif
+                </div>
+                <div class="mdash-table-wrap">
+                    @if (($d['recent_orders'] ?? []) === [])
+                        <p class="mdash-empty-copy">No orders yet. When sales come in, they will show up here.</p>
+                    @else
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Order</th>
+                                    <th>Source</th>
+                                    <th>Payment</th>
+                                    <th>Fulfillment</th>
+                                    <th>Total</th>
+                                    <th>Time</th>
+                                    <th aria-label="Open"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($d['recent_orders'] as $order)
+                                    <tr>
+                                        <td>
+                                            @if (! empty($order['href']))
+                                                <a class="mdash-order-number" href="{{ $order['href'] }}">{{ $order['number'] }}</a>
+                                            @else
+                                                <span class="mdash-order-number">{{ $order['number'] }}</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $order['source'] }}</td>
+                                        <td><span class="mdash-status is-{{ $order['payment_tone'] }}">{{ $order['payment'] }}</span></td>
+                                        <td><span class="mdash-status is-{{ $order['fulfillment_tone'] }}">{{ $order['fulfillment'] }}</span></td>
+                                        <td class="mdash-money">{{ $order['total'] }}</td>
+                                        <td>{{ $order['time'] }}</td>
+                                        <td>
+                                            @if (! empty($order['href']))
+                                                <a href="{{ $order['href'] }}" aria-label="Open {{ $order['number'] }}">
+                                                    <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg>
+                                                </a>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </div>
+            </section>
+
+            <section class="mdash-surface mdash-inventory" id="inventoryCard" data-dashboard-panel="inventory" aria-labelledby="inventoryTitle">
+                <div class="mdash-card-head">
+                    <div>
+                        <h3 id="inventoryTitle">Inventory watch</h3>
+                        <p>Items needing attention</p>
+                    </div>
+                </div>
+                <div class="mdash-inventory-list">
+                    @forelse ($d['inventory_watch'] ?? [] as $item)
+                        @php $rowTag = ! empty($item['href']) ? 'a' : 'div'; @endphp
+                        <{{ $rowTag }} class="mdash-inventory-row" @if (! empty($item['href'])) href="{{ $item['href'] }}" @endif>
+                            <span class="mdash-thumb" aria-hidden="true">
+                                @if (! empty($item['image_url']))
+                                    <img src="{{ $item['image_url'] }}" alt="">
+                                @else
+                                    <svg class="mdash-icon"><use href="#mdash-box"/></svg>
+                                @endif
+                            </span>
+                            <span>
+                                <span class="mdash-inventory-name">{{ $item['name'] }}</span>
+                                <span class="mdash-sku">SKU {{ $item['sku'] }}</span>
+                            </span>
+                            <span class="mdash-stock-cell">
+                                <span class="mdash-stock-copy {{ ! empty($item['critical']) ? 'is-critical' : '' }}">{{ number_format((int) $item['stock']) }} left</span>
+                                <span class="mdash-stock-track" aria-hidden="true">
+                                    <span class="mdash-stock-bar {{ ! empty($item['critical']) ? 'is-critical' : '' }}" style="width: {{ max(8, min(100, (int) ($item['percent'] ?? 0))) }}%"></span>
+                                </span>
+                            </span>
+                            <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg>
+                        </{{ $rowTag }}>
+                    @empty
+                        <p class="mdash-empty-copy">No items are at their low-stock alert.</p>
+                    @endforelse
+                </div>
+                @if (! empty($attention['low_stock']['href']))
+                    <div class="mdash-inventory-footer">
+                        <a class="mdash-view-all" href="{{ $attention['low_stock']['href'] }}">Review inventory <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
                     </div>
                 @endif
-            </div>
+            </section>
         </div>
 
-        <div class="merchant-card flex flex-col p-4">
-            <div class="mb-2">
-                <h2 class="text-sm font-semibold text-ink">Recent orders</h2>
-                <p class="text-xs text-ink-muted">Latest in this store</p>
+        <section class="mdash-surface mdash-systems" id="systemsStrip" data-dashboard-panel="systems" aria-labelledby="systemsTitle">
+            <h3 id="systemsTitle">Store systems</h3>
+            <div class="mdash-system-items">
+                @foreach ($systems['items'] ?? [] as $system)
+                    @php $systemTag = ! empty($system['href']) ? 'a' : 'span'; @endphp
+                    <{{ $systemTag }} class="mdash-system-item {{ ! empty($system['ready']) ? 'is-ready' : 'is-muted' }}" @if (! empty($system['href'])) href="{{ $system['href'] }}" @endif>
+                        <i class="mdash-system-check {{ ! empty($system['ready']) ? 'is-ready' : '' }}" aria-hidden="true">
+                            @if (! empty($system['ready']))
+                                <svg class="mdash-icon-sm"><use href="#mdash-check"/></svg>
+                            @endif
+                        </i>
+                        {{ $system['label'] }}
+                    </{{ $systemTag }}>
+                @endforeach
             </div>
-            <div class="relative max-h-60 flex-1 space-y-1 overflow-y-auto">
-                @forelse ($d['recent_orders'] as $order)
-                    @php
-                        $orderFull = $order->order_number ? trim((string) $order->order_number) : ('Order #'.$order->id);
-                        $orderDisplay = strlen($orderFull) > 24
-                            ? substr($orderFull, 0, 10).'…'.substr($orderFull, -8)
-                            : $orderFull;
-                    @endphp
-                    <a href="{{ route('orderViewDetails', $order) }}" class="flex items-center gap-3 rounded-md border border-transparent px-2.5 py-2 transition hover:border-border hover:bg-surface-muted" title="{{ $orderFull }}">
-                        <span class="min-w-0 flex-1">
-                            <span class="block truncate font-mono text-xs font-semibold text-ink">{{ $orderDisplay }}</span>
-                            <span class="mt-0.5 block truncate text-xs text-ink-muted">{{ \Illuminate\Support\Str::headline($order->status) }} · {{ \App\Support\MoneyDisplay::formatWithCode($order->grand_total, $order->currency_code ?: ($currency ?? 'USD')) }}</span>
-                        </span>
-                    </a>
-                @empty
-                    <div class="rounded-md border border-dashed border-border bg-surface-muted/50 px-4 py-8 text-center text-sm text-ink-secondary">
-                        No orders yet. When sales come in, they will show up here.
-                    </div>
-                @endforelse
-            </div>
-            <div class="mt-2 border-t border-border pt-2.5 text-center">
-                <a href="{{ route('orders') }}" class="text-sm font-semibold text-brand transition hover:text-brand-hover">View all orders</a>
-            </div>
-        </div>
+            @if (! empty($systems['manage_href']))
+                <a class="mdash-view-all" href="{{ $systems['manage_href'] }}">Manage settings <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
+            @endif
+        </section>
+        <script type="application/json" id="merchant-dashboard-chart-data">@json($chart)</script>
     </div>
-
-    <div class="merchant-card overflow-hidden">
-        <div class="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="text-sm font-semibold text-ink">Top products</h2>
-                <p class="text-xs text-ink-muted">By line revenue · last 30 days</p>
-            </div>
-            <a href="{{ route('products') }}" class="text-sm font-semibold text-brand transition hover:text-brand-hover">View catalog</a>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full min-w-[640px] text-sm">
-                <thead class="bg-surface-muted/70 text-left text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                    <tr>
-                        <th class="px-4 py-2.5">Product</th>
-                        <th class="hidden px-4 py-2.5 sm:table-cell">Units sold</th>
-                        <th class="px-4 py-2.5 text-right">Revenue</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-border">
-                    @forelse ($d['top_products'] as $row)
-                        <tr class="transition hover:bg-surface-muted/50">
-                            <td class="px-4 py-3">
-                                <a href="{{ route('products.show', $row->product_id) }}" class="font-medium text-ink hover:text-brand">{{ $row->display_name }}</a>
-                            </td>
-                            <td class="hidden px-4 py-3 text-ink-secondary sm:table-cell tabular-nums">{{ number_format((int) $row->units_sold) }}</td>
-                            <td class="px-4 py-3 text-right text-sm font-semibold tabular-nums text-ink">{{ \App\Support\MoneyDisplay::format($row->revenue, $currency) }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="3" class="px-4 py-10 text-center text-sm text-ink-secondary">
-                                No product sales in this window yet. Top sellers will appear here once orders include line items.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-    @endif
 @endif
 @endsection
+
+@if ($hasStore)
+    @push('overlays')
+        <dialog class="ui-native-dialog mdash-dialog" id="dashboardCustomizeDialog" aria-labelledby="dashboardCustomizeTitle">
+            <form method="dialog" id="dashboardCustomizeForm">
+                <div class="mdash-dialog-head">
+                    <div>
+                        <h2 id="dashboardCustomizeTitle">Customize dashboard</h2>
+                        <p>Choose which operational panels are visible.</p>
+                    </div>
+                    <button class="mdash-close" type="button" data-dashboard-customize-close aria-label="Close">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="mdash-dialog-body">
+                    <label class="mdash-check-row"><input type="checkbox" name="attention" checked> Needs-attention queue</label>
+                    <label class="mdash-check-row"><input type="checkbox" name="orderFlow" checked> Order flow</label>
+                    <label class="mdash-check-row"><input type="checkbox" name="recentOrders" checked> Recent orders</label>
+                    <label class="mdash-check-row"><input type="checkbox" name="inventory" checked> Inventory watch</label>
+                    <label class="mdash-check-row"><input type="checkbox" name="systems" checked> Store systems</label>
+                </div>
+                <div class="mdash-dialog-actions">
+                    <button class="mdash-btn mdash-btn-secondary" type="button" data-dashboard-customize-reset>Reset</button>
+                    <button class="mdash-btn mdash-btn-primary" type="submit">Save layout</button>
+                </div>
+            </form>
+        </dialog>
+    @endpush
+@endif

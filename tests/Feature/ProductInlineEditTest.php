@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductVariationOption;
+use App\Models\ProductVariationType;
 use App\Models\Role;
 use App\Models\StockMovement;
 use App\Models\Store;
@@ -96,16 +98,18 @@ class ProductInlineEditTest extends TestCase
         $this->assertSame('42.50', (string) $product->base_price);
         $this->assertSame('42.50', (string) $product->variants()->first()->price);
         $this->assertTrue($response->json('ok'));
+        $this->assertSame('USD 42.50', $response->json('display'));
+        $this->assertFalse($response->json('mixed'));
     }
 
-    public function test_inline_price_update_leaves_variant_price_overrides_alone(): void
+    public function test_inline_price_update_aligns_optionless_variant_rows_to_the_shared_price(): void
     {
         $owner = $this->makeUser();
         $store = $this->makeStore($owner);
         $product = $this->makeProduct($store, 'Mixed Pricing Item');
 
         $inherits = $product->variants()->first();
-        $override = $product->variants()->create([
+        $second = $product->variants()->create([
             'sku' => $product->sku.'-XL',
             'price' => 25,
             'stock' => 3,
@@ -117,9 +121,154 @@ class ProductInlineEditTest extends TestCase
             ->patchJson(route('products.inline.price', $product), ['base_price' => 42.5])
             ->assertOk();
 
-        $this->assertSame('42.50', (string) $inherits->fresh()->price, 'inheriting variant follows the base price');
-        $this->assertSame('25.00', (string) $override->fresh()->price, 'a deliberate override is never repriced');
-        $this->assertSame('25.00', (string) $override->fresh()->priceOverride());
+        $this->assertSame('42.50', (string) $inherits->fresh()->price);
+        $this->assertSame('42.50', (string) $second->fresh()->price);
+        $this->assertNull($second->fresh()->priceOverride());
+    }
+
+    public function test_inline_price_clears_a_stored_simple_variant_price_so_it_follows_the_list(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeProduct($store, 'Stored Simple Price');
+        $variant = $product->variants()->first();
+        $variant->update(['price' => 18]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patchJson(route('products.inline.price', $product), ['base_price' => 22])
+            ->assertOk()
+            ->assertJsonPath('display', 'USD 22.00')
+            ->assertJsonPath('mixed', false);
+
+        $this->assertNull($variant->fresh()->priceOverride());
+        $this->assertSame('22.00', (string) $variant->fresh()->price);
+    }
+
+    public function test_inline_price_applies_to_option_variants_when_there_is_no_standard_base_row(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeProduct($store, 'Garlic Flavor');
+        $product->variants()->delete();
+
+        $size = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Net Wt.',
+            'type' => 'select',
+        ]);
+        $oneOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '1 OZ',
+            'sort_order' => 0,
+        ]);
+        $twoFiveOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '2.5 OZ',
+            'sort_order' => 1,
+        ]);
+
+        $small = $product->variants()->create([
+            'sku' => 'woo-1259',
+            'price' => 50,
+            'stock' => 100,
+            'stock_alert' => 0,
+        ]);
+        $large = $product->variants()->create([
+            'sku' => 'woo-1264',
+            'price' => 1500,
+            'stock' => 100,
+            'stock_alert' => 0,
+        ]);
+        $small->options()->sync([$oneOz->id]);
+        $large->options()->sync([$twoFiveOz->id]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patchJson(route('products.inline.price', $product), ['base_price' => 1500])
+            ->assertOk()
+            ->assertJsonPath('base_price', 1500);
+
+        $this->assertSame('1500.00', (string) $product->fresh()->base_price);
+        $this->assertNull($small->fresh()->priceOverride());
+        $this->assertNull($large->fresh()->priceOverride());
+        $this->assertSame('1500.00', (string) $small->fresh()->price);
+        $this->assertSame('1500.00', (string) $large->fresh()->price);
+    }
+
+    public function test_inline_price_leaves_option_overrides_when_a_standard_base_row_exists(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeProduct($store, 'Base And Options');
+        $base = $product->variants()->first();
+
+        $size = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Size',
+            'type' => 'select',
+        ]);
+        $largeOpt = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => 'Large',
+            'sort_order' => 0,
+        ]);
+        $optionVariant = $product->variants()->create([
+            'sku' => $product->sku.'-L',
+            'price' => 25,
+            'stock' => 3,
+            'stock_alert' => 1,
+        ]);
+        $optionVariant->options()->sync([$largeOpt->id]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patchJson(route('products.inline.price', $product), ['base_price' => 42.5])
+            ->assertOk();
+
+        $this->assertSame('42.50', (string) $base->fresh()->price);
+        $this->assertSame('25.00', (string) $optionVariant->fresh()->price);
+        $this->assertSame('25.00', (string) $optionVariant->fresh()->priceOverride());
+    }
+
+    public function test_inline_price_can_apply_to_every_option_when_asked(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeProduct($store, 'Apply All Options');
+        $base = $product->variants()->first();
+
+        $size = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Size',
+            'type' => 'select',
+        ]);
+        $largeOpt = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => 'Large',
+            'sort_order' => 0,
+        ]);
+        $optionVariant = $product->variants()->create([
+            'sku' => $product->sku.'-L',
+            'price' => 25,
+            'stock' => 3,
+            'stock_alert' => 1,
+        ]);
+        $optionVariant->options()->sync([$largeOpt->id]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patchJson(route('products.inline.price', $product), [
+                'base_price' => 18,
+                'apply_to_every_variant' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('mixed', false)
+            ->assertJsonPath('display', 'USD 18.00');
+
+        $this->assertSame('18.00', (string) $base->fresh()->price);
+        $this->assertNull($optionVariant->fresh()->priceOverride());
+        $this->assertSame('18.00', (string) $optionVariant->fresh()->price);
     }
 
     public function test_owner_can_inline_update_stock_and_records_movement(): void
@@ -218,6 +367,13 @@ class ProductInlineEditTest extends TestCase
 
         $this->actingAs($staff)
             ->withSession(['current_store_id' => $store->id])
+            ->patchJson(route('products.inline.variant-prices', $product), [
+                'variants' => [['id' => $product->variants()->first()->id, 'price' => 9]],
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($staff)
+            ->withSession(['current_store_id' => $store->id])
             ->patchJson(route('products.inline.stock', $product), ['stock' => 3])
             ->assertForbidden();
     }
@@ -247,6 +403,9 @@ class ProductInlineEditTest extends TestCase
         $this->assertStringContainsString('js-inline-price', $html);
         $this->assertStringContainsString('js-inline-stock', $html);
         $this->assertStringContainsString('/products/'.$product->id.'/inline-price', $html);
+        $this->assertStringContainsString('inline-variant-price-popover', $html);
+        $this->assertStringContainsString('syncAnchoredPopover', $html);
+        $this->assertStringNotContainsString('rect.bottom + window.scrollY', $html);
         $this->assertStringContainsString('syncEditPopupAfterInlinePrice', $html);
         $this->assertStringContainsString('syncEditPopupAfterInlineStock', $html);
         $this->assertStringContainsString('resolveProductEditPayloadFromButton', $html);
@@ -289,6 +448,95 @@ class ProductInlineEditTest extends TestCase
 
         $this->assertSame(11, (int) $first->fresh()->stock);
         $this->assertSame(7, (int) $second->fresh()->stock);
+    }
+
+    public function test_owner_can_batch_update_variant_prices_from_list(): void
+    {
+        $owner = $this->makeUser();
+        $store = $this->makeStore($owner);
+        $product = $this->makeProduct($store, 'Garlic Flavor');
+        $product->variants()->delete();
+
+        $size = ProductVariationType::query()->create([
+            'product_id' => $product->id,
+            'name' => 'Net Wt.',
+            'type' => 'select',
+        ]);
+        $oneOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '1 OZ',
+            'sort_order' => 0,
+        ]);
+        $twoFiveOz = ProductVariationOption::query()->create([
+            'variation_type_id' => $size->id,
+            'value' => '2.5 OZ',
+            'sort_order' => 1,
+        ]);
+
+        $small = $product->variants()->create([
+            'sku' => 'woo-1259',
+            'price' => 50,
+            'stock' => 100,
+            'stock_alert' => 0,
+        ]);
+        $large = $product->variants()->create([
+            'sku' => 'woo-1264',
+            'price' => 1500,
+            'stock' => 100,
+            'stock_alert' => 0,
+        ]);
+        $small->options()->sync([$oneOz->id]);
+        $large->options()->sync([$twoFiveOz->id]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patchJson(route('products.inline.variant-prices', $product), [
+                'variants' => [
+                    ['id' => $small->id, 'price' => 50],
+                    ['id' => $large->id, 'price' => 1500],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('mixed', true)
+            ->assertJsonPath('display', 'USD 50.00 – 1,500.00')
+            ->assertJsonPath('base_price', 50);
+
+        $this->assertSame('50.00', (string) $small->fresh()->priceOverride());
+        $this->assertSame('1500.00', (string) $large->fresh()->priceOverride());
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->patchJson(route('products.inline.variant-prices', $product), [
+                'variants' => [
+                    ['id' => $small->id, 'price' => 12],
+                    ['id' => $large->id, 'price' => 12],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('mixed', false)
+            ->assertJsonPath('display', 'USD 12.00');
+
+        $this->assertNull($small->fresh()->priceOverride());
+        $this->assertNull($large->fresh()->priceOverride());
+        $this->assertSame('12.00', (string) $small->fresh()->price);
+        $this->assertSame('12.00', (string) $large->fresh()->price);
+    }
+
+    public function test_variant_price_update_rejects_cross_store_product(): void
+    {
+        $owner = $this->makeUser();
+        $storeA = $this->makeStore($owner, 'Store A');
+        $storeB = $this->makeStore($owner, 'Store B');
+        $productB = $this->makeProduct($storeB, 'Other');
+        $variantB = $productB->variants()->first();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $storeA->id])
+            ->patchJson(route('products.inline.variant-prices', $productB), [
+                'variants' => [['id' => $variantB->id, 'price' => 9]],
+            ])
+            ->assertNotFound();
     }
 
     private function makeUser(?string $email = null): User
