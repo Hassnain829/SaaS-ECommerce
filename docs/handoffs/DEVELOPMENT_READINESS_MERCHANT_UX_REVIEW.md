@@ -1,7 +1,20 @@
 # Development Readiness & Merchant UX Review
 
 **Date:** 2026-08-05  
+**Last status update:** 2026-09-12 (dashboard store-readiness, catalog list pricing, Google Sign-In)  
 **Scope:** Merchant-facing development readiness, excluding carrier expansion, SaaS subscriptions/billing, and payment expansion.
+
+## Status since this review (2026-09-12)
+
+These items shipped after the original 2026-08-05 findings. They do **not** close the overall readiness gate.
+
+- **Dashboard store-readiness card** — Home dashboard uses real store data (`MerchantDashboardPresenter::setupProgress()`): location → delivery → payments → tax → website. Card hides when complete (**Store operational**). Dashboard **includes** payments and website; store-management hub % still excludes them. Prototype Mark complete / Undo was not shipped. This is not a DR-02 onboarding close.
+- **Catalog list selling price** — Product list / inline / bulk edit show **variant** selling prices (`ProductListPrice`), not only `products.base_price`. Canonical full edit remains `products.edit`.
+- **Google Sign-In** — Optional Continue with Google on sign-in and register when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are filled. Leave `GOOGLE_REDIRECT_URI` empty. Live button still needs production `.env` (deploy never copies `.env`).
+- **cPanel deploy** — CI must pass before deploy; Pint auto-fix on CI. See `docs/operations/CPANEL_DEPLOYMENT.md`.
+- DR-05, DR-06 (automated), DR-07, and DR-08 remain complete as recorded in `docs/current/PROJECT_STATE.md`.
+
+Volatile truth: `docs/current/PROJECT_STATE.md`.
 
 ## Honest conclusion
 
@@ -116,6 +129,8 @@ The product list opens a modal editor even though the direct product workspace i
 
 **Acceptance:** A new merchant can complete registration and onboarding without seeing a false claim, dead action, or required excluded feature.
 
+**2026-09-12 note:** The home dashboard store-readiness card includes Payment setup and Website connection as operational steps. That is dashboard-only. Do not treat it as DR-02 completion, and do not drop those steps from the dashboard to match this older “ignore excluded payment” bullet. Store management hub setup % still excludes payments/website.
+
 #### DR-03 — Complete account access and recovery
 
 - Implement password reset request, email delivery, signed reset token, and reset form.
@@ -139,7 +154,7 @@ The product list opens a modal editor even though the direct product workspace i
 
 The portal is the commerce system. WordPress is only the customer-facing website. Do not treat Phase 9 API keys/webhooks or WooCommerce import as this ticket.
 
-**Internal execution order (updated 2026-08-20):** DR-05 contains Batches 1–8 and is **complete** for the WordPress website-connection workstream. The ten Batch 1–6 real-browser scenarios are complete (merchant confirmation; no replacement browser-test suite was added). Batch 7 is the Website go-live checklist. Batch 8 is mapped in `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`. DR-06 is in progress and is not part of DR-05.
+**Internal execution order (updated 2026-08-20):** DR-05 contains Batches 1–8 and is **complete** for the WordPress website-connection workstream. The ten Batch 1–6 real-browser scenarios are complete (merchant confirmation; no replacement browser-test suite was added). Batch 7 is the Website go-live checklist. Batch 8 is mapped in `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`. DR-06 automated acceptance is complete and is not part of DR-05.
 
 - Rebuild **Test storefront** into a guided **Website / Connect your website** workspace (WordPress-first stepper).
 - Keep `dev-test-wordpress` as the primary connect path and `dev-test-storefront` in Advanced details on the same connection key.

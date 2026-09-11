@@ -64,6 +64,25 @@ php artisan test
 
 PHPUnit reads `phpunit.xml` (SQLite in-memory, `APP_KEY`, sync queues). You do **not** need a committed `.env.testing` file; use `.env.testing.example` only if you run Artisan with `--env=testing` against a file-based SQLite DB.
 
+`phpunit.xml` blanks `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` so local OAuth keys cannot leak into tests that expect the Google button to stay hidden.
+
+## 7. Google Sign-In (optional)
+
+This is **not** Gmail SMTP (`MAIL_*`). Create a Google Cloud **Web application** OAuth client, then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`.
+
+Leave `GOOGLE_REDIRECT_URI` **empty**. The app uses `{APP_URL}/auth/google/callback`. For `php artisan serve`, set `APP_URL=http://127.0.0.1:8000` so local callback is `http://127.0.0.1:8000/auth/google/callback`.
+
+Do not put the local callback URL into a production `.env`. Live uses `APP_URL=https://ecom.resolutedigitalspk.com` with the same empty redirect var.
+
+Google Cloud Console must list **both** origins and **both** redirect URIs on that one client (no trailing slash on origins; no `//auth` on redirects):
+
+- Origins: `http://127.0.0.1:8000`, `https://ecom.resolutedigitalspk.com`
+- Redirects: `http://127.0.0.1:8000/auth/google/callback`, `https://ecom.resolutedigitalspk.com/auth/google/callback`
+
+The **Continue with Google** button stays hidden until both client id and secret are filled. After changing Google env vars, run `php artisan config:clear` (and `config:cache` on production). Never commit `.env`. If the client secret was shared, rotate it in Google Cloud.
+
+Details: `docs/current/PROJECT_STATE.md` (Google Sign-In) and `docs/operations/CPANEL_DEPLOYMENT.md`.
+
 ## Validation checklist (full)
 
 ```bash

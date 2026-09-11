@@ -37,7 +37,7 @@ php artisan serve
 
 ## Environment variables
 
-Copy **`.env.example`** to `.env` and fill values. Never commit real secrets. Payment and webhook variables are documented inline in `.env.example`.
+Copy **`.env.example`** to `.env` and fill values. Never commit real secrets. Payment, webhook, and optional Google Sign-In variables are documented inline in `.env.example`. Leave `GOOGLE_REDIRECT_URI` empty so the callback follows `APP_URL`. See **[docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)** for local vs live Google Cloud URIs.
 
 Developer storefront client env: **`dev-test-storefront/.env.example`**.
 

@@ -159,6 +159,13 @@ MAIL_PORT=587
 MAIL_USERNAME=...
 MAIL_PASSWORD=...
 MAIL_FROM_ADDRESS=noreply@your-domain.com
+
+# Google Sign-In (optional). Leave GOOGLE_REDIRECT_URI empty.
+# Deploy never copies .env — add these on the server, then config:clear / config:cache.
+# APP_URL must be this HTTPS origin so the callback is https://your-domain.com/auth/google/callback
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
 ```
 
 Generate the app key once:
@@ -167,7 +174,9 @@ Generate the app key once:
 /usr/local/bin/ea-php83 artisan key:generate
 ```
 
-Configure Stripe, FedEx, mail, and other integrations per `.env.example` comments. Follow `SECURITY_ROTATION_REQUIRED.md` for secrets handling.
+Configure Stripe, FedEx, mail, Google Sign-In, and other integrations per `.env.example` comments. Follow `SECURITY_ROTATION_REQUIRED.md` for secrets handling.
+
+Google Sign-In is hidden until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are filled on **this server** `.env`. Leave `GOOGLE_REDIRECT_URI` empty so the callback follows `APP_URL`. After editing Google vars, run `php artisan config:clear` then `php artisan config:cache`. List both local and live redirect URIs on the same Google Cloud Web client. See `docs/current/PROJECT_STATE.md` and `docs/LOCAL_SETUP.md`.
 
 ### 3. Database
 
@@ -293,6 +302,7 @@ Production ships with **pre-built** `vendor/` and `public/build/` from GitHub Ac
 | `php` not found in SSH action | Set `CPANEL_PHP_BIN` secret to full path (`ea-php83`) |
 | Migration errors | Backup DB; run `php artisan migrate:status` on server |
 | Mixed content / wrong URLs | Set `APP_URL` to exact HTTPS origin |
+| Continue with Google missing on live | Code can be deployed while production `.env` still lacks Google keys (rsync excludes `.env`). Fill `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, keep `GOOGLE_REDIRECT_URI` empty, then `config:clear` + `config:cache`. Confirm Google Cloud has `https://your-domain.com/auth/google/callback` (single slash). |
 | Queue jobs stuck | Confirm cron queue worker; `QUEUE_CONNECTION=database` and `jobs` table migrated |
 
 ---

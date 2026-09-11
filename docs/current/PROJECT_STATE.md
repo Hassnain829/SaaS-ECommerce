@@ -1,4 +1,4 @@
-# Project State — 2026-08-20
+# Project State — 2026-09-12
 
 Concise current-state snapshot for agents and developers. This is **not** a roadmap.
 
@@ -56,10 +56,12 @@ Current work priority:
 4. Password recovery, email verification, legal links, POST logout, and password toggles
 5. Full-suite recovery
 6. DR-05 WordPress connection: **complete** (Batches 1–8). Ten browser scenarios closed by merchant confirmation; go-live checklist ships on Website; Batch 8 mapping in `docs/handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`
-7. DR-06 owner/manager/staff and two-store acceptance: **complete** (automated journey in `Dr06MerchantAcceptanceTest`; DR-07 identity editing still open)
+7. DR-06 owner/manager/staff and two-store acceptance: **complete** (automated journey in `Dr06MerchantAcceptanceTest`)
 8. Actionable settings — **complete** (DR-08 in-page General Settings form)
 9. Customer identity editing — **complete** (DR-07)
 10. Real or hidden analytics/admin surfaces — **admin store entitlement live** (packages, trials, hard gate); other admin stubs remain unavailable
+11. Merchant dashboard store-readiness card — **shipped** (2026-09-12); does not close DR-02 onboarding
+12. Google Sign-In on merchant sign-in/register — **code shipped** (2026-09-12); live button still requires production `.env` keys (rsync never copies `.env`)
 
 ## Platform admin entitlement (2026-09-10)
 
@@ -79,6 +81,47 @@ Mitigations now in place:
 - Before pushing: `composer pint` then commit
 
 See `docs/operations/CPANEL_DEPLOYMENT.md`.
+
+## Merchant dashboard store readiness (2026-09-12)
+
+The home dashboard (`user_view/dashboard.blade.php`) shows a real **Store readiness** card from `MerchantDashboardPresenter::setupProgress()`. Prototype Mark complete / Undo / toast / Reset preview was **not** shipped.
+
+Checklist order:
+
+1. Store location — at least one active location
+2. Delivery setup — active zone **and** a checkout-enabled shipping method
+3. Payment setup — `PaymentProviderManager::isCheckoutReady($store)` (charge-enabled Stripe Connect in the store’s selected mode)
+4. Checkout tax — tax enabled **and** at least one active rate
+5. Website connection — `Store::websiteConnectionState() === Store::WEBSITE_CONNECTED` (active connection key **and** `developer_storefront_last_seen_at`). Waiting / not started does not count.
+
+When all five are ready the card is hidden and the greeting can show **Store operational**. Website CTA uses `developer-storefront.settings` only with `developer_api_view`; otherwise the href is null so staff are not sent to a 403.
+
+This dashboard card **includes** payments and website on purpose. Store management hub setup % still excludes those items. Do not “fix” the dashboard by dropping payments/website, and do not expand the hub unless asked.
+
+Focused coverage: `tests/Feature/MerchantDashboardWorkspaceTest.php`.
+
+## Product list selling price (2026-09-12)
+
+Catalog list / inline / bulk price editing must show what shoppers pay: **variant prices**, not only `products.base_price`. Shared helper: `App\Support\ProductListPrice`. Sync: `App\Services\Catalog\ProductPriceSyncService`. Canonical full edit remains `products.edit`.
+
+## Google Sign-In (2026-09-12)
+
+Optional merchant Google OAuth on `/signin` and `/register` via `laravel/socialite`.
+
+- Button **Continue with Google** is shown only when both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are filled. Empty credentials = hidden (truthful).
+- Leave `GOOGLE_REDIRECT_URI` **empty** so the callback is `{APP_URL}/auth/google/callback`. Do not hardcode `127.0.0.1` in an env that will be copied to production.
+- Routes: `GET /auth/google` (`auth.google.redirect`), `GET /auth/google/callback` (`auth.google.callback`). Controller always passes `redirectUrl()` from config so local vs live follow `APP_URL`.
+- New Google user → role `user`, random password, verified email via `forceFill`, onboarding `onboarding-StoreDetails-1` if they have no store. Existing email → link `google_id` and sign in. Inactive accounts and unverified Google emails are rejected. Admins land on the admin dashboard.
+- Migration: `users.google_id` nullable unique.
+- Tests: `tests/Feature/GoogleSignInTest.php` (phpunit.xml blanks Google env so local `.env` keys cannot leak into “hidden until configured” cases).
+
+**Local:** `APP_URL=http://127.0.0.1:8000` plus filled Google client id/secret. Confirmed the button is visible on local sign-in.
+
+**Live (`https://ecom.resolutedigitalspk.com`):** Google Sign-In **code** is on `main` and was deployed after CI (commit `a75015d`). The live button stays hidden until cPanel `.env` gets the same Google keys and `php artisan config:clear` / `config:cache` is run. Deploy does not copy `.env`.
+
+One Google Cloud **Web** OAuth client for both hosts. Origins (no trailing slash): `http://127.0.0.1:8000` and `https://ecom.resolutedigitalspk.com`. Redirects (single slash, never `//auth`): `http://127.0.0.1:8000/auth/google/callback` and `https://ecom.resolutedigitalspk.com/auth/google/callback`. Consent screen in Testing mode only allows listed test users.
+
+Google Sign-In is **not** Gmail SMTP (`MAIL_*`). Do not commit `.env`. After any client-secret leak, rotate the OAuth secret in Google Cloud.
 
 The merchant path is **Website → Connect your website**. WordPress is the customer-facing shop. Catalog, orders, customers, and shipping stay in this portal. Phase 9 API keys/webhooks remain out of this pass.
 
@@ -111,7 +154,7 @@ What exists now:
 
 **Stripe payment readiness follow-up (2026-08-19):** Merchant and WordPress readiness now resolve only the current store's ready Connect account. The local platform sandbox is an explicit developer-test facility and is never selected by normal checkout. Read-only inspection proved that test order `#1003` had instead been created on the platform test account with no connected-account context while the store's own Connect onboarding remained incomplete; that implicit path is now closed without deleting the historical test order.
 
-**DR-06 status (2026-08-20):** Automated merchant acceptance across the ten-item owner/manager/staff two-store journey is complete in `tests/Feature/Dr06MerchantAcceptanceTest.php` (9 passed / 83 assertions on the focused sign-off run). Customer name/email/phone editing remains DR-07. Full `php artisan test` was not run in this pass. The product is still not live-ready / public-beta ready until remaining P0 and a current full-suite green run.
+**DR-06 status (2026-08-20):** Automated merchant acceptance across the ten-item owner/manager/staff two-store journey is complete in `tests/Feature/Dr06MerchantAcceptanceTest.php` (9 passed / 83 assertions on the focused sign-off run). Customer name/email/phone editing was DR-07 and is now **complete**. Full `php artisan test` was not run in that pass. The product is still not live-ready / public-beta ready until remaining P0 and a current full-suite green run.
 
 What this pass added:
 
@@ -127,7 +170,6 @@ What this pass still does not include:
 - WordPress shipment posting or carrier controls on the Website page
 - A current full-suite green claim
 - Optional human owner/manager/staff browser walkthrough before public-beta marketing claims
-- Customer identity editing (DR-07)
 
 ## Deferred from the readiness gate
 
@@ -139,7 +181,7 @@ What this pass still does not include:
 
 Do **not** describe the overall project as live-ready / public-beta ready until:
 
-1. the readiness document's remaining P0 items (including DR-07 customer identity editing where still open) pass; and
+1. the readiness document's remaining P0 items pass; and
 2. the current full-suite gate passes with evidence.
 
 DR-05 Batches 1–8 and DR-06 automated merchant acceptance are complete. Do not claim the suite is currently green without a successful current run. Historical DR-05 amendment evidence from 2026-08-19 recorded 1,489 passed, 2 skipped, 8,096 assertions, and 0 failures, plus 65 focused tests and 415 assertions. A later historical run recorded 1,494 passed, 2 skipped, 8,151 assertions, and 0 failures. Those suites were not rerun during the 2026-08-20 Batch 7/8 or DR-06 passes. Focused Batch 7/8/DR-06 coverage was run instead. CI still requires `migrate:fresh --seed`.

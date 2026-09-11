@@ -35,4 +35,4 @@ Also useful:
 
 Do not treat `docs/archive/**` as current instructions. Prefer source code and `docs/current/PROJECT_STATE.md` on conflict.
 
-DR-05 WordPress-connection workstream is complete (Batches 1–8). Ten browser scenarios are closed by merchant confirmation. DR-06 automated merchant acceptance is complete. Current P0 continuation includes DR-07 and remaining readiness items. Phase 9 is a separate, unimplemented workstream.
+DR-05 WordPress-connection workstream is complete (Batches 1–8). Ten browser scenarios are closed by merchant confirmation. DR-06 automated merchant acceptance is complete. DR-07 and DR-08 are complete. 2026-09-12 shipped the dashboard store-readiness card, variant-backed list pricing, and optional Google Sign-In (see `current/PROJECT_STATE.md`). Current P0 continuation includes remaining truth/gating, onboarding, and full-suite recovery. Phase 9 is a separate, unimplemented workstream.

@@ -22,12 +22,12 @@ Golden rule: if the merchant is confused, the system is wrong.
 
 ---
 
-## Current priority (2026-08-20)
+## Current priority (2026-09-12)
 
 1. Merchant readiness truth/gating, product workspace, and settings corrections (`docs/handoffs/DEVELOPMENT_READINESS_MERCHANT_UX_REVIEW.md`)
-2. Onboarding / auth / legal recovery
+2. Onboarding / auth / legal recovery (Google Sign-In code shipped; live `.env` keys still required for the live button)
 3. Full-suite recovery and acceptance (do not claim green without evidence)
-4. Continue remaining readiness P0 (DR-07 customer identity, settings, gating, full-suite). DR-05 and DR-06 automated acceptance are complete.
+4. Continue remaining readiness P0 (DR-02 onboarding truth, gating, full-suite). DR-05, DR-06 automated acceptance, DR-07, and DR-08 are complete. Dashboard store-readiness card shipped 2026-09-12 (does not close DR-02).
 5. Phase 9 integration foundation (approved plan; **not complete**)
 6. Later platform phases (billing, markets, admin, observability)
 
@@ -48,7 +48,7 @@ Golden rule: if the merchant is confused, the system is wrong.
 
 ## Completed foundations (high level)
 
-Catalog/import/variants, commerce core, multi-location inventory, manual fulfillment, checkout delivery, provider-authoritative Stripe platform checkout, source-site-aware Woo catalog migration, connected WordPress presentation client, merchant Website go-live checklist, DR-06 automated merchant acceptance, Phase 5R tax/coupons/totals, Phase 7 returns/refunds/exchanges, Phase 11 notifications foundation, CLEAN-1–4 hygiene, FedEx Model A production connectivity (gated), USPS public API foundation. Payment conversion requires either a verified Stripe webhook or validated SaaS retrieval of the exact stored PaymentIntent; browser and WordPress claims are never authoritative. External order/shipment sync is retired runtime behavior; only historical order interpretation remains. DR-05 WordPress connection and DR-06 automated acceptance are signed off; remaining readiness P0 (including DR-07) and a current full-suite green run are still required before live-ready claims.
+Catalog/import/variants, commerce core, multi-location inventory, manual fulfillment, checkout delivery, provider-authoritative Stripe platform checkout, source-site-aware Woo catalog migration, connected WordPress presentation client, merchant Website go-live checklist, DR-06 automated merchant acceptance, Phase 5R tax/coupons/totals, Phase 7 returns/refunds/exchanges, Phase 11 notifications foundation, CLEAN-1–4 hygiene, FedEx Model A production connectivity (gated), USPS public API foundation. Payment conversion requires either a verified Stripe webhook or validated SaaS retrieval of the exact stored PaymentIntent; browser and WordPress claims are never authoritative. External order/shipment sync is retired runtime behavior; only historical order interpretation remains. DR-05 WordPress connection, DR-06 automated acceptance, DR-07 customer identity, and DR-08 General Settings are signed off. 2026-09-12 also shipped the merchant dashboard store-readiness card, variant-backed product-list pricing, CI/cPanel Pint deploy reliability, and optional Google Sign-In (button hidden until OAuth env is filled). Remaining readiness P0 and a current full-suite green run are still required before live-ready claims.
 
 Historical phase/completion reports live under `docs/archive/` and are **not** current instructions.
 

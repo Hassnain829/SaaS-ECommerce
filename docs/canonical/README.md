@@ -27,7 +27,7 @@ These root files, plus `docs/current/PROJECT_STATE.md`, are the **source of trut
 3. [`../handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md`](../handoffs/DR05_BATCH8_RELEASE_EVIDENCE.md) — Batch 8 acceptance mapping
 4. [`../WORDPRESS_SAAS_COMMERCE_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md`](../WORDPRESS_SAAS_COMMERCE_ARCHITECTURE_AND_IMPLEMENTATION_PLAN.md) — locked WordPress/SaaS architecture
 5. DR-06 owner/manager/staff acceptance across two stores — complete (automated)
-6. Continue remaining readiness P0 (DR-07+)
+6. Continue remaining readiness P0 (onboarding truth, gating, full-suite). DR-07 and DR-08 are complete. Dashboard store-readiness and optional Google Sign-In shipped 2026-09-12 (`docs/current/PROJECT_STATE.md`).
 
 The architecture plan above is the locked product architecture. Volatile status lives in `docs/current/PROJECT_STATE.md`.
 

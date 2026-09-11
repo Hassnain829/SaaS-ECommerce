@@ -49,6 +49,8 @@ Preserve owner / manager / staff role restrictions. Do not weaken permissions.
 
 Do not ship fake claims, demo metrics presented as real, dead links, or inactive controls in normal merchant navigation. Unsupported scope must be hidden or clearly gated — not implied as live.
 
+Google Sign-In is optional. **Continue with Google** must stay hidden until both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are filled. Leave `GOOGLE_REDIRECT_URI` empty so each environment uses `{APP_URL}/auth/google/callback`. Google OAuth is not Gmail SMTP (`MAIL_*`).
+
 ### Product editing
 
 Canonical product editing is the product workspace (`products.edit`). Product list Edit must route there. Do not treat a list-page Edit modal as the primary product edit workflow.

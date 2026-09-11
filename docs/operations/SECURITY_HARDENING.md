@@ -29,3 +29,7 @@ Limits are per store id when the developer storefront middleware has resolved th
 ## Secrets
 
 Never commit `.env` or real keys. After any leak, use `SECURITY_ROTATION_REQUIRED.md`.
+
+## Google Sign-In
+
+Optional merchant OAuth (`laravel/socialite`). The sign-in/register button is hidden until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are filled. Leave `GOOGLE_REDIRECT_URI` empty. Do not commit client secrets. If a secret was pasted into chat, screenshots, or git, rotate it in Google Cloud Console. `MAIL_*` SMTP app passwords are a different credential.
