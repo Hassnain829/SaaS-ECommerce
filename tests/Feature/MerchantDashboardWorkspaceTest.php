@@ -306,7 +306,7 @@ class MerchantDashboardWorkspaceTest extends TestCase
         $this->assertStringNotContainsString('>New</em>', $html);
         $this->assertStringContainsString('id="revenueChart"', $html);
         $this->assertStringContainsString('merchant-dashboard-chart-data', $html);
-        $this->assertStringNotContainsString("resources/js/dashboard-workspace.js", $html);
+        $this->assertStringNotContainsString('resources/js/dashboard-workspace.js', $html);
         $this->assertMatchesRegularExpression('/No sales in [A-Z][a-z]{2} \d{1,2} – [A-Z][a-z]{2} \d{1,2} to compare/', $html);
     }
 
