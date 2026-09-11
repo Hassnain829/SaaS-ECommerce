@@ -14,6 +14,7 @@ use App\Models\Store;
 use App\Models\TaxRate;
 use App\Models\TaxSetting;
 use App\Models\User;
+use App\Services\ConnectedSiteService;
 use App\Support\OrderLifecycle;
 use App\Support\ReturnLifecycle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -50,7 +51,7 @@ class MerchantDashboardWorkspaceTest extends TestCase
             ->assertDontSeeText('Northstar Goods');
     }
 
-    public function test_incomplete_setup_shows_compact_notice_not_full_checklist(): void
+    public function test_incomplete_setup_shows_readiness_card_with_real_next_step(): void
     {
         [$owner, $store] = $this->ownerStore('Incomplete Dash Store');
 
@@ -58,15 +59,64 @@ class MerchantDashboardWorkspaceTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeText('Finish setup to start selling')
-            ->assertSeeText('Configure checkout tax')
+            ->assertSeeText('Store readiness')
+            ->assertSeeText('4 steps left to start selling')
+            ->assertSeeText('Create a delivery area and enable an option customers can select.')
+            ->assertSeeText('Delivery setup')
+            ->assertSeeText('Set up delivery')
+            ->assertSeeText('Payment setup')
+            ->assertSeeText('Connect payments')
+            ->assertSeeText('Checkout tax')
+            ->assertSeeText('Configure tax')
+            ->assertSeeText('Website connection')
+            ->assertSeeText('Connect website')
+            ->assertSeeText('View full checklist')
+            ->assertSeeText('Location ready')
             ->assertDontSeeText('Store operational')
+            ->assertDontSeeText('Finish setup to start selling')
             ->assertDontSeeText('Your store is ready to operate')
+            ->assertDontSeeText('Mark as complete')
+            ->assertDontSeeText('Reset preview')
             ->getContent();
 
-        $this->assertSame(1, substr_count($html, 'Finish setup to start selling'));
+        $this->assertSame(1, substr_count($html, '4 steps left to start selling'));
+        $this->assertStringContainsString('data-setup-card', $html);
+        $this->assertStringContainsString('id="setupChecklist" data-setup-checklist hidden', $html);
+        $this->assertMatchesRegularExpression(
+            '/class="mdash-setup-list".*Store location.*Delivery setup.*Payment setup.*Checkout tax.*Website connection/s',
+            $html
+        );
+        $this->assertStringContainsString(route('settings.taxes.index', [], false), $html);
+        $this->assertStringContainsString(route('settings.locations.index', [], false), $html);
+        $this->assertStringContainsString(route('shippingAutomation', [], false), $html);
+        $this->assertStringContainsString(route('settings.payments.index', [], false), $html);
+        $this->assertStringContainsString(route('developer-storefront.settings', [], false), $html);
         $this->assertStringNotContainsString('settings-checklist', $html);
         $this->assertStringNotContainsString('VERDANT', $html);
+        $this->assertStringNotContainsString('/settings/shipping-automation', $html);
+    }
+
+    public function test_one_remaining_setup_step_uses_singular_headline(): void
+    {
+        [$owner, $store] = $this->ownerStore('Almost Ready Dash Store');
+        $this->completeTax($store);
+        $this->completeDelivery($store);
+        $this->connectReadyStripeForCheckout($store);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeText('Store readiness')
+            ->assertSeeText('One step left to start selling')
+            ->assertSeeText('Website connection')
+            ->assertSeeText('Connect website')
+            ->assertSeeText('Location ready')
+            ->assertSeeText('Tax ready')
+            ->assertSeeText('Delivery ready')
+            ->assertSeeText('Payments ready')
+            ->assertDontSeeText('4 steps left to start selling')
+            ->assertDontSeeText('Store operational');
     }
 
     public function test_completed_setup_shows_operational_status_without_checklist(): void
@@ -84,6 +134,7 @@ class MerchantDashboardWorkspaceTest extends TestCase
             ->assertSeeText('Customize dashboard')
             ->assertSeeText('Choose which operational panels are visible.')
             ->assertDontSeeText('Finish setup to start selling')
+            ->assertDontSeeText('Store readiness')
             ->assertDontSeeText('Your store is ready to operate');
     }
 
@@ -422,7 +473,7 @@ class MerchantDashboardWorkspaceTest extends TestCase
             ->assertSeeText('No returns waiting')
             ->assertSeeText('No delivery issues')
             ->assertSeeText('No items are at their low-stock alert.')
-            ->assertSeeText('Website not connected')
+            ->assertSeeText('Website connected')
             ->assertSeeText('FedEx not connected');
     }
 
@@ -527,6 +578,22 @@ class MerchantDashboardWorkspaceTest extends TestCase
 
     private function completeSetup(Store $store): void
     {
+        $this->completeTax($store);
+        $this->completeDelivery($store);
+        $this->connectReadyStripeForCheckout($store);
+        $this->completeWebsite($store);
+    }
+
+    private function completeWebsite(Store $store): void
+    {
+        app(ConnectedSiteService::class)->issuePrimaryCredential($store);
+        $store->forceFill([
+            'developer_storefront_last_seen_at' => now(),
+        ])->save();
+    }
+
+    private function completeTax(Store $store): void
+    {
         $store->locations()->where('is_active', true)->update([
             'address_line1' => '100 Main St',
             'city' => 'Austin',
@@ -555,7 +622,10 @@ class MerchantDashboardWorkspaceTest extends TestCase
             'priority' => 1,
             'is_active' => true,
         ]);
+    }
 
+    private function completeDelivery(Store $store): void
+    {
         $zone = ShippingZone::query()->create([
             'store_id' => $store->id,
             'name' => 'Domestic',

@@ -86,15 +86,97 @@
         </section>
 
         @if (! $setupComplete)
-            <section class="mdash-setup-notice" aria-labelledby="setupNoticeTitle">
-                <div>
-                    <p class="mdash-kicker">Store setup</p>
-                    <h3 id="setupNoticeTitle">Finish setup to start selling</h3>
-                    <p>{{ (int) ($setup['ready_count'] ?? 0) }} of {{ (int) ($setup['total_count'] ?? 0) }} areas are ready. Next: {{ $setup['next']['title'] ?? 'Complete remaining setup' }}.</p>
+            @php
+                $setupSteps = $setup['steps'] ?? [];
+                $setupNext = $setup['next'] ?? null;
+                $setupReady = (int) ($setup['ready_count'] ?? 0);
+                $setupTotal = (int) ($setup['total_count'] ?? count($setupSteps));
+                $setupRemaining = (int) ($setup['remaining_count'] ?? max(0, $setupTotal - $setupReady));
+                $setupPercent = (float) ($setup['progress_percent'] ?? ($setupTotal > 0 ? round(($setupReady / $setupTotal) * 100, 1) : 0));
+                $setupHeadline = $setupRemaining === 1
+                    ? 'One step left to start selling'
+                    : $setupRemaining.' steps left to start selling';
+                $canOpenSetup = ! empty($permissions['settings_view']);
+            @endphp
+            <section class="mdash-setup-card" data-setup-card aria-labelledby="setupNoticeTitle">
+                <div class="mdash-setup-summary">
+                    <div class="mdash-setup-progress" aria-label="Setup progress">
+                        <div class="mdash-setup-ring" style="--progress: {{ $setupPercent }}%">
+                            <div class="mdash-setup-ring-copy">
+                                <strong>{{ $setupReady }} of {{ $setupTotal }}</strong>
+                                <span>ready</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mdash-setup-copy">
+                        <p class="mdash-setup-eyebrow">Store readiness</p>
+                        <h2 id="setupNoticeTitle">{{ $setupHeadline }}</h2>
+                        <p>{{ $setupNext['next_description'] ?? ($setupNext['description'] ?? 'Complete remaining setup so you can start selling.') }}</p>
+                        @if ($setupReady > 0)
+                            <div class="mdash-setup-strip" aria-label="Completed setup areas">
+                                @foreach ($setupSteps as $step)
+                                    @if (! empty($step['ready']))
+                                        <span class="mdash-setup-chip is-complete">
+                                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4 4L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                            <span>{{ $step['short_title'] ?? $step['title'] }} ready</span>
+                                        </span>
+                                    @endif
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+
+                    <aside class="mdash-setup-next" aria-label="Next setup step">
+                        <span class="mdash-setup-next-label">Next step</span>
+                        <strong class="mdash-setup-next-title">{{ $setupNext['title'] ?? 'Complete remaining setup' }}</strong>
+                        @if ($canOpenSetup && ! empty($setupNext['href']))
+                            <a class="mdash-setup-primary" href="{{ $setupNext['href'] }}">
+                                <span>{{ $setupNext['cta'] ?? 'Continue setup' }}</span>
+                                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </a>
+                        @endif
+                        <button class="mdash-setup-link" type="button" data-setup-checklist-toggle aria-expanded="false" aria-controls="setupChecklist">
+                            View full checklist
+                        </button>
+                    </aside>
                 </div>
-                @if (! empty($setup['next']['href']))
-                    <a href="{{ $setup['next']['href'] }}" class="mdash-btn mdash-btn-primary">{{ $setup['next']['cta'] ?? 'Continue setup' }}</a>
-                @endif
+
+                <div class="mdash-setup-checklist" id="setupChecklist" data-setup-checklist hidden>
+                    <div class="mdash-setup-checklist-head">
+                        <div>
+                            <h3>Setup checklist</h3>
+                            <p>Complete these areas before accepting live orders.</p>
+                        </div>
+                        <button class="mdash-setup-icon-btn" type="button" data-setup-checklist-close aria-label="Close checklist">
+                            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <ol class="mdash-setup-list">
+                        @foreach ($setupSteps as $step)
+                            <li class="mdash-setup-item">
+                                <span class="mdash-setup-step-icon {{ ! empty($step['ready']) ? 'is-complete' : '' }}" aria-hidden="true">
+                                    @if (! empty($step['ready']))
+                                        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    @else
+                                        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2"/><path d="M12 8v5M12 16.5v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                                    @endif
+                                </span>
+                                <div class="mdash-setup-step-text">
+                                    <strong>{{ $step['title'] }}</strong>
+                                    <span>{{ ! empty($step['ready']) ? 'Ready' : ($step['description'] ?? '') }}</span>
+                                </div>
+                                @if ($canOpenSetup && ! empty($step['href']))
+                                    <a class="mdash-setup-secondary" href="{{ $step['href'] }}">{{ $step['cta'] ?? 'Open' }}</a>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ol>
+                </div>
             </section>
         @endif
 

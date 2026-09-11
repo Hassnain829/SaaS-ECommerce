@@ -292,6 +292,36 @@
                 writeVisible(root, { ...DEFAULT_VISIBLE });
                 applyVisibility(root, DEFAULT_VISIBLE);
                 syncCustomizeForm(root, DEFAULT_VISIBLE);
+                return;
+            }
+
+            const setupToggle = event.target.closest('[data-setup-checklist-toggle]');
+            if (setupToggle) {
+                const card = setupToggle.closest('[data-setup-card]');
+                const checklist = card?.querySelector('[data-setup-checklist]');
+                if (! checklist) {
+                    return;
+                }
+                const shouldOpen = checklist.hidden;
+                checklist.hidden = ! shouldOpen;
+                setupToggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+                setupToggle.textContent = shouldOpen ? 'Hide checklist' : 'View full checklist';
+                return;
+            }
+
+            const setupClose = event.target.closest('[data-setup-checklist-close]');
+            if (setupClose) {
+                const card = setupClose.closest('[data-setup-card]');
+                const checklist = card?.querySelector('[data-setup-checklist]');
+                const toggle = card?.querySelector('[data-setup-checklist-toggle]');
+                if (checklist) {
+                    checklist.hidden = true;
+                }
+                if (toggle) {
+                    toggle.setAttribute('aria-expanded', 'false');
+                    toggle.textContent = 'View full checklist';
+                    toggle.focus();
+                }
             }
         });
 
@@ -323,6 +353,13 @@
             if (dialog && typeof dialog.close === 'function') {
                 dialog.close();
             }
+            document.querySelectorAll('[data-setup-checklist]').forEach((el) => {
+                el.hidden = true;
+            });
+            document.querySelectorAll('[data-setup-checklist-toggle]').forEach((el) => {
+                el.setAttribute('aria-expanded', 'false');
+                el.textContent = 'View full checklist';
+            });
         });
     };
 

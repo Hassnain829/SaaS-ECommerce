@@ -89,9 +89,9 @@ final class MerchantDashboardPresenter
             ? $previousTotals['revenue'] / $previousTotals['orders']
             : 0.0;
 
-        $setup = $this->setupProgress($store);
-        $setupComplete = $setup['complete'];
         $permissions = $this->permissions();
+        $setup = $this->setupProgress($store, $permissions);
+        $setupComplete = $setup['complete'];
         $attention = $this->attention($storeId, $permissions);
         $inventoryWatch = $this->inventoryWatch($storeId, $permissions);
         $welcome = $this->welcomeCopy($now);
@@ -348,9 +348,10 @@ final class MerchantDashboardPresenter
     }
 
     /**
+     * @param  array<string, bool>  $permissions
      * @return array<string, mixed>
      */
-    private function setupProgress(Store $store): array
+    private function setupProgress(Store $store, array $permissions): array
     {
         $activeLocationsCount = $store->locations()->where('is_active', true)->count();
         $activeDeliveryAreasCount = $store->shippingZones()->where('is_active', true)->count();
@@ -363,32 +364,67 @@ final class MerchantDashboardPresenter
         $taxReady = (bool) ($taxSetting?->enabled) && $taxRatesCount > 0;
         $locationReady = $activeLocationsCount > 0;
         $deliveryReady = $activeDeliveryAreasCount > 0 && $checkoutDeliveryOptionsCount > 0;
+        $paymentReady = $this->paymentSetupReady($store);
+        $websiteReady = $store->websiteConnectionState() === Store::WEBSITE_CONNECTED;
+        $websiteHref = ! empty($permissions['developer_api_view'])
+            ? route('developer-storefront.settings')
+            : null;
 
         $steps = [
             [
                 'key' => 'location',
-                'title' => 'Set store location',
+                'title' => 'Store location',
+                'short_title' => 'Location',
+                'description' => 'Add an active ship-from location for inventory and fulfillment.',
+                'next_description' => 'Add a location so inventory and shipments have a valid origin.',
                 'ready' => $locationReady,
                 'href' => route('settings.locations.index'),
-                'cta' => $locationReady ? 'Manage locations' : 'Set location',
-            ],
-            [
-                'key' => 'tax',
-                'title' => 'Configure checkout tax',
-                'ready' => $taxReady,
-                'href' => route('settings.taxes.index'),
-                'cta' => $taxReady ? 'Review tax' : 'Set tax',
+                'cta' => $locationReady ? 'Manage locations' : 'Add location',
             ],
             [
                 'key' => 'delivery',
-                'title' => 'Prepare delivery setup',
+                'title' => 'Delivery setup',
+                'short_title' => 'Delivery',
+                'description' => 'Create a delivery area and make one checkout option available.',
+                'next_description' => 'Create a delivery area and enable an option customers can select.',
                 'ready' => $deliveryReady,
                 'href' => route('shippingAutomation'),
-                'cta' => $deliveryReady ? 'Review delivery' : 'Set delivery',
+                'cta' => $deliveryReady ? 'Review delivery' : 'Set up delivery',
+            ],
+            [
+                'key' => 'payment',
+                'title' => 'Payment setup',
+                'short_title' => 'Payments',
+                'description' => 'Connect Stripe so customers can pay at checkout.',
+                'next_description' => 'Connect Stripe so customers can pay at checkout.',
+                'ready' => $paymentReady,
+                'href' => route('settings.payments.index'),
+                'cta' => $paymentReady ? 'Review payments' : 'Connect payments',
+            ],
+            [
+                'key' => 'tax',
+                'title' => 'Checkout tax',
+                'short_title' => 'Tax',
+                'description' => 'Turn on tax calculation and add at least one active tax rate.',
+                'next_description' => 'Configure checkout tax so order totals are calculated correctly.',
+                'ready' => $taxReady,
+                'href' => route('settings.taxes.index'),
+                'cta' => $taxReady ? 'Review tax' : 'Configure tax',
+            ],
+            [
+                'key' => 'website',
+                'title' => 'Website connection',
+                'short_title' => 'Website',
+                'description' => 'Connect your website so customers can browse and check out.',
+                'next_description' => 'Connect your website so customers can browse and check out.',
+                'ready' => $websiteReady,
+                'href' => $websiteHref,
+                'cta' => $websiteReady ? 'Review website' : 'Connect website',
             ],
         ];
 
         $readyCount = collect($steps)->where('ready', true)->count();
+        $totalCount = count($steps);
         $next = collect($steps)->firstWhere('ready', false);
 
         return [
@@ -399,12 +435,21 @@ final class MerchantDashboardPresenter
                 'areas_count' => $activeDeliveryAreasCount,
                 'options_count' => $checkoutDeliveryOptionsCount,
             ],
+            'payment' => ['ready' => $paymentReady],
+            'website' => ['ready' => $websiteReady],
             'steps' => $steps,
             'ready_count' => $readyCount,
-            'total_count' => count($steps),
-            'complete' => $readyCount === count($steps),
+            'total_count' => $totalCount,
+            'remaining_count' => $totalCount - $readyCount,
+            'progress_percent' => $totalCount > 0 ? round(($readyCount / $totalCount) * 100, 1) : 0.0,
+            'complete' => $readyCount === $totalCount,
             'next' => $next,
         ];
+    }
+
+    private function paymentSetupReady(Store $store): bool
+    {
+        return app(PaymentProviderManager::class)->isCheckoutReady($store);
     }
 
     /**
