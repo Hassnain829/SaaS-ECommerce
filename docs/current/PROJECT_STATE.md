@@ -68,6 +68,18 @@ Current work priority:
 - Merchant workspace is hard-gated when a store is `expired` or `suspended`; stores without a subscription row stay open until an admin assigns entitlement.
 - SaaS Stripe subscription charging / merchant self-serve upgrade is **not** claimed.
 
+## Deploy reliability (2026-09-12)
+
+cPanel deploy runs only after **CI succeeds** on `main`. Style-only Pint failures used to skip deploy repeatedly.
+
+Mitigations now in place:
+
+- CI **applies** Laravel Pint and auto-commits fixes (`style: apply Laravel Pint`) so a missed local format cannot block deploy
+- Local `.githooks/pre-push` runs `pint --test` (enabled via `composer hooks:install` / `post-autoload-dump`)
+- Before pushing: `composer pint` then commit
+
+See `docs/operations/CPANEL_DEPLOYMENT.md`.
+
 The merchant path is **Website → Connect your website**. WordPress is the customer-facing shop. Catalog, orders, customers, and shipping stay in this portal. Phase 9 API keys/webhooks remain out of this pass.
 
 What exists now:

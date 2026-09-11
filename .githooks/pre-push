@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+# Blocks push when Laravel Pint would fail CI (which also blocks cPanel deploy).
+set -e
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+if [ ! -x vendor/bin/pint ]; then
+  exit 0
+fi
+
+echo "==> Laravel Pint (deploy is blocked if CI Pint fails)"
+if ! vendor/bin/pint --test; then
+  echo ""
+  echo "Pint failed. Fix and push again:"
+  echo "  composer pint"
+  echo "  git add -u && git commit -m \"style: apply Laravel Pint\""
+  echo "  git push"
+  exit 1
+fi

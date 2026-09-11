@@ -35,6 +35,27 @@ The live manager demo WordPress site is a **subfolder** on the same cPanel docro
 | Laravel portal | `https://ecom.resolutedigitalspk.com` |
 | WordPress demo | `https://ecom.resolutedigitalspk.com/jiggy/` |
 
+## Why a push sometimes does not go live
+
+Deploy is **not** triggered by `git push` alone. Flow:
+
+1. Push to `main` → **CI** must succeed  
+2. Only then → **Deploy to cPanel** runs  
+
+If CI fails (historically almost always Laravel Pint style), deploy is **skipped** and production stays on the last good release.
+
+**Team rule before every push:**
+
+```bash
+composer pint
+git add -u && git commit -m "style: apply Laravel Pint"   # only if Pint changed files
+git push
+```
+
+Local pre-push hook (after `composer install` / `composer hooks:install`) blocks pushes that would fail Pint.
+
+CI also auto-applies Pint and commits `style: apply Laravel Pint` so a missed local format should no longer strand production.
+
 Server path (this host): `/home/resolutedigita2/public_html/ecom.resolutedigitalspk.com/jiggy`
 
 ### What stays out of every git push

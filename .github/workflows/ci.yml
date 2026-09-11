@@ -9,6 +9,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   php-and-node:
     runs-on: ubuntu-latest
@@ -17,6 +20,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Needed so Pint auto-fixes can be pushed back to the branch.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Fail if forbidden paths are tracked
         run: |
@@ -64,11 +71,20 @@ jobs:
       - name: PHP syntax check (app and routes)
         run: find app routes bootstrap -name '*.php' -print0 | xargs -0 -n1 php -l
 
-      - name: Laravel Pint (dry run)
-        run: |
-          if [[ -x vendor/bin/pint ]]; then
-            vendor/bin/pint --test
-          fi
+      # Apply style fixes in CI so a missing local Pint run cannot block cPanel deploy.
+      # Auto-commit pushes the fix back to the branch when the token allows it.
+      - name: Laravel Pint (apply)
+        run: vendor/bin/pint
+
+      - name: Commit Pint fixes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'style: apply Laravel Pint'
+          file_pattern: '*.php'
+          disable_globbing: true
+
+      - name: Laravel Pint (verify)
+        run: vendor/bin/pint --test
 
       # TEMPORARY: PHPUnit suite is failing (54+ failures). Re-enable before treating
       # CI as a release gate again. Deploy is blocked while this job fails.
