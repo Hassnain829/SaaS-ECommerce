@@ -45,6 +45,32 @@ class DraftOrderUxContractTest extends TestCase
         $this->assertStringContainsString('Switch to manual tax?', $html);
     }
 
+    public function test_manual_order_country_uses_select_not_datalist(): void
+    {
+        [$owner, $store, $draft] = $this->editableDraftFixture();
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orders.create'))
+            ->assertOk()
+            ->assertSee('data-role="geo-country-select"', false)
+            ->assertSee('name="shipping_country"', false)
+            ->assertSee('data-country-combobox', false)
+            ->assertSee('Search country or code')
+            ->assertSeeText('Pakistan (PK)')
+            ->assertDontSee('list="draft-create-country-codes"', false)
+            ->assertDontSee('<datalist', false);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('draft-orders.show', $draft))
+            ->assertOk()
+            ->assertSee('id="draft-edit-shipping-country"', false)
+            ->assertSee('data-role="geo-country-select"', false)
+            ->assertDontSee('<datalist', false)
+            ->assertSeeText('Payment already received');
+    }
+
     public function test_automatic_mode_ignores_stale_manual_tax_input(): void
     {
         $owner = $this->merchant('ux-auto-ignore-manual@example.test');

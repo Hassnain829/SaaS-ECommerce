@@ -127,17 +127,23 @@
                         <span class="text-xs font-semibold text-[#64748B]">Postal code</span>
                         <input name="shipping_postal_code" value="{{ old('shipping_postal_code') }}" class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm">
                     </label>
-                    <label class="block md:col-span-2">
-                        <span class="text-xs font-semibold text-[#64748B]">Country code</span>
-                        <input name="shipping_country" value="{{ old('shipping_country') }}" list="draft-create-country-codes" maxlength="2" pattern="[A-Za-z]{2}" autocomplete="off" title="Enter a two-letter country code such as US, CA, GB, or AU." class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase @error('shipping_country') border-[#F87171] @enderror" placeholder="US, CA, GB, AU" data-tax-driving-input @error('shipping_country') aria-invalid="true" @enderror>
-                        <datalist id="draft-create-country-codes">
-                            @include('user_view.partials.country_code_options')
-                        </datalist>
-                        <p class="mt-1 text-xs text-[#64748B]">Use a two-letter code such as US, CA, GB, or AU.</p>
+                    <div class="md:col-span-2">
+                        @php
+                            $shippingCountrySelectClass = 'mt-1 h-11 w-full rounded-lg border bg-white px-3 text-sm '.($errors->has('shipping_country') ? 'border-[#F87171]' : 'border-[#CBD5E1]');
+                        @endphp
+                        <x-geo.country-select
+                            name="shipping_country"
+                            id="draft-create-shipping-country"
+                            :selected="old('shipping_country')"
+                            label="Country"
+                            data-tax-driving-input
+                            :select-class="$shippingCountrySelectClass"
+                        />
+                        <p class="mt-1 text-xs text-[#64748B]">Choose the destination country. This is used for tax and delivery.</p>
                         @error('shipping_country')
                             <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
                         @enderror
-                    </label>
+                    </div>
                 </div>
                 <label class="mt-4 flex items-center gap-2 text-sm text-[#475569]">
                     <input type="hidden" name="billing_same_as_shipping" value="0">
@@ -148,7 +154,7 @@
                     'billing' => [],
                     'billingSameAsShipping' => $billingSameAsShipping,
                     'isEditable' => true,
-                    'countryDatalistId' => 'draft-create-billing-country-codes',
+                    'billingCountrySelectId' => 'draft-create-billing-country',
                 ])
             </section>
 
@@ -186,7 +192,7 @@
                 <button type="submit" @disabled($variants->isEmpty()) class="w-full h-11 rounded-lg bg-brand text-white font-semibold text-sm disabled:cursor-not-allowed disabled:bg-[#94A3B8]" data-primary-save-button>
                     Save draft
                 </button>
-                <p class="text-xs text-[#64748B]">Payment collection is not available here yet. Creating the order does not charge a card.</p>
+                    <p class="text-xs text-[#64748B]">This saves a draft. After you create the order, record cash or bank payment on the order page. Creating the order does not charge a card.</p>
             </section>
         </aside>
 

@@ -203,6 +203,9 @@ Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])-
     Route::post('/orders/{order}/notes', [OrderController::class, 'storeNote'])
         ->middleware('store.permission:orders.manage')
         ->name('orders.notes.store');
+    Route::post('/orders/{order}/payments', [OrderController::class, 'recordPayment'])
+        ->middleware('store.permission:orders.manage')
+        ->name('orders.payments.record');
     Route::post('/orders/{order}/shipments', [ShipmentController::class, 'store'])
         ->middleware('store.permission:orders.manage')
         ->name('orders.shipments.store');

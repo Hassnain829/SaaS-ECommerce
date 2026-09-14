@@ -39,6 +39,8 @@
             const modeRadios = form.querySelectorAll('[data-tax-mode-radio]');
             const billingSameCheckbox = form.querySelector('[data-billing-same-checkbox]');
             const billingFields = form.querySelector('[data-draft-billing-fields]');
+            const paymentReceivedCheckbox = form.querySelector('[data-payment-received-checkbox]');
+            const paymentReceivedFields = form.querySelector('[data-payment-received-fields]');
             const convertButtons = form.querySelectorAll('[data-convert-draft-button]');
             const saveButtons = form.querySelectorAll('[data-primary-save-button]');
             let lineIndex = form.querySelectorAll('[data-draft-line]').length;
@@ -58,6 +60,18 @@
                 }
 
                 billingFields.classList.toggle('hidden', billingSameCheckbox.checked);
+            };
+
+            const syncPaymentReceivedFields = () => {
+                if (! paymentReceivedCheckbox || ! paymentReceivedFields) {
+                    return;
+                }
+
+                const received = paymentReceivedCheckbox.checked;
+                paymentReceivedFields.classList.toggle('hidden', ! received);
+                paymentReceivedFields.querySelectorAll('select, input').forEach((field) => {
+                    field.disabled = ! received;
+                });
             };
 
             const syncTaxModeUi = () => {
@@ -438,6 +452,7 @@
             });
 
             billingSameCheckbox?.addEventListener('change', syncBillingFieldsVisibility);
+            paymentReceivedCheckbox?.addEventListener('change', syncPaymentReceivedFields);
 
             form.addEventListener('submit', (event) => {
                 [...saveButtons, ...convertButtons].forEach((button) => {
@@ -450,6 +465,7 @@
 
             syncTaxModeUi();
             syncBillingFieldsVisibility();
+            syncPaymentReceivedFields();
             syncAutomaticStaleUi();
             updateTotals();
             scheduleAutomaticTaxPreview();

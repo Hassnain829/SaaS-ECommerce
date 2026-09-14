@@ -24,11 +24,20 @@
     $currency = $draftOrder->currency ?: ($selectedStore->currency ?? 'USD');
     $shipping = $draftOrder->shippingAddress();
     $isEditable = $draftOrder->status === \App\Models\DraftOrder::STATUS_DRAFT;
+    $countrySelectDisabled = ! $isEditable;
     $taxSource = $draftOrder->taxSource();
     $isCalculatedTax = $taxSource === \App\Models\DraftOrder::TAX_SOURCE_CALCULATED;
     $selectedTaxMode = old('tax_mode', $isCalculatedTax ? \App\Models\DraftOrder::TAX_SOURCE_CALCULATED : \App\Models\DraftOrder::TAX_SOURCE_MANUAL);
     $storedShippingCountry = old('shipping_country', $shipping['country'] ?? '');
     $legacyShippingCountry = $storedShippingCountry !== '' && ! preg_match('/^[A-Za-z]{2}$/', $storedShippingCountry);
+    $shippingCountrySelectClass = 'mt-1 h-11 w-full rounded-lg border bg-white px-3 text-sm';
+    if ($legacyShippingCountry) {
+        $shippingCountrySelectClass .= ' border-[#F59E0B]';
+    } elseif ($errors->has('shipping_country')) {
+        $shippingCountrySelectClass .= ' border-[#F87171]';
+    } else {
+        $shippingCountrySelectClass .= ' border-[#CBD5E1]';
+    }
     $billing = $draftOrder->billingAddress();
     $billingSameAsShipping = filter_var(
         is_array(old('billing_same_as_shipping'))
@@ -160,34 +169,21 @@
                             <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
                         @enderror
                     </label>
-                    <label class="block md:col-span-2">
-                        <span class="text-xs font-semibold text-[#64748B]">Country code</span>
-                        @if($legacyShippingCountry)
-                            <p class="mt-1 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs leading-relaxed text-[#92400E]">
-                                This draft contains a legacy country value. Replace it with a two-letter code such as US before saving or creating the order.
-                            </p>
-                        @endif
-                        <input
+                    <div class="md:col-span-2">
+                        <x-geo.country-select
                             name="shipping_country"
-                            value="{{ $storedShippingCountry }}"
-                            list="draft-shipping-country-codes"
-                            @unless($legacyShippingCountry) maxlength="2" pattern="[A-Za-z]{2}" @endunless
-                            autocomplete="off"
-                            title="Enter a two-letter country code such as US, CA, GB, or AU."
-                            class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase {{ $legacyShippingCountry ? 'border-[#F59E0B]' : '' }} {{ $errors->has('shipping_country') ? 'border-[#F87171]' : '' }}"
-                            placeholder="US, CA, GB, AU"
+                            id="draft-edit-shipping-country"
+                            :selected="$storedShippingCountry"
+                            label="Country"
+                            :disabled="$countrySelectDisabled"
                             data-tax-driving-input
-                            @readonly(! $isEditable)
-                            @error('shipping_country') aria-invalid="true" @enderror
-                        >
-                        <datalist id="draft-shipping-country-codes">
-                            @include('user_view.partials.country_code_options')
-                        </datalist>
-                        <p class="mt-1 text-xs text-[#64748B]">Use a two-letter code such as US, CA, GB, or AU.</p>
+                            :select-class="$shippingCountrySelectClass"
+                        />
+                        <p class="mt-1 text-xs text-[#64748B]">Choose the destination country. This is used for tax and delivery.</p>
                         @error('shipping_country')
                             <p class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
                         @enderror
-                    </label>
+                    </div>
                 </div>
                 <label class="mt-4 flex items-center gap-2 text-sm text-[#475569]">
                     <input type="hidden" name="billing_same_as_shipping" value="0">
@@ -198,7 +194,7 @@
                     'billing' => $billing,
                     'billingSameAsShipping' => $billingSameAsShipping,
                     'isEditable' => $isEditable,
-                    'countryDatalistId' => 'draft-billing-country-codes',
+                    'billingCountrySelectId' => 'draft-edit-billing-country',
                 ])
             </section>
 
@@ -244,6 +240,9 @@
             @endif
 
             @if($isEditable)
+                <section class="rounded-2xl border border-[#CBD5E1] bg-white p-5">
+                    @include('user_view.partials.draft_payment_received_fields')
+                </section>
                 <section class="hidden xl:flex xl:flex-col-reverse xl:gap-3 rounded-2xl border border-[#CBD5E1] bg-white p-5">
                     <button type="submit" name="_method" value="PATCH" class="w-full h-11 rounded-lg border border-[#CBD5E1] bg-white text-sm font-semibold text-[#0F172A] hover:bg-[#F8FAFC]" data-primary-save-button>
                         Save draft

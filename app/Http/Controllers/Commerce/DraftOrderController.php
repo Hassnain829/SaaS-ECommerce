@@ -10,6 +10,7 @@ use App\Models\TaxRate;
 use App\Services\Draft\DraftTaxService;
 use App\Services\DraftOrderService;
 use App\Services\ManualOrderConversionService;
+use App\Services\ManualOrderPaymentService;
 use App\Services\SecurityLogRecorder;
 use App\Support\Tax\TaxDisplayPresenter;
 use Illuminate\Http\JsonResponse;
@@ -173,10 +174,26 @@ class DraftOrderController extends Controller
         DraftOrder $draftOrder,
         DraftOrderService $draftOrderService,
         DraftTaxService $draftTaxService,
-        ManualOrderConversionService $conversionService
+        ManualOrderConversionService $conversionService,
+        ManualOrderPaymentService $paymentService,
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         $this->assertDraftBelongsToStore($draftOrder, $store->id);
+
+        $paymentReceived = $request->boolean('payment_received');
+        $paymentInput = $request->validate([
+            'payment_received' => ['sometimes', 'boolean'],
+            'payment_method' => [
+                Rule::requiredIf($paymentReceived),
+                'nullable',
+                'string',
+                Rule::in(array_keys(ManualOrderPaymentService::methods())),
+            ],
+            'payment_reference' => ['nullable', 'string', 'max:120'],
+        ], [
+            'payment_method.required' => 'Choose how this payment was collected.',
+            'payment_method.in' => 'Choose how this payment was collected.',
+        ]);
 
         $taxMode = $request->has('items')
             ? $this->resolvedTaxMode($request, $draftOrder)
@@ -204,9 +221,12 @@ class DraftOrderController extends Controller
             $draftOrderService,
             $draftTaxService,
             $conversionService,
+            $paymentService,
             $store,
             $payload,
-            $taxMode
+            $taxMode,
+            $paymentReceived,
+            $paymentInput,
         ) {
             if ($payload !== null) {
                 if ($taxMode === DraftOrder::TAX_SOURCE_CALCULATED) {
@@ -219,7 +239,18 @@ class DraftOrderController extends Controller
                 $draftOrder = $draftTaxService->calculate($draftOrder->fresh(['items', 'taxLines']), $store);
             }
 
-            return $conversionService->convert($draftOrder, $store, $request->user());
+            $order = $conversionService->convert($draftOrder, $store, $request->user());
+
+            if ($paymentReceived) {
+                $order = $paymentService->record(
+                    $order,
+                    $request->user(),
+                    (string) ($paymentInput['payment_method'] ?? ''),
+                    $paymentInput['payment_reference'] ?? null,
+                );
+            }
+
+            return $order;
         });
 
         app(SecurityLogRecorder::class)->record(
@@ -231,12 +262,15 @@ class DraftOrderController extends Controller
                 'draft_number' => $draftOrder->draft_number,
                 'order_id' => $order->id,
                 'order_number' => $order->order_number,
+                'payment_recorded' => $paymentReceived,
             ]
         );
 
         return redirect()
             ->route('orderViewDetails', $order)
-            ->with('success', 'Manual order created.');
+            ->with('success', $paymentReceived
+                ? 'Manual order created and payment recorded.'
+                : 'Manual order created.');
     }
 
     public function calculateTax(
@@ -488,18 +522,18 @@ class DraftOrderController extends Controller
         ];
 
         $payload = $request->validate($rules, [
-            'shipping_country.required' => 'Enter a shipping country code when using automatic tax.',
-            'shipping_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
-            'shipping_country.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'shipping_country.required' => 'Select a shipping country when using automatic tax.',
+            'shipping_country.size' => 'Select a country from the list.',
+            'shipping_country.regex' => 'Select a country from the list.',
             'shipping_state.required' => 'Enter the shipping state or region code that matches your tax rate (for example NY).',
             'shipping_state.not_regex' => 'Enter one state or region code only, such as NY or CA.',
             'shipping_state.regex' => 'Enter one state or region code only, such as NY or CA.',
-            'billing_country.size' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
-            'billing_country.regex' => 'Enter a valid two-letter country code such as US, CA, GB, or AU.',
+            'billing_country.size' => 'Select a billing country from the list.',
+            'billing_country.regex' => 'Select a billing country from the list.',
             'billing_name.required' => 'Enter a billing recipient name when billing differs from shipping.',
             'billing_address_line1.required' => 'Enter a billing address when billing differs from shipping.',
             'billing_city.required' => 'Enter a billing city when billing differs from shipping.',
-            'billing_country.required' => 'Enter a billing country code when billing differs from shipping.',
+            'billing_country.required' => 'Select a billing country when billing differs from shipping.',
         ]);
 
         $payload['billing_same_as_shipping'] = $billingSameAsShipping;

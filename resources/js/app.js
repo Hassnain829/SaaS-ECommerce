@@ -2,6 +2,7 @@ import './bootstrap';
 import * as Turbo from '@hotwired/turbo';
 import Alpine from 'alpinejs';
 import './dashboard-workspace.js';
+import { initCountryComboboxes, teardownCountryComboboxes } from './country-combobox.js';
 
 window.Turbo = Turbo;
 window.Alpine = Alpine;
@@ -788,6 +789,7 @@ const bootMerchantUi = (root = document) => {
     initMerchantProfileMenus();
     initStoreSwitcher();
     initUiConfirm();
+    initCountryComboboxes(root);
     disableTurboOnMultipartForms(root);
     disableTurboForProductCreateNav();
     syncMerchantSidebarActive();
@@ -869,6 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('turbo:before-cache', () => {
+    teardownCountryComboboxes(document);
     closeAllMerchantProfileMenus();
     closeStoreSwitcherMenu();
     clearMerchantTurboLoading();

@@ -2,7 +2,9 @@
     $billing = $billing ?? [];
     $billingSameAsShipping = $billingSameAsShipping ?? true;
     $isEditable = $isEditable ?? true;
-    $countryDatalistId = $countryDatalistId ?? 'draft-billing-country-codes';
+    $countrySelectDisabled = ! $isEditable;
+    $billingCountrySelectId = $billingCountrySelectId ?? 'draft-billing-country';
+    $billingCountrySelectClass = 'mt-1 h-11 w-full rounded-lg border bg-white px-3 text-sm '.($errors->has('billing_country') ? 'border-[#F87171]' : 'border-[#CBD5E1]');
 @endphp
 
 <div class="draft-billing-fields mt-4" data-draft-billing-fields>
@@ -58,28 +60,18 @@
                 <p id="billing_postal_code_error" class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
             @enderror
         </label>
-        <label class="block md:col-span-2">
-            <span class="text-xs font-semibold text-[#64748B]">Billing country code</span>
-            <input
-                id="billing_country"
+        <div class="md:col-span-2">
+            <x-geo.country-select
                 name="billing_country"
-                value="{{ old('billing_country', $billing['country'] ?? '') }}"
-                list="{{ $countryDatalistId }}"
-                maxlength="2"
-                pattern="[A-Za-z]{2}"
-                autocomplete="off"
-                title="Enter a two-letter country code such as US, CA, GB, or AU."
-                class="mt-1 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm uppercase {{ $errors->has('billing_country') ? 'border-[#F87171]' : '' }}"
-                placeholder="US, CA, GB, AU"
-                @readonly(! $isEditable)
-                @error('billing_country') aria-invalid="true" aria-describedby="billing_country_error" @enderror
-            >
-            <datalist id="{{ $countryDatalistId }}">
-                @include('user_view.partials.country_code_options')
-            </datalist>
+                :id="$billingCountrySelectId"
+                :selected="old('billing_country', $billing['country'] ?? '')"
+                label="Billing country"
+                :disabled="$countrySelectDisabled"
+                :select-class="$billingCountrySelectClass"
+            />
             @error('billing_country')
                 <p id="billing_country_error" class="mt-1 text-xs text-[#B91C1C]">{{ $message }}</p>
             @enderror
-        </label>
+        </div>
     </div>
 </div>

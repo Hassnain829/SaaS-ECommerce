@@ -535,8 +535,8 @@ class DraftTaxTest extends TestCase
             ->get(route('draft-orders.show', $draft))
             ->assertOk()
             ->assertSee('United States', false)
-            ->assertSee('This draft contains a legacy country value', false)
-            ->assertSee('Replace it with a two-letter code such as US', false);
+            ->assertSee('This record uses a legacy country value', false)
+            ->assertSee('Choose a valid country from the list', false);
     }
 
     public function test_ascii_two_letter_country_code_is_accepted(): void

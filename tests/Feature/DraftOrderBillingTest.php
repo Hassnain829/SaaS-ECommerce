@@ -97,7 +97,7 @@ class DraftOrderBillingTest extends TestCase
             $html
         );
         $this->assertStringContainsString('Enter a billing city when billing differs from shipping.', $html);
-        $this->assertStringContainsString('Enter a billing country code when billing differs from shipping.', $html);
+        $this->assertStringContainsString('Select a billing country when billing differs from shipping.', $html);
     }
 
     public function test_same_as_shipping_copies_shipping_to_billing_metadata(): void
