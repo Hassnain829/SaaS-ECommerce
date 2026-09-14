@@ -218,7 +218,11 @@
             display: flex;
             gap: 5px;
             overflow-x: auto;
+            overflow-y: hidden;
             border-bottom: 1px solid var(--line);
+            scrollbar-width: none;
+        }.order-workspace .tabs::-webkit-scrollbar {
+            display: none;
         }.order-workspace .tab {
             position: relative;
             min-height: 49px;
@@ -232,7 +236,9 @@
             color: var(--green-dark);
         }.order-workspace .tab.active::after {
             position: absolute;
-            inset: auto 9px -1px;
+            left: 9px;
+            right: 9px;
+            bottom: 0;
             height: 2px;
             background: var(--green);
             content: "";
@@ -721,7 +727,7 @@
 @media (max-width: 780px) {
     .order-workspace .page-head { display: block; }
     .order-workspace .head-actions { margin-top: 14px; }
-    .order-workspace .lifecycle { overflow-x: auto; grid-template-columns: repeat(5, 145px); padding: 0; }
+    .order-workspace .lifecycle { overflow-x: auto; overflow-y: hidden; grid-template-columns: repeat(5, 145px); padding: 0; }
     .order-workspace .overview-grid > aside,
     .order-workspace .fulfillment-facts,
     .order-workspace .summary-cards,
