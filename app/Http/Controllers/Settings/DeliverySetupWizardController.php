@@ -17,10 +17,13 @@ use App\Services\Delivery\DeliveryWizardPersistenceService;
 use App\Services\Delivery\ShippingWeightCoverageService;
 use App\Services\Delivery\StoreShippingPreferences;
 use App\Services\Tax\TaxConfigurationService;
+use App\Support\CountryCode;
 use App\Support\StorePermission;
 use App\Support\Tax\TaxCountryCatalog;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class DeliverySetupWizardController extends Controller
@@ -402,7 +405,7 @@ class DeliverySetupWizardController extends Controller
             ->with('success_title', 'Delivery setup');
     }
 
-    public function testAddress(Request $request, DeliveryAddressDiagnosticService $diagnostic, TaxConfigurationService $taxConfiguration): View
+    public function testAddress(Request $request, DeliveryAddressDiagnosticService $diagnostic, TaxConfigurationService $taxConfiguration): View|JsonResponse
     {
         $store = $this->store($request);
         abort_unless($request->user()?->hasStorePermission($store, StorePermission::SETTINGS_VIEW) ?? false, 403);
@@ -410,7 +413,7 @@ class DeliverySetupWizardController extends Controller
         $result = null;
         if ($request->isMethod('post')) {
             $validated = $request->validate([
-                'country_code' => ['required', 'string', 'max:8'],
+                'country_code' => ['required', 'string', 'max:64'],
                 'region_code' => ['nullable', 'string', 'max:32'],
                 'postal_code' => ['nullable', 'string', 'max:40'],
                 'order_subtotal' => ['nullable', 'numeric', 'min:0'],
@@ -422,6 +425,14 @@ class DeliverySetupWizardController extends Controller
                 'package_height' => ['nullable', 'numeric', 'min:0.01'],
                 'package_dimension_unit' => ['nullable', 'string', 'max:8'],
             ]);
+
+            $countryCode = CountryCode::normalize($validated['country_code']);
+            if ($countryCode === '') {
+                throw ValidationException::withMessages([
+                    'country_code' => 'Choose a valid country.',
+                ]);
+            }
+            $validated['country_code'] = $countryCode;
 
             if (! empty($validated['package_preset_id'])) {
                 $presetExists = $store->shippingPackagePresets()
@@ -446,6 +457,10 @@ class DeliverySetupWizardController extends Controller
                     'dimension_unit' => $validated['package_dimension_unit'] ?? null,
                 ],
             );
+
+            if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+                return response()->json(['result' => $result]);
+            }
         }
 
         $packagePresets = $store->shippingPackagePresets()
@@ -486,6 +501,12 @@ class DeliverySetupWizardController extends Controller
             'selectedStore' => $store,
             'countries' => TaxCountryCatalog::all(),
             'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'wizardOriginName' => $store->locations()->orderByDesc('is_default')->orderBy('name')->value('name'),
+            'wizardAreaName' => $store->shippingZones()->where('is_active', true)->orderBy('name')->value('name'),
+            'wizardOptionCount' => $store->shippingMethods()
+                ->where('is_active', true)
+                ->where('enabled_for_checkout', true)
+                ->count(),
         ], $extra);
     }
 

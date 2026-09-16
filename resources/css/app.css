@@ -6,24 +6,26 @@
 @source '../**/*.js';
 
 @theme {
-    /* Primary: Poppins (titles, brand, section headings). Secondary: Inter (body, forms, UI). */
-    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    /* Primary: Manrope (default UI). Secondary: Inter (helper/meta via font-inter). */
+    --font-sans: 'Manrope', 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
-    --font-heading: 'Poppins', 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --font-primary: 'Poppins', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-heading: 'Manrope', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-primary: 'Manrope', 'Inter', ui-sans-serif, system-ui, sans-serif;
     --font-secondary: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --font-poppins: 'Poppins', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-manrope: 'Manrope', 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-poppins: 'Manrope', 'Inter', ui-sans-serif, system-ui, sans-serif;
     --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
 
     /*
-     * One platform emphasis weight. Poppins at 700–900 reads much heavier than Inter,
-     * so every Tailwind bold utility maps to 600 (same as font-semibold).
+     * Manrope reads heavier than Inter at the same numeric weight.
+     * Body/UI stay at 400–500. Important headings use 600 so they scan clearly.
      */
     --font-weight-medium: 500;
-    --font-weight-semibold: 600;
+    --font-weight-semibold: 500;
     --font-weight-bold: 600;
     --font-weight-extrabold: 600;
     --font-weight-black: 600;
+    --font-weight-heading: 600;
 
     /* Shared title scale — page / section / card. Beats leftover text-3xl/4xl on headings. */
     --text-title: 1.25rem;
@@ -73,18 +75,33 @@
 @layer base {
     html {
         font-family: var(--font-sans);
+        font-weight: 400;
+        font-synthesis: none;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
     }
 
+    body,
+    button,
+    input,
+    select,
+    textarea {
+        font-family: inherit;
+        font-synthesis: none;
+    }
+
     h1,
     h2,
-    h3,
+    h3 {
+        font-family: var(--font-heading);
+        font-weight: 600;
+    }
+
     h4,
     h5,
     h6 {
         font-family: var(--font-heading);
-        font-weight: 600;
+        font-weight: 500;
     }
 
     b,
@@ -105,15 +122,29 @@
 @layer components {
     .merchant-shell {
         font-family: var(--font-sans);
+        font-weight: 400;
+        font-synthesis: none;
         color: var(--color-ink);
         background-color: var(--color-canvas);
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
     }
 
-    .merchant-shell :is(h1, h2, h3, h4, h5, h6),
-    .user-typography :is(h1, h2, h3, h4, h5, h6) {
+    .merchant-shell :is(h1, h2, h3),
+    .user-typography :is(h1, h2, h3) {
         font-family: var(--font-heading);
+        font-weight: 600;
+    }
+
+    .merchant-shell :is(h4, h5, h6),
+    .user-typography :is(h4, h5, h6) {
+        font-family: var(--font-heading);
+        font-weight: 500;
+    }
+
+    .merchant-topbar h1,
+    .merchant-dashboard :is(h2, h3),
+    .delivery-ops .page-heading h2 {
         font-weight: 600;
     }
 
@@ -1458,12 +1489,16 @@
 
     h1,
     h2,
-    h3,
+    h3 {
+        font-family: var(--font-heading);
+        font-weight: 600;
+    }
+
     h4,
     h5,
     h6 {
         font-family: var(--font-heading);
-        font-weight: 600;
+        font-weight: 500;
     }
 
     .user-typography {
@@ -1477,7 +1512,7 @@
         line-height: 1.6;
     }
 
-    .user-typography :where(h1, h2, h3, h4, h5, h6) {
+    .user-typography :where(h1, h2, h3) {
         font-family: var(--font-heading);
         font-weight: 600;
         color: #0f172a;
@@ -14270,11 +14305,15 @@ dialog.ui-native-dialog.trb-drawer[open] {
 }
 
 @layer utilities {
-    .merchant-shell :is(h1, h2, h3, h4, h5, h6),
-    .user-typography :is(h1, h2, h3, h4, h5, h6) {
+    .merchant-shell :is(h1, h2, h3),
+    .user-typography :is(h1, h2, h3) {
         font-family: var(--font-heading);
         font-weight: 600;
         letter-spacing: -0.02em;
+    }
+
+    .merchant-topbar h1 {
+        font-weight: 600;
     }
 
     .merchant-shell h1,

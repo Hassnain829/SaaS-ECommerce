@@ -11,6 +11,7 @@ use App\Services\Carriers\FedEx\Operations\FedExCheckoutPackageBuilder;
 use App\Services\Carriers\FedEx\Operations\FedExCheckoutRateResolver;
 use App\Services\Shipping\DeliveryOptionService;
 use App\Services\Shipping\ShippingZoneMatcher;
+use App\Support\CountryCode;
 use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Support\Carbon;
 
@@ -52,9 +53,14 @@ class DeliveryAddressDiagnosticService
         float $subtotal = 0,
         ?array $packageInput = null,
     ): array {
+        $country = CountryCode::normalize($countryCode);
+        $region = strtoupper(trim((string) $regionCode));
         $destination = [
-            'country_code' => strtoupper(trim($countryCode)),
-            'state' => strtoupper(trim((string) $regionCode)),
+            'country' => $country,
+            'country_code' => $country,
+            'state' => $region,
+            'province_code' => $region,
+            'region_code' => $region,
             'postal_code' => strtoupper(str_replace(' ', '', trim((string) $postalCode))),
         ];
 

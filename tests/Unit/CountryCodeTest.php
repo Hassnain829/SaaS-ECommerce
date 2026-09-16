@@ -10,6 +10,8 @@ class CountryCodeTest extends TestCase
     public function test_normalizes_united_states_names_and_parenthetical_codes(): void
     {
         $this->assertSame('US', CountryCode::normalize('United States'));
+        $this->assertSame('US', CountryCode::normalize('US ()'));
+        $this->assertSame('US', CountryCode::normalize('US()'));
         $this->assertSame('US', CountryCode::normalize('United States (US)'));
         $this->assertSame('US', CountryCode::normalize('USA'));
         $this->assertSame('US', CountryCode::normalize('us'));

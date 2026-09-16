@@ -16,6 +16,8 @@ class ShippingZoneMatcher
      */
     public function matchingZones(Store $store, array $address): Collection
     {
+        $address = $this->normalizedAddress($address);
+
         return $store->shippingZones()
             ->where('is_active', true)
             ->get()
@@ -64,9 +66,33 @@ class ShippingZoneMatcher
             return false;
         }
 
+        $address = $this->normalizedAddress($address);
+
         return $this->matchesCountry($zone, $address)
             && $this->matchesRegion($zone, $address)
             && $this->matchesPostalCode($zone, $address);
+    }
+
+    /**
+     * @param  array<string, mixed>  $address
+     * @return array<string, mixed>
+     */
+    private function normalizedAddress(array $address): array
+    {
+        $country = CountryCode::fromAddress($address);
+        if ($country !== '') {
+            $address['country_code'] = $country;
+            $address['country'] = $country;
+        }
+
+        if (! filled($address['state'] ?? null)) {
+            $address['state'] = $address['region_code']
+                ?? $address['province_code']
+                ?? $address['region']
+                ?? '';
+        }
+
+        return $address;
     }
 
     private function specificity(ShippingZone $zone): int

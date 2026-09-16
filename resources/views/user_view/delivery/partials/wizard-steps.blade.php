@@ -7,28 +7,52 @@
         3 => ['label' => 'Checkout shipping', 'route' => 'settings.delivery.setup.delivery-option'],
         4 => ['label' => 'Review', 'route' => 'settings.delivery.setup.review'],
     ];
+    $wizardIcons = [
+        1 => 'store',
+        2 => 'pin',
+        3 => 'cart',
+        4 => 'check',
+    ];
+    $originName = ($selectedLocation ?? null)?->name
+        ?? ($wizardOriginName ?? null);
+    $areaName = ($selectedZone ?? null)?->name
+        ?? ($wizardAreaName ?? null);
+    $optionCount = (int) ($wizardOptionCount ?? 0);
+    $optionValue = ($selectedMethod ?? null)?->name
+        ?? ($optionCount > 0
+            ? $optionCount.' checkout '.($optionCount === 1 ? 'option' : 'options')
+            : null);
+    $wizardValues = [
+        1 => $originName ?: 'Where orders ship from',
+        2 => $areaName ?: 'Choose your coverage',
+        3 => $optionValue ?: 'Fixed, free, or FedEx',
+        4 => ! empty($deliverySetup['is_ready']) ? 'Ready to finish' : 'Confirm and finish',
+    ];
+    $wizardStages = [];
+    foreach ($steps as $number => $meta) {
+        $active = $number === $step;
+        $complete = $number < $step;
+        $status = $complete ? 'ready' : ($active ? 'warning' : 'muted');
+        $wizardStages[] = [
+            'id' => 'wizard-'.$number,
+            'label' => $meta['label'],
+            'value' => $wizardValues[$number],
+            'status' => $status,
+            'statusLabel' => $complete ? 'Saved — edit' : ($active ? 'Current step' : 'Waiting'),
+            'icon' => $wizardIcons[$number],
+            'optional' => false,
+            'current' => $active,
+            'asLink' => $complete,
+            'asStatic' => ! $complete,
+            'href' => $complete ? route($meta['route']) : '',
+        ];
+    }
 @endphp
 
-<nav aria-label="Delivery setup progress" class="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
-    <ol class="grid gap-3 sm:grid-cols-4">
-        @foreach ($steps as $number => $meta)
-            @php
-                $active = $number === $step;
-                $complete = $number < $step;
-            @endphp
-            <li class="rounded-xl border px-3 py-3 {{ $active ? 'border-[#BFDBFE] bg-[#EFF6FF]' : 'border-[#E2E8F0] bg-[#F8FAFC]' }}">
-                @if ($complete)
-                    <a href="{{ route($meta['route']) }}" class="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8] rounded-lg">
-                @endif
-                <p class="text-[11px] font-bold uppercase tracking-wide {{ $active ? 'text-[#1D4ED8]' : 'text-[#94A3B8]' }}">Step {{ $number }}</p>
-                <p class="mt-1 text-sm font-semibold text-[#0F172A]">{{ $meta['label'] }}</p>
-                @if ($complete)
-                    <p class="mt-1 text-xs text-[#047857]">Saved — edit</p>
-                    </a>
-                @elseif ($active)
-                    <p class="mt-1 text-xs text-[#1D4ED8]" aria-current="step">Current step</p>
-                @endif
-            </li>
-        @endforeach
-    </ol>
+<nav aria-label="Delivery setup progress" class="delivery-ops dh-setup-progress">
+    @include('user_view.shipping.partials.delivery_route_flow', [
+        'stages' => $wizardStages,
+        'detailRegionId' => 'wizard-route-detail',
+        'showDetail' => false,
+    ])
 </nav>

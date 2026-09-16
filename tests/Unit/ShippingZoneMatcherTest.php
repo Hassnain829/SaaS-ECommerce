@@ -63,6 +63,24 @@ class ShippingZoneMatcherTest extends TestCase
         $this->assertTrue($matcher->isCountryWide($zone));
     }
 
+    public function test_country_wide_zone_matches_malformed_us_country_code(): void
+    {
+        $zone = new ShippingZone([
+            'is_active' => true,
+            'countries' => ['US'],
+            'regions' => [],
+            'postal_patterns' => [],
+        ]);
+
+        $matcher = new ShippingZoneMatcher;
+
+        $this->assertTrue($matcher->matches($zone, [
+            'country_code' => 'US ()',
+            'state' => 'OH',
+            'postal_code' => '43215',
+        ]));
+    }
+
     public function test_region_restricted_zone_rejects_other_states(): void
     {
         $zone = new ShippingZone([

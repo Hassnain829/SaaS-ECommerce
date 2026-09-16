@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Store access expired — {{ config('app.name') }}</title>
+    @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="user-typography min-h-screen bg-[#F8FAFC] text-[#0F172A] antialiased">

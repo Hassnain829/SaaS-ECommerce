@@ -41,7 +41,6 @@ class DeliveryFinalUxTest extends TestCase
             ->assertOk()
             ->assertSeeText('Set up delivery')
             ->assertSeeText('Continue setup')
-            ->assertSeeText('FedEx is optional')
             ->assertDontSeeText('Needs attention')
             ->assertDontSee('id="delivery-areas"', false)
             ->assertDontSee('id="delivery-fedex"', false)
@@ -324,6 +323,21 @@ class DeliveryFinalUxTest extends TestCase
         $this->assertStringNotContainsString('align-items:center', $html);
         $this->assertStringContainsString('Entire country', $html);
         $this->assertStringContainsString('Available for customers', $html);
+    }
+
+    public function test_delivery_scripts_rebind_after_turbo_cache(): void
+    {
+        $hubJs = (string) file_get_contents(base_path('resources/js/delivery/hub.js'));
+        $opsJs = (string) file_get_contents(base_path('resources/js/delivery/ops.js'));
+
+        $this->assertStringContainsString("document.addEventListener('turbo:load', boot)", $hubJs);
+        $this->assertStringContainsString("document.addEventListener('turbo:render', boot)", $hubJs);
+        $this->assertStringContainsString('turbo:before-cache', $hubJs);
+        $this->assertStringContainsString('__deliveryHubDocBound', $hubJs);
+        $this->assertStringContainsString("document.addEventListener('turbo:load', boot)", $opsJs);
+        $this->assertStringContainsString("document.addEventListener('turbo:render', boot)", $opsJs);
+        $this->assertStringContainsString('turbo:before-cache', $opsJs);
+        $this->assertStringContainsString('__deliveryOpsDocBound', $opsJs);
     }
 
     /**

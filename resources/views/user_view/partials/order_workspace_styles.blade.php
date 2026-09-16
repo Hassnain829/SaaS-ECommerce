@@ -20,6 +20,9 @@
     --shadow: 0 1px 2px rgba(15,23,42,.04);
     --radius: 12px;
     color: var(--text);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-synthesis: none;
 }
 .order-workspace .tab,
 .order-workspace .btn,
@@ -89,7 +92,7 @@
             border-radius: 8px;
             background: white;
             color: #263244;
-            font-weight: 700;
+            font-weight: 600;
             text-decoration: none;
         }.order-workspace .btn:hover { background: #f7f9f8; }.order-workspace .btn:disabled { cursor: not-allowed; opacity: .55; }.order-workspace .btn-primary {
             border-color: var(--green);
@@ -118,7 +121,7 @@
             padding: 4px 9px;
             border-radius: 999px;
             font-size: 12px;
-            font-weight: 750;
+            font-weight: 600;
         }.order-workspace .badge::before {
             width: 6px;
             height: 6px;
@@ -203,10 +206,10 @@
             display: block;
             color: #465266;
             font-size: 12px;
-            font-weight: 650;
+            font-weight: 500;
         }.order-workspace .life-step.current strong {
             color: var(--green-dark);
-            font-weight: 800;
+            font-weight: 600;
         }.order-workspace .life-step small {
             display: block;
             margin-top: 1px;
@@ -230,7 +233,7 @@
             border: 0;
             background: transparent;
             color: #536176;
-            font-weight: 700;
+            font-weight: 600;
             white-space: nowrap;
         }.order-workspace .tab:hover { color: var(--green-dark); }.order-workspace .tab.active {
             color: var(--green-dark);
@@ -317,7 +320,7 @@
             background: #f7c93e;
             color: #7d2900;
             font-size: 10px;
-            font-weight: 900;
+            font-weight: 600;
             text-align: center;
         }.order-workspace .product-thumb::after {
             position: absolute;
@@ -347,7 +350,7 @@
             border-top: 1px solid var(--line);
             color: var(--text);
             font-size: 16px;
-            font-weight: 800;
+            font-weight: 600;
         }.order-workspace .total-row.grand span:last-child {
             color: var(--green-dark);
         }.order-workspace .ready-strip {
@@ -438,7 +441,7 @@
             background: #dbf2e9;
             color: var(--green-dark);
             font-size: 17px;
-            font-weight: 800;
+            font-weight: 600;
         }.order-workspace .customer-row strong,
 .order-workspace .customer-row span {
             display: block;
@@ -468,12 +471,12 @@
         }.order-workspace .detail-row dt { color: var(--muted); }.order-workspace .detail-row dd {
             margin: 0;
             text-align: right;
-            font-weight: 650;
+            font-weight: 500;
         }.order-workspace .detail-row.total {
             padding-top: 10px;
             border-top: 1px solid var(--line);
             font-size: 16px;
-            font-weight: 800;
+            font-weight: 600;
         }.order-workspace .detail-row.total dd { color: var(--green-dark); }.order-workspace .card details {
             margin-top: 12px;
             border-top: 1px solid var(--line);
@@ -481,7 +484,7 @@
             padding-top: 11px;
             color: var(--green-dark);
             cursor: pointer;
-            font-weight: 700;
+            font-weight: 600;
         }.order-workspace .technical-details {
             display: grid;
             gap: 8px;
@@ -519,7 +522,7 @@
             border-radius: 7px;
             background: transparent;
             color: var(--muted);
-            font-weight: 700;
+            font-weight: 600;
         }.order-workspace .method-switch button.active,
 .order-workspace .subtabs button.active {
             background: white;
@@ -670,7 +673,7 @@
             border-radius: 9px;
             background: #effaf6;
             color: var(--green-dark);
-            font-weight: 700;
+            font-weight: 600;
             box-shadow: 0 15px 40px rgba(15,23,42,.15);
             opacity: 0;
             pointer-events: none;
@@ -684,7 +687,7 @@
     border: 1px solid var(--line);
     background: #f3f5f6;
     color: var(--muted);
-    font-weight: 700;
+    font-weight: 600;
     font-size: 11px;
 }
 .order-workspace .product-thumb::after { content: none; display: none; }
@@ -693,7 +696,7 @@
     height: 100%;
     object-fit: cover;
 }
-.order-workspace .ow-form label { display: grid; gap: 5px; color: #344054; font-size: 12px; font-weight: 700; }
+.order-workspace .ow-form label { display: grid; gap: 5px; color: #344054; font-size: 12px; font-weight: 600; }
 .order-workspace .ow-form textarea,
 .order-workspace .ow-form input,
 .order-workspace .ow-form select {

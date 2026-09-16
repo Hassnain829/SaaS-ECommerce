@@ -35,6 +35,10 @@
     <x-ui.merchant-topbar title="Delivery" lead="Ship-from, delivery areas, checkout options, and FedEx." />
 @endsection
 
+@push('styles')
+    @include('user_view.partials.delivery_workspace_styles')
+@endpush
+
 @section('content')
     <div
         class="settings-workspace-fluid settings-hub ui-page-enter"
@@ -59,5 +63,5 @@
 @endpush
 
 @push('scripts')
-    @vite(['resources/js/delivery/hub.js'])
+    @vite(['resources/js/delivery/hub.js', 'resources/js/delivery/ops.js'])
 @endpush

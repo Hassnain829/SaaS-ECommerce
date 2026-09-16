@@ -68,6 +68,40 @@ class DeliveryAddressDiagnosticServiceTest extends TestCase
         $this->assertFalse($result['package']['ready']);
     }
 
+    public function test_diagnose_matches_entire_country_us_area_for_ohio_address(): void
+    {
+        $store = $this->store();
+        $zone = ShippingZone::query()->create([
+            'store_id' => $store->id,
+            'name' => 'United States',
+            'countries' => ['US'],
+            'regions' => [],
+            'postal_patterns' => null,
+            'is_active' => true,
+            'sort_order' => 0,
+        ]);
+
+        ShippingMethod::query()->create([
+            'store_id' => $store->id,
+            'shipping_zone_id' => $zone->id,
+            'name' => 'Standard delivery',
+            'code' => 'standard',
+            'rate_type' => ShippingMethod::RATE_FLAT,
+            'flat_rate' => 10,
+            'is_active' => true,
+            'enabled_for_checkout' => true,
+            'sort_order' => 0,
+        ]);
+
+        $service = app(DeliveryAddressDiagnosticService::class);
+        $result = $service->diagnose($store, 'US ()', 'OH', '43215', 50);
+
+        $this->assertTrue($result['has_matching_area']);
+        $this->assertSame('US', $result['destination']['country_code']);
+        $available = collect($result['options'])->firstWhere('name', 'Standard delivery');
+        $this->assertSame('available', $available['status'] ?? null);
+    }
+
     public function test_diagnose_reports_missing_package_for_fedex_without_inventing_defaults(): void
     {
         $store = $this->store();

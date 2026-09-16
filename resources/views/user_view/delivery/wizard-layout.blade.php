@@ -2,6 +2,10 @@
 
 @section('title', ($manageMode ?? false) ? 'Checkout shipping — '.config('app.name') : 'Delivery setup — '.config('app.name'))
 
+@push('styles')
+    @include('user_view.partials.delivery_workspace_styles')
+@endpush
+
 @section('topbar')
     <x-ui.merchant-topbar
         :title="($manageMode ?? false) ? 'Checkout shipping' : 'Delivery setup'"
@@ -24,6 +28,7 @@
         @endif
 
         @unless ($manageMode ?? false)
+            @include('user_view.partials.delivery_workspace_icons')
             @include('user_view.delivery.partials.wizard-steps', ['step' => $step ?? 1])
         @endunless
 

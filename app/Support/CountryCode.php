@@ -14,6 +14,10 @@ final class CountryCode
             return '';
         }
 
+        if (preg_match('/^([A-Z]{2})\s*\(\s*\)\s*$/', $country, $matches) === 1) {
+            return $matches[1];
+        }
+
         if (preg_match('/\(([A-Z]{2})\)\s*$/', $country, $matches) === 1) {
             return self::normalize($matches[1]);
         }
