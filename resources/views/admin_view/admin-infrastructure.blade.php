@@ -448,7 +448,7 @@
             <a href="#" class="hover:underline">API Status</a>
             <a href="#" class="hover:underline">Security</a>
         </div>
-        <div>© 2024 Admin BaaS. All partner trademarks are property of their respective owners.</div>
+        <div>© {{ date('Y') }} {{ config('app.name') }}. All partner trademarks are property of their respective owners.</div>
     </div>
 </div>
 @endsection

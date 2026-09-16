@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Onboarding - Store Details | BaaS Dashboard</title>
+    <title>Onboarding - Store Details | {{ config('app.name') }}</title>
     @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -13,12 +13,9 @@
     <div class="w-full bg-[#F5F7F8] flex flex-col">
         <header class="flex justify-between items-center px-4 sm:px-6 lg:px-16 py-3 bg-white border-b border-[#E2E8F0] w-full">
             <div class="flex items-center gap-4">
-                <div class="w-6 h-6">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M22 2H15.3333V8.6667H8.6667V15.3333H2V22H22V2Z" fill="#0052CC"/>
-                    </svg>
-                </div>
-                <span class="text-lg font-bold text-[#0F172A]">BaaS Platform</span>
+                <a href="{{ route('dashboard') }}" class="inline-flex" aria-label="Retailo home">
+                    <x-platform.logo class="h-7" />
+                </a>
             </div>
 
             <div class="flex items-center gap-3 sm:gap-6">
@@ -249,7 +246,7 @@
         ></iframe>
     </div>
 
-    <div class="text-center text-xs text-[#94A3B8] py-4">&copy; Merchant workspace &middot; Onboarding</div>
+    <div class="text-center text-xs text-[#94A3B8] py-4">&copy; {{ config('app.name') }} &middot; Onboarding</div>
     <script>
         (() => {
             const categoryInput = document.getElementById('categoryInput');

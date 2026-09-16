@@ -84,13 +84,13 @@ class MerchantReadinessBatch1Test extends TestCase
             ->assertOk()
             ->assertDontSeeText('BaaS Core')
             ->assertDontSeeText('99.9%')
-            ->assertSeeText('Merchant workspace');
+            ->assertSeeText('Retailo');
 
         $this->get(route('register'))
             ->assertOk()
             ->assertDontSeeText('BaaS Core')
             ->assertDontSeeText('production-ready')
-            ->assertSeeText('Merchant workspace');
+            ->assertSeeText('Retailo');
     }
 
     public function test_products_list_edit_routes_to_workspace_not_modal_opener(): void

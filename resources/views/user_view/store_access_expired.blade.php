@@ -10,6 +10,9 @@
 <body class="user-typography min-h-screen bg-[#F8FAFC] text-[#0F172A] antialiased">
     <main class="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-16">
         <div class="rounded-2xl border border-[#E2E8F0] bg-white p-8 shadow-sm">
+            <a href="{{ route('signin') }}" class="mb-6 inline-flex" aria-label="Retailo home">
+                <x-platform.logo class="h-8" />
+            </a>
             <p class="text-xs font-bold uppercase tracking-[0.08em] text-[#64748B]">Store access</p>
             <h1 class="mt-2 text-2xl font-semibold tracking-tight">Access to this store has ended</h1>
             <p class="mt-3 text-sm leading-relaxed text-[#475569]">

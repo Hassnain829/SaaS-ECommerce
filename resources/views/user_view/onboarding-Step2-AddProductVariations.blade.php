@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add products — Merchant workspace</title>
+    <title>Add products — {{ config('app.name') }}</title>
     @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -21,6 +21,9 @@
 
     @unless ($showProductForm)
         <div class="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-10 sm:px-6">
+            <a href="{{ route('dashboard') }}" class="mb-8 inline-flex" aria-label="Retailo home">
+                <x-platform.logo class="h-7" />
+            </a>
             <div class="mb-10">
                 <p class="text-xs font-bold uppercase tracking-[0.08em] text-[#64748B]">Onboarding · Step 2 of 3</p>
                 <h1 class="mt-2 text-title font-semibold tracking-tight">Add your first products</h1>
@@ -61,12 +64,9 @@
         <header
             class="flex justify-between items-center px-4 sm:px-6 lg:px-16 py-3 bg-white border-b border-[#E2E8F0] w-full">
             <div class="flex items-center gap-4">
-                <div class="w-6 h-6">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M22 2H15.3333V8.6667H8.6667V15.3333H2V22H22V2Z" fill="#0052CC" />
-                    </svg>
-                </div>
-                <span class="text-lg font-bold text-[#0F172A]">{{ config('app.name') }}</span>
+                <a href="{{ route('dashboard') }}" class="inline-flex" aria-label="Retailo home">
+                    <x-platform.logo class="h-7" />
+                </a>
             </div>
 
             <div class="flex items-center gap-3 sm:gap-6">

@@ -249,7 +249,7 @@
                     </div>
                     <div>
                         <div class="text-xs font-bold uppercase text-[#434654]">Organization</div>
-                        <div class="text-xl font-bold text-[#0B1C30]">Enterprise BaaS</div>
+                        <div class="text-xl font-bold text-[#0B1C30]">{{ config('app.name') }}</div>
                     </div>
                 </div>
 

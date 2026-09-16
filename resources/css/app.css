@@ -35,11 +35,12 @@
     --text-card-title: 1rem;
     --text-card-title--line-height: 1.4;
 
-    /* Primary — deep teal (commerce trust; avoids indigo/violet AI defaults) */
-    --color-brand: #0f6e56;
-    --color-brand-hover: #0b5c48;
+    /* Retailo — deep teal with lime accent from the wordmark */
+    --color-brand: #005645;
+    --color-brand-hover: #004538;
     --color-brand-soft: #e6f4ef;
-    --color-brand-ink: #0a4335;
+    --color-brand-ink: #00382e;
+    --color-brand-accent: #c9ff5c;
 
     /* Cool neutral workspace — flat, Shopify-admin adjacent */
     --color-canvas: #f6f6f7;
@@ -151,6 +152,22 @@
     .merchant-shell :is(b, strong),
     .user-typography :is(b, strong) {
         font-weight: 600;
+    }
+
+    .retailo-logo {
+        display: block;
+        width: auto;
+        max-width: 100%;
+        object-fit: contain;
+    }
+
+    .retailo-logo--wordmark {
+        height: 1.75rem;
+    }
+
+    .retailo-logo--icon {
+        height: 2rem;
+        width: 2rem;
     }
 
     .merchant-app {

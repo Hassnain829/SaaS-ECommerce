@@ -14,20 +14,10 @@
 <div id="sidebarOverlay" class="fixed inset-0 z-40 hidden bg-stone-950/50 backdrop-blur-sm md:hidden" onclick="closeSidebar()" aria-hidden="true"></div>
 
 <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 flex h-full w-64 shrink-0 -translate-x-full flex-col border-r border-zinc-800 bg-zinc-900 text-zinc-300 shadow-2xl shadow-black/30 transition-transform duration-300 ease-out md:static md:z-auto md:translate-x-0 md:shadow-none">
-    <div class="flex items-center gap-3 border-b border-zinc-800/90 bg-zinc-950/40 p-6">
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-950/40">
-            @hasSection('sidebar_logo')
-                @yield('sidebar_logo')
-            @else
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M19 21L13 15L15 13L19 17L21 15L23 17L19 21ZM13 17L9 13L10 12L13 15L19 9L21 11L13 19L8 14L9 13L13 17ZM5 21C4.45 21 3.97917 20.8042 3.5875 20.4125C3.19583 20.0208 3 19.55 3 19V5C3 4.45 3.19583 3.97917 3.5875 3.5875C3.97917 3.19583 4.45 3 5 3H19C19.55 3 20.0208 3.19583 20.4125 3.5875C20.8042 3.97917 21 4.45 21 5V11L19 9V5H5V19H13L15 21H5Z" fill="white"/>
-                </svg>
-            @endif
-        </div>
-        <div class="min-w-0">
-            <div class="truncate font-heading text-lg font-semibold tracking-tight text-white">@yield('sidebar_brand_title', config('app.name'))</div>
-            <div class="truncate text-xs text-zinc-500">@yield('sidebar_brand_subtitle', 'Platform admin')</div>
-        </div>
+    <div class="flex items-center border-b border-zinc-800/90 bg-zinc-950/40 px-6 py-5">
+        <a href="{{ route('admin-dashboard') }}" class="block min-w-0" aria-label="Retailo platform admin">
+            <x-platform.logo variant="wordmark-on-dark" class="h-8" />
+        </a>
     </div>
 
     @php
@@ -126,6 +116,21 @@
 </aside>
 
 <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div class="flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-3 md:hidden">
+        <button
+            type="button"
+            onclick="openSidebar()"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-ink-secondary transition hover:bg-surface-muted"
+            aria-label="Open menu"
+        >
+            <svg width="18" height="12" viewBox="0 0 20 14" fill="none" aria-hidden="true">
+                <path d="M0 14V12H20V14H0ZM0 7V5H20V7H0ZM0 2V0H20V2H0Z" fill="currentColor"/>
+            </svg>
+        </button>
+        <a href="{{ route('admin-dashboard') }}" class="inline-flex min-w-0" aria-label="Retailo platform admin">
+            <x-platform.logo class="h-7" />
+        </a>
+    </div>
     @hasSection('topbar')
         @yield('topbar')
     @endif

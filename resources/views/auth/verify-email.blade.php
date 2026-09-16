@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify email — Merchant workspace</title>
+    <title>Verify email — {{ config('app.name') }}</title>
     @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="user-typography min-h-screen bg-[#F5F7F8] text-[#0F172A]">
     <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12">
         <div class="rounded-2xl border border-[#E2E8F0] bg-white p-8 shadow-sm">
+            <a href="{{ route('dashboard') }}" class="mb-6 inline-flex" aria-label="Retailo home">
+                <x-platform.logo class="h-8" />
+            </a>
             <h1 class="text-section font-semibold">Verify your email</h1>
             <p class="mt-2 text-sm text-[#64748B]">
                 We sent a verification link to <strong>{{ auth()->user()?->email }}</strong>. Open that link to confirm your address.

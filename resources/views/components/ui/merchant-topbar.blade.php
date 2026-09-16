@@ -42,6 +42,10 @@
         </svg>
     </button>
 
+    <a href="{{ route('dashboard') }}" class="shrink-0 md:hidden" aria-label="Retailo home">
+        <x-platform.logo variant="icon" class="h-8 w-8" />
+    </a>
+
     <div class="min-w-0 flex-1">
         <h1 class="truncate font-heading text-title font-semibold tracking-tight text-ink">{{ $resolvedTitle }}</h1>
         @if ($resolvedLead !== '')

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In — Merchant workspace</title>
+    <title>Sign In — {{ config('app.name') }}</title>
     @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -11,17 +11,9 @@
     <div class="flex-1 flex flex-col md:flex-row">
         <div class="w-full md:w-1/2 bg-white px-6 py-8 md:px-12 lg:px-16 xl:px-20 flex flex-col justify-center items-center">
             <div class="w-full max-w-[448px]">
-                <div class="flex items-center gap-3 mb-8 md:mb-10">
-                    <div class="bg-brand p-2.5 rounded-lg flex items-center justify-center">
-                        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M11 13L9 11L11 9L13 11L11 13V13M8.875 7.125L6.375 4.625L11 0L15.625 4.625L13.125 7.125L11 5L8.875 7.125V7.125M4.625 15.625L0 11L4.625 6.375L7.125 8.875L5 11L7.125 13.125L4.625 15.625V15.625M17.375 15.625L14.875 13.125L17 11L14.875 8.875L17.375 6.375L22 11L17.375 15.625V15.625M11 22L6.375 17.375L8.875 14.875L11 17L13.125 14.875L15.625 17.375L11 22V22" fill="white"/>
-                        </svg>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-heading text-[#0F172A] text-xl font-bold leading-5">Merchant workspace</span>
-                        <span class="text-[#94A3B8] text-[10px] font-bold uppercase tracking-[1px]">Store operations</span>
-                    </div>
-                </div>
+                <a href="{{ url('/') }}" class="mb-8 md:mb-10 inline-flex" aria-label="Retailo home">
+                    <x-platform.logo class="h-9" />
+                </a>
 
                 <div class="mb-8">
                     <h1 class="font-heading text-[#0F172A] text-title font-semibold leading-tight">Welcome back</h1>
@@ -53,7 +45,7 @@
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">
                             <label class="text-sm font-semibold text-[#334155]">Password</label>
-                            <a href="{{ route('password.request') }}" class="text-xs font-bold text-[#0052CC] hover:underline">Forgot password?</a>
+                            <a href="{{ route('password.request') }}" class="text-xs font-bold text-brand hover:underline">Forgot password?</a>
                         </div>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
@@ -75,25 +67,26 @@
 
                     <div class="flex justify-center items-center gap-1 pt-6 border-t border-[#F1F5F9]">
                         <span class="text-sm text-[#64748B]">Don't have an account?</span>
-                        <a href="{{ route('register') }}" class="text-sm font-bold text-[#0052CC] hover:underline">Sign up</a>
+                        <a href="{{ route('register') }}" class="text-sm font-bold text-brand hover:underline">Sign up</a>
                     </div>
                 </form>
             </div>
         </div>
 
         <div class="hidden md:flex w-full md:w-1/2 bg-[#F4F7FA] relative items-center justify-center p-6 md:p-10 lg:p-16 overflow-hidden">
-            <div class="absolute inset-0 opacity-40" style="background: radial-gradient(ellipse 70.71% 70.71% at 50% 50%, #0052CC 1%, rgba(0,82,204,0) 70%);"></div>
-            <div class="absolute w-[500px] h-[500px] -top-20 right-10 bg-brand/5 rounded-full blur-3xl"></div>
-            <div class="absolute w-[400px] h-[400px] -bottom-20 -left-20 bg-brand/5 rounded-full blur-3xl"></div>
+            <div class="absolute inset-0 opacity-40" style="background: radial-gradient(ellipse 70.71% 70.71% at 50% 50%, #005645 1%, rgba(0,86,69,0) 70%);"></div>
+            <div class="absolute w-[500px] h-[500px] -top-20 right-10 bg-brand-accent/20 rounded-full blur-3xl"></div>
+            <div class="absolute w-[400px] h-[400px] -bottom-20 -left-20 bg-brand/10 rounded-full blur-3xl"></div>
 
             <div class="relative z-10 max-w-[672px] flex flex-col items-center text-center gap-8">
-                <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-[#0052CC]/10 rounded-full px-4 py-2 shadow-sm">
+                <x-platform.logo variant="icon" class="h-16 w-16" />
+                <div class="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-brand/15 rounded-full px-4 py-2 shadow-sm">
                     <span class="w-2 h-2 bg-brand rounded-full"></span>
-                    <span class="text-[#0052CC] text-xs font-bold uppercase tracking-[0.3px]">Merchant operations</span>
+                    <span class="text-brand text-xs font-bold uppercase tracking-[0.3px]">Merchant operations</span>
                 </div>
 
                 <h2 class="text-title font-bold leading-tight text-[#0F172A]">
-                    Manage products, orders,<br>and delivery from one<br><span class="text-[#0052CC]">merchant workspace</span>.
+                    Manage products, orders,<br>and delivery from one<br><span class="text-brand">Retailo workspace</span>.
                 </h2>
 
                 <p class="text-[#475569] text-lg md:text-xl leading-relaxed max-w-[594px]">
@@ -104,12 +97,10 @@
             </div>
         </div>
     </div>
-        </div>
-    </div>
 
     <footer class="border-t border-gray-200 py-5 px-4 text-center text-sm text-[#94A3B8] font-inter font-medium">
         <div class="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-x-4 gap-y-1">
-            <span>&copy; Merchant workspace</span>
+            <span>&copy; {{ config('app.name') }}</span>
             <span class="hidden sm:inline">&middot;</span>
             <a href="{{ route('legal.privacy') }}" class="hover:text-[#64748B] transition">Privacy Policy</a>
             <span class="hidden sm:inline">&middot;</span>

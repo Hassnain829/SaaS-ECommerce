@@ -14,20 +14,10 @@
 <div id="sidebarOverlay" class="fixed inset-0 z-40 hidden bg-ink/40 md:hidden" onclick="closeSidebar()" aria-hidden="true"></div>
 
 <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 flex h-full min-h-0 w-[15rem] shrink-0 -translate-x-full flex-col border-r border-border bg-surface text-ink transition-transform duration-200 ease-out md:static md:z-auto md:translate-x-0" @if (request()->routeIs('products.create', 'products.edit')) data-turbo="false" @endif>
-    <div class="flex shrink-0 items-center gap-2.5 px-3.5 py-3.5">
-        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand text-white" aria-hidden="true">
-            @hasSection('sidebar_logo')
-                @yield('sidebar_logo')
-            @else
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M4 7L6 3H18L20 7V19C20 20.1 19.1 21 18 21H6C4.9 21 4 20.1 4 19V7ZM6 9V19H18V9H6ZM8 11H16V13H8V11Z" fill="currentColor"/>
-                </svg>
-            @endif
-        </div>
-        <div class="min-w-0">
-            <div class="truncate font-heading text-[15px] font-semibold leading-tight text-ink">@yield('sidebar_brand_title', config('app.name'))</div>
-            <div class="truncate text-[11px] text-ink-muted">Merchant admin</div>
-        </div>
+    <div class="flex shrink-0 items-center px-3.5 py-3.5">
+        <a href="{{ route('dashboard') }}" class="block min-w-0" aria-label="Retailo home">
+            <x-platform.logo class="h-7" />
+        </a>
     </div>
 
     @if (!empty($availableStores) && count($availableStores) > 0)

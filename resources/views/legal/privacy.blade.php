@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy — Merchant workspace</title>
+    <title>Privacy Policy — {{ config('app.name') }}</title>
     @include('partials.platform-fonts')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="user-typography min-h-screen bg-[#F5F7F8] text-[#0F172A]">
     <main class="mx-auto max-w-3xl px-4 py-12">
-        <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('register') }}" class="text-sm font-semibold text-[#0052CC] hover:underline">Back</a>
+        <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('register') }}" class="inline-flex" aria-label="Retailo home">
+            <x-platform.logo class="h-8" />
+        </a>
+        <a href="{{ url()->previous() !== url()->current() ? url()->previous() : route('register') }}" class="mt-6 inline-block text-sm font-semibold text-[#0052CC] hover:underline">Back</a>
         <h1 class="mt-4 text-title font-semibold">Privacy Policy</h1>
         <div class="mt-4 rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">
             Draft placeholder only. Legal review is incomplete — this page is not a final counsel-approved privacy notice.

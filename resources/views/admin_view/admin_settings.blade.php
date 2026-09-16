@@ -98,7 +98,7 @@
                     <div class="flex-1 space-y-4">
                         <div>
                             <label class="block text-[#434654] text-xs font-bold uppercase mb-1">Instance Name</label>
-                            <div class="bg-[#F8F9FF] shadow-[0_8px_30px_rgba(11,28,48,0.04)] rounded-lg px-4 py-3 text-[#0B1C30] font-medium">BaaS Admin Console</div>
+                            <div class="bg-[#F8F9FF] shadow-[0_8px_30px_rgba(11,28,48,0.04)] rounded-lg px-4 py-3 text-[#0B1C30] font-medium">{{ config('app.name') }} admin</div>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>

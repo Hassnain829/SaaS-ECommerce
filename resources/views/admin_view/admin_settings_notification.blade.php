@@ -71,7 +71,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-[#E7EBF4]">
                 <div>
                     <label class="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#333D50] mb-2">Sender Name</label>
-                    <input type="text" value="BaaS Admin Services" class="w-full bg-[#EFF4FF] border border-[#7A8699] rounded-xl px-4 py-2.5 text-base text-[#0B1C30]"/>
+                    <input type="text" value="{{ config('app.name') }}" class="w-full bg-[#EFF4FF] border border-[#7A8699] rounded-xl px-4 py-2.5 text-base text-[#0B1C30]"/>
                 </div>
                 <div>
                     <label class="block text-[12px] font-bold uppercase tracking-[0.12em] text-[#333D50] mb-2">Support Email</label>
