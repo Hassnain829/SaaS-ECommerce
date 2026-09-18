@@ -22,9 +22,9 @@ class MerchantTurboRebindTest extends TestCase
         $this->assertStringContainsString("document.addEventListener('turbo:before-cache'", $appJs);
         $this->assertStringContainsString("const nav = document.getElementById('merchantNav')", $appJs);
         $this->assertStringContainsString("'.js-open-create-store-modal'", $appJs);
-        $this->assertStringContainsString("[data-lc-open-add]", $appJs);
-        $this->assertStringContainsString("[data-dc-open-add]", $appJs);
-        $this->assertStringContainsString("[data-wc-open-replace-key]", $appJs);
+        $this->assertStringContainsString('[data-lc-open-add]', $appJs);
+        $this->assertStringContainsString('[data-dc-open-add]', $appJs);
+        $this->assertStringContainsString('[data-wc-open-replace-key]', $appJs);
         $this->assertStringNotContainsString('delete el.dataset.turboBound', $appJs);
         $this->assertStringNotContainsString("document.addEventListener('DOMContentLoaded'", $appJs);
     }
