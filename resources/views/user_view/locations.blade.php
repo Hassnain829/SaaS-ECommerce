@@ -584,7 +584,11 @@
     <script type="application/json" id="location-region-catalog">@json($locationRegionCatalog)</script>
     <script type="application/json" id="location-editor-payload">@json($locationEditorPayload)</script>
     <script>
-    (function () {
+    window.bootMerchantPage('locations', function () {
+        var modal = document.getElementById('locationEditorModal');
+        var form = document.getElementById('locationEditorForm');
+        return (modal && form) ? modal : null;
+    }, function (modal) {
         var regionCatalog = {};
         var payload = {};
         try {
@@ -596,9 +600,8 @@
             if (payloadEl) payload = JSON.parse(payloadEl.textContent || '{}');
         } catch (e) {}
 
-        var modal = document.getElementById('locationEditorModal');
         var form = document.getElementById('locationEditorForm');
-        if (! modal || ! form) {
+        if (! form) {
             return;
         }
 
@@ -644,16 +647,28 @@
         }
 
         function openModal() {
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            var modal = document.getElementById('locationEditorModal');
+            if (! modal) return;
+            if (typeof window.showMerchantLayer === 'function') {
+                window.showMerchantLayer(modal);
+            } else {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
             document.body.classList.add('overflow-hidden');
             var name = document.getElementById('locationName');
             if (name) name.focus();
         }
 
         function closeModal() {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
+            var modal = document.getElementById('locationEditorModal');
+            if (! modal) return;
+            if (typeof window.closeMerchantLayer === 'function') {
+                window.closeMerchantLayer(modal);
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
             document.body.classList.remove('overflow-hidden');
         }
 
@@ -719,25 +734,9 @@
             });
         }
 
-        document.querySelectorAll('[data-lc-open-add]').forEach(function (btn) {
-            btn.addEventListener('click', openAdd);
-        });
-        document.querySelectorAll('[data-lc-edit]').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                openEdit(btn.getAttribute('data-lc-edit'));
-            });
-        });
-        document.querySelectorAll('[data-lc-close-modal]').forEach(function (btn) {
-            btn.addEventListener('click', closeModal);
-        });
-        modal.addEventListener('click', function (event) {
-            if (event.target === modal) closeModal();
-        });
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape' && ! modal.classList.contains('hidden')) {
-                closeModal();
-            }
-        });
+        window.__locationsOpenAdd = openAdd;
+        window.__locationsOpenEdit = openEdit;
+        window.__locationsClose = closeModal;
 
         @if ($openLocationModal)
             @if ($locationFormMode === 'edit' && old('location_id'))
@@ -778,6 +777,17 @@
                 openModal();
             @endif
         @endif
-    })();
+    });
+    window.bindMerchantDocOnce('locations:escape', function () {
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape') return;
+            var modal = document.getElementById('locationEditorModal');
+            if (modal && ! modal.classList.contains('hidden')) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                document.body.classList.remove('overflow-hidden');
+            }
+        });
+    });
     </script>
 @endpush

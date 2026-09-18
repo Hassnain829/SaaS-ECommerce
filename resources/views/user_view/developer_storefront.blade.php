@@ -337,9 +337,9 @@
 
 @push('scripts')
     <script>
-        (function () {
-            const root = document.querySelector('[data-wc-console]');
-            if (!root) return;
+        window.bootMerchantPage('website-connect', function () {
+            return document.querySelector('[data-wc-console]');
+        }, function (root) {
 
             /* Copy buttons */
             root.querySelectorAll('[data-copy-target]').forEach((button) => {
@@ -446,45 +446,14 @@
             }
 
             if (refresh) refresh.addEventListener('click', () => loadStatus(true));
-
-            window.setInterval(() => {
-                if (document.visibilityState === 'visible') loadStatus(false);
+        });
+        window.bindMerchantDocOnce('website-connect:poll', function () {
+            window.setInterval(function () {
+                if (document.visibilityState !== 'visible') return;
+                var refresh = document.querySelector('[data-wc-console] [data-wc-refresh]');
+                if (refresh) refresh.click();
             }, 20000);
-
-            const bindKeyAlert = (modal, openers) => {
-                if (!modal) return;
-                const open = () => {
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
-                    document.body.classList.add('overflow-hidden');
-                    modal.querySelector('[data-wc-key-cancel]')?.focus();
-                };
-                const close = () => {
-                    modal.classList.add('hidden');
-                    modal.classList.remove('flex');
-                    document.body.classList.remove('overflow-hidden');
-                };
-                openers.forEach((button) => button?.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    open();
-                }));
-                modal.querySelectorAll('[data-wc-key-cancel]').forEach((button) => {
-                    button.addEventListener('click', close);
-                });
-                modal.addEventListener('click', (event) => {
-                    if (event.target === modal) close();
-                });
-            };
-
-            bindKeyAlert(
-                document.getElementById('websiteReplaceKeyModal'),
-                [...document.querySelectorAll('[data-wc-open-replace-key]')]
-            );
-            bindKeyAlert(
-                document.getElementById('websiteRemoveKeyModal'),
-                [...document.querySelectorAll('[data-wc-open-remove-key]')]
-            );
-        })();
+        });
     </script>
 @endpush
 

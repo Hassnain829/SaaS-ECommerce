@@ -59,7 +59,7 @@
 @endsection
 
 @section('content')
-    <div class="discounts-console settings-workspace-fluid">
+    <div class="discounts-console settings-workspace-fluid" data-coupons-page>
         @include('user_view.partials.flash_success')
 
         @if ($errors->any())
@@ -569,7 +569,9 @@
 @push('scripts')
     <script type="application/json" id="coupon-editor-payload">@json($couponEditorPayload)</script>
     <script>
-    (function () {
+    window.bootMerchantPage('coupons', function () {
+        return document.querySelector('[data-coupons-page]');
+    }, function () {
         var payload = {};
         try {
             var payloadEl = document.getElementById('coupon-editor-payload');
@@ -775,9 +777,20 @@
         }
 
         function revealDrawer(focusCode) {
+            var drawer = document.getElementById('discountDrawer');
+            var overlay = document.getElementById('discountDrawerOverlay');
             if (! drawer) return;
-            if (overlay) overlay.classList.add('is-open');
-            drawer.classList.add('is-open');
+            if (typeof window.showMerchantLayer === 'function') {
+                if (overlay) window.showMerchantLayer(overlay);
+                window.showMerchantLayer(drawer);
+            } else {
+                if (overlay) {
+                    overlay.classList.remove('hidden');
+                    overlay.classList.add('is-open');
+                }
+                drawer.classList.remove('hidden');
+                drawer.classList.add('is-open');
+            }
             drawer.setAttribute('aria-hidden', 'false');
             document.body.classList.add('overflow-hidden');
             if (focusCode) {
@@ -894,10 +907,17 @@
         }
 
         function closeDrawer() {
-            if (overlay) overlay.classList.remove('is-open');
-            if (drawer) {
-                drawer.classList.remove('is-open');
-                drawer.setAttribute('aria-hidden', 'true');
+            var drawer = document.getElementById('discountDrawer');
+            var overlay = document.getElementById('discountDrawerOverlay');
+            if (typeof window.closeMerchantLayer === 'function') {
+                if (overlay) window.closeMerchantLayer(overlay);
+                if (drawer) window.closeMerchantLayer(drawer);
+            } else {
+                if (overlay) overlay.classList.remove('is-open', 'hidden');
+                if (drawer) {
+                    drawer.classList.remove('is-open', 'hidden');
+                    drawer.setAttribute('aria-hidden', 'true');
+                }
             }
             document.body.classList.remove('overflow-hidden');
         }
@@ -924,13 +944,9 @@
             menu.style.top = Math.min(window.innerHeight - 150, rect.bottom + 6) + 'px';
         }
 
-        document.querySelectorAll('[data-dc-open-add]').forEach(function (btn) {
-            btn.addEventListener('click', function () { openDrawer(null); });
-        });
-        document.querySelectorAll('[data-dc-close-drawer]').forEach(function (btn) {
-            btn.addEventListener('click', closeDrawer);
-        });
-        if (overlay) overlay.addEventListener('click', closeDrawer);
+        window.__couponsOpenAdd = function () { openDrawer(null); };
+        window.__couponsOpenEdit = function (id) { openDrawer(id); };
+        window.__couponsCloseDrawer = closeDrawer;
 
         var search = document.getElementById('couponSearch');
         var statusFilter = document.getElementById('statusFilter');
@@ -978,9 +994,6 @@
 
         document.querySelectorAll('[data-copy-code]').forEach(function (btn) {
             btn.addEventListener('click', function () { copyCode(btn.getAttribute('data-copy-code')); });
-        });
-        document.querySelectorAll('[data-dc-edit]').forEach(function (btn) {
-            btn.addEventListener('click', function () { openDrawer(btn.getAttribute('data-dc-edit')); });
         });
         document.querySelectorAll('[data-dc-menu]').forEach(function (btn) {
             btn.addEventListener('click', function (event) {
@@ -1069,18 +1082,6 @@
             btn.addEventListener('click', function () { if (help) help.close(); });
         });
 
-        document.addEventListener('click', function (event) {
-            if (! event.target.closest('.dc-filter-wrap') && ! event.target.closest('#rowContextMenu')) closeMenus();
-        });
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') {
-                closeMenus();
-                if (drawer && drawer.classList.contains('is-open')) closeDrawer();
-            }
-        });
-        window.addEventListener('resize', closeMenus);
-        window.addEventListener('scroll', closeMenus, true);
-
         updateTypeUI();
         updateAppliesUI();
         renderTable();
@@ -1088,6 +1089,47 @@
         @if ($openCouponDrawer && $canManageCoupons)
             restoreDrawerFromServer();
         @endif
-    })();
+    });
+    window.bindMerchantDocOnce('coupons:chrome', function () {
+        document.addEventListener('click', function (event) {
+            if (! event.target.closest('.dc-filter-wrap') && ! event.target.closest('#rowContextMenu')) {
+                var menu = document.getElementById('rowContextMenu');
+                var advanced = document.getElementById('advancedFilterMenu');
+                var filterBtn = document.getElementById('advancedFilterButton');
+                if (menu) menu.hidden = true;
+                if (advanced) advanced.hidden = true;
+                if (filterBtn) filterBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape') return;
+            var menu = document.getElementById('rowContextMenu');
+            var advanced = document.getElementById('advancedFilterMenu');
+            var filterBtn = document.getElementById('advancedFilterButton');
+            var drawer = document.getElementById('discountDrawer');
+            var overlay = document.getElementById('discountDrawerOverlay');
+            if (menu) menu.hidden = true;
+            if (advanced) advanced.hidden = true;
+            if (filterBtn) filterBtn.setAttribute('aria-expanded', 'false');
+            if (drawer && drawer.classList.contains('is-open')) {
+                if (overlay) overlay.classList.remove('is-open');
+                drawer.classList.remove('is-open');
+                drawer.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('overflow-hidden');
+            }
+        });
+        window.addEventListener('resize', function () {
+            var menu = document.getElementById('rowContextMenu');
+            var advanced = document.getElementById('advancedFilterMenu');
+            if (menu) menu.hidden = true;
+            if (advanced) advanced.hidden = true;
+        });
+        window.addEventListener('scroll', function () {
+            var menu = document.getElementById('rowContextMenu');
+            var advanced = document.getElementById('advancedFilterMenu');
+            if (menu) menu.hidden = true;
+            if (advanced) advanced.hidden = true;
+        }, true);
+    });
     </script>
 @endpush

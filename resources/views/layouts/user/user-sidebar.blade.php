@@ -7,6 +7,7 @@
     <title>@yield('title', config('app.name').' — Dashboard')</title>
 
     @include('partials.platform-fonts')
+    @include('partials.merchant-turbo')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>

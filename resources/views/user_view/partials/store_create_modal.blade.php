@@ -296,11 +296,9 @@
 </div>
 
 <script>
-    (() => {
-        const createStoreModal = document.getElementById('createStoreModal');
-        if (!createStoreModal) {
-            return;
-        }
+    window.bootMerchantPage('create-store', function () {
+        return document.getElementById('createStoreModal');
+    }, function (createStoreModal) {
 
         const body = document.body;
         const openButtons = [...document.querySelectorAll('.js-open-create-store-modal')];
@@ -342,8 +340,16 @@
         };
 
         const openStoreModal = () => {
-            createStoreModal.classList.remove('hidden');
-            createStoreModal.classList.add('flex');
+            const modal = document.getElementById('createStoreModal');
+            if (! modal) {
+                return;
+            }
+            if (typeof window.showMerchantLayer === 'function') {
+                window.showMerchantLayer(modal);
+            } else {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
             setBodyLock(true);
         };
 
@@ -353,8 +359,13 @@
         };
 
         const closeStoreModal = () => {
-            createStoreModal.classList.add('hidden');
-            createStoreModal.classList.remove('flex');
+            const modal = document.getElementById('createStoreModal');
+            if (typeof window.closeMerchantLayer === 'function') {
+                window.closeMerchantLayer(modal);
+            } else {
+                modal?.classList.add('hidden');
+                modal?.classList.remove('flex');
+            }
             closeNestedCustomCategoryModal();
             setBodyLock(false);
         };
@@ -504,16 +515,15 @@
             closeNestedCustomCategoryModal();
         });
 
+        window.__openCreateStoreModal = openStoreModal;
+        window.__closeCreateStoreModal = closeStoreModal;
+
         [closeCreateStoreModal, dismissCreateStoreModal].forEach((button) => {
             button?.addEventListener('click', closeStoreModal);
         });
 
         [closeCustomCategoryModal, cancelCustomCategorySelection].forEach((button) => {
             button?.addEventListener('click', closeNestedCustomCategoryModal);
-        });
-
-        openButtons.forEach((button) => {
-            button.addEventListener('click', openStoreModal);
         });
 
         openCustomCategoryModal?.addEventListener('click', openNestedCustomCategoryModal);
@@ -533,5 +543,5 @@
         if (createStoreModal.dataset.autoOpen === 'true') {
             openStoreModal();
         }
-    })();
+    });
 </script>

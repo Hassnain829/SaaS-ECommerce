@@ -729,8 +729,9 @@
 window.__additionalDetailKeyErrors = @json($additionalDetailKeyErrors);
 window.__catalogAttributesForEdit = @json($catalogAttributesForEdit);
 window.__productTypeBehaviorsForEdit = @json($productTypeBehaviorsForEdit);
-(() => {
-const editModal=document.getElementById('editProductModal'); if(!editModal) return;
+window.bootMerchantPage('product-edit', function () {
+    return document.getElementById('editProductModal');
+}, function (editModal) {
 const editSurfaceIsPage=editModal.dataset.surface==='page';
 const productCreateMode={{ $productCreateMode ? 'true' : 'false' }};
 const closeEditProductButton=document.getElementById('closeEditProductModal');
@@ -901,12 +902,12 @@ document.addEventListener('click',(event)=>{const target=event.target;if(target 
 editForm?.addEventListener('submit',()=>{persistProductImageGallery();syncEditRowsFromDom();inheritStandardBasePrices();syncRowsFromSimpleStock();syncRowsFromSimpleAlert();syncRowsFromSimpleCompareAt();if(isSimpleInventoryProduct()&&editRows.length&&!(String(editRows[0].sku||'').trim())&&editSku){editRows[0]={...editRows[0],sku:editSku.value||''};}if(isSimpleInventoryProduct()){renderVariantRows({skipDomSync:true});}editRows.forEach((_,idx)=>syncVariantImageHidden(idx));editVariationTypes=sanitizeEditVariationTypes(editVariationTypes);renderVariationInputs();const bulkPriceMirror=document.getElementById('edit_create_bulk_price');const bulkStockMirror=document.getElementById('edit_create_bulk_stock');if(bulkPriceMirror){bulkPriceMirror.value=editPrice?.value||'';}if(bulkStockMirror){const stocks=editRows.map((row)=>Math.max(0,parseInt(String(row.stock??''),10)||0));bulkStockMirror.value=String(stocks.length?stocks.reduce((sum,n)=>sum+n,0):(Math.max(0,parseInt(String(editProductStock?.value??'0'),10)||0)));}});
 if(editSurfaceIsPage&&typeof window.__workspaceEditInitialPayload!=='undefined'&&window.__workspaceEditInitialPayload){openEdit(window.__workspaceEditInitialPayload);delete window.__workspaceEditInitialPayload;}
 else if(editModal.dataset.autoOpen==='true'&&!editSurfaceIsPage){const pendingId=(editProductId&&editProductId.value)||'';let restored=null;document.querySelectorAll('.js-open-edit-product-modal').forEach((btn)=>{const parsed=parseProductPayload(btn);if(parsed&&String(parsed.id)===String(pendingId)){restored=parsed;}});if(restored){restored.name=editName?.value||restored.name;restored.description=editDescription?.value||restored.description;restored.sku=editSku?.value||restored.sku;restored.base_price=editPrice?.value||restored.base_price;restored.stock_alert=editStockAlert?.value||restored.stock_alert;openEdit(restored);setAdvancedFieldsOpen(true);}else if(editForm&&pendingId){editForm.action=String(editForm.dataset.productUpdateUrlTemplate||'').replace('__PRODUCT_ID__',String(pendingId));editModal.classList.remove('hidden');editModal.classList.add('flex');document.body.classList.add('overflow-hidden');syncType();}}
-})();
+});
 </script>
 <script>
-(() => {
-    const wrap = document.getElementById('editShippingWeightWrap');
-    if (!wrap) return;
+window.bootMerchantPage('product-edit-weight', function () {
+    return document.getElementById('editShippingWeightWrap');
+}, function (wrap) {
     const unit = wrap.dataset.weightUnit || 'LB';
     const fallback = Number(wrap.dataset.fallbackWeight || 0);
     const hasFallback = wrap.dataset.hasFallback === '1' && fallback > 0;
@@ -1000,5 +1001,5 @@ else if(editModal.dataset.autoOpen==='true'&&!editSurfaceIsPage){const pendingId
     document.getElementById('edit_product_type')?.addEventListener('change', hookRefresh);
     document.getElementById('edit_custom_type_behavior')?.addEventListener('change', hookRefresh);
     hookRefresh();
-})();
+});
 </script>

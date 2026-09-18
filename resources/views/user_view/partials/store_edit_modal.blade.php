@@ -241,11 +241,9 @@
 @endunless
 
 <script>
-    (() => {
-        const editModal = document.getElementById('editStoreModal');
-        if (!editModal) {
-            return;
-        }
+    window.bootMerchantPage('edit-store', function () {
+        return document.getElementById('editStoreModal');
+    }, function (editModal) {
 
         const closeEditButtons = [document.getElementById('closeEditStoreModal'), document.getElementById('dismissEditStoreModal')];
         const openDeleteWarning = document.getElementById('openDeleteStoreWarning');
@@ -402,16 +400,27 @@
                 editStoreLogoInput.value = '';
             }
 
-            editModal.classList.remove('hidden');
-            editModal.classList.add('flex');
+            const modal = document.getElementById('editStoreModal');
+            if (typeof window.showMerchantLayer === 'function') {
+                window.showMerchantLayer(modal);
+            } else {
+                modal?.classList.remove('hidden');
+                modal?.classList.add('flex');
+            }
             setBodyLock(true);
         };
 
         const closeEditModal = () => {
-            editModal.classList.add('hidden');
-            editModal.classList.remove('flex');
-            deleteWarningModal?.classList.add('hidden');
-            deleteWarningModal?.classList.remove('flex');
+            const modal = document.getElementById('editStoreModal');
+            if (typeof window.closeMerchantLayer === 'function') {
+                window.closeMerchantLayer(modal);
+                window.closeMerchantLayer(deleteWarningModal);
+            } else {
+                modal?.classList.add('hidden');
+                modal?.classList.remove('flex');
+                deleteWarningModal?.classList.add('hidden');
+                deleteWarningModal?.classList.remove('flex');
+            }
             setBodyLock(false);
         };
 
@@ -421,15 +430,17 @@
             });
         });
 
-        editButtons.forEach((button) => {
-            button.addEventListener('click', () => {
-                const store = JSON.parse(button.dataset.store);
+        window.__openEditStoreModal = (button) => {
+            try {
+                const store = JSON.parse(button.dataset.store || '{}');
                 openEditModal(store);
                 if (button.dataset.closeStore === '1' && store.allow_delete !== false) {
                     openDeleteWarning?.click();
                 }
-            });
-        });
+            } catch (e) {
+                // Ignore malformed store payloads on the trigger.
+            }
+        };
 
         closeEditButtons.forEach((button) => {
             button?.addEventListener('click', closeEditModal);
@@ -472,5 +483,5 @@
                 openEditModal(fallbackStore);
             }
         @endif
-    })();
+    });
 </script>

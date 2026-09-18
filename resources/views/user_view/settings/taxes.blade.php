@@ -554,7 +554,9 @@
 @push('scripts')
     <script type="application/json" id="tax-region-catalog">@json($regionCatalog ?? [])</script>
     <script>
-    (() => {
+    window.bootMerchantPage('taxes', function () {
+        return document.querySelector('[data-trb-root]') || document.getElementById('tax-region-catalog');
+    }, function () {
         const regionCatalog = JSON.parse(document.getElementById('tax-region-catalog')?.textContent || '{}');
         const root = document.querySelector('[data-trb-root]');
 
@@ -990,14 +992,27 @@
         });
 
         searchInput?.addEventListener('input', filterSearch);
-        document.addEventListener('pointerdown', (event) => {
-            if (popover && !popover.hidden && !popover.contains(event.target) && !menuReturn?.contains(event.target)) closeMenu(false);
+    });
+    window.bindMerchantDocOnce('taxes:chrome', function () {
+        document.addEventListener('pointerdown', function (event) {
+            var popover = document.getElementById('trb-popover');
+            if (! popover || popover.hidden) return;
+            if (popover.contains(event.target) || event.target.closest('[data-trb-page-menu], [data-trb-rate-menu]')) return;
+            popover.hidden = true;
         });
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') closeMenu();
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape') return;
+            var popover = document.getElementById('trb-popover');
+            if (popover) popover.hidden = true;
         });
-        window.addEventListener('resize', () => closeMenu(false));
-        window.addEventListener('scroll', () => { if (popover && !popover.hidden) closeMenu(false); }, { passive: true });
-    })();
+        window.addEventListener('resize', function () {
+            var popover = document.getElementById('trb-popover');
+            if (popover) popover.hidden = true;
+        });
+        window.addEventListener('scroll', function () {
+            var popover = document.getElementById('trb-popover');
+            if (popover && ! popover.hidden) popover.hidden = true;
+        }, { passive: true });
+    });
     </script>
 @endpush

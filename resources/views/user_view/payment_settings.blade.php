@@ -352,9 +352,9 @@
 
 @push('scripts')
     <script>
-    (function () {
-        var root = document.querySelector('[data-pc-root]');
-        if (! root) return;
+    window.bootMerchantPage('payments', function () {
+        return document.querySelector('[data-pc-root]');
+    }, function (root) {
 
         var state = {
             active: root.getAttribute('data-pc-active') || 'test',
@@ -579,14 +579,27 @@
             });
         }
 
+    });
+    window.bindMerchantDocOnce('payments:chrome', function () {
         document.addEventListener('click', function (event) {
-            if (! event.target.closest('#pcAccountMenu') && ! event.target.closest('[data-pc-more]')) closeMenu();
+            if (! event.target.closest('#pcAccountMenu') && ! event.target.closest('[data-pc-more]')) {
+                var menu = document.getElementById('pcAccountMenu');
+                if (menu) menu.hidden = true;
+            }
         });
         document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') closeMenu();
+            if (event.key !== 'Escape') return;
+            var menu = document.getElementById('pcAccountMenu');
+            if (menu) menu.hidden = true;
         });
-        window.addEventListener('resize', closeMenu);
-        window.addEventListener('scroll', closeMenu, true);
-    })();
+        window.addEventListener('resize', function () {
+            var menu = document.getElementById('pcAccountMenu');
+            if (menu) menu.hidden = true;
+        });
+        window.addEventListener('scroll', function () {
+            var menu = document.getElementById('pcAccountMenu');
+            if (menu) menu.hidden = true;
+        }, true);
+    });
     </script>
 @endpush

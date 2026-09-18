@@ -7,6 +7,7 @@
     <title>@yield('title', config('app.name').' — Admin')</title>
 
     @include('partials.platform-fonts')
+    @include('partials.merchant-turbo')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
@@ -226,19 +227,21 @@
       }
     });
 
-    document.addEventListener('DOMContentLoaded', function () {
+    window.bootMerchantPage('admin-shell', function () {
+      return document.getElementById('adminNav');
+    }, function () {
       initTopbarProfileMenu("{{ route('admin-settings') }}", "{{ route('logout') }}");
-
-      var adminNav = document.getElementById('adminNav');
-      if (adminNav) {
-        adminNav.addEventListener('click', function (e) {
-          var link = e.target.closest('a[href]');
-          if (!link) return;
-          if (window.matchMedia('(max-width: 767px)').matches) {
-            closeSidebar();
-          }
-        });
-      }
+    });
+    window.bindMerchantDocOnce('admin-nav', function () {
+      document.addEventListener('click', function (e) {
+        var adminNav = document.getElementById('adminNav');
+        if (!adminNav || !adminNav.contains(e.target)) return;
+        var link = e.target.closest('a[href]');
+        if (!link) return;
+        if (window.matchMedia('(max-width: 767px)').matches) {
+          closeSidebar();
+        }
+      });
     });
 </script>
 </body>

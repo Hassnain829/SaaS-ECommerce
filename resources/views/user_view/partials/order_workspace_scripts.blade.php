@@ -1,7 +1,7 @@
 <script>
-(() => {
-    const root = document.querySelector('[data-order-workspace]');
-    if (!root) return;
+window.bootMerchantPage('order-workspace', function () {
+    return document.querySelector('[data-order-workspace]');
+}, function (root) {
 
     const $ = (selector, el = root) => el.querySelector(selector);
     const $$ = (selector, el = root) => [...el.querySelectorAll(selector)];
@@ -133,7 +133,7 @@
         moreButton.setAttribute('aria-expanded', String(!moreMenu.hidden));
     });
 
-    document.addEventListener('click', (event) => {
+    window.__orderWorkspaceOnClick = (event) => {
         if (moreMenu && !event.target.closest('.head-actions')) {
             moreMenu.hidden = true;
             moreButton?.setAttribute('aria-expanded', 'false');
@@ -220,5 +220,12 @@
     }
 
     filterActivity();
-})();
+});
+window.bindMerchantDocOnce('order-workspace:click', function () {
+    document.addEventListener('click', function (event) {
+        if (typeof window.__orderWorkspaceOnClick === 'function') {
+            window.__orderWorkspaceOnClick(event);
+        }
+    });
+});
 </script>

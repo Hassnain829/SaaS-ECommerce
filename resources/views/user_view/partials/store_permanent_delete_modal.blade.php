@@ -49,7 +49,9 @@
 
 @push('scripts')
 <script>
-(() => {
+window.bootMerchantPage('permanent-delete-store', function () {
+    return document.getElementById('permanentDeleteStoreModal');
+}, function () {
     const modal = document.getElementById('permanentDeleteStoreModal');
     const form = document.getElementById('permanentDeleteStoreForm');
     const title = document.getElementById('permanentDeleteStoreTitle');
@@ -102,6 +104,6 @@
     modal?.addEventListener('click', (event) => {
         if (event.target === modal) closeModal();
     });
-})();
+});
 </script>
 @endpush

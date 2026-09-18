@@ -353,14 +353,15 @@
 
 @push('scripts')
 <script>
-(() => {
-    const card = document.getElementById('notification-prefs-card');
+window.bootMerchantPage('notifications', function () {
+    return document.getElementById('notification-prefs-card');
+}, function (card) {
     const editBtn = document.getElementById('notification-prefs-edit');
     const form = document.getElementById('notification-settings-form');
     const submitBtn = document.getElementById('notification-prefs-submit');
     if (!card || !editBtn || !form || !submitBtn) return;
 
-    editBtn.addEventListener('click', () => {
+    const unlock = () => {
         card.setAttribute('data-locked', '0');
         editBtn.style.display = 'none';
 
@@ -371,7 +372,9 @@
         submitBtn.disabled = false;
         submitBtn.className = 'flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition bg-brand hover:bg-brand-hover active:scale-[0.98]';
         submitBtn.innerHTML = 'Save Changes';
-    });
+    };
+
+    window.__notificationsUnlock = unlock;
 
     // Disabled fields are omitted from submit — re-enable named checkboxes right before POST.
     form.addEventListener('submit', () => {
@@ -379,7 +382,7 @@
             input.disabled = false;
         });
     });
-})();
+});
 </script>
 @endpush
 @endsection

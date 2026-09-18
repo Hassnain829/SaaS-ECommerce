@@ -1,5 +1,7 @@
 <script>
-    (() => {
+    window.bootMerchantPage('draft-order', function () {
+        return document.querySelector('[data-draft-order-form]');
+    }, function () {
         const parseMoney = (value) => {
             const parsed = Number.parseFloat(value);
             return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -482,5 +484,5 @@
             details.addEventListener('toggle', syncLabel);
             syncLabel();
         });
-    })();
+    });
 </script>

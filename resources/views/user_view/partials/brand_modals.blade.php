@@ -291,7 +291,11 @@
 </div>
 
 <script>
-(() => {
+window.bootMerchantPage('brand-modals', function () {
+    const hubModal = document.getElementById('brandHubModal');
+    const editModal = document.getElementById('brandEditModal');
+    return (hubModal && editModal) ? hubModal : null;
+}, function () {
     const hubModal = document.getElementById('brandHubModal');
     const editModal = document.getElementById('brandEditModal');
     const deleteModal = document.getElementById('brandDeleteWarningModal');
@@ -470,6 +474,6 @@
     @if ($reopenEdit)
     syncBodyLock();
     @endif
-})();
+});
 </script>
 @endif

@@ -1083,6 +1083,10 @@
         transition: transform 0.3s ease;
     }
 
+    .ui-drawer-panel.translate-x-full {
+        pointer-events: none;
+    }
+
     .ui-drawer-panel--lg {
         max-width: 42rem;
     }

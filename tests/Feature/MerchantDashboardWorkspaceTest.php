@@ -324,6 +324,7 @@ class MerchantDashboardWorkspaceTest extends TestCase
         $this->assertStringNotContainsString("getElementById('revenueChart')", $dashboardJs);
         $this->assertStringContainsString("document.addEventListener('turbo:load', boot)", $dashboardJs);
         $this->assertStringContainsString("document.addEventListener('turbo:render', boot)", $dashboardJs);
+        $this->assertStringContainsString("import './team-workspace.js'", $appJs);
     }
 
     public function test_attention_counts_use_real_store_records(): void

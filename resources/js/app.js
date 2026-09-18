@@ -2,6 +2,7 @@ import './bootstrap';
 import * as Turbo from '@hotwired/turbo';
 import Alpine from 'alpinejs';
 import './dashboard-workspace.js';
+import './team-workspace.js';
 import { initCountryComboboxes, teardownCountryComboboxes } from './country-combobox.js';
 
 window.Turbo = Turbo;
@@ -293,21 +294,124 @@ window.MerchantUi.confirm = (options = {}) => confirmWithMerchantModal(options);
  * scroll. Portaling every fixed merchant layer to <body> keeps it centered in
  * the viewport on every page, including nested product and catalog dialogs.
  */
-const portalMerchantLayers = () => {
-    const selector = [
-        '.ui-modal-shell',
-        '.ui-modal-overlay',
-        '.ui-drawer-panel',
-        '.shipping-drawer-modal',
-    ].join(',');
+const MERCHANT_LAYER_SELECTOR = [
+    '.ui-modal-shell',
+    '.ui-modal-overlay',
+    '.ui-drawer-panel',
+    '.shipping-drawer-modal',
+    '.shipping-drawer',
+    '.discounts-console-drawer',
+    '.discounts-console-drawer-overlay',
+].join(',');
 
-    document.querySelectorAll(selector).forEach((layer) => {
+const portalMerchantLayers = () => {
+    const keepers = new Map();
+
+    document.querySelectorAll(MERCHANT_LAYER_SELECTOR).forEach((layer) => {
+        if (! layer.id) {
+            return;
+        }
+        const prev = keepers.get(layer.id);
+        if (! prev) {
+            keepers.set(layer.id, layer);
+            return;
+        }
+        const incoming = layer.parentElement !== document.body;
+        const prevOnBody = prev.parentElement === document.body;
+        if (incoming && prevOnBody) {
+            prev.remove();
+            keepers.set(layer.id, layer);
+            return;
+        }
+        layer.remove();
+    });
+
+    document.querySelectorAll(MERCHANT_LAYER_SELECTOR).forEach((layer) => {
         if (layer.parentElement !== document.body) {
             document.body.appendChild(layer);
         }
         layer.dataset.uiPortalReady = 'true';
     });
 };
+
+const showMerchantLayer = (el) => {
+    if (! el) {
+        return;
+    }
+    if (el.classList.contains('ui-drawer-panel')) {
+        el.classList.remove('hidden', 'translate-x-full');
+        return;
+    }
+    if (el.classList.contains('discounts-console-drawer') || el.classList.contains('discounts-console-drawer-overlay')) {
+        el.classList.remove('hidden');
+        el.classList.add('is-open');
+        if (el.classList.contains('discounts-console-drawer')) {
+            el.setAttribute('aria-hidden', 'false');
+        }
+        return;
+    }
+    if (el.classList.contains('shipping-drawer') || el.classList.contains('shipping-drawer-modal')) {
+        el.classList.remove('hidden');
+        void el.offsetWidth;
+        el.classList.add('is-open');
+        el.setAttribute('aria-hidden', 'false');
+        return;
+    }
+    el.classList.remove('hidden');
+    if (el.classList.contains('ui-modal-shell')) {
+        el.classList.add('flex');
+    }
+};
+
+const closeMerchantLayer = (el) => {
+    if (! el) {
+        return;
+    }
+    if (el.tagName === 'DIALOG') {
+        if (el.open) {
+            try {
+                el.close();
+            } catch (e) {
+                // Ignore dialogs that cannot close during snapshot.
+            }
+        }
+        return;
+    }
+    if (el.classList.contains('ui-drawer-panel')) {
+        el.classList.add('translate-x-full');
+        el.classList.remove('hidden', 'is-open', 'flex');
+        return;
+    }
+    if (el.classList.contains('discounts-console-drawer') || el.classList.contains('discounts-console-drawer-overlay')) {
+        el.classList.remove('is-open', 'hidden');
+        if (el.classList.contains('discounts-console-drawer')) {
+            el.setAttribute('aria-hidden', 'true');
+        }
+        return;
+    }
+    if (el.classList.contains('shipping-drawer') || el.classList.contains('shipping-drawer-modal')) {
+        el.classList.remove('is-open');
+        el.classList.add('hidden');
+        el.setAttribute('aria-hidden', 'true');
+        return;
+    }
+    el.classList.add('hidden');
+    el.classList.remove('flex', 'is-open');
+};
+
+const closeMerchantLayers = () => {
+    document.querySelectorAll('dialog[open]').forEach((dialog) => closeMerchantLayer(dialog));
+    document.querySelectorAll(MERCHANT_LAYER_SELECTOR).forEach((layer) => closeMerchantLayer(layer));
+    document.body.classList.remove('overflow-hidden');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    if (sidebarOverlay) {
+        sidebarOverlay.classList.add('hidden');
+    }
+};
+
+window.showMerchantLayer = showMerchantLayer;
+window.closeMerchantLayer = closeMerchantLayer;
+window.closeMerchantLayers = closeMerchantLayers;
 
 const closeAllMerchantProfileMenus = () => {
     document.querySelectorAll('[data-merchant-profile-dropdown]').forEach((menu) => {
@@ -855,37 +959,36 @@ window.addEventListener('resize', () => {
     }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-    const merchantNav = document.getElementById('merchantNav');
-    if (merchantNav) {
-        merchantNav.addEventListener('click', (e) => {
-            const link = e.target.closest('a[href]');
-            if (! link) {
-                return;
-            }
-            if (window.matchMedia('(max-width: 767px)').matches) {
-                window.closeSidebar();
-            }
-        });
+document.addEventListener('click', (e) => {
+    const nav = document.getElementById('merchantNav');
+    if (! nav || ! nav.contains(e.target)) {
+        return;
+    }
+    const link = e.target.closest('a[href]');
+    if (! link) {
+        return;
+    }
+    if (window.matchMedia('(max-width: 767px)').matches) {
+        window.closeSidebar();
     }
 });
+
+const resetCachedMerchantUi = () => {
+    // Keep data-bound / data-turbo-bound. Turbo restores the same nodes, so
+    // those flags prevent duplicate listeners. Closing must match each layer's
+    // real hide API — slide drawers use translate-x-full, never Tailwind hidden.
+    closeMerchantLayers();
+};
 
 document.addEventListener('turbo:before-cache', () => {
     teardownCountryComboboxes(document);
     closeAllMerchantProfileMenus();
     closeStoreSwitcherMenu();
     clearMerchantTurboLoading();
+    resetCachedMerchantUi();
     if (uiConfirmPending.form || uiConfirmPending.resolve || (uiConfirmModalEl() && ! uiConfirmModalEl().classList.contains('hidden'))) {
         finishUiConfirm(false);
     }
-    document.querySelectorAll('[data-ui-portal-ready="true"]').forEach((layer) => {
-        if (layer.id === 'productCreateLeaveModal') {
-            return;
-        }
-        if (layer.parentElement === document.body && ! layer.classList.contains('hidden')) {
-            layer.classList.add('hidden');
-        }
-    });
     document.querySelectorAll('[x-data]').forEach((el) => {
         if (typeof Alpine !== 'undefined' && typeof Alpine.destroyTree === 'function') {
             try {
@@ -926,6 +1029,112 @@ document.addEventListener('turbo:load', () => {
     merchantTurboReady = true;
     bootMerchantUi(document);
     clearMerchantTurboLoading();
+});
+
+document.addEventListener('turbo:render', () => {
+    bootMerchantUi(document);
+    clearMerchantTurboLoading();
+});
+
+document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (! (target instanceof Element)) {
+        return;
+    }
+
+    if (target.closest('.js-open-create-store-modal')) {
+        if (typeof window.__openCreateStoreModal === 'function') {
+            event.preventDefault();
+            window.__openCreateStoreModal();
+        }
+        return;
+    }
+
+    const editStoreBtn = target.closest('.js-open-edit-store-modal');
+    if (editStoreBtn && typeof window.__openEditStoreModal === 'function') {
+        event.preventDefault();
+        window.__openEditStoreModal(editStoreBtn);
+        return;
+    }
+
+    if (target.closest('[data-lc-open-add]')) {
+        event.preventDefault();
+        window.__locationsOpenAdd?.();
+        return;
+    }
+    const locationEdit = target.closest('[data-lc-edit]');
+    if (locationEdit) {
+        event.preventDefault();
+        window.__locationsOpenEdit?.(locationEdit.getAttribute('data-lc-edit'));
+        return;
+    }
+    if (target.closest('[data-lc-close-modal]') || target.id === 'locationEditorModal') {
+        event.preventDefault();
+        window.__locationsClose?.();
+        return;
+    }
+
+    if (target.closest('[data-dc-open-add]')) {
+        event.preventDefault();
+        window.__couponsOpenAdd?.();
+        return;
+    }
+    const couponEdit = target.closest('[data-dc-edit]');
+    if (couponEdit) {
+        event.preventDefault();
+        window.__couponsOpenEdit?.(couponEdit.getAttribute('data-dc-edit'));
+        return;
+    }
+    if (target.closest('[data-dc-close-drawer]') || target.id === 'discountDrawerOverlay') {
+        event.preventDefault();
+        window.__couponsCloseDrawer?.();
+        return;
+    }
+
+    if (target.closest('[data-wc-open-replace-key]')) {
+        event.preventDefault();
+        const replaceModal = document.getElementById('websiteReplaceKeyModal');
+        showMerchantLayer(replaceModal);
+        if (replaceModal) {
+            document.body.classList.add('overflow-hidden');
+            replaceModal.querySelector('[data-wc-key-cancel]')?.focus();
+        }
+        return;
+    }
+    if (target.closest('[data-wc-open-remove-key]')) {
+        event.preventDefault();
+        const removeModal = document.getElementById('websiteRemoveKeyModal');
+        showMerchantLayer(removeModal);
+        if (removeModal) {
+            document.body.classList.add('overflow-hidden');
+            removeModal.querySelector('[data-wc-key-cancel]')?.focus();
+        }
+        return;
+    }
+    if (target.closest('[data-wc-key-cancel]') || target.id === 'websiteReplaceKeyModal' || target.id === 'websiteRemoveKeyModal') {
+        const keyModal = target.id === 'websiteReplaceKeyModal' || target.id === 'websiteRemoveKeyModal'
+            ? target
+            : target.closest('#websiteReplaceKeyModal, #websiteRemoveKeyModal');
+        if (keyModal) {
+            event.preventDefault();
+            closeMerchantLayer(keyModal);
+            document.body.classList.remove('overflow-hidden');
+        }
+        return;
+    }
+
+    const closeTaxDialog = target.closest('[data-trb-close-dialog]');
+    if (closeTaxDialog) {
+        const dialog = document.getElementById(closeTaxDialog.getAttribute('data-trb-close-dialog') || '');
+        if (dialog?.open) {
+            dialog.close();
+        }
+        return;
+    }
+
+    if (target.id === 'notification-prefs-edit' || target.closest('#notification-prefs-edit')) {
+        window.__notificationsUnlock?.();
+    }
 });
 
 document.addEventListener('click', (e) => {

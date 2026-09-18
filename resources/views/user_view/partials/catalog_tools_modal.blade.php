@@ -30,6 +30,9 @@
         if (!shell) return;
         shell.classList.remove('hidden');
         shell.classList.add('flex');
+        if (typeof window.showMerchantLayer === 'function') {
+            window.showMerchantLayer(shell);
+        }
         document.body.classList.add('overflow-hidden');
 
         const tabButtons = [...shell.querySelectorAll('[data-catalog-tab]')];
@@ -142,17 +145,11 @@
 </div>
 
 <script>
-(() => {
-    const shell = document.getElementById('catalogToolsShellModal');
-    if (!shell) return;
+window.bootMerchantPage('catalog-tools', function () {
+    return document.getElementById('catalogToolsShellModal');
+}, function (shell) {
 
     const closeShell = () => window.__closeCatalogToolsShell?.();
-
-    document.addEventListener('click', (event) => {
-        const btn = event.target instanceof Element ? event.target.closest('[data-open-catalog-tools]') : null;
-        if (!btn) return;
-        window.__openCatalogToolsTab?.(btn.getAttribute('data-catalog-tools-tab'));
-    });
 
     shell.querySelectorAll('[data-catalog-tools-close], [data-catalog-tools-backdrop]').forEach((el) => {
         el.addEventListener('click', closeShell);
@@ -389,16 +386,21 @@
         'tag-hub-empty-add': 'tag-hub-open-add',
         'category-hub-empty-add': 'category-hub-open-add',
     };
-    document.addEventListener('click', (event) => {
+    window.__catalogToolsOnClick = (event) => {
+        const btn = event.target instanceof Element ? event.target.closest('[data-open-catalog-tools]') : null;
+        if (btn) {
+            window.__openCatalogToolsTab?.(btn.getAttribute('data-catalog-tools-tab'));
+            return;
+        }
         const emptyAdd = event.target instanceof Element ? event.target.closest('#brand-hub-empty-add, #tag-hub-empty-add, #category-hub-empty-add') : null;
         if (!emptyAdd) return;
         const openerId = emptyAddOpeners[emptyAdd.id];
         if (!openerId) return;
         event.preventDefault();
         document.getElementById(openerId)?.click();
-    });
+    };
 
-    document.addEventListener('submit', async (event) => {
+    window.__catalogToolsOnSubmit = async (event) => {
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) return;
         if (!form.hasAttribute('data-catalog-kind')) return;
@@ -448,7 +450,19 @@
         } finally {
             if (submitBtn) submitBtn.disabled = false;
         }
+    };
+});
+window.bindMerchantDocOnce('catalog-tools:doc', function () {
+    document.addEventListener('click', function (event) {
+        if (typeof window.__catalogToolsOnClick === 'function') {
+            window.__catalogToolsOnClick(event);
+        }
+    });
+    document.addEventListener('submit', function (event) {
+        if (typeof window.__catalogToolsOnSubmit === 'function') {
+            window.__catalogToolsOnSubmit(event);
+        }
     }, true);
-})();
+});
 </script>
 @endif

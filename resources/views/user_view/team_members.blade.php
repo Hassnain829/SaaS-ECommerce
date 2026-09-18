@@ -1,4 +1,4 @@
-@extends('layouts.user.user-sidebar')
+﻿@extends('layouts.user.user-sidebar')
 
 @section('title', 'Team Members — '.config('app.name'))
 
@@ -90,7 +90,20 @@
     };
 @endphp
 
-<div class="settings-workspace-fluid team-console">
+<div
+    class="settings-workspace-fluid team-console"
+    data-team-page
+    @if (old('_team_invite_modal')) data-team-open-invite="1" @endif
+    @if (old('_team_role_modal'))
+        data-team-open-role="1"
+        data-team-role-member="{{ e(json_encode([
+            'id' => old('member_id'),
+            'name' => old('member_name', 'Selected member'),
+            'email' => old('member_email', ''),
+            'role' => old('role', 'staff'),
+        ])) }}"
+    @endif
+>
     @include('user_view.partials.flash_success')
 
     <div class="team-console-metrics">
@@ -410,6 +423,7 @@
     </div>
 </div>
 
+@push('overlays')
 @include('user_view.partials.team_member_invite_drawer', [
     'selectedStore' => $selectedStore,
     'memberRoleOptions' => $memberRoleOptions,
@@ -420,209 +434,5 @@
     'currentUserStoreRole' => $currentUserStoreRole,
 ])
 @include('user_view.partials.team_member_access_panel')
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var body = document.body;
-        var searchInput = document.querySelector('[data-team-search]');
-        var memberRows = Array.from(document.querySelectorAll('[data-member-row]'));
-        var inviteOverlay = document.getElementById('teamInviteOverlay');
-        var inviteDrawer = document.getElementById('teamInviteDrawer');
-        var roleModal = document.getElementById('teamRoleModal');
-        var rolePanel = document.querySelector('[data-team-role-panel]');
-        var accessOverlay = document.getElementById('teamAccessOverlay');
-        var accessPanel = document.getElementById('teamAccessPanel');
-
-        function lockBody(locked) {
-            body.classList.toggle('overflow-hidden', locked);
-        }
-
-        function openInviteDrawer() {
-            if (!inviteOverlay || !inviteDrawer) return;
-            inviteOverlay.classList.remove('hidden');
-            inviteDrawer.classList.remove('translate-x-full');
-            lockBody(true);
-        }
-
-        function closeInviteDrawer() {
-            if (!inviteOverlay || !inviteDrawer) return;
-            inviteOverlay.classList.add('hidden');
-            inviteDrawer.classList.add('translate-x-full');
-            lockBody(false);
-        }
-
-        function openRoleModal(member) {
-            if (!roleModal) return;
-            document.querySelectorAll('[data-role-member-name]').forEach(function (el) {
-                el.textContent = member.name || 'Selected member';
-            });
-            document.querySelectorAll('[data-role-member-email]').forEach(function (el) {
-                el.textContent = member.email || '';
-            });
-            var roleSelect = document.querySelector('[data-role-select]');
-            if (roleSelect && member.role) roleSelect.value = member.role;
-            var roleForm = document.querySelector('[data-team-role-form]');
-            if (roleForm && member.id) {
-                roleForm.action = roleForm.dataset.actionTemplate.replace('__USER_ID__', member.id);
-            }
-            var hiddenMemberId = document.querySelector('[data-role-member-id]');
-            if (hiddenMemberId) hiddenMemberId.value = member.id || '';
-            var hiddenMemberName = document.querySelector('[data-role-member-name-input]');
-            if (hiddenMemberName) hiddenMemberName.value = member.name || '';
-            var hiddenMemberEmail = document.querySelector('[data-role-member-email-input]');
-            if (hiddenMemberEmail) hiddenMemberEmail.value = member.email || '';
-
-            roleModal.classList.remove('hidden');
-            roleModal.classList.add('flex');
-            if (rolePanel) {
-                rolePanel.classList.remove('scale-95', 'opacity-0');
-            }
-            lockBody(true);
-        }
-
-        function closeRoleModal() {
-            if (!roleModal) return;
-            if (rolePanel) {
-                rolePanel.classList.add('scale-95', 'opacity-0');
-            }
-            roleModal.classList.add('hidden');
-            roleModal.classList.remove('flex');
-            lockBody(false);
-        }
-
-        function renderAccessItems(role) {
-            var itemsByRole = {
-                owner: [
-                    'Can update store settings and destructive store actions',
-                    'Can create, edit, and delete products',
-                    'Can manage managers and staff roles'
-                ],
-                manager: [
-                    'Can create, edit, and delete products',
-                    'Can update normal store operations',
-                    'Cannot delete the store or claim owner-only actions'
-                ],
-                staff: [
-                    'Can review store context and member access',
-                    'Blocked from destructive management actions',
-                    'Blocked from protected product management flows for now'
-                ]
-            };
-
-            return (itemsByRole[role] || ['Store-level access details are not available for this role yet.'])
-                .map(function (item) {
-                    return '<li class="flex items-start gap-2"><span class="mt-1 h-1.5 w-1.5 rounded-full bg-brand"></span><span>' + item + '</span></li>';
-                })
-                .join('');
-        }
-
-        function openAccessPanel(member) {
-            if (!accessOverlay || !accessPanel) return;
-            document.querySelectorAll('[data-access-member-name]').forEach(function (el) {
-                el.textContent = member.name || 'Selected member';
-            });
-            document.querySelectorAll('[data-access-member-email]').forEach(function (el) {
-                el.textContent = member.email || '';
-            });
-            document.querySelectorAll('[data-access-member-role]').forEach(function (el) {
-                el.textContent = member.role || 'staff';
-            });
-            document.querySelectorAll('[data-access-member-global-role]').forEach(function (el) {
-                el.textContent = member.global_role || 'user';
-            });
-            document.querySelectorAll('[data-access-member-joined]').forEach(function (el) {
-                el.textContent = member.joined_at || 'Recently added';
-            });
-            document.querySelectorAll('[data-access-member-description]').forEach(function (el) {
-                el.textContent = member.description || 'Store-scoped access profile.';
-            });
-            document.querySelectorAll('[data-access-member-list]').forEach(function (el) {
-                el.innerHTML = renderAccessItems(member.role || 'staff');
-            });
-
-            accessOverlay.classList.remove('hidden');
-            accessPanel.classList.remove('translate-x-full');
-            lockBody(true);
-        }
-
-        function closeAccessPanel() {
-            if (!accessOverlay || !accessPanel) return;
-            accessOverlay.classList.add('hidden');
-            accessPanel.classList.add('translate-x-full');
-            lockBody(false);
-        }
-
-        document.querySelectorAll('[data-open-team-invite]').forEach(function (button) {
-            button.addEventListener('click', openInviteDrawer);
-        });
-        document.querySelectorAll('[data-close-team-invite]').forEach(function (button) {
-            button.addEventListener('click', closeInviteDrawer);
-        });
-
-        document.querySelectorAll('[data-open-team-role]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                openRoleModal(JSON.parse(button.dataset.member || '{}'));
-            });
-        });
-        document.querySelectorAll('[data-close-team-role]').forEach(function (button) {
-            button.addEventListener('click', closeRoleModal);
-        });
-
-        document.querySelectorAll('[data-open-team-access]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                openAccessPanel(JSON.parse(button.dataset.member || '{}'));
-            });
-        });
-        document.querySelectorAll('[data-close-team-access]').forEach(function (button) {
-            button.addEventListener('click', closeAccessPanel);
-        });
-
-        inviteOverlay?.addEventListener('click', closeInviteDrawer);
-        accessOverlay?.addEventListener('click', closeAccessPanel);
-        roleModal?.addEventListener('click', function (event) {
-            if (event.target === roleModal) {
-                closeRoleModal();
-            }
-        });
-
-        document.addEventListener('keydown', function (event) {
-            if (event.key !== 'Escape') return;
-            if (roleModal && !roleModal.classList.contains('hidden')) {
-                closeRoleModal();
-                return;
-            }
-            if (inviteDrawer && !inviteDrawer.classList.contains('translate-x-full')) {
-                closeInviteDrawer();
-                return;
-            }
-            if (accessPanel && !accessPanel.classList.contains('translate-x-full')) {
-                closeAccessPanel();
-            }
-        });
-
-        if (searchInput) {
-            searchInput.addEventListener('input', function () {
-                var query = searchInput.value.trim().toLowerCase();
-
-                memberRows.forEach(function (row) {
-                    var matches = row.textContent.toLowerCase().includes(query);
-                    row.classList.toggle('hidden', !matches);
-                });
-            });
-        }
-
-        @if (old('_team_invite_modal'))
-            openInviteDrawer();
-        @endif
-
-        @if (old('_team_role_modal'))
-            openRoleModal({
-                id: '{{ old('member_id') }}',
-                name: @json(old('member_name', 'Selected member')),
-                email: @json(old('member_email', '')),
-                role: @json(old('role', 'staff'))
-            });
-        @endif
-    });
-</script>
+@endpush
 @endsection

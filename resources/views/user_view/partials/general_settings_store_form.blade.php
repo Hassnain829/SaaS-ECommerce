@@ -227,11 +227,9 @@
 </form>
 
 <script>
-    (() => {
-        const form = document.getElementById('general-settings-store-form');
-        if (!form) {
-            return;
-        }
+    window.bootMerchantPage('general-settings', function () {
+        return document.getElementById('general-settings-store-form');
+    }, function (form) {
 
         const categoryInput = document.getElementById('gs-store-category');
         const currencySelect = document.getElementById('gs-currency');
@@ -283,5 +281,5 @@
 
         currencySelect?.addEventListener('change', syncCurrencyPrompt);
         syncCurrencyPrompt();
-    })();
+    });
 </script>

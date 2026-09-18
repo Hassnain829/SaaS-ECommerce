@@ -250,7 +250,9 @@
 </div>
 
 <script>
-(() => {
+window.bootMerchantPage('tag-modals', function () {
+    return document.getElementById('tagHubModal');
+}, function () {
     const hubModal = document.getElementById('tagHubModal');
     const editModal = document.getElementById('tagEditModal');
     const deleteModal = document.getElementById('tagDeleteWarningModal');
@@ -426,6 +428,6 @@
     @if ($reopenEdit)
     syncBodyLock();
     @endif
-})();
+});
 </script>
 @endif
