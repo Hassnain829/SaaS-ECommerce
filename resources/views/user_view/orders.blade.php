@@ -11,7 +11,7 @@
                 <button class="inline-flex h-9 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-xs font-semibold text-ink-secondary hover:bg-surface-muted">Search</button>
             </form>
         </x-slot:search>
-        @if($canManageOrders)
+        @if($canCreateDraftOrders ?? false)
             <x-slot:actions>
                 <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-md bg-brand px-3.5 text-sm font-semibold text-white transition hover:bg-brand-hover xl:inline-flex">Create order</a>
             </x-slot:actions>
@@ -68,7 +68,7 @@
                     <h2 class="text-sm font-semibold text-ink">Draft orders</h2>
                     <p class="text-xs text-ink-muted">Manual orders that have not become confirmed orders yet.</p>
                 </div>
-                @if($canManageOrders)
+                @if($canCreateDraftOrders ?? false)
                     <a href="{{ route('orders.create') }}" data-turbo-frame="_top" class="text-sm font-semibold text-brand hover:text-brand-hover">New draft</a>
                 @endif
             </div>
@@ -112,8 +112,8 @@
                                 <td class="px-4 py-3 text-ink-secondary">{{ $draft->items_count }} {{ str('item')->plural($draft->items_count) }}</td>
                                 <td class="px-5 py-3">
                                     <div class="flex flex-wrap items-center justify-end gap-1.5">
-                                        <a href="{{ route('draft-orders.show', $draft) }}" data-turbo-frame="_top" class="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-surface-muted">View/Edit</a>
-                                        @if($draft->status === \App\Models\DraftOrder::STATUS_DRAFT)
+                                        <a href="{{ route('draft-orders.show', $draft) }}" data-turbo-frame="_top" class="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-surface-muted">{{ ($canCreateDraftOrders ?? false) ? 'View/Edit' : 'View' }}</a>
+                                        @if(($canCreateDraftOrders ?? false) && $draft->status === \App\Models\DraftOrder::STATUS_DRAFT)
                                             <form action="{{ route('draft-orders.convert', $draft) }}" method="POST" data-turbo-frame="_top">
                                                 @csrf
                                                 <button class="rounded-md bg-brand px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-hover">Create order</button>
@@ -124,11 +124,13 @@
                                                 <button class="rounded-md border border-danger/30 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft">Cancel</button>
                                             </form>
                                         @endif
+                                        @if($canCreateDraftOrders ?? false)
                                         <form action="{{ route('draft-orders.destroy', $draft) }}" method="POST" data-turbo-frame="_top" data-ui-confirm="This will remove it from your active draft list. Converted orders cannot be deleted." data-ui-confirm-title="Delete this draft order?" data-ui-confirm-action="Delete draft">
                                             @csrf
                                             @method('DELETE')
                                             <button class="rounded-md border border-danger/30 px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft">Delete</button>
                                         </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -205,7 +207,16 @@
                             </span>
                         </td>
                         <td class="px-5 py-3 text-right">
-                            <a href="{{ route('orderViewDetails', $order->id) }}" data-turbo-frame="_top" class="text-sm font-semibold text-brand hover:text-brand-hover">View</a>
+                            <div class="flex flex-wrap items-center justify-end gap-2">
+                                <a href="{{ route('orderViewDetails', $order->id) }}" data-turbo-frame="_top" class="text-sm font-semibold text-brand hover:text-brand-hover">View</a>
+                                @if(
+                                    ($canFulfillOrders ?? false)
+                                    && $order->status !== \App\Support\OrderLifecycle::ORDER_CANCELLED
+                                    && $order->fulfillment_status !== \App\Support\OrderLifecycle::FULFILLMENT_FULFILLED
+                                )
+                                    <a href="{{ route('orderViewDetails', $order->id) }}#fulfillment" data-turbo-frame="_top" class="text-sm font-semibold text-ink-secondary hover:text-ink">Fulfill</a>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                     @empty

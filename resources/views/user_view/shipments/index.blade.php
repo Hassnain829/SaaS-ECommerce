@@ -26,6 +26,9 @@
         'manual' => 'Manual',
         'usps' => 'USPS',
     ];
+    $canPurchaseLabels = $canPurchaseLabels ?? false;
+    $canCancelLabels = $canCancelLabels ?? false;
+    $canUpdateTracking = $canUpdateTracking ?? false;
 @endphp
 <div class="w-full space-y-4">
     @include('user_view.partials.flash_success')
@@ -100,14 +103,14 @@
                                 $recipient = $shipment->order?->addresses?->firstWhere('type', 'shipping')
                                     ?? $shipment->order?->addresses?->first();
                                 $canVoid = $isFedExManaged
-                                    && $canManageOrders
+                                    && $canCancelLabels
                                     && ! in_array($shipment->status, [
                                         \App\Models\Shipment::STATUS_CANCELLED,
                                         \App\Models\Shipment::STATUS_DELIVERED,
                                     ], true)
                                     && \Illuminate\Support\Facades\Route::has('shipments.fedex.cancel');
                                 $canRefresh = $isFedExManaged
-                                    && $canManageOrders
+                                    && $canUpdateTracking
                                     && filled($shipment->tracking_number)
                                     && \Illuminate\Support\Facades\Route::has('shipments.fedex.tracking.refresh');
                             @endphp
@@ -166,7 +169,7 @@
                                             <a href="{{ route('orderViewDetails', $shipment->order) }}#returns-refunds" class="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-surface-muted">View return</a>
                                         @endif
                                         @if ($isFedExManaged)
-                                            @if ($hasDownloadableLabel && $canManageOrders)
+                                            @if ($hasDownloadableLabel && $canPurchaseLabels)
                                                 <a href="{{ route('shipments.fedex.label.download', $shipment) }}" class="rounded-md border border-[#BFDBFE] bg-[#EFF6FF] px-2.5 py-1.5 text-xs font-semibold text-[#1D4ED8]">Download label</a>
                                             @endif
                                             @if ($canRefresh)

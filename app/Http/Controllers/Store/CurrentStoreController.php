@@ -22,7 +22,7 @@ class CurrentStoreController extends Controller
         ]);
 
         $store = $request->user()
-            ->memberStores()
+            ->activeMemberStores()
             ->where('stores.id', (int) $validated['store_id'])
             ->firstOrFail();
 

@@ -10,27 +10,27 @@
                             <p class="mt-2 text-sm text-slate-500">Customer requests are received through your store’s normal support channels. Use this workspace to record and process the agreed action.</p>
                         </div>
                         <div class="flex flex-wrap gap-2">
-                            @if ($canManageOrders && $canRecordReturn)
+                            @if ($canManageReturns && $canRecordReturn)
                                 <button type="button" onclick="document.getElementById('start-return-form')?.classList.toggle('hidden')" class="inline-flex h-10 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white transition hover:opacity-90">Record return</button>
                             @endif
-                            @if ($canManageOrders && bccomp((string) $remainingRefundableAmount, '0', 4) > 0)
+                            @if ($canIssueRefund)
                                 <button type="button" onclick="document.getElementById('issue-refund-form')?.classList.toggle('hidden')" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Issue refund</button>
                             @endif
-                            @if ($canManageOrders && $canCreateExchange)
+                            @if ($canManageExchanges && $canCreateExchange)
                                 <button type="button" onclick="document.getElementById('start-exchange-form')?.classList.toggle('hidden')" class="inline-flex h-10 items-center rounded-xl border border-stone-200 bg-white px-4 text-sm font-semibold text-stone-700 hover:bg-stone-50">Create exchange</button>
                             @endif
                         </div>
                     </div>
 
-                    @if ($canManageOrders && ! $canRecordReturn && $returnEligibilityMessage)
+                    @if ($canManageReturns && ! $canRecordReturn && $returnEligibilityMessage)
                         <p class="mt-4 text-sm text-slate-500">{{ $returnEligibilityMessage }}</p>
                     @endif
 
-                    @if ($canManageOrders && ! $canCreateExchange && $exchangeEligibilityMessage)
+                    @if ($canManageExchanges && ! $canCreateExchange && $exchangeEligibilityMessage)
                         <p class="mt-4 text-sm text-slate-500">{{ $exchangeEligibilityMessage }}</p>
                     @endif
 
-                    @if ($canManageOrders && $canRecordReturn)
+                    @if ($canManageReturns && $canRecordReturn)
                         <form id="start-return-form" method="POST" action="{{ route('orders.returns.store', $order) }}" class="mt-5 hidden space-y-4 rounded-xl border border-stone-200 bg-stone-50/70 p-4" data-service-panel="return">
                             @csrf
                             <div class="grid gap-3 sm:grid-cols-2">
@@ -89,7 +89,7 @@
                         </form>
                     @endif
 
-                    @if ($canManageOrders && bccomp((string) $remainingRefundableAmount, '0', 4) > 0)
+                    @if ($canIssueRefund)
                         <form id="issue-refund-form" method="POST" action="{{ route('orders.refunds.store', $order) }}" class="mt-5 hidden space-y-4 rounded-xl border border-stone-200 bg-stone-50/70 p-4" data-service-panel="refund">
                             @csrf
                             <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
@@ -153,7 +153,7 @@
                         </form>
                     @endif
 
-                    @if ($canManageOrders && $canCreateExchange)
+                    @if ($canManageExchanges && $canCreateExchange)
                         <form id="start-exchange-form" method="POST" action="{{ route('orders.exchanges.store', $order) }}" class="mt-5 hidden space-y-4 rounded-xl border border-stone-200 bg-stone-50/70 p-4" data-service-panel="exchange">
                             @csrf
                             <input type="hidden" name="idempotency_key" value="{{ old('idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
@@ -194,7 +194,7 @@
                         </div>
                         @php
                             $canCreateFedExReturnLabel = ($fedExActiveAccount ?? null)
-                                && ($canManageOrders ?? false)
+                                && ($canPurchaseLabels ?? false)
                                 && ! ($isOrderExternallyManaged ?? false)
                                 && filter_var(config('carriers.fedex.ops_ship_labels_enabled', false), FILTER_VALIDATE_BOOL);
                             $returnPackagePreset = $canCreateFedExReturnLabel
@@ -233,7 +233,7 @@
                                         </div>
                                     @endforeach
                                 </div>
-                                @if ($canManageOrders)
+                                @if ($canManageReturns)
                                     <div class="mt-4 flex flex-wrap gap-2">
                                         @if (\App\Support\ReturnLifecycle::canTransition($return->status, \App\Support\ReturnLifecycle::STATUS_APPROVED))
                                             <form method="POST" action="{{ route('returns.approve', $return) }}">@csrf<button type="submit" class="inline-flex h-9 items-center rounded-xl bg-brand px-3 text-xs font-semibold text-white">Approve</button></form>
@@ -376,7 +376,7 @@
                                     @endif
                                 </p>
                                 @if (
-                                    $canManageOrders
+                                    $canIssueRefund
                                     && $refund->method === \App\Support\RefundLifecycle::METHOD_PROVIDER
                                     && in_array($refund->status, [
                                         \App\Support\RefundLifecycle::STATUS_PENDING,
@@ -409,7 +409,7 @@
                                     <span class="order-status-pill bg-stone-100 text-stone-700">{{ \App\Support\ExchangeLifecycle::statusLabel($exchange->status) }}</span>
                                 </div>
                                 <p class="mt-1 text-xs text-slate-500">Price difference: {{ MoneyDisplay::format($exchange->price_difference, $exchange->currency_code) }}</p>
-                                @if ($canManageOrders && in_array($exchange->status, ['requested', 'reserved'], true) && bccomp((string) $exchange->balance_due, '0', 4) > 0)
+                                @if ($canManageExchanges && in_array($exchange->status, ['requested', 'reserved'], true) && bccomp((string) $exchange->balance_due, '0', 4) > 0)
                                     @php
                                         $remainingBalance = \App\Support\Money\CurrencyPrecision::roundMajor(
                                             bcsub((string) $exchange->balance_due, (string) $exchange->collected_amount, 8),
@@ -438,7 +438,7 @@
                                         </form>
                                     @endif
                                 @endif
-                                @if ($canManageOrders && in_array($exchange->status, ['requested', 'reserved', 'processing'], true))
+                                @if ($canManageExchanges && in_array($exchange->status, ['requested', 'reserved', 'processing'], true))
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         <form method="POST" action="{{ route('exchanges.complete', $exchange) }}">
                                             @csrf

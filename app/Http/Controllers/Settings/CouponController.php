@@ -57,7 +57,7 @@ class CouponController extends Controller
                 'spotlight' => $spotlight,
             ],
             'categories' => $store->categories()->orderBy('name')->get(['id', 'name']),
-            'canManageCoupons' => $store->userHasPermission($request->user(), 'settings.manage'),
+            'canManageCoupons' => $store->userHasPermission($request->user(), 'settings.discounts'),
             'currencyCode' => strtoupper((string) ($store->currency ?: 'USD')),
             'storeTimezone' => $storeTimezone,
         ]);

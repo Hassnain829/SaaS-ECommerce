@@ -1,89 +1,126 @@
 @php
-    $visibleInviteRoles = ($currentUserStoreRole ?? null) === \App\Models\Store::ROLE_MANAGER
-        ? [\App\Models\Store::ROLE_MANAGER, \App\Models\Store::ROLE_STAFF]
-        : $memberRoleOptions;
+    $catalog = $teamAccessCatalog ?? \App\Support\StoreMemberAccess::catalog();
+    $inviteStores = $inviteStores ?? collect();
+    $inviteLocations = $inviteLocations ?? collect();
 @endphp
 
-<div id="teamInviteOverlay" class="ui-modal-overlay hidden"></div>
+<div id="teamInviteOverlay" class="ui-modal-overlay team-drawer-overlay hidden" data-close-team-invite></div>
 
-<aside id="teamInviteDrawer" class="ui-drawer-panel ui-drawer-panel--lg translate-x-full">
-    <div class="flex h-full flex-col">
-        <div class="flex items-start justify-between gap-4 border-b border-stone-200 px-6 py-5">
-            <div>
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Invite flow</p>
-                <h2 class="mt-2 text-xl font-semibold text-stone-900">Invite team member</h2>
-                <p class="mt-2 text-sm leading-6 text-stone-500">Add a teammate directly into the active store. Existing users are attached by email, and missing users are created as basic merchant accounts without email delivery yet.</p>
-            </div>
-            <button type="button" data-close-team-invite class="rounded-xl bg-stone-50 p-3 text-stone-600 transition hover:bg-stone-100" aria-label="Close invite drawer">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M3.33333 13.6L2.4 12.6667L7.06667 8L2.4 3.33333L3.33333 2.4L8 7.06667L12.6667 2.4L13.6 3.33333L8.93333 8L13.6 12.6667L12.6667 13.6L8 8.93333L3.33333 13.6Z" fill="currentColor"/>
-                </svg>
-            </button>
+<aside id="teamInviteDrawer" class="ui-drawer-panel team-drawer translate-x-full" role="dialog" aria-modal="true" aria-labelledby="team-invite-title" aria-hidden="true">
+    <div class="team-drawer-head">
+        <div>
+            <p class="team-drawer-eyebrow">New teammate</p>
+            <h2 id="team-invite-title">Add team member</h2>
+            <p>Choose a starting preset now. They will get an email to accept access and set a password.</p>
         </div>
+        <button type="button" class="team-ws-icon-btn" data-close-team-invite aria-label="Close invite drawer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+    </div>
 
-        <form method="POST" action="{{ route('team-members.store') }}" class="flex-1 overflow-y-auto">
-            @csrf
-            <input type="hidden" name="_team_invite_modal" value="1">
+    <form method="POST" action="{{ route('team-members.store') }}" class="team-drawer-form" data-team-invite-form>
+        @csrf
+        <input type="hidden" name="_team_invite_modal" value="1">
 
-            <div class="space-y-6 px-6 py-6">
-                <div class="rounded-2xl bg-brand/10 px-5 py-4">
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-stone-500">Inviting into</p>
-                    <p class="mt-2 text-lg font-semibold text-stone-900">{{ $selectedStore->name }}</p>
-                    <p class="mt-1 text-sm text-stone-500">The selected role will apply only inside this store, not across the whole platform.</p>
+        <div class="team-drawer-body">
+            <div class="grid gap-5" data-team-perm-root>
+                <input type="hidden" name="access_preset" value="{{ old('access_preset', 'view') }}" data-team-preset-value>
+                <div class="sr-only" aria-hidden="true">
+                    @foreach (($catalog['groups'] ?? []) as $group)
+                        @foreach ($group['permissions'] as $permission)
+                            <input type="checkbox" name="permissions[]" value="{{ $permission['key'] }}" data-team-permission="{{ $permission['key'] }}" @checked(in_array($permission['key'], old('permissions', \App\Support\StoreMemberAccess::presets()['view']), true))>
+                        @endforeach
+                    @endforeach
                 </div>
 
-                @if ($errors->has('name') || $errors->has('email') || $errors->has('role'))
-                    <div class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-                        <ul class="space-y-1">
-                            @foreach (['name', 'email', 'role'] as $field)
-                                @error($field)
-                                    <li>{{ $message }}</li>
-                                @enderror
-                            @endforeach
-                        </ul>
+                @if ($errors->has('name') || $errors->has('email') || $errors->has('access_preset') || $errors->has('permissions') || $errors->has('job_title'))
+                    <div class="team-ws-note is-warn">
+                        @foreach (['name', 'email', 'access_preset', 'permissions', 'job_title'] as $field)
+                            @error($field)
+                                <p>{{ $message }}</p>
+                            @enderror
+                        @endforeach
                     </div>
                 @endif
 
-                <div class="space-y-5">
-                    <div>
-                        <label for="invite-member-name" class="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Full name</label>
-                        <input id="invite-member-name" name="name" type="text" value="{{ old('name') }}" placeholder="Alicia Carter" class="h-11 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-900 placeholder:text-stone-400 focus:border-brand/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20">
-                    </div>
+                <div class="team-ws-field">
+                    <label class="team-ws-label" for="invite-member-name">Full name</label>
+                    <input id="invite-member-name" name="name" type="text" value="{{ old('name') }}" autocomplete="name" placeholder="Alicia Carter">
+                </div>
+                <div class="team-ws-field">
+                    <label class="team-ws-label" for="invite-member-email">Work email</label>
+                    <input id="invite-member-email" name="email" type="email" value="{{ old('email') }}" autocomplete="email" placeholder="alicia@company.com">
+                </div>
+                <div class="team-ws-field">
+                    <label class="team-ws-label" for="invite-job-title">Job title <span class="font-medium text-stone-400">(optional)</span></label>
+                    <input id="invite-job-title" name="job_title" type="text" list="invite-job-title-options" value="{{ old('job_title') }}" placeholder="Warehouse Operator">
+                    <datalist id="invite-job-title-options">
+                        @foreach ($catalog['job_titles'] as $title)
+                            <option value="{{ $title }}"></option>
+                        @endforeach
+                    </datalist>
+                    <p class="team-ws-hint">The title is only a label. Authority comes from the starting access below.</p>
+                </div>
 
-                    <div>
-                        <label for="invite-member-email" class="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Work email</label>
-                        <input id="invite-member-email" name="email" type="email" value="{{ old('email') }}" placeholder="alicia@company.com" class="h-11 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-900 placeholder:text-stone-400 focus:border-brand/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20">
-                    </div>
-
-                    <div>
-                        <label for="invite-member-role" class="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-stone-500">Store role</label>
-                        <select id="invite-member-role" name="role" class="h-11 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm text-stone-900 focus:border-brand/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20">
-                            @foreach ($visibleInviteRoles as $roleOption)
-                                <option value="{{ $roleOption }}" @selected(old('role', $visibleInviteRoles[0] ?? null) === $roleOption)>{{ ucfirst($roleOption) }}</option>
+                @if ($inviteStores->count() > 1)
+                    <fieldset class="team-ws-field">
+                        <legend class="team-ws-label">Assigned stores</legend>
+                        <div class="team-ws-choice-list">
+                            @foreach ($inviteStores as $storeOption)
+                                <label class="team-ws-choice-card">
+                                    <input type="checkbox" name="store_ids[]" value="{{ $storeOption->id }}" @checked(in_array((string) $storeOption->id, array_map('strval', old('store_ids', [$selectedStore->id])), true))>
+                                    <span class="team-ws-choice-copy">
+                                        <strong>{{ $storeOption->name }}</strong>
+                                        @if ((int) $storeOption->id === (int) $selectedStore->id)
+                                            <span class="team-ws-choice-meta">Current store</span>
+                                        @endif
+                                    </span>
+                                </label>
                             @endforeach
-                        </select>
+                        </div>
+                    </fieldset>
+                @else
+                    <input type="hidden" name="store_ids[]" value="{{ $selectedStore->id }}">
+                    <div class="team-ws-store-chip">
+                        <p>Assigned store</p>
+                        <p>{{ $selectedStore->name }}</p>
+                    </div>
+                @endif
+
+                <div class="team-ws-field">
+                    <p class="team-ws-label">Starting access</p>
+                    <div class="team-ws-radio-cards" role="radiogroup" aria-label="Starting access">
+                        @foreach ($catalog['presets'] as $preset)
+                            <label class="team-ws-radio-card">
+                                <input
+                                    type="radio"
+                                    name="invite_access_preset_choice"
+                                    value="{{ $preset['key'] }}"
+                                    data-team-preset="{{ $preset['key'] }}"
+                                    @checked(old('access_preset', 'view') === $preset['key'])
+                                >
+                                <span class="team-ws-radio-copy">
+                                    <strong>{{ $preset['label'] }}</strong>
+                                    <p>{{ $preset['description'] }}</p>
+                                </span>
+                            </label>
+                        @endforeach
                     </div>
                 </div>
 
-                <div class="rounded-2xl bg-stone-50 px-5 py-5">
-                    <p class="text-sm font-semibold text-stone-900">Current behavior</p>
-                    <ul class="mt-3 space-y-2 text-sm text-stone-500">
-                        <li class="flex items-start gap-2"><span class="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand"></span><span>The active store context is real and already resolved by middleware.</span></li>
-                        <li class="flex items-start gap-2"><span class="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand"></span><span>Existing users are attached by email, and missing users are created as basic merchant accounts.</span></li>
-                        <li class="flex items-start gap-2"><span class="mt-1.5 h-1.5 w-1.5 rounded-full bg-amber-500"></span><span>Email delivery, invite acceptance, and pending-invite tracking are intentionally deferred for a later sprint.</span></li>
-                    </ul>
+                <div class="team-ws-form-note">
+                    <strong>Invitation email</strong><br>
+                    They receive a link at this address to accept access and choose a password. They cannot use the store until they accept.
                 </div>
             </div>
+        </div>
 
-            <div class="border-t border-stone-200 px-6 py-5">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-xs leading-5 text-stone-500">This submits immediately to the active store. The user account stays global, while the selected role is applied only to this store.</p>
-                    <div class="flex items-center gap-3">
-                        <button type="button" data-close-team-invite class="rounded-xl px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:bg-stone-50">Cancel</button>
-                        <button type="submit" class="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">Add to store</button>
-                    </div>
-                </div>
+        <div class="team-drawer-footer">
+            <span class="team-ws-hint">You can customize permissions from the member panel after adding them.</span>
+            <div class="team-drawer-actions">
+                <button type="button" class="team-ws-btn" data-close-team-invite>Cancel</button>
+                <button type="submit" class="team-ws-btn team-ws-btn-primary">Send invitation</button>
             </div>
-        </form>
-    </div>
+        </div>
+    </form>
 </aside>

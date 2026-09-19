@@ -45,7 +45,7 @@ class PaymentSettingsController extends Controller
         $liveConnectReady = $paymentProviderManager->activeConnectedAccountForStore($store, PlatformPaymentMode::LIVE) !== null;
         $activeConnectAccount = $paymentProviderManager->activeConnectedAccountForStore($store, $platformPaymentMode);
 
-        $canManagePayments = $request->user()?->canManageSettings($store) ?? false;
+        $canManagePayments = $request->user()?->hasStorePermission($store, 'settings.payments') ?? false;
         $requestedMode = strtolower((string) $request->query('mode', ''));
         $selectedPaymentMode = in_array($requestedMode, PlatformPaymentMode::ALL, true)
             ? $requestedMode

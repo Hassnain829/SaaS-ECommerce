@@ -131,6 +131,16 @@ class DashboardController extends Controller
         RateLimiter::clear($throttleKey);
 
         $user = $request->user();
+        if ($user && $user->must_set_password) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()->withErrors([
+                'email' => 'Check your email for the invitation link to set your password before signing in.',
+            ])->withInput($request->only('email'));
+        }
+
         if ($user && $user->is_active === false) {
             Auth::logout();
             $request->session()->invalidate();
@@ -628,6 +638,11 @@ class DashboardController extends Controller
             'managementCategories' => $managementCategories,
             'productTypeFilterOptions' => $productTypeFilterOptions,
             'currentUserStoreRole' => $currentUserStoreRole,
+            'canManageCatalog' => $request->user()?->canManageCatalog($selectedStore) ?? false,
+            'canManagePrices' => $request->user()?->hasStorePermission($selectedStore, 'products.prices') ?? false,
+            'canManageInventory' => $request->user()?->hasStorePermission($selectedStore, 'products.inventory') ?? false,
+            'canDeleteProducts' => $request->user()?->hasStorePermission($selectedStore, 'products.delete') ?? false,
+            'canImportProducts' => $request->user()?->hasStorePermission($selectedStore, 'products.import') ?? false,
             'brandCount' => $brandCount,
             'activeBrandFilter' => $activeBrandFilter,
             'activeTagFilter' => $activeTagFilter,
@@ -872,6 +887,8 @@ class DashboardController extends Controller
             'selectedStore' => $selectedStore,
             'search' => $search,
             'canManageOrders' => $request->user()?->canManageOrders($selectedStore) ?? false,
+            'canCreateDraftOrders' => $request->user()?->hasStorePermission($selectedStore, 'orders.draft') ?? false,
+            'canFulfillOrders' => $request->user()?->hasStorePermission($selectedStore, 'fulfillment.fulfill') ?? false,
         ]);
     }
 
@@ -994,7 +1011,13 @@ class DashboardController extends Controller
             abort(404);
         }
 
-        abort_unless($request->user()?->canManageOrders($selectedStore), 403);
+        abort_unless($request->user(), 403);
+
+        $newStatus = (string) $request->input('status');
+        $permission = $newStatus === OrderLifecycle::ORDER_CANCELLED
+            ? 'orders.cancel'
+            : 'orders.edit';
+        abort_unless($request->user()->hasStorePermission($selectedStore, $permission), 403);
 
         $request->validate([
             'status' => ['required', 'string', Rule::in(OrderLifecycle::orderStatuses())],
@@ -1151,6 +1174,7 @@ class DashboardController extends Controller
             'statusCounts' => $statusCounts,
             'customerTags' => $customerTags,
             'canManageOrders' => $request->user()?->canManageOrders($selectedStore) ?? false,
+            'canCreateDraftOrders' => $request->user()?->hasStorePermission($selectedStore, 'orders.draft') ?? false,
             'canManageCustomers' => $request->user()?->canManageCustomers($selectedStore) ?? false,
         ]);
     }
@@ -1208,30 +1232,6 @@ class DashboardController extends Controller
             'customerReturns' => $customerReturns,
             'customerRefunds' => $customerRefunds,
             'customerExchanges' => $customerExchanges,
-        ]);
-    }
-
-    public function teamMembers(Request $request): RedirectResponse|View
-    {
-        $currentStore = $request->attributes->get('currentStore');
-
-        if (! $currentStore) {
-            return redirect()
-                ->route('store-management')
-                ->withErrors(['store' => 'No active store was found. Please select a store before managing team members.']);
-        }
-
-        $members = $currentStore->members()
-            ->with('role')
-            ->orderByRaw("CASE store_user.role WHEN 'owner' THEN 1 WHEN 'manager' THEN 2 ELSE 3 END")
-            ->orderBy('users.name')
-            ->get();
-
-        return view('user_view.team_members', [
-            'selectedStore' => $currentStore,
-            'members' => $members,
-            'currentUserStoreRole' => $request->user()->roleInStore($currentStore),
-            'memberRoleOptions' => Store::memberRoles(),
         ]);
     }
 
@@ -1485,7 +1485,7 @@ class DashboardController extends Controller
     public function store_management()
     {
         $user = request()->user();
-        $stores = $user->memberStores()
+        $stores = $user->activeMemberStores()
             ->orderBy('stores.name')
             ->withCount(['products', 'brands'])
             ->get();

@@ -72,7 +72,7 @@ class FedExIntegratorConnectionController extends Controller
                 ? CarrierAccount::ENVIRONMENT_SANDBOX
                 : $config->merchantDefaultEnvironment(),
             'allowEnvironmentChoice' => $config->merchantMayChooseEnvironment(),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.carriers') ?? false,
         ]);
     }
 
@@ -135,7 +135,7 @@ class FedExIntegratorConnectionController extends Controller
                 && filled($session->eula_document_hash)
                 && $documentHash !== null
                 && hash_equals($documentHash, (string) $session->eula_document_hash),
-            'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($session->store, 'settings.carriers') ?? false,
         ]);
     }
 
@@ -231,7 +231,7 @@ class FedExIntegratorConnectionController extends Controller
                 $session->originLocation?->country_code
                     ?? data_get($session->registrationAddress(), 'country_code')
             ),
-            'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($session->store, 'settings.carriers') ?? false,
         ]);
     }
 
@@ -293,7 +293,7 @@ class FedExIntegratorConnectionController extends Controller
             'mfaOptions' => is_array($session->mfa_options_json) ? $session->mfa_options_json : [],
             'pinEndpointConfigured' => $config->mfaPinValidationPath() !== null,
             'invoiceEndpointConfigured' => $config->mfaInvoiceValidationPath() !== null,
-            'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($session->store, 'settings.carriers') ?? false,
         ]);
     }
 
@@ -396,7 +396,7 @@ class FedExIntegratorConnectionController extends Controller
             'session' => $session,
             'account' => $account,
             'directChildAuthorization' => $directChildAuthorization,
-            'canManageShipping' => $request->user()?->canManageSettings($session->store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($session->store, 'settings.carriers') ?? false,
             'returnIntent' => $this->consumeReturnIntent($request),
         ]);
     }
@@ -612,7 +612,7 @@ class FedExIntegratorConnectionController extends Controller
             'selectedStore' => $store,
             'account' => $account,
             'presenter' => CarrierAccountStatusPresenter::for($account),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.carriers') ?? false,
             'productionEnabled' => $config->productionEnabled(),
             'resumableSession' => $resumableSession,
             'opsCapabilities' => [
@@ -949,7 +949,7 @@ class FedExIntegratorConnectionController extends Controller
 
     private function authorizeManage(Request $request, Store $store): void
     {
-        abort_unless($request->user()?->canManageSettings($store), 403);
+        abort_unless($request->user()?->hasStorePermission($store, 'settings.carriers'), 403);
     }
 
     private function mfaBlockedRedirect(CarrierAccountRegistrationSession $session): ?RedirectResponse

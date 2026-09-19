@@ -23,7 +23,6 @@ use App\Services\Inventory\InventoryAdjustmentService;
 use App\Services\Inventory\InventoryAvailabilityService;
 use App\Services\SecurityLogRecorder;
 use App\Services\StorefrontCatalogEventRecorder;
-use App\Support\StorePermission;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,7 +38,20 @@ final class ProductBulkController extends Controller
         abort_unless($store, 404);
 
         $user = $request->user();
-        if (! $user?->hasStorePermission($store, StorePermission::CATALOG_MANAGE)) {
+        if (! $user) {
+            abort(403, 'You are not authorized to run bulk catalog actions in this store.');
+        }
+
+        $validatedPreview = $request->validate([
+            'action' => ['required', 'string', Rule::in(['delete', 'restore', 'force_delete', 'stock', 'price', 'categories', 'brand', 'tags', 'status', 'shipping_weight'])],
+        ]);
+        $requiredPermission = match ($validatedPreview['action']) {
+            'delete', 'restore', 'force_delete' => 'products.delete',
+            'price' => 'products.prices',
+            'stock' => 'products.inventory',
+            default => 'products.edit',
+        };
+        if (! $user->hasStorePermission($store, $requiredPermission)) {
             abort(403, 'You are not authorized to run bulk catalog actions in this store.');
         }
 

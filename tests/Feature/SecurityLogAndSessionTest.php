@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\UserSession;
 use App\Services\ConnectedSiteService;
 use App\Services\SecurityLogRecorder;
+use App\Support\StoreMemberAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
@@ -72,7 +73,7 @@ class SecurityLogAndSessionTest extends TestCase
             ->post(route('team-members.store'), [
                 'name' => 'Audit Staff',
                 'email' => 'audit-staff@example.com',
-                'role' => Store::ROLE_STAFF,
+                'access_preset' => StoreMemberAccess::PRESET_VIEW,
             ])
             ->assertRedirect(route('team-members.index'));
 

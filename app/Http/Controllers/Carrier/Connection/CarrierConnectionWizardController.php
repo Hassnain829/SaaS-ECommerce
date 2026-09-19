@@ -103,7 +103,7 @@ class CarrierConnectionWizardController extends Controller
             'originOptions' => $wizard->originOptions($store, $carrierContext),
             'ownershipOptions' => $wizard->ownershipOptions($carrier, $uspsConfig, $fedExConfig),
             'carriers' => Carrier::query()->where('is_active', true)->orderBy('name')->get(),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.carriers') ?? false,
             'fedExOriginLocation' => $fedExOriginLocation,
             'originLocationId' => $originLocationId,
         ]);

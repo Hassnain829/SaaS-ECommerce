@@ -29,6 +29,8 @@ class EnsureCurrentStore
 
         view()->share('currentStore', $currentStore);
         view()->share('availableStores', $availableStores);
+        view()->share('storeNav', \App\Support\StorePermissionResolver::navFor($user, $currentStore));
+        view()->share('canCreateStores', $user->canCreateStores($currentStore));
 
         return $next($request);
     }
@@ -38,29 +40,37 @@ class EnsureCurrentStore
      */
     protected function resolveAvailableStores($user): Collection
     {
-        $availableStores = $user->memberStores()
+        $availableStores = $user->activeMemberStores()
             ->orderBy('stores.name')
             ->get();
 
         if ($availableStores->isNotEmpty()) {
+            $user->setRelation('memberStores', $availableStores);
+
             return $availableStores;
         }
 
         $legacyOwnedStoreIds = $user->stores()->pluck('id');
 
         if ($legacyOwnedStoreIds->isEmpty()) {
+            $user->setRelation('memberStores', $availableStores);
+
             return $availableStores;
         }
 
         $user->memberStores()->syncWithoutDetaching(
             $legacyOwnedStoreIds
-                ->mapWithKeys(fn (int $storeId): array => [$storeId => ['role' => 'owner']])
+                ->mapWithKeys(fn (int $storeId): array => [$storeId => ['role' => 'owner', 'status' => 'active']])
                 ->all()
         );
 
-        return $user->memberStores()
+        $availableStores = $user->activeMemberStores()
             ->orderBy('stores.name')
             ->get();
+
+        $user->setRelation('memberStores', $availableStores);
+
+        return $availableStores;
     }
 
     /**

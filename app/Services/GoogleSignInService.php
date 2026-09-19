@@ -12,8 +12,58 @@ class GoogleSignInService
 {
     public function isEnabled(): bool
     {
+        $this->hydrateRuntimeConfig();
+
         return filled(config('services.google.client_id'))
             && filled(config('services.google.client_secret'));
+    }
+
+    /**
+     * Re-read Google OAuth values from the process environment when cached
+     * config was built without them (common after a cPanel deploy).
+     */
+    public function hydrateRuntimeConfig(): void
+    {
+        $id = trim((string) config('services.google.client_id'));
+        $secret = trim((string) config('services.google.client_secret'));
+        $redirect = trim((string) config('services.google.redirect'));
+
+        if ($id === '') {
+            $id = $this->environmentValue('GOOGLE_CLIENT_ID');
+        }
+
+        if ($secret === '') {
+            $secret = $this->environmentValue('GOOGLE_CLIENT_SECRET');
+        }
+
+        $explicitRedirect = $this->environmentValue('GOOGLE_REDIRECT_URI');
+        if ($explicitRedirect !== '') {
+            $redirect = rtrim($explicitRedirect, '/');
+        } elseif ($redirect === '') {
+            $appUrl = trim((string) (config('app.url') ?: $this->environmentValue('APP_URL')));
+            $redirect = rtrim($appUrl, '/').'/auth/google/callback';
+        }
+
+        config([
+            'services.google.client_id' => $id,
+            'services.google.client_secret' => $secret,
+            'services.google.redirect' => $redirect,
+        ]);
+    }
+
+    private function environmentValue(string $key): string
+    {
+        if (array_key_exists($key, $_ENV) && is_string($_ENV[$key])) {
+            return trim($_ENV[$key]);
+        }
+
+        if (array_key_exists($key, $_SERVER) && is_string($_SERVER[$key])) {
+            return trim($_SERVER[$key]);
+        }
+
+        $value = getenv($key);
+
+        return is_string($value) ? trim($value) : '';
     }
 
     /**

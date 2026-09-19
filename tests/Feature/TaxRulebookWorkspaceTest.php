@@ -24,7 +24,7 @@ class TaxRulebookWorkspaceTest extends TestCase
             ->assertSee('Tax rulebook', false)
             ->assertSee('Jurisdictions', false)
             ->assertSee('Save tax settings', false)
-            ->assertSee('+ Add tax rate', false)
+            ->assertSee('Add tax rate', false)
             ->assertSee(route('settings.taxes.update'), false)
             ->assertSee(route('settings.taxes.rates.store'), false)
             ->assertDontSee('Reset preview data', false)

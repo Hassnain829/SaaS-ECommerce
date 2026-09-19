@@ -16,7 +16,7 @@
             @if($canManageCustomers ?? false)
                 <a href="#add-customer" class="inline-flex h-9 items-center rounded-md bg-brand px-3.5 text-sm font-semibold text-white transition hover:bg-brand-hover">Add customer</a>
             @endif
-            @if($canManageOrders)
+            @if($canCreateDraftOrders ?? false)
                 <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink xl:inline-flex">Create order</a>
             @endif
         </x-slot:actions>

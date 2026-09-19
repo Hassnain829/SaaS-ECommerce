@@ -73,11 +73,13 @@
                                 <button type="submit" class="mt-3 inline-flex h-8 w-full items-center justify-center rounded-lg bg-brand text-xs font-bold text-white">Save changes</button>
                             </form>
                         </details>
+                        @if ($canDeleteDelivery ?? false)
                         <form method="POST" action="{{ route('settings.shipping.package-presets.destroy', $preset) }}" data-ui-confirm="This package size will be removed from delivery setup." data-ui-confirm-title="Remove this package size?" data-ui-confirm-action="Remove">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button>
                         </form>
+                        @endif
                     </div>
                 @endif
             </article>

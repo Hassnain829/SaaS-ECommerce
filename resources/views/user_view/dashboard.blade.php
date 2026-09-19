@@ -20,7 +20,7 @@
     <x-ui.merchant-topbar title="Dashboard" lead="Your store at a glance.">
         @if ($hasStore)
             <x-slot:actions>
-                @if (! empty($permissions['orders_manage']))
+                @if (! empty($permissions['orders_draft']))
                     <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink sm:inline-flex">Create order</a>
                 @endif
                 @if (! empty($permissions['catalog_manage']))
@@ -40,10 +40,17 @@
 @if (! $hasStore)
     <div class="merchant-card max-w-xl p-6">
         <h2 class="text-lg font-semibold text-ink">Welcome</h2>
-        <p class="mt-2 text-sm text-ink-secondary">Create a store to see your dashboard and start managing products and orders.</p>
-        <a href="{{ route('store-management') }}" class="mt-5 inline-flex items-center rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
-            Go to store management
-        </a>
+        @if ($canCreateStores ?? false)
+            <p class="mt-2 text-sm text-ink-secondary">Create a store to see your dashboard and start managing products and orders.</p>
+            <a href="{{ route('store-management') }}" class="mt-5 inline-flex items-center rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
+                Go to store management
+            </a>
+        @else
+            <p class="mt-2 text-sm text-ink-secondary">You don’t have a store to work in yet. Ask the owner to finish your invitation, or to allow you to create a store.</p>
+            <a href="{{ route('store-management') }}" class="mt-5 inline-flex items-center rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
+                Go to store management
+            </a>
+        @endif
     </div>
 @else
     <div
@@ -85,7 +92,7 @@
             </div>
         </section>
 
-        @if (! $setupComplete)
+        @if (! $setupComplete && (! empty($permissions['settings_view']) || ! empty($permissions['payments_view']) || ! empty($permissions['developer_api_view'])))
             @php
                 $setupSteps = $setup['steps'] ?? [];
                 $setupNext = $setup['next'] ?? null;
@@ -96,7 +103,7 @@
                 $setupHeadline = $setupRemaining === 1
                     ? 'One step left to start selling'
                     : $setupRemaining.' steps left to start selling';
-                $canOpenSetup = ! empty($permissions['settings_view']);
+                $canOpenSetup = ! empty($setupNext['href']);
             @endphp
             <section class="mdash-setup-card" data-setup-card aria-labelledby="setupNoticeTitle">
                 <div class="mdash-setup-summary">
@@ -183,6 +190,7 @@
         <section class="mdash-surface mdash-attention" id="attentionSection" data-dashboard-panel="attention" aria-labelledby="attentionTitle">
             <p class="mdash-kicker" id="attentionTitle">Needs attention</p>
             <div class="mdash-attention-grid">
+                @if (! empty($permissions['orders_view']))
                 <article class="mdash-attention-item">
                     <span class="mdash-attention-icon" aria-hidden="true"><svg class="mdash-icon"><use href="#mdash-box"/></svg></span>
                     <span class="mdash-attention-copy">
@@ -193,6 +201,8 @@
                         <a class="mdash-action" href="{{ $attention['fulfillment']['href'] }}">Open <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
                     @endif
                 </article>
+                @endif
+                @if (! empty($permissions['catalog_view']))
                 <article class="mdash-attention-item">
                     <span class="mdash-attention-icon" aria-hidden="true"><svg class="mdash-icon"><use href="#mdash-box"/></svg></span>
                     <span class="mdash-attention-copy">
@@ -203,6 +213,8 @@
                         <a class="mdash-action" href="{{ $attention['low_stock']['href'] }}">Review <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
                     @endif
                 </article>
+                @endif
+                @if (! empty($permissions['orders_view']))
                 <article class="mdash-attention-item">
                     <span class="mdash-attention-icon" aria-hidden="true"><svg class="mdash-icon"><use href="#mdash-return"/></svg></span>
                     <span class="mdash-attention-copy">
@@ -213,6 +225,8 @@
                         <a class="mdash-action" href="{{ $attention['returns']['href'] }}">Resolve <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
                     @endif
                 </article>
+                @endif
+                @if (! empty($permissions['settings_view']) || ! empty($permissions['orders_view']))
                 <article class="mdash-attention-item">
                     <span class="mdash-attention-icon {{ (int) ($attention['delivery']['count'] ?? 0) > 0 ? 'is-danger' : '' }}" aria-hidden="true"><svg class="mdash-icon"><use href="#mdash-alert"/></svg></span>
                     <span class="mdash-attention-copy">
@@ -223,9 +237,11 @@
                         <a class="mdash-action" href="{{ $attention['delivery']['href'] }}">Fix <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
                     @endif
                 </article>
+                @endif
             </div>
         </section>
 
+        @if ($metrics !== [])
         <div class="mdash-grid" id="analyticsGrid">
             <section class="mdash-surface mdash-performance" id="performanceCard" aria-labelledby="performanceTitle">
                 <div class="mdash-card-head">
@@ -235,7 +251,7 @@
                     </div>
                 </div>
                 <div class="mdash-metrics">
-                    @foreach ($metrics as $key => $metric)
+                    @forelse ($metrics as $key => $metric)
                         <div class="mdash-metric" data-metric="{{ $key }}" data-metric-display="{{ $metric['display'] }}">
                             <span>{{ $metric['label'] }}</span>
                             <strong>{{ $metric['display'] }}</strong>
@@ -243,8 +259,10 @@
                                 <em class="is-{{ $metric['change']['direction'] ?? 'flat' }}">{{ $metric['change']['label'] }}</em>
                             @endif
                         </div>
-                    @endforeach
+                    @empty
+                    @endforelse
                 </div>
+                @if (! empty($permissions['orders_view']))
                 <div class="mdash-chart-title">
                     <h4>Revenue over time</h4>
                     <div class="mdash-legend">
@@ -265,8 +283,10 @@
                         <strong></strong>
                     </div>
                 </div>
+                @endif
             </section>
 
+            @if (! empty($permissions['orders_view']))
             <section class="mdash-surface mdash-order-flow" id="orderFlowCard" data-dashboard-panel="orderFlow" aria-labelledby="orderFlowTitle">
                 <div class="mdash-card-head">
                     <div>
@@ -299,9 +319,12 @@
                     </a>
                 @endif
             </section>
+            @endif
         </div>
+        @endif
 
         <div class="mdash-lower" id="lowerGrid">
+            @if (! empty($permissions['orders_view']))
             <section class="mdash-surface mdash-table-card" id="recentOrdersCard" data-dashboard-panel="recentOrders" aria-labelledby="recentOrdersTitle">
                 <div class="mdash-card-head">
                     <div><h3 id="recentOrdersTitle">Recent orders</h3></div>
@@ -354,7 +377,9 @@
                     @endif
                 </div>
             </section>
+            @endif
 
+            @if (! empty($permissions['catalog_view']))
             <section class="mdash-surface mdash-inventory" id="inventoryCard" data-dashboard-panel="inventory" aria-labelledby="inventoryTitle">
                 <div class="mdash-card-head">
                     <div>
@@ -395,8 +420,10 @@
                     </div>
                 @endif
             </section>
+            @endif
         </div>
 
+        @if (($systems['items'] ?? []) !== [])
         <section class="mdash-surface mdash-systems" id="systemsStrip" data-dashboard-panel="systems" aria-labelledby="systemsTitle">
             <h3 id="systemsTitle">Store systems</h3>
             <div class="mdash-system-items">
@@ -416,6 +443,7 @@
                 <a class="mdash-view-all" href="{{ $systems['manage_href'] }}">Manage settings <svg class="mdash-icon-sm" aria-hidden="true"><use href="#mdash-arrow"/></svg></a>
             @endif
         </section>
+        @endif
         <script type="application/json" id="merchant-dashboard-chart-data">@json($chart)</script>
     </div>
 @endif

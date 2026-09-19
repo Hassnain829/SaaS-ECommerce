@@ -32,6 +32,13 @@ class NewPasswordController extends Controller
             'password' => ['required', 'confirmed', PasswordRule::defaults()],
         ]);
 
+        $pendingResetUser = User::query()->whereRaw('lower(email) = ?', [strtolower(trim((string) $request->input('email')))])->first();
+        if ($pendingResetUser?->must_set_password) {
+            throw ValidationException::withMessages([
+                'email' => [__('passwords.token')],
+            ]);
+        }
+
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user) use ($request): void {

@@ -84,6 +84,8 @@ class GoogleAuthController extends Controller
 
     private function callbackUrl(): string
     {
+        $this->googleSignIn->hydrateRuntimeConfig();
+
         return rtrim((string) config('services.google.redirect'), '/');
     }
 

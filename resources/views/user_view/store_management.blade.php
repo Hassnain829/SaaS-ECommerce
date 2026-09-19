@@ -33,10 +33,12 @@
             </div>
         </x-slot:search>
         <x-slot:actions>
-            <button type="button" class="js-open-create-store-modal inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/></svg>
-                <span>Create store</span>
-            </button>
+            @if ($canCreateStores ?? false)
+                <button type="button" class="js-open-create-store-modal inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white"/></svg>
+                    <span>Create store</span>
+                </button>
+            @endif
         </x-slot:actions>
     </x-ui.merchant-topbar>
 @endsection
@@ -381,8 +383,12 @@
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 10.5V20h16v-9.5M3 9l2-5h14l2 5"/></svg>
                         </div>
                         <h3>No stores yet</h3>
-                        <p>Create your first store to get started</p>
-                        <button type="button" class="js-open-create-store-modal mt-4 inline-flex items-center rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">Create store</button>
+                        @if ($canCreateStores ?? false)
+                            <p>Create your first store to get started</p>
+                            <button type="button" class="js-open-create-store-modal mt-4 inline-flex items-center rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover">Create store</button>
+                        @else
+                            <p>You can work in stores an owner has invited you to. You cannot create a new store unless they allow it.</p>
+                        @endif
                     </div>
                 @endforelse
             </div>
@@ -651,7 +657,9 @@
     <input type="hidden" name="order_id" value="">
 </form>
 
-@include('user_view.partials.store_create_modal')
+@if ($canCreateStores ?? false)
+    @include('user_view.partials.store_create_modal')
+@endif
 @include('user_view.partials.store_edit_modal')
 @include('user_view.partials.store_permanent_delete_modal')
 @endsection

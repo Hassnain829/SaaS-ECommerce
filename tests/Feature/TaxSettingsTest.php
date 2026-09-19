@@ -31,7 +31,7 @@ class TaxSettingsTest extends TestCase
             'name' => 'settings.taxes.index',
             'uri' => 'settings/taxes',
             'methods' => ['GET'],
-            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.view'],
+            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.taxes,settings.view'],
             'controller' => TaxSettingsController::class,
             'action' => 'index',
         ],
@@ -39,7 +39,7 @@ class TaxSettingsTest extends TestCase
             'name' => 'settings.taxes.update',
             'uri' => 'settings/taxes',
             'methods' => ['PUT'],
-            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.manage'],
+            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.taxes'],
             'controller' => TaxSettingsController::class,
             'action' => 'update',
         ],
@@ -47,7 +47,7 @@ class TaxSettingsTest extends TestCase
             'name' => 'settings.taxes.rates.store',
             'uri' => 'settings/taxes/rates',
             'methods' => ['POST'],
-            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.manage'],
+            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.taxes'],
             'controller' => TaxSettingsController::class,
             'action' => 'storeRate',
         ],
@@ -55,7 +55,7 @@ class TaxSettingsTest extends TestCase
             'name' => 'settings.taxes.rates.update',
             'uri' => 'settings/taxes/rates/{taxRate}',
             'methods' => ['PATCH'],
-            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.manage'],
+            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.taxes'],
             'controller' => TaxSettingsController::class,
             'action' => 'updateRate',
         ],
@@ -63,7 +63,7 @@ class TaxSettingsTest extends TestCase
             'name' => 'settings.taxes.rates.destroy',
             'uri' => 'settings/taxes/rates/{taxRate}',
             'methods' => ['DELETE'],
-            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.manage'],
+            'middleware' => [...self::BASE_MIDDLEWARE, 'store.permission:settings.taxes'],
             'controller' => TaxSettingsController::class,
             'action' => 'destroyRate',
         ],
@@ -1156,7 +1156,7 @@ class TaxSettingsTest extends TestCase
             ->assertSee('United States', false)
             ->assertSee('Region-specific', false)
             ->assertSee('California', false)
-            ->assertSee('+ Add tax rate', false)
+            ->assertSee('Add tax rate', false)
             ->assertDontSee('>Priority</th>', false)
             ->assertDontSee('multiple rates could match', false);
     }

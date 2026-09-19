@@ -69,10 +69,12 @@
                                 data-active="{{ $method->is_active ? '1' : '0' }}"
                                 data-flag-mismatch="{{ $flagMismatch ? '1' : '0' }}">Edit</button>
                         @endif
+                        @if ($canDeleteDelivery ?? false)
                         <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}" data-ui-confirm="Customers will no longer see this option at checkout." data-ui-confirm-title="Remove this delivery method?" data-ui-confirm-action="Remove">
                             @csrf @method('DELETE')
                             <button class="rounded-lg border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#991B1B]">Remove</button>
                         </form>
+                        @endif
                     </div>
                 @endif
             </article>

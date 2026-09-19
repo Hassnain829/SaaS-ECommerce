@@ -9,7 +9,6 @@ use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
 use App\Services\Carriers\FedEx\Support\FedExShipperPhoneResolver;
 use App\Services\Inventory\DefaultLocationService;
 use App\Services\SecurityLogRecorder;
-use App\Support\StorePermission;
 use App\Support\Tax\TaxCountryCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,7 +68,7 @@ class LocationController extends Controller
             'locationMetrics' => $locationMetrics,
             'locationTypes' => Location::TYPES,
             'countries' => TaxCountryCatalog::all(),
-            'canManageLocations' => $request->user()?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE) ?? false,
+            'canManageLocations' => $request->user()?->hasStorePermission($store, 'settings.locations') ?? false,
             'originReadinessByLocationId' => $originReadinessByLocationId,
             'fedExConnectPhone' => $fedExConnectPhone,
         ]);

@@ -4,16 +4,19 @@
 
 @php
     $store = $selectedStore ?? $currentStore ?? null;
-    $settings = is_array($store?->settings) ? $store->settings : [];
-    $businessModels = collect($settings['business_models'] ?? [])->filter()->values();
-    $categoryLabel = $settings['custom_category'] ?? $store?->category ?? 'General';
-    $contactEmail = trim((string) ($settings['contact_email'] ?? ''));
+    $storeSettings = ($store instanceof \App\Models\Store && is_array($store->settings)) ? $store->settings : [];
+    $businessModels = collect($storeSettings['business_models'] ?? [])->filter()->values();
+    $categoryLabel = $storeSettings['custom_category'] ?? (($store instanceof \App\Models\Store) ? ($store->category ?? 'General') : 'General');
+    $contactEmail = trim((string) ($storeSettings['contact_email'] ?? ''));
     $contactEmailDisplay = $contactEmail !== '' ? $contactEmail : 'Not set';
     $defaultLocationAddress = $defaultLocation
         ? collect([$defaultLocation->address_line1, $defaultLocation->city, $defaultLocation->state, $defaultLocation->postal_code, $defaultLocation->country_code])->filter()->implode(', ')
         : null;
-    $canManageStoreSettings = $store && (auth()->user()?->hasStorePermission($store, \App\Support\StorePermission::SETTINGS_MANAGE) ?? false);
-    $storeInitial = $store ? \Illuminate\Support\Str::of($store->name)->trim()->substr(0, 1)->upper() : '?';
+    $canManageStoreSettings = $store instanceof \App\Models\Store
+        && (auth()->user()?->hasStorePermission($store, \App\Support\StorePermission::SETTINGS_MANAGE) ?? false);
+    $storeInitial = $store instanceof \App\Models\Store
+        ? \Illuminate\Support\Str::of($store->name)->trim()->substr(0, 1)->upper()
+        : '?';
     $requiresCatalogConversion = (bool) ($requiresCatalogConversion ?? false);
     $profileUser = $profileUser ?? auth()->user();
     $memberStores = $memberStores ?? collect();
@@ -25,7 +28,7 @@
     $forceAccountTab = collect($accountErrorKeys)->contains(fn ($key) => $errors->has($key));
     $forceStoreTab = collect($storeErrorKeys)->contains(fn ($key) => $errors->has($key));
     $requestedTab = ($settingsTab ?? request()->query('tab', 'store')) === 'account' ? 'account' : 'store';
-    $settingsTab = $forceAccountTab ? 'account' : ($forceStoreTab ? 'store' : $requestedTab);
+    $settingsTab = $forceAccountTab ? 'account' : ($forceStoreTab && $canManageStoreSettings ? 'store' : $requestedTab);
     $profileInitial = $profileUser
         ? \Illuminate\Support\Str::of($profileUser->name)->trim()->substr(0, 1)->upper()
         : '?';
@@ -33,7 +36,7 @@
     $businessModelLine = $businessModels->isNotEmpty()
         ? $businessModels->map(fn ($model) => \Illuminate\Support\Str::headline((string) $model))->implode(', ')
         : $categoryHeadline.' products';
-    $setupComplete = (bool) ($store?->onboarding_completed);
+    $setupComplete = $store instanceof \App\Models\Store ? (bool) $store->onboarding_completed : false;
 @endphp
 
 @section('topbar')
@@ -63,12 +66,14 @@
         @endif
 
         <nav class="gs-tabs" aria-label="Settings sections">
+            @if ($store)
             <a
                 href="{{ route('generalSettings', ['tab' => 'store']) }}"
                 @class(['gs-tab', 'is-active' => $settingsTab === 'store'])
             >
                 Store
             </a>
+            @endif
             <a
                 href="{{ route('generalSettings', ['tab' => 'account']) }}"
                 @class(['gs-tab', 'is-active' => $settingsTab === 'account'])
@@ -78,7 +83,7 @@
         </nav>
 
         @if ($settingsTab === 'store')
-            @unless ($store)
+            @if (! $store)
                 <section class="gs-card p-6">
                     <h2 class="gs-card-title">No active store</h2>
                     <p class="gs-card-lead">Create or select a store before changing store settings.</p>
@@ -91,7 +96,7 @@
                     'storeLocations' => $storeLocations ?? collect(),
                     'requiresCatalogConversion' => $requiresCatalogConversion,
                 ])
-            @else
+            @elseif ($store instanceof \App\Models\Store)
                 <section class="gs-info-banner" role="note">
                     <span class="gs-info-banner-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
@@ -204,7 +209,7 @@
                         </div>
                     </div>
                 </section>
-            @endunless
+            @endif
         @else
             <div class="gs-account-layout">
                 <div class="space-y-6">

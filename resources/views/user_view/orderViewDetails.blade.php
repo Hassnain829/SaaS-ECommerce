@@ -56,8 +56,14 @@
             }
         }
         $canManageOrders = auth()->user()?->canManageOrders($selectedStore) ?? false;
-        $canRecordManualPayment = $canManageOrders
+        $canRecordManualPayment = (auth()->user()?->hasStorePermission($selectedStore, 'orders.payments') ?? false)
             && app(\App\Services\ManualOrderPaymentService::class)->canRecord($order);
+        $canFulfillOrders = auth()->user()?->hasStorePermission($selectedStore, 'fulfillment.fulfill') ?? false;
+        $canUpdateTracking = auth()->user()?->hasStorePermission($selectedStore, 'fulfillment.tracking') ?? false;
+        $canPurchaseLabels = auth()->user()?->hasStorePermission($selectedStore, 'fulfillment.labels.purchase') ?? false;
+        $canCancelLabels = auth()->user()?->hasStorePermission($selectedStore, 'fulfillment.labels.cancel') ?? false;
+        $canManageReturns = auth()->user()?->hasStorePermission($selectedStore, 'customers.returns') ?? false;
+        $canManageExchanges = auth()->user()?->hasStorePermission($selectedStore, 'customers.exchanges') ?? false;
         $noteEvents = $order->events->where('event_type', OrderLifecycle::EVENT_ORDER_NOTE_ADDED);
         $sourceLabels = [
             'external_checkout' => 'External',
@@ -112,8 +118,9 @@
             OrderLifecycle::PAYMENT_PAID,
             OrderLifecycle::PAYMENT_AUTHORIZED,
         ], true);
-        $canIssueRefund = $canManageOrders && bccomp((string) $remainingRefundableAmount, '0', 4) > 0;
-        $canCancelOrder = $canManageOrders
+        $canIssueRefund = (auth()->user()?->hasStorePermission($selectedStore, 'customers.refunds') ?? false)
+            && bccomp((string) $remainingRefundableAmount, '0', 4) > 0;
+        $canCancelOrder = (auth()->user()?->hasStorePermission($selectedStore, 'orders.cancel') ?? false)
             && $order->status !== OrderLifecycle::ORDER_CANCELLED
             && $availableOrderStatuses->contains(OrderLifecycle::ORDER_CANCELLED);
         $isCancelled = $order->status === OrderLifecycle::ORDER_CANCELLED;
@@ -287,17 +294,19 @@
             </div>
             <div class="head-actions">
                 <button type="button" class="btn" data-action="print">Print order</button>
-                @if ($canManageOrders)
+                @if ($canManageOrders || $canIssueRefund || ($canManageReturns && $canRecordReturn) || ($canManageExchanges && $canCreateExchange) || $canCancelOrder)
                     <button type="button" class="btn" id="moreButton" aria-expanded="false" aria-haspopup="true">•••</button>
                     <div class="menu" id="moreMenu" hidden>
+                    @if ($canManageOrders)
                         <button type="button" data-action="status">Update order status</button>
+                    @endif
                     @if ($canIssueRefund)
                         <button type="button" data-action="refund">Issue refund</button>
                     @endif
-                    @if ($canManageOrders && $canRecordReturn)
+                    @if ($canManageReturns && $canRecordReturn)
                         <button type="button" data-action="return">Record return</button>
                     @endif
-                    @if ($canManageOrders && $canCreateExchange)
+                    @if ($canManageExchanges && $canCreateExchange)
                         <button type="button" data-action="exchange">Create exchange</button>
                     @endif
                     @if ($canCancelOrder)
@@ -305,7 +314,7 @@
                     @endif
                     </div>
                 @endif
-                @if ($canManageOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
+                @if ($canFulfillOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
                     <button type="button" class="btn btn-primary" data-action="fulfill">Fulfill order</button>
                 @endif
             </div>
@@ -420,6 +429,7 @@
             </section>
         </section>
 
+        @if ($canManageOrders)
         <dialog id="statusDialog">
             <div id="status-manager" class="scroll-mt-24">
                 <header class="dialog-head">
@@ -431,7 +441,7 @@
                         <p class="text-sm font-semibold text-slate-700">Current state</p>
                         <p class="mt-1 text-sm">{{ $orderStatusLabel }}</p>
                     </div>
-                    @if ($canManageOrders && $availableOrderStatuses->count() > 1)
+                    @if ($availableOrderStatuses->count() > 1)
                         <form action="{{ route('orders.updateStatus', $order->id) }}" method="POST" class="ow-form space-y-4">
                             @csrf
                             @method('PATCH')
@@ -450,14 +460,13 @@
                                 <button class="btn btn-primary" type="submit">Save status</button>
                             </div>
                         </form>
-                    @elseif ($canManageOrders)
-                        <p class="text-sm text-slate-600">No further status changes are available for this order.</p>
                     @else
-                        <p class="text-sm text-amber-950">You can view this order, but your store role cannot change its status.</p>
+                        <p class="text-sm text-slate-600">No further status changes are available for this order.</p>
                     @endif
                 </div>
             </div>
         </dialog>
+        @endif
 
         @if ($canCancelOrder)
             <form id="cancel-order-form" action="{{ route('orders.updateStatus', $order->id) }}" method="POST" hidden>

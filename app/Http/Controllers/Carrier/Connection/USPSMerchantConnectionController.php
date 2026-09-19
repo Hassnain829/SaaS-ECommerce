@@ -64,7 +64,7 @@ class USPSMerchantConnectionController extends Controller
             'requirements' => $connectionService->merchantRequirements(),
             'businessPortalUrl' => $connectionService->uspsBusinessPortalUrl(),
             'labelProviderName' => $connectionService->platformLabelProviderName(),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.carriers') ?? false,
             'merchantOAuthAvailable' => $connectionService->merchantOAuthAvailable(),
         ]);
     }
@@ -126,7 +126,7 @@ class USPSMerchantConnectionController extends Controller
             'requirements' => $connectionService->merchantRequirements(),
             'businessPortalUrl' => $connectionService->uspsBusinessPortalUrl(),
             'labelProviderName' => $connectionService->platformLabelProviderName(),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.carriers') ?? false,
             'merchantOAuthAvailable' => $connectionService->merchantOAuthAvailable(),
         ]);
     }
@@ -315,7 +315,7 @@ class USPSMerchantConnectionController extends Controller
             'progress' => $connectionService->wizard()->progress($account),
             'businessPortalUrl' => $connectionService->uspsBusinessPortalUrl(),
             'labelProviderName' => $connectionService->platformLabelProviderName(),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.carriers') ?? false,
             'merchantOAuthAvailable' => $connectionService->merchantOAuthAvailable(),
             'merchantShipSuiteVerifyAvailable' => $connectionService->merchantShipSuiteVerifyAvailable(),
         ]);
@@ -507,7 +507,7 @@ class USPSMerchantConnectionController extends Controller
 
     private function authorizeManage(Request $request, $store): void
     {
-        abort_unless($request->user()?->canManageSettings($store) ?? false, 403);
+        abort_unless($request->user()?->hasStorePermission($store, 'settings.carriers') ?? false, 403);
     }
 
     private function resolveMerchantAccount($store, CarrierAccount $carrierAccount): CarrierAccount

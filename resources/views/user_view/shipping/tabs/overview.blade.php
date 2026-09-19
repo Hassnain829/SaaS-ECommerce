@@ -20,6 +20,7 @@
     $lifecycle = app(\App\Services\Delivery\DeliverySetupLifecycleService::class);
     $currency = $storeRef?->currency ?? 'USD';
     $canManage = (bool) ($canManageShipping ?? false);
+    $canDelete = (bool) ($canDeleteDelivery ?? false);
 
     $errorIds = $healthItems
         ->filter(fn ($i) => ($i['severity'] ?? '') === 'error')
@@ -414,10 +415,12 @@
                 <p>{{ $orphanMethods->count() }} unused delivery {{ $orphanMethods->count() === 1 ? 'option is' : 'options are' }} not linked to a delivery area. Manage areas and checkout options.</p>
                 <p>{{ $orphanMethods->pluck('name')->filter()->implode(', ') }}</p>
             </div>
+            @if ($canDelete)
             <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" data-ui-confirm="Remove unused delivery options that are not linked to a delivery area?" data-ui-confirm-title="Remove unused delivery options?" data-ui-confirm-action="Remove unused options">
                 @csrf
                 <button type="submit" class="do-btn">Remove unused options</button>
             </form>
+            @endif
         </div>
     @endif
 
@@ -478,10 +481,12 @@
                 <p>{{ $orphanMethods->count() }} unused delivery {{ $orphanMethods->count() === 1 ? 'option is' : 'options are' }} not linked to a delivery area. Manage areas and checkout options.</p>
                 <p>{{ $orphanMethods->pluck('name')->filter()->implode(', ') }}</p>
             </div>
+            @if ($canDelete)
             <form method="POST" action="{{ route('settings.shipping.methods.cleanup-orphans') }}" data-ui-confirm="Remove unused delivery options that are not linked to a delivery area?" data-ui-confirm-title="Remove unused delivery options?" data-ui-confirm-action="Remove unused options">
                 @csrf
                 <button type="submit" class="do-btn">Remove unused options</button>
             </form>
+            @endif
         </div>
     @endif
 
@@ -621,6 +626,7 @@
                                     <button type="button" class="zone-edit-btn do-btn compact-btn"
                                         data-action="{{ route('settings.shipping.zones.update', $zone) }}"
                                         data-zone-form="{{ e(json_encode($zonePresenter->presentationFromZone($zone))) }}">Edit</button>
+                                    @if ($canDelete)
                                     <details class="dh-menu">
                                         <summary class="dh-menu-trigger" aria-label="More actions for {{ $zone->name }}">
                                             <svg class="do-icon" aria-hidden="true"><use href="#do-i-more"/></svg>
@@ -633,6 +639,7 @@
                                             </form>
                                         </div>
                                     </details>
+                                    @endif
                                 @else
                                     <span class="do-pill {{ $zone->is_active ? 'do-pill-ready' : 'do-pill-muted' }}">{{ $zone->is_active ? 'Active' : 'Inactive' }}</span>
                                 @endif
@@ -716,11 +723,13 @@
                                                                 data-checkout="{{ $method->enabled_for_checkout ? '1' : '0' }}"
                                                                 data-active="{{ $method->is_active ? '1' : '0' }}"
                                                                 data-flag-mismatch="{{ $flagMismatch ? '1' : '0' }}">Edit option</button>
+                                                            @if ($canDelete)
                                                             <form method="POST" action="{{ route('settings.shipping.methods.destroy', $method) }}" data-ui-confirm="Remove “{{ $method->name }}”? Customers will no longer see this option at checkout." data-ui-confirm-title="Remove this delivery option?" data-ui-confirm-action="Remove option">
                                                                 @csrf
                                                                 @method('DELETE')
                                                                 <button type="submit" class="dh-menu-danger">Remove option</button>
                                                             </form>
+                                                            @endif
                                                         </div>
                                                     </details>
                                                 </span>

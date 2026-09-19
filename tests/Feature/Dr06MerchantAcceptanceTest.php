@@ -23,6 +23,7 @@ use App\Services\Payments\StripePlatformPaymentProvider;
 use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
 use App\Support\ProductTypeBehavior;
+use App\Support\StoreMemberAccess;
 use Database\Seeders\CarrierSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -593,7 +594,7 @@ class Dr06MerchantAcceptanceTest extends TestCase
             ->post(route('team-members.store'), [
                 'name' => 'Second Staff',
                 'email' => 'dr06-second-staff@example.test',
-                'role' => Store::ROLE_STAFF,
+                'access_preset' => StoreMemberAccess::PRESET_VIEW,
             ])
             ->assertRedirect(route('team-members.index'));
 
@@ -602,7 +603,7 @@ class Dr06MerchantAcceptanceTest extends TestCase
             ->post(route('team-members.store'), [
                 'name' => 'Blocked Invite',
                 'email' => 'dr06-blocked@example.test',
-                'role' => Store::ROLE_STAFF,
+                'access_preset' => StoreMemberAccess::PRESET_VIEW,
             ])
             ->assertForbidden();
     }

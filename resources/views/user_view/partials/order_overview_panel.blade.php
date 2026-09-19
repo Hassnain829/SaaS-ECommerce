@@ -143,7 +143,7 @@
                     </div>
 
                     <div class="fulfillment-actions">
-                        @if ($canManageOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
+                        @if ($canFulfillOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
                             <button type="button" class="btn btn-primary" data-action="fulfill">Create shipment</button>
                         @else
                             <span></span>
@@ -309,8 +309,8 @@
                                 Record payment
                             </button>
                         </form>
-                    @elseif ($order->order_source === 'manual' && $order->payment_status === \App\Support\OrderLifecycle::PAYMENT_PENDING && ! $canManageOrders)
-                        <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-900">Payment is still outstanding. Ask a store owner or manager to record it.</p>
+                    @elseif ($order->order_source === 'manual' && $order->payment_status === \App\Support\OrderLifecycle::PAYMENT_PENDING && ! $canRecordManualPayment)
+                        <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs text-amber-900">Payment is still outstanding. Ask a teammate with payment permission to record it.</p>
                     @endif
 
                     @isset($taxDisplay)

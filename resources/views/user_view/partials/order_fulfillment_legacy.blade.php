@@ -103,7 +103,7 @@
 
                     @php
                         $fedExPrimaryFulfillment = ($fedExActiveAccount ?? null)
-                            && ($canManageOrders ?? false)
+                            && ($canPurchaseLabels ?? false)
                             && ! ($isOrderExternallyManaged ?? false)
                             && (
                                 filter_var(config('carriers.fedex.ops_ship_labels_enabled', false), FILTER_VALIDATE_BOOL)
@@ -121,7 +121,7 @@
                     @include('user_view.orders.partials.fedex_shipping_ops')
 
                     <div id="manual-shipment-panel" @if ($fedExPrimaryFulfillment) hidden @endif>
-                    @if ($canManageOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
+                    @if ($canFulfillOrders && $remainingTotal > 0 && ! $isOrderExternallyManaged)
                         @if ($fedExPrimaryFulfillment)
                             <details class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4">
                                 <summary class="cursor-pointer text-sm font-semibold text-slate-700">Record a manual shipment</summary>
@@ -297,11 +297,11 @@
                             </button>
                         </form>
                         @endif
-                    @elseif ($canManageOrders && $remainingTotal === 0 && ! $isOrderExternallyManaged)
+                    @elseif ($canFulfillOrders && $remainingTotal === 0 && ! $isOrderExternallyManaged)
                         <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                             All items on this order are fulfilled.
                         </div>
-                    @elseif ($isOrderExternallyManaged && $canManageOrders && $remainingTotal > 0)
+                    @elseif ($isOrderExternallyManaged && $canFulfillOrders && $remainingTotal > 0)
                         <details class="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
                             <summary class="cursor-pointer text-sm font-semibold text-slate-700">Advanced: create internal shipment override</summary>
                             <p class="mt-2 text-xs leading-relaxed text-slate-500">Only use this if you need to record fulfillment inside the dashboard in addition to external updates.</p>
@@ -383,7 +383,7 @@
                                     </div>
                                 @endif
 
-                                @if ($canManageOrders && ! $isExternalShipment && ! $isFedExManagedShipment)
+                                @if ($canUpdateTracking && ! $isExternalShipment && ! $isFedExManagedShipment)
                                     <form method="POST" action="{{ route('shipments.tracking.update', $shipment) }}" class="mt-4 grid gap-2">
                                         @csrf
                                         @method('PATCH')
@@ -391,6 +391,8 @@
                                         <input name="tracking_url" value="{{ $shipment->tracking_url }}" type="url" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Tracking link">
                                         <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Update tracking</button>
                                     </form>
+                                @endif
+                                @if ($canFulfillOrders && ! $isExternalShipment && ! $isFedExManagedShipment)
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         @if (in_array($shipment->status, [\App\Models\Shipment::STATUS_PENDING, \App\Models\Shipment::STATUS_LABEL_CREATED], true))
                                             <form method="POST" action="{{ route('shipments.mark-shipped', $shipment) }}">@csrf<button class="rounded-lg bg-brand px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-hover">Mark shipped</button></form>

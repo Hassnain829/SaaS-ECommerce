@@ -15,7 +15,7 @@
         $addressSuggestionSource = $addressReview;
     }
     $showFedExOps = $fedExAccount
-        && ($canManageOrders ?? false)
+        && ($canPurchaseLabels ?? false)
         && ! ($isOrderExternallyManaged ?? false);
     $opsShipLabelsEnabled = filter_var(config('carriers.fedex.ops_ship_labels_enabled', false), FILTER_VALIDATE_BOOL);
     $defaultPreset = $shippingPackagePresets->firstWhere('is_default', true) ?? $shippingPackagePresets->first();

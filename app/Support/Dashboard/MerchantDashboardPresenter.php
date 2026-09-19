@@ -70,17 +70,27 @@ final class MerchantDashboardPresenter
         $currency = strtoupper((string) ($store->currency ?: 'USD'));
         $reporting = app(ReportingMoneyConverter::class);
 
-        $currentTotals = $this->revenueTotals($storeId, $windows['current_start_utc'], $windows['current_end_utc'], $currency, $reporting);
-        $previousTotals = $this->revenueTotals($storeId, $windows['previous_start_utc'], $windows['previous_end_utc'], $currency, $reporting);
+        $permissions = $this->permissions();
+        $zeroTotals = ['revenue' => 0.0, 'orders' => 0];
+        $currentTotals = $permissions['orders_view']
+            ? $this->revenueTotals($storeId, $windows['current_start_utc'], $windows['current_end_utc'], $currency, $reporting)
+            : $zeroTotals;
+        $previousTotals = $permissions['orders_view']
+            ? $this->revenueTotals($storeId, $windows['previous_start_utc'], $windows['previous_end_utc'], $currency, $reporting)
+            : $zeroTotals;
 
-        $newCustomers = Customer::query()
-            ->where('store_id', $storeId)
-            ->whereBetween('created_at', [$windows['current_start_utc'], $windows['current_end_utc']])
-            ->count();
-        $previousCustomers = Customer::query()
-            ->where('store_id', $storeId)
-            ->whereBetween('created_at', [$windows['previous_start_utc'], $windows['previous_end_utc']])
-            ->count();
+        $newCustomers = $permissions['customers_view']
+            ? Customer::query()
+                ->where('store_id', $storeId)
+                ->whereBetween('created_at', [$windows['current_start_utc'], $windows['current_end_utc']])
+                ->count()
+            : 0;
+        $previousCustomers = $permissions['customers_view']
+            ? Customer::query()
+                ->where('store_id', $storeId)
+                ->whereBetween('created_at', [$windows['previous_start_utc'], $windows['previous_end_utc']])
+                ->count()
+            : 0;
 
         $currentAov = $currentTotals['orders'] > 0
             ? $currentTotals['revenue'] / $currentTotals['orders']
@@ -89,12 +99,41 @@ final class MerchantDashboardPresenter
             ? $previousTotals['revenue'] / $previousTotals['orders']
             : 0.0;
 
-        $permissions = $this->permissions();
         $setup = $this->setupProgress($store, $permissions);
         $setupComplete = $setup['complete'];
         $attention = $this->attention($storeId, $permissions);
-        $inventoryWatch = $this->inventoryWatch($storeId, $permissions);
+        $inventoryWatch = $permissions['catalog_view'] ? $this->inventoryWatch($storeId, $permissions) : [];
         $welcome = $this->welcomeCopy($now);
+
+        $metrics = [];
+        if ($permissions['orders_view']) {
+            $metrics['revenue'] = [
+                'label' => 'Revenue',
+                'value' => $currentTotals['revenue'],
+                'display' => MoneyDisplay::format($currentTotals['revenue'], $currency),
+                'change' => $this->percentChange($currentTotals['revenue'], $previousTotals['revenue']),
+            ];
+            $metrics['orders'] = [
+                'label' => 'Orders',
+                'value' => $currentTotals['orders'],
+                'display' => number_format($currentTotals['orders']),
+                'change' => $this->percentChange((float) $currentTotals['orders'], (float) $previousTotals['orders']),
+            ];
+            $metrics['average_order'] = [
+                'label' => 'Average order',
+                'value' => $currentAov,
+                'display' => MoneyDisplay::format($currentAov, $currency),
+                'change' => $this->percentChange($currentAov, $previousAov),
+            ];
+        }
+        if ($permissions['customers_view']) {
+            $metrics['new_customers'] = [
+                'label' => 'New customers',
+                'value' => $newCustomers,
+                'display' => number_format($newCustomers),
+                'change' => $this->percentChange((float) $newCustomers, (float) $previousCustomers),
+            ];
+        }
 
         return [
             'has_store' => true,
@@ -104,49 +143,28 @@ final class MerchantDashboardPresenter
             'currency' => $currency,
             'greeting' => $welcome['heading'],
             'greeting_lead' => $welcome['lead'],
-            'range_description' => $this->comparisonCopy(
-                $windows,
-                $currentTotals,
-                $previousTotals,
-                $newCustomers,
-                $previousCustomers,
-            ),
+            'range_description' => $permissions['orders_view'] || $permissions['customers_view']
+                ? $this->comparisonCopy(
+                    $windows,
+                    $currentTotals,
+                    $previousTotals,
+                    $newCustomers,
+                    $previousCustomers,
+                )
+                : 'Your store at a glance.',
             'setup_progress' => $setup,
             'setup_complete' => $setupComplete,
             'permissions' => $permissions,
-            'metrics' => [
-                'revenue' => [
-                    'label' => 'Revenue',
-                    'value' => $currentTotals['revenue'],
-                    'display' => MoneyDisplay::format($currentTotals['revenue'], $currency),
-                    'change' => $this->percentChange($currentTotals['revenue'], $previousTotals['revenue']),
+            'metrics' => $metrics,
+            'chart' => $permissions['orders_view']
+                ? $this->chart($storeId, $timezone, $currency, $reporting, $windows)
+                : [
+                    'labels' => [],
+                    'current' => [],
+                    'previous' => [],
+                    'current_formatted' => [],
+                    'empty' => true,
                 ],
-                'orders' => [
-                    'label' => 'Orders',
-                    'value' => $currentTotals['orders'],
-                    'display' => number_format($currentTotals['orders']),
-                    'change' => $this->percentChange((float) $currentTotals['orders'], (float) $previousTotals['orders']),
-                ],
-                'average_order' => [
-                    'label' => 'Average order',
-                    'value' => $currentAov,
-                    'display' => MoneyDisplay::format($currentAov, $currency),
-                    'change' => $this->percentChange($currentAov, $previousAov),
-                ],
-                'new_customers' => [
-                    'label' => 'New customers',
-                    'value' => $newCustomers,
-                    'display' => number_format($newCustomers),
-                    'change' => $this->percentChange((float) $newCustomers, (float) $previousCustomers),
-                ],
-            ],
-            'chart' => $this->chart(
-                $storeId,
-                $timezone,
-                $currency,
-                $reporting,
-                $windows,
-            ),
             'attention' => $attention,
             'order_flow' => $this->orderFlow($storeId, $permissions, $attention['fulfillment']['count']),
             'recent_orders' => $this->recentOrders($storeId, $timezone, $currency, $permissions),
@@ -364,14 +382,15 @@ final class MerchantDashboardPresenter
         $taxReady = (bool) ($taxSetting?->enabled) && $taxRatesCount > 0;
         $locationReady = $activeLocationsCount > 0;
         $deliveryReady = $activeDeliveryAreasCount > 0 && $checkoutDeliveryOptionsCount > 0;
-        $paymentReady = $this->paymentSetupReady($store);
+        $paymentReady = ! empty($permissions['payments_view']) && $this->paymentSetupReady($store);
         $websiteReady = $store->websiteConnectionState() === Store::WEBSITE_CONNECTED;
         $websiteHref = ! empty($permissions['developer_api_view'])
             ? route('developer-storefront.settings')
             : null;
 
-        $steps = [
-            [
+        $steps = [];
+        if (! empty($permissions['locations_manage']) || ! empty($permissions['settings_pages_view'])) {
+            $steps[] = [
                 'key' => 'location',
                 'title' => 'Store location',
                 'short_title' => 'Location',
@@ -380,8 +399,10 @@ final class MerchantDashboardPresenter
                 'ready' => $locationReady,
                 'href' => route('settings.locations.index'),
                 'cta' => $locationReady ? 'Manage locations' : 'Add location',
-            ],
-            [
+            ];
+        }
+        if (! empty($permissions['delivery_manage']) || ! empty($permissions['settings_pages_view'])) {
+            $steps[] = [
                 'key' => 'delivery',
                 'title' => 'Delivery setup',
                 'short_title' => 'Delivery',
@@ -390,8 +411,10 @@ final class MerchantDashboardPresenter
                 'ready' => $deliveryReady,
                 'href' => route('shippingAutomation'),
                 'cta' => $deliveryReady ? 'Review delivery' : 'Set up delivery',
-            ],
-            [
+            ];
+        }
+        if (! empty($permissions['payments_view'])) {
+            $steps[] = [
                 'key' => 'payment',
                 'title' => 'Payment setup',
                 'short_title' => 'Payments',
@@ -400,8 +423,10 @@ final class MerchantDashboardPresenter
                 'ready' => $paymentReady,
                 'href' => route('settings.payments.index'),
                 'cta' => $paymentReady ? 'Review payments' : 'Connect payments',
-            ],
-            [
+            ];
+        }
+        if (! empty($permissions['taxes_manage']) || ! empty($permissions['settings_pages_view'])) {
+            $steps[] = [
                 'key' => 'tax',
                 'title' => 'Checkout tax',
                 'short_title' => 'Tax',
@@ -410,8 +435,10 @@ final class MerchantDashboardPresenter
                 'ready' => $taxReady,
                 'href' => route('settings.taxes.index'),
                 'cta' => $taxReady ? 'Review tax' : 'Configure tax',
-            ],
-            [
+            ];
+        }
+        if (! empty($permissions['developer_api_view'])) {
+            $steps[] = [
                 'key' => 'website',
                 'title' => 'Website connection',
                 'short_title' => 'Website',
@@ -420,8 +447,8 @@ final class MerchantDashboardPresenter
                 'ready' => $websiteReady,
                 'href' => $websiteHref,
                 'cta' => $websiteReady ? 'Review website' : 'Connect website',
-            ],
-        ];
+            ];
+        }
 
         $readyCount = collect($steps)->where('ready', true)->count();
         $totalCount = count($steps);
@@ -461,12 +488,30 @@ final class MerchantDashboardPresenter
         $store = $this->store;
 
         return [
-            'orders_view' => (bool) $user?->hasStorePermission($store, StorePermission::ORDERS_VIEW),
-            'orders_manage' => (bool) $user?->hasStorePermission($store, StorePermission::ORDERS_MANAGE),
-            'catalog_view' => (bool) $user?->hasStorePermission($store, StorePermission::CATALOG_VIEW),
-            'catalog_manage' => (bool) $user?->hasStorePermission($store, StorePermission::CATALOG_MANAGE),
-            'settings_view' => (bool) $user?->hasStorePermission($store, StorePermission::SETTINGS_VIEW),
-            'developer_api_view' => (bool) $user?->hasStorePermission($store, StorePermission::DEVELOPER_API_VIEW),
+            'orders_view' => (bool) $user?->hasAnyStorePermission($store, ['orders.view', StorePermission::ORDERS_VIEW]),
+            'orders_manage' => (bool) $user?->hasAnyStorePermission($store, ['orders.edit', StorePermission::ORDERS_MANAGE]),
+            'orders_draft' => (bool) $user?->hasStorePermission($store, 'orders.draft'),
+            'catalog_view' => (bool) $user?->hasAnyStorePermission($store, ['products.view', StorePermission::CATALOG_VIEW]),
+            'catalog_manage' => (bool) $user?->hasAnyStorePermission($store, ['products.edit', StorePermission::CATALOG_MANAGE]),
+            'customers_view' => (bool) $user?->hasAnyStorePermission($store, ['customers.view', StorePermission::CUSTOMERS_VIEW]),
+            'locations_manage' => (bool) $user?->hasStorePermission($store, 'settings.locations'),
+            'delivery_manage' => (bool) $user?->hasStorePermission($store, 'settings.delivery'),
+            'taxes_manage' => (bool) $user?->hasStorePermission($store, 'settings.taxes'),
+            'carriers_manage' => (bool) $user?->hasStorePermission($store, 'settings.carriers'),
+            'settings_manage' => (bool) $user?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE),
+            'settings_pages_view' => (bool) $user?->hasAnyStorePermission($store, [
+                StorePermission::SETTINGS_VIEW,
+                StorePermission::SETTINGS_MANAGE,
+            ]),
+            'settings_view' => (bool) $user?->hasAnyStorePermission($store, [
+                'settings.locations',
+                'settings.delivery',
+                'settings.taxes',
+                StorePermission::SETTINGS_VIEW,
+                StorePermission::SETTINGS_MANAGE,
+            ]),
+            'developer_api_view' => (bool) $user?->hasAnyStorePermission($store, ['website.view', StorePermission::DEVELOPER_API_VIEW]),
+            'payments_view' => (bool) $user?->hasStorePermission($store, 'settings.payments'),
         ];
     }
 
@@ -476,60 +521,81 @@ final class MerchantDashboardPresenter
      */
     private function attention(int $storeId, array $permissions): array
     {
-        $fulfillmentCount = Order::query()
-            ->where('store_id', $storeId)
-            ->whereNotIn('status', [Order::STATUS_CANCELLED, Order::STATUS_REFUNDED])
-            ->where('payment_status', OrderLifecycle::PAYMENT_PAID)
-            ->whereIn('fulfillment_status', [
-                OrderLifecycle::FULFILLMENT_UNFULFILLED,
-                OrderLifecycle::FULFILLMENT_PARTIAL,
-            ])
-            ->count();
+        $fulfillmentCount = $permissions['orders_view']
+            ? Order::query()
+                ->where('store_id', $storeId)
+                ->whereNotIn('status', [Order::STATUS_CANCELLED, Order::STATUS_REFUNDED])
+                ->where('payment_status', OrderLifecycle::PAYMENT_PAID)
+                ->whereIn('fulfillment_status', [
+                    OrderLifecycle::FULFILLMENT_UNFULFILLED,
+                    OrderLifecycle::FULFILLMENT_PARTIAL,
+                ])
+                ->count()
+            : 0;
 
-        $lowStockCount = Product::query()
-            ->where('store_id', $storeId)
-            ->whereHas('variants', function ($query): void {
-                $query->whereColumn('stock', '<=', 'stock_alert')
-                    ->where('stock', '>', 0)
-                    ->where('stock_alert', '>', 0);
-            })
-            ->count();
+        $lowStockCount = $permissions['catalog_view']
+            ? Product::query()
+                ->where('store_id', $storeId)
+                ->whereHas('variants', function ($query): void {
+                    $query->whereColumn('stock', '<=', 'stock_alert')
+                        ->where('stock', '>', 0)
+                        ->where('stock_alert', '>', 0);
+                })
+                ->count()
+            : 0;
 
-        $returnsCount = OrderReturn::query()
-            ->where('store_id', $storeId)
-            ->where('status', ReturnLifecycle::STATUS_REQUESTED)
-            ->count();
+        $returnsCount = $permissions['orders_view']
+            ? OrderReturn::query()
+                ->where('store_id', $storeId)
+                ->where('status', ReturnLifecycle::STATUS_REQUESTED)
+                ->count()
+            : 0;
 
-        $activeLocations = Location::query()
-            ->where('store_id', $storeId)
-            ->where('is_active', true)
-            ->get(['id', 'address_line1', 'city', 'country_code']);
+        $canSeeLocationIssues = ! empty($permissions['locations_manage']) || ! empty($permissions['settings_pages_view']);
+        $canSeeDeliveryHubIssues = ! empty($permissions['delivery_manage'])
+            || ! empty($permissions['carriers_manage'])
+            || ! empty($permissions['settings_pages_view']);
+        $canSeeFailedShipments = $permissions['orders_view'];
 
-        $incompleteAddressCount = $activeLocations->filter(function (Location $location): bool {
-            return ! filled($location->address_line1)
-                || ! filled($location->city)
-                || ! filled($location->country_code);
-        })->count();
+        $incompleteAddressCount = 0;
+        $originAttentionCount = 0;
+        if ($canSeeLocationIssues) {
+            $activeLocations = Location::query()
+                ->where('store_id', $storeId)
+                ->where('is_active', true)
+                ->get(['id', 'address_line1', 'city', 'country_code']);
 
-        $failedShipmentCount = Shipment::query()
-            ->where('store_id', $storeId)
-            ->where('status', Shipment::STATUS_FAILED)
-            ->count();
+            $incompleteAddressCount = $activeLocations->filter(function (Location $location): bool {
+                return ! filled($location->address_line1)
+                    || ! filled($location->city)
+                    || ! filled($location->country_code);
+            })->count();
+        }
+        if ($canSeeDeliveryHubIssues) {
+            $originAttentionCount = CarrierAccount::query()
+                ->where('store_id', $storeId)
+                ->where('origin_validation_status', CarrierAccount::ORIGIN_VALIDATION_NEEDS_ATTENTION)
+                ->count();
+        }
 
-        $originAttentionCount = CarrierAccount::query()
-            ->where('store_id', $storeId)
-            ->where('origin_validation_status', CarrierAccount::ORIGIN_VALIDATION_NEEDS_ATTENTION)
-            ->count();
+        $failedShipmentCount = $canSeeFailedShipments
+            ? Shipment::query()
+                ->where('store_id', $storeId)
+                ->where('status', Shipment::STATUS_FAILED)
+                ->count()
+            : 0;
 
         $deliveryIssueCount = $incompleteAddressCount + $failedShipmentCount + $originAttentionCount;
-        $deliveryHref = route('shippingAutomation');
+        $deliveryHref = null;
         $deliveryLabel = 'Delivery setup needs attention';
-        if ($incompleteAddressCount > 0) {
+        if ($incompleteAddressCount > 0 && $canSeeLocationIssues) {
             $deliveryHref = route('settings.locations.index');
             $deliveryLabel = 'Address needs attention';
-        } elseif ($failedShipmentCount > 0) {
+        } elseif ($failedShipmentCount > 0 && $canSeeFailedShipments) {
             $deliveryHref = route('shipments.index', ['status' => OrderLifecycle::SHIPMENT_FAILED]);
             $deliveryLabel = 'Shipment needs attention';
+        } elseif ($canSeeDeliveryHubIssues) {
+            $deliveryHref = route('shippingAutomation');
         }
 
         $ordersHref = route('orders');
@@ -551,9 +617,7 @@ final class MerchantDashboardPresenter
             'delivery' => [
                 'count' => $deliveryIssueCount,
                 'label' => $deliveryLabel,
-                'href' => $permissions['settings_view'] || ($failedShipmentCount > 0 && $permissions['orders_view'])
-                    ? $deliveryHref
-                    : null,
+                'href' => $deliveryHref,
             ],
         ];
     }
@@ -564,6 +628,16 @@ final class MerchantDashboardPresenter
      */
     private function orderFlow(int $storeId, array $permissions, int $readyToShip): array
     {
+        $ordersView = $permissions['orders_view'];
+        if (! $ordersView) {
+            return [
+                'rows' => [],
+                'max' => 1,
+                'ship_now' => 0,
+                'ship_now_href' => null,
+            ];
+        }
+
         $paid = Order::query()
             ->where('store_id', $storeId)
             ->whereNotIn('status', [Order::STATUS_CANCELLED, Order::STATUS_REFUNDED])
@@ -627,6 +701,10 @@ final class MerchantDashboardPresenter
      */
     private function recentOrders(int $storeId, string $timezone, string $storeCurrency, array $permissions): array
     {
+        if (! $permissions['orders_view']) {
+            return [];
+        }
+
         $orders = Order::query()
             ->where('store_id', $storeId)
             ->orderByDesc('placed_at')
@@ -743,72 +821,71 @@ final class MerchantDashboardPresenter
             default => 'Website not connected',
         };
 
-        $payments = app(PaymentProviderManager::class);
-        $stripeConfig = app(StripeConfig::class);
-        $liveReady = $payments->activeConnectedAccountForStore($store, PlatformPaymentMode::LIVE) !== null;
-        $testReady = $payments->activeConnectedAccountForStore($store, PlatformPaymentMode::TEST) !== null;
-        $liveConfigured = $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::LIVE);
-        $testConfigured = $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::TEST);
-        $paymentsUnavailable = ! $liveConfigured && ! $testConfigured;
-
-        if ($paymentsUnavailable) {
-            $stripeLabel = 'Payments unavailable';
-            $stripeReady = false;
-        } elseif ($liveReady) {
-            $stripeLabel = 'Stripe live';
-            $stripeReady = true;
-        } elseif ($testReady) {
-            $stripeLabel = 'Stripe test';
-            $stripeReady = true;
-        } else {
-            $stripeLabel = 'Payments not connected';
-            $stripeReady = false;
+        $items = [];
+        if ($permissions['developer_api_view']) {
+            $items[] = [
+                'key' => 'website',
+                'label' => $websiteLabel,
+                'ready' => $websiteConnected,
+                'href' => route('developer-storefront.settings'),
+            ];
         }
 
-        $fedExAccount = app(FedExOperationGuard::class)->resolveActiveModelAAccount($store);
-        $fedExReady = $fedExAccount !== null;
-        $fedExLabel = $fedExReady ? 'FedEx ready' : 'FedEx not connected';
+        if ($permissions['payments_view']) {
+            $payments = app(PaymentProviderManager::class);
+            $stripeConfig = app(StripeConfig::class);
+            $liveReady = $payments->activeConnectedAccountForStore($store, PlatformPaymentMode::LIVE) !== null;
+            $testReady = $payments->activeConnectedAccountForStore($store, PlatformPaymentMode::TEST) !== null;
+            $liveConfigured = $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::LIVE);
+            $testConfigured = $stripeConfig->isConnectModeConfigured(PlatformPaymentMode::TEST);
+            $paymentsUnavailable = ! $liveConfigured && ! $testConfigured;
 
-        $activeLocations = $store->locations()->where('is_active', true)->count();
-        $locationLabel = $activeLocations === 1
-            ? '1 active location'
-            : $activeLocations.' active locations';
+            if ($paymentsUnavailable) {
+                $stripeLabel = 'Payments unavailable';
+                $stripeReady = false;
+            } elseif ($liveReady) {
+                $stripeLabel = 'Stripe live';
+                $stripeReady = true;
+            } elseif ($testReady) {
+                $stripeLabel = 'Stripe test';
+                $stripeReady = true;
+            } else {
+                $stripeLabel = 'Payments not connected';
+                $stripeReady = false;
+            }
 
-        $websiteHref = $permissions['developer_api_view']
-            ? route('developer-storefront.settings')
-            : ($permissions['settings_view'] ? route('generalSettings') : null);
-        $paymentsHref = $permissions['settings_view'] ? route('settings.payments.index') : null;
-        $fedExHref = $permissions['settings_view'] ? route('shippingAutomation') : null;
-        $locationsHref = $permissions['settings_view'] ? route('settings.locations.index') : null;
+            $items[] = [
+                'key' => 'stripe',
+                'label' => $stripeLabel,
+                'ready' => $stripeReady,
+                'href' => route('settings.payments.index'),
+            ];
+        }
+
+        if (! empty($permissions['delivery_manage']) || ! empty($permissions['carriers_manage']) || ! empty($permissions['settings_pages_view'])) {
+            $fedExAccount = app(FedExOperationGuard::class)->resolveActiveModelAAccount($store);
+            $fedExReady = $fedExAccount !== null;
+            $items[] = [
+                'key' => 'fedex',
+                'label' => $fedExReady ? 'FedEx ready' : 'FedEx not connected',
+                'ready' => $fedExReady,
+                'href' => route('shippingAutomation'),
+            ];
+        }
+
+        if (! empty($permissions['locations_manage']) || ! empty($permissions['settings_pages_view'])) {
+            $activeLocations = $store->locations()->where('is_active', true)->count();
+            $items[] = [
+                'key' => 'locations',
+                'label' => $activeLocations === 1 ? '1 active location' : $activeLocations.' active locations',
+                'ready' => $activeLocations > 0,
+                'href' => route('settings.locations.index'),
+            ];
+        }
 
         return [
-            'items' => [
-                [
-                    'key' => 'website',
-                    'label' => $websiteLabel,
-                    'ready' => $websiteConnected,
-                    'href' => $websiteHref,
-                ],
-                [
-                    'key' => 'stripe',
-                    'label' => $stripeLabel,
-                    'ready' => $stripeReady,
-                    'href' => $paymentsHref,
-                ],
-                [
-                    'key' => 'fedex',
-                    'label' => $fedExLabel,
-                    'ready' => $fedExReady,
-                    'href' => $fedExHref,
-                ],
-                [
-                    'key' => 'locations',
-                    'label' => $locationLabel,
-                    'ready' => $activeLocations > 0,
-                    'href' => $locationsHref,
-                ],
-            ],
-            'manage_href' => $permissions['settings_view'] ? route('generalSettings') : null,
+            'items' => $items,
+            'manage_href' => ! empty($permissions['settings_manage']) ? route('generalSettings') : null,
         ];
     }
 

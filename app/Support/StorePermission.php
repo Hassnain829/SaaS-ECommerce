@@ -96,7 +96,8 @@ final class StorePermission
 
     public static function exists(string $permission): bool
     {
-        return in_array($permission, self::ALL, true);
+        return in_array($permission, self::ALL, true)
+            || StoreMemberAccess::exists($permission);
     }
 
     /**

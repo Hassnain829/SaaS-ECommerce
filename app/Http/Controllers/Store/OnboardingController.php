@@ -49,9 +49,11 @@ use Illuminate\View\View;
 
 class OnboardingController extends Controller
 {
-    public function step1(Request $request): View
+    public function step1(Request $request): RedirectResponse|View
     {
-        if ($request->boolean('fresh') || $request->string('mode') === 'create') {
+        $wantsNewStore = $request->boolean('fresh') || $request->string('mode') === 'create';
+
+        if ($wantsNewStore) {
             $request->session()->forget([
                 'onboarding_store_draft',
                 'onboarding_store_id',
@@ -61,7 +63,15 @@ class OnboardingController extends Controller
                 'onboarding_last_product_id',
             ]);
         }
+
         $store = $this->resolveOnboardingStore($request);
+
+        if (($wantsNewStore || ! $store) && ! $this->userCanCreateStores($request)) {
+            return redirect()
+                ->route('store-management')
+                ->withErrors(['store' => 'Only the store owner can create a store.']);
+        }
+
         $storeDraft = $request->session()->get('onboarding_store_draft', []);
 
         if (empty($storeDraft) && $store) {
@@ -126,6 +136,10 @@ class OnboardingController extends Controller
             $existingStore->update($storePayload);
             $store = $existingStore->refresh();
         } else {
+            if (! $this->userCanCreateStores($request)) {
+                abort(403, 'Only the store owner can create a store.');
+            }
+
             $store = Store::create($storePayload + [
                 'user_id' => $request->user()->id,
                 'slug' => $this->uniqueSlug(Store::class, $validated['name']),
@@ -2743,6 +2757,19 @@ class OnboardingController extends Controller
         $this->authorizeStorePermission($request, $store, StorePermission::CATALOG_MANAGE);
 
         return $this->storeProductForStore($request, $store);
+    }
+
+    private function userCanCreateStores(Request $request): bool
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        $current = $request->attributes->get('currentStore');
+
+        return $user->canCreateStores($current instanceof Store ? $current : null);
     }
 
     private function authorizeStoreRoles(Request $request, Store $store, string|array $roles): void

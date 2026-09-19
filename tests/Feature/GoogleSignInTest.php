@@ -25,6 +25,15 @@ class GoogleSignInTest extends TestCase
             'services.google.client_secret' => '',
             'services.google.redirect' => 'http://localhost/auth/google/callback',
         ]);
+        putenv('GOOGLE_CLIENT_ID=');
+        putenv('GOOGLE_CLIENT_SECRET=');
+        putenv('GOOGLE_REDIRECT_URI=');
+        $_ENV['GOOGLE_CLIENT_ID'] = '';
+        $_ENV['GOOGLE_CLIENT_SECRET'] = '';
+        $_ENV['GOOGLE_REDIRECT_URI'] = '';
+        $_SERVER['GOOGLE_CLIENT_ID'] = '';
+        $_SERVER['GOOGLE_CLIENT_SECRET'] = '';
+        $_SERVER['GOOGLE_REDIRECT_URI'] = '';
     }
 
     public function test_google_button_is_hidden_until_oauth_is_configured(): void
@@ -51,6 +60,26 @@ class GoogleSignInTest extends TestCase
             ->assertOk()
             ->assertSeeText('Continue with Google')
             ->assertSeeText('By continuing with Google, you agree to our');
+    }
+
+    public function test_google_button_appears_when_env_has_keys_but_cached_config_is_empty(): void
+    {
+        putenv('GOOGLE_CLIENT_ID=env-google-client-id');
+        putenv('GOOGLE_CLIENT_SECRET=env-google-client-secret');
+        $_ENV['GOOGLE_CLIENT_ID'] = 'env-google-client-id';
+        $_ENV['GOOGLE_CLIENT_SECRET'] = 'env-google-client-secret';
+
+        try {
+            $this->get(route('signin'))
+                ->assertOk()
+                ->assertSeeText('Continue with Google');
+        } finally {
+            putenv('GOOGLE_CLIENT_ID=');
+            putenv('GOOGLE_CLIENT_SECRET=');
+            $_ENV['GOOGLE_CLIENT_ID'] = '';
+            $_ENV['GOOGLE_CLIENT_SECRET'] = '';
+            unset($_SERVER['GOOGLE_CLIENT_ID'], $_SERVER['GOOGLE_CLIENT_SECRET']);
+        }
     }
 
     public function test_google_redirect_is_blocked_when_oauth_is_not_configured(): void

@@ -30,10 +30,13 @@ class Store extends Model
 
     public const ROLE_STAFF = 'staff';
 
+    public const ROLE_MEMBER = 'member';
+
     public const MEMBER_ROLES = [
         self::ROLE_OWNER,
         self::ROLE_MANAGER,
         self::ROLE_STAFF,
+        self::ROLE_MEMBER,
     ];
 
     public const WEBSITE_NOT_STARTED = 'not_started';
@@ -104,7 +107,8 @@ class Store extends Model
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'store_user')
-            ->withPivot('role')
+            ->using(StoreUser::class)
+            ->withPivot(['role', 'job_title', 'access_preset', 'location_ids', 'status'])
             ->withTimestamps();
     }
 

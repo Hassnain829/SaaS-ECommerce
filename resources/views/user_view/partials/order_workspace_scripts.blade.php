@@ -186,7 +186,7 @@ window.bootMerchantPage('order-workspace', function () {
         if (action === 'cancel-order') {
             $('#confirmDialog')?.showModal();
         }
-    });
+    };
 
     $$('[data-close-dialog]').forEach((button) => {
         button.addEventListener('click', () => closeDialogs());

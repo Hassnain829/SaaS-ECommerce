@@ -7,7 +7,6 @@ use App\Http\Requests\StoreTaxRateRequest;
 use App\Http\Requests\UpdateTaxRateRequest;
 use App\Http\Requests\UpdateTaxSettingsRequest;
 use App\Services\Tax\TaxConfigurationService;
-use App\Support\StorePermission;
 use App\Support\Tax\TaxCountryCatalog;
 use App\Support\Tax\TaxRulebookPresenter;
 use Illuminate\Http\RedirectResponse;
@@ -40,7 +39,7 @@ class TaxSettingsController extends Controller
             ->orderBy('name')
             ->get();
 
-        $canManageTax = $request->user()?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE) ?? false;
+        $canManageTax = $request->user()?->hasStorePermission($store, 'settings.taxes') ?? false;
         $editingRateId = (int) (session('_tax_rate_edit_id') ?? $request->integer('edit_rate', 0));
         $openCreateRateForm = session('_tax_rate_form') === 'create'
             || ($canManageTax && $request->boolean('create_rate'));

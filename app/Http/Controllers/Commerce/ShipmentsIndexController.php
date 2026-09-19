@@ -100,6 +100,9 @@ class ShipmentsIndexController extends Controller
             'search' => $search,
             'shipmentStatuses' => OrderLifecycle::shipmentStatuses(),
             'canManageOrders' => $request->user()?->canManageOrders($store) ?? false,
+            'canPurchaseLabels' => $request->user()?->hasStorePermission($store, 'fulfillment.labels.purchase') ?? false,
+            'canCancelLabels' => $request->user()?->hasStorePermission($store, 'fulfillment.labels.cancel') ?? false,
+            'canUpdateTracking' => $request->user()?->hasStorePermission($store, 'fulfillment.tracking') ?? false,
         ]);
     }
 }

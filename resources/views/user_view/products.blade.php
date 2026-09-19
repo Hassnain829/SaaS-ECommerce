@@ -43,9 +43,15 @@
     $catalogListQuery = $isDeletedView ? ['view' => 'deleted'] : ($isDraftsView ? ['view' => 'drafts'] : []);
     $catalogTabFilters = $baseFilters;
     unset($catalogTabFilters['view']);
-    $canManageBrands = in_array($currentUserStoreRole ?? '', ['owner', 'manager'], true);
-    $canManageTags = $canManageBrands;
-    $canManageCategories = $canManageBrands;
+    $canManageCatalog = $canManageCatalog ?? false;
+    $canManagePrices = $canManagePrices ?? false;
+    $canManageInventory = $canManageInventory ?? false;
+    $canDeleteProducts = $canDeleteProducts ?? false;
+    $canImportProducts = $canImportProducts ?? false;
+    $canRunBulkCatalog = $canManageCatalog || $canManagePrices || $canManageInventory || $canDeleteProducts;
+    $canManageBrands = $canManageCatalog;
+    $canManageTags = $canManageCatalog;
+    $canManageCategories = $canManageCatalog;
 
     $catalogToolsReopen = $errors->any() && (
         old('_open_brand_add_modal') == '1' || old('_open_brand_add_modal') === true ||
@@ -121,17 +127,19 @@
                 : 'Manage catalog and inventory for '.($selectedStore->name ?? 'this store'))"
     >
         <x-slot:actions>
-            @if ($canManageBrands)
+            @if ($canImportProducts ?? false)
                 <a href="{{ route('products.import.create') }}" class="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3.5 py-2 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink">
                     <span>Import products</span>
                 </a>
             @endif
+            @if ($canManageCatalog)
             <a href="{{ route('products.create') }}" class="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                     <path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" />
                 </svg>
                 <span>Add product</span>
             </a>
+            @endif
             @if ($canManageBrands || $canManageTags || $canManageCategories)
                 <details id="products-catalog-more-menu" class="group relative hidden sm:block" data-products-more-actions>
                     <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-ink-secondary hover:bg-surface-muted [&::-webkit-details-marker]:hidden" aria-label="More catalog actions">
@@ -139,8 +147,10 @@
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" class="text-ink-muted transition group-open:rotate-180" aria-hidden="true"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </summary>
                     <div class="absolute right-0 z-40 mt-1 w-52 overflow-hidden rounded-md border border-border bg-surface py-1 shadow-lg">
-                        @if ($canManageBrands)
+                        @if ($canImportProducts ?? false)
                             <a href="{{ route('products.import.history') }}" class="block px-4 py-2.5 text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">Import history</a>
+                        @endif
+                        @if ($canManageBrands)
                             <a href="{{ route('catalog.attributes.index') }}" class="block px-4 py-2.5 text-sm font-medium text-ink-secondary hover:bg-surface-muted hover:text-ink">Manage specifications</a>
                         @endif
                         @if ($canManageBrands || $canManageTags || $canManageCategories)
@@ -246,16 +256,18 @@
                     </details>
                 @endif
 
-                @if ($canManageBrands)
+                @if ($canImportProducts)
                     <a href="{{ route('products.import.create') }}" class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-3.5 py-2 text-sm font-semibold text-ink-secondary sm:hidden">
                         Import
                     </a>
                 @endif
 
+                @if ($canManageCatalog)
                 <a href="{{ route('products.create') }}" class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-bold text-white sm:hidden">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M5 6.66667H0V5H5V0H6.66667V5H11.6667V6.66667H6.66667V11.6667H5V6.66667Z" fill="white" /></svg>
                     Add
                 </a>
+                @endif
             </div>
         </div>
 
@@ -1990,7 +2002,7 @@
         </script>
 
 
-        @if ($canManageBrands)
+        @if ($canRunBulkCatalog)
             <div id="bulk-catalog-toolbar" class="hidden border-b border-[#D8E8E1] bg-gradient-to-r from-[#E6F4EF] via-[#F4FBF8] to-white px-4 py-4 lg:px-5" data-catalog-view="{{ $catalogView }}" role="region" aria-label="Selected products actions">
                 <div class="flex flex-col gap-4">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2019,19 +2031,26 @@
                         <p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-[#64748B]">What do you want to do?</p>
                         <div id="bulk-action-chips" class="flex flex-wrap gap-2" role="group" aria-label="Product actions">
                             @if ($isDeletedView)
+                                @if ($canDeleteProducts)
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#BBF7D0] bg-white px-3.5 py-2 text-sm font-semibold text-[#166534] transition hover:border-[#86EFAC] hover:bg-[#F0FDF4]" data-action="restore">
                                     Undo delete
                                 </button>
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#FECACA] bg-white px-3.5 py-2 text-sm font-semibold text-[#B91C1C] transition hover:border-[#FCA5A5] hover:bg-[#FFF5F5]" data-action="force_delete">
                                     Permanently delete
                                 </button>
+                                @endif
                             @else
+                                @if ($canManageInventory)
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="stock">
                                     Update stock
                                 </button>
+                                @endif
+                                @if ($canManagePrices)
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="price">
                                     Set price
                                 </button>
+                                @endif
+                                @if ($canManageCatalog)
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="status">
                                     Publish or draft
                                 </button>
@@ -2047,25 +2066,38 @@
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#CBD5E1] bg-white px-3.5 py-2 text-sm font-semibold text-[#334155] transition hover:border-[#94A3B8] hover:bg-[#F8FAFC]" data-action="shipping_weight">
                                     Set shipping weight
                                 </button>
+                                @endif
+                                @if ($canDeleteProducts)
                                 <button type="button" class="js-bulk-action-chip inline-flex items-center gap-2 rounded-full border border-[#FECACA] bg-white px-3.5 py-2 text-sm font-semibold text-[#B91C1C] transition hover:border-[#FCA5A5] hover:bg-[#FFF5F5]" data-action="delete">
                                     Delete
                                 </button>
+                                @endif
                             @endif
                         </div>
                         <select id="bulk-action-select" class="sr-only" aria-hidden="true" tabindex="-1">
                             <option value="">Choose…</option>
                             @if ($isDeletedView)
+                                @if ($canDeleteProducts)
                                 <option value="restore">Undo delete</option>
                                 <option value="force_delete">Permanently delete</option>
+                                @endif
                             @else
+                                @if ($canDeleteProducts)
                                 <option value="delete">Delete</option>
+                                @endif
+                                @if ($canManageInventory)
                                 <option value="stock">Update stock</option>
+                                @endif
+                                @if ($canManagePrices)
                                 <option value="price">Set price</option>
+                                @endif
+                                @if ($canManageCatalog)
                                 <option value="categories">Add categories</option>
                                 <option value="brand">Assign brand</option>
                                 <option value="tags">Add tags</option>
                                 <option value="status">Publish or draft</option>
                                 <option value="shipping_weight">Set shipping weight</option>
+                                @endif
                             @endif
                         </select>
                     </div>
@@ -2294,7 +2326,7 @@
                                 : ($listPrice['mixed'] ? $variantCount.' prices · edit' : $variantCount.' options · edit');
                         @endphp
                         <tr class="hover:bg-[#F8FAFC] transition-colors" data-product-row data-product-id="{{ $product->id }}" data-stock-state="{{ $stockState }}" data-published="{{ $product->status ? '1' : '0' }}" data-live-price="{{ number_format($listPrice['min'], 2, '.', '') }}" data-live-price-display="{{ $listPrice['list_display'] }}" data-live-price-mixed="{{ $listPrice['mixed'] ? '1' : '0' }}" data-live-stock="{{ $defaultVariantStock }}" data-live-inventory="{{ $inventory }}">
-                            <td class="px-4 py-4"><input type="checkbox" class="js-product-row-checkbox w-4 h-4 rounded border-[#CBD5E1] accent-[#0052CC]" data-product-id="{{ $product->id }}" @if (! $canManageBrands) disabled @endif></td>
+                            <td class="px-4 py-4"><input type="checkbox" class="js-product-row-checkbox w-4 h-4 rounded border-[#CBD5E1] accent-[#0052CC]" data-product-id="{{ $product->id }}" @if (! $canRunBulkCatalog) disabled @endif></td>
                             <td class="px-4 py-4">
                                 <div class="flex items-center gap-3">
                                     <div class="flex shrink-0 flex-col items-center gap-0.5 w-11">
@@ -2391,7 +2423,7 @@
                                 @endif
                             </td>
                             <td class="px-4 py-4">
-                                @if ($canManageBrands && ! $isDeletedView && $variantCount > 1)
+                                @if ($canManagePrices && ! $isDeletedView && $variantCount > 1)
                                     <div
                                         class="js-inline-variant-price relative min-w-[6.5rem]"
                                         data-variant-count="{{ $variantCount }}"
@@ -2406,7 +2438,7 @@
                                             <span class="js-inline-price-hint mt-0.5 block text-[10px] font-medium text-[#0052CC]">{{ $listPriceHint }}</span>
                                         </button>
                                     </div>
-                                @elseif ($canManageBrands && ! $isDeletedView)
+                                @elseif ($canManagePrices && ! $isDeletedView)
                                     <div
                                         class="js-inline-edit js-inline-price group relative min-w-[5.5rem]"
                                         data-inline-kind="price"
@@ -2432,7 +2464,7 @@
                                 </div>
                             </td>
                             <td class="px-4 py-4 w-20">
-                                @if ($canManageBrands && ! $isDeletedView)
+                                @if ($canManageInventory && ! $isDeletedView)
                                     @if ($variantCount > 1)
                                         <div
                                             class="js-inline-stock js-inline-variant-stock relative"
@@ -2474,7 +2506,7 @@
                             <td class="px-4 py-4">
                                 <div class="flex flex-wrap items-center gap-2">
                                     @if ($isDeletedView)
-                                        @if ($canManageBrands)
+                                        @if ($canDeleteProducts ?? false)
                                             <form method="POST" action="{{ route('product.restore', ['productId' => $product->id]) }}" class="inline">
                                                 @csrf
                                                 <button type="submit" class="inline-flex items-center rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2 text-xs font-semibold text-[#166534] hover:bg-[#DCFCE7]">Undo delete</button>
@@ -2489,7 +2521,9 @@
                                         @endif
                                     @else
                                         <a href="{{ route('products.show', $product) }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] hover:bg-[#F8FAFC]">View</a>
+                                        @if ($canManageCatalog)
                                         <a href="{{ route('products.edit', $product) }}" class="js-product-edit-payload inline-flex items-center rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#0052CC] hover:bg-[#EEF4FF]" data-product-id="{{ $product->id }}" data-product='@json($productActionPayload)'>{{ $product->status ? 'Edit' : 'Continue' }}</a>
+                                        @endif
                                         @if (! $product->status && $canManageBrands)
                                             <form method="POST" action="{{ route('products.bulk') }}" class="inline">
                                                 @csrf
@@ -2499,7 +2533,9 @@
                                                 <button type="submit" class="inline-flex items-center rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-3 py-2 text-xs font-semibold text-[#166534] hover:bg-[#DCFCE7]">Publish</button>
                                             </form>
                                         @endif
+                                        @if ($canDeleteProducts)
                                         <button type="button" class="js-open-delete-product-modal inline-flex items-center rounded-lg border border-[#F4B8BF] bg-[#FFF5F5] px-3 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FEEBEC]" data-product-id="{{ $product->id }}" data-product='@json($productActionPayload)'>Delete</button>
+                                        @endif
                                     @endif
                                 </div>
                             </td>
@@ -2517,8 +2553,10 @@
                                     <p class="text-sm font-semibold text-[#0F172A]">Add your first product</p>
                                     <p class="mt-1 text-sm text-[#64748B]">Create a product in the product workspace or import a catalog file to get started.</p>
                                     <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
+                                        @if ($canManageCatalog)
                                         <a href="{{ route('products.create') }}" class="inline-flex items-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-hover">Add product</a>
-                                        @if ($canManageBrands)
+                                        @endif
+                                        @if ($canImportProducts ?? false)
                                             <a href="{{ route('products.import.create') }}" class="inline-flex items-center rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-semibold text-[#334155] hover:bg-[#F8FAFC]">Import products</a>
                                         @endif
                                     </div>
@@ -2666,7 +2704,7 @@
         ],
     ])
 
-    @if ($canManageBrands)
+    @if ($canRunBulkCatalog)
         <div id="bulk-confirm-shell" class="ui-modal-shell ui-modal-shell--alert hidden" role="dialog" aria-modal="true" aria-labelledby="bulk-confirm-title">
             <div class="ui-modal-panel ui-modal-panel--md p-6">
                 <h3 id="bulk-confirm-title" class="text-lg font-semibold text-[#0F172A]">Confirm change</h3>

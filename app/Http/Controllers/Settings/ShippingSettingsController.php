@@ -156,7 +156,8 @@ class ShippingSettingsController extends Controller
             'locations' => $locations,
             'originReadinessByLocationId' => $originReadinessByLocationId,
             'hasCarrierReadyOrigin' => $hasCarrierReadyOrigin,
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.delivery') ?? false,
+            'canDeleteDelivery' => $request->user()?->hasStorePermission($store, 'settings.delivery.delete') ?? false,
             'connectionTypes' => CarrierAccount::CONNECTION_TYPES,
             'carrierAccountStatuses' => CarrierAccount::STATUSES,
             'rateTypes' => array_values(array_filter(
@@ -515,6 +516,7 @@ class ShippingSettingsController extends Controller
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $shippingZone->store_id === (int) $store->id, 404);
+        abort_unless($request->user()?->hasStorePermission($store, 'settings.delivery.delete'), 403);
 
         $removedMethods = 0;
 
@@ -642,6 +644,7 @@ class ShippingSettingsController extends Controller
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $shippingMethod->store_id === (int) $store->id, 404);
+        abort_unless($request->user()?->hasStorePermission($store, 'settings.delivery.delete'), 403);
 
         $shippingMethod->delete();
 
@@ -664,6 +667,7 @@ class ShippingSettingsController extends Controller
     {
         $store = $request->attributes->get('currentStore');
         abort_unless($store, 404);
+        abort_unless($request->user()?->hasStorePermission($store, 'settings.delivery.delete'), 403);
 
         $orphans = $store->shippingMethods()
             ->with('shippingZone')
@@ -792,6 +796,7 @@ class ShippingSettingsController extends Controller
     ): RedirectResponse {
         $store = $request->attributes->get('currentStore');
         abort_unless($store && (int) $shippingPackagePreset->store_id === (int) $store->id, 404);
+        abort_unless($request->user()?->hasStorePermission($store, 'settings.delivery.delete'), 403);
 
         $presetId = (int) $shippingPackagePreset->id;
         $shippingPackagePreset->delete();
@@ -1072,7 +1077,8 @@ class ShippingSettingsController extends Controller
             'selectedStore' => $store,
             'packagePresets' => $packagePresets,
             'shippingPreferences' => app(StoreShippingPreferences::class)->get($store),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.delivery') ?? false,
+            'canDeleteDelivery' => $request->user()?->hasStorePermission($store, 'settings.delivery.delete') ?? false,
             'statusBadge' => fn (bool $active) => $active ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#F1F5F9] text-[#64748B]',
         ]);
     }

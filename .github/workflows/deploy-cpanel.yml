@@ -125,7 +125,14 @@ jobs:
             ./ "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:${CPANEL_DEPLOY_PATH}/"
 
       - name: Run post-deploy commands on server
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
+          IDQ=$(printf '%q' "${GOOGLE_CLIENT_ID}")
+          SECREQ=$(printf '%q' "${GOOGLE_CLIENT_SECRET}")
+          PHPQ=$(printf '%q' "${{ secrets.CPANEL_PHP_BIN }}")
+          PATHQ=$(printf '%q' "${CPANEL_DEPLOY_PATH}")
           ssh -p "${CPANEL_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=yes \
             "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" \
-            "export CPANEL_DEPLOY_PATH='${CPANEL_DEPLOY_PATH}' && export CPANEL_PHP_BIN='${{ secrets.CPANEL_PHP_BIN }}' && cd '${CPANEL_DEPLOY_PATH}' && bash scripts/deploy/cpanel-post-deploy.sh"
+            "export CPANEL_DEPLOY_PATH=${PATHQ} CPANEL_PHP_BIN=${PHPQ} GOOGLE_CLIENT_ID=${IDQ} GOOGLE_CLIENT_SECRET=${SECREQ} && cd \"\$CPANEL_DEPLOY_PATH\" && bash scripts/deploy/cpanel-post-deploy.sh"

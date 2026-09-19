@@ -408,7 +408,7 @@ class DeliverySetupWizardController extends Controller
     public function testAddress(Request $request, DeliveryAddressDiagnosticService $diagnostic, TaxConfigurationService $taxConfiguration): View|JsonResponse
     {
         $store = $this->store($request);
-        abort_unless($request->user()?->hasStorePermission($store, StorePermission::SETTINGS_VIEW) ?? false, 403);
+        abort_unless($request->user()?->hasAnyStorePermission($store, ['settings.delivery', StorePermission::SETTINGS_VIEW]) ?? false, 403);
 
         $result = null;
         if ($request->isMethod('post')) {
@@ -487,7 +487,8 @@ class DeliverySetupWizardController extends Controller
                 'package_height',
                 'package_dimension_unit',
             ]),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.delivery') ?? false,
+            'canDeleteDelivery' => $request->user()?->hasStorePermission($store, 'settings.delivery.delete') ?? false,
         ]);
     }
 
@@ -500,7 +501,8 @@ class DeliverySetupWizardController extends Controller
         return array_merge([
             'selectedStore' => $store,
             'countries' => TaxCountryCatalog::all(),
-            'canManageShipping' => $request->user()?->canManageSettings($store) ?? false,
+            'canManageShipping' => $request->user()?->hasStorePermission($store, 'settings.delivery') ?? false,
+            'canDeleteDelivery' => $request->user()?->hasStorePermission($store, 'settings.delivery.delete') ?? false,
             'wizardOriginName' => $store->locations()->orderByDesc('is_default')->orderBy('name')->value('name'),
             'wizardAreaName' => $store->shippingZones()->where('is_active', true)->orderBy('name')->value('name'),
             'wizardOptionCount' => $store->shippingMethods()
@@ -520,7 +522,7 @@ class DeliverySetupWizardController extends Controller
 
     private function authorizeManage(Request $request, $store): void
     {
-        abort_unless($request->user()?->canManageSettings($store) ?? false, 403);
+        abort_unless($request->user()?->hasStorePermission($store, 'settings.delivery') ?? false, 403);
     }
 
     private function redirectCompletedSetupToHub($store, DeliverySetupLifecycleService $lifecycle): ?RedirectResponse

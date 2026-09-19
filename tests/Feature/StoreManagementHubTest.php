@@ -13,10 +13,13 @@ use App\Models\ShippingZone;
 use App\Models\Store;
 use App\Models\TaxRate;
 use App\Models\TaxSetting;
+use App\Models\StoreMemberPermission;
 use App\Models\User;
 use App\Services\OrderEventRecorder;
+use App\Services\Settings\StoreMemberPermissionSync;
 use App\Support\CheckoutMode;
 use App\Support\OrderLifecycle;
+use App\Support\StoreMemberAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -40,6 +43,7 @@ class StoreManagementHubTest extends TestCase
             ->assertOk()
             ->assertSeeText('Own Hub Store')
             ->assertDontSeeText('Foreign Hub Store')
+            ->assertSeeText('Create store')
             ->assertSeeText('Current')
             ->assertSeeText('1 store still needs setup')
             ->assertSeeText('Remaining setup')
@@ -300,6 +304,29 @@ class StoreManagementHubTest extends TestCase
         ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function createStorePayload(string $name, bool $openModal = false): array
+    {
+        $payload = [
+            'mode' => 'create',
+            'name' => $name,
+            'primary_market' => 'United States',
+            'address' => '10 First Street',
+            'currency' => 'USD',
+            'timezone' => 'America/Chicago',
+            'category' => 'physical',
+            'business_models' => ['Physical Goods'],
+        ];
+
+        if ($openModal) {
+            $payload['_open_create_store_modal'] = '1';
+        }
+
+        return $payload;
+    }
+
     public function test_store_card_shows_real_seven_day_revenue_and_orders(): void
     {
         $owner = $this->merchant('metrics-hub@example.com');
@@ -339,6 +366,199 @@ class StoreManagementHubTest extends TestCase
             ->assertDontSeeText('High Health')
             ->assertDontSeeText('Critical Alert')
             ->assertDontSeeText('Download Report');
+    }
+
+    public function test_view_only_member_cannot_create_a_store(): void
+    {
+        $owner = $this->merchant('create-gate-owner@example.com');
+        $member = $this->merchant('create-gate-member@example.com');
+        $store = $this->store($owner, 'Shared View Store', onboardingCompleted: true);
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->attach($store, $member, Store::ROLE_MEMBER);
+        app(StoreMemberPermissionSync::class)->sync(
+            $store,
+            $member,
+            StoreMemberAccess::presets()[StoreMemberAccess::PRESET_VIEW],
+            StoreMemberAccess::PRESET_VIEW,
+            null,
+            null,
+            StoreMemberAccess::STATUS_ACTIVE,
+        );
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('store-management'))
+            ->assertOk()
+            ->assertSeeText('Shared View Store')
+            ->assertDontSeeText('Create store')
+            ->assertDontSee('js-open-create-store-modal', false)
+            ->assertDontSeeText('Create your first store');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('onboarding-StoreDetails-1.store'), $this->createStorePayload('Leaked Member Store'))
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('stores', ['name' => 'Leaked Member Store']);
+        $this->assertFalse($member->fresh()->canCreateStores($store));
+        $this->assertFalse($member->fresh()->canCreateStores());
+    }
+
+    public function test_member_cannot_create_a_store_even_with_leftover_create_grant(): void
+    {
+        $owner = $this->merchant('create-allow-owner@example.com');
+        $member = $this->merchant('create-allow-member@example.com');
+        $store = $this->store($owner, 'Grant Create Store', onboardingCompleted: true);
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->attach($store, $member, Store::ROLE_MEMBER);
+        app(StoreMemberPermissionSync::class)->sync(
+            $store,
+            $member,
+            StoreMemberAccess::presets()[StoreMemberAccess::PRESET_VIEW],
+            StoreMemberAccess::PRESET_VIEW,
+            null,
+            null,
+            StoreMemberAccess::STATUS_ACTIVE,
+        );
+
+        StoreMemberPermission::query()->create([
+            'store_id' => $store->id,
+            'user_id' => $member->id,
+            'permission' => 'stores.create',
+        ]);
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('store-management'))
+            ->assertOk()
+            ->assertDontSeeText('Create store')
+            ->assertDontSeeText('Close store');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('onboarding-StoreDetails-1.store'), $this->createStorePayload('Member Owned Store', openModal: true))
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('stores', ['name' => 'Member Owned Store']);
+        $this->assertFalse($member->fresh()->canCreateStores($store));
+    }
+
+    public function test_member_who_owns_another_store_still_cannot_create_stores(): void
+    {
+        $owner = $this->merchant('mixed-owner@example.com');
+        $member = $this->merchant('mixed-member@example.com');
+        $shared = $this->store($owner, 'Shared Member Store', onboardingCompleted: true);
+        $owned = $this->store($member, 'Member Owned Workspace', onboardingCompleted: true);
+        $this->attach($shared, $owner, Store::ROLE_OWNER);
+        $this->attach($shared, $member, Store::ROLE_MEMBER);
+        $this->attach($owned, $member, Store::ROLE_OWNER);
+        app(StoreMemberPermissionSync::class)->sync(
+            $shared,
+            $member,
+            StoreMemberAccess::presets()[StoreMemberAccess::PRESET_VIEW],
+            StoreMemberAccess::PRESET_VIEW,
+            null,
+            null,
+            StoreMemberAccess::STATUS_ACTIVE,
+        );
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $owned->id])
+            ->get(route('store-management'))
+            ->assertOk()
+            ->assertSeeText('Member Owned Workspace')
+            ->assertSeeText('Shared Member Store')
+            ->assertDontSeeText('Create store');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $owned->id])
+            ->post(route('onboarding-StoreDetails-1.store'), $this->createStorePayload('Another Member Store', openModal: true))
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('stores', ['name' => 'Another Member Store']);
+        $this->assertFalse($member->fresh()->canCreateStores($owned));
+    }
+
+    public function test_owner_can_create_an_additional_store(): void
+    {
+        $owner = $this->merchant('owner-second-store@example.com');
+        $store = $this->store($owner, 'First Owner Store', onboardingCompleted: true);
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('store-management'))
+            ->assertOk()
+            ->assertSeeText('Create store')
+            ->assertSeeText('Close store');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('onboarding-StoreDetails-1.store'), $this->createStorePayload('Second Owner Store', openModal: true))
+            ->assertRedirect(route('store-management'));
+
+        $created = Store::query()->where('name', 'Second Owner Store')->first();
+        $this->assertNotNull($created);
+        $this->assertSame($owner->id, (int) $created->user_id);
+        $this->assertDatabaseHas('store_user', [
+            'store_id' => $created->id,
+            'user_id' => $owner->id,
+            'role' => Store::ROLE_OWNER,
+        ]);
+    }
+
+    public function test_member_cannot_close_a_store(): void
+    {
+        $owner = $this->merchant('close-gate-owner@example.com');
+        $member = $this->merchant('close-gate-member@example.com');
+        $store = $this->store($owner, 'Member Close Store', onboardingCompleted: true);
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->attach($store, $member, Store::ROLE_MEMBER);
+        app(StoreMemberPermissionSync::class)->sync(
+            $store,
+            $member,
+            StoreMemberAccess::presets()[StoreMemberAccess::PRESET_FULL_OPERATIONAL],
+            StoreMemberAccess::PRESET_FULL_OPERATIONAL,
+            null,
+            null,
+            StoreMemberAccess::STATUS_ACTIVE,
+        );
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('store-management'))
+            ->assertOk()
+            ->assertDontSeeText('Close store');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('store.destroy', ['storeId' => $store->id]))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('stores', [
+            'id' => $store->id,
+            'name' => 'Member Close Store',
+            'deleted_at' => null,
+        ]);
+    }
+
+    public function test_invited_membership_is_hidden_from_the_store_hub(): void
+    {
+        $owner = $this->merchant('invite-hub-owner@example.com');
+        $member = $this->merchant('invite-hub-member@example.com');
+        $store = $this->store($owner, 'Pending Invite Store', onboardingCompleted: true);
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $store->members()->attach($member->id, [
+            'role' => Store::ROLE_MEMBER,
+            'status' => StoreMemberAccess::STATUS_INVITED,
+        ]);
+
+        $this->actingAs($member)
+            ->get(route('store-management'))
+            ->assertOk()
+            ->assertDontSeeText('Pending Invite Store')
+            ->assertDontSeeText('Create store')
+            ->assertSeeText('You can work in stores an owner has invited you to');
     }
 
     private function seedOperationalSetup(Store $store): void

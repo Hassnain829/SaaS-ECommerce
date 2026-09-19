@@ -14,7 +14,6 @@ use App\Support\ProductDetailPresenter;
 use App\Support\ProductEditPayload;
 use App\Support\ProductTypeBehavior;
 use App\Support\ProductVariantLabel;
-use App\Support\StorePermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -36,7 +35,7 @@ final class ProductWorkspaceController extends Controller
 
         $user = $request->user();
         abort_unless(
-            $user !== null && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE),
+            $user !== null && $user->hasStorePermission($store, 'products.edit'),
             403
         );
 
@@ -112,7 +111,7 @@ final class ProductWorkspaceController extends Controller
 
         $user = $request->user();
         abort_unless(
-            $user !== null && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE),
+            $user !== null && $user->hasStorePermission($store, 'products.edit'),
             403
         );
 
@@ -148,7 +147,7 @@ final class ProductWorkspaceController extends Controller
         ]);
 
         $user = $request->user();
-        $canManageCatalog = $user !== null && $user->hasStorePermission($store, StorePermission::CATALOG_MANAGE);
+        $canManageCatalog = $user !== null && $user->hasStorePermission($store, 'products.edit');
 
         $recentMovements = StockMovement::query()
             ->where('store_id', $store->id)

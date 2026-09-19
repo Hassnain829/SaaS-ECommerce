@@ -3,22 +3,24 @@
 @section('title', 'Team Members — '.config('app.name'))
 
 @section('topbar')
-    <x-ui.merchant-topbar title="Team members" :lead="'Manage people who can operate '.$selectedStore->name.'.'">
+    <x-ui.merchant-topbar title="Team members" lead="Control who can access this store and what they can do.">
         <x-slot:search>
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
                 <path d="M13.8333 15L8.58333 9.75C8.16667 10.0833 7.6875 10.3472 7.14583 10.5417C6.60417 10.7361 6.02778 10.8333 5.41667 10.8333C3.90278 10.8333 2.62153 10.309 1.57292 9.26042C0.524305 8.21181 0 6.93056 0 5.41667C0 3.90278 0.524305 2.62153 1.57292 1.57292C2.62153 0.524305 3.90278 0 5.41667 0C6.93056 0 8.21181 0.524305 9.26042 1.57292C10.309 2.62153 10.8333 3.90278 10.8333 5.41667C10.8333 6.02778 10.7361 6.60417 10.5417 7.14583C10.3472 7.6875 10.0833 8.16667 9.75 8.58333L15 13.8333L13.8333 15Z" fill="currentColor"/>
             </svg>
         </span>
-        <input type="text" data-team-search placeholder="Search team members, emails, or roles..." class="w-full rounded-lg border border-stone-200 bg-stone-50 py-2 pl-10 pr-4 text-sm text-stone-900 placeholder:text-stone-500 focus:border-brand/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20">
+        <input type="text" data-team-search placeholder="Search team members, emails, or job titles..." class="w-full rounded-lg border border-stone-200 bg-stone-50 py-2 pl-10 pr-4 text-sm text-stone-900 placeholder:text-stone-500 focus:border-brand/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20">
     </x-slot:search>
         <x-slot:actions>
-        @if (in_array($currentUserStoreRole, ['owner', 'manager'], true))
-            <button type="button" data-open-team-invite class="hidden sm:inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+        @if ($canManageTeam ?? false)
+            <button type="button" data-open-team-invite class="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-hover">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                 </svg>
-                <span>Invite Member</span>
+                <span>Add member</span>
             </button>
         @endif
     </x-slot:actions>
@@ -28,411 +30,429 @@
 @section('content')
 @php
     $members = $members ?? collect();
+    $memberAccess = $memberAccess ?? [];
     $recentTeamActivity = $recentTeamActivity ?? collect();
-    $roleLabels = [
-        'owner' => 'Owner',
-        'manager' => 'Manager',
-        'staff' => 'Staff',
-    ];
-    $roleBadgeClasses = [
-        'owner' => 'bg-brand/10 text-brand-ink',
-        'manager' => 'bg-[#EEF8F3] text-[#006A4E]',
-        'staff' => 'bg-[#F4F2FC] text-[#454652]',
-    ];
-    $roleGuideMeta = [
-        'owner' => [
-            'badge' => 'Primary',
-            'badge_class' => 'bg-brand text-white',
-            'card_class' => 'team-console-role-card team-console-role-card-primary',
-            'description' => 'Full platform control, including billing access, API management, and destructive actions.',
-        ],
-        'manager' => [
-            'badge' => 'Standard',
-            'badge_class' => 'bg-[#E3E1EA] text-[#454652]',
-            'card_class' => 'team-console-role-card',
-            'description' => 'Can manage catalog, inventory, and day-to-day store operations without billing access.',
-        ],
-        'staff' => [
-            'badge' => 'Limited',
-            'badge_class' => 'bg-[#E3E1EA] text-[#454652]',
-            'card_class' => 'team-console-role-card',
-            'description' => 'Read-first access with limited management permissions for specific departments.',
-        ],
-    ];
-    $roleDescriptions = [
-        'owner' => 'Full store control, billing access, and destructive actions.',
-        'manager' => 'Can manage catalog and day-to-day store operations.',
-        'staff' => 'Read-first access with limited management permissions.',
-    ];
-    $canInviteMembers = in_array($currentUserStoreRole, ['owner', 'manager'], true);
-    $canChangeRoles = in_array($currentUserStoreRole, ['owner', 'manager'], true);
-    $ownersCount = $members->where('pivot.role', 'owner')->count();
-    $managersCount = $members->where('pivot.role', 'manager')->count();
-    $staffCount = $members->where('pivot.role', 'staff')->count();
-    $leadershipCount = $ownersCount + $managersCount;
+    $catalog = $teamAccessCatalog ?? \App\Support\StoreMemberAccess::catalog();
+    $canManageTeam = $canManageTeam ?? false;
+    $canInviteMembers = $canManageTeam;
+    $activeCount = $members->filter(fn ($member) => ($memberAccess[$member->id]['status'] ?? 'active') === 'active')->count();
+    $invitedCount = $members->filter(fn ($member) => ($memberAccess[$member->id]['status'] ?? '') === 'invited')->count();
+    $suspendedCount = $members->filter(fn ($member) => ($memberAccess[$member->id]['status'] ?? '') === 'suspended')->count();
+    $selectedMemberId = (int) (old('member_id', $members->first()?->id));
+    $inviteLocations = $inviteLocations ?? collect();
 
     $formatActivity = static function ($log): array {
-        $actor = $log->user?->name ?? 'A teammate';
         $target = $log->targetUser?->name;
         $meta = is_array($log->metadata) ? $log->metadata : [];
+        $preset = $meta['preset'] ?? null;
 
         $message = match ($log->event_type) {
-            'team_member_invited' => ($target ?: 'New member').' invited as '.ucfirst((string) ($meta['role'] ?? 'member')),
-            'role_changed' => ($target ?: $actor).' updated to Role: '.ucfirst((string) ($meta['new_role'] ?? 'member')),
+            'team_member_invited' => ($target ?: 'New member').' invited with '.\App\Support\StoreMemberAccess::accessSummary(\App\Models\Store::ROLE_MEMBER, $preset),
+            'team_member_invite_resent' => ($target ?: 'A teammate').' invitation resent',
+            'team_member_joined' => ($target ?: 'A teammate').' accepted their invitation',
+            'role_changed' => ($target ?: 'A teammate').' access updated',
             'team_member_removed' => ($target ?: 'A member').' removed from this store',
+            'team_member_suspended' => ($target ?: 'A teammate').' suspended',
+            'team_member_reactivated' => ($target ?: 'A teammate').' reactivated',
             default => 'Team membership updated',
         };
 
         return [
-            'message' => $message,
+            'title' => $message,
+            'copy' => $log->user?->name ? 'By '.$log->user->name : 'Store-scoped team change',
             'when' => optional($log->created_at)?->diffForHumans() ?? 'Recently',
+            'type' => $log->event_type,
         ];
+    };
+
+    $initialsFor = static function (string $name): string {
+        return collect(explode(' ', $name))->filter()->take(2)->map(fn ($part) => strtoupper(substr($part, 0, 1)))->implode('') ?: 'TM';
     };
 @endphp
 
 <div
     class="settings-workspace-fluid team-console"
     data-team-page
+    data-team-can-manage="{{ $canManageTeam ? '1' : '0' }}"
+    data-team-selected="{{ $selectedMemberId }}"
+    data-team-access-catalog='@json($catalog)'
     @if (old('_team_invite_modal')) data-team-open-invite="1" @endif
-    @if (old('_team_role_modal'))
-        data-team-open-role="1"
-        data-team-role-member="{{ e(json_encode([
-            'id' => old('member_id'),
-            'name' => old('member_name', 'Selected member'),
-            'email' => old('member_email', ''),
-            'role' => old('role', 'staff'),
-        ])) }}"
+    @if (old('_team_access_modal') || old('_team_role_modal'))
+        data-team-open-access="1"
+        data-team-access-member="{{ e((string) old('member_id', '')) }}"
     @endif
 >
     @include('user_view.partials.flash_success')
 
-    <div class="team-console-metrics">
-        <div class="team-console-metric">
-            <div class="team-console-metric-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
-                </svg>
-            </div>
-            <div>
-                <p class="team-console-metric-label">Total Members</p>
-                <p class="team-console-metric-value">{{ $members->count() }}</p>
-                <p class="team-console-metric-meta">{{ $ownersCount }} {{ \Illuminate\Support\Str::plural('owner', $ownersCount) }}</p>
-            </div>
+    <div class="team-ws-heading">
+        <div>
+            <h2>People &amp; access</h2>
+            <p>Owner stays protected. Everyone else is a Team Member, with Custom Access when you need precise control.</p>
         </div>
-
-        <div class="team-console-metric">
-            <div class="team-console-metric-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-                    <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
-                </svg>
+        <div class="team-ws-heading-actions">
+            <div class="team-ws-segments" data-team-status-tabs>
+                <button type="button" class="is-active" data-team-status="all">All <span class="team-ws-count" data-team-count="all">{{ $members->count() }}</span></button>
+                <button type="button" data-team-status="active">Active <span class="team-ws-count" data-team-count="active">{{ $activeCount }}</span></button>
+                <button type="button" data-team-status="invited">Invited <span class="team-ws-count" data-team-count="invited">{{ $invitedCount }}</span></button>
+                <button type="button" data-team-status="suspended">Suspended <span class="team-ws-count" data-team-count="suspended">{{ $suspendedCount }}</span></button>
             </div>
-            <div>
-                <p class="team-console-metric-label">Leadership</p>
-                <p class="team-console-metric-value">
-                    {{ $leadershipCount }}
-                    <span class="team-console-metric-inline">{{ $ownersCount }} owner{{ $ownersCount === 1 ? '' : 's' }}, {{ $managersCount }} manager{{ $managersCount === 1 ? '' : 's' }}</span>
-                </p>
-            </div>
-        </div>
-
-        <div class="team-console-metric">
-            <div class="team-console-metric-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-                    <path d="M20 7h-5V4c0-1.1-.9-2-2-2h-2c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM9 12c.83 0 1.5.67 1.5 1.5S9.83 15 9 15s-1.5-.67-1.5-1.5S8.17 12 9 12zm3 6H6v-.75c0-1 2-1.5 3-1.5s3 .5 3 1.5V18zm1-9h-2V4h2v5zm5 7.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm2.5 2.5h-5v-.75c0-1 2-1.5 2.5-1.5s2.5.5 2.5 1.5V18z"/>
-                </svg>
-            </div>
-            <div>
-                <p class="team-console-metric-label">Staff Seats</p>
-                <p class="team-console-metric-value">{{ $staffCount }}</p>
-                <p class="team-console-metric-meta">{{ $staffCount }} operational teammate{{ $staffCount === 1 ? '' : 's' }}</p>
-            </div>
-        </div>
-
-        <div class="team-console-activity">
-            <div class="team-console-activity-head">
-                <span>Recent Activity</span>
-                @if (Route::has('security'))
-                    <a href="{{ route('security') }}">View Logs</a>
-                @endif
-            </div>
-            @if ($recentTeamActivity->isEmpty())
-                <p class="team-console-activity-empty">No recent team changes yet. Invites and role updates will appear here.</p>
-            @else
-                <ul class="team-console-activity-list">
-                    @foreach ($recentTeamActivity as $index => $log)
-                        @php $activity = $formatActivity($log); @endphp
-                        <li>
-                            <span @class(['team-console-activity-dot', 'team-console-activity-dot-active' => $index === 0]) aria-hidden="true"></span>
-                            <div>
-                                <p>{{ $activity['message'] }}</p>
-                                <time>{{ $activity['when'] }}</time>
-                            </div>
-                        </li>
-                    @endforeach
-                </ul>
-            @endif
+            <button type="button" class="team-ws-btn" data-open-team-presets>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                Permission presets
+            </button>
         </div>
     </div>
 
-    <div class="team-console-layout">
-        <section class="team-console-card team-console-directory">
-            <div class="team-console-card-header">
-                <div>
-                    <h2 class="team-console-card-title">Team Directory</h2>
-                    <p class="team-console-card-lead">Live membership list for your current active store.</p>
+    <section class="team-ws-workspace" aria-label="Team member access workspace">
+        <div class="team-ws-directory">
+            <div class="team-ws-panel-head">
+                <div class="team-ws-panel-title">
+                    Team directory
+                    <span class="team-ws-pill-count" data-team-member-count>{{ $members->count() }} {{ \Illuminate\Support\Str::plural('member', $members->count()) }}</span>
                 </div>
-                <div class="team-console-card-tools">
-                    @if (! $canInviteMembers)
-                        <div class="team-console-staff-note">
-                            Staff accounts can review access, but only owners and managers can invite teammates.
+                <div class="team-ws-tools">
+                    <label class="team-ws-search">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m20 20-4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                        <input type="search" data-team-search placeholder="Search team members…">
+                    </label>
+                    <div class="team-ws-filter-wrap" data-team-filter-wrap>
+                        <button type="button" class="team-ws-btn team-ws-btn-sm" data-team-filter-toggle aria-expanded="false">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Filter
+                        </button>
+                        <div class="team-ws-filter-popover hidden" data-team-filter-popover>
+                            <label for="team-access-filter">Access type</label>
+                            <select id="team-access-filter" data-team-access-filter>
+                                <option value="all">All access types</option>
+                                <option value="owner">Owner</option>
+                                <option value="full_operational">Full operational</option>
+                                <option value="operations">Operations</option>
+                                <option value="view">View only</option>
+                                <option value="custom">Custom Access</option>
+                            </select>
+                            <div class="team-ws-check-row">
+                                <input id="team-include-suspended" type="checkbox" data-team-include-suspended>
+                                <label for="team-include-suspended" class="normal-case tracking-normal text-[13px] font-medium text-stone-700" style="padding:0;text-transform:none;letter-spacing:0">Include suspended members</label>
+                            </div>
+                            <button type="button" class="team-ws-btn team-ws-btn-sm mt-2 w-full" data-team-clear-filters>Clear filters</button>
                         </div>
-                    @endif
-                    <span class="team-console-tool-chip" title="Your store role">
-                        {{ $roleLabels[(string) $currentUserStoreRole] ?? ucfirst((string) $currentUserStoreRole) }}
-                    </span>
+                    </div>
                 </div>
             </div>
 
             @if ($members->isEmpty())
-                <div class="team-console-empty">
-                    <div class="team-console-empty-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="40" height="40">
-                            <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                        </svg>
+                <div class="team-ws-empty">
+                    <div>
+                        <div class="team-ws-empty-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                        </div>
+                        <h3>No teammates added yet</h3>
+                        <p>Add someone when you are ready to share access to this store.</p>
+                        @if ($canInviteMembers)
+                            <button type="button" data-open-team-invite class="team-ws-btn team-ws-btn-primary mt-4">Add member</button>
+                        @endif
                     </div>
-                    <h3>No teammates added yet</h3>
-                    <p>This store does not have any additional team members yet. Invite someone when you are ready to share access.</p>
-                    @if ($canInviteMembers)
-                        <button type="button" data-open-team-invite class="team-console-btn team-console-btn-primary mt-5">
-                            Invite Your First Member
-                        </button>
-                    @endif
                 </div>
             @else
-                <div class="team-console-table-wrap hidden md:block">
-                    <table class="team-console-table">
-                        <thead>
-                            <tr>
-                                <th>Member</th>
-                                <th>Role</th>
-                                <th>Join Date</th>
-                                <th class="text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody data-team-directory>
-                            @foreach ($members as $member)
-                                @php
-                                    $memberPayload = [
-                                        'id' => $member->id,
-                                        'name' => $member->name,
-                                        'email' => $member->email,
-                                        'role' => $member->pivot->role,
-                                        'global_role' => $member->role?->name ?? 'user',
-                                        'joined_at' => optional($member->pivot->created_at)->format('M d, Y') ?: 'Recently added',
-                                        'description' => $roleDescriptions[$member->pivot->role] ?? 'Store-level access is available for this teammate.',
-                                    ];
-                                    $initials = collect(explode(' ', $member->name))->filter()->take(2)->map(fn ($part) => strtoupper(substr($part, 0, 1)))->implode('');
-                                    $canEditThisMember = $currentUserStoreRole === 'owner'
-                                        || ($currentUserStoreRole === 'manager' && $member->pivot->role !== 'owner');
-                                    $canRemoveThisMember = ($currentUserStoreRole === 'owner' && in_array($member->pivot->role, ['manager', 'staff'], true))
-                                        || ($currentUserStoreRole === 'manager' && $member->pivot->role === 'staff');
-                                @endphp
-                                <tr data-member-row>
-                                    <td>
-                                        <div class="team-console-member">
-                                            <div class="team-console-avatar">{{ $initials !== '' ? $initials : 'TM' }}</div>
-                                            <div>
-                                                <p class="team-console-member-name">
-                                                    {{ $member->name }}
-                                                    @if ((int) $member->id === (int) request()->user()->id)
-                                                        <span class="team-console-you">You</span>
-                                                    @endif
-                                                </p>
-                                                <p class="team-console-member-email">{{ $member->email }}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="team-console-role-pill {{ $roleBadgeClasses[$member->pivot->role] ?? 'bg-[#F4F2FC] text-[#454652]' }}">
-                                            {{ $roleLabels[$member->pivot->role] ?? ucfirst($member->pivot->role) }}
-                                        </span>
-                                    </td>
-                                    <td class="team-console-date">
-                                        {{ optional($member->pivot->created_at)->format('M j, Y') ?? 'Recently added' }}
-                                    </td>
-                                    <td>
-                                        <div class="team-console-actions">
-                                            <button type="button" data-open-team-access data-member='@json($memberPayload)' class="team-console-btn team-console-btn-ghost">
-                                                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden="true">
-                                                    <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
-                                                </svg>
-                                                Access
-                                            </button>
-                                            @if ($canChangeRoles && $canEditThisMember)
-                                                <button type="button" data-open-team-role data-member='@json($memberPayload)' class="team-console-btn team-console-btn-dark">
-                                                    <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15" aria-hidden="true">
-                                                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                                                    </svg>
-                                                    Change Role
-                                                </button>
-                                            @endif
-                                            @if ($canRemoveThisMember)
-                                                <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" data-ui-confirm="Remove {{ $member->name }} from {{ $selectedStore->name }}?" data-ui-confirm-title="Remove this teammate?" data-ui-confirm-action="Remove">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="team-console-btn team-console-btn-danger">Remove</button>
-                                                </form>
-                                            @endif
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                <div class="team-ws-table-head">
+                    <span>Member</span>
+                    <span>Access</span>
+                    <span>Store scope</span>
+                    <span>Status</span>
+                    <span>Last active</span>
+                    <span class="text-right">Actions</span>
                 </div>
-
-                <div class="team-console-mobile-list md:hidden" data-team-directory-mobile>
+                <div class="team-ws-rows" data-team-directory>
                     @foreach ($members as $member)
                         @php
-                            $memberPayload = [
+                            $access = $memberAccess[$member->id] ?? [
                                 'id' => $member->id,
                                 'name' => $member->name,
                                 'email' => $member->email,
-                                'role' => $member->pivot->role,
-                                'global_role' => $member->role?->name ?? 'user',
-                                'joined_at' => optional($member->pivot->created_at)->format('M d, Y') ?: 'Recently added',
-                                'description' => $roleDescriptions[$member->pivot->role] ?? 'Store-level access is available for this teammate.',
+                                'membership_label' => 'Team Member',
+                                'access_summary' => 'Store-scoped access profile.',
+                                'permissions' => [],
+                                'status' => 'active',
+                                'scope' => $selectedStore->name,
+                                'last_active' => '—',
+                                'is_owner' => $member->pivot->role === 'owner',
                             ];
-                            $initials = collect(explode(' ', $member->name))->filter()->take(2)->map(fn ($part) => strtoupper(substr($part, 0, 1)))->implode('');
-                            $canEditThisMember = $currentUserStoreRole === 'owner'
-                                || ($currentUserStoreRole === 'manager' && $member->pivot->role !== 'owner');
-                            $canRemoveThisMember = ($currentUserStoreRole === 'owner' && in_array($member->pivot->role, ['manager', 'staff'], true))
-                                || ($currentUserStoreRole === 'manager' && $member->pivot->role === 'staff');
+                            $canEditThisMember = $canManageTeam && empty($access['is_owner']) && empty($access['is_you']);
+                            $canResendInvite = $canEditThisMember && ($access['status'] ?? '') === 'invited';
+                            $canSuspendMember = $canEditThisMember && ($access['status'] ?? '') === 'active';
+                            $canReactivateMember = $canEditThisMember && ($access['status'] ?? '') === 'suspended';
                         @endphp
-                        <article data-member-row class="team-console-mobile-card">
-                            <div class="team-console-member">
-                                <div class="team-console-avatar">{{ $initials !== '' ? $initials : 'TM' }}</div>
-                                <div>
-                                    <p class="team-console-member-name">
+                        <div
+                            class="team-ws-row {{ (int) $access['id'] === $selectedMemberId ? 'is-selected' : '' }}"
+                            data-member-row
+                            data-select-member="{{ $access['id'] }}"
+                            data-member='@json($access)'
+                            data-status="{{ $access['status'] ?? 'active' }}"
+                            data-access-filter="{{ $access['access_filter'] ?? '' }}"
+                            tabindex="0"
+                        >
+                            <div class="team-ws-member">
+                                <div class="team-ws-avatar team-ws-avatar-sm">{{ $initialsFor($member->name) }}</div>
+                                <div class="min-w-0">
+                                    <div class="team-ws-member-name">
                                         {{ $member->name }}
-                                        @if ((int) $member->id === (int) request()->user()->id)
-                                            <span class="team-console-you">You</span>
+                                        @if (! empty($access['is_you']))
+                                            <span class="team-ws-you">You</span>
                                         @endif
-                                    </p>
-                                    <p class="team-console-member-email">{{ $member->email }}</p>
-                                    <div class="mt-2 flex flex-wrap items-center gap-2">
-                                        <span class="team-console-role-pill {{ $roleBadgeClasses[$member->pivot->role] ?? 'bg-[#F4F2FC] text-[#454652]' }}">
-                                            {{ $roleLabels[$member->pivot->role] ?? ucfirst($member->pivot->role) }}
-                                        </span>
-                                        <span class="text-xs text-stone-500">{{ optional($member->pivot->created_at)->format('M j, Y') ?? 'Recently added' }}</span>
                                     </div>
+                                    <div class="team-ws-member-email">{{ $member->email }}</div>
                                 </div>
                             </div>
-                            <div class="team-console-actions mt-4">
-                                <button type="button" data-open-team-access data-member='@json($memberPayload)' class="team-console-btn team-console-btn-ghost">Access</button>
-                                @if ($canChangeRoles && $canEditThisMember)
-                                    <button type="button" data-open-team-role data-member='@json($memberPayload)' class="team-console-btn team-console-btn-dark">Change Role</button>
-                                @endif
-                                @if ($canRemoveThisMember)
-                                    <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" data-ui-confirm="Remove {{ $member->name }} from {{ $selectedStore->name }}?" data-ui-confirm-title="Remove this teammate?" data-ui-confirm-action="Remove">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="team-console-btn team-console-btn-danger">Remove</button>
-                                    </form>
-                                @endif
+                            <div>
+                                <span class="team-ws-access-badge">{{ $access['membership_label'] }}</span>
                             </div>
-                        </article>
-                    @endforeach
-                </div>
-
-                @if ($canInviteMembers && $members->count() < 3)
-                    <div class="team-console-expand">
-                        <div class="team-console-expand-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
-                                <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                            </svg>
-                        </div>
-                        <h4>Expand your team</h4>
-                        <p>Invite managers and staff to help scale your operations across multiple regions.</p>
-                    </div>
-                @endif
-            @endif
-        </section>
-
-        <aside class="team-console-aside">
-            <section class="team-console-card team-console-role-guide">
-                <div class="team-console-aside-head">
-                    <div class="team-console-aside-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                            <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 class="team-console-card-title">Role Guide</h2>
-                        <p class="team-console-card-lead">Quick reference for platform roles.</p>
-                    </div>
-                </div>
-
-                <div class="team-console-role-list">
-                    @foreach ($memberRoleOptions as $roleOption)
-                        @php $guide = $roleGuideMeta[$roleOption] ?? null; @endphp
-                        <div class="{{ $guide['card_class'] ?? 'team-console-role-card' }}">
-                            <div class="flex items-center justify-between gap-3">
-                                <h3>{{ $roleLabels[$roleOption] ?? ucfirst($roleOption) }}</h3>
-                                <span class="{{ $guide['badge_class'] ?? 'bg-[#E3E1EA] text-[#454652]' }} team-console-guide-badge">
-                                    {{ $guide['badge'] ?? ($roleLabels[$roleOption] ?? ucfirst($roleOption)) }}
+                            <div class="team-ws-muted">{{ $access['scope'] ?? $selectedStore->name }}</div>
+                            <div>
+                                <span class="team-ws-status is-{{ $access['status'] ?? 'active' }}">
+                                    <span class="team-ws-dot"></span>{{ \Illuminate\Support\Str::title($access['status'] ?? 'active') }}
                                 </span>
                             </div>
-                            <p>{{ $guide['description'] ?? ($roleDescriptions[$roleOption] ?? 'Store-scoped access profile.') }}</p>
+                            <div class="team-ws-muted">{{ $access['last_active'] ?? '—' }}</div>
+                            <div class="team-ws-row-actions">
+                                @if ($canEditThisMember)
+                                    <button type="button" class="team-ws-edit-inline" data-open-team-access data-member='@json($access)' aria-label="Edit access">Edit access</button>
+                                @endif
+                                <button type="button" class="team-ws-icon-btn" data-team-row-menu="{{ $access['id'] }}" aria-label="Member actions" aria-expanded="false">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                                </button>
+                                <div class="team-ws-row-menu hidden" data-row-menu>
+                                    @if (! empty($access['is_owner']) || ! empty($access['is_you']) || ! $canManageTeam)
+                                        <button type="button" data-open-team-access data-member='@json($access)'>
+                                            @if (! empty($access['is_owner']))
+                                                View protected access
+                                            @elseif (! empty($access['is_you']))
+                                                View your access
+                                            @else
+                                                View access
+                                            @endif
+                                        </button>
+                                    @else
+                                        <button type="button" data-open-team-access data-member='@json($access)'>Edit access</button>
+                                        <button type="button" data-copy-email="{{ $member->email }}">Copy email</button>
+                                        @if ($canResendInvite)
+                                            <form method="POST" action="{{ route('team-members.resend-invite', ['user' => $member->id]) }}">
+                                                @csrf
+                                                <button type="submit" class="w-full">Resend invitation</button>
+                                            </form>
+                                        @endif
+                                        @if ($canSuspendMember)
+                                            <form method="POST" action="{{ route('team-members.status', ['user' => $member->id]) }}" data-ui-confirm="{{ $member->name }} will lose access to {{ $selectedStore->name }} until you reactivate them." data-ui-confirm-title="Suspend this teammate?" data-ui-confirm-action="Suspend">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="status" value="suspended">
+                                                <button type="submit" class="w-full">Suspend access</button>
+                                            </form>
+                                        @endif
+                                        @if ($canReactivateMember)
+                                            <form method="POST" action="{{ route('team-members.status', ['user' => $member->id]) }}">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="status" value="active">
+                                                <button type="submit" class="w-full">Reactivate access</button>
+                                            </form>
+                                        @endif
+                                        @if ($canEditThisMember)
+                                            <hr>
+                                            <form method="POST" action="{{ route('team-members.destroy', ['user' => $member->id]) }}" data-ui-confirm="Remove {{ $member->name }} from {{ $selectedStore->name }}?" data-ui-confirm-title="Remove this teammate?" data-ui-confirm-action="Remove">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="is-danger w-full">Remove from store</button>
+                                            </form>
+                                        @endif
+                                    @endif
+                                </div>
+                            </div>
                         </div>
                     @endforeach
                 </div>
-            </section>
-
-            <section class="team-console-status">
-                <h2>
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-                    </svg>
-                    Status Overview
-                </h2>
-                <ul>
-                    <li>
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                        <span>Team list is powered by the active store membership data.</span>
-                    </li>
-                    <li>
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                        <span>Owners and managers can add teammates from the invite drawer.</span>
-                    </li>
-                    <li>
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                        <span>Store roles can be updated safely with last-owner protection.</span>
-                    </li>
-                    <li>
-                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                        <span>Remove-member actions revoke access without deleting the global account.</span>
-                    </li>
-                </ul>
-                <div class="team-console-status-tip">
-                    <p class="team-console-status-tip-label">Pro Tip</p>
-                    <p>Advanced invite delivery and audit history remain deferred for a later sprint.</p>
+                <div class="team-ws-empty hidden" data-team-directory-empty>
+                    <div>
+                        <div class="team-ws-empty-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8"/></svg>
+                        </div>
+                        <h3>No matching members</h3>
+                        <p>Change the search or filters, or invite a teammate to this store.</p>
+                        @if ($canInviteMembers)
+                            <button type="button" data-open-team-invite class="team-ws-btn team-ws-btn-primary mt-4">Add member</button>
+                        @endif
+                    </div>
                 </div>
-            </section>
+            @endif
+        </div>
+
+        <aside class="team-ws-inspector" data-team-inspector>
+            <form
+                method="POST"
+                action="{{ $selectedMemberId ? route('team-members.update', ['user' => $selectedMemberId]) : '#' }}"
+                data-team-access-form
+                data-team-perm-root
+                data-action-template="{{ route('team-members.update', ['user' => '__USER_ID__']) }}"
+                class="flex min-h-0 flex-1 flex-col"
+            >
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="_team_access_modal" value="1">
+                <input type="hidden" name="member_id" value="{{ $selectedMemberId }}" data-access-member-id>
+                <input type="hidden" name="access_preset" value="view" data-team-preset-value>
+                <input type="hidden" name="job_title" value="" data-access-job-title>
+
+                <div class="sr-only" aria-hidden="true">
+                    @foreach ($catalog['presets'] as $preset)
+                        <input type="radio" name="member_access_preset_choice" value="{{ $preset['key'] }}" data-team-preset="{{ $preset['key'] }}">
+                    @endforeach
+                    @foreach ($catalog['groups'] as $group)
+                        @foreach ($group['permissions'] as $permission)
+                            <input type="checkbox" name="permissions[]" value="{{ $permission['key'] }}" data-team-permission="{{ $permission['key'] }}">
+                        @endforeach
+                    @endforeach
+                    @foreach ($catalog['sensitive_permissions'] as $permission)
+                        <input type="checkbox" name="permissions[]" value="{{ $permission['key'] }}" data-team-permission="{{ $permission['key'] }}">
+                    @endforeach
+                </div>
+
+                <div class="team-ws-inspector-scroll" data-inspector-scroll>
+                    <div class="team-ws-empty" data-inspector-empty>
+                        <div>
+                            <h3>Select a member</h3>
+                            <p>Choose a teammate to review and change their store access.</p>
+                        </div>
+                    </div>
+
+                    <div class="hidden" data-inspector-content>
+                        <div class="team-ws-profile">
+                            <div class="team-ws-profile-main">
+                                <div class="team-ws-avatar team-ws-avatar-lg" data-access-initials>TM</div>
+                                <div class="min-w-0">
+                                    <div class="team-ws-profile-name" data-access-member-name>Selected member</div>
+                                    <div class="team-ws-member-email" data-access-member-email></div>
+                                </div>
+                            </div>
+                            <div class="team-ws-profile-badges">
+                                <span class="team-ws-status is-active" data-access-status><span class="team-ws-dot"></span>Active</span>
+                                <span class="team-ws-custom-badge" data-access-badge>Team Member</span>
+                            </div>
+                        </div>
+
+                        <div class="team-ws-inspector-body">
+                            @error('access')
+                                <div class="team-ws-note is-warn mb-4">{{ $message }}</div>
+                            @enderror
+                            @error('permissions')
+                                <div class="team-ws-note is-warn mb-4">{{ $message }}</div>
+                            @enderror
+
+                            <div class="team-ws-starting" data-access-edit-fields>
+                                <div>
+                                    <span class="team-ws-label-strong">Starting point</span>
+                                    <p class="team-ws-hint">Presets replace unsaved module permissions.</p>
+                                </div>
+                                <div class="team-ws-preset-tabs" role="tablist" aria-label="Starting access">
+                                    @foreach ($catalog['presets'] as $preset)
+                                        <button type="button" data-inspector-preset="{{ $preset['key'] }}">{{ $preset['short'] ?? $preset['label'] }}</button>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <h3 class="team-ws-section-heading">Store permissions</h3>
+                            <p class="team-ws-hint">Fulfillment is packing and tracking an order. Delivery is the store delivery hub (areas, checkout options, and carrier connection). Turn each on separately.</p>
+                            <div class="team-ws-permission-list">
+                                @foreach ($catalog['modules'] as $module)
+                                    <div class="team-ws-permission-row">
+                                        <div class="team-ws-permission-name">
+                                            <span class="team-ws-module-symbol">{{ $module['symbol'] }}</span>
+                                            {{ $module['label'] }}
+                                        </div>
+                                        <div class="team-ws-toggle">
+                                            @if (($module['view'] ?? []) !== [])
+                                                <button type="button" data-module="{{ $module['key'] }}" data-level="view">View</button>
+                                            @endif
+                                            @if (($module['manage'] ?? []) !== [])
+                                                <button type="button" data-module="{{ $module['key'] }}" data-level="manage">Manage</button>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <div class="team-ws-protected">
+                                <div class="team-ws-protected-head">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2" stroke="#a55d00" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#a55d00" stroke-width="1.8"/></svg>
+                                    <div>
+                                        <div class="team-ws-protected-title">Sensitive permissions</div>
+                                        <div class="team-ws-protected-copy">These stay off for new Team Member access unless you turn them on. Owner-only actions stay locked.</div>
+                                    </div>
+                                </div>
+                                @foreach ($catalog['sensitive_permissions'] as $permission)
+                                    <div class="team-ws-protected-row">
+                                        <span>{{ $permission['label'] }}</span>
+                                        <span class="team-ws-toggle" style="width:11rem">
+                                            <button type="button" data-sensitive-toggle="{{ $permission['key'] }}" data-level="off">Off</button>
+                                            <button type="button" data-sensitive-toggle="{{ $permission['key'] }}" data-level="on">On</button>
+                                        </span>
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <div class="team-ws-protected mt-3">
+                                <div class="team-ws-protected-head">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2" stroke="#a55d00" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#a55d00" stroke-width="1.8"/></svg>
+                                    <div>
+                                        <div class="team-ws-protected-title">Owner-only</div>
+                                        <div class="team-ws-protected-copy">These cannot be granted through Team Member permissions.</div>
+                                    </div>
+                                </div>
+                                <div class="team-ws-protected-row"><span>Transfer ownership</span><span class="team-ws-locked">Owner only</span></div>
+                                <div class="team-ws-protected-row"><span>Close or delete the store</span><span class="team-ws-locked">Owner only</span></div>
+                                <div class="team-ws-protected-row"><span>Platform subscription &amp; billing authority</span><span class="team-ws-locked">Owner only</span></div>
+                            </div>
+
+                            <div class="team-ws-note hidden" data-access-owner-note>
+                                <strong>Owner access is protected.</strong><br>
+                                Owners always retain full store access. Transfer ownership before changing this person’s permissions.
+                            </div>
+                            <div class="team-ws-note hidden" data-access-self-note>
+                                <strong>You cannot change your own access.</strong><br>
+                                Ask the store owner if you need different permissions.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="team-ws-inspector-footer" data-inspector-footer>
+                    <div class="team-ws-inspector-summary" data-inspector-summary>Select a teammate to review access.</div>
+                    <div class="team-ws-footer-actions" data-access-edit-actions>
+                        <button type="button" class="team-ws-btn" data-access-discard disabled>Discard</button>
+                        <button type="submit" class="team-ws-btn team-ws-btn-primary" data-access-save disabled>Save access</button>
+                    </div>
+                </div>
+            </form>
         </aside>
+    </section>
+
+    <div class="team-ws-audit">
+        <div class="team-ws-audit-left">
+            <span class="team-ws-audit-check" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span>Permission changes are logged in <strong class="text-stone-700">Security activity</strong>.</span>
+        </div>
+        <button type="button" class="team-ws-link" data-open-team-activity>
+            View activity
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
     </div>
 </div>
 
+<div class="team-ws-toast-stack" data-team-toasts aria-live="polite"></div>
+
 @push('overlays')
-@include('user_view.partials.team_member_invite_drawer', [
-    'selectedStore' => $selectedStore,
-    'memberRoleOptions' => $memberRoleOptions,
-    'currentUserStoreRole' => $currentUserStoreRole,
-])
-@include('user_view.partials.team_member_role_modal', [
-    'memberRoleOptions' => $memberRoleOptions,
-    'currentUserStoreRole' => $currentUserStoreRole,
-])
-@include('user_view.partials.team_member_access_panel')
+@include('user_view.partials.team_member_invite_drawer')
+@include('user_view.partials.team_member_presets_drawer')
+@include('user_view.partials.team_member_activity_drawer')
 @endpush
 @endsection

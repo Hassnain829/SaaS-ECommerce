@@ -23,19 +23,19 @@ Route::delete('/management/stores/{storeId}/permanent', [ClosedStoreManagementCo
     ->middleware('password.confirm')
     ->name('store.permanent-destroy');
 Route::post('/products', [OnboardingController::class, 'storeProductFromCurrentStore'])
-    ->middleware('store.permission:catalog.manage')
+    ->middleware('store.permission:products.edit')
     ->name('product.store');
 Route::put('/product/{productId}', [OnboardingController::class, 'updateProductFromManagement'])
-    ->middleware('store.permission:catalog.manage')
+    ->middleware('store.permission:products.edit')
     ->name('product.update');
 Route::delete('/product/{productId}', [OnboardingController::class, 'destroyProductFromManagement'])
-    ->middleware('store.permission:catalog.manage')
+    ->middleware('store.permission:products.delete')
     ->name('product.destroy');
 Route::post('/product/{productId}/restore', [OnboardingController::class, 'restoreProductFromManagement'])
-    ->middleware('store.permission:catalog.manage')
+    ->middleware('store.permission:products.delete')
     ->name('product.restore');
 Route::delete('/product/{productId}/force', [OnboardingController::class, 'forceDestroyProductFromManagement'])
-    ->middleware('store.permission:catalog.manage')
+    ->middleware('store.permission:products.delete')
     ->name('product.force-destroy');
 Route::get('/store/{storeId}/add-product', [OnboardingController::class, 'addProductFromStore'])->name('store.add-product');
 Route::post('/store/{storeId}/add-product', [OnboardingController::class, 'storeProductFromStore'])->name('store.add-product.store');

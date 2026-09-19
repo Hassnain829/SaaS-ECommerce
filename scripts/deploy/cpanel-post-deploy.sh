@@ -96,8 +96,17 @@ $PHP_BIN artisan route:clear || true
 $PHP_BIN artisan view:clear || true
 rm -f bootstrap/cache/*.php
 
+# Optional: GitHub Actions can pass GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET so
+# Continue with Google stays enabled without copying .env from the repo.
+if [[ -f scripts/deploy/upsert-env.php ]]; then
+  $PHP_BIN scripts/deploy/upsert-env.php GOOGLE_CLIENT_ID || true
+  $PHP_BIN scripts/deploy/upsert-env.php GOOGLE_CLIENT_SECRET || true
+fi
+
 # Avoid route:cache / optimize / event:cache on hosts where proc_open is disabled.
 $PHP_BIN artisan config:cache || true
+
+$PHP_BIN artisan google:status || true
 
 # Refresh /jiggy WordPress connector + brand pack when that install exists (no-op otherwise).
 bash "${SCRIPT_DIR}/sync-wordpress-jiggy.sh"

@@ -69,7 +69,7 @@
                 </div>
             @endif
         </div>
-    @elseif (request()->user()?->hasRole('user'))
+    @elseif (request()->user()?->hasRole('user') && ($canCreateStores ?? false))
         <div class="shrink-0 px-3 pb-3">
             <a href="{{ route('store-management') }}" class="block rounded-md border border-dashed border-border bg-surface-muted px-3 py-2.5 text-xs font-semibold text-brand hover:bg-brand-soft">
                 Create your first store
@@ -80,29 +80,41 @@
     <div class="mx-3 border-t border-border" aria-hidden="true"></div>
 
     <nav id="merchantNav" class="sidebar-nav-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-y-contain px-2.5 py-3">
+        @php
+            $nav = $storeNav ?? [];
+        @endphp
         <div class="sidebar-nav-group">
             <a href="{{ route('dashboard') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('dashboard')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 3h6v6H3V3zm8 0h6v4h-6V3zM3 11h6v6H3v-6zm8 2h6v4h-6v-4z"/></svg>
                 <span>Home</span>
             </a>
+            @if (! empty($nav['orders']))
             <a href="{{ route('orders') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('orders', 'orderViewDetails', 'orders.create', 'draft-orders.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4 2h12a1 1 0 011 1v14l-3-2-3 2-3-2-3 2-3-2V3a1 1 0 011-1zm2 4v2h8V6H6zm0 4v2h5v-2H6z"/></svg>
                 <span>Orders</span>
             </a>
+            @endif
+            @if (! empty($nav['shipments']))
             <a href="{{ route('shipments.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('shipments.index', 'shipments.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 4l7-2 7 2v5.5c0 3.6-2.4 6.9-7 8.5-4.6-1.6-7-4.9-7-8.5V4zm7 1.2L5 6.3v3.2c0 2.4 1.5 4.6 5 5.8 3.5-1.2 5-3.4 5-5.8V6.3l-5-1.1z"/></svg>
                 <span>Shipments</span>
             </a>
+            @endif
+            @if (! empty($nav['products']))
             <a href="{{ route('products') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('products', 'products.*', 'catalog.attributes.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 4h14v2H3V4zm0 5h14v2H3V9zm0 5h10v2H3v-2z"/></svg>
                 <span>Products</span>
             </a>
+            @endif
+            @if (! empty($nav['customers']))
             <a href="{{ route('customers') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('customers', 'customersProfile')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 10a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM3 17a7 7 0 0114 0v1H3v-1z"/></svg>
                 <span>Customers</span>
             </a>
+            @endif
         </div>
 
+        @if (! empty($nav['website']))
         <div class="sidebar-nav-group">
             <p class="sidebar-nav-label">Online store</p>
             <a href="{{ route('developer-storefront.settings') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('developer-storefront.*')])>
@@ -110,49 +122,66 @@
                 <span>Website</span>
             </a>
         </div>
+        @endif
 
+        @if (! empty($nav['stores']) || ! empty($nav['locations']) || ! empty($nav['delivery']) || ! empty($nav['taxes']) || ! empty($nav['payments']) || ! empty($nav['discounts']))
         <div class="sidebar-nav-group">
             <p class="sidebar-nav-label">Store</p>
             <a href="{{ route('store-management') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('store-management')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 7l2-4h10l2 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V7zm2 2v7h10V9H5z"/></svg>
                 <span>Stores</span>
             </a>
+            @if (! empty($nav['locations']))
             <a href="{{ route('settings.locations.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.locations.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2a6 6 0 016 6c0 4.5-6 10-6 10S4 12.5 4 8a6 6 0 016-6zm0 8a2 2 0 100-4 2 2 0 000 4z"/></svg>
                 <span>Locations</span>
             </a>
+            @endif
+            @if (! empty($nav['delivery']))
             <a href="{{ route('shippingAutomation') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('shippingAutomation', 'settings.shipping.*', 'shipping.*', 'settings.delivery.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M2 6h11v7H2V6zm11 2h3l2 3v2h-1.5a2 2 0 11-3.9 0H8.4a2 2 0 11-3.9 0H3V6h9v2z"/></svg>
                 <span>Delivery</span>
             </a>
+            @endif
+            @if (! empty($nav['taxes']))
             <a href="{{ route('settings.taxes.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.taxes.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M4 3h8l4 4v10a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1zm7 1v3h3l-3-3zM6 10h8v1.5H6V10zm0 3h6v1.5H6V13z"/></svg>
                 <span>Taxes</span>
             </a>
+            @endif
+            @if (! empty($nav['payments']))
             <a href="{{ route('settings.payments.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.payments.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm2 1v2h10V6H5zm0 5v4h10v-4H5z"/></svg>
                 <span>Payments</span>
             </a>
+            @endif
+            @if (! empty($nav['discounts']))
             <a href="{{ route('settings.coupons.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('settings.coupons.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 8a2 2 0 012-2h4.6l6.1 6.1a2 2 0 01-2.8 0L4 11.6V8zm3.2-.2a1.2 1.2 0 100-2.4 1.2 1.2 0 000 2.4z"/></svg>
                 <span>Discounts</span>
             </a>
+            @endif
         </div>
+        @endif
 
         <div class="sidebar-nav-group">
             <p class="sidebar-nav-label">Account</p>
+            @if (! empty($nav['team']))
             <a href="{{ route('team-members.index') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('team-members.*')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7 9a3 3 0 100-6 3 3 0 000 6zm6-1a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM2 16a5 5 0 0110 0v1H2v-1zm11-.5c0-1.2.4-2.3 1.1-3.2A5.5 5.5 0 0118 15.5V16h-5v-.5z"/></svg>
                 <span>Team</span>
             </a>
+            @endif
             <a href="{{ route('generalSettings') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('generalSettings')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 7.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM8.2 2h3.6l.4 2.1a6 6 0 011.5.9l2-.9 1.8 3.1-1.6 1.4c.1.5.1 1 0 1.5l1.6 1.4-1.8 3.1-2-.9a6 6 0 01-1.5.9L11.8 18H8.2l-.4-2.1a6 6 0 01-1.5-.9l-2 .9L2.5 12.8l1.6-1.4a6 6 0 010-1.5L2.5 8.5 4.3 5.4l2 .9a6 6 0 011.5-.9L8.2 2z"/></svg>
                 <span>Settings</span>
             </a>
+            @if (! empty($nav['security']))
             <a href="{{ route('security') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('security')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2l7 3v5c0 4.2-2.8 7.9-7 9-4.2-1.1-7-4.8-7-9V5l7-3zm0 4a3 3 0 00-3 3v1H6v5h8v-5h-1V9a3 3 0 00-3-3zm0 2a1 1 0 011 1v1H9V9a1 1 0 011-1z"/></svg>
                 <span>Security</span>
             </a>
+            @endif
             <a href="{{ route('notifications') }}" @class(['sidebar-nav-link', 'sidebar-nav-link-active' => request()->routeIs('notifications')])>
                 <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 18a2 2 0 01-2-2h4a2 2 0 01-2 2zM5 14V9a5 5 0 1110 0v5l1.5 1.5H3.5L5 14z"/></svg>
                 <span>Notifications</span>
