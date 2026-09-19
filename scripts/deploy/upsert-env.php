@@ -4,7 +4,6 @@
  * Upsert KEY=value into .env. Value is read from the process environment.
  * Usage: php scripts/deploy/upsert-env.php KEY [ENV_FILE]
  */
-
 $key = $argv[1] ?? '';
 $file = $argv[2] ?? dirname(__DIR__, 2).DIRECTORY_SEPARATOR.'.env';
 

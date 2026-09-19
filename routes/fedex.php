@@ -79,8 +79,8 @@ Route::post('/settings/shipping/carrier-accounts/{carrierAccount}/fedex/disconne
     ->name('settings.shipping.fedex-integrator.disconnect');
 
 Route::post('/orders/{order}/fedex/validate-address', [FedExMerchantOperationsController::class, 'validateOrderAddress'])
-        ->middleware(['store.permission:fulfillment.fulfill', 'throttle:fedex-ops'])
-        ->name('orders.fedex.validate-address');
+    ->middleware(['store.permission:fulfillment.fulfill', 'throttle:fedex-ops'])
+    ->name('orders.fedex.validate-address');
 Route::post('/orders/{order}/fedex/service-availability', [FedExMerchantOperationsController::class, 'checkOrderServiceAvailability'])
     ->middleware(['store.permission:fulfillment.fulfill', 'throttle:fedex-ops'])
     ->name('orders.fedex.service-availability');

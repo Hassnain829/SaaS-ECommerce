@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\StorePermissionResolver;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -29,7 +30,7 @@ class EnsureCurrentStore
 
         view()->share('currentStore', $currentStore);
         view()->share('availableStores', $availableStores);
-        view()->share('storeNav', \App\Support\StorePermissionResolver::navFor($user, $currentStore));
+        view()->share('storeNav', StorePermissionResolver::navFor($user, $currentStore));
         view()->share('canCreateStores', $user->canCreateStores($currentStore));
 
         return $next($request);

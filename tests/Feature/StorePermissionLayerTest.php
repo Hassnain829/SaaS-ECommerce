@@ -20,6 +20,7 @@ use App\Support\StoreMemberAccess;
 use App\Support\StorePermission;
 use App\Support\StorePermissionResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class StorePermissionLayerTest extends TestCase
@@ -801,7 +802,7 @@ class StorePermissionLayerTest extends TestCase
         return Product::query()->create([
             'store_id' => $store->id,
             'name' => $name,
-            'slug' => \Illuminate\Support\Str::slug($name).'-'.fake()->unique()->numberBetween(1000, 9999),
+            'slug' => Str::slug($name).'-'.fake()->unique()->numberBetween(1000, 9999),
             'description' => null,
             'base_price' => 10,
             'sku' => $sku.'-'.fake()->unique()->numberBetween(100, 999),
