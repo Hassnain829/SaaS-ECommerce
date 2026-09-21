@@ -128,11 +128,15 @@ jobs:
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          FEDEX_LIVE_CLIENT_ID: ${{ secrets.FEDEX_LIVE_CLIENT_ID }}
+          FEDEX_LIVE_CLIENT_SECRET: ${{ secrets.FEDEX_LIVE_CLIENT_SECRET }}
         run: |
           IDQ=$(printf '%q' "${GOOGLE_CLIENT_ID}")
           SECREQ=$(printf '%q' "${GOOGLE_CLIENT_SECRET}")
+          FEDEX_IDQ=$(printf '%q' "${FEDEX_LIVE_CLIENT_ID}")
+          FEDEX_SECREQ=$(printf '%q' "${FEDEX_LIVE_CLIENT_SECRET}")
           PHPQ=$(printf '%q' "${{ secrets.CPANEL_PHP_BIN }}")
           PATHQ=$(printf '%q' "${CPANEL_DEPLOY_PATH}")
           ssh -p "${CPANEL_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=yes \
             "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" \
-            "export CPANEL_DEPLOY_PATH=${PATHQ} CPANEL_PHP_BIN=${PHPQ} GOOGLE_CLIENT_ID=${IDQ} GOOGLE_CLIENT_SECRET=${SECREQ} && cd \"\$CPANEL_DEPLOY_PATH\" && bash scripts/deploy/cpanel-post-deploy.sh"
+            "export CPANEL_DEPLOY_PATH=${PATHQ} CPANEL_PHP_BIN=${PHPQ} GOOGLE_CLIENT_ID=${IDQ} GOOGLE_CLIENT_SECRET=${SECREQ} FEDEX_LIVE_CLIENT_ID=${FEDEX_IDQ} FEDEX_LIVE_CLIENT_SECRET=${FEDEX_SECREQ} && cd \"\$CPANEL_DEPLOY_PATH\" && bash scripts/deploy/cpanel-post-deploy.sh"

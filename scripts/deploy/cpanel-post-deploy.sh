@@ -96,17 +96,86 @@ $PHP_BIN artisan route:clear || true
 $PHP_BIN artisan view:clear || true
 rm -f bootstrap/cache/*.php
 
-# Optional: GitHub Actions can pass GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET so
-# Continue with Google stays enabled without copying .env from the repo.
+# Optional: GitHub Actions can pass OAuth/API secrets so merchant Google and
+# live FedEx stay enabled without copying .env from the repo.
 if [[ -f scripts/deploy/upsert-env.php ]]; then
   $PHP_BIN scripts/deploy/upsert-env.php GOOGLE_CLIENT_ID || true
   $PHP_BIN scripts/deploy/upsert-env.php GOOGLE_CLIENT_SECRET || true
+  $PHP_BIN scripts/deploy/upsert-env.php FEDEX_LIVE_CLIENT_ID || true
+  $PHP_BIN scripts/deploy/upsert-env.php FEDEX_LIVE_CLIENT_SECRET || true
+
+  if [[ -n "${FEDEX_LIVE_CLIENT_ID:-}" && -n "${FEDEX_LIVE_CLIENT_SECRET:-}" ]]; then
+    export APP_NAME="${APP_NAME:-Retailo}"
+    export FEDEX_ENABLED=true
+    export FEDEX_ENVIRONMENT=live
+    export FEDEX_DEFAULT_CONNECTION_MODEL=integrator_provider
+    export FEDEX_INTEGRATOR_MODEL_A_ENABLED=true
+    export FEDEX_INTEGRATOR_PRODUCTION_ENABLED=true
+    export FEDEX_DEVELOPER_MODE_ENABLED=false
+    export FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED=false
+    export FEDEX_SANDBOX_ALLOW_PLATFORM_FALLBACK=false
+    export FEDEX_LIVE_ALLOWED_COUNTRIES=US,CA
+    export FEDEX_LIVE_BASE_URL=https://apis.fedex.com
+    export FEDEX_LIVE_ACCOUNT_REGISTRATION_PATH=/registration/v2/address/keysgeneration
+    export FEDEX_OPS_ADDRESS_VALIDATION_ENABLED=true
+    export FEDEX_OPS_SERVICE_AVAILABILITY_ENABLED=true
+    export FEDEX_OPS_NEGOTIATED_RATES_ENABLED=true
+    export FEDEX_OPS_SHIP_LABELS_ENABLED=true
+    export FEDEX_OPS_TRACKING_ENABLED=true
+    export FEDEX_CHECKOUT_RATES_ENABLED=true
+    export FEDEX_MFA_PIN_GENERATION_PATH=/registration/v2/customerkeys/pingeneration
+    export FEDEX_MFA_PIN_VALIDATION_PATH=/registration/v2/pin/keysgeneration
+    export FEDEX_MFA_INVOICE_VALIDATION_PATH=/registration/v2/invoice/keysgeneration
+    export FEDEX_ADDRESS_VALIDATION_PATH=/address/v1/addresses/resolve
+    export FEDEX_SERVICE_AVAILABILITY_PATH=/availability/v1/packageandserviceoptions
+    export FEDEX_RATE_QUOTE_PATH=/rate/v1/rates/quotes
+    export FEDEX_COMPREHENSIVE_RATE_PATH=/rate/v1/comprehensiverates/quotes
+    export FEDEX_SHIP_CREATE_PATH=/ship/v1/shipments
+    export FEDEX_SHIP_VALIDATE_PATH=/ship/v1/shipments/packages/validate
+    export FEDEX_SHIP_CANCEL_PATH=/ship/v1/shipments/cancel
+    export FEDEX_BASIC_INTEGRATED_VISIBILITY_PATH=/track/v1/trackingnumbers
+
+    for key in \
+      APP_NAME \
+      FEDEX_ENABLED \
+      FEDEX_ENVIRONMENT \
+      FEDEX_DEFAULT_CONNECTION_MODEL \
+      FEDEX_INTEGRATOR_MODEL_A_ENABLED \
+      FEDEX_INTEGRATOR_PRODUCTION_ENABLED \
+      FEDEX_DEVELOPER_MODE_ENABLED \
+      FEDEX_MODEL_B_DEVELOPER_FALLBACK_ENABLED \
+      FEDEX_SANDBOX_ALLOW_PLATFORM_FALLBACK \
+      FEDEX_LIVE_ALLOWED_COUNTRIES \
+      FEDEX_LIVE_BASE_URL \
+      FEDEX_LIVE_ACCOUNT_REGISTRATION_PATH \
+      FEDEX_OPS_ADDRESS_VALIDATION_ENABLED \
+      FEDEX_OPS_SERVICE_AVAILABILITY_ENABLED \
+      FEDEX_OPS_NEGOTIATED_RATES_ENABLED \
+      FEDEX_OPS_SHIP_LABELS_ENABLED \
+      FEDEX_OPS_TRACKING_ENABLED \
+      FEDEX_CHECKOUT_RATES_ENABLED \
+      FEDEX_MFA_PIN_GENERATION_PATH \
+      FEDEX_MFA_PIN_VALIDATION_PATH \
+      FEDEX_MFA_INVOICE_VALIDATION_PATH \
+      FEDEX_ADDRESS_VALIDATION_PATH \
+      FEDEX_SERVICE_AVAILABILITY_PATH \
+      FEDEX_RATE_QUOTE_PATH \
+      FEDEX_COMPREHENSIVE_RATE_PATH \
+      FEDEX_SHIP_CREATE_PATH \
+      FEDEX_SHIP_VALIDATE_PATH \
+      FEDEX_SHIP_CANCEL_PATH \
+      FEDEX_BASIC_INTEGRATED_VISIBILITY_PATH
+    do
+      $PHP_BIN scripts/deploy/upsert-env.php "$key" || true
+    done
+  fi
 fi
 
 # Avoid route:cache / optimize / event:cache on hosts where proc_open is disabled.
 $PHP_BIN artisan config:cache || true
 
 $PHP_BIN artisan google:status || true
+$PHP_BIN artisan fedex:production-preflight || true
 
 # Refresh /jiggy WordPress connector + brand pack when that install exists (no-op otherwise).
 bash "${SCRIPT_DIR}/sync-wordpress-jiggy.sh"
