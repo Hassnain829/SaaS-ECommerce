@@ -24,4 +24,30 @@ class PlatformTypographyTest extends TestCase
         $this->assertStringNotContainsString("--font-heading: 'Poppins'", $css);
         $this->assertStringNotContainsString("--font-sans: 'Inter'", $css);
     }
+
+    public function test_merchant_dashboard_uses_owner_shell_type_tokens(): void
+    {
+        $css = (string) file_get_contents(base_path('resources/css/app.css'));
+
+        $this->assertMatchesRegularExpression(
+            '/\.merchant-dashboard\s*\{[^}]*font-family:\s*var\(--font-sans\)/s',
+            $css
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.merchant-dashboard\s+\.mdash-welcome-title\s+h2\s*\{[^}]*font-family:\s*var\(--font-heading\)[^}]*font-size:\s*var\(--text-title\)/s',
+            $css
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.merchant-dashboard\s+\.mdash-card-head\s+h3\s*\{[^}]*font-size:\s*var\(--text-section\)/s',
+            $css
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.merchant-dashboard\s+\.mdash-metric\s+strong\s*\{[^}]*font-family:\s*var\(--font-heading\)[^}]*font-weight:\s*600/s',
+            $css
+        );
+        $this->assertStringNotContainsString(
+            '.merchant-dashboard .mdash-welcome-title h2 {\n    margin: 0;\n    font-family: var(--font-heading);\n    font-size: clamp(1.5rem',
+            $css
+        );
+    }
 }

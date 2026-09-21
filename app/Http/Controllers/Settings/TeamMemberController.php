@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Services\SecurityLogRecorder;
 use App\Services\Settings\StoreMemberInvitationService;
 use App\Services\Settings\StoreMemberPermissionSync;
+use App\Services\Settings\StoreOwnershipTransferService;
+use App\Support\OnboardingStoreSession;
 use App\Support\StoreMemberAccess;
 use App\Support\StorePermission;
 use App\Support\StorePermissionResolver;
@@ -28,6 +30,7 @@ class TeamMemberController extends Controller
     public function __construct(
         private readonly StoreMemberPermissionSync $permissionSync,
         private readonly StoreMemberInvitationService $invitations,
+        private readonly StoreOwnershipTransferService $ownershipTransfer,
     ) {}
 
     public function index(Request $request): RedirectResponse|View
@@ -49,17 +52,37 @@ class TeamMemberController extends Controller
         $permissionMap = $this->permissionMapFor($currentStore, $members->pluck('id')->all());
         $user = $request->user();
         $canManageTeam = (bool) $user?->hasStorePermission($currentStore, StorePermission::TEAM_MANAGE);
+        $isStoreOwner = $user?->roleInStore($currentStore) === Store::ROLE_OWNER
+            || (bool) $user?->hasRole('admin');
+        $canInviteMembers = $isStoreOwner;
+        $canViewTeamPermissions = $isStoreOwner;
 
-        $inviteStores = $user
+        $inviteStores = ($user && $canInviteMembers)
             ? $user->activeMemberStores()
                 ->orderBy('stores.name')
                 ->get(['stores.id', 'stores.name'])
-                ->filter(fn (Store $store): bool => (bool) $user->hasStorePermission($store, StorePermission::TEAM_MANAGE))
+                ->filter(function (Store $store) use ($user): bool {
+                    return $user->hasRole('admin')
+                        || $user->roleInStore($store) === Store::ROLE_OWNER;
+                })
                 ->values()
             : collect();
 
-        $catalog = StoreMemberAccess::catalog();
-        if ($user) {
+        $catalog = $canViewTeamPermissions
+            ? StoreMemberAccess::catalog()
+            : [
+                'presets' => [],
+                'groups' => [],
+                'modules' => [],
+                'sensitive' => [],
+                'sensitive_permissions' => [],
+                'advanced' => [],
+                'advanced_permissions' => [],
+                'dependencies' => [],
+                'children' => [],
+                'job_titles' => [],
+            ];
+        if ($user && $canViewTeamPermissions) {
             $catalog['grantable'] = StoreMemberAccess::grantableKeysFor($user, $currentStore);
             $catalog['can_grant_team_manage'] = StoreMemberAccess::canGrantTeamManage($user, $currentStore);
         }
@@ -67,20 +90,30 @@ class TeamMemberController extends Controller
         return view('user_view.team_members', [
             'selectedStore' => $currentStore,
             'members' => $members,
-            'memberAccess' => $this->memberAccessPayloads($currentStore, $members, $permissionMap),
+            'memberAccess' => $this->memberAccessPayloads(
+                $currentStore,
+                $members,
+                $permissionMap,
+                $user,
+                includePermissionDetails: $canViewTeamPermissions,
+            ),
             'currentUserStoreRole' => $user?->roleInStore($currentStore),
-            'canManageTeam' => $canManageTeam,
+            'canManageTeam' => $canManageTeam && $canViewTeamPermissions,
+            'canInviteMembers' => $canInviteMembers,
+            'canViewTeamPermissions' => $canViewTeamPermissions,
+            'isStoreOwner' => $isStoreOwner,
             'teamAccessCatalog' => $catalog,
             'inviteStores' => $inviteStores,
-            'inviteLocations' => collect(),
-            'recentTeamActivity' => $this->recentTeamActivity($currentStore),
+            'recentTeamActivity' => $canViewTeamPermissions
+                ? $this->recentTeamActivity($currentStore)
+                : collect(),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $currentStore = $this->requireCurrentStore($request);
-        $this->assertCanManageTeam($request, $currentStore);
+        $this->assertCanInviteMembers($request, $currentStore);
 
         $validated = $this->validateAccessPayload($request, inviting: true);
         $email = Str::lower(trim((string) $validated['email']));
@@ -343,6 +376,11 @@ class TeamMemberController extends Controller
         ]);
         StorePermissionResolver::forget($member, $currentStore);
 
+        if ($nextStatus === StoreMemberAccess::STATUS_SUSPENDED) {
+            $this->invitations->revokeAllForMembership($member, $currentStore);
+            OnboardingStoreSession::forgetIfStore($request->session(), (int) $currentStore->id);
+        }
+
         $suspended = $nextStatus === StoreMemberAccess::STATUS_SUSPENDED;
 
         app(SecurityLogRecorder::class)->record(
@@ -375,7 +413,9 @@ class TeamMemberController extends Controller
         $memberRole = $member->pivot?->role;
         $removedName = $member->name;
 
+        $this->invitations->revokeAllForMembership($member, $currentStore);
         $this->permissionSync->forget($currentStore, $member);
+        OnboardingStoreSession::forgetIfStore($request->session(), (int) $currentStore->id);
 
         app(SecurityLogRecorder::class)->record(
             $request,
@@ -397,7 +437,7 @@ class TeamMemberController extends Controller
     public function resendInvite(Request $request, int $userId): RedirectResponse
     {
         $currentStore = $this->requireCurrentStore($request);
-        $this->assertCanManageTeam($request, $currentStore);
+        $this->assertCanInviteMembers($request, $currentStore);
 
         $member = $currentStore->members()
             ->where('users.id', $userId)
@@ -436,6 +476,27 @@ class TeamMemberController extends Controller
             ->with('success_title', 'Invitation sent');
     }
 
+    public function transferOwnership(Request $request, int $userId): RedirectResponse
+    {
+        $currentStore = $this->requireCurrentStore($request);
+        $actor = $request->user();
+
+        if (! $actor || $actor->roleInStore($currentStore) !== Store::ROLE_OWNER) {
+            abort(403, 'Only the store owner can transfer ownership.');
+        }
+
+        $member = $currentStore->members()
+            ->where('users.id', $userId)
+            ->firstOrFail();
+
+        $this->ownershipTransfer->transfer($request, $currentStore, $actor, $member);
+
+        return redirect()
+            ->route('team-members.index')
+            ->with('success', "{$member->name} is now the owner of {$currentStore->name}. You remain a team member with full operational access.")
+            ->with('success_title', 'Ownership transferred');
+    }
+
     private function requireCurrentStore(Request $request): Store
     {
         $currentStore = $request->attributes->get('currentStore');
@@ -454,6 +515,21 @@ class TeamMemberController extends Controller
         }
     }
 
+    private function assertCanInviteMembers(Request $request, Store $store): void
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            abort(403, 'You are not authorized to invite team members in the current store.');
+        }
+
+        if ($user->hasRole('admin') || $user->roleInStore($store) === Store::ROLE_OWNER) {
+            return;
+        }
+
+        abort(403, 'Only the store owner can invite team members.');
+    }
+
     private function assertCanEditMember(Request $request, User $member, string $errorKey = 'access'): void
     {
         if (StoreMemberAccess::isOwnerRole($member->pivot?->role)) {
@@ -469,10 +545,22 @@ class TeamMemberController extends Controller
                 $errorKey => 'You cannot change your own store access from here.',
             ]);
         }
+
+        $actor = $request->user();
+        $store = $request->attributes->get('currentStore');
+        if (
+            $actor instanceof User
+            && $store instanceof Store
+            && ! StoreMemberAccess::canManagePeer($actor, $member, $store)
+        ) {
+            throw ValidationException::withMessages([
+                $errorKey => 'You can only manage teammates whose access is a stricter subset of your own permissions.',
+            ]);
+        }
     }
 
     /**
-     * @return array{name?: string, email?: string, access_preset: string, permissions: list<string>, job_title: ?string, location_ids: list<int>, store_ids?: list<int>}
+     * @return array{name?: string, email?: string, access_preset: string, permissions: list<string>, job_title: ?string, store_ids?: list<int>}
      */
     private function validateAccessPayload(Request $request, bool $inviting): array
     {
@@ -492,7 +580,6 @@ class TeamMemberController extends Controller
 
         $validated = $request->validate($rules);
         $validated['permissions'] = array_values($validated['permissions'] ?? []);
-        $validated['location_ids'] = [];
         $validated['job_title'] = filled($validated['job_title'] ?? null) ? trim((string) $validated['job_title']) : null;
 
         if (($validated['access_preset'] ?? null) === StoreMemberAccess::PRESET_CUSTOM && $validated['permissions'] === []) {
@@ -543,15 +630,25 @@ class TeamMemberController extends Controller
      */
     private function targetStores(Request $request, Store $currentStore, array $storeIds): Collection
     {
-        $ids = array_values(array_unique(array_map('intval', $storeIds)));
-        if ($ids === []) {
-            $ids = [$currentStore->id];
+        $requested = array_values(array_unique(array_map('intval', $storeIds)));
+        if ($requested === []) {
+            $requested = [(int) $currentStore->id];
         }
 
-        $stores = Store::query()->whereIn('id', $ids)->get();
+        sort($requested);
+
+        $stores = Store::query()->whereIn('id', $requested)->get();
         $allowed = $stores->filter(function (Store $store) use ($request): bool {
             return (bool) $request->user()?->hasStorePermission($store, StorePermission::TEAM_MANAGE);
         })->values();
+
+        $allowedIds = $allowed->pluck('id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
+
+        if ($allowedIds !== $requested) {
+            throw ValidationException::withMessages([
+                'store_ids' => 'Every selected store must be one you are authorized to manage. Remove stores you cannot invite to and try again.',
+            ]);
+        }
 
         if ($allowed->isEmpty()) {
             abort(403, 'You are not authorized to add members to the selected stores.');
@@ -588,8 +685,13 @@ class TeamMemberController extends Controller
      * @param  array<int, list<string>>  $permissionMap
      * @return array<int, array<string, mixed>>
      */
-    private function memberAccessPayloads(Store $store, Collection $members, array $permissionMap): array
-    {
+    private function memberAccessPayloads(
+        Store $store,
+        Collection $members,
+        array $permissionMap,
+        ?User $actor = null,
+        bool $includePermissionDetails = true,
+    ): array {
         $payloads = [];
         foreach ($members as $member) {
             $role = $member->pivot?->role;
@@ -607,24 +709,32 @@ class TeamMemberController extends Controller
                 ? (string) $member->pivot->status
                 : 'active';
 
+            $canManage = $includePermissionDetails && $actor
+                ? StoreMemberAccess::canManagePeer($actor, $member, $store)
+                : false;
+
             $payloads[$member->id] = [
                 'id' => $member->id,
                 'name' => $member->name,
                 'email' => $member->email,
                 'role' => $role,
                 'membership_label' => StoreMemberAccess::membershipLabel($role, $preset),
-                'access_summary' => StoreMemberAccess::accessSummary($role, $preset),
+                'access_summary' => $includePermissionDetails
+                    ? StoreMemberAccess::accessSummary($role, $preset)
+                    : StoreMemberAccess::membershipLabel($role, $preset),
                 'job_title' => $member->pivot?->job_title,
-                'access_preset' => $preset,
-                'access_filter' => StoreMemberAccess::isOwnerRole($role) ? 'owner' : $preset,
-                'permissions' => $permissions,
-                'location_ids' => $member->pivot?->location_ids ?? [],
+                'access_preset' => $includePermissionDetails ? $preset : null,
+                'access_filter' => StoreMemberAccess::isOwnerRole($role) ? 'owner' : ($includePermissionDetails ? $preset : 'member'),
+                'permissions' => $includePermissionDetails ? $permissions : [],
                 'joined_at' => optional($member->pivot?->created_at)->format('M d, Y') ?: 'Recently added',
                 'last_active' => optional($member->last_login_at)?->diffForHumans() ?: '—',
                 'scope' => StoreMemberAccess::isOwnerRole($role) ? 'All store access' : $store->name,
                 'status' => $status,
                 'is_owner' => StoreMemberAccess::isOwnerRole($role),
                 'is_you' => (int) $member->id === (int) auth()->id(),
+                'can_manage' => $canManage
+                    && ! StoreMemberAccess::isOwnerRole($role)
+                    && (int) $member->id !== (int) auth()->id(),
             ];
         }
 
@@ -644,6 +754,7 @@ class TeamMemberController extends Controller
                 'team_member_removed',
                 'team_member_suspended',
                 'team_member_reactivated',
+                'store_ownership_transferred',
             ])
             ->orderByDesc('created_at')
             ->limit(20)

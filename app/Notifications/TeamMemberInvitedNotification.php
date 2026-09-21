@@ -2,11 +2,11 @@
 
 namespace App\Notifications;
 
+use App\Services\Settings\StoreMemberInvitationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Support\Facades\URL;
 
 class TeamMemberInvitedNotification extends Notification implements ShouldQueue
 {
@@ -16,7 +16,7 @@ class TeamMemberInvitedNotification extends Notification implements ShouldQueue
         public string $inviterName,
         public string $storeLabel,
         public bool $needsPassword,
-        public string $storeIds = '',
+        public string $inviteToken,
     ) {}
 
     /**
@@ -37,26 +37,16 @@ class TeamMemberInvitedNotification extends Notification implements ShouldQueue
         if ($this->needsPassword) {
             $message->line('Accept the invitation to choose a password and start using your store access.');
         } else {
-            $message->line('Accept the invitation to join this store with the access they chose for you.');
+            $message->line('Sign in with this email address, then accept the invitation to join with the access they chose for you.');
         }
 
         return $message
             ->action('Accept invitation', $this->inviteUrl($notifiable))
-            ->line('This link expires in 7 days. If you were not expecting this email, you can ignore it.');
+            ->line('This link expires in '.StoreMemberInvitationService::EXPIRY_DAYS.' days. If you were not expecting this email, you can ignore it.');
     }
 
     public function inviteUrl(object $notifiable): string
     {
-        $parameters = ['user' => $notifiable->id];
-        if ($this->storeIds !== '') {
-            $parameters['stores'] = $this->storeIds;
-        }
-
-        return URL::temporarySignedRoute(
-            'team-invites.show',
-            now()->addDays(7),
-            $parameters,
-            absolute: true,
-        );
+        return app(StoreMemberInvitationService::class)->inviteUrl($this->inviteToken);
     }
 }

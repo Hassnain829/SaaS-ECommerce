@@ -12,6 +12,7 @@ class MerchantTurboRebindTest extends TestCase
 
         $this->assertStringContainsString("import './team-workspace.js'", $appJs);
         $this->assertStringContainsString('resetCachedMerchantUi', $appJs);
+        $this->assertStringContainsString('resetMerchantSidebarShell', $appJs);
         $this->assertStringContainsString('closeMerchantLayers', $appJs);
         $this->assertStringContainsString('showMerchantLayer', $appJs);
         $this->assertStringContainsString("el.classList.contains('ui-drawer-panel')", $appJs);
@@ -20,6 +21,9 @@ class MerchantTurboRebindTest extends TestCase
         $this->assertStringContainsString("el.classList.remove('hidden', 'translate-x-full')", $appJs);
         $this->assertStringContainsString("document.addEventListener('turbo:render'", $appJs);
         $this->assertStringContainsString("document.addEventListener('turbo:before-cache'", $appJs);
+        $this->assertStringContainsString("document.documentElement.classList.add('turbo-caching')", $appJs);
+        $this->assertStringContainsString("sidebar.classList.add('is-open')", $appJs);
+        $this->assertStringContainsString("sidebar.classList.remove('is-open', '-translate-x-full')", $appJs);
         $this->assertStringContainsString("const nav = document.getElementById('merchantNav')", $appJs);
         $this->assertStringContainsString("'.js-open-create-store-modal'", $appJs);
         $this->assertStringContainsString('[data-lc-open-add]', $appJs);
@@ -27,6 +31,20 @@ class MerchantTurboRebindTest extends TestCase
         $this->assertStringContainsString('[data-wc-open-replace-key]', $appJs);
         $this->assertStringNotContainsString('delete el.dataset.turboBound', $appJs);
         $this->assertStringNotContainsString("document.addEventListener('DOMContentLoaded'", $appJs);
+    }
+
+    public function test_merchant_shell_isolates_sidebar_from_turbo_portal_flex(): void
+    {
+        $layout = (string) file_get_contents(base_path('resources/views/layouts/user/user-sidebar.blade.php'));
+        $css = (string) file_get_contents(base_path('resources/css/app.css'));
+
+        $this->assertStringContainsString('merchant-frame', $layout);
+        $this->assertStringContainsString('merchant-sidebar', $layout);
+        $this->assertStringNotContainsString('-translate-x-full flex-col border-r border-border bg-surface', $layout);
+        $this->assertStringContainsString('#sidebar.merchant-sidebar', $css);
+        $this->assertStringContainsString('transform: none !important', $css);
+        $this->assertStringContainsString('html.turbo-caching #sidebar.merchant-sidebar', $css);
+        $this->assertStringContainsString('.merchant-frame', $css);
     }
 
     public function test_team_workspace_uses_document_delegation_instead_of_domcontentloaded_binds(): void
@@ -40,6 +58,10 @@ class MerchantTurboRebindTest extends TestCase
         $this->assertStringContainsString('turbo:before-cache', $js);
         $this->assertStringContainsString('__teamWorkspaceDocBound', $js);
         $this->assertStringContainsString("remove('hidden', 'translate-x-full')", $js);
+        $this->assertStringContainsString('syncDependencies(root)', $js);
+        $this->assertStringContainsString('Never set permSilent before that call', $js);
+        $this->assertStringContainsString('[...selected].forEach((key)', $js);
+        $this->assertStringContainsString('editableKeysFrom([...selected])', $js);
         $this->assertStringContainsString('data-team-page', $page);
         $this->assertStringContainsString("@push('overlays')", $page);
         $this->assertStringNotContainsString("document.addEventListener('DOMContentLoaded'", $page);

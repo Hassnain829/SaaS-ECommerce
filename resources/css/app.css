@@ -131,6 +131,63 @@
         -moz-osx-font-smoothing: grayscale;
     }
 
+    /*
+     * Merchant shell frame — sidebar + main only.
+     * Body is not the flex row so Turbo-portaled drawers/modals cannot displace
+     * the sidebar. Mobile open state is .is-open (never Tailwind -translate-x-full),
+     * so a cached closed/open snapshot cannot collapse the desktop column.
+     */
+    .merchant-frame {
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
+    }
+
+    @media (min-width: 768px) {
+        .merchant-frame {
+            height: 100%;
+            min-height: 0;
+        }
+    }
+
+    #sidebar.merchant-sidebar {
+        width: 15rem;
+        min-width: 15rem;
+        max-width: 15rem;
+        flex-shrink: 0;
+        background-color: var(--color-surface);
+        transition: transform 0.2s ease-out;
+    }
+
+    @media (max-width: 767px) {
+        #sidebar.merchant-sidebar {
+            position: fixed;
+            inset-block: 0;
+            left: 0;
+            z-index: 50;
+            height: 100%;
+            transform: translateX(-100%);
+        }
+
+        #sidebar.merchant-sidebar.is-open {
+            transform: translateX(0);
+        }
+    }
+
+    @media (min-width: 768px) {
+        #sidebar.merchant-sidebar {
+            position: static !important;
+            z-index: auto;
+            transform: none !important;
+            translate: none;
+        }
+    }
+
+    /* Kill transform transitions while Turbo snapshots so mid-slide states are not cached. */
+    html.turbo-caching #sidebar.merchant-sidebar {
+        transition: none !important;
+    }
+
     .merchant-shell :is(h1, h2, h3),
     .user-typography :is(h1, h2, h3) {
         font-family: var(--font-heading);
@@ -3808,6 +3865,14 @@
         grid-template-rows: minmax(0, 1fr);
     }
 
+    .team-console-directory-only .team-ws-workspace {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .team-console-directory-only .team-ws-directory {
+        border-right: 0;
+    }
+
     .team-ws-directory {
         min-width: 0;
         min-height: 0;
@@ -4339,11 +4404,12 @@
 
     .team-ws-permission-row {
         display: grid;
-        min-height: 2.45rem;
-        grid-template-columns: minmax(10rem, 1fr) 15.5rem;
+        min-height: 2.65rem;
+        grid-template-columns: minmax(10rem, 1fr) minmax(10.5rem, 13.5rem);
         align-items: center;
         gap: 0.75rem;
         border-bottom: 1px solid #e9edf1;
+        padding: 0.35rem 0;
     }
 
     .team-ws-permission-name {
@@ -4352,12 +4418,28 @@
         gap: 0.6rem;
         color: #303949;
         font-size: 0.75rem;
+        min-width: 0;
+    }
+
+    .team-ws-permission-copy {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 0.1rem;
+    }
+
+    .team-ws-permission-meta {
+        color: #8a93a0;
+        font-size: 0.625rem;
+        font-weight: 500;
+        line-height: 1.25;
     }
 
     .team-ws-module-symbol {
         display: grid;
         width: 1.55rem;
         height: 1.55rem;
+        flex-shrink: 0;
         place-items: center;
         border-radius: 0.45rem;
         background: #f2f5f4;
@@ -4366,9 +4448,54 @@
         font-weight: 600;
     }
 
+    .team-ws-seg {
+        display: grid;
+        height: 1.85rem;
+        width: 100%;
+        overflow: hidden;
+        border: 1px solid #dfe3e7;
+        border-radius: 0.45rem;
+        background: #eceef0;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .team-ws-seg[data-seg-mode="full"] {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .team-ws-seg button {
+        min-width: 0;
+        border: 0;
+        border-right: 1px solid rgb(255 255 255 / 0.55);
+        background: transparent;
+        color: #697180;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        font-family: inherit;
+        padding: 0 0.35rem;
+        white-space: nowrap;
+    }
+
+    .team-ws-seg button:last-child {
+        border-right: 0;
+    }
+
+    .team-ws-seg button.is-on {
+        color: #fff;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 88%, white), var(--color-brand));
+        font-weight: 600;
+    }
+
+    .team-ws-seg button:disabled {
+        cursor: not-allowed;
+        opacity: 0.72;
+    }
+
     .team-ws-toggle {
         display: grid;
         height: 1.8rem;
+        width: 11rem;
+        max-width: 100%;
         overflow: hidden;
         border: 1px solid #dfe3e7;
         border-radius: 0.4rem;
@@ -4377,6 +4504,7 @@
     }
 
     .team-ws-toggle button {
+        min-width: 0;
         border: 0;
         border-right: 1px solid rgb(255 255 255 / 0.55);
         background: transparent;
@@ -5061,7 +5189,7 @@
         }
 
         .team-ws-permission-row {
-            grid-template-columns: minmax(11rem, 1fr) minmax(14.5rem, 18.75rem);
+            grid-template-columns: minmax(11rem, 1fr) minmax(10rem, 12rem);
         }
     }
 
@@ -5126,6 +5254,7 @@
             grid-template-columns: 1fr;
         }
 
+        .team-ws-seg,
         .team-ws-toggle,
         .team-ws-footer-actions,
         .team-ws-footer-actions .team-ws-btn,
@@ -15282,6 +15411,22 @@ dialog.ui-native-dialog.trb-drawer[open] {
     gap: 0.9rem;
     width: 100%;
     max-width: none;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.merchant-dashboard :is(h2, h3, h4) {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+}
+
+.merchant-dashboard :is(b, strong) {
+    font-weight: 600;
 }
 
 .merchant-dashboard .mdash-sprite {
@@ -15310,7 +15455,8 @@ dialog.ui-native-dialog.trb-drawer[open] {
 .merchant-dashboard .mdash-kicker {
     margin: 0;
     color: var(--color-ink-muted);
-    font-size: 10px;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.07em;
     text-transform: uppercase;
@@ -15347,10 +15493,11 @@ dialog.ui-native-dialog.trb-drawer[open] {
 .merchant-dashboard .mdash-welcome-title h2 {
     margin: 0;
     font-family: var(--font-heading);
-    font-size: clamp(1.5rem, 2vw, 1.85rem);
-    line-height: 1;
+    font-size: var(--text-title);
+    line-height: var(--text-title--line-height);
     letter-spacing: -0.02em;
     font-weight: 600;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard .mdash-welcome-lead {
@@ -15358,8 +15505,10 @@ dialog.ui-native-dialog.trb-drawer[open] {
     grid-row: 2;
     margin: 0;
     color: var(--color-ink-muted);
+    font-family: var(--font-sans);
     font-size: 0.875rem;
-    line-height: 1.35;
+    font-weight: 400;
+    line-height: 1.5;
 }
 
 .merchant-dashboard .mdash-status-pill {
@@ -15371,7 +15520,8 @@ dialog.ui-native-dialog.trb-drawer[open] {
     padding: 0 0.65rem;
     background: var(--color-brand-soft);
     color: var(--color-brand-ink);
-    font-size: 11px;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
     font-weight: 600;
     line-height: 1;
 }
@@ -15409,7 +15559,8 @@ dialog.ui-native-dialog.trb-drawer[open] {
     justify-content: center;
     border-right: 1px solid var(--color-border);
     color: var(--color-ink-muted);
-    font-size: 12px;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
     font-weight: 600;
 }
 
@@ -15438,7 +15589,8 @@ dialog.ui-native-dialog.trb-drawer[open] {
     border-radius: 9px;
     padding: 0 0.85rem;
     cursor: pointer;
-    font-size: 13px;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
     font-weight: 600;
 }
 
@@ -15550,8 +15702,9 @@ dialog.ui-native-dialog.trb-drawer[open] {
 .merchant-dashboard .mdash-setup-eyebrow {
     margin: 0 0 0.3rem;
     color: var(--color-ink-muted);
+    font-family: var(--font-sans);
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
@@ -15559,10 +15712,11 @@ dialog.ui-native-dialog.trb-drawer[open] {
 .merchant-dashboard .mdash-setup-copy h2 {
     margin: 0;
     font-family: var(--font-heading);
-    font-size: clamp(1.25rem, 2.2vw, 1.55rem);
-    line-height: 1.25;
-    letter-spacing: -0.025em;
+    font-size: var(--text-title);
+    line-height: var(--text-title--line-height);
+    letter-spacing: -0.02em;
     font-weight: 600;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard .mdash-setup-copy > p:not(.mdash-setup-eyebrow) {
@@ -15834,12 +15988,17 @@ dialog.ui-native-dialog.trb-drawer[open] {
 
 .merchant-dashboard .mdash-attention-copy strong {
     display: block;
-    font-size: 15px;
+    font-family: var(--font-heading);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard .mdash-attention-copy strong b {
     color: var(--color-warning);
-    font-size: 19px;
+    font-size: 1.1875rem;
+    font-weight: 600;
 }
 
 .merchant-dashboard .mdash-attention-copy strong b.is-danger {
@@ -15848,8 +16007,12 @@ dialog.ui-native-dialog.trb-drawer[open] {
 
 .merchant-dashboard .mdash-attention-copy span {
     display: block;
+    margin-top: 0.15rem;
     color: var(--color-ink-muted);
-    font-size: 12px;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.4;
 }
 
 .merchant-dashboard .mdash-action,
@@ -15858,7 +16021,8 @@ dialog.ui-native-dialog.trb-drawer[open] {
     align-items: center;
     gap: 0.25rem;
     color: var(--color-brand-ink);
-    font-size: 12px;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
     font-weight: 600;
 }
 
@@ -15890,14 +16054,20 @@ dialog.ui-native-dialog.trb-drawer[open] {
 .merchant-dashboard .mdash-card-head h3 {
     margin: 0;
     font-family: var(--font-heading);
-    font-size: 1rem;
+    font-size: var(--text-section);
+    line-height: var(--text-section--line-height);
     font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard .mdash-card-head p {
     margin: 0.2rem 0 0;
     color: var(--color-ink-muted);
-    font-size: 12px;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.45;
 }
 
 .merchant-dashboard .mdash-performance {
@@ -15930,16 +16100,21 @@ dialog.ui-native-dialog.trb-drawer[open] {
 
 .merchant-dashboard .mdash-metric span {
     color: var(--color-ink-muted);
-    font-size: 12px;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
 .merchant-dashboard .mdash-metric strong {
     display: block;
     margin-top: 0.1rem;
+    font-family: var(--font-heading);
     font-size: clamp(1.2rem, 1.65vw, 1.7rem);
     line-height: 1.15;
     letter-spacing: -0.03em;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard .mdash-metric em {
@@ -15948,9 +16123,10 @@ dialog.ui-native-dialog.trb-drawer[open] {
     gap: 0.25rem;
     margin-top: 0.15rem;
     color: var(--color-brand);
+    font-family: var(--font-sans);
     font-style: normal;
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 0.6875rem;
+    font-weight: 600;
 }
 
 .merchant-dashboard .mdash-metric em.is-up {
@@ -15975,8 +16151,11 @@ dialog.ui-native-dialog.trb-drawer[open] {
 
 .merchant-dashboard .mdash-chart-title h4 {
     margin: 0;
-    font-size: 13px;
+    font-family: var(--font-heading);
+    font-size: 0.8125rem;
     font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard .mdash-legend {
@@ -15985,7 +16164,9 @@ dialog.ui-native-dialog.trb-drawer[open] {
     align-items: center;
     gap: 0.8rem;
     color: var(--color-ink-muted);
-    font-size: 10px;
+    font-family: var(--font-sans);
+    font-size: 0.625rem;
+    font-weight: 500;
     white-space: nowrap;
 }
 
@@ -16094,6 +16275,13 @@ dialog.ui-native-dialog.trb-drawer[open] {
     min-height: 2.6rem;
 }
 
+.merchant-dashboard .mdash-flow-row a {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-ink);
+}
+
 .merchant-dashboard .mdash-flow-row a:hover {
     color: var(--color-brand);
 }
@@ -16114,7 +16302,10 @@ dialog.ui-native-dialog.trb-drawer[open] {
 
 .merchant-dashboard .mdash-flow-row strong {
     text-align: right;
+    font-family: var(--font-heading);
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard .mdash-fulfill-callout {
@@ -16152,14 +16343,21 @@ dialog.ui-native-dialog.trb-drawer[open] {
 .merchant-dashboard th {
     padding: 0.55rem 0.6rem;
     text-align: left;
-    font-size: 10px;
+    font-family: var(--font-heading);
+    font-size: 0.6875rem;
     font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
 }
 
 .merchant-dashboard td {
     padding: 0.55rem 0.6rem;
     border-bottom: 1px solid var(--color-border);
-    font-size: 12px;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard tbody tr:last-child td {
@@ -16181,7 +16379,8 @@ dialog.ui-native-dialog.trb-drawer[open] {
     gap: 0.3rem;
     border-radius: 999px;
     padding: 0.2rem 0.5rem;
-    font-size: 10px;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -16259,8 +16458,11 @@ dialog.ui-native-dialog.trb-drawer[open] {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-size: 12px;
+    font-family: var(--font-heading);
+    font-size: 0.75rem;
     font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
 }
 
 .merchant-dashboard .mdash-sku {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Store;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\SecurityLogRecorder;
+use App\Support\OnboardingStoreSession;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -28,6 +29,10 @@ class CurrentStoreController extends Controller
 
         $previousStoreId = $request->session()->get('current_store_id');
         $request->session()->put('current_store_id', $store->id);
+
+        if ((int) $previousStoreId !== (int) $store->id) {
+            OnboardingStoreSession::forget($request->session());
+        }
 
         app(SecurityLogRecorder::class)->record(
             $request,

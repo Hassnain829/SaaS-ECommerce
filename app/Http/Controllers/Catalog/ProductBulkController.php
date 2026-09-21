@@ -48,7 +48,7 @@ final class ProductBulkController extends Controller
         $requiredPermission = match ($validatedPreview['action']) {
             'delete', 'restore', 'force_delete' => 'products.delete',
             'price' => 'products.prices',
-            'stock' => 'products.inventory',
+            'stock' => 'products.inventory.force',
             default => 'products.edit',
         };
         if (! $user->hasStorePermission($store, $requiredPermission)) {

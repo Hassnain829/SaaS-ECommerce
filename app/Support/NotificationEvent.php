@@ -163,6 +163,34 @@ final class NotificationEvent
     }
 
     /**
+     * Merchant permission required to receive this operational notification.
+     * Null means owner-only / no granular gate beyond active membership.
+     */
+    public static function requiredPermission(string $event): ?string
+    {
+        return match ($event) {
+            self::ORDER_CREATED => 'orders.view',
+            self::PAYMENT_FAILED => 'settings.payments',
+            self::INVENTORY_LOW => 'products.inventory',
+            self::IMPORT_COMPLETED, self::IMPORT_FAILED => 'products.import',
+            self::RETURN_REQUESTED,
+            self::RETURN_APPROVED,
+            self::RETURN_REJECTED,
+            self::RETURN_RECEIVED,
+            self::RETURN_COMPLETED => 'customers.returns',
+            self::REFUND_COMPLETED, self::REFUND_FAILED => 'customers.refunds',
+            self::EXCHANGE_CREATED, self::EXCHANGE_COMPLETED => 'customers.exchanges',
+            self::SHIPMENT_SHIPPED,
+            self::SHIPMENT_DELIVERED,
+            self::SHIPMENT_TRACKING_UPDATED => 'fulfillment.tracking',
+            self::SECURITY_LOGIN_NEW_DEVICE => 'security.view',
+            self::WEBHOOK_FAILED => 'website.view',
+            self::BILLING_ISSUE => 'billing.view',
+            default => null,
+        };
+    }
+
+    /**
      * Default preference map: all merchant events enabled.
      *
      * @return array<string, bool>

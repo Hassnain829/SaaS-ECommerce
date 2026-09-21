@@ -10,7 +10,11 @@
             <div>
                 <h4>Install the plugin</h4>
                 <p>In WordPress: Plugins → Add New → Upload Plugin → Activate.</p>
-                <a href="{{ route('developer-storefront.plugin.download') }}" class="wc-btn wc-btn-secondary mt-2" data-turbo="false" download>Download plugin</a>
+                @if ($canDownloadPlugin ?? true)
+                    <a href="{{ route('developer-storefront.plugin.download') }}" class="wc-btn wc-btn-secondary mt-2" data-turbo="false" download>Download plugin</a>
+                @else
+                    <p class="wc-note mt-2">Ask someone with Website Edit access to download the plugin for you.</p>
+                @endif
             </div>
         </div>
         <div class="wc-howto-item">

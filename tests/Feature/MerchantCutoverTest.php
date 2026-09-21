@@ -83,7 +83,7 @@ class MerchantCutoverTest extends TestCase
             ->withSession(['current_store_id' => $storeA->id])
             ->get(route('developer-storefront.settings'))
             ->assertOk()
-            ->assertSee('Only the store owner can create or remove the key.');
+            ->assertSee('You can view this step, but creating or replacing the connection key needs Website Edit access.');
 
         $this->actingAs($manager)
             ->withSession(['current_store_id' => $storeA->id])

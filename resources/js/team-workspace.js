@@ -66,7 +66,7 @@
     const catalog = () => {
         const page = teamPage();
         if (! page) {
-            return { presets: [], modules: [], dependencies: {}, children: {}, sensitive: [] };
+            return { presets: [], modules: [], dependencies: {}, children: {}, sensitive: [], advanced: [] };
         }
         if (page.__teamCatalog) {
             return page.__teamCatalog;
@@ -74,9 +74,17 @@
         try {
             page.__teamCatalog = JSON.parse(page.getAttribute('data-team-access-catalog') || '{}');
         } catch (error) {
-            page.__teamCatalog = { presets: [], modules: [], dependencies: {}, children: {}, sensitive: [] };
+            page.__teamCatalog = { presets: [], modules: [], dependencies: {}, children: {}, sensitive: [], advanced: [] };
         }
         return page.__teamCatalog;
+    };
+
+    const refreshCatalog = () => {
+        const page = teamPage();
+        if (page) {
+            delete page.__teamCatalog;
+        }
+        return catalog();
     };
 
     const showLayer = (overlay, panel) => {
@@ -121,9 +129,11 @@
             input.checked = selected.has(input.value);
         });
         if (! silent) {
-            root.dataset.permSilent = '1';
+            // syncDependencies re-applies with silent:true after expanding parents
+            // and removing orphan children. Never set permSilent before that call —
+            // it short-circuits sync and leaves Off/View/Edit toggles stuck.
             syncDependencies(root);
-            delete root.dataset.permSilent;
+            return;
         }
         if (root === inspectorRoot()) {
             syncInspectorVisuals();
@@ -171,7 +181,8 @@
         let changed = true;
         while (changed) {
             changed = false;
-            selected.forEach((key) => {
+            // Snapshot keys — mutating a Set during forEach can skip parents.
+            [...selected].forEach((key) => {
                 (dependencies[key] || []).forEach((parent) => {
                     if (! selected.has(parent)) {
                         selected.add(parent);
@@ -272,21 +283,34 @@
         }
         const selected = new Set(checkedKeys(root));
         const modules = catalog().modules || [];
-        let managed = 0;
-        let viewed = 0;
+        let editable = 0;
+        let viewOnly = 0;
+        let closed = 0;
         modules.forEach((module) => {
-            const viewKeys = module.view || [];
-            const manageKeys = module.manage || [];
-            const viewOn = viewKeys.length > 0 && viewKeys.every((key) => selected.has(key));
-            const manageOn = manageKeys.length > 0 && manageKeys.every((key) => selected.has(key));
-            if (viewOn) {
-                viewed += 1;
-            }
-            if (manageOn) {
-                managed += 1;
+            const level = moduleAccessLevel(module, selected);
+            if (level === 'manage') {
+                editable += 1;
+            } else if (level === 'view') {
+                viewOnly += 1;
+            } else {
+                closed += 1;
             }
         });
-        return `${managed} module${managed === 1 ? '' : 's'} can be managed · ${viewed} can be viewed`;
+        return `${editable} can edit · ${viewOnly} view only · ${closed} closed`;
+    };
+
+    const moduleAccessLevel = (module, selected) => {
+        const viewKeys = module.view || [];
+        const manageKeys = module.manage || [];
+        const manageOn = manageKeys.length > 0 && manageKeys.every((key) => selected.has(key));
+        if (manageOn) {
+            return 'manage';
+        }
+        const viewOn = viewKeys.length > 0 && viewKeys.every((key) => selected.has(key));
+        if (viewOn) {
+            return 'view';
+        }
+        return 'none';
     };
 
     const syncInspectorVisuals = () => {
@@ -299,17 +323,23 @@
         (catalog().modules || []).forEach((module) => {
             const viewKeys = module.view || [];
             const manageKeys = module.manage || [];
-            const viewOn = viewKeys.length > 0 && viewKeys.every((key) => selected.has(key));
-            const manageOn = manageKeys.length > 0 && manageKeys.every((key) => selected.has(key));
+            const level = moduleAccessLevel(module, selected);
+            const canSetView = viewKeys.length === 0 || canGrantAll(viewKeys);
+            const canSetManage = manageKeys.length === 0 || canGrantAll(manageKeys);
+
             root.querySelectorAll(`[data-module="${module.key}"]`).forEach((button) => {
-                const level = button.getAttribute('data-level');
-                const keys = level === 'manage' ? manageKeys : viewKeys;
-                button.classList.toggle('is-on', level === 'manage' ? manageOn : viewOn);
-                button.textContent = `${(level === 'manage' ? manageOn : viewOn) ? '✓ ' : ''}${level === 'manage' ? 'Manage' : 'View'}`;
-                button.disabled = locked || ! canGrantAll(keys);
+                const buttonLevel = button.getAttribute('data-level') || 'none';
+                button.classList.toggle('is-on', buttonLevel === level);
+                if (buttonLevel === 'none') {
+                    button.disabled = locked;
+                } else if (buttonLevel === 'view') {
+                    button.disabled = locked || ! canSetView;
+                } else if (buttonLevel === 'manage') {
+                    button.disabled = locked || ! canSetManage;
+                }
             });
         });
-        (catalog().sensitive || []).forEach((key) => {
+        (catalog().sensitive || []).concat(catalog().advanced || []).forEach((key) => {
             const on = selected.has(key);
             root.querySelectorAll(`[data-sensitive-toggle="${key}"]`).forEach((button) => {
                 const wantsOn = button.getAttribute('data-level') === 'on';
@@ -319,40 +349,64 @@
         });
     };
 
-    const toggleModule = (moduleKey, level) => {
+    const setModuleAccess = (moduleKey, level) => {
         const root = inspectorRoot();
         const module = (catalog().modules || []).find((item) => item.key === moduleKey);
         if (! root || ! module || accessLocked()) {
             return;
         }
-        const selected = new Set(checkedKeys(root));
-        const viewKeys = (module.view || []).filter((key) => canGrant(key));
-        const manageKeys = (module.manage || []).filter((key) => canGrant(key));
-        if (level === 'manage') {
-            const manageOn = manageKeys.length > 0 && manageKeys.every((key) => selected.has(key));
-            if (manageOn) {
-                manageKeys.forEach((key) => selected.delete(key));
-            } else {
-                viewKeys.forEach((key) => selected.add(key));
-                manageKeys.forEach((key) => selected.add(key));
-            }
-        } else {
-            const viewOn = viewKeys.length > 0 && viewKeys.every((key) => selected.has(key));
-            if (viewOn) {
-                viewKeys.forEach((key) => selected.delete(key));
-                manageKeys.forEach((key) => selected.delete(key));
-            } else {
-                viewKeys.forEach((key) => selected.add(key));
-            }
+
+        const viewKeys = module.view || [];
+        const manageKeys = module.manage || [];
+
+        if (level === 'view' && viewKeys.length > 0 && ! canGrantAll(viewKeys)) {
+            toast('Permission not available', 'You cannot grant view access for this area.', 'warn');
+            return;
         }
-        applyChecks(root, [...selected]);
-        setPresetValue(root, matchPreset([...selected]));
+        if (level === 'manage' && (
+            (manageKeys.length > 0 && ! canGrantAll(manageKeys))
+            || (viewKeys.length > 0 && ! canGrantAll(viewKeys))
+        )) {
+            toast('Permission not available', 'You cannot grant edit access for this area.', 'warn');
+            return;
+        }
+
+        const selected = new Set(checkedKeys(root));
+        [...viewKeys, ...manageKeys].forEach((key) => {
+            if (canGrant(key)) {
+                selected.delete(key);
+            }
+        });
+
+        if (level === 'view') {
+            viewKeys.forEach((key) => {
+                if (canGrant(key)) {
+                    selected.add(key);
+                }
+            });
+        } else if (level === 'manage') {
+            viewKeys.forEach((key) => {
+                if (canGrant(key)) {
+                    selected.add(key);
+                }
+            });
+            manageKeys.forEach((key) => {
+                if (canGrant(key)) {
+                    selected.add(key);
+                }
+            });
+        }
+
+        applyChecks(root, editableKeysFrom([...selected]));
         markDirty(true);
     };
 
     const toggleSensitive = (key, on) => {
         const root = inspectorRoot();
         if (! root || accessLocked() || ! canGrant(key)) {
+            if (! accessLocked() && ! canGrant(key)) {
+                toast('Permission not available', 'You cannot change this protected permission.', 'warn');
+            }
             return;
         }
         const selected = new Set(checkedKeys(root));
@@ -361,8 +415,7 @@
         } else {
             selected.delete(key);
         }
-        applyChecks(root, [...selected]);
-        setPresetValue(root, matchPreset([...selected]));
+        applyChecks(root, editableKeysFrom([...selected]));
         markDirty(true);
     };
 
@@ -418,16 +471,12 @@
         const selfNote = form.querySelector('[data-access-self-note]');
         selfNote?.classList.toggle('hidden', ! member.is_you || Boolean(member.is_owner));
         const locked = accessLocked(member);
-        form.querySelectorAll('[data-access-edit-fields] button, [data-sensitive-toggle]').forEach((button) => {
+        form.querySelectorAll('[data-access-edit-fields] button, [data-sensitive-toggle], [data-module]').forEach((button) => {
             button.disabled = locked;
-        });
-        const locationIds = new Set((member.location_ids || []).map((id) => String(id)));
-        form.querySelectorAll('[data-access-location]').forEach((input) => {
-            input.checked = locationIds.has(String(input.value));
         });
         applyChecks(form, savedKeys);
         setPresetValue(form, member.access_preset || matchPreset(savedKeys));
-        form.querySelectorAll('[data-team-permission], [data-team-preset], [data-access-location]').forEach((input) => {
+        form.querySelectorAll('[data-team-permission], [data-team-preset]').forEach((input) => {
             input.disabled = accessLocked(member);
         });
         document.querySelectorAll('[data-member-row]').forEach((row) => {
@@ -596,13 +645,19 @@
         const moduleButton = target.closest('[data-module]');
         if (moduleButton) {
             event.preventDefault();
-            toggleModule(moduleButton.getAttribute('data-module'), moduleButton.getAttribute('data-level'));
+            if (moduleButton.disabled) {
+                return;
+            }
+            setModuleAccess(moduleButton.getAttribute('data-module'), moduleButton.getAttribute('data-level'));
             return;
         }
 
         const sensitive = target.closest('[data-sensitive-toggle]');
         if (sensitive) {
             event.preventDefault();
+            if (sensitive.disabled) {
+                return;
+            }
             toggleSensitive(sensitive.getAttribute('data-sensitive-toggle'), sensitive.getAttribute('data-level') === 'on');
             return;
         }
@@ -819,6 +874,7 @@
         if (! teamPage()) {
             return;
         }
+        refreshCatalog();
         restoreFromServer();
         filterRows();
     };

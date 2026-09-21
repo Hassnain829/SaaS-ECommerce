@@ -428,14 +428,16 @@ class MerchantReadinessBatch2Test extends TestCase
             ->get(route('generalSettings'))
             ->assertOk()
             ->assertDontSeeText('Save store settings')
-            ->assertSeeText('Read-only for your role');
+            ->assertSeeText('Read-only for your role')
+            ->assertSeeText('Hidden for your role');
 
         $this->actingAs($staff)
             ->withSession(['current_store_id' => $store->id])
             ->get(route('generalSettings'))
             ->assertOk()
             ->assertDontSeeText('Save store settings')
-            ->assertSeeText('Read-only for your role');
+            ->assertSeeText('Read-only for your role')
+            ->assertSeeText('Hidden for your role');
     }
 
     public function test_settings_account_tab_shows_profile_and_password_forms(): void

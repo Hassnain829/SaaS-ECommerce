@@ -4,7 +4,7 @@
     "src": "node_modules/pdfjs-dist/build/pdf.worker.min.mjs"
   },
   "resources/css/app.css": {
-    "file": "assets/app-CmqIchd-.css",
+    "file": "assets/app-kTZmTtkT.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -13,15 +13,21 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-BgAuUxr7.js",
+    "file": "assets/app-BydUbU5m.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true
   },
   "resources/js/delivery/hub.js": {
-    "file": "assets/hub-BxbV3vXf.js",
+    "file": "assets/hub-BSlEW5bX.js",
     "name": "hub",
     "src": "resources/js/delivery/hub.js",
+    "isEntry": true
+  },
+  "resources/js/delivery/ops.js": {
+    "file": "assets/ops-vJYafP9n.js",
+    "name": "ops",
+    "src": "resources/js/delivery/ops.js",
     "isEntry": true
   },
   "resources/js/fedex-eula-viewer.js": {

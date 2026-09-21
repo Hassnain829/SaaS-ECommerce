@@ -53,6 +53,8 @@
     $recentActivity = ($recentActivity ?? collect())->take(4);
     $draftStoreForNextStep = $draftStoreForNextStep ?? $stores->firstWhere('onboarding_completed', false);
     $storeMetrics = $storeMetrics ?? [];
+    $canViewAnyProducts = (bool) ($canViewAnyProducts ?? $totalProducts > 0);
+    $canViewAnyOrders = (bool) ($canViewAnyOrders ?? false);
     $closedStores = $closedStores ?? collect();
     $needsSetupCount = $stores->filter(function ($store) use ($storeMetrics) {
         $metrics = $storeMetrics[$store->id] ?? [];
@@ -235,8 +237,8 @@
                     </div>
                     <div>
                         <div class="sd-metric-label">Products</div>
-                        <div class="sd-metric-value">{{ number_format($totalProducts) }}</div>
-                        <div class="sd-metric-note">Across all catalogs</div>
+                        <div class="sd-metric-value">{{ $canViewAnyProducts ? number_format($totalProducts) : '—' }}</div>
+                        <div class="sd-metric-note">{{ $canViewAnyProducts ? 'Across catalogs you can view' : 'Hidden without product access' }}</div>
                     </div>
                 </div>
                 <div class="sd-metric">
@@ -245,8 +247,8 @@
                     </div>
                     <div>
                         <div class="sd-metric-label">Brands</div>
-                        <div class="sd-metric-value">{{ number_format($totalBrands) }}</div>
-                        <div class="sd-metric-note">Unique brands</div>
+                        <div class="sd-metric-value">{{ $canViewAnyProducts ? number_format($totalBrands) : '—' }}</div>
+                        <div class="sd-metric-note">{{ $canViewAnyProducts ? 'Unique brands' : 'Hidden without product access' }}</div>
                     </div>
                 </div>
                 <div class="sd-metric">
@@ -545,11 +547,17 @@
         <div class="sd-activity-head">
             <div>
                 <h2 id="activityHeading">Recent activity</h2>
-                <p class="sd-copy">Latest updates across your stores.</p>
+                <p class="sd-copy">
+                    @if ($canViewAnyOrders)
+                        Latest order updates across stores you can view.
+                    @else
+                        Order activity is hidden until you have order access.
+                    @endif
+                </p>
             </div>
-            @if ($activeStoreId > 0 && $stores->contains(fn ($s) => (int) $s->id === $activeStoreId))
+            @if ($canViewAnyOrders && $activeStoreId > 0 && $stores->contains(fn ($s) => (int) $s->id === $activeStoreId))
                 <a href="{{ route('orders') }}" class="inline-flex h-8 items-center rounded-lg border border-border bg-white px-3 text-sm font-semibold text-ink-secondary hover:bg-surface-muted">View orders</a>
-            @elseif ($stores->isNotEmpty())
+            @elseif ($canViewAnyOrders && $stores->isNotEmpty())
                 <button
                     type="button"
                     class="inline-flex h-8 items-center rounded-lg border border-border bg-white px-3 text-sm font-semibold text-ink-secondary hover:bg-surface-muted"

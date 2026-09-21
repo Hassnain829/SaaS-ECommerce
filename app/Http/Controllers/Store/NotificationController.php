@@ -9,7 +9,6 @@ use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Notifications\NotificationPreferenceService;
 use App\Services\Notifications\NotificationQueryService;
 use App\Support\NotificationEvent;
-use App\Support\StorePermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -165,12 +164,7 @@ class NotificationController extends Controller
             return false;
         }
 
-        $role = $store->roleForUser($user);
-        if (in_array($role, [Store::ROLE_OWNER, Store::ROLE_MANAGER], true)) {
-            return true;
-        }
-
-        return $user->hasStorePermission($store, StorePermission::ORDERS_MANAGE);
+        return $user->hasStorePermission($store, 'notifications.manage');
     }
 
     private function requireCurrentStore(Request $request): Store

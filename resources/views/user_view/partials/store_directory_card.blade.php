@@ -10,13 +10,22 @@
         'health_label' => 'Setup needed',
         'setup_complete' => false,
     ];
+    $canViewProducts = (bool) ($metrics['can_view_products'] ?? false);
+    $canViewOrders = (bool) ($metrics['can_view_orders'] ?? false);
+    $productsDisplay = $canViewProducts ? number_format((int) ($store->products_count ?? 0)) : '—';
+    $ordersDisplay = $canViewOrders ? number_format((int) ($metrics['orders_7d'] ?? 0)) : '—';
+    $revenueDisplay = $canViewOrders
+        ? \App\Support\MoneyDisplay::format($metrics['revenue_7d'] ?? 0, $store->currency ?: 'USD')
+        : '—';
     $needsSetup = ! (bool) ($metrics['setup_complete'] ?? false) || ! $isLive;
     $healthLabel = $metrics['health_label'] ?? 'Setup needed';
     [$avatarBg, $avatarColor] = $avatarPalettes[$store->id % count($avatarPalettes)];
     $memberRole = (string) ($store->pivot->role ?? '');
-    $permissions = \App\Support\StorePermission::forRole($memberRole !== '' ? $memberRole : null);
-    $canManageSettings = in_array(\App\Support\StorePermission::SETTINGS_MANAGE, $permissions, true);
-    $canManageCatalog = in_array(\App\Support\StorePermission::CATALOG_MANAGE, $permissions, true);
+    $permissions = \App\Support\StorePermissionResolver::permissionsFor(auth()->user(), $store);
+    $canManageSettings = in_array(\App\Support\StorePermission::SETTINGS_MANAGE, $permissions, true)
+        || auth()->user()?->hasStorePermission($store, 'settings.locations')
+        || auth()->user()?->hasStorePermission($store, 'settings.taxes');
+    $canManageCatalog = auth()->user()?->hasStorePermission($store, 'products.edit') ?? false;
     $canClose = $memberRole === \App\Models\Store::ROLE_OWNER;
     $storeActionPayload = [
         'id' => $store->id,
@@ -51,9 +60,9 @@
         data-store-name="{{ $store->name }}"
         data-store-type="{{ $typeFilterValue($store) }}"
         data-needs-setup="{{ $needsSetup ? '1' : '0' }}"
-        data-revenue="{{ (float) ($metrics['revenue_7d'] ?? 0) }}"
-        data-orders="{{ (int) ($metrics['orders_7d'] ?? 0) }}"
-        data-products="{{ (int) ($store->products_count ?? 0) }}"
+        data-revenue="{{ $canViewOrders ? (float) ($metrics['revenue_7d'] ?? 0) : 0 }}"
+        data-orders="{{ $canViewOrders ? (int) ($metrics['orders_7d'] ?? 0) : 0 }}"
+        data-products="{{ $canViewProducts ? (int) ($store->products_count ?? 0) : 0 }}"
         x-show="onPage($el)"
         x-cloak
     >
@@ -99,15 +108,15 @@
         <div class="sd-card-metrics">
             <div class="sd-card-metric">
                 <div class="sd-card-metric-label">Products</div>
-                <div class="sd-card-metric-value">{{ number_format((int) ($store->products_count ?? 0)) }}</div>
+                <div class="sd-card-metric-value">{{ $productsDisplay }}</div>
             </div>
             <div class="sd-card-metric">
                 <div class="sd-card-metric-label">Orders · 7d</div>
-                <div class="sd-card-metric-value">{{ number_format((int) ($metrics['orders_7d'] ?? 0)) }}</div>
+                <div class="sd-card-metric-value">{{ $ordersDisplay }}</div>
             </div>
             <div class="sd-card-metric">
                 <div class="sd-card-metric-label">Revenue · 7d</div>
-                <div class="sd-card-metric-value">{{ \App\Support\MoneyDisplay::format($metrics['revenue_7d'] ?? 0, $store->currency ?: 'USD') }}</div>
+                <div class="sd-card-metric-value">{{ $revenueDisplay }}</div>
             </div>
         </div>
         <div class="sd-card-actions">
@@ -130,9 +139,9 @@
         data-store-name="{{ $store->name }}"
         data-store-type="{{ $typeFilterValue($store) }}"
         data-needs-setup="{{ $needsSetup ? '1' : '0' }}"
-        data-revenue="{{ (float) ($metrics['revenue_7d'] ?? 0) }}"
-        data-orders="{{ (int) ($metrics['orders_7d'] ?? 0) }}"
-        data-products="{{ (int) ($store->products_count ?? 0) }}"
+        data-revenue="{{ $canViewOrders ? (float) ($metrics['revenue_7d'] ?? 0) : 0 }}"
+        data-orders="{{ $canViewOrders ? (int) ($metrics['orders_7d'] ?? 0) : 0 }}"
+        data-products="{{ $canViewProducts ? (int) ($store->products_count ?? 0) : 0 }}"
         x-show="onPage($el)"
         x-cloak
     >
@@ -161,9 +170,9 @@
                 <span class="sd-status"><span class="sd-dot"></span>{{ $healthLabel }}</span>
             @endif
         </div>
-        <div class="sd-numeric font-semibold">{{ number_format((int) ($store->products_count ?? 0)) }}</div>
-        <div class="sd-numeric font-semibold">{{ number_format((int) ($metrics['orders_7d'] ?? 0)) }}</div>
-        <div class="sd-numeric font-semibold">{{ \App\Support\MoneyDisplay::format($metrics['revenue_7d'] ?? 0, $store->currency ?: 'USD') }}</div>
+        <div class="sd-numeric font-semibold">{{ $productsDisplay }}</div>
+        <div class="sd-numeric font-semibold">{{ $ordersDisplay }}</div>
+        <div class="sd-numeric font-semibold">{{ $revenueDisplay }}</div>
         <div class="sd-list-action">
             @include('user_view.partials.store_switch_action', [
                 'label' => $listPrimaryLabel,

@@ -111,17 +111,29 @@ class StoreMemberAccessTest extends TestCase
         $sensitive = array_column(StoreMemberAccess::sensitivePermissions(), 'key');
         $this->assertContains('customers.refunds', $sensitive);
         $this->assertContains('customers.export', $sensitive);
+        $this->assertContains('customers.delete', $sensitive);
         $this->assertContains('products.delete', $sensitive);
+        $this->assertContains('products.import', $sensitive);
+        $this->assertContains('products.inventory.force', $sensitive);
+        $this->assertContains('orders.cancel', $sensitive);
+        $this->assertContains('orders.export', $sensitive);
+        $this->assertContains('notifications.manage', $sensitive);
+        $this->assertContains('website.cutover', $sensitive);
         $this->assertContains('settings.delivery.delete', $sensitive);
         $this->assertContains('orders.payments', $sensitive);
         $this->assertContains('fulfillment.labels.purchase', $sensitive);
         $this->assertContains('settings.payments', $sensitive);
         $this->assertContains('settings.carriers', $sensitive);
-        $this->assertContains('website.token', $sensitive);
+        $this->assertNotContains('website.token', $sensitive);
         $this->assertContains('team.manage', $sensitive);
+        $this->assertNotContains('stores.close', $sensitive);
+        $this->assertNotContains('integrations.api', StoreMemberAccess::teamGrantableKeys());
+        $this->assertNotContains('integrations.webhooks', StoreMemberAccess::teamGrantableKeys());
+        $this->assertNotContains('stores.close', StoreMemberAccess::teamGrantableKeys());
         $this->assertNotContains('stores.create', $sensitive);
         $this->assertNotContains('stores.create', StoreMemberAccess::teamGrantableKeys());
         $this->assertSame([], StoreMemberAccess::normalize(['stores.create']));
+        $this->assertSame([], StoreMemberAccess::normalize(['stores.close', 'integrations.api']));
         $this->assertNotContains('billing.manage', $sensitive);
         $this->assertNotContains('billing.view', $sensitive);
         $this->assertNotContains('billing.manage', StoreMemberAccess::teamGrantableKeys());
@@ -182,8 +194,12 @@ class StoreMemberAccessTest extends TestCase
         $this->assertSame(['settings.taxes'], $modules['taxes']['manage']);
         $this->assertArrayNotHasKey('store', $modules);
         $this->assertNotContains('products.import', $modules['products']['manage']);
+        $this->assertSame(['website.view'], $modules['website']['view']);
+        $this->assertSame(['website.manage', 'website.plugin', 'website.token'], $modules['website']['manage']);
         $this->assertNotContains('website.cutover', $modules['website']['manage']);
+        $this->assertNotContains('orders.cancel', $modules['orders']['manage']);
         $this->assertNotContains('customers.refunds', $modules['customers']['manage']);
+        $this->assertSame(['orders.draft', 'orders.edit'], $modules['orders']['manage']);
         $this->assertSame(['team.view'], $modules['team']['view']);
         $this->assertSame([], $modules['team']['manage']);
         $this->assertSame(['security.view'], $modules['admin']['view']);
@@ -192,6 +208,47 @@ class StoreMemberAccessTest extends TestCase
             foreach (array_merge($module['view'], $module['manage']) as $key) {
                 $this->assertNotContains($key, StoreMemberAccess::sensitiveKeys());
             }
+        }
+    }
+
+    public function test_promoted_sensitive_keys_are_not_left_in_advanced(): void
+    {
+        $advanced = collect(StoreMemberAccess::advancedCapabilities())->pluck('key')->all();
+        $sensitive = StoreMemberAccess::sensitiveKeys();
+
+        $this->assertContains('products.import', $sensitive);
+        $this->assertContains('orders.cancel', $sensitive);
+        $this->assertContains('website.cutover', $sensitive);
+        $this->assertNotContains('products.import', $advanced);
+        $this->assertNotContains('orders.cancel', $advanced);
+        $this->assertNotContains('website.cutover', $advanced);
+    }
+
+    public function test_manager_fallback_keeps_import_and_cancel_without_cutover(): void
+    {
+        $fallback = StoreMemberAccess::managerFallbackKeys();
+
+        $this->assertContains('products.import', $fallback);
+        $this->assertContains('orders.cancel', $fallback);
+        $this->assertContains('products.inventory.force', $fallback);
+        $this->assertContains('notifications.manage', $fallback);
+        $this->assertNotContains('website.cutover', $fallback);
+        $this->assertNotContains('orders.export', $fallback);
+        $this->assertNotContains('customers.delete', $fallback);
+        $this->assertNotContains('website.manage', $fallback);
+        $this->assertNotContains('website.token', $fallback);
+    }
+
+    public function test_every_grantable_permission_appears_in_team_ui_surface(): void
+    {
+        $covered = array_fill_keys(StoreMemberAccess::teamUiCoveredKeys(), true);
+
+        foreach (StoreMemberAccess::teamGrantableKeys() as $key) {
+            $this->assertArrayHasKey(
+                $key,
+                $covered,
+                $key.' must appear in modules, sensitive controls, advanced capabilities, or a documented preset'
+            );
         }
     }
 }

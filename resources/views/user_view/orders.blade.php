@@ -11,9 +11,20 @@
                 <button class="inline-flex h-9 shrink-0 items-center rounded-md border border-border bg-surface px-3 text-xs font-semibold text-ink-secondary hover:bg-surface-muted">Search</button>
             </form>
         </x-slot:search>
-        @if($canCreateDraftOrders ?? false)
+        @if(($canCreateDraftOrders ?? false) || ($canExportOrders ?? false))
             <x-slot:actions>
-                <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-md bg-brand px-3.5 text-sm font-semibold text-white transition hover:bg-brand-hover xl:inline-flex">Create order</a>
+                @if($canExportOrders ?? false)
+                    <a
+                        href="{{ route('orders.export', array_filter(['q' => $search !== '' ? $search : null, 'status' => $currentStatus !== 'all' ? $currentStatus : null])) }}"
+                        data-turbo="false"
+                        class="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3.5 text-sm font-semibold text-ink-secondary transition hover:bg-surface-muted hover:text-ink"
+                    >
+                        Export CSV
+                    </a>
+                @endif
+                @if($canCreateDraftOrders ?? false)
+                    <a href="{{ route('orders.create') }}" class="hidden h-9 items-center rounded-md bg-brand px-3.5 text-sm font-semibold text-white transition hover:bg-brand-hover xl:inline-flex">Create order</a>
+                @endif
             </x-slot:actions>
         @endif
     </x-ui.merchant-topbar>

@@ -14,7 +14,7 @@
                 <x-platform.logo class="h-8" />
             </a>
 
-            @if ($expired)
+            @if ($expired && ! $alreadyAccepted)
                 <h1 class="text-section font-semibold">This invitation link expired</h1>
                 <p class="mt-2 text-sm text-[#64748B]">Ask the store owner to send a new invitation, then use the latest email.</p>
                 <p class="mt-6 text-sm text-[#64748B]">
@@ -22,8 +22,43 @@
                 </p>
             @elseif ($alreadyAccepted)
                 <h1 class="text-section font-semibold">Invitation already accepted</h1>
-                <p class="mt-2 text-sm text-[#64748B]">This access is already active. Sign in with {{ $invitee->email }} to continue.</p>
+                <p class="mt-2 text-sm text-[#64748B]">
+                    @if ($invitee)
+                        This access is already active. Sign in with {{ $invitee->email }} to continue.
+                    @else
+                        This access is already active. Sign in to continue.
+                    @endif
+                </p>
                 <a href="{{ route('signin') }}" class="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover">Sign in</a>
+            @elseif ($requiresSignIn)
+                <h1 class="text-section font-semibold">Sign in to accept</h1>
+                <p class="mt-2 text-sm text-[#64748B]">
+                    Sign in as <strong>{{ $invitee->email }}</strong> to join
+                    {{ $stores->count() === 1 ? $stores->first()->name : 'your stores' }}.
+                    This invitation cannot sign you in by itself.
+                </p>
+                @if ($stores->isNotEmpty())
+                    <ul class="mt-4 space-y-1 text-sm text-[#334155]">
+                        @foreach ($stores as $store)
+                            <li class="rounded-lg bg-[#F8FAFC] px-3 py-2 font-medium">{{ $store->name }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+                <a
+                    href="{{ route('signin') }}"
+                    class="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover"
+                >Sign in to accept</a>
+            @elseif ($signedInAsOther)
+                <h1 class="text-section font-semibold">Wrong account</h1>
+                <p class="mt-2 text-sm text-[#64748B]">
+                    This invitation is for {{ $invitee->email }}. Sign out, then sign in with that email before accepting.
+                </p>
+                <form method="POST" action="{{ route('logout') }}" class="mt-6">
+                    @csrf
+                    <button type="submit" class="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-hover">
+                        Sign out
+                    </button>
+                </form>
             @else
                 <h1 class="text-section font-semibold">Join {{ $stores->count() === 1 ? $stores->first()->name : 'your stores' }}</h1>
                 <p class="mt-2 text-sm text-[#64748B]">
@@ -34,12 +69,6 @@
                         to start using the store access that was prepared for you.
                     @endif
                 </p>
-
-                @if ($signedInAsOther ?? false)
-                    <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                        You are signed in as a different account. Accepting this invitation will switch you to {{ $invitee->email }}.
-                    </p>
-                @endif
 
                 @if ($stores->isNotEmpty())
                     <ul class="mt-4 space-y-1 text-sm text-[#334155]">

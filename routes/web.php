@@ -84,11 +84,13 @@ Route::middleware('guest')->group(function () {
         ->name('password.store');
 });
 
-Route::get('/team-invites/{user}', [TeamInviteController::class, 'show'])
+Route::get('/team-invites/{token}', [TeamInviteController::class, 'show'])
+    ->where('token', '[A-Za-z0-9_-]+')
     ->middleware('throttle:12,1')
     ->name('team-invites.show');
-Route::post('/team-invites/{user}', [TeamInviteController::class, 'store'])
-    ->middleware(['signed', 'throttle:6,1'])
+Route::post('/team-invites/{token}', [TeamInviteController::class, 'store'])
+    ->where('token', '[A-Za-z0-9_-]+')
+    ->middleware('throttle:6,1')
     ->name('team-invites.store');
 
 Route::get('/terms', [LegalPageController::class, 'terms'])->name('legal.terms');
@@ -208,6 +210,9 @@ Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])-
     Route::get('/orders', [DashboardController::class, 'orders'])
         ->middleware('store.permission:orders.view')
         ->name('orders');
+    Route::get('/orders/export', [OrderController::class, 'export'])
+        ->middleware('store.permission:orders.export')
+        ->name('orders.export');
     Route::get('/shipments', [ShipmentsIndexController::class, 'index'])
         ->middleware('store.permission:orders.view')
         ->name('shipments.index');
@@ -311,12 +316,18 @@ Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])-
     Route::get('/customers', [DashboardController::class, 'customers'])
         ->middleware('store.permission:customers.view')
         ->name('customers');
+    Route::get('/customers/export', [CustomerController::class, 'export'])
+        ->middleware('store.permission:customers.export')
+        ->name('customers.export');
     Route::post('/customers', [CustomerController::class, 'store'])
         ->middleware('store.permission:customers.edit')
         ->name('customers.store');
     Route::get('/customers/{customer}', [DashboardController::class, 'customersProfile'])
         ->middleware('store.permission:customers.view')
         ->name('customersProfile');
+    Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])
+        ->middleware('store.permission:customers.delete')
+        ->name('customers.destroy');
     Route::patch('/customers/{customer}/identity', [CustomerController::class, 'updateIdentity'])
         ->middleware('store.permission:customers.edit')
         ->name('customers.identity.update');
@@ -359,6 +370,9 @@ Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])-
     Route::post('/team-members/{user}/resend-invite', [TeamMemberController::class, 'resendInvite'])
         ->middleware('store.permission:team.manage')
         ->name('team-members.resend-invite');
+    Route::post('/team-members/{user}/transfer-ownership', [TeamMemberController::class, 'transferOwnership'])
+        ->middleware(['password.confirm', 'store.permission:team.manage'])
+        ->name('team-members.transfer-ownership');
     Route::patch('/team-members/{user}/status', [TeamMemberController::class, 'updateStatus'])
         ->middleware('store.permission:team.manage')
         ->name('team-members.status');
@@ -374,7 +388,9 @@ Route::middleware(['auth', 'role:user', 'current.store', 'store.subscription'])-
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.mark-all-read');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/{notification}/retry', [NotificationController::class, 'retry'])->name('notifications.retry');
-    Route::post('/notifications/{notification}/retry-customer', [NotificationController::class, 'retryCustomer'])->name('notifications.retry-customer');
+    Route::post('/notifications/{notification}/retry-customer', [NotificationController::class, 'retryCustomer'])
+        ->middleware('store.permission:notifications.manage')
+        ->name('notifications.retry-customer');
     Route::put('/notifications/preferences', [NotificationController::class, 'updatePreferences'])->name('notifications.preferences.update');
 
     Route::get('/BillingSubscription', [DashboardController::class, 'billingSubscription'])

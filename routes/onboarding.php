@@ -37,5 +37,9 @@ Route::post('/product/{productId}/restore', [OnboardingController::class, 'resto
 Route::delete('/product/{productId}/force', [OnboardingController::class, 'forceDestroyProductFromManagement'])
     ->middleware('store.permission:products.delete')
     ->name('product.force-destroy');
-Route::get('/store/{storeId}/add-product', [OnboardingController::class, 'addProductFromStore'])->name('store.add-product');
-Route::post('/store/{storeId}/add-product', [OnboardingController::class, 'storeProductFromStore'])->name('store.add-product.store');
+Route::get('/store/{storeId}/add-product', [OnboardingController::class, 'addProductFromStore'])
+    ->middleware('store.permission:products.edit')
+    ->name('store.add-product');
+Route::post('/store/{storeId}/add-product', [OnboardingController::class, 'storeProductFromStore'])
+    ->middleware('store.permission:products.edit')
+    ->name('store.add-product.store');

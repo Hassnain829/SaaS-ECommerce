@@ -371,6 +371,26 @@
                 @endif
             </article>
 
+            @if($canDeleteCustomers ?? false)
+                <article class="merchant-card border-[#FECACA] p-5">
+                    <h3 class="text-lg font-semibold text-[#991B1B]">Delete customer</h3>
+                    <p class="mt-2 text-sm text-[#7F1D1D]">Removes personal details from this store. Past orders stay for records, with the customer link anonymized.</p>
+                    <form
+                        action="{{ route('customers.destroy', $customer) }}"
+                        method="POST"
+                        class="mt-4"
+                        data-ui-confirm="This permanently removes personal details for {{ $customer->full_name ?: $customer->email }}. Order history stays anonymized."
+                        data-ui-confirm-title="Delete this customer?"
+                        data-ui-confirm-action="Delete customer"
+                        data-ui-confirm-cancel="Keep customer"
+                    >
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="w-full h-10 rounded-lg bg-[#DC2626] text-sm font-semibold text-white transition hover:bg-[#B91C1C]">Delete and anonymize</button>
+                    </form>
+                </article>
+            @endif
+
             <article class="merchant-card p-5">
                 <h3 class="text-lg font-semibold text-ink">Customer notes</h3>
                 @if($canManageCustomers)

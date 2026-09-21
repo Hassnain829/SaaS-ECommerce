@@ -3,7 +3,20 @@
 @php
     use App\Support\StorePermission;
 
-    $canManageKey = auth()->user()->hasStorePermission($selectedStore, StorePermission::DEVELOPER_API_MANAGE);
+    $user = auth()->user();
+    $canManageWebsite = $user->hasAnyStorePermission($selectedStore, [
+        'website.manage',
+        StorePermission::DEVELOPER_API_MANAGE,
+    ]);
+    $canManageToken = $user->hasAnyStorePermission($selectedStore, [
+        'website.token',
+        StorePermission::DEVELOPER_API_MANAGE,
+    ]);
+    $canDownloadPlugin = $user->hasAnyStorePermission($selectedStore, [
+        'website.plugin',
+        'website.manage',
+        StorePermission::DEVELOPER_API_MANAGE,
+    ]);
     $heroClass = match ($connectionState) {
         \App\Models\Store::WEBSITE_CONNECTED => 'is-connected',
         \App\Models\Store::WEBSITE_WAITING => 'is-waiting',
@@ -172,7 +185,7 @@
 
                     <div class="wc-panel-body">
                         @if ($showWebsiteForm)
-                            @if ($canManageKey)
+                            @if ($canManageWebsite)
                                 <form method="post" action="{{ route('developer-storefront.website.update') }}" class="wc-field" data-turbo="false">
                                     @csrf
                                     @method('PATCH')
@@ -194,9 +207,9 @@
                                 <p class="wc-note">Include <strong>https://</strong>. Changing this later means reconnecting your website with a new key.</p>
                             @elseif ($websiteUrl)
                                 <p class="wc-fact-value">{{ $websiteUrl }}</p>
-                                <p class="wc-note">Only the store owner can change this address.</p>
+                                <p class="wc-note">You can view this address, but changing it needs Website Edit access.</p>
                             @else
-                                <p class="wc-note">No address saved yet. Only the store owner can set it.</p>
+                                <p class="wc-note">No address saved yet. Ask someone with Website Edit access to set it.</p>
                             @endif
                         @else
                             <div class="wc-review">
@@ -205,7 +218,7 @@
                                     <p class="wc-review-url">{{ $websiteUrl }}</p>
                                 </div>
                                 <div class="wc-review-actions">
-                                    @if ($canManageKey)
+                                    @if ($canManageWebsite)
                                         <a href="{{ $connectStep(1, true) }}" class="wc-btn wc-btn-secondary">Change address</a>
                                     @endif
                                     @if (! $step2Done)
@@ -217,8 +230,8 @@
                                     @endif
                                 </div>
                             </div>
-                            @unless ($canManageKey)
-                                <p class="wc-note">Only the store owner can change this address.</p>
+                            @unless ($canManageWebsite)
+                                <p class="wc-note">You can view this address, but changing it needs Website Edit access.</p>
                             @endunless
                         @endif
                     </div>
@@ -257,7 +270,7 @@
                             @endif
                         @endif
 
-                        @if ($canManageKey)
+                        @if ($canManageToken)
                             <div class="wc-actions mt-4">
                                 @if ($tokenConfigured)
                                     <button type="button" class="wc-btn wc-btn-secondary" data-wc-open-replace-key @disabled(! $step1Done)>Replace key</button>
@@ -280,7 +293,7 @@
                                 @endif
                             </p>
                         @else
-                            <p class="wc-note">Only the store owner can create or remove the key.</p>
+                            <p class="wc-note">You can view this step, but creating or replacing the connection key needs Website Edit access.</p>
                         @endif
                     </div>
                 </section>
@@ -296,7 +309,7 @@
                                 <article class="wc-manage-card">
                                     <p class="wc-fact-label">Website</p>
                                     <p class="wc-manage-value">{{ $websiteUrl }}</p>
-                                    @if ($canManageKey)
+                                    @if ($canManageWebsite)
                                         <a href="{{ $connectStep(1, true) }}" class="wc-btn wc-btn-ghost mt-3">Change address</a>
                                     @endif
                                 </article>
@@ -304,7 +317,7 @@
                                     <p class="wc-fact-label">Connection key</p>
                                     <p class="wc-manage-value">Active</p>
                                     <p class="wc-note" style="margin-top: 0.35rem;">The full key is not shown again.</p>
-                                    @if ($canManageKey)
+                                    @if ($canManageToken)
                                         <a href="{{ $connectStep(2) }}" class="wc-btn wc-btn-ghost mt-3">Replace or remove key</a>
                                     @endif
                                 </article>
@@ -458,7 +471,7 @@
 @endpush
 
 @push('overlays')
-    @if ($canManageKey && $tokenConfigured)
+    @if ($canManageToken && $tokenConfigured)
         <div id="websiteReplaceKeyModal" class="ui-modal-shell ui-modal-shell--alert hidden" role="dialog" aria-modal="true" aria-labelledby="websiteReplaceKeyTitle">
             <div class="ui-modal-panel ui-modal-panel--md border-[#FDE68A]">
                 <div class="bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.18),_transparent_60%)] px-6 pb-4 pt-6">

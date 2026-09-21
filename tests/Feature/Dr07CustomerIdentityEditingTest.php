@@ -52,6 +52,137 @@ class Dr07CustomerIdentityEditingTest extends TestCase
         ]);
     }
 
+    public function test_owner_can_export_customers_csv_from_the_list(): void
+    {
+        [$owner, $store] = $this->ownerStore('Export Store');
+        $this->customer($store, [
+            'email' => 'export.me@example.test',
+            'first_name' => 'Export',
+            'last_name' => 'Me',
+            'full_name' => 'Export Me',
+            'phone' => '+1 555 0199',
+            'status' => 'active',
+        ]);
+        $this->customer($store, [
+            'email' => 'blocked@example.test',
+            'full_name' => 'Blocked Buyer',
+            'status' => 'blocked',
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('customers'))
+            ->assertOk()
+            ->assertSeeText('Export CSV');
+
+        $response = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('customers.export', ['status' => 'active']))
+            ->assertOk();
+
+        $response->assertHeader('content-disposition');
+        $csv = $response->streamedContent();
+        $this->assertStringContainsString('export.me@example.test', $csv);
+        $this->assertStringContainsString('Export', $csv);
+        $this->assertStringNotContainsString('blocked@example.test', $csv);
+
+        $this->assertDatabaseHas('security_logs', [
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'event_type' => 'customers_exported',
+        ]);
+    }
+
+    public function test_member_without_export_permission_cannot_export_customers(): void
+    {
+        [$owner, $store] = $this->ownerStore('No Export Store');
+        $member = $this->merchant('viewer-no-export@example.test');
+        $store->members()->attach($member->id, ['role' => Store::ROLE_MEMBER]);
+        app(\App\Services\Settings\StoreMemberPermissionSync::class)->sync(
+            $store,
+            $member,
+            ['customers.view'],
+            \App\Support\StoreMemberAccess::PRESET_CUSTOM,
+            null,
+            null,
+            \App\Support\StoreMemberAccess::STATUS_ACTIVE,
+        );
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('customers'))
+            ->assertOk()
+            ->assertDontSeeText('Export CSV');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('customers.export'))
+            ->assertForbidden();
+    }
+
+    public function test_owner_can_delete_and_anonymize_a_customer(): void
+    {
+        [$owner, $store] = $this->ownerStore('Delete Store');
+        $customer = $this->customer($store, [
+            'email' => 'remove.me@example.test',
+            'first_name' => 'Remove',
+            'last_name' => 'Me',
+            'full_name' => 'Remove Me',
+            'phone' => '+1 555 0111',
+        ]);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('customersProfile', $customer))
+            ->assertOk()
+            ->assertSeeText('Delete and anonymize');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('customers.destroy', $customer))
+            ->assertRedirect(route('customers'));
+
+        $this->assertSoftDeleted('customers', ['id' => $customer->id]);
+        $deleted = Customer::withTrashed()->findOrFail($customer->id);
+        $this->assertSame('Deleted customer', $deleted->full_name);
+        $this->assertNull($deleted->phone);
+        $this->assertStringStartsWith('deleted-'.$customer->id.'@', $deleted->email);
+
+        $this->assertDatabaseHas('security_logs', [
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'event_type' => 'customer_deleted',
+        ]);
+    }
+
+    public function test_member_without_delete_permission_cannot_delete_customers(): void
+    {
+        [$owner, $store] = $this->ownerStore('No Delete Store');
+        $member = $this->merchant('editor-no-delete@example.test');
+        $customer = $this->customer($store, ['email' => 'keep.me@example.test']);
+        $store->members()->attach($member->id, ['role' => Store::ROLE_MEMBER]);
+        app(\App\Services\Settings\StoreMemberPermissionSync::class)->sync(
+            $store,
+            $member,
+            ['customers.view', 'customers.edit'],
+            \App\Support\StoreMemberAccess::PRESET_CUSTOM,
+            null,
+            null,
+            \App\Support\StoreMemberAccess::STATUS_ACTIVE,
+        );
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('customersProfile', $customer))
+            ->assertOk()
+            ->assertDontSeeText('Delete and anonymize');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->delete(route('customers.destroy', $customer))
+            ->assertForbidden();
+    }
+
     public function test_owner_can_edit_customer_identity_on_profile(): void
     {
         [$owner, $store] = $this->ownerStore();

@@ -729,14 +729,41 @@ const syncMerchantSidebarActive = () => {
     }
 };
 
+const resetMerchantSidebarShell = () => {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) {
+        // Canonical closed mobile / static desktop. Never leave -translate-x-full
+        // or inline transforms in the Turbo snapshot — those collapse the desktop column.
+        sidebar.classList.remove('is-open', '-translate-x-full', 'translate-x-full');
+        sidebar.style.removeProperty('transform');
+        sidebar.style.removeProperty('translate');
+        sidebar.style.removeProperty('width');
+        sidebar.style.removeProperty('min-width');
+        sidebar.style.removeProperty('max-width');
+        sidebar.style.removeProperty('display');
+        sidebar.style.removeProperty('overflow');
+    }
+    if (overlay) {
+        overlay.classList.add('hidden');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('overflow-hidden');
+};
+
 window.openSidebar = () => {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
     if (! sidebar || ! overlay) {
         return;
     }
+    if (! window.matchMedia('(max-width: 767px)').matches) {
+        return;
+    }
+    sidebar.classList.add('is-open');
     sidebar.classList.remove('-translate-x-full');
     overlay.classList.remove('hidden');
+    overlay.setAttribute('aria-hidden', 'false');
     document.body.classList.add('overflow-hidden');
 };
 
@@ -746,8 +773,9 @@ window.closeSidebar = () => {
     if (! sidebar || ! overlay) {
         return;
     }
-    sidebar.classList.add('-translate-x-full');
+    sidebar.classList.remove('is-open', '-translate-x-full');
     overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('overflow-hidden');
 };
 
@@ -889,6 +917,8 @@ const disableTurboForProductCreateNav = () => {
 };
 
 const bootMerchantUi = (root = document) => {
+    document.documentElement.classList.remove('turbo-caching');
+    resetMerchantSidebarShell();
     portalMerchantLayers();
     initMerchantProfileMenus();
     initStoreSwitcher();
@@ -951,11 +981,7 @@ document.addEventListener('keydown', (event) => {
 
 window.addEventListener('resize', () => {
     if (window.innerWidth >= 768) {
-        const overlay = document.getElementById('sidebarOverlay');
-        if (overlay) {
-            overlay.classList.add('hidden');
-        }
-        document.body.classList.remove('overflow-hidden');
+        resetMerchantSidebarShell();
     }
 });
 
@@ -978,9 +1004,11 @@ const resetCachedMerchantUi = () => {
     // those flags prevent duplicate listeners. Closing must match each layer's
     // real hide API — slide drawers use translate-x-full, never Tailwind hidden.
     closeMerchantLayers();
+    resetMerchantSidebarShell();
 };
 
 document.addEventListener('turbo:before-cache', () => {
+    document.documentElement.classList.add('turbo-caching');
     teardownCountryComboboxes(document);
     closeAllMerchantProfileMenus();
     closeStoreSwitcherMenu();

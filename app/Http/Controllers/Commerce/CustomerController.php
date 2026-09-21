@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerController extends Controller
 {
@@ -63,6 +64,121 @@ class CustomerController extends Controller
             ->with('success', 'Customer created.')
             ->with('success_title', 'Customer added')
             ->with('success_meta', 'You can update their contact details anytime from this profile.');
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $store = $request->attributes->get('currentStore');
+
+        $search = trim((string) $request->query('q', ''));
+        $status = (string) $request->query('status', 'all');
+        $tagId = (int) $request->query('tag', 0);
+
+        $query = Customer::query()
+            ->where('store_id', $store->id)
+            ->with([
+                'tags:id,store_id,name',
+                'addresses' => fn ($addressQuery) => $addressQuery
+                    ->orderByDesc('is_default')
+                    ->orderBy('id'),
+            ]);
+
+        if ($search !== '') {
+            $query->where(function ($inner) use ($search): void {
+                $inner->where('full_name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('phone', 'like', '%'.$search.'%');
+            });
+        }
+
+        if ($status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        if ($tagId > 0) {
+            $query->whereHas('tags', fn ($tagQuery) => $tagQuery
+                ->where('customer_tags.store_id', $store->id)
+                ->where('customer_tags.id', $tagId));
+        }
+
+        $customers = $query
+            ->orderByDesc('last_order_at')
+            ->orderByDesc('created_at')
+            ->get();
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'customers_exported',
+            store: $store,
+            metadata: [
+                'row_count' => $customers->count(),
+                'status' => $status,
+                'tag_id' => $tagId > 0 ? $tagId : null,
+                'search' => $search !== '' ? $search : null,
+            ]
+        );
+
+        $filename = 'customers-'.$store->id.'-'.now()->format('Ymd-His').'.csv';
+
+        return response()->streamDownload(function () use ($customers): void {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, [
+                'customer_id',
+                'email',
+                'first_name',
+                'last_name',
+                'full_name',
+                'phone',
+                'status',
+                'accepts_marketing',
+                'tags',
+                'total_orders',
+                'total_spent',
+                'average_order_value',
+                'last_order_at',
+                'source',
+                'default_shipping_line1',
+                'default_shipping_city',
+                'default_shipping_state',
+                'default_shipping_postal',
+                'default_shipping_country',
+                'created_at',
+            ]);
+
+            foreach ($customers as $customer) {
+                $shipping = $customer->addresses
+                    ->first(fn (CustomerAddress $address): bool => $address->type === 'shipping' && $address->is_default)
+                    ?? $customer->addresses->first(fn (CustomerAddress $address): bool => $address->type === 'shipping');
+
+                fputcsv($out, [
+                    $customer->id,
+                    $customer->email,
+                    $customer->first_name,
+                    $customer->last_name,
+                    $customer->full_name,
+                    $customer->phone,
+                    $customer->status,
+                    $customer->accepts_marketing ? 'yes' : 'no',
+                    $customer->tags->pluck('name')->implode('|'),
+                    $customer->total_orders,
+                    $customer->total_spent,
+                    $customer->average_order_value,
+                    optional($customer->last_order_at)?->toIso8601String(),
+                    $customer->source,
+                    $shipping?->address_line1,
+                    $shipping?->city,
+                    $shipping?->state,
+                    $shipping?->postal_code,
+                    $shipping?->country_code ?: $shipping?->country,
+                    optional($customer->created_at)?->toIso8601String(),
+                ]);
+            }
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     public function updateIdentity(Request $request, Customer $customer): RedirectResponse
@@ -401,6 +517,57 @@ class CustomerController extends Controller
         $metrics->recalculate($customer);
 
         return back()->with('success', 'Customer metrics refreshed.');
+    }
+
+    public function destroy(Request $request, Customer $customer): RedirectResponse
+    {
+        $store = $request->attributes->get('currentStore');
+        $this->assertCustomerBelongsToStore($customer, $store->id);
+
+        $customerId = (int) $customer->id;
+        $previousEmail = (string) $customer->email;
+
+        $customer->addresses()->delete();
+        $customer->profileNotes()->delete();
+        $customer->tags()->detach();
+
+        $customer->forceFill([
+            'email' => 'deleted-'.$customerId.'@anonymized.invalid',
+            'first_name' => null,
+            'last_name' => null,
+            'full_name' => 'Deleted customer',
+            'phone' => null,
+            'password' => null,
+            'status' => 'blocked',
+            'blocked_at' => now(),
+            'blocked_reason' => 'Customer record deleted and anonymized.',
+            'accepts_marketing' => false,
+            'marketing_consent' => false,
+            'marketing_consent_at' => null,
+            'marketing_consent_source' => null,
+            'date_of_birth' => null,
+            'gender' => null,
+            'notes' => null,
+            'meta' => null,
+        ])->save();
+
+        $customer->delete();
+
+        app(SecurityLogRecorder::class)->record(
+            $request,
+            'customer_deleted',
+            store: $store,
+            metadata: [
+                'customer_id' => $customerId,
+                'previous_email_hash' => hash('sha256', Str::lower($previousEmail)),
+            ]
+        );
+
+        return redirect()
+            ->route('customers')
+            ->with('success', 'Customer deleted and personal details removed.')
+            ->with('success_title', 'Customer removed')
+            ->with('success_meta', 'Order history stays in this store with the anonymized customer link.');
     }
 
     private function assertCustomerBelongsToStore(Customer $customer, int $storeId): void

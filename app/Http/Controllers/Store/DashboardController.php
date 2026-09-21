@@ -30,6 +30,7 @@ use App\Models\TaxSetting;
 use App\Models\User;
 use App\Models\UserSession;
 use App\Notifications\QueuedVerifyEmail;
+use App\Notifications\TeammateAccountDeactivatedNotification;
 use App\Services\Carriers\FedEx\Operations\FedExOperationGuard;
 use App\Services\Channels\ChannelOwnershipService;
 use App\Services\Currency\ReportingMoneyConverter;
@@ -58,6 +59,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -888,6 +890,7 @@ class DashboardController extends Controller
             'search' => $search,
             'canManageOrders' => $request->user()?->canManageOrders($selectedStore) ?? false,
             'canCreateDraftOrders' => $request->user()?->hasStorePermission($selectedStore, 'orders.draft') ?? false,
+            'canExportOrders' => $request->user()?->hasStorePermission($selectedStore, 'orders.export') ?? false,
             'canFulfillOrders' => $request->user()?->hasStorePermission($selectedStore, 'fulfillment.fulfill') ?? false,
         ]);
     }
@@ -1176,6 +1179,7 @@ class DashboardController extends Controller
             'canManageOrders' => $request->user()?->canManageOrders($selectedStore) ?? false,
             'canCreateDraftOrders' => $request->user()?->hasStorePermission($selectedStore, 'orders.draft') ?? false,
             'canManageCustomers' => $request->user()?->canManageCustomers($selectedStore) ?? false,
+            'canExportCustomers' => $request->user()?->hasStorePermission($selectedStore, 'customers.export') ?? false,
         ]);
     }
 
@@ -1229,6 +1233,7 @@ class DashboardController extends Controller
             'customer' => $customer,
             'selectedStore' => $selectedStore,
             'canManageCustomers' => $request->user()?->canManageCustomers($selectedStore) ?? false,
+            'canDeleteCustomers' => $request->user()?->hasStorePermission($selectedStore, 'customers.delete') ?? false,
             'customerReturns' => $customerReturns,
             'customerRefunds' => $customerRefunds,
             'customerExchanges' => $customerExchanges,
@@ -1273,6 +1278,18 @@ class DashboardController extends Controller
         }
 
         $settingsTab = $request->query('tab') === 'account' ? 'account' : 'store';
+        $canViewStoreSettings = false;
+        $canManageStoreSettings = false;
+
+        if ($selectedStore && $user) {
+            $canManageStoreSettings = (bool) $user->hasStorePermission($selectedStore, StorePermission::SETTINGS_MANAGE);
+            $canViewStoreSettings = $canManageStoreSettings
+                || (bool) $user->hasStorePermission($selectedStore, StorePermission::SETTINGS_VIEW);
+        }
+
+        if ($settingsTab === 'store' && $selectedStore && ! $canViewStoreSettings) {
+            $settingsTab = 'account';
+        }
 
         return view('user_view.generalSettings', [
             'selectedStore' => $selectedStore,
@@ -1285,6 +1302,8 @@ class DashboardController extends Controller
                 ? $user->memberStores()->orderBy('stores.name')->get()
                 : collect(),
             'settingsTab' => $settingsTab,
+            'canViewStoreSettings' => $canViewStoreSettings,
+            'canManageStoreSettings' => $canManageStoreSettings,
         ]);
     }
 
@@ -1324,6 +1343,10 @@ class DashboardController extends Controller
             'sessions' => $sessions,
             'currentSessionId' => $currentSession?->id,
             'securityLogs' => $securityLogs,
+            'ownsAnyStore' => $user
+                ? $user->memberStores()->wherePivot('role', Store::ROLE_OWNER)->exists()
+                : false,
+            'blockingDeactivationStore' => $user ? $this->storeWhereUserIsLastOwner($user) : null,
         ]);
     }
 
@@ -1439,12 +1462,48 @@ class DashboardController extends Controller
             ]);
         }
 
+        $ownerNotifications = $this->ownerNotificationsForDeactivation($user);
+
         app(SecurityLogRecorder::class)->record(
             $request,
             'account_deactivated',
             SecurityLog::SEVERITY_WARNING,
-            metadata: ['confirmation' => $validated['confirm_deactivation']]
+            metadata: [
+                'confirmation' => $validated['confirm_deactivation'],
+                'notified_store_ids' => collect($ownerNotifications)->pluck('store.id')->all(),
+            ]
         );
+
+        foreach ($ownerNotifications as $payload) {
+            /** @var Store $store */
+            $store = $payload['store'];
+            /** @var \Illuminate\Support\Collection<int, User> $owners */
+            $owners = $payload['owners'];
+
+            app(SecurityLogRecorder::class)->record(
+                $request,
+                'teammate_account_deactivated',
+                SecurityLog::SEVERITY_WARNING,
+                store: $store,
+                user: $user,
+                targetUser: $user,
+                metadata: [
+                    'member_name' => $user->name,
+                    'member_email' => $user->email,
+                ]
+            );
+
+            if ($owners->isNotEmpty()) {
+                Notification::send(
+                    $owners,
+                    new TeammateAccountDeactivatedNotification(
+                        storeName: $store->name,
+                        memberName: $user->name,
+                        memberEmail: (string) $user->email,
+                    )
+                );
+            }
+        }
 
         $user->forceFill(['is_active' => false])->save();
 
@@ -1505,10 +1564,49 @@ class DashboardController extends Controller
         $storeIds = $stores->pluck('id');
         $liveStoresCount = $stores->where('onboarding_completed', true)->count();
         $draftStoresCount = $stores->where('onboarding_completed', false)->count();
+
+        $storeVisibility = [];
+        foreach ($stores as $store) {
+            $canProducts = $user->hasStorePermission($store, 'products.view');
+            $canOrders = $user->hasStorePermission($store, 'orders.view');
+            $canCustomers = $user->hasStorePermission($store, 'customers.view');
+
+            $storeVisibility[(int) $store->id] = [
+                'products' => $canProducts,
+                'orders' => $canOrders,
+                'customers' => $canCustomers,
+            ];
+
+            if (! $canProducts) {
+                $store->products_count = 0;
+                $store->brands_count = 0;
+            }
+        }
+
         $totalProducts = (int) $stores->sum(fn (Store $store): int => (int) ($store->products_count ?? 0));
         $totalBrands = (int) $stores->sum(fn (Store $store): int => (int) ($store->brands_count ?? 0));
 
         $storeMetrics = $this->storeManagementMetrics($storeIds->all());
+        foreach ($stores as $store) {
+            $visibility = $storeVisibility[(int) $store->id] ?? [
+                'products' => false,
+                'orders' => false,
+                'customers' => false,
+            ];
+
+            if (! ($visibility['orders'] ?? false)) {
+                $storeMetrics[(int) $store->id]['revenue_7d'] = 0.0;
+                $storeMetrics[(int) $store->id]['orders_7d'] = 0;
+                $storeMetrics[(int) $store->id]['orders_prev_7d'] = 0;
+                $storeMetrics[(int) $store->id]['orders_change_pct'] = null;
+                $storeMetrics[(int) $store->id]['sparkline'] = array_fill(0, 7, 0.0);
+            }
+
+            $storeMetrics[(int) $store->id]['can_view_products'] = (bool) ($visibility['products'] ?? false);
+            $storeMetrics[(int) $store->id]['can_view_orders'] = (bool) ($visibility['orders'] ?? false);
+            $storeMetrics[(int) $store->id]['can_view_customers'] = (bool) ($visibility['customers'] ?? false);
+        }
+
         $storesNeedingCurrencyConversion = Product::query()
             ->whereIn('store_id', $storeIds)
             ->distinct()
@@ -1516,10 +1614,14 @@ class DashboardController extends Controller
             ->mapWithKeys(fn ($id) => [(int) $id => true])
             ->all();
 
-        $recentActivity = $storeIds->isEmpty()
+        $orderVisibleStoreIds = $stores
+            ->filter(fn (Store $store): bool => (bool) ($storeVisibility[(int) $store->id]['orders'] ?? false))
+            ->pluck('id');
+
+        $recentActivity = $orderVisibleStoreIds->isEmpty()
             ? collect()
             : OrderEvent::query()
-                ->whereIn('store_id', $storeIds)
+                ->whereIn('store_id', $orderVisibleStoreIds)
                 ->with(['store:id,name', 'order:id,store_id'])
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')
@@ -1533,11 +1635,16 @@ class DashboardController extends Controller
             'stores' => $stores,
             'closedStores' => $closedStores,
             'storeMetrics' => $storeMetrics,
+            'storeVisibility' => $storeVisibility,
             'storesNeedingCurrencyConversion' => $storesNeedingCurrencyConversion,
             'liveStoresCount' => $liveStoresCount,
             'draftStoresCount' => $draftStoresCount,
             'totalProducts' => $totalProducts,
             'totalBrands' => $totalBrands,
+            'canViewAnyProducts' => $stores->contains(
+                fn (Store $store): bool => (bool) ($storeVisibility[(int) $store->id]['products'] ?? false)
+            ),
+            'canViewAnyOrders' => $orderVisibleStoreIds->isNotEmpty(),
             'recentActivity' => $recentActivity,
             'activeStoreId' => $activeStoreId,
             'draftStoreForNextStep' => $draftStoreForNextStep,
@@ -1787,6 +1894,49 @@ class DashboardController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Owners of stores where this user is an active teammate (excluding the user).
+     *
+     * @return list<array{store: Store, owners: \Illuminate\Support\Collection<int, User>}>
+     */
+    private function ownerNotificationsForDeactivation(User $user): array
+    {
+        $memberships = $user->memberStores()
+            ->where(function ($query): void {
+                $query->whereNull('store_user.status')
+                    ->orWhere('store_user.status', '')
+                    ->orWhere('store_user.status', \App\Support\StoreMemberAccess::STATUS_ACTIVE);
+            })
+            ->get();
+
+        $payloads = [];
+
+        foreach ($memberships as $store) {
+            $owners = $store->members()
+                ->wherePivot('role', Store::ROLE_OWNER)
+                ->where('users.id', '!=', $user->id)
+                ->where('users.is_active', true)
+                ->get()
+                ->filter(function (User $owner) use ($store): bool {
+                    $status = $owner->pivot?->status;
+
+                    return \App\Support\StoreMemberAccess::isUsableMembershipStatus($status, Store::ROLE_OWNER);
+                })
+                ->values();
+
+            if ($owners->isEmpty()) {
+                continue;
+            }
+
+            $payloads[] = [
+                'store' => $store,
+                'owners' => $owners,
+            ];
+        }
+
+        return $payloads;
     }
 
     /**

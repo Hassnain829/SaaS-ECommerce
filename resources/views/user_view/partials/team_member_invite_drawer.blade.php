@@ -1,7 +1,6 @@
 @php
     $catalog = $teamAccessCatalog ?? \App\Support\StoreMemberAccess::catalog();
     $inviteStores = $inviteStores ?? collect();
-    $inviteLocations = $inviteLocations ?? collect();
 @endphp
 
 <div id="teamInviteOverlay" class="ui-modal-overlay team-drawer-overlay hidden" data-close-team-invite></div>
@@ -33,9 +32,9 @@
                     @endforeach
                 </div>
 
-                @if ($errors->has('name') || $errors->has('email') || $errors->has('access_preset') || $errors->has('permissions') || $errors->has('job_title'))
+                @if ($errors->has('name') || $errors->has('email') || $errors->has('access_preset') || $errors->has('permissions') || $errors->has('job_title') || $errors->has('store_ids'))
                     <div class="team-ws-note is-warn">
-                        @foreach (['name', 'email', 'access_preset', 'permissions', 'job_title'] as $field)
+                        @foreach (['name', 'email', 'access_preset', 'permissions', 'job_title', 'store_ids'] as $field)
                             @error($field)
                                 <p>{{ $message }}</p>
                             @enderror

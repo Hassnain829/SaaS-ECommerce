@@ -13,7 +13,7 @@ final class StoreMemberPermissionSync
 {
     /**
      * @param  list<string>|null  $permissions
-     * @param  list<int>|null  $locationIds
+     * @param  list<int>|null  $locationIds  Unused — location scope is not enforced; always persisted as null.
      * @return list<string>
      */
     public function sync(
@@ -35,6 +35,9 @@ final class StoreMemberPermissionSync
 
         $normalized = StoreMemberAccess::normalize($selected);
         $matchedPreset = StoreMemberAccess::matchPreset($normalized);
+
+        // Location scope is intentionally not part of the access contract yet.
+        unset($locationIds);
 
         DB::transaction(function () use ($store, $member, $normalized, $matchedPreset, $jobTitle, $status): void {
             StoreMemberPermission::query()

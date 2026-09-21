@@ -13,6 +13,7 @@ use App\Models\ProductVariant;
 use App\Models\ProductVariationOption;
 use App\Models\ProductVariationType;
 use App\Models\Store;
+use App\Models\StoreUser;
 use App\Services\Catalog\ProductAttributeAssigner;
 use App\Services\Catalog\ProductPermanentDeleteGalleryPurgeService;
 use App\Services\Catalog\ProductPermanentDeleteService;
@@ -25,6 +26,7 @@ use App\Services\Store\StoreCurrencyChangeGuard;
 use App\Services\StorefrontCatalogEventRecorder;
 use App\Support\Catalog\ProductRichText;
 use App\Support\CatalogRules;
+use App\Support\OnboardingStoreSession;
 use App\Support\ProductCatalogImageLimits;
 use App\Support\ProductCreateImageDraft;
 use App\Support\ProductCustomFieldHelper;
@@ -54,17 +56,10 @@ class OnboardingController extends Controller
         $wantsNewStore = $request->boolean('fresh') || $request->string('mode') === 'create';
 
         if ($wantsNewStore) {
-            $request->session()->forget([
-                'onboarding_store_draft',
-                'onboarding_store_id',
-                'onboarding_last_store_id',
-                'onboarding_product_draft',
-                'onboarding_product_id',
-                'onboarding_last_product_id',
-            ]);
+            OnboardingStoreSession::forget($request->session());
         }
 
-        $store = $this->resolveOnboardingStore($request);
+        $store = $this->resolveConfigurableOnboardingStore($request);
 
         if (($wantsNewStore || ! $store) && ! $this->userCanCreateStores($request)) {
             return redirect()
@@ -109,8 +104,8 @@ class OnboardingController extends Controller
             $normalizedCategory = $validated['custom_category'];
         }
 
-        // Only look for existing store if in edit mode
-        $existingStore = ($validated['mode'] === 'edit') ? $this->resolveSessionStore($request) : null;
+        $wantsEdit = ($validated['mode'] ?? '') === 'edit';
+        $existingStore = $wantsEdit ? $this->resolveSessionStore($request) : null;
         $logoPath = $existingStore?->logo;
 
         if ($request->hasFile('store_logo')) {
@@ -132,9 +127,18 @@ class OnboardingController extends Controller
             ]),
         ];
 
-        if ($existingStore) {
+        if ($wantsEdit) {
+            if (! $existingStore) {
+                abort(403, 'You can only update the current store.');
+            }
+
+            $this->assertCurrentStoreMatch($request, $existingStore);
+            $this->authorizeStorePermission($request, $existingStore, StorePermission::SETTINGS_MANAGE);
+
             $existingStore->update($storePayload);
             $store = $existingStore->refresh();
+
+            app(DefaultLocationService::class)->ensureFromStoreDefaults($store, $request->user());
         } else {
             if (! $this->userCanCreateStores($request)) {
                 abort(403, 'Only the store owner can create a store.');
@@ -145,15 +149,15 @@ class OnboardingController extends Controller
                 'slug' => $this->uniqueSlug(Store::class, $validated['name']),
             ]);
 
+            app(DefaultLocationService::class)->ensureFromStoreDefaults($store, $request->user());
+
+            $store->members()->attach($request->user()->id, [
+                'role' => Store::ROLE_OWNER,
+                'status' => StoreUser::STATUS_ACTIVE,
+            ]);
+
+            $this->rememberCreatedOnboardingStore($request, $store);
         }
-
-        app(DefaultLocationService::class)->ensureFromStoreDefaults($store, $request->user());
-
-        $store->members()->syncWithoutDetaching([
-            $request->user()->id => ['role' => 'owner'],
-        ]);
-
-        $this->syncActiveStoreSessions($request, $store);
         $storeDraft = Arr::only($validated, [
             'name',
             'primary_market',
@@ -186,7 +190,7 @@ class OnboardingController extends Controller
 
     public function step2(Request $request): RedirectResponse|View
     {
-        $store = $this->resolveOnboardingStore($request);
+        $store = $this->requireOnboardingStoreFor($request, 'products.edit');
 
         if (! $store) {
             return redirect()
@@ -218,7 +222,7 @@ class OnboardingController extends Controller
 
     public function storeStep2(Request $request): RedirectResponse
     {
-        $store = $this->resolveOnboardingStore($request);
+        $store = $this->requireOnboardingStoreFor($request, 'products.edit');
 
         if (! $store) {
             return redirect()
@@ -549,7 +553,7 @@ class OnboardingController extends Controller
 
     public function variationPopup(Request $request): RedirectResponse|View
     {
-        $store = $this->resolveOnboardingStore($request);
+        $store = $this->requireOnboardingStoreFor($request, 'products.edit');
 
         if (! $store) {
             return redirect()
@@ -575,7 +579,7 @@ class OnboardingController extends Controller
 
     public function storeVariationPopup(Request $request): RedirectResponse
     {
-        $store = $this->resolveOnboardingStore($request);
+        $store = $this->requireOnboardingStoreFor($request, 'products.edit');
 
         if (! $store) {
             return redirect()
@@ -691,7 +695,7 @@ class OnboardingController extends Controller
 
     public function step3(Request $request): RedirectResponse|View
     {
-        $store = $this->resolveOnboardingStore($request);
+        $store = $this->requireOnboardingStoreFor($request, StorePermission::SETTINGS_MANAGE);
 
         if (! $store) {
             return redirect()->route('store-management');
@@ -710,7 +714,7 @@ class OnboardingController extends Controller
 
     public function completeStep3(Request $request): RedirectResponse
     {
-        $store = $this->resolveOnboardingStore($request);
+        $store = $this->requireOnboardingStoreFor($request, StorePermission::SETTINGS_MANAGE);
 
         if (! $store) {
             return redirect()->route('store-management');
@@ -728,14 +732,7 @@ class OnboardingController extends Controller
             ]),
         ]);
 
-        $request->session()->forget([
-            'onboarding_store_draft',
-            'onboarding_store_id',
-            'onboarding_last_store_id',
-            'onboarding_product_draft',
-            'onboarding_last_product_id',
-            'onboarding_product_id',
-        ]);
+        $request->session()->forget(OnboardingStoreSession::KEYS);
 
         return redirect()
             ->route('dashboard')
@@ -749,7 +746,51 @@ class OnboardingController extends Controller
 
     private function resolveOnboardingStore(Request $request): ?Store
     {
-        return $this->resolveAccessibleStoreFromSession($request, 'onboarding_store_id', 'current_store_id');
+        return $this->resolveAccessibleStoreFromSession($request, 'onboarding_store_id');
+    }
+
+    private function resolveConfigurableOnboardingStore(Request $request): ?Store
+    {
+        $store = $this->resolveOnboardingStore($request);
+
+        if (! $store) {
+            return null;
+        }
+
+        $user = $request->user();
+        if (
+            ! $this->storeMatchesCurrentStore($request, $store)
+            || ! $user?->hasStorePermission($store, StorePermission::SETTINGS_MANAGE)
+        ) {
+            OnboardingStoreSession::forget($request->session());
+
+            return null;
+        }
+
+        return $store;
+    }
+
+    /**
+     * Continue an in-progress onboarding wizard only for the current store,
+     * with the permission required for that step.
+     */
+    private function requireOnboardingStoreFor(Request $request, string $permission): ?Store
+    {
+        $store = $this->resolveOnboardingStore($request);
+
+        if (! $store) {
+            return null;
+        }
+
+        if (! $this->storeMatchesCurrentStore($request, $store)) {
+            OnboardingStoreSession::forget($request->session());
+
+            return null;
+        }
+
+        $this->authorizeStorePermission($request, $store, $permission);
+
+        return $store;
     }
 
     private function resolveAccessibleStoreFromSession(Request $request, string ...$sessionKeys): ?Store
@@ -761,7 +802,7 @@ class OnboardingController extends Controller
                 continue;
             }
 
-            $store = $request->user()->memberStores()
+            $store = $request->user()->activeMemberStores()
                 ->where('stores.id', $storeId)
                 ->first();
 
@@ -773,10 +814,42 @@ class OnboardingController extends Controller
         return null;
     }
 
-    private function syncActiveStoreSessions(Request $request, Store $store): void
+    private function rememberCreatedOnboardingStore(Request $request, Store $store): void
     {
         $request->session()->put('current_store_id', $store->id);
         $request->session()->put('onboarding_store_id', $store->id);
+    }
+
+    private function syncActiveStoreSessions(Request $request, Store $store): void
+    {
+        $request->session()->put('current_store_id', $store->id);
+    }
+
+    private function storeMatchesCurrentStore(Request $request, Store $store): bool
+    {
+        $current = $request->attributes->get('currentStore');
+
+        return $current instanceof Store && (int) $current->id === (int) $store->id;
+    }
+
+    private function assertCurrentStoreMatch(Request $request, Store $store): void
+    {
+        if (! $this->storeMatchesCurrentStore($request, $store)) {
+            abort(403, 'You can only do this in the current store.');
+        }
+    }
+
+    private function requireCurrentMemberStore(Request $request, int|string $storeId): Store
+    {
+        $store = $request->user()->activeMemberStores()
+            ->where('stores.id', $storeId)
+            ->firstOrFail();
+
+        if (! $this->storeMatchesCurrentStore($request, $store)) {
+            abort(404);
+        }
+
+        return $store;
     }
 
     private function resolveSessionProduct(Request $request, Store $store): ?Product
@@ -1677,18 +1750,16 @@ class OnboardingController extends Controller
 
     public function addProductFromStore(Request $request, $storeId): View|RedirectResponse
     {
-        $store = $request->user()->memberStores()
-            ->where('stores.id', $storeId)
-            ->firstOrFail();
-
-        $this->syncActiveStoreSessions($request, $store);
+        $store = $this->requireCurrentMemberStore($request, $storeId);
+        $this->authorizeStorePermission($request, $store, 'products.edit');
+        OnboardingStoreSession::forget($request->session());
 
         return redirect()->route('products.create');
     }
 
     public function updateStoreFromManagement(Request $request, $storeId): RedirectResponse
     {
-        $store = $request->user()->memberStores()
+        $store = $request->user()->activeMemberStores()
             ->where('stores.id', $storeId)
             ->firstOrFail();
 
@@ -1840,12 +1911,6 @@ class OnboardingController extends Controller
             app(DefaultLocationService::class)->makeDefault($location, $request->user());
         }
 
-        $store->members()->syncWithoutDetaching([
-            $request->user()->id => ['role' => 'owner'],
-        ]);
-
-        $this->syncActiveStoreSessions($request, $store);
-
         $changed = [];
         if ($previous['name'] !== (string) $store->name) {
             $changed[] = 'name';
@@ -1909,7 +1974,7 @@ class OnboardingController extends Controller
 
     public function updateStoreLifecycleFromManagement(Request $request, $storeId): RedirectResponse
     {
-        $store = $request->user()->memberStores()
+        $store = $request->user()->activeMemberStores()
             ->where('stores.id', $storeId)
             ->firstOrFail();
 
@@ -1946,7 +2011,7 @@ class OnboardingController extends Controller
 
     public function destroyStoreFromManagement(Request $request, $storeId): RedirectResponse
     {
-        $store = $request->user()->memberStores()
+        $store = $request->user()->activeMemberStores()
             ->where('stores.id', $storeId)
             ->firstOrFail();
 
@@ -1973,16 +2038,7 @@ class OnboardingController extends Controller
             }
         });
 
-        if ((int) $request->session()->get('onboarding_store_id') === (int) $storeId) {
-            $request->session()->forget([
-                'onboarding_store_draft',
-                'onboarding_store_id',
-                'onboarding_last_store_id',
-                'onboarding_product_draft',
-                'onboarding_product_id',
-                'onboarding_last_product_id',
-            ]);
-        }
+        OnboardingStoreSession::forgetIfStore($request->session(), (int) $storeId);
 
         if ((int) $request->session()->get('current_store_id') === (int) $storeId) {
             $request->session()->forget('current_store_id');
@@ -2733,13 +2789,8 @@ class OnboardingController extends Controller
 
     public function storeProductFromStore(Request $request, $storeId): RedirectResponse
     {
-        $store = $request->user()->memberStores()
-            ->where('stores.id', $storeId)
-            ->firstOrFail();
-
-        $this->authorizeStorePermission($request, $store, StorePermission::CATALOG_MANAGE);
-
-        $this->syncActiveStoreSessions($request, $store);
+        $store = $this->requireCurrentMemberStore($request, $storeId);
+        $this->authorizeStorePermission($request, $store, 'products.edit');
 
         return $this->storeProductForStore($request, $store);
     }

@@ -12,8 +12,17 @@
     $defaultLocationAddress = $defaultLocation
         ? collect([$defaultLocation->address_line1, $defaultLocation->city, $defaultLocation->state, $defaultLocation->postal_code, $defaultLocation->country_code])->filter()->implode(', ')
         : null;
-    $canManageStoreSettings = $store instanceof \App\Models\Store
-        && (auth()->user()?->hasStorePermission($store, \App\Support\StorePermission::SETTINGS_MANAGE) ?? false);
+    $canManageStoreSettings = (bool) ($canManageStoreSettings ?? (
+        $store instanceof \App\Models\Store
+        && (auth()->user()?->hasStorePermission($store, \App\Support\StorePermission::SETTINGS_MANAGE) ?? false)
+    ));
+    $canViewStoreSettings = (bool) ($canViewStoreSettings ?? (
+        $canManageStoreSettings
+        || (
+            $store instanceof \App\Models\Store
+            && (auth()->user()?->hasStorePermission($store, \App\Support\StorePermission::SETTINGS_VIEW) ?? false)
+        )
+    ));
     $storeInitial = $store instanceof \App\Models\Store
         ? \Illuminate\Support\Str::of($store->name)->trim()->substr(0, 1)->upper()
         : '?';
@@ -28,7 +37,13 @@
     $forceAccountTab = collect($accountErrorKeys)->contains(fn ($key) => $errors->has($key));
     $forceStoreTab = collect($storeErrorKeys)->contains(fn ($key) => $errors->has($key));
     $requestedTab = ($settingsTab ?? request()->query('tab', 'store')) === 'account' ? 'account' : 'store';
+    if ($requestedTab === 'store' && $store && ! $canViewStoreSettings) {
+        $requestedTab = 'account';
+    }
     $settingsTab = $forceAccountTab ? 'account' : ($forceStoreTab && $canManageStoreSettings ? 'store' : $requestedTab);
+    if ($settingsTab === 'store' && $store && ! $canViewStoreSettings) {
+        $settingsTab = 'account';
+    }
     $profileInitial = $profileUser
         ? \Illuminate\Support\Str::of($profileUser->name)->trim()->substr(0, 1)->upper()
         : '?';
@@ -66,7 +81,7 @@
         @endif
 
         <nav class="gs-tabs" aria-label="Settings sections">
-            @if ($store)
+            @if ($store && $canViewStoreSettings)
             <a
                 href="{{ route('generalSettings', ['tab' => 'store']) }}"
                 @class(['gs-tab', 'is-active' => $settingsTab === 'store'])
@@ -88,6 +103,12 @@
                     <h2 class="gs-card-title">No active store</h2>
                     <p class="gs-card-lead">Create or select a store before changing store settings.</p>
                     <a href="{{ route('store-management') }}" class="gs-btn-primary mt-4 inline-flex">Open store management</a>
+                </section>
+            @elseif (! $canViewStoreSettings)
+                <section class="gs-card p-6">
+                    <h2 class="gs-card-title">Store settings unavailable</h2>
+                    <p class="gs-card-lead">Your role cannot view store configuration. Your account settings remain available.</p>
+                    <a href="{{ route('generalSettings', ['tab' => 'account']) }}" class="gs-btn-primary mt-4 inline-flex">Open your account</a>
                 </section>
             @elseif ($canManageStoreSettings)
                 @include('user_view.partials.general_settings_store_form', [
@@ -138,11 +159,11 @@
                                 </div>
                                 <div class="gs-field">
                                     <p class="gs-label">Store Contact Email</p>
-                                    <p class="gs-fact">{{ $contactEmailDisplay }}</p>
+                                    <p class="gs-fact">Hidden for your role</p>
                                 </div>
                                 <div class="gs-field gs-field-span">
                                     <p class="gs-label">Business Address</p>
-                                    <p class="gs-fact gs-fact-multiline">{{ $store->address ?: 'No business address saved' }}</p>
+                                    <p class="gs-fact gs-fact-multiline">Hidden for your role</p>
                                 </div>
                             </div>
                         </div>
@@ -202,7 +223,7 @@
                             <p class="gs-label">Default Inventory Location</p>
                             @if ($defaultLocation)
                                 <p class="gs-metric-value gs-metric-value-md">{{ $defaultLocation->name }}</p>
-                                <p class="gs-metric-help">{{ $defaultLocationAddress ?: 'No ship-from address saved on this location' }}</p>
+                                <p class="gs-metric-help">Address details are hidden for your role</p>
                             @else
                                 <p class="gs-metric-value gs-metric-value-md">Not set yet</p>
                             @endif

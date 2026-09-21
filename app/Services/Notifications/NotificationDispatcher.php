@@ -5,8 +5,11 @@ namespace App\Services\Notifications;
 use App\Jobs\SendNotificationEmailJob;
 use App\Models\Store;
 use App\Models\StoreNotification;
+use App\Models\StoreUser;
 use App\Models\User;
 use App\Support\NotificationEvent;
+use App\Support\StoreMemberAccess;
+use App\Support\StorePermissionResolver;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Log;
 
@@ -37,7 +40,7 @@ class NotificationDispatcher
     ): array {
         $created = [];
 
-        foreach ($this->preferences->defaultMerchantRecipients($store) as $recipient) {
+        foreach ($this->preferences->defaultMerchantRecipients($store, $eventType) as $recipient) {
             $created = array_merge(
                 $created,
                 $this->notifyUser($store, $recipient, $eventType, $title, $body, $dedupeKey, $data, $actor, $channels)
@@ -63,8 +66,8 @@ class NotificationDispatcher
         ?User $actor = null,
         array $channels = [NotificationEvent::CHANNEL_IN_APP, NotificationEvent::CHANNEL_EMAIL],
     ): array {
-        // Fail closed: never associate a foreign or inactive user with this store.
-        if ($user->is_active === false || $store->roleForUser($user) === null) {
+        // Fail closed: never associate a foreign, invited, suspended, or under-privileged user.
+        if ($user->is_active === false || ! $this->recipientMayReceive($store, $user, $eventType)) {
             return [];
         }
 
@@ -231,5 +234,34 @@ class NotificationDispatcher
 
             return ['notification' => $existing, 'created' => false];
         }
+    }
+
+    private function recipientMayReceive(Store $store, User $user, string $eventType): bool
+    {
+        $membership = $store->relationLoaded('members')
+            ? $store->members->firstWhere('id', $user->id)
+            : $store->members()->where('users.id', $user->id)->first();
+
+        if (! $membership) {
+            return false;
+        }
+
+        $role = $membership->pivot?->role;
+        $status = $membership->pivot?->status;
+
+        if (! StoreMemberAccess::isUsableMembershipStatus($status, $role)) {
+            return false;
+        }
+
+        if ($status === StoreUser::STATUS_INVITED) {
+            return false;
+        }
+
+        $required = NotificationEvent::requiredPermission($eventType);
+        if ($required === null) {
+            return $role === Store::ROLE_OWNER;
+        }
+
+        return StorePermissionResolver::userCan($user, $store, $required);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\OnboardingStoreSession;
 use App\Support\StorePermissionResolver;
 use Closure;
 use Illuminate\Http\Request;
@@ -22,6 +23,8 @@ class EnsureCurrentStore
         }
 
         $availableStores = $this->resolveAvailableStores($user);
+
+        OnboardingStoreSession::forgetIfInaccessible($request->session(), $availableStores);
 
         $currentStore = $this->resolveCurrentStore($request, $availableStores);
 

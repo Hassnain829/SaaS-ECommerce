@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Notifications\TeammateAccountDeactivatedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -99,6 +101,65 @@ class ProfileHardeningTest extends TestCase
             ->assertSessionHasErrors('confirm_deactivation');
 
         $this->assertTrue($user->fresh()->is_active);
+    }
+
+    public function test_member_deactivation_notifies_store_owners_only(): void
+    {
+        Notification::fake();
+
+        $owner = $this->merchant('notify-owner@example.com');
+        $member = $this->merchant('notify-member@example.com');
+        $otherMember = $this->merchant('notify-peer@example.com');
+        $store = $this->store($owner, 'Notify Store');
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->attach($store, $member, Store::ROLE_MEMBER);
+        $this->attach($store, $otherMember, Store::ROLE_MEMBER);
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->patch(route('profile.deactivate'), [
+                'confirm_deactivation' => 'deactivate',
+            ])
+            ->assertRedirect(route('signin'));
+
+        $this->assertFalse($member->fresh()->is_active);
+        $this->assertTrue($owner->fresh()->is_active);
+        $this->assertTrue($otherMember->fresh()->is_active);
+
+        Notification::assertSentTo($owner, TeammateAccountDeactivatedNotification::class);
+        Notification::assertNotSentTo($otherMember, TeammateAccountDeactivatedNotification::class);
+        Notification::assertNotSentTo($member, TeammateAccountDeactivatedNotification::class);
+
+        $this->assertDatabaseHas('security_logs', [
+            'store_id' => $store->id,
+            'event_type' => 'teammate_account_deactivated',
+            'user_id' => $member->id,
+        ]);
+    }
+
+    public function test_security_page_copy_differs_for_members_and_owners(): void
+    {
+        $owner = $this->merchant('copy-owner@example.com');
+        $member = $this->merchant('copy-member@example.com');
+        $store = $this->store($owner, 'Copy Store');
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->attach($store, $member, Store::ROLE_MANAGER);
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('security'))
+            ->assertOk()
+            ->assertSeeText('your login only')
+            ->assertSeeText('The store owner and the store itself stay active')
+            ->assertSeeText('Store owners get an email when you deactivate')
+            ->assertDontSeeText('If you are the only owner of a store');
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('security'))
+            ->assertOk()
+            ->assertSeeText('If you are the only owner of a store, transfer ownership first')
+            ->assertSeeText('Transfer ownership of Copy Store before you can deactivate');
     }
 
     public function test_profile_page_uses_current_user_data(): void

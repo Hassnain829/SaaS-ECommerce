@@ -11,10 +11,15 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
-<body class="merchant-shell flex min-h-screen flex-col overflow-x-hidden font-sans md:h-screen md:flex-row md:overflow-hidden">
+<body class="merchant-shell overflow-x-hidden font-sans md:h-screen md:overflow-hidden">
+{{--
+  Frame owns sidebar+main flex. Overlays/portals append to body outside this
+  frame so Turbo-cached drawer nodes cannot shrink or displace the shell.
+--}}
+<div class="merchant-frame flex min-h-screen flex-col md:h-full md:flex-row">
 <div id="sidebarOverlay" class="fixed inset-0 z-40 hidden bg-ink/40 md:hidden" onclick="closeSidebar()" aria-hidden="true"></div>
 
-<aside id="sidebar" class="fixed inset-y-0 left-0 z-50 flex h-full min-h-0 w-[15rem] shrink-0 -translate-x-full flex-col border-r border-border bg-surface text-ink transition-transform duration-200 ease-out md:static md:z-auto md:translate-x-0" @if (request()->routeIs('products.create', 'products.edit')) data-turbo="false" @endif>
+<aside id="sidebar" class="merchant-sidebar flex h-full min-h-0 w-[15rem] shrink-0 flex-col border-r border-border bg-surface text-ink" @if (request()->routeIs('products.create', 'products.edit')) data-turbo="false" @endif>
     <div class="flex shrink-0 items-center px-3.5 py-3.5">
         <a href="{{ route('dashboard') }}" class="block min-w-0" aria-label="Retailo home">
             <x-platform.logo class="h-7" />
@@ -231,6 +236,7 @@
         @yield('content')
     </div>
 </main>
+</div>{{-- /.merchant-frame --}}
 
 @stack('overlays')
 <x-ui.confirm-modal />

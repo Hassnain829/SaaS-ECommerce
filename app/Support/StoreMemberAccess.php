@@ -121,11 +121,9 @@ final class StoreMemberAccess
                 'products.edit',
                 'products.prices',
                 'products.inventory',
-                'products.import',
                 'orders.view',
                 'orders.draft',
                 'orders.edit',
-                'orders.cancel',
                 'fulfillment.fulfill',
                 'fulfillment.tracking',
                 'fulfillment.inventory_adjust',
@@ -138,7 +136,9 @@ final class StoreMemberAccess
                 'settings.delivery',
                 'settings.taxes',
                 'website.view',
+                'website.manage',
                 'website.plugin',
+                'website.token',
                 'security.view',
             ],
             self::PRESET_CUSTOM => [],
@@ -156,10 +156,12 @@ final class StoreMemberAccess
             'products.inventory' => ['products.view'],
             'products.import' => ['products.view'],
             'products.delete' => ['products.view', 'products.edit'],
+            'products.inventory.force' => ['products.view', 'products.inventory'],
             'orders.draft' => ['orders.view'],
             'orders.edit' => ['orders.view'],
             'orders.payments' => ['orders.view'],
             'orders.cancel' => ['orders.view'],
+            'orders.export' => ['orders.view'],
             'fulfillment.fulfill' => ['orders.view', 'products.view'],
             'fulfillment.labels.purchase' => ['orders.view', 'fulfillment.fulfill'],
             'fulfillment.labels.cancel' => ['orders.view', 'fulfillment.fulfill'],
@@ -170,6 +172,8 @@ final class StoreMemberAccess
             'customers.exchanges' => ['customers.view', 'orders.view'],
             'customers.refunds' => ['customers.view', 'orders.view', 'orders.payments'],
             'customers.export' => ['customers.view'],
+            'customers.delete' => ['customers.view'],
+            'notifications.manage' => [],
             'settings.discounts' => [],
             'settings.locations' => [],
             'settings.delivery' => [],
@@ -297,7 +301,7 @@ final class StoreMemberAccess
                 'key' => self::PRESET_FULL_OPERATIONAL,
                 'label' => 'Full operational access',
                 'short' => 'Full',
-                'description' => 'Catalog, orders, fulfillment, and day-to-day store settings. Sensitive money and admin controls stay off.',
+                'description' => 'Catalog, orders, fulfillment, and day-to-day store settings. Sensitive money, import, cancel, and admin controls stay off.',
             ],
             [
                 'key' => self::PRESET_OPERATIONS,
@@ -378,6 +382,102 @@ final class StoreMemberAccess
     }
 
     /**
+     * Grantable permissions not shown in module View/Manage toggles or Sensitive controls.
+     * Surfaced in the Team UI under “Advanced capabilities”.
+     *
+     * @return list<array{key: string, label: string}>
+     */
+    public static function advancedCapabilities(): array
+    {
+        $covered = array_fill_keys(self::moduleAndSensitiveKeys(), true);
+        $advanced = [];
+
+        foreach (self::teamGrantableKeys() as $key) {
+            if (isset($covered[$key])) {
+                continue;
+            }
+
+            $advanced[] = [
+                'key' => $key,
+                'label' => self::definitions()[$key]['label'] ?? $key,
+            ];
+        }
+
+        return $advanced;
+    }
+
+    /**
+     * Keys visible via modules or sensitive toggles (not advanced).
+     *
+     * @return list<string>
+     */
+    public static function moduleAndSensitiveKeys(): array
+    {
+        $keys = [];
+        foreach (self::modules() as $module) {
+            foreach (array_merge($module['view'] ?? [], $module['manage'] ?? []) as $key) {
+                $keys[$key] = true;
+            }
+        }
+        foreach (self::sensitiveKeys() as $key) {
+            $keys[$key] = true;
+        }
+
+        return array_keys($keys);
+    }
+
+    /**
+     * Every team-grantable key must appear in modules, sensitive, advanced, or a documented preset.
+     *
+     * @return list<string>
+     */
+    public static function teamUiCoveredKeys(): array
+    {
+        $keys = array_fill_keys(self::moduleAndSensitiveKeys(), true);
+        foreach (self::advancedCapabilities() as $permission) {
+            $keys[$permission['key']] = true;
+        }
+        foreach (self::presets() as $presetKeys) {
+            foreach (self::normalize($presetKeys) as $key) {
+                $keys[$key] = true;
+            }
+        }
+
+        return array_keys($keys);
+    }
+
+    /**
+     * A team.manage actor may only manage a target whose effective permissions
+     * are a strict subset of the actor’s. Owners and platform admins may manage anyone.
+     */
+    public static function canManagePeer(User $actor, User $target, Store $store): bool
+    {
+        if ($actor->hasRole('admin') || $actor->roleInStore($store) === Store::ROLE_OWNER) {
+            return true;
+        }
+
+        if (self::isOwnerRole($target->roleInStore($store))) {
+            return false;
+        }
+
+        $actorKeys = StorePermissionResolver::granularFor($actor, $store);
+        $targetKeys = StorePermissionResolver::granularFor($target, $store);
+
+        if ($targetKeys === []) {
+            return $actorKeys !== [];
+        }
+
+        $actorSet = array_fill_keys($actorKeys, true);
+        foreach ($targetKeys as $key) {
+            if (! isset($actorSet[$key])) {
+                return false;
+            }
+        }
+
+        return count($targetKeys) < count($actorKeys);
+    }
+
+    /**
      * Compact View / Manage modules for the team inspector.
      *
      * View and manage keys are explicit. Groups without a view permission
@@ -400,7 +500,7 @@ final class StoreMemberAccess
                 'label' => 'Orders',
                 'symbol' => 'O',
                 'view' => ['orders.view'],
-                'manage' => ['orders.draft', 'orders.edit', 'orders.cancel'],
+                'manage' => ['orders.draft', 'orders.edit'],
             ],
             [
                 'key' => 'fulfillment',
@@ -449,7 +549,8 @@ final class StoreMemberAccess
                 'label' => 'Website integration',
                 'symbol' => 'W',
                 'view' => ['website.view'],
-                'manage' => ['website.manage', 'website.plugin'],
+                // Edit covers the full connect flow: address, plugin, and connection key.
+                'manage' => ['website.manage', 'website.plugin', 'website.token'],
             ],
             [
                 'key' => 'team',
@@ -475,6 +576,8 @@ final class StoreMemberAccess
      *     modules: list<array{key: string, label: string, symbol: string, view: list<string>, manage: list<string>}>,
      *     sensitive: list<string>,
      *     sensitive_permissions: list<array{key: string, label: string, sensitive: bool}>,
+     *     advanced: list<string>,
+     *     advanced_permissions: list<array{key: string, label: string}>,
      *     dependencies: array<string, list<string>>,
      *     children: array<string, list<string>>,
      *     job_titles: list<string>
@@ -490,12 +593,16 @@ final class StoreMemberAccess
             ];
         }
 
+        $advanced = self::advancedCapabilities();
+
         return [
             'presets' => $presets,
             'groups' => self::groups(),
             'modules' => self::modules(),
             'sensitive' => array_column(self::sensitivePermissions(), 'key'),
             'sensitive_permissions' => self::sensitivePermissions(),
+            'advanced' => array_column($advanced, 'key'),
+            'advanced_permissions' => $advanced,
             'dependencies' => self::dependencies(),
             'children' => self::children(),
             'job_titles' => self::jobTitleSuggestions(),
@@ -654,16 +761,26 @@ final class StoreMemberAccess
      */
     public static function managerFallbackKeys(): array
     {
+        // Legacy managers see the website workspace but cannot run the connect /
+        // key flow unless an owner grants Website Edit explicitly.
+        $blockedWebsiteManage = ['website.manage' => true, 'website.token' => true];
+
         $keys = array_values(array_filter(
             self::presets()[self::PRESET_FULL_OPERATIONAL],
             static fn (string $key): bool => ! str_starts_with($key, 'settings.')
+                && ! isset($blockedWebsiteManage[$key])
         ));
 
+        // Keep historical manager ops that are now Sensitive (invite presets stay clean).
+        $keys[] = 'products.import';
         $keys[] = 'products.delete';
+        $keys[] = 'products.inventory.force';
+        $keys[] = 'orders.cancel';
         $keys[] = 'orders.payments';
         $keys[] = 'fulfillment.labels.purchase';
         $keys[] = 'fulfillment.labels.cancel';
         $keys[] = 'customers.refunds';
+        $keys[] = 'notifications.manage';
 
         return self::normalize($keys);
     }
@@ -686,13 +803,15 @@ final class StoreMemberAccess
             'products.edit' => ['label' => 'Create and edit products', 'group' => 'products', 'implies' => [StorePermission::CATALOG_VIEW, StorePermission::CATALOG_MANAGE]],
             'products.prices' => ['label' => 'Edit prices', 'group' => 'products', 'implies' => [StorePermission::CATALOG_VIEW]],
             'products.inventory' => ['label' => 'Manage inventory', 'group' => 'products', 'implies' => [StorePermission::CATALOG_VIEW]],
-            'products.import' => ['label' => 'Import products', 'group' => 'products', 'implies' => [StorePermission::CATALOG_VIEW, StorePermission::IMPORTS_VIEW, StorePermission::IMPORTS_MANAGE]],
+            'products.inventory.force' => ['label' => 'Bulk force-set inventory', 'group' => 'products', 'sensitive' => true, 'implies' => [StorePermission::CATALOG_VIEW]],
+            'products.import' => ['label' => 'Import products', 'group' => 'products', 'sensitive' => true, 'implies' => [StorePermission::CATALOG_VIEW, StorePermission::IMPORTS_VIEW, StorePermission::IMPORTS_MANAGE]],
             'products.delete' => ['label' => 'Delete products', 'group' => 'products', 'sensitive' => true, 'implies' => [StorePermission::CATALOG_VIEW]],
             'orders.view' => ['label' => 'View orders', 'group' => 'orders', 'implies' => [StorePermission::ORDERS_VIEW]],
             'orders.draft' => ['label' => 'Create draft orders', 'group' => 'orders', 'implies' => [StorePermission::ORDERS_VIEW]],
             'orders.edit' => ['label' => 'Edit orders', 'group' => 'orders', 'implies' => [StorePermission::ORDERS_VIEW, StorePermission::ORDERS_MANAGE]],
             'orders.payments' => ['label' => 'Record manual payments', 'group' => 'orders', 'sensitive' => true, 'implies' => [StorePermission::ORDERS_VIEW]],
-            'orders.cancel' => ['label' => 'Cancel orders', 'group' => 'orders', 'implies' => [StorePermission::ORDERS_VIEW]],
+            'orders.cancel' => ['label' => 'Cancel orders', 'group' => 'orders', 'sensitive' => true, 'implies' => [StorePermission::ORDERS_VIEW]],
+            'orders.export' => ['label' => 'Export orders', 'group' => 'orders', 'sensitive' => true, 'implies' => [StorePermission::ORDERS_VIEW]],
             'fulfillment.fulfill' => ['label' => 'Fulfill orders', 'group' => 'fulfillment', 'implies' => [StorePermission::ORDERS_VIEW, StorePermission::CATALOG_VIEW]],
             'fulfillment.labels.purchase' => ['label' => 'Purchase shipping labels', 'group' => 'fulfillment', 'sensitive' => true, 'implies' => [StorePermission::ORDERS_VIEW]],
             'fulfillment.labels.cancel' => ['label' => 'Cancel labels', 'group' => 'fulfillment', 'sensitive' => true, 'implies' => [StorePermission::ORDERS_VIEW]],
@@ -704,6 +823,8 @@ final class StoreMemberAccess
             'customers.exchanges' => ['label' => 'Manage exchanges', 'group' => 'customers', 'implies' => [StorePermission::CUSTOMERS_VIEW, StorePermission::ORDERS_VIEW]],
             'customers.refunds' => ['label' => 'Issue refunds', 'group' => 'customers', 'sensitive' => true, 'implies' => [StorePermission::CUSTOMERS_VIEW, StorePermission::ORDERS_VIEW]],
             'customers.export' => ['label' => 'Export customer information', 'group' => 'customers', 'sensitive' => true, 'implies' => [StorePermission::CUSTOMERS_VIEW]],
+            'customers.delete' => ['label' => 'Delete and anonymize customers', 'group' => 'customers', 'sensitive' => true, 'implies' => [StorePermission::CUSTOMERS_VIEW]],
+            'notifications.manage' => ['label' => 'Manage store notification delivery', 'group' => 'admin', 'sensitive' => true, 'implies' => []],
             'settings.discounts' => ['label' => 'Manage discounts', 'group' => 'store', 'implies' => []],
             'settings.locations' => ['label' => 'Manage locations', 'group' => 'store', 'implies' => []],
             'settings.delivery' => ['label' => 'Manage delivery options', 'group' => 'store', 'implies' => []],
@@ -712,13 +833,16 @@ final class StoreMemberAccess
             'settings.carriers' => ['label' => 'Manage carrier connections', 'group' => 'store', 'sensitive' => true, 'implies' => []],
             'settings.payments' => ['label' => 'Manage payment connections', 'group' => 'store', 'sensitive' => true, 'implies' => []],
             'website.view' => ['label' => 'View website connection', 'group' => 'website', 'implies' => [StorePermission::DEVELOPER_API_VIEW]],
-            'website.manage' => ['label' => 'Manage WordPress connection', 'group' => 'website', 'implies' => [StorePermission::DEVELOPER_API_VIEW]],
+            'website.manage' => ['label' => 'Manage WordPress connection', 'group' => 'website', 'implies' => [StorePermission::DEVELOPER_API_VIEW, StorePermission::DEVELOPER_API_MANAGE]],
             'website.plugin' => ['label' => 'Download connector plugin', 'group' => 'website', 'implies' => [StorePermission::DEVELOPER_API_VIEW]],
-            'website.token' => ['label' => 'Rotate API token', 'group' => 'website', 'sensitive' => true, 'implies' => [StorePermission::DEVELOPER_API_VIEW, StorePermission::DEVELOPER_API_MANAGE]],
-            'website.cutover' => ['label' => 'Activate or roll back cutover', 'group' => 'website', 'implies' => [StorePermission::DEVELOPER_API_VIEW]],
+            'website.token' => ['label' => 'Create and replace connection key', 'group' => 'website', 'implies' => [StorePermission::DEVELOPER_API_VIEW, StorePermission::DEVELOPER_API_MANAGE]],
+            'website.cutover' => ['label' => 'Activate or roll back cutover', 'group' => 'website', 'sensitive' => true, 'implies' => [StorePermission::DEVELOPER_API_VIEW]],
             'team.view' => ['label' => 'View team members', 'group' => 'admin', 'implies' => [StorePermission::TEAM_VIEW]],
             'team.manage' => ['label' => 'Manage team members', 'group' => 'admin', 'sensitive' => true, 'implies' => [StorePermission::TEAM_VIEW, StorePermission::TEAM_MANAGE]],
             'stores.create' => ['label' => 'Create new stores', 'group' => 'admin', 'sensitive' => true, 'team_hidden' => true, 'implies' => []],
+            'stores.close' => ['label' => 'Close or archive stores', 'group' => 'admin', 'sensitive' => true, 'team_hidden' => true, 'implies' => []],
+            'integrations.api' => ['label' => 'Manage API keys', 'group' => 'admin', 'sensitive' => true, 'team_hidden' => true, 'implies' => []],
+            'integrations.webhooks' => ['label' => 'Manage webhooks', 'group' => 'admin', 'sensitive' => true, 'team_hidden' => true, 'implies' => []],
             'security.view' => ['label' => 'View security activity', 'group' => 'admin', 'implies' => [StorePermission::SECURITY_VIEW]],
             'billing.view' => ['label' => 'View billing', 'group' => 'admin', 'team_hidden' => true, 'implies' => [StorePermission::BILLING_VIEW]],
             'billing.manage' => ['label' => 'Manage billing', 'group' => 'admin', 'sensitive' => true, 'team_hidden' => true, 'implies' => [StorePermission::BILLING_VIEW, StorePermission::BILLING_MANAGE]],

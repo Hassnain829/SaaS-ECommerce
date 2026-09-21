@@ -292,6 +292,110 @@ class StorePermissionLayerTest extends TestCase
         $this->assertFalse($member->hasStorePermission($store, 'customers.refunds'));
     }
 
+    public function test_orders_edit_and_products_edit_do_not_unlock_sensitive_cancel_or_import(): void
+    {
+        $owner = $this->merchant('edit-sens-owner@example.com');
+        $member = $this->merchant('edit-sens-member@example.com');
+        $store = $this->store($owner);
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->grant($store, $member, [
+            'products.view',
+            'products.edit',
+            'products.prices',
+            'products.inventory',
+            'orders.view',
+            'orders.draft',
+            'orders.edit',
+        ]);
+
+        $this->assertFalse($member->hasStorePermission($store, 'orders.cancel'));
+        $this->assertFalse($member->hasStorePermission($store, 'products.import'));
+        $this->assertFalse($member->hasStorePermission($store, 'website.cutover'));
+
+        $order = Order::query()->create([
+            'store_id' => $store->id,
+            'order_number' => 'SENS-CANCEL-1',
+            'status' => OrderLifecycle::ORDER_CONFIRMED,
+            'payment_status' => OrderLifecycle::PAYMENT_PENDING,
+            'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+            'customer_email' => 'buyer@example.test',
+            'billing_same_as_shipping' => true,
+            'subtotal' => 20,
+            'total' => 20,
+            'grand_total' => 20,
+            'currency_code' => 'USD',
+            'order_source' => 'manual',
+            'channel' => 'dashboard',
+            'item_count' => 0,
+            'total_quantity' => 0,
+            'placed_at' => now(),
+        ]);
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->patch(route('orders.updateStatus', $order), [
+                'status' => OrderLifecycle::ORDER_CANCELLED,
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('products.import.create'))
+            ->assertForbidden();
+    }
+
+    public function test_orders_export_requires_sensitive_permission(): void
+    {
+        $owner = $this->merchant('export-orders-owner@example.com');
+        $member = $this->merchant('export-orders-member@example.com');
+        $store = $this->store($owner);
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->grant($store, $member, ['orders.view', 'orders.edit']);
+
+        Order::query()->create([
+            'store_id' => $store->id,
+            'order_number' => 'EXP-1001',
+            'status' => OrderLifecycle::ORDER_CONFIRMED,
+            'payment_status' => OrderLifecycle::PAYMENT_PAID,
+            'fulfillment_status' => OrderLifecycle::FULFILLMENT_UNFULFILLED,
+            'customer_email' => 'buyer@example.test',
+            'billing_same_as_shipping' => true,
+            'subtotal' => 40,
+            'total' => 40,
+            'grand_total' => 40,
+            'currency_code' => 'USD',
+            'order_source' => 'manual',
+            'channel' => 'dashboard',
+            'item_count' => 1,
+            'total_quantity' => 1,
+            'placed_at' => now(),
+        ]);
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orders'))
+            ->assertOk()
+            ->assertDontSeeText('Export CSV');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orders.export'))
+            ->assertForbidden();
+
+        $csv = $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('orders.export'))
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('EXP-1001', $csv);
+        $this->assertDatabaseHas('security_logs', [
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'event_type' => 'orders_exported',
+        ]);
+    }
+
     public function test_suspended_and_invited_memberships_are_rejected(): void
     {
         $owner = $this->merchant('status-owner@example.com');

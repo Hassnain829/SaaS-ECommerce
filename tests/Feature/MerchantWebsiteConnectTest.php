@@ -8,6 +8,9 @@ use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\ConnectedSiteService;
+use App\Services\Settings\StoreMemberPermissionSync;
+use App\Support\StoreMemberAccess;
+use App\Support\StorePermission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -89,7 +92,7 @@ class MerchantWebsiteConnectTest extends TestCase
             ->withSession(['current_store_id' => $store->id])
             ->get(route('developer-storefront.settings'))
             ->assertOk()
-            ->assertSee('Only the store owner can create or remove the key.');
+            ->assertSee('You can view this step, but creating or replacing the connection key needs Website Edit access.');
 
         $this->actingAs($manager)
             ->withSession(['current_store_id' => $store->id])
@@ -101,6 +104,77 @@ class MerchantWebsiteConnectTest extends TestCase
             ->patch(route('developer-storefront.website.update'), [
                 'website_url' => 'http://127.0.0.1:8080',
             ])
+            ->assertForbidden();
+    }
+
+    public function test_website_edit_access_can_complete_the_registration_flow(): void
+    {
+        $owner = $this->merchant('website-edit-owner@example.com');
+        $member = $this->merchant('website-edit-member@example.com');
+        $store = $this->store($owner, 'Edit Website Store');
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->grant($store, $member, [
+            'website.view',
+            'website.manage',
+            'website.plugin',
+            'website.token',
+        ]);
+
+        $this->assertTrue($member->hasStorePermission($store, StorePermission::DEVELOPER_API_MANAGE));
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('developer-storefront.settings'))
+            ->assertOk()
+            ->assertSee('Save address')
+            ->assertDontSee('needs Website Edit access');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->patch(route('developer-storefront.website.update'), [
+                'website_url' => 'http://127.0.0.1:8080',
+            ])
+            ->assertRedirect(route('developer-storefront.settings', ['step' => 2]));
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('developer-storefront.token.generate'))
+            ->assertRedirect();
+
+        $this->assertTrue($store->fresh()->hasDeveloperStorefrontToken());
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('developer-storefront.plugin.download'))
+            ->assertOk()
+            ->assertDownload('eco-portal-connector.zip');
+    }
+
+    public function test_website_view_only_cannot_run_registration_actions(): void
+    {
+        $owner = $this->merchant('website-view-owner@example.com');
+        $member = $this->merchant('website-view-member@example.com');
+        $store = $this->store($owner, 'View Website Store');
+        $this->attach($store, $owner, Store::ROLE_OWNER);
+        $this->grant($store, $member, ['website.view']);
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('developer-storefront.settings'))
+            ->assertOk()
+            ->assertSee('needs Website Edit access')
+            ->assertDontSee('Save address');
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->patch(route('developer-storefront.website.update'), [
+                'website_url' => 'http://127.0.0.1:8080',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('developer-storefront.token.generate'))
             ->assertForbidden();
     }
 
@@ -448,6 +522,24 @@ class MerchantWebsiteConnectTest extends TestCase
         $store->members()->syncWithoutDetaching([
             $user->id => ['role' => $role],
         ]);
+    }
+
+    /**
+     * @param  list<string>  $permissions
+     */
+    private function grant(Store $store, User $user, array $permissions): void
+    {
+        $this->attach($store, $user, Store::ROLE_MEMBER);
+
+        app(StoreMemberPermissionSync::class)->sync(
+            $store,
+            $user,
+            $permissions,
+            StoreMemberAccess::PRESET_CUSTOM,
+            null,
+            null,
+            StoreMemberAccess::STATUS_ACTIVE,
+        );
     }
 
     /**

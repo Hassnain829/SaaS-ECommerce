@@ -5,9 +5,9 @@ namespace Tests\Feature;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\StoreMemberPermission;
+use App\Models\TeamInvitation;
 use App\Models\User;
 use App\Notifications\TeamMemberInvitedNotification;
-use App\Services\Settings\StoreMemberInvitationService;
 use App\Services\Settings\StoreMemberPermissionSync;
 use App\Support\StoreMemberAccess;
 use App\Support\StorePermission;
@@ -15,7 +15,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class TeamMemberFlowTest extends TestCase
@@ -69,7 +68,12 @@ class TeamMemberFlowTest extends TestCase
 
         Notification::assertSentTo($member, TeamMemberInvitedNotification::class, function (TeamMemberInvitedNotification $notification) use ($member): bool {
             $this->assertTrue($notification->needsPassword);
-            $this->assertStringContainsString('/team-invites/'.$member->id, $notification->inviteUrl($member));
+            $this->assertStringContainsString('/team-invites/', $notification->inviteUrl($member));
+            $this->assertStringNotContainsString('/team-invites/'.$member->id, $notification->inviteUrl($member));
+            $this->assertDatabaseHas('team_invitations', [
+                'user_id' => $member->id,
+                'token_hash' => hash('sha256', $notification->inviteToken),
+            ]);
 
             return true;
         });
@@ -92,24 +96,27 @@ class TeamMemberFlowTest extends TestCase
             ->assertRedirect(route('team-members.index'));
 
         $member = User::query()->where('email', 'new-staff@example.com')->firstOrFail();
-        $inviteUrl = null;
-        Notification::assertSentTo($member, TeamMemberInvitedNotification::class, function (TeamMemberInvitedNotification $notification) use ($member, &$inviteUrl): bool {
-            $inviteUrl = $notification->inviteUrl($member);
+        $inviteToken = null;
+        Notification::assertSentTo($member, TeamMemberInvitedNotification::class, function (TeamMemberInvitedNotification $notification) use (&$inviteToken): bool {
+            $inviteToken = $notification->inviteToken;
 
             return true;
         });
 
-        $this->get(route('team-invites.show', $member))
+        $this->get(route('team-invites.show', ['token' => 'notarealtoken']))
             ->assertOk()
-            ->assertSeeText('This invitation link expired')
-            ->assertDontSee($member->email);
+            ->assertSeeText('This invitation link expired');
 
-        $this->get($inviteUrl)
+        Auth::logout();
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->get(route('team-invites.show', ['token' => $inviteToken]))
             ->assertOk()
             ->assertSeeText('Set password and join')
             ->assertSeeText($store->name);
 
-        $this->post($this->signedInviteAcceptUrl($member, $store), [
+        $this->post(route('team-invites.store', ['token' => $inviteToken]), [
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ])->assertRedirect(route('dashboard'));
@@ -126,6 +133,7 @@ class TeamMemberFlowTest extends TestCase
             'user_id' => $member->id,
             'status' => StoreMemberAccess::STATUS_ACTIVE,
         ]);
+        $this->assertNotNull(TeamInvitation::query()->where('user_id', $member->id)->whereNotNull('accepted_at')->first());
     }
 
     public function test_existing_account_can_accept_an_invite_without_resetting_their_password(): void
@@ -149,24 +157,82 @@ class TeamMemberFlowTest extends TestCase
         $this->assertFalse($existing->must_set_password);
         $this->assertTrue(Hash::check('password', $existing->password));
 
-        $inviteUrl = URL::temporarySignedRoute('team-invites.show', now()->addDays(7), [
-            'user' => $existing->id,
-            'stores' => StoreMemberInvitationService::encodeStoreIds([$store]),
-        ]);
+        $inviteToken = null;
+        Notification::assertSentTo($existing, TeamMemberInvitedNotification::class, function (TeamMemberInvitedNotification $notification) use (&$inviteToken): bool {
+            $inviteToken = $notification->inviteToken;
 
-        $this->get($inviteUrl)
+            return true;
+        });
+
+        Auth::logout();
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->get(route('team-invites.show', ['token' => $inviteToken]))
             ->assertOk()
-            ->assertSeeText('Accept invitation')
+            ->assertSeeText('Sign in to accept')
             ->assertDontSeeText('Set password and join');
 
-        $this->post($this->signedInviteAcceptUrl($existing, $store))
+        $this->post(route('team-invites.store', ['token' => $inviteToken]))
+            ->assertRedirect(route('signin'));
+
+        $this->actingAs($existing)
+            ->get(route('team-invites.show', ['token' => $inviteToken]))
+            ->assertOk()
+            ->assertSeeText('Accept invitation');
+
+        $this->actingAs($existing)
+            ->post(route('team-invites.store', ['token' => $inviteToken]))
             ->assertRedirect(route('dashboard'));
 
         $this->assertAuthenticatedAs($existing);
         $this->assertTrue($existing->fresh()->hasStorePermission($store, StorePermission::CATALOG_VIEW));
+        $this->assertTrue(Hash::check('password', $existing->fresh()->password));
     }
 
-    public function test_owner_can_resend_an_invitation(): void
+    public function test_existing_account_invite_does_not_login_a_different_signed_in_user(): void
+    {
+        Notification::fake();
+        $owner = $this->createMerchantUser('owner@example.com');
+        $existing = $this->createMerchantUser('existing-staff@example.com');
+        $other = $this->createMerchantUser('other-user@example.com');
+        $store = $this->createMemberStore($owner, 'Alpha Store', Store::ROLE_OWNER);
+
+        $this->actingAs($owner)
+            ->withSession(['current_store_id' => $store->id])
+            ->post(route('team-members.store'), [
+                'name' => 'Existing Staff',
+                'email' => $existing->email,
+                'access_preset' => StoreMemberAccess::PRESET_VIEW,
+                'store_ids' => [$store->id],
+            ])
+            ->assertRedirect(route('team-members.index'));
+
+        $inviteToken = null;
+        Notification::assertSentTo($existing, TeamMemberInvitedNotification::class, function (TeamMemberInvitedNotification $notification) use (&$inviteToken): bool {
+            $inviteToken = $notification->inviteToken;
+
+            return true;
+        });
+
+        $this->actingAs($other)
+            ->get(route('team-invites.show', ['token' => $inviteToken]))
+            ->assertOk()
+            ->assertSeeText('Wrong account');
+
+        $this->actingAs($other)
+            ->post(route('team-invites.store', ['token' => $inviteToken]))
+            ->assertRedirect(route('team-invites.show', ['token' => $inviteToken]));
+
+        $this->assertAuthenticatedAs($other);
+        $this->assertDatabaseHas('store_user', [
+            'store_id' => $store->id,
+            'user_id' => $existing->id,
+            'status' => StoreMemberAccess::STATUS_INVITED,
+        ]);
+    }
+
+    public function test_resending_an_invitation_revokes_the_previous_token(): void
     {
         Notification::fake();
         $owner = $this->createMerchantUser('owner@example.com');
@@ -183,14 +249,44 @@ class TeamMemberFlowTest extends TestCase
             ->assertRedirect(route('team-members.index'));
 
         $member = User::query()->where('email', 'resend-staff@example.com')->firstOrFail();
-        Notification::assertSentToTimes($member, TeamMemberInvitedNotification::class, 1);
+        $firstToken = null;
+        Notification::assertSentTo($member, TeamMemberInvitedNotification::class, function (TeamMemberInvitedNotification $notification) use (&$firstToken): bool {
+            $firstToken = $notification->inviteToken;
+
+            return true;
+        });
+
+        Notification::fake();
 
         $this->actingAs($owner)
             ->withSession(['current_store_id' => $store->id])
             ->post(route('team-members.resend-invite', ['user' => $member->id]))
             ->assertRedirect(route('team-members.index'));
 
-        Notification::assertSentToTimes($member, TeamMemberInvitedNotification::class, 2);
+        $secondToken = null;
+        Notification::assertSentTo($member, TeamMemberInvitedNotification::class, function (TeamMemberInvitedNotification $notification) use (&$secondToken): bool {
+            $secondToken = $notification->inviteToken;
+
+            return true;
+        });
+
+        $this->assertNotSame($firstToken, $secondToken);
+        $this->assertNotNull(TeamInvitation::query()
+            ->where('token_hash', hash('sha256', $firstToken))
+            ->whereNotNull('revoked_at')
+            ->first());
+
+        Auth::logout();
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->get(route('team-invites.show', ['token' => $firstToken]))
+            ->assertOk()
+            ->assertSeeText('This invitation link expired');
+
+        $this->get(route('team-invites.show', ['token' => $secondToken]))
+            ->assertOk()
+            ->assertSeeText('Set password and join');
     }
 
     public function test_custom_permissions_expand_dependencies_on_the_server(): void
@@ -448,12 +544,44 @@ class TeamMemberFlowTest extends TestCase
             ->assertSee('Permission presets')
             ->assertSee('Team activity')
             ->assertSee('data-module="team"', false)
+            ->assertSee('value="team.view"', false)
+            ->assertSee('data-level="view"', false)
             ->assertDontSee('Create new stores')
             ->assertSee('id="teamInviteDrawer"', false)
             ->assertSee('id="teamPresetsDrawer"', false)
             ->assertSee('id="teamActivityDrawer"', false)
             ->assertDontSee('Invite managers and staff')
             ->assertDontSee('Change Role');
+    }
+
+    public function test_non_owner_cannot_see_permission_inspector(): void
+    {
+        $owner = $this->createMerchantUser('owner@example.com');
+        $member = $this->createMerchantUser('member-viewer@example.com');
+        $store = $this->createMemberStore($owner, 'Alpha Store', Store::ROLE_OWNER);
+        $this->attachMember($store, $member, Store::ROLE_MEMBER);
+        app(StoreMemberPermissionSync::class)->sync(
+            $store,
+            $member,
+            [...StoreMemberAccess::presets()[StoreMemberAccess::PRESET_VIEW], 'team.manage'],
+            StoreMemberAccess::PRESET_CUSTOM,
+            null,
+            null,
+            StoreMemberAccess::STATUS_ACTIVE,
+        );
+
+        $this->actingAs($member)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('team-members.index'))
+            ->assertOk()
+            ->assertSeeText('People & access')
+            ->assertSeeText('Only the store owner can review or change detailed permissions')
+            ->assertDontSeeText('Store permissions')
+            ->assertDontSeeText('Sensitive permissions')
+            ->assertDontSeeText('Permission presets')
+            ->assertDontSeeText('Advanced capabilities')
+            ->assertDontSee('data-team-inspector', false)
+            ->assertDontSee('"permissions":["products.view"', false);
     }
 
     public function test_owner_cannot_invite_themselves(): void
@@ -528,7 +656,7 @@ class TeamMemberFlowTest extends TestCase
         Notification::assertSentToTimes($member, TeamMemberInvitedNotification::class, 2);
     }
 
-    public function test_unsigned_accept_is_rejected(): void
+    public function test_invalid_invite_token_cannot_accept(): void
     {
         $owner = $this->createMerchantUser('owner@example.com');
         $member = $this->createMerchantUser('invitee@example.com');
@@ -538,7 +666,10 @@ class TeamMemberFlowTest extends TestCase
             'status' => StoreMemberAccess::STATUS_INVITED,
         ]);
 
-        $this->post(route('team-invites.store', $member))->assertForbidden();
+        $this->actingAs($member)
+            ->post(route('team-invites.store', ['token' => 'forgedtokenvaluehere123456789012']))
+            ->assertRedirect(route('signin'));
+
         $this->assertDatabaseHas('store_user', [
             'store_id' => $store->id,
             'user_id' => $member->id,
@@ -546,7 +677,7 @@ class TeamMemberFlowTest extends TestCase
         ]);
     }
 
-    public function test_team_lead_cannot_grant_permissions_they_do_not_have(): void
+    public function test_team_lead_cannot_invite_members_even_with_team_manage(): void
     {
         $owner = $this->createMerchantUser('owner@example.com');
         $lead = $this->createMerchantUser('lead@example.com');
@@ -570,24 +701,66 @@ class TeamMemberFlowTest extends TestCase
                 'access_preset' => StoreMemberAccess::PRESET_FULL_OPERATIONAL,
                 'store_ids' => [$store->id],
             ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('users', ['email' => 'escalate@example.com']);
+
+        $this->actingAs($lead)
+            ->withSession(['current_store_id' => $store->id])
+            ->get(route('team-members.index'))
+            ->assertOk()
+            ->assertDontSeeText('Add member');
+    }
+
+    public function test_team_lead_cannot_escalate_permissions_when_updating_a_subset_peer(): void
+    {
+        $owner = $this->createMerchantUser('owner@example.com');
+        $lead = $this->createMerchantUser('lead@example.com');
+        $viewer = $this->createMerchantUser('viewer@example.com');
+        $store = $this->createMemberStore($owner, 'Alpha Store', Store::ROLE_OWNER);
+        $this->attachMember($store, $lead, Store::ROLE_MEMBER);
+        $this->attachMember($store, $viewer, Store::ROLE_MEMBER);
+        app(StoreMemberPermissionSync::class)->sync(
+            $store,
+            $lead,
+            [...StoreMemberAccess::presets()[StoreMemberAccess::PRESET_VIEW], 'products.edit', 'team.manage'],
+            StoreMemberAccess::PRESET_CUSTOM,
+            null,
+            null,
+            StoreMemberAccess::STATUS_ACTIVE,
+        );
+        app(StoreMemberPermissionSync::class)->sync(
+            $store,
+            $viewer,
+            StoreMemberAccess::presets()[StoreMemberAccess::PRESET_VIEW],
+            StoreMemberAccess::PRESET_VIEW,
+            null,
+            null,
+            StoreMemberAccess::STATUS_ACTIVE,
+        );
+
+        $this->actingAs($lead)
+            ->withSession(['current_store_id' => $store->id])
+            ->patch(route('team-members.update', ['user' => $viewer->id]), [
+                'access_preset' => StoreMemberAccess::PRESET_FULL_OPERATIONAL,
+                'permissions' => [],
+            ])
             ->assertRedirect(route('team-members.index'));
 
-        $invitee = User::query()->where('email', 'escalate@example.com')->firstOrFail();
         $stored = StoreMemberPermission::query()
             ->where('store_id', $store->id)
-            ->where('user_id', $invitee->id)
+            ->where('user_id', $viewer->id)
             ->pluck('permission')
             ->all();
 
         $this->assertContains('products.view', $stored);
+        $this->assertContains('products.edit', $stored);
         $this->assertContains('orders.view', $stored);
         $this->assertContains('customers.view', $stored);
-        $this->assertNotContains('products.edit', $stored);
         $this->assertNotContains('customers.refunds', $stored);
         $this->assertNotContains('team.manage', $stored);
         $this->assertNotContains('settings.payments', $stored);
-        $this->assertNotContains('settings.delivery', $stored);
-        $this->assertFalse($invitee->hasStorePermission($store, StorePermission::TEAM_MANAGE));
+        $this->assertFalse($viewer->fresh()->hasStorePermission($store, StorePermission::TEAM_MANAGE));
     }
 
     public function test_member_cannot_change_their_own_access_or_remove_themselves(): void
@@ -765,17 +938,5 @@ class TeamMemberFlowTest extends TestCase
         $store->members()->syncWithoutDetaching([
             $user->id => ['role' => $role],
         ]);
-    }
-
-    private function signedInviteAcceptUrl(User $member, Store ...$stores): string
-    {
-        return URL::temporarySignedRoute(
-            'team-invites.store',
-            now()->addDays(7),
-            [
-                'user' => $member->id,
-                'stores' => StoreMemberInvitationService::encodeStoreIds($stores),
-            ]
-        );
     }
 }

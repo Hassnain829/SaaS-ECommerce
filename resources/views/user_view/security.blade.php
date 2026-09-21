@@ -21,6 +21,8 @@
     'profile_updated' => 'Profile updated',
     'account_registered' => 'Account registered',
     'account_deactivated' => 'Account deactivated',
+    'teammate_account_deactivated' => 'Teammate deactivated their account',
+    'store_ownership_transferred' => 'Store ownership transferred',
     'store_switch' => 'Store switched',
     'team_member_invited' => 'Team member added',
     'team_member_removed' => 'Team member removed',
@@ -144,12 +146,19 @@
                   <time class="text-xs text-[#64748B]">{{ $log->created_at?->format('M j, Y g:i A') }}</time>
                 </div>
                 <p class="mt-1 text-sm text-[#64748B]">
-                  {{ $log->user?->name ?? 'System' }}
-                  @if ($log->targetUser)
-                    changed {{ $log->targetUser->name }}
-                  @endif
-                  @if ($log->store)
-                    in {{ $log->store->name }}
+                  @if ($log->event_type === 'teammate_account_deactivated')
+                    {{ $log->user?->name ?? 'A teammate' }} closed their login
+                    @if ($log->store)
+                      for {{ $log->store->name }}
+                    @endif
+                  @else
+                    {{ $log->user?->name ?? 'System' }}
+                    @if ($log->targetUser && (int) $log->targetUser->id !== (int) ($log->user?->id ?? 0))
+                      changed {{ $log->targetUser->name }}
+                    @endif
+                    @if ($log->store)
+                      in {{ $log->store->name }}
+                    @endif
                   @endif
                 </p>
                 @if (is_array($log->metadata) && $log->metadata !== [])
@@ -207,12 +216,34 @@
         <form method="POST" action="{{ route('profile.deactivate') }}" class="p-6 space-y-4">
           @csrf
           @method('PATCH')
-          <p class="text-sm leading-6 text-[#64748B]">Deactivate your user account only after another owner can manage every store you own.</p>
+          @php
+            $ownsAnyStore = (bool) ($ownsAnyStore ?? false);
+            $blockingDeactivationStore = $blockingDeactivationStore ?? null;
+          @endphp
+          @if ($ownsAnyStore)
+            <div class="space-y-2 text-sm leading-6 text-[#64748B]">
+              <p>This closes <strong class="font-semibold text-[#0F172A]">your</strong> login only. It does not delete stores or deactivate other teammates.</p>
+              <p>If you are the only owner of a store, transfer ownership first. Store owners are notified by email when a teammate deactivates their login.</p>
+              @if ($blockingDeactivationStore)
+                <p class="rounded-lg border border-[#FECDD3] bg-[#FFF1F2] px-3 py-2 text-[#9F1239]">
+                  Transfer ownership of <strong>{{ $blockingDeactivationStore->name }}</strong> before you can deactivate.
+                </p>
+              @endif
+            </div>
+          @else
+            <div class="space-y-2 text-sm leading-6 text-[#64748B]">
+              <p>This closes <strong class="font-semibold text-[#0F172A]">your</strong> login only. The store owner and the store itself stay active.</p>
+              <p>Store owners get an email when you deactivate, so they know you can no longer sign in. They can still remove your membership from Team members.</p>
+            </div>
+          @endif
           <label class="block space-y-2">
             <span class="text-xs uppercase tracking-[0.7px] font-bold text-[#64748B]">Type deactivate to confirm</span>
             <input name="confirm_deactivation" class="w-full h-10 rounded-lg border border-[#FECDD3] px-3 text-sm" autocomplete="off">
           </label>
-          <button type="submit" class="w-full h-10 rounded-lg border border-[#FECDD3] text-[#BA1A1A] font-semibold bg-white hover:bg-[#FFF1F2]">Deactivate account</button>
+          @error('confirm_deactivation')
+            <p class="text-sm text-[#BA1A1A]">{{ $message }}</p>
+          @enderror
+          <button type="submit" class="w-full h-10 rounded-lg border border-[#FECDD3] text-[#BA1A1A] font-semibold bg-white hover:bg-[#FFF1F2]" @disabled($blockingDeactivationStore)>Deactivate account</button>
         </form>
       </section>
     </aside>

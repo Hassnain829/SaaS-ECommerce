@@ -4,8 +4,11 @@ namespace App\Services\Notifications;
 
 use App\Models\NotificationPreference;
 use App\Models\Store;
+use App\Models\StoreUser;
 use App\Models\User;
 use App\Support\NotificationEvent;
+use App\Support\StoreMemberAccess;
+use App\Support\StorePermissionResolver;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 
@@ -104,20 +107,42 @@ class NotificationPreferenceService
     }
 
     /**
-     * Default merchant recipients: owners and managers.
+     * Active merchant recipients for a store event.
+     * Requires a usable membership and the permission mapped to the event.
      *
      * @return Collection<int, User>
      */
-    public function defaultMerchantRecipients(Store $store): Collection
+    public function defaultMerchantRecipients(Store $store, ?string $eventType = null): Collection
     {
         $store->loadMissing('members');
 
         return $store->members
-            ->filter(function (User $member) use ($store): bool {
-                $role = $store->roleForUser($member);
+            ->filter(function (User $member) use ($store, $eventType): bool {
+                if ($member->is_active === false) {
+                    return false;
+                }
 
-                return in_array($role, [Store::ROLE_OWNER, Store::ROLE_MANAGER], true)
-                    && $member->is_active !== false;
+                $role = $member->pivot?->role ?? $store->roleForUser($member);
+                $status = $member->pivot?->status;
+
+                if (! StoreMemberAccess::isUsableMembershipStatus($status, $role)) {
+                    return false;
+                }
+
+                if ($status === StoreUser::STATUS_INVITED) {
+                    return false;
+                }
+
+                if ($eventType === null) {
+                    return in_array($role, [Store::ROLE_OWNER, Store::ROLE_MANAGER], true);
+                }
+
+                $required = NotificationEvent::requiredPermission($eventType);
+                if ($required === null) {
+                    return $role === Store::ROLE_OWNER;
+                }
+
+                return StorePermissionResolver::userCan($member, $store, $required);
             })
             ->values();
     }

@@ -7,6 +7,7 @@ use App\Models\Store;
 use App\Services\SecurityLogRecorder;
 use App\Services\Store\StorePurgeEligibilityService;
 use App\Services\Store\StorePurgeService;
+use App\Support\OnboardingStoreSession;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -87,16 +88,7 @@ class ClosedStoreManagementController extends Controller
                 ->with('error_meta', $e->getMessage());
         }
 
-        if ((int) $request->session()->get('onboarding_store_id') === (int) $storeId) {
-            $request->session()->forget([
-                'onboarding_store_draft',
-                'onboarding_store_id',
-                'onboarding_last_store_id',
-                'onboarding_product_draft',
-                'onboarding_product_id',
-                'onboarding_last_product_id',
-            ]);
-        }
+        OnboardingStoreSession::forgetIfStore($request->session(), (int) $storeId);
 
         if ((int) $request->session()->get('current_store_id') === (int) $storeId) {
             $request->session()->forget('current_store_id');
