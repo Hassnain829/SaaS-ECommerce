@@ -51,11 +51,13 @@ use App\Support\ProductCustomFieldHelper;
 use App\Support\ProductEditPayload;
 use App\Support\ProductInventoryState;
 use App\Support\ProductTypeBehavior;
+use App\Support\StoreMemberAccess;
 use App\Support\StorePermission;
 use App\Support\Tax\TaxDisplayPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -1477,7 +1479,7 @@ class DashboardController extends Controller
         foreach ($ownerNotifications as $payload) {
             /** @var Store $store */
             $store = $payload['store'];
-            /** @var \Illuminate\Support\Collection<int, User> $owners */
+            /** @var Collection<int, User> $owners */
             $owners = $payload['owners'];
 
             app(SecurityLogRecorder::class)->record(
@@ -1899,7 +1901,7 @@ class DashboardController extends Controller
     /**
      * Owners of stores where this user is an active teammate (excluding the user).
      *
-     * @return list<array{store: Store, owners: \Illuminate\Support\Collection<int, User>}>
+     * @return list<array{store: Store, owners: Collection<int, User>}>
      */
     private function ownerNotificationsForDeactivation(User $user): array
     {
@@ -1907,7 +1909,7 @@ class DashboardController extends Controller
             ->where(function ($query): void {
                 $query->whereNull('store_user.status')
                     ->orWhere('store_user.status', '')
-                    ->orWhere('store_user.status', \App\Support\StoreMemberAccess::STATUS_ACTIVE);
+                    ->orWhere('store_user.status', StoreMemberAccess::STATUS_ACTIVE);
             })
             ->get();
 
@@ -1919,10 +1921,10 @@ class DashboardController extends Controller
                 ->where('users.id', '!=', $user->id)
                 ->where('users.is_active', true)
                 ->get()
-                ->filter(function (User $owner) use ($store): bool {
+                ->filter(function (User $owner): bool {
                     $status = $owner->pivot?->status;
 
-                    return \App\Support\StoreMemberAccess::isUsableMembershipStatus($status, Store::ROLE_OWNER);
+                    return StoreMemberAccess::isUsableMembershipStatus($status, Store::ROLE_OWNER);
                 })
                 ->values();
 

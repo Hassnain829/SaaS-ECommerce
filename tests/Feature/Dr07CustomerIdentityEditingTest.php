@@ -7,7 +7,9 @@ use App\Models\Order;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\Settings\StoreMemberPermissionSync;
 use App\Support\OrderLifecycle;
+use App\Support\StoreMemberAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -98,14 +100,14 @@ class Dr07CustomerIdentityEditingTest extends TestCase
         [$owner, $store] = $this->ownerStore('No Export Store');
         $member = $this->merchant('viewer-no-export@example.test');
         $store->members()->attach($member->id, ['role' => Store::ROLE_MEMBER]);
-        app(\App\Services\Settings\StoreMemberPermissionSync::class)->sync(
+        app(StoreMemberPermissionSync::class)->sync(
             $store,
             $member,
             ['customers.view'],
-            \App\Support\StoreMemberAccess::PRESET_CUSTOM,
+            StoreMemberAccess::PRESET_CUSTOM,
             null,
             null,
-            \App\Support\StoreMemberAccess::STATUS_ACTIVE,
+            StoreMemberAccess::STATUS_ACTIVE,
         );
 
         $this->actingAs($member)
@@ -161,14 +163,14 @@ class Dr07CustomerIdentityEditingTest extends TestCase
         $member = $this->merchant('editor-no-delete@example.test');
         $customer = $this->customer($store, ['email' => 'keep.me@example.test']);
         $store->members()->attach($member->id, ['role' => Store::ROLE_MEMBER]);
-        app(\App\Services\Settings\StoreMemberPermissionSync::class)->sync(
+        app(StoreMemberPermissionSync::class)->sync(
             $store,
             $member,
             ['customers.view', 'customers.edit'],
-            \App\Support\StoreMemberAccess::PRESET_CUSTOM,
+            StoreMemberAccess::PRESET_CUSTOM,
             null,
             null,
-            \App\Support\StoreMemberAccess::STATUS_ACTIVE,
+            StoreMemberAccess::STATUS_ACTIVE,
         );
 
         $this->actingAs($member)
